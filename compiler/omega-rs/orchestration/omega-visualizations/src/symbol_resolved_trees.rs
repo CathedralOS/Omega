@@ -880,6 +880,14 @@ fn proof_fact_label(
 
 fn statement_label(program: &SymbolResolvedTrees, statement: &Statement) -> String {
     match statement {
+        Statement::AssemblyFact(fact) => format!(
+            "asm {} {}",
+            match fact.kind {
+                omega_symbol_resolved_trees::statement::AssemblyFactKind::Requires => "requires",
+                omega_symbol_resolved_trees::statement::AssemblyFactKind::Ensures => "ensures",
+            },
+            program.tables.bodies.expressions.display_name(fact.expression),
+        ),
         Statement::Assignment(assignment) => format!(
             "{} = {}",
             program

@@ -1119,6 +1119,7 @@ pub(crate) fn validate_value_position_calls(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match statement {
+        StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             scan_expression_calls(
                 program,
@@ -1256,6 +1257,7 @@ pub(crate) fn validate_self_recursive_call_positions(
         .next()
         .unwrap_or(machine.name.as_str());
     match statement {
+        StatementNode::AssemblyFact(_) => {}
         // The statement-position fence in `validate_call_node` owns
         // StatementNode::Call; transition ARM TARGETS are the legal tail
         // spelling (planned by the state graph). Everything else that can
@@ -1972,6 +1974,7 @@ fn statement_expression_roots(
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
     match statement {
+        StatementNode::AssemblyFact(_) => Vec::new(),
         StatementNode::Call(call) => program
             .statement_table
             .expression_handles(call.arguments)

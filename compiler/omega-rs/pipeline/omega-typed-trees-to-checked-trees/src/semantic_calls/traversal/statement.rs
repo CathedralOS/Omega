@@ -7,6 +7,7 @@ pub(crate) fn find_call_site_in_statement<'program>(
     statement: &'program StatementNode,
 ) -> Option<CallSite<'program>> {
     match statement {
+        StatementNode::AssemblyFact(_) => None,
         StatementNode::Assignment(assignment) => {
             find_call_site_in_expression(traversal, assignment.value)
         }

@@ -21,6 +21,21 @@ pub(crate) fn lower_statement_node(
     statement: &resolved::statement::StatementNode,
 ) -> Result<typed::statement::StatementNode, Diagnostic> {
     match statement {
+        resolved::statement::StatementNode::AssemblyFact(fact) => {
+            Ok(typed::statement::StatementNode::AssemblyFact(
+                typed::statement::TableAssemblyFact {
+                    kind: match fact.kind {
+                        resolved::statement::AssemblyFactKind::Requires => {
+                            typed::statement::AssemblyFactKind::Requires
+                        }
+                        resolved::statement::AssemblyFactKind::Ensures => {
+                            typed::statement::AssemblyFactKind::Ensures
+                        }
+                    },
+                    expression: lower_statement_expression(lowerer, fact.expression)?,
+                },
+            ))
+        }
         resolved::statement::StatementNode::Assignment(assignment) => {
             // The builtin `Versioned<T>` container is constructed only at
             // boundaries (frozen decision 14): `era` is read-only and the

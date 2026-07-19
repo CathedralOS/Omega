@@ -20,6 +20,7 @@ pub(super) fn collect_state_argument_facts_from_statement(
     collected: &mut Vec<StateArgumentFacts>,
 ) {
     match statement {
+        StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             // A rebind stales any proven upper bound for the target (mirror
             // of the main walk's Assignment arm).

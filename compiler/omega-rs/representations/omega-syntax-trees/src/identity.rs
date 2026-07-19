@@ -341,6 +341,9 @@ fn count_statement_node(
     counts: &mut AstIdentityStorageCounts,
 ) {
     match syntax_trees.statements.statement(statement) {
+        crate::statement::StatementNode::AssemblyFact(fact) => {
+            count_expression_handle(syntax_trees, fact.expression, counts);
+        }
         crate::statement::StatementNode::Assignment(assignment) => {
             count_expression_handle(syntax_trees, assignment.target, counts);
             count_expression_handle(syntax_trees, assignment.value, counts);

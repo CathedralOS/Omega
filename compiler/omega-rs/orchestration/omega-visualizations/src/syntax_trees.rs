@@ -662,6 +662,14 @@ fn append_entry_statements(label: &mut String, syntax: &SyntaxTrees, entry_state
 
 fn statement_label(syntax: &SyntaxTrees, statement: &StatementNode) -> String {
     match statement {
+        StatementNode::AssemblyFact(fact) => format!(
+            "asm {} {}",
+            match fact.kind {
+                omega_syntax_trees::statement::AssemblyFactKind::Requires => "requires",
+                omega_syntax_trees::statement::AssemblyFactKind::Ensures => "ensures",
+            },
+            syntax.expressions.display_name(fact.expression),
+        ),
         StatementNode::Assignment(assignment) => format!(
             "{} = {}",
             syntax.expressions.display_name(assignment.target),

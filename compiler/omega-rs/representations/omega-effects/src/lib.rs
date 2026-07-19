@@ -480,6 +480,9 @@ fn collect_statement_calls(
     calls: &mut Vec<CallWork>,
 ) {
     match statement {
+        // Assembly contract facts are compile-time proof obligations, never
+        // runtime evaluations and therefore never effect sources.
+        StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             collect_expression_calls(
                 program,

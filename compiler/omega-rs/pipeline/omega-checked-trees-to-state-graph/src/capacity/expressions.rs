@@ -25,6 +25,9 @@ fn statement_expression_capacity(
     statement: &omega_checked_trees::statement::StatementNode,
 ) -> ExpressionTableCapacity {
     match statement {
+        omega_checked_trees::statement::StatementNode::AssemblyFact(_) => {
+            ExpressionTableCapacity::default()
+        }
         omega_checked_trees::statement::StatementNode::Assignment(assignment) => {
             let mut capacity = copied_expression_capacity(program, assignment.target);
             capacity.saturating_add_assign(copied_expression_capacity(program, assignment.value));

@@ -16,8 +16,9 @@ use crate::item::{
     WireDataVersion,
 };
 use crate::statement::{
-    StatementHandle, StatementNode, StatementTable, TableAssignment, TableCall, TableLocalData,
-    TableTransition, TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode,
+    StatementHandle, StatementNode, StatementTable, TableAssemblyFact, TableAssignment, TableCall,
+    TableLocalData, TableTransition, TransitionGuardNode, TransitionTargetHandle,
+    TransitionTargetNode,
 };
 use crate::types::{
     TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable,
@@ -802,6 +803,12 @@ impl SyntaxTrees {
         statement: &StatementNode,
     ) -> StatementNode {
         match statement {
+            StatementNode::AssemblyFact(fact) => {
+                StatementNode::AssemblyFact(TableAssemblyFact {
+                    kind: fact.kind,
+                    expression: self.copy_expression_handle(other, fact.expression),
+                })
+            }
             StatementNode::Assignment(assignment) => StatementNode::Assignment(TableAssignment {
                 target: self.copy_expression_handle(other, assignment.target),
                 value: self.copy_expression_handle(other, assignment.value),

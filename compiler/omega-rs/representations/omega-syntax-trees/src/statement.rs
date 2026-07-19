@@ -94,11 +94,24 @@ impl Default for StatementTable {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatementNode {
+    AssemblyFact(TableAssemblyFact),
     Assignment(TableAssignment),
     Call(TableCall),
     Expression(crate::expression::ExpressionHandle),
     LocalData(TableLocalData),
     Transition(TableTransition),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TableAssemblyFact {
+    pub kind: AssemblyFactKind,
+    pub expression: crate::expression::ExpressionHandle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssemblyFactKind {
+    Requires,
+    Ensures,
 }
 
 impl Default for StatementNode {

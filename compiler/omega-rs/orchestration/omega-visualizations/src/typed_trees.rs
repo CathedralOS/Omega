@@ -886,6 +886,14 @@ fn proof_fact_label(program: &TypedTrees, fact: &omega_typed_trees::domain::Proo
 
 fn statement_label(program: &TypedTrees, statement: &StatementNode) -> String {
     match statement {
+        StatementNode::AssemblyFact(fact) => format!(
+            "asm {} {}",
+            match fact.kind {
+                omega_typed_trees::statement::AssemblyFactKind::Requires => "requires",
+                omega_typed_trees::statement::AssemblyFactKind::Ensures => "ensures",
+            },
+            program.expression_table.display_name(fact.expression),
+        ),
         StatementNode::Assignment(assignment) => format!(
             "{} = {}",
             program.expression_table.display_name(assignment.target),

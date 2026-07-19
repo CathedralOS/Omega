@@ -27,6 +27,9 @@ pub(crate) fn validate_struct_literal_fields(
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 match statement {
+                    StatementNode::AssemblyFact(fact) => {
+                        scan_expression(program, machine, state, fact.expression, diagnostics);
+                    }
                     StatementNode::Assignment(assignment) => {
                         scan_expression(program, machine, state, assignment.target, diagnostics);
                         scan_expression(program, machine, state, assignment.value, diagnostics);

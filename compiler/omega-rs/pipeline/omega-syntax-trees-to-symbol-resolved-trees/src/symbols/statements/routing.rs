@@ -25,6 +25,17 @@ pub(super) fn assign_statement_symbols(
     symbols: &SymbolTable,
 ) {
     match statement {
+        omega_symbol_resolved_trees::statement::Statement::AssemblyFact(fact) => {
+            assign_statement_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expression_table,
+                child_type_references,
+                fact.expression,
+            );
+        }
         omega_symbol_resolved_trees::statement::Statement::Assignment(assignment) => {
             assign_statement_expression_symbols(
                 symbols,

@@ -50,6 +50,11 @@ pub(super) fn split_state_segments(
         BranchCallTargetResolver::with_capacity(program.machine_states.len());
 
     for (statement_index, table_statement) in table_statements.iter().enumerate() {
+        // Compile-time assembly assertions have already been discharged by
+        // checked-tree validation and emit no state-graph operation.
+        if matches!(table_statement, StatementNode::AssemblyFact(_)) {
+            continue;
+        }
         if let StatementNode::Transition(table) = table_statement {
             transition_section_started = true;
             segment_transitions.append_to_span(

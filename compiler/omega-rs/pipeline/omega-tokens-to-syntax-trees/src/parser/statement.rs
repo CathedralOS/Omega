@@ -15,8 +15,9 @@ use omega_syntax_trees::expression::{
 };
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::statement::{
-    StatementHandle, StatementNode, TableAssignment, TableCall, TableLocalData, TableTransition,
-    TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode,
+    AssemblyFactKind, StatementHandle, StatementNode, TableAssemblyFact, TableAssignment,
+    TableCall, TableLocalData, TableTransition, TransitionGuardNode, TransitionTargetHandle,
+    TransitionTargetNode,
 };
 use omega_tokens::{KeywordKind, PunctuationKind};
 
@@ -223,11 +224,13 @@ fn parse_discard_statement_handle<'tokens, 'source>(
 /// - `asm { in <dest>, <port> }`-> `<dest> = asm#port_in(port)` -- the
 ///   Intel dest-first operand order (emits `device_io`)
 ///
-/// `asm where clobbers ... { ... }` additionally authors an exact block-level
-/// clobber contract. The parser compares it with the union of the shared
-/// instruction catalog's realized clobbers; omitted and invented registers
-/// both reject. `requires`/`ensures` remain fenced until their proof facts have
-/// a lossless typed-stage carrier.
+/// `asm where ... { ... }` additionally authors block proof obligations and/or
+/// an exact clobber contract. `requires` facts become assertions immediately
+/// before the lowered instructions and `ensures` facts become assertions
+/// immediately after them; neither clause grants facts or overrides the shared
+/// instruction catalog. The parser compares a spelled clobber set with the
+/// union of the catalog's realized clobbers; omitted and invented registers
+/// both reject.
 ///
 /// The intrinsic names contain `#`, which is not an identifier character, so
 /// they are unnameable from source -- only this desugar can reference them.
@@ -236,17 +239,44 @@ pub(super) fn parse_asm_block_statement_handles<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<StatementHandle>> {
     let input = input.take_contextual("asm")?;
-    let (declared_clobbers, input) = parse_asm_where_clobber_contract(input)?;
+    let (mut contract, input) = parse_asm_where_contract(syntax_trees, input)?;
+
+    // An ensures-only block still needs an unambiguous entry marker in the
+    // flattened statement stream. `true` is a proof-neutral requires fact: it
+    // brackets the block without granting any authored proposition.
+    if contract.requires.is_empty() && !contract.ensures.is_empty() {
+        contract
+            .requires
+            .push(syntax_trees.expressions.insert(ExpressionNode::Boolean(true)));
+    }
 
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut statement_start = Handle::invalid();
     let mut statement_count = 0u32;
+    let mut instruction_count = 0u32;
     let mut realized_clobbers = std::collections::BTreeSet::new();
+    let mut falls_through = true;
+
+    for expression in &contract.requires {
+        append_asm_fact_statement(
+            syntax_trees,
+            &mut statement_start,
+            &mut statement_count,
+            AssemblyFactKind::Requires,
+            *expression,
+        );
+    }
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let (parsed, rest) = parse_asm_instruction_statement_handle(syntax_trees, input)?;
         let statement = parsed.statement;
         realized_clobbers.extend(parsed.contract.clobbers.iter().copied());
+        falls_through &= !matches!(
+            parsed.contract.shape,
+            AsmInstructionShape::Halt
+                | AsmInstructionShape::JumpState
+                | AsmInstructionShape::DerivedExit
+        );
         let transfers_control = matches!(
             syntax_trees.statements.statement(statement),
             StatementNode::Transition(_)
@@ -258,6 +288,9 @@ pub(super) fn parse_asm_block_statement_handles<'tokens, 'source>(
         statement_count = statement_count
             .checked_add(1)
             .expect("asm statement span count overflow");
+        instruction_count = instruction_count
+            .checked_add(1)
+            .expect("asm instruction count overflow");
         input = rest;
 
         if input.at_punctuation(PunctuationKind::Semicolon) {
@@ -272,12 +305,26 @@ pub(super) fn parse_asm_block_statement_handles<'tokens, 'source>(
         }
     }
 
-    if statement_count == 0 {
+    if instruction_count == 0 {
         return Err(input.error_here("an asm block must contain at least one known instruction"));
     }
 
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    if let Some(declared_clobbers) = declared_clobbers {
+    if !falls_through && !contract.ensures.is_empty() {
+        return Err(input.error_here(
+            "asm `ensures` requires a falling-through block; `hlt` and `jmp` have no local post-state",
+        ));
+    }
+    for expression in &contract.ensures {
+        append_asm_fact_statement(
+            syntax_trees,
+            &mut statement_start,
+            &mut statement_count,
+            AssemblyFactKind::Ensures,
+            *expression,
+        );
+    }
+    if let Some(declared_clobbers) = contract.clobbers {
         validate_asm_clobber_contract(&declared_clobbers, &realized_clobbers, input)?;
     }
     Ok((
@@ -286,22 +333,45 @@ pub(super) fn parse_asm_block_statement_handles<'tokens, 'source>(
     ))
 }
 
-fn parse_asm_where_clobber_contract<'tokens, 'source>(
+#[derive(Default)]
+struct ParsedAsmWhereContract {
+    requires: Vec<ExpressionHandle>,
+    ensures: Vec<ExpressionHandle>,
+    clobbers: Option<std::collections::BTreeSet<String>>,
+}
+
+fn parse_asm_where_contract<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, Option<std::collections::BTreeSet<String>>> {
+) -> ParseResult<'tokens, 'source, ParsedAsmWhereContract> {
     if !input.at_contextual("where") {
-        return Ok((None, input));
+        return Ok((ParsedAsmWhereContract::default(), input));
     }
     let mut input = input.take_contextual("where")?;
     let contract_site = input.clone();
-    let mut clobbers = None;
+    let mut contract = ParsedAsmWhereContract::default();
 
     while !input.at_punctuation(PunctuationKind::LeftBrace) {
         if input.at_contextual("requires") || input.at_contextual("ensures") {
-            return Err(input.error_here(
-                "asm where `requires`/`ensures` fact contracts are not implemented yet; \
-                 only an exact `clobbers <registers>` contract is implemented losslessly",
-            ));
+            let kind = if input.at_contextual("requires") {
+                AssemblyFactKind::Requires
+            } else {
+                AssemblyFactKind::Ensures
+            };
+            input = input.take_contextual(match kind {
+                AssemblyFactKind::Requires => "requires",
+                AssemblyFactKind::Ensures => "ensures",
+            })?;
+            let (expression, rest) = parse_expression_handle(syntax_trees, input)?;
+            match kind {
+                AssemblyFactKind::Requires => contract.requires.push(expression),
+                AssemblyFactKind::Ensures => contract.ensures.push(expression),
+            }
+            input = rest;
+            if input.at_punctuation(PunctuationKind::Semicolon) {
+                input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+            }
+            continue;
         }
         if !input.at_contextual("clobbers") {
             return Err(input.expected_one_of_here(&[
@@ -311,7 +381,7 @@ fn parse_asm_where_clobber_contract<'tokens, 'source>(
                 "`{`",
             ]));
         }
-        if clobbers.is_some() {
+        if contract.clobbers.is_some() {
             return Err(input.error_here("an asm where block may declare `clobbers` only once"));
         }
         input = input.take_contextual("clobbers")?;
@@ -321,6 +391,7 @@ fn parse_asm_where_clobber_contract<'tokens, 'source>(
             input = input.take_contextual("none")?;
         } else {
             while !input.at_punctuation(PunctuationKind::LeftBrace)
+                && !input.at_punctuation(PunctuationKind::Semicolon)
                 && !input.at_contextual("requires")
                 && !input.at_contextual("ensures")
                 && !input.at_contextual("clobbers")
@@ -338,16 +409,43 @@ fn parse_asm_where_clobber_contract<'tokens, 'source>(
                 ));
             }
         }
-        clobbers = Some(declared);
+        contract.clobbers = Some(declared);
+        if input.at_punctuation(PunctuationKind::Semicolon) {
+            input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        }
     }
 
-    let Some(clobbers) = clobbers else {
+    if contract.clobbers.is_none()
+        && contract.requires.is_empty()
+        && contract.ensures.is_empty()
+    {
         return Err(contract_site.error_here(
-            "asm where requires a contract clause; spell an empty clobber contract as \
-             `clobbers none`",
+            "asm where requires at least one `requires`, `ensures`, or `clobbers` clause",
         ));
-    };
-    Ok((Some(clobbers), input))
+    }
+    Ok((contract, input))
+}
+
+fn append_asm_fact_statement(
+    syntax_trees: &mut SyntaxTrees,
+    statement_start: &mut Handle<StatementHandle>,
+    statement_count: &mut u32,
+    kind: AssemblyFactKind,
+    expression: ExpressionHandle,
+) {
+    let statement = syntax_trees
+        .statements
+        .insert(StatementNode::AssemblyFact(TableAssemblyFact {
+            kind,
+            expression,
+        }));
+    let handle = syntax_trees.items.append_statement_handle(statement);
+    if *statement_count == 0 {
+        *statement_start = handle;
+    }
+    *statement_count = statement_count
+        .checked_add(1)
+        .expect("asm statement span count overflow");
 }
 
 fn validate_asm_clobber_contract<'tokens, 'source>(

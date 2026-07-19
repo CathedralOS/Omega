@@ -33,6 +33,7 @@ pub(super) fn build_machine_state_value_plan(
 
         for (statement_index, statement) in statements.iter().enumerate() {
             match statement {
+                StatementNode::AssemblyFact(_) => {}
                 StatementNode::Assignment(assignment) => {
                     push_value(
                         &mut plan,
@@ -135,6 +136,7 @@ fn estimated_machine_value_capacity(program: &CheckedTrees, machine: &Machine) -
 
 fn estimated_statement_value_capacity(program: &CheckedTrees, statement: &StatementNode) -> usize {
     match statement {
+        StatementNode::AssemblyFact(_) => 0,
         StatementNode::Assignment(_) => 2,
         StatementNode::Call(call) => program
             .statement_table

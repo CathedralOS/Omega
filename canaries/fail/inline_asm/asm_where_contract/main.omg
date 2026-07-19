@@ -1,7 +1,5 @@
-// Contract-heavy assembly carries explicit proof conditions through
-// `asm where requires ... ensures ... { ... }`. Exact clobber contracts are
-// parsed already; proof facts remain fenced until they have a lossless typed
-// carrier and cannot be mistaken for trusted instruction guarantees.
+// Assembly facts are boolean proof obligations. They cannot use an integer
+// place as though it were a proposition.
 
 data Main {
     value: i32;
@@ -10,8 +8,8 @@ data Main {
 machine Main::main(&mut self) {
     asm where
         requires self.value
-        ensures self.value
+        clobbers none
     {
-        nop
+        hlt
     }
 }

@@ -119,6 +119,13 @@ impl StatementTable {
 
         for statement in source.statements(statements) {
             let statement = match statement {
+                StatementNode::AssemblyFact(fact) => {
+                    StatementNode::AssemblyFact(TableAssemblyFact {
+                        kind: fact.kind,
+                        expression: target_expressions
+                            .copy_from(source_expressions, fact.expression),
+                    })
+                }
                 StatementNode::Assignment(assignment) => {
                     StatementNode::Assignment(TableAssignment {
                         target: target_expressions.copy_from(source_expressions, assignment.target),
@@ -272,6 +279,9 @@ impl StatementTable {
         for handle in statement_handles {
             let statement = self.statement(handle).clone();
             match statement {
+                StatementNode::AssemblyFact(fact) => {
+                    expressions.remap_symbols_in(fact.expression, symbols);
+                }
                 StatementNode::Assignment(assignment) => {
                     expressions.remap_symbols_in(assignment.target, symbols);
                     expressions.remap_symbols_in(assignment.value, symbols);
@@ -398,11 +408,24 @@ fn remapped(symbol: SymbolHandle, symbols: &[(SymbolHandle, SymbolHandle)]) -> S
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatementNode {
+    AssemblyFact(TableAssemblyFact),
     Assignment(TableAssignment),
     Call(TableCall),
     Expression(crate::expression::ExpressionHandle),
     LocalData(TableLocalData),
     Transition(TableTransition),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TableAssemblyFact {
+    pub kind: AssemblyFactKind,
+    pub expression: crate::expression::ExpressionHandle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssemblyFactKind {
+    Requires,
+    Ensures,
 }
 
 impl Default for StatementNode {

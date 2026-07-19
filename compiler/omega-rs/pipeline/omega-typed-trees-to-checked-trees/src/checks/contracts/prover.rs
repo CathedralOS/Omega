@@ -9,6 +9,25 @@ use self::booleans::{
 };
 use super::evaluator::call_site_proves_boolean_contract_expression;
 
+pub(super) fn semantic_contexts_prove_boolean_expression(
+    program: &omega_typed_trees::TypedTrees,
+    semantic: &omega_facts::FactPlan,
+    entry_contexts: &[omega_facts::FactContextHandle],
+    expression: omega_typed_trees::expression::ExpressionHandle,
+) -> bool {
+    matches!(
+        program.expression_table.expression(expression),
+        omega_typed_trees::expression::ExpressionNode::Boolean(true)
+    ) || entry_contexts.iter().any(|entry_context| {
+        semantic_context_proves_boolean_expression(
+            program,
+            semantic,
+            semantic.contexts.get(*entry_context),
+            expression,
+        )
+    })
+}
+
 pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
     program: &omega_typed_trees::TypedTrees,
     semantic: &omega_facts::FactPlan,

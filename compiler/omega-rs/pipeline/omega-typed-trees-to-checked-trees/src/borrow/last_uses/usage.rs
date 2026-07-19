@@ -15,6 +15,7 @@ pub(super) fn statement_uses_local_name(
     local_name: &str,
 ) -> bool {
     match statement {
+        StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => {
             expression_uses_local_name(program, assignment.target, local_name)
                 || expression_uses_local_name(program, assignment.value, local_name)
@@ -61,6 +62,7 @@ pub(super) fn statement_uses_symbol(
     symbol: SymbolHandle,
 ) -> bool {
     match statement {
+        StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => {
             expression_uses_symbol(program, assignment.target, symbol)
                 || expression_uses_symbol(program, assignment.value, symbol)

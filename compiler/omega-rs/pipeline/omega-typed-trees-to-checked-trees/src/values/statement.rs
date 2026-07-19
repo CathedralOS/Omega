@@ -11,6 +11,7 @@ impl ValueFactBuilder<'_> {
         statement: &StatementNode,
     ) {
         match statement {
+            StatementNode::AssemblyFact(_) => {}
             StatementNode::Assignment(assignment) => {
                 self.collect_statement_expression(
                     machine_symbol,

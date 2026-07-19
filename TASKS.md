@@ -5,7 +5,7 @@
 
 # Tasks
 
-Last pruned: 2026-07-18.
+Last pruned: 2026-07-19.
 
 Omega's first real consumer is Cathedral (`../Cathedral`). General language
 work takes priority, with Cathedral vertical slices used as acceptance tests.
@@ -21,13 +21,14 @@ the first timer tick. The design is recorded in
 `wiki/design_briefs/os_memory_and_hardware_foundation.md`, chapter 19, and
 chapter 23.
 
-1. **ASM1 — contract surface.** Add `asm where requires`/`ensures` facts and
-   the general structured target-operand/register surface to the strict parsed
-   block. Exact `asm where clobbers` declarations now check against the shared
-   catalog; the port-I/O pilot pins exact operand classes and realized register
-   clobbers there. Availability classes and refusal rails for hidden exits and
-   unmodeled memory access are also in place. Expand the accepted catalog only
-   through complete instruction contracts.
+1. **ASM1 — complete the structured operand surface.** `asm where requires` and
+   `ensures` are now flow-sensitive proof obligations at block entry and
+   falling-through exit; they cannot mint facts or override the instruction
+   catalog. Exact `clobbers` declarations check the catalog's realized register
+   union, and the port-I/O pilot pins exact operand classes there. Finish the
+   general structured target-operand/register surface. Availability classes and
+   refusal rails for hidden exits and unmodeled memory access are already in
+   place; expand the accepted catalog only through complete contracts.
 2. **ASM2 — expand the x86 catalog.** Add save/restore flags, `cli`, `sti`,
    `lidt`, fences, and the needed MSR/control operations. Direct assembly and
    abstract boundary services must contribute identical normalized

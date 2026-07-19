@@ -257,6 +257,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
             for statement in program.statement_table.statements(state.statement_nodes) {
                 use omega_typed_trees::statement::StatementNode;
                 match statement {
+                    StatementNode::AssemblyFact(_) => {}
                     StatementNode::Assignment(assignment) => {
                         collect_casts(program, assignment.target, &mut committed);
                         collect_casts(program, assignment.value, &mut committed);

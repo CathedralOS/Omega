@@ -990,6 +990,10 @@ fn rejects_ambiguous_or_empty_multi_instruction_asm_blocks() {
             "asm {}",
             "an asm block must contain at least one known instruction",
         ),
+        (
+            "asm where requires true {}",
+            "an asm block must contain at least one known instruction",
+        ),
     ] {
         let source = format!(
             r#"
@@ -1064,6 +1068,46 @@ fn parses_exact_asm_where_clobber_contracts() {
 }
 
 #[test]
+fn parses_asm_where_facts_at_entry_and_exit() {
+    let source = r#"
+        data Main { port: u16; value: u8; ready: bool; }
+        machine Main::main(&mut self) {
+            asm where
+                requires self.ready
+                clobbers rax, rdx, r10, r11
+                ensures self.ready
+            { out self.port, self.value }
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let parsed = parse_syntax_trees(&tokens).expect("asm facts should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine");
+    let state = parsed.items.state(parsed.items.state_handles(machine.states)[0]);
+    let statements = parsed.items.statements(state.statements);
+    assert_eq!(statements.len(), 3);
+    assert!(matches!(
+        parsed.statements.statement(statements[0]),
+        StatementNode::AssemblyFact(fact)
+            if fact.kind == omega_syntax_trees::statement::AssemblyFactKind::Requires
+    ));
+    assert!(matches!(
+        parsed.statements.statement(statements[1]),
+        StatementNode::Call(call) if call.target.as_str() == "asm#port_out"
+    ));
+    assert!(matches!(
+        parsed.statements.statement(statements[2]),
+        StatementNode::AssemblyFact(fact)
+            if fact.kind == omega_syntax_trees::statement::AssemblyFactKind::Ensures
+    ));
+}
+
+#[test]
 fn rejects_inexact_asm_where_clobber_contracts() {
     for (block, expected) in [
         (
@@ -1071,11 +1115,11 @@ fn rejects_inexact_asm_where_clobber_contracts() {
             "missing `r11`",
         ),
         ("asm where clobbers rax { hlt }", "not clobbered `rax`"),
-        (
-            "asm where requires self.value { hlt }",
-            "`requires`/`ensures` fact contracts are not implemented yet",
-        ),
         ("asm where clobbers { hlt }", "spell `clobbers none`"),
+        (
+            "asm where ensures true { hlt }",
+            "requires a falling-through block",
+        ),
     ] {
         let source = format!(
             r#"
