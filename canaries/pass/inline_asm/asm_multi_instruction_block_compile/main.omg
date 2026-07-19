@@ -1,0 +1,17 @@
+// COMPILE CANARY (uefi_x64): one checked asm block may carry multiple known
+// instructions. Each instruction remains an ordinary intrinsic statement, so
+// effects and operands are validated independently; `;` is the explicit
+// instruction separator because newlines are not grammar.
+data Main {
+    port: u16;
+    status: u8;
+}
+
+machine Main::main(&mut self)
+    effects device_io
+{
+    asm {
+        out self.port, self.status;
+        in self.status, self.port
+    }
+}

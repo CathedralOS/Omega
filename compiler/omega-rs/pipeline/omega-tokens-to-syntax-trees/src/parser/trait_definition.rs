@@ -2,7 +2,7 @@ use crate::parser::data::parse_type_parameters;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::proof_fact::parse_proof_facts_until;
 use crate::parser::state::{parse_optional_return_type, parse_optional_state_parameters};
-use crate::parser::statement::parse_statement_handle;
+use crate::parser::statement::{parse_asm_block_statement_handles, parse_statement_handle};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
@@ -163,9 +163,14 @@ fn parse_trait_default_machine_body<'tokens, 'source>(
 ) -> Result<Input<'tokens, 'source>, crate::parse_error::ParseError> {
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     while !input.at_punctuation(PunctuationKind::RightBrace) {
-        let (statement, rest) = parse_statement_handle(syntax_trees, input)?;
-        let _ = syntax_trees.items.append_statement_handle(statement);
-        input = rest;
+        if input.at_contextual("asm") {
+            let (_, rest) = parse_asm_block_statement_handles(syntax_trees, input)?;
+            input = rest;
+        } else {
+            let (statement, rest) = parse_statement_handle(syntax_trees, input)?;
+            let _ = syntax_trees.items.append_statement_handle(statement);
+            input = rest;
+        }
     }
     input.take_punctuation(PunctuationKind::RightBrace, "}")
 }

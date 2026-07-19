@@ -5,7 +5,8 @@ use crate::parser::state::{
     parse_optional_return_type, parse_optional_state_parameters, parse_state,
 };
 use crate::parser::statement::{
-    parse_statement_handle, try_parse_atomic_compare_exchange_let, try_parse_atomic_fetch_add_let,
+    parse_asm_block_statement_handles, parse_statement_handle,
+    try_parse_atomic_compare_exchange_let, try_parse_atomic_fetch_add_let,
     try_parse_destructure_let,
 };
 use crate::parser::transition::parse_transition_block_handles;
@@ -401,6 +402,15 @@ fn parse_implicit_entry_statements<'tokens, 'source>(
                     .checked_add(new_statements.count())
                     .expect("state statement span count overflow");
             }
+            input = rest;
+        } else if input.at_contextual("asm") {
+            let (new_statements, rest) = parse_asm_block_statement_handles(syntax_trees, input)?;
+            if statement_count == 0 {
+                statement_start = new_statements.start();
+            }
+            statement_count = statement_count
+                .checked_add(new_statements.count())
+                .expect("state statement span count overflow");
             input = rest;
         // ATOMICS STAGE 1 (ch17, M3): `let name: T = place.fetch_add(n, ord);`
         // expands to two statements (capture prior + increment).

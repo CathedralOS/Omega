@@ -39,10 +39,6 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
         ));
     }
 
-    if input.at_contextual("asm") {
-        return parse_asm_statement_handle(syntax_trees, input);
-    }
-
     // TASK RUNTIME TR1: implicit fire-and-forget and the synchronous spawn
     // desugar are retired. `spawn` remains a legal ordinary identifier when
     // it is not followed by the former block syntax.
@@ -209,7 +205,9 @@ fn parse_discard_statement_handle<'tokens, 'source>(
 /// instruction or the block does not compile -- there is no strictest-default
 /// escape hatch, and opaque forms (`db`, raw bytes) are rejected because no
 /// contract is attributable to them (privileged_effects_and_binary_trust
-/// brief, LOCKED point 2). The accepted subset desugars here:
+/// brief, LOCKED point 2). A block may contain multiple instructions; every
+/// one desugars to an ordinary checked Omega statement, so no opaque assembly
+/// node enters the tree. The accepted subset desugars here:
 ///
 /// - `asm { jmp state() }`      -> a plain transition (control flow stays
 ///   Omega control flow)
@@ -222,23 +220,67 @@ fn parse_discard_statement_handle<'tokens, 'source>(
 ///
 /// The intrinsic names contain `#`, which is not an identifier character, so
 /// they are unnameable from source -- only this desugar can reference them.
-fn parse_asm_statement_handle<'tokens, 'source>(
+pub(super) fn parse_asm_block_statement_handles<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, StatementHandle> {
+) -> ParseResult<'tokens, 'source, HandleSpan<StatementHandle>> {
     let input = input.take_contextual("asm")?;
     if input.at_contextual("where") {
         return Err(input.error_here("asm where contracts are not implemented yet"));
     }
 
-    let input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+    let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+    let mut statement_start = Handle::invalid();
+    let mut statement_count = 0u32;
+
+    while !input.at_punctuation(PunctuationKind::RightBrace) {
+        let (statement, rest) = parse_asm_instruction_statement_handle(syntax_trees, input)?;
+        let transfers_control = matches!(
+            syntax_trees.statements.statement(statement),
+            StatementNode::Transition(_)
+        );
+        let handle = syntax_trees.items.append_statement_handle(statement);
+        if statement_count == 0 {
+            statement_start = handle;
+        }
+        statement_count = statement_count
+            .checked_add(1)
+            .expect("asm statement span count overflow");
+        input = rest;
+
+        if input.at_punctuation(PunctuationKind::Semicolon) {
+            input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        } else if !input.at_punctuation(PunctuationKind::RightBrace) {
+            return Err(input.error_here("multiple asm instructions must be separated by `;`"));
+        }
+
+        if transfers_control && !input.at_punctuation(PunctuationKind::RightBrace) {
+            return Err(input
+                .error_here("an asm control transfer must be the final instruction in its block"));
+        }
+    }
+
+    if statement_count == 0 {
+        return Err(input.error_here("an asm block must contain at least one known instruction"));
+    }
+
+    let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    Ok((
+        HandleSpan::from_parts(statement_start, statement_count),
+        input,
+    ))
+}
+
+fn parse_asm_instruction_statement_handle<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, StatementHandle> {
     let mnemonic_site = input.clone();
     let (mnemonic, input) = input.take_identifier()?;
 
     match mnemonic.as_str() {
         "jmp" => {
             let (target, input) = parse_transition_block_target_handle(syntax_trees, input)?;
-            let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
             Ok((
                 syntax_trees
                     .statements
@@ -250,27 +292,23 @@ fn parse_asm_statement_handle<'tokens, 'source>(
                 input,
             ))
         }
-        "hlt" => {
-            let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-            Ok((
-                syntax_trees
-                    .statements
-                    .insert(StatementNode::Call(TableCall {
-                        receiver: HandleSpan::empty(),
-                        receiver_starts_at_self: false,
-                        target: Identifier::new("asm#hlt", mnemonic.source_span()),
-                        machine_arguments: Box::default(),
-                        arguments: HandleSpan::empty(),
-                        discards_result: false,
-                    })),
-                input,
-            ))
-        }
+        "hlt" => Ok((
+            syntax_trees
+                .statements
+                .insert(StatementNode::Call(TableCall {
+                    receiver: HandleSpan::empty(),
+                    receiver_starts_at_self: false,
+                    target: Identifier::new("asm#hlt", mnemonic.source_span()),
+                    machine_arguments: Box::default(),
+                    arguments: HandleSpan::empty(),
+                    discards_result: false,
+                })),
+            input,
+        )),
         "out" => {
             let (port, input) = parse_expression_handle(syntax_trees, input)?;
             let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
             let (value, input) = parse_expression_handle(syntax_trees, input)?;
-            let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
             // A statement `TableCall`'s argument span lives in the STATEMENT
             // arena (`statements`), not the expression arena -- inserting into
             // the wrong one leaves the span reading default (0) downstream.
@@ -295,16 +333,18 @@ fn parse_asm_statement_handle<'tokens, 'source>(
             let (destination, input) = parse_expression_handle(syntax_trees, input)?;
             let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
             let (port, input) = parse_expression_handle(syntax_trees, input)?;
-            let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-            let arguments = syntax_trees.expressions.insert_expression_handles(vec![port]);
-            let value = syntax_trees
+            let arguments = syntax_trees
                 .expressions
-                .insert(ExpressionNode::Call(TableCallExpression {
-                    receiver: ExpressionHandle::invalid(),
-                    target: Identifier::new("asm#port_in", mnemonic.source_span()),
-                    machine_arguments: Box::default(),
-                    arguments,
-                }));
+                .insert_expression_handles(vec![port]);
+            let value =
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Call(TableCallExpression {
+                        receiver: ExpressionHandle::invalid(),
+                        target: Identifier::new("asm#port_in", mnemonic.source_span()),
+                        machine_arguments: Box::default(),
+                        arguments,
+                    }));
             Ok((
                 syntax_trees
                     .statements

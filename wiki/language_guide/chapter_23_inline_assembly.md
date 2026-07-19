@@ -4,8 +4,11 @@ Inline assembly is the checked low-level operation surface for OS and driver
 work. It is not an opaque text or byte escape from Omega's control-flow,
 ownership, effects, authority, or machine-state rules.
 
-The full parsed surface is designed but not implemented. The existing
-`asm { jmp state(...) }` experiment is only the first narrow slice.
+The full catalog and contract surface remain incremental. The implemented pilot
+accepts strict blocks containing known `hlt`, port `in`/`out`, and
+`jmp state(...)` instructions. Multiple instructions use `;` as an explicit
+separator because newlines are not grammar; empty blocks and a control transfer
+followed by another instruction reject.
 
 ## Parsed instructions with contracts
 
@@ -30,7 +33,7 @@ machine Interrupts::save_and_mask(
 ) -> InterruptMask
 {
     asm {
-        pushfq
+        pushfq;
         cli
     }
 }
