@@ -1238,13 +1238,26 @@ pub fn merge_provides_rows(
                 library: module.as_str().into(),
                 symbol: symbol.as_str().into(),
             },
-            ProvidesBindingKind::Syscall { .. } => {
-                return Err(format!(
-                    "provides `{}::{}`: Syscall bindings from provides rows are not \
-                     wired yet (no syscall lowering plan for authored rows)",
-                    row.trait_name, row.method
-                ));
-            }
+            ProvidesBindingKind::Syscall { number } => HostBindingMechanism::Syscall {
+                name: row.method.as_str().into(),
+                number: u32::try_from(*number).map_err(|_| {
+                    format!(
+                        "provider binding `{}::{}` has syscall number {number}, but the \
+                         target syscall plan requires a value in 0..={}",
+                        row.trait_name,
+                        row.method,
+                        u32::MAX,
+                    )
+                })?,
+                // The current Linux x86-64 and AArch64 plans both place the
+                // number in their abstract register 8 and use supervisor-call
+                // immediate zero. Calling<C> will move these evaluated facts
+                // out of the compatibility row when ENT2 lands; the authored
+                // binding already reaches the same backend mechanism as the
+                // built-in Linux table rather than a second syscall encoder.
+                number_register: 8,
+                supervisor_call: 0,
+            },
         };
         plan.bindings.insert(HostBinding {
             operation_key: key,

@@ -79,13 +79,10 @@ slot owner may override by type. The migration order remains load-bearing.
    provider types plus explicit type-per-slot build selection. Validate full
    coverage, signatures, transitive effect refinement, dependency closure,
    normalized identity, and ambiguity at the selected target only.
-3. **PRV4d — remaining leaf mechanisms.** Wire authored/leaf Syscall rows into
-   the same lowering and admission path. Preserve the deliberate interpreter
-   refusal for arbitrary host imports rather than using evaluator `dlsym`.
-4. **PRV4e — foreign format facts.** Move foreign offsets and bit constants
+3. **PRV4e — foreign format facts.** Move foreign offsets and bit constants
    from `Binding::Value` into programmable layout/format declarations and
    migrate filesystem leaves.
-5. **PRV4f — compatibility deletion.** After the last consumers move, delete
+4. **PRV4f — compatibility deletion.** After the last consumers move, delete
    `call_shape`, `HostOperations`, `Value`, populate tables, `provides` syntax,
    and every compatibility consumer. Keep only the directed retirement
    diagnostic if useful.

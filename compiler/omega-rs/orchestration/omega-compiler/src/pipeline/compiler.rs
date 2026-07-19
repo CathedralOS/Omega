@@ -64,6 +64,7 @@ fn validate_boundary_providers(
 /// builder consumes (`<target> provides <Trait> { method -> VtableSlot(1) }`).
 fn extract_provides_rows(
     syntax_trees: &omega_syntax_trees::SyntaxTrees,
+    selected_target: Option<&str>,
 ) -> Vec<omega_calling_conventions::ProvidesRow> {
     use omega_calling_conventions::{ProvidesBindingKind, ProvidesRow};
     use omega_syntax_trees::item::HostProviderMappingKind;
@@ -174,11 +175,16 @@ fn extract_provides_rows(
                 | HostProviderMappingKind::TableFunction { .. } => continue,
             };
             rows.push(ProvidesRow {
-                target_name: machine
-                    .target
-                    .as_ref()
-                    .map(|target| target.as_str().to_owned())
-                    .unwrap_or_else(|| "cross_platform_cli".to_owned()),
+                // Target-machine filtering clears the selected machine's
+                // marker so it can participate as an ordinary implementation.
+                // Preserve deployment identity here from the compile target;
+                // an unselected machine still carries its own marker and stays
+                // inert. An originally unscoped leaf likewise belongs to the
+                // selected build, never implicitly to the compiler host.
+                target_name: machine.target.as_ref().map_or_else(
+                    || selected_target.unwrap_or("cross_platform_cli").to_owned(),
+                    |target| target.as_str().to_owned(),
+                ),
                 trait_name: clause.trait_name.as_str().to_owned(),
                 method: requirement.as_str().to_owned(),
                 vtable_struct: String::new(),
@@ -342,6 +348,7 @@ impl Compiler {
         provider_plans.extend(crate::pipeline::provider_plans::derive_satisfies_plans(
             &syntax_trees,
             &typed,
+            self.options.target_name.as_deref(),
         ));
         let selected_native_target = omega_target::NativeTarget::from_omega_target_name(
             self.options.target_name.as_deref(),
@@ -394,7 +401,8 @@ impl Compiler {
         let (subsystem, freestanding) = (build_config.subsystem, build_config.freestanding);
         // provides-sourced bindings (extern brief §12): parsed rows become
         // the freestanding target's authored platform surface.
-        let provides_rows = extract_provides_rows(&syntax_trees);
+        let provides_rows =
+            extract_provides_rows(&syntax_trees, self.options.target_name.as_deref());
 
         let backend = control_flow_to_backend_plan(
             checked,
