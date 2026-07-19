@@ -52,8 +52,7 @@ machine Main::main(&mut self) {
 
 #[test]
 fn trust_report_empty_without_commitments() {
-    let project =
-        std::env::temp_dir().join(format!("omega-trust-empty-{}", std::process::id()));
+    let project = std::env::temp_dir().join(format!("omega-trust-empty-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&project);
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
@@ -136,7 +135,8 @@ machine Main::main(&mut self) {
         "expected the granted domain row:\n{report}"
     );
     assert!(
-        report.contains("accepted fact: walker_lib::collatz_cert_checked -- root grant (build.omg)"),
+        report
+            .contains("accepted fact: walker_lib::collatz_cert_checked -- root grant (build.omg)"),
         "expected the accepted-fact row:\n{report}"
     );
     let meters_row = report
@@ -201,8 +201,7 @@ machine Main::main(&mut self) {{
     );
 
     // Drift the granted statement (add a fact) -- the build must refuse.
-    std::fs::write(project.join("main.omg"), main_with(" self >= 1; "))
-        .expect("rewrite main.omg");
+    std::fs::write(project.join("main.omg"), main_with(" self >= 1; ")).expect("rewrite main.omg");
     let drifted = compile(options());
     let message = format!("{:?}", drifted.expect_err("drift should refuse"));
     assert!(
@@ -448,6 +447,65 @@ machine Main::main(&mut self) {
         row.contains("coverage 1/2"),
         "one of two requirements satisfied -> coverage 1/2:\n{report}"
     );
+
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn provider_type_conformance_closures_remain_separate() {
+    // PRV4c prerequisite: rows attached to different provider types are
+    // different candidates. Two half-providers must never become one covered
+    // plan merely because they satisfy different requirements of one trait.
+    let project =
+        std::env::temp_dir().join(format!("omega-provider-closure-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project dir");
+    std::fs::write(
+        project.join("main.omg"),
+        r#"boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Pair {
+    machine first(code: i32) -> i32;
+    machine second(code: i32) -> i32;
+}
+
+data FirstProvider { }
+machine FirstProvider::first(code: i32) -> i32
+    satisfies Pair::first via Binding::VtableSlot(1);
+
+data SecondProvider { }
+machine SecondProvider::second(code: i32) -> i32
+    satisfies Pair::second via Binding::VtableSlot(2);
+
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}
+"#,
+    )
+    .expect("write main.omg");
+
+    let build_dir = project.join("build");
+    compile(CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("separate partial provider candidates should compile");
+
+    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
+        .expect("trust report should be written");
+    for provider in ["FirstProvider", "SecondProvider"] {
+        let needle = format!("provider plan: {provider}::satisfies::Pair");
+        let row = report
+            .lines()
+            .find(|line| line.contains(&needle))
+            .unwrap_or_else(|| panic!("missing {provider} candidate:\n{report}"));
+        assert!(
+            row.contains("coverage 1/2"),
+            "{provider} must remain a half-provider:\n{report}"
+        );
+    }
 
     let _ = std::fs::remove_dir_all(&project);
 }

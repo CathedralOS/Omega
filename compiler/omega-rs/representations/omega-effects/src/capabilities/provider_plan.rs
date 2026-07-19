@@ -1,5 +1,5 @@
 //! PRV1 (design-ruled 2026-07-17): the typed **ProviderPlan** policy
-//! carrier -- one value per (service schema, target) pair, unifying the two
+//! carrier -- one value per (provider type, service schema, target), unifying the two
 //! retirees: authored `provides` rows (the closed Binding sum) and the
 //! hardcoded platform-lowering tables (Console/time's `PlatformCallData`
 //! call shaping). CONSTRUCTION IS FREE: any code can build a plan; PRV2
@@ -93,7 +93,7 @@ pub struct ProviderPlanRow {
     pub call_shape: Option<String>,
 }
 
-/// The PRV1 carrier: one provider's plan for one service schema on one
+/// The PRV1 carrier: one provider type's plan for one service schema on one
 /// target. `origin_package` is provenance INPUT to admission (a package
 /// can never self-grant); the admission verdict itself lives in the
 /// chapter-10 receipts, never here.
@@ -102,6 +102,10 @@ pub struct ProviderPlan {
     /// The plan's own name (`omega::host::standard::console`, the future
     /// slot-selection key).
     pub name: String,
+    /// The nominal provider type whose explicit conformance closure produced
+    /// this plan. Empty only for the legacy free-machine / `provides` bridge;
+    /// slot overrides select this identity, never individual rows.
+    pub provider_type: String,
     /// The target this plan serves (`windows_x64`; empty = every target,
     /// the portable-Value shape).
     pub target: String,
@@ -156,7 +160,10 @@ impl ProviderPlan {
     /// method order). Two plans with the same fingerprint are the same
     /// policy; presentation (row order, whitespace) is excluded.
     pub fn identity_fingerprint(&self) -> u64 {
-        let mut rendered = format!("{}\n{}\n{}", self.name, self.target, self.schema.trait_name);
+        let mut rendered = format!(
+            "{}\n{}\n{}\n{}",
+            self.name, self.provider_type, self.target, self.schema.trait_name
+        );
         let mut methods: Vec<&ServiceMethod> = self.schema.methods.iter().collect();
         methods.sort_by(|left, right| left.name.cmp(&right.name));
         for method in methods {
@@ -227,8 +234,7 @@ impl ProviderPlan {
                 ));
                 continue;
             };
-            if matches!(row.binding, ProviderBinding::Value { .. }) && method.parameter_count > 0
-            {
+            if matches!(row.binding, ProviderBinding::Value { .. }) && method.parameter_count > 0 {
                 errors.push(format!(
                     "plan `{}` binds `{}::{}` to a portable Value, but the method \
                      takes {} argument(s) -- Value rows serve zero-argument \
@@ -250,15 +256,12 @@ impl ProviderPlan {
                 .filter(|row| row.method == method.name)
                 .count()
                 == 1
-        }) && self
-            .rows
-            .iter()
-            .all(|row| {
-                self.schema
-                    .methods
-                    .iter()
-                    .any(|method| method.name == row.method)
-            })
+        }) && self.rows.iter().all(|row| {
+            self.schema
+                .methods
+                .iter()
+                .any(|method| method.name == row.method)
+        })
     }
 }
 
@@ -295,6 +298,7 @@ mod tests {
         };
         ProviderPlan {
             name: "omega::host::standard::console".to_owned(),
+            provider_type: "StandardConsole".to_owned(),
             target: "windows_x64".to_owned(),
             schema,
             rows: vec![
@@ -352,15 +356,21 @@ mod tests {
         });
         let errors = plan.validate_against_schema();
         assert!(
-            errors.iter().any(|error| error.contains("does not bind `Console::write_line`")),
+            errors
+                .iter()
+                .any(|error| error.contains("does not bind `Console::write_line`")),
             "missing binding named: {errors:?}"
         );
         assert!(
-            errors.iter().any(|error| error.contains("not a `Console` method")),
+            errors
+                .iter()
+                .any(|error| error.contains("not a `Console` method")),
             "stray row named: {errors:?}"
         );
         assert!(
-            errors.iter().any(|error| error.contains("binds `Console::exit_process` 2 times")),
+            errors
+                .iter()
+                .any(|error| error.contains("binds `Console::exit_process` 2 times")),
             "duplicate named: {errors:?}"
         );
         assert!(
@@ -377,7 +387,10 @@ mod tests {
     fn coverage_detects_missing_and_stray_rows() {
         let mut plan = windows_console_plan();
         plan.rows.pop();
-        assert!(!plan.covers_schema(), "a missing method row must fail coverage");
+        assert!(
+            !plan.covers_schema(),
+            "a missing method row must fail coverage"
+        );
 
         let mut plan = windows_console_plan();
         plan.rows.push(ProviderPlanRow {

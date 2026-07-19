@@ -1,0 +1,17 @@
+// PRV4c: provider-type conformances remain distinct candidates. Two complete
+// candidates for one selected slot require an explicit build override; the
+// compiler must never merge or choose them by source order.
+boundary trait Pick {
+    machine choose() -> i32;
+}
+
+data FirstProvider { }
+machine FirstProvider::choose() -> i32
+    satisfies Pick::choose via Binding::VtableSlot(1);
+
+data SecondProvider { }
+machine SecondProvider::choose() -> i32
+    satisfies Pick::choose via Binding::VtableSlot(2);
+
+data Main { }
+machine Main::main(&mut self) { }

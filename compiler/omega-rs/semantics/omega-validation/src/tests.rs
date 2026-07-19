@@ -2244,6 +2244,7 @@ mod provider_plan {
         };
         let plan = |rows: Vec<ProviderPlanRow>| ProviderPlan {
             name: "p".to_owned(),
+            provider_type: "P".to_owned(),
             target: "t".to_owned(),
             schema: schema.clone(),
             rows,
