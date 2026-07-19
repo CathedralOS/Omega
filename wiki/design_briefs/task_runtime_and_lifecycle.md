@@ -236,6 +236,15 @@ place liveness determines which policies constrain the transition. This
 replaces the provisional `[send]` property and any Rust-style `Send`/`Share`
 marker model.
 
+Suspension is enforced locally against possible `Suspend` reach and cannot be
+narrowed away by runtime selection. The provider-side normalized behavior
+contract instead records preemption granularity, CPU migration/pinning,
+host-thread migration/pinning, and continuation-storage movement. Admission
+joins those three carry demands with behavior. Missing external evidence means
+pessimistic behavior; a receipt may authorize reliance on a narrower opaque
+claim but never changes the actual runtime. The contract rides the existing
+provider-plan/admission spine for static and dynamically admitted runtimes.
+
 ## Acceptance register
 
 1. Direct `Worker::run(job)` is an ordinary call; only

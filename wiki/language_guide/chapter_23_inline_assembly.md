@@ -101,10 +101,13 @@ Their contracts require an authorized extent/view or another specific provider
 grant. MMIO field access normally uses plan-derived operations rather than
 hand-written loads, but the underlying instruction is checked by the same rules.
 
-Cache maintenance, executable publication, TLB invalidation/shootdown, DMA
-completion, and cross-core instruction-fetch visibility are target-specific
+Cache maintenance, admitted-artifact installation, TLB invalidation/shootdown,
+DMA completion, and cross-core instruction-fetch visibility are target-specific
 contracted sequences. Public APIs should expose the semantic operation; checked
-provider implementations own the instruction sequence.
+provider implementations own the instruction sequence. Assembly cannot create
+an executable mapping from ordinary bytes: relevant instructions require the
+same admitted-artifact provenance, scoped installation authority, and reach as
+the page-table/provider path.
 
 ## Required initial catalogs
 

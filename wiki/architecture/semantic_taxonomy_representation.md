@@ -129,6 +129,26 @@ Permission entries retain any provenance anchor needed to interpret `Origin`
 or `Stable`. Aggregates share a field traversal with other properties but each
 axis owns its composition algebra.
 
+Runtime behavior is a distinct normalized provider-plan record, not a fifth
+carry axis and not a source type property:
+
+```text
+RuntimeBehaviorContract {
+    preemption: SafePoints | Asynchronous,
+    cpu: Preserved | MayMigrate,
+    host_thread: Preserved | MayMigrate,
+    continuation_address: Stable | Movable,
+}
+```
+
+Suspension permission has no runtime counterpart: canonical liveness checks it
+locally against possible `Suspend` reach. Admission joins the other three
+carry dimensions with runtime behavior, while preemption granularity selects
+the relevant crossing points. Unknown behavior normalizes pessimistically.
+Checked provider evidence may prove a narrower record; accepted evidence needs
+an ordinary admission receipt. No second provider/admission representation is
+introduced.
+
 ### Machine semantic contract
 
 Introduce a normalized `MachineSemanticContract` (name provisional) containing

@@ -34,13 +34,15 @@ Last pruned: 2026-07-18.
   for lock-free structures before requiring a mediated or accepted boundary.
 - Complete standalone fences, `compare_exchange` failure ordering, and the
   treatment of relaxed visibility in concurrency proofs.
-- Finish the provider-side supply spelling for normalized runtime behavior;
-  value-side `[carry(...)]`, structural derivation, strict opaque defaults, and
-  sealed per-mint carry domains are settled. Safe-point scheduling is a strict
-  reference profile, not a universal language restriction.
-- Define first-publication evidence for executable memory and validation across
-  static, dynamic, and runtime-generated artifacts. Live replacement remains a
-  separate component-versioning operation.
+- Implement normalized runtime behavior in the existing provider-plan and
+  admission spine. Suspension is checked locally against effects; CPU/thread/
+  address demands join provider behavior plus preemption granularity.
+  Unproved behavior is pessimistic unless an admission receipt authorizes
+  reliance on a narrower claim.
+- Define installation evidence for immutable admitted executable artifacts
+  across static images and dynamically loaded artifacts. There is no arbitrary
+  byte-to-code conversion or runtime-generated host code. Live replacement
+  remains a separate component-versioning operation.
 - Finish constraint-bearing placement, fragmented symbolic materialization, and
   the concrete x86 interrupt `CallPlan + StatePlan`/root-ledger records.
 
