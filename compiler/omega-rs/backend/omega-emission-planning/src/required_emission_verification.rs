@@ -177,6 +177,7 @@ mod tests {
         ));
         assert!(instruction_is_dispatch_transition(
             &SelectedInstructionKind::WriteReturnRegisterInteger {
+                register: omega_calling_conventions::MachineRegister::X86Rax,
                 byte_size: 8,
                 value: 0,
             }

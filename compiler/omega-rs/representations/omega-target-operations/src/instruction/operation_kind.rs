@@ -400,6 +400,7 @@ pub enum TargetOperationKind {
         dispatch_index: u32,
     },
     WriteReturnRegisterInteger {
+        register: omega_calling_conventions::MachineRegister,
         byte_size: usize,
         value: i64,
     },
@@ -407,6 +408,7 @@ pub enum TargetOperationKind {
     /// so a NON-CONSTANT terminal value (a local read, a field read-back) becomes
     /// the process exit code, exactly like the constant path above.
     CopyRuntimeStorageToReturnRegister {
+        register: omega_calling_conventions::MachineRegister,
         region: RuntimeStorageRegion,
         byte_offset: usize,
         byte_size: usize,

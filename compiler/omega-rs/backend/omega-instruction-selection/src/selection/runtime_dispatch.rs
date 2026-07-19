@@ -37,7 +37,7 @@ use omega_abstract_operations::{
     SelectedInstructionKind,
 };
 use omega_calling_conventions::{
-    CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
+    CallSignature, CallingPolicy, MachineRegister, ValueLocation, ValueShape, evaluate_call_plan,
 };
 use operation_aliases::bind_runtime_operation_aliases;
 use writes::select_runtime_storage_write_for_operation;
@@ -1174,8 +1174,8 @@ pub(crate) fn select_runtime_unaliased_storage_mutation_write_with_scratch(
 /// FIRST at the entry (before the field-default writes) because the argument
 /// registers are volatile. `&mut self` takes no frame slot (the machine's static
 /// storage), so declared non-self parameters map 1:1 to the argument registers.
-/// Parameters assigned to the incoming stack remain deferred; this slice
-/// replaces the old architecture-local register-index convention only.
+/// Register and incoming-stack placements both flow from the plan; target
+/// encoders alone account for their entry-frame bias.
 fn select_entry_argument_register_writes(
     input: &InstructionSelectionInput<'_>,
     selected_instructions: &mut SelectedInstructionSink,
@@ -1333,6 +1333,32 @@ fn select_normalized_entry_argument_writes(
             });
         }
     }
+}
+
+/// Select the process-entry integer result register through the same
+/// normalized native call-plan evaluator used by inbound arguments. The
+/// operation carries this identity onward; ISA encoders do not choose it.
+pub(super) fn normalized_entry_integer_result_register(
+    input: &InstructionSelectionInput<'_>,
+) -> MachineRegister {
+    let signature = CallSignature {
+        parameters: Vec::new(),
+        result: Some(ValueShape::integer(4, 4)),
+    };
+    let plan = evaluate_call_plan(CallingPolicy::native_for_target(input.target), &signature)
+        .expect("runtime entry result must have a normalized native call plan");
+    let result = plan
+        .result
+        .expect("integer-result call plan must place its result");
+    let [ValueLocation::Register {
+        register,
+        value_byte_offset: 0,
+        byte_size: 4,
+    }] = result.locations.as_slice()
+    else {
+        panic!("integer-result call plan must select one complete register");
+    };
+    *register
 }
 
 fn entry_slot_value_shape(slot: &omega_runtime_storage::RuntimeFrameSlot) -> Option<ValueShape> {
@@ -2112,6 +2138,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
             // edges.rs -- same rule, this is the empty-case flavor).
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::WriteReturnRegisterInteger {
+                    register: normalized_entry_integer_result_register(input),
                     byte_size: 4,
                     value: 0,
                 },

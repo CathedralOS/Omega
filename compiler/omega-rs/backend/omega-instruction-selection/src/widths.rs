@@ -250,18 +250,26 @@ pub fn encode_port_read_bytes(
     x86_64::encode_port_read(source, port, dest_byte_offset)
 }
 
-pub fn return_register_integer_write_width(architecture: Architecture) -> usize {
+pub fn return_register_integer_write_width(
+    architecture: Architecture,
+    register: omega_calling_conventions::MachineRegister,
+    byte_size: usize,
+) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::return_register_integer_write_width(),
-        Architecture::X86_64 => x86_64::return_register_integer_write_width(),
+        Architecture::X86_64 => {
+            x86_64::return_register_integer_write_width(register, byte_size)
+        }
     }
 }
 
 pub fn runtime_storage_copy_to_return_register_width(
     architecture: Architecture,
+    register: omega_calling_conventions::MachineRegister,
     byte_offset: usize,
     byte_size: usize,
 ) -> usize {
+    debug_assert_eq!(register.architecture(), architecture);
     match architecture {
         Architecture::Aarch64 => {
             aarch64::runtime_storage_copy_to_return_register_width(byte_offset, byte_size)

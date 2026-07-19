@@ -437,12 +437,23 @@ pub fn encode_entry_arguments_slice_descriptor_write_bytes(
 }
 
 pub fn encode_runtime_storage_copy_to_return_register_bytes(
+    register: omega_calling_conventions::MachineRegister,
     byte_offset: usize,
     byte_size: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     if !matches!(byte_size, 1 | 2 | 4 | 8) {
         return Err(Diagnostic::error(format!(
             "AArch64 MVP encoder cannot copy {byte_size}-byte terminal values to the return register yet"
+        )));
+    }
+    let omega_calling_conventions::MachineRegister::Aarch64X(register_index) = register else {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot use {register:?} as an integer result register"
+        )));
+    };
+    if register_index > 30 {
+        return Err(Diagnostic::error(format!(
+            "AArch64 integer result register x{register_index} is outside the encodable set"
         )));
     }
     let mut bytes = Vec::with_capacity(
@@ -469,17 +480,17 @@ pub fn encode_runtime_storage_copy_to_return_register_bytes(
     };
     let load_offset = if direct { byte_offset } else { 0 };
     match byte_size {
-        8 => bytes.extend(encode_load_x_from_x(0, base_register, load_offset)?),
+        8 => bytes.extend(encode_load_x_from_x(register_index, base_register, load_offset)?),
         _ => bytes.extend(encode_load_w_from_x(
-            0,
+            register_index,
             base_register,
             load_offset,
             byte_size,
         )?),
     }
     match byte_size {
-        1 => bytes.extend(encode_sign_extend_byte_to_w(0, 0)),
-        2 => bytes.extend(encode_sign_extend_halfword_to_w(0, 0)),
+        1 => bytes.extend(encode_sign_extend_byte_to_w(register_index, register_index)),
+        2 => bytes.extend(encode_sign_extend_halfword_to_w(register_index, register_index)),
         _ => {}
     }
     debug_assert_eq!(
@@ -487,6 +498,23 @@ pub fn encode_runtime_storage_copy_to_return_register_bytes(
         super::widths::runtime_storage_copy_to_return_register_width(byte_offset, byte_size)
     );
     Ok(bytes)
+}
+
+#[cfg(test)]
+mod result_register_tests {
+    use super::*;
+    use omega_calling_conventions::MachineRegister;
+
+    #[test]
+    fn runtime_result_load_uses_the_plan_selected_x_register() {
+        let bytes = encode_runtime_storage_copy_to_return_register_bytes(
+            MachineRegister::Aarch64X(5),
+            0,
+            4,
+        )
+        .expect("w5 result load");
+        assert_eq!(&bytes[8..12], &0xb940_0205u32.to_le_bytes());
+    }
 }
 
 fn two_instructions(first: [u8; 4], second: [u8; 4]) -> [u8; 8] {

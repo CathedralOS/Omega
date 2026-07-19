@@ -203,6 +203,7 @@ pub(super) fn select_runtime_dispatch_edge(
             if !wrote_return_value {
                 selected_instructions.push(SelectedInstruction {
                     kind: SelectedInstructionKind::WriteReturnRegisterInteger {
+                        register: super::normalized_entry_integer_result_register(input),
                         byte_size: 4,
                         value: 0,
                     },
@@ -246,6 +247,7 @@ fn select_runtime_dispatch_return_value(
     if let Some(value) = static_terminal_target_value(input, source_key, edge.order) {
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::WriteReturnRegisterInteger {
+                register: super::normalized_entry_integer_result_register(input),
                 byte_size: 4,
                 value,
             },
@@ -269,6 +271,7 @@ fn select_runtime_dispatch_return_value(
     {
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+                register: super::normalized_entry_integer_result_register(input),
                 region: place.region,
                 byte_offset: place.byte_offset,
                 byte_size: place.byte_count,
@@ -284,6 +287,7 @@ fn select_runtime_dispatch_return_value(
     {
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::WriteReturnRegisterInteger {
+                register: super::normalized_entry_integer_result_register(input),
                 byte_size: 4,
                 value,
             },

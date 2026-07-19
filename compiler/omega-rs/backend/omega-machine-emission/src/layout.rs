@@ -694,15 +694,25 @@ fn machine_instruction_width(
         | SelectedInstructionKind::TerminateDispatch => {
             dispatch_state_write_width(input.target.architecture)
         }
-        SelectedInstructionKind::WriteReturnRegisterInteger { .. } => {
-            return_register_integer_write_width(input.target.architecture)
+        SelectedInstructionKind::WriteReturnRegisterInteger {
+            register,
+            byte_size,
+            ..
+        } => {
+            return_register_integer_write_width(
+                input.target.architecture,
+                *register,
+                *byte_size,
+            )
         }
         SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+            register,
             byte_offset,
             byte_size,
             ..
         } => runtime_storage_copy_to_return_register_width(
             input.target.architecture,
+            *register,
             *byte_offset,
             *byte_size,
         ),
