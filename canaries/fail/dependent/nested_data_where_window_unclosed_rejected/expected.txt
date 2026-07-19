@@ -1,1 +1,1 @@
-open default-domain invariant window for `self.map`
+invariant window opened on `self.map`

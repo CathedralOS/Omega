@@ -1,1 +1,1 @@
-default-domain fact `health >= 1`
+literal violates the default domain
