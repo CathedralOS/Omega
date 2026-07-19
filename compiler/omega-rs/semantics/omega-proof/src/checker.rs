@@ -9,7 +9,7 @@ use omega_core::bignum::BigInt;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_typed_trees::name::Identifier;
-use omega_typed_trees::statement::TransitionGuardNode;
+use omega_typed_trees::statement::{StatementNode, TransitionGuardNode};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct FloatRange {
@@ -53,6 +53,15 @@ fn check_bounded_assignment(
     obligation: &BoundedAssignmentObligation,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // Chapter 11 invariant windows: an intermediate store need not itself
+    // satisfy the place's constraints when a later store repairs the EXACT
+    // place before anything can observe it.  The repairing assignment keeps
+    // its own ordinary obligation; this only suppresses proof debt for a
+    // value that is provably dead before the next consumption point.
+    if assignment_is_overwritten_before_consumption(proof_plan, obligation) {
+        return;
+    }
+
     check_assignment_named_constraints(proof_plan, obligation, diagnostics);
 
     if let Some(target_range) =
@@ -98,6 +107,109 @@ fn check_bounded_assignment(
             ));
         }
     }
+}
+
+/// Whether this assignment's value is overwritten before it can be observed.
+///
+/// Calls and transitions are unconditional consumption points. Reads of the
+/// place and writes that may alias it also close the window. Pure work over
+/// disjoint places may occur between the opening write and its repair.
+fn assignment_is_overwritten_before_consumption(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedAssignmentObligation,
+) -> bool {
+    let program = proof_plan.program;
+    let Some(state) = program
+        .machines()
+        .iter()
+        .flat_map(|machine| program.machine_states(machine).iter())
+        .find(|state| state.symbol == obligation.state_symbol)
+    else {
+        return false;
+    };
+    let Some(window_path) = written_place_path(proof_plan, obligation.target) else {
+        return false;
+    };
+    // Indexed places intentionally stay strict for now: the path helper
+    // collapses an element to its collection, so equal paths would not prove
+    // that two dynamic indexes denote the same location.
+    if matches!(
+        program.expression_table.expression(obligation.target),
+        ExpressionNode::Indexed(_)
+    ) {
+        return false;
+    }
+    let target_name = program.expression_table.display_name(obligation.target);
+    let mut reached_assignment = false;
+
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        if !reached_assignment {
+            if let StatementNode::Assignment(assignment) = statement
+                && assignment.target == obligation.target
+                && assignment.value == obligation.value
+            {
+                reached_assignment = true;
+            }
+            continue;
+        }
+
+        match statement {
+            StatementNode::Assignment(assignment) => {
+                if expression_contains_call(proof_plan, assignment.value) {
+                    return false;
+                }
+                let mut reads = Vec::new();
+                collect_read_place_paths(proof_plan, assignment.value, &mut reads);
+                if reads
+                    .iter()
+                    .any(|read| member_paths_may_alias(read, &window_path))
+                {
+                    return false;
+                }
+
+                let Some(written) = written_place_path(proof_plan, assignment.target) else {
+                    return false;
+                };
+                if program.expression_table.display_name(assignment.target) == target_name {
+                    return true;
+                }
+                if member_paths_may_alias(&written, &window_path) {
+                    return false;
+                }
+            }
+            StatementNode::LocalData(local) => {
+                if local.initial_value.is_valid() {
+                    if expression_contains_call(proof_plan, local.initial_value) {
+                        return false;
+                    }
+                    let mut reads = Vec::new();
+                    collect_read_place_paths(proof_plan, local.initial_value, &mut reads);
+                    if reads
+                        .iter()
+                        .any(|read| member_paths_may_alias(read, &window_path))
+                    {
+                        return false;
+                    }
+                }
+            }
+            StatementNode::Expression(expression) => {
+                if expression_contains_call(proof_plan, *expression) {
+                    return false;
+                }
+                let mut reads = Vec::new();
+                collect_read_place_paths(proof_plan, *expression, &mut reads);
+                if reads
+                    .iter()
+                    .any(|read| member_paths_may_alias(read, &window_path))
+                {
+                    return false;
+                }
+            }
+            StatementNode::Call(_) | StatementNode::Transition(_) => return false,
+        }
+    }
+
+    false
 }
 
 fn check_bounded_initializer(

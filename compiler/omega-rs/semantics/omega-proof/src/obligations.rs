@@ -105,15 +105,15 @@ impl ProofConstraint {
     fn from_node(program: &TypedTrees, constraint: &TypeConstraintNode) -> Option<Self> {
         match constraint {
             TypeConstraintNode::Named(name) => Some(Self::Named(name.clone())),
-            // A declared encoding domain (`[u8] in Utf8`) is a domain-MEMBERSHIP
-            // obligation, NOT a scalar proof constraint -- `ProofConstraint::Named`
-            // is consumed only by the arithmetic/range logic (`exact`/`wrapping`/
-            // `non_negative`/`positive`), which would silently ignore a domain name.
-            // Discharge is the job of the `in Domain` membership machinery (the
-            // same path as `requires/ensures ... in Domain`); until the type-
-            // constraint surface is wired into it, a domain produces no scalar
-            // obligation here (the constraint still parses + validates).
-            TypeConstraintNode::Domain(_) => None,
+            // Compiler-known VALUE domains use honest domain notation at the
+            // surface while retaining their canonical scalar proof identity.
+            // This lets `f64 in Finite` reuse the established finite-literal,
+            // float-range, and invariant-window machinery without pretending
+            // that an authored carrier domain was declared.
+            TypeConstraintNode::Domain(name) => {
+                omega_core::value_domain::ValueDomain::from_name(name.as_str())
+                    .map(|domain| Self::Named(Identifier::generated_static(domain.proof_name())))
+            }
             TypeConstraintNode::Range { minimum, maximum } => {
                 Self::range_from_expression_handles(program, *minimum, *maximum)
             }

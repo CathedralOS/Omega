@@ -123,8 +123,8 @@ before the fix.
   in independent clusters: `CommutativeSemiring::mul_identity` satisfier
   ambiguity across the core Nat/Rat/rearrange corpus; default-domain
   membership, length, equality, capacity, and standing-bound facts; anonymous
-  exact-Rat arithmetic in runtime guards; the compiler-known `Finite` domain;
-  `Finite & Saturating` parsing; and nonliteral exact float-to-int proofs.
+  exact-Rat arithmetic in runtime guards; `Finite & Saturating` parsing; and
+  nonliteral exact float-to-int proofs.
   Fix the implementation or migrate a stale canary only when the settled guide
   proves the canary spelling wrong; do not normalize a red pass corpus.
 - **Constant-offset recast stale read.** A record view such as

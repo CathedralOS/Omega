@@ -487,6 +487,30 @@ fn validate_type_constraints_node(
                 }
             }
             TypeConstraintNode::Named(_) => {}
+            // Compiler-known value domains are authored with the honest
+            // domain spelling (`f64 in Finite`) but do not require a user
+            // `domain` declaration.  Their carrier restrictions remain
+            // checked here, at the same declaration fence as the retired
+            // bracketed proof spelling.
+            TypeConstraintNode::Domain(name)
+                if omega_core::value_domain::ValueDomain::from_name(name.as_str()).is_some() =>
+            {
+                let value_domain = omega_core::value_domain::ValueDomain::from_name(name.as_str())
+                    .expect("match guard recognized the core value domain");
+                match value_domain {
+                    omega_core::value_domain::ValueDomain::Finite
+                        if !primitive_type
+                            .is_some_and(|primitive| primitive.accepts_finite_constraint()) =>
+                    {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "{owner} uses `in {value_domain_name}` on `{carrier}`, but `{value_domain_name}` is only valid on floats",
+                            value_domain_name = value_domain.name(),
+                            carrier = type_reference_label(program, base_type),
+                        )));
+                    }
+                    omega_core::value_domain::ValueDomain::Finite => {}
+                }
+            }
             // The OmegaLayout FAMILY (`[u8; N] in OmegaLayout<Save>`; ch20
             // "grammars are layout policies"): compiler-known, never declared.
             // The refinement records what the bytes hold -- the carrier stays a
