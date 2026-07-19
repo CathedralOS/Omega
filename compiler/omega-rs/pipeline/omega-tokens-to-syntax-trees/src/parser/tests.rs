@@ -214,6 +214,31 @@ fn carry_property_requires_every_axis_and_retires_send() {
 }
 
 #[test]
+fn boundary_data_parses_as_an_opaque_carrier_without_a_shape() {
+    let tokens = Lexer::new("boundary data ProviderToken [linear];")
+        .tokenize()
+        .expect("tokenize");
+    let parsed = parse_syntax_trees(&tokens).expect("opaque boundary data should parse");
+    let data = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Data(data) => Some(data),
+            _ => None,
+        })
+        .expect("data item");
+
+    assert_eq!(
+        data.supply_mode,
+        omega_core::semantics::DataSupplyMode::BoundaryOpaque
+    );
+    assert!(data.members.is_empty());
+    assert_eq!(
+        data.properties.multiplicity,
+        omega_core::semantics::Multiplicity::Linear
+    );
+}
+
+#[test]
 fn parses_plain_and_boundary_traits() {
     let source = r#"
         trait Drawable {
@@ -543,9 +568,8 @@ fn parses_value_and_policy_domain_chain_as_one_constrained_type() {
             _ => None,
         })
         .expect("data field");
-    let TypeReferenceNode::Constrained { constraints, .. } = parsed
-        .type_references
-        .type_reference(field.type_reference)
+    let TypeReferenceNode::Constrained { constraints, .. } =
+        parsed.type_references.type_reference(field.type_reference)
     else {
         panic!("domain chain should produce one constrained type");
     };
@@ -1078,7 +1102,9 @@ fn parses_x86_flags_as_explicit_value_operations() {
             _ => None,
         })
         .expect("machine root item");
-    let state = parsed.items.state(parsed.items.state_handles(machine.states)[0]);
+    let state = parsed
+        .items
+        .state(parsed.items.state_handles(machine.states)[0]);
     let statements = parsed.items.statements(state.statements);
     assert_eq!(statements.len(), 2);
 
@@ -1111,7 +1137,9 @@ fn parses_x86_msr_as_structured_value_operations() {
         }
         "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
     let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
     let machine = parsed
         .root_items()
@@ -1120,7 +1148,9 @@ fn parses_x86_msr_as_structured_value_operations() {
             _ => None,
         })
         .expect("machine root item");
-    let state = parsed.items.state(parsed.items.state_handles(machine.states)[0]);
+    let state = parsed
+        .items
+        .state(parsed.items.state_handles(machine.states)[0]);
     let statements = parsed.items.statements(state.statements);
     assert_eq!(statements.len(), 2);
 
@@ -1158,7 +1188,9 @@ fn parses_x86_control_registers_as_structured_value_operations() {
         }
         "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
     let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
     let machine = parsed
         .root_items()
@@ -1167,7 +1199,9 @@ fn parses_x86_control_registers_as_structured_value_operations() {
             _ => None,
         })
         .expect("machine root item");
-    let state = parsed.items.state(parsed.items.state_handles(machine.states)[0]);
+    let state = parsed
+        .items
+        .state(parsed.items.state_handles(machine.states)[0]);
     let statements = parsed.items.statements(state.statements);
     assert_eq!(statements.len(), 7);
 
@@ -1189,9 +1223,11 @@ fn parses_x86_control_registers_as_structured_value_operations() {
         assert_eq!(call.arguments.count(), 0);
     }
 
-    for (statement_index, target) in
-        [(1, "asm#write_cr0"), (4, "asm#write_cr3"), (6, "asm#write_cr4")]
-    {
+    for (statement_index, target) in [
+        (1, "asm#write_cr0"),
+        (4, "asm#write_cr3"),
+        (6, "asm#write_cr4"),
+    ] {
         let StatementNode::Call(write) = parsed.statements.statement(statements[statement_index])
         else {
             panic!("control-register write should desugar to call");

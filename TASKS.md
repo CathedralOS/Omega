@@ -198,8 +198,11 @@ before the fix.
   aggregates derive per-axis intersections, and data/machine generic bounds
   compare the complete policy (including specialization admission). Concrete
   generic instantiations derive through symbol-keyed argument substitution,
-  including nested wrappers. Continue with opaque/admitted and sealed per-mint
-  facts; canonical live-set checks;
+  including nested wrappers. Opaque `boundary data` carriers now parse without
+  a public shape or layout, cannot be constructed by ordinary code, default to
+  the strict effective carry policy, and reject permissive property claims
+  until admission can provide receipts. Continue with admitted and sealed
+  per-mint facts; canonical live-set checks;
   activation-demand joins against pessimistic admitted runtime behavior; and
   diagnostic and model-export consumers. Checked builds now emit
   `05_carry_manifest.json`, keeping authored minimums separate from effective
@@ -234,10 +237,11 @@ before the fix.
 
 ### Mathematical and float libraries
 
-- **N5 — Real boundary package.** Add the opaque carrier and accepted axiom
-  package; claim-free boundary symbols need no grant, while accepted axioms use
-  the ordinary trust carrier. Excluded middle remains an ungranted core
-  boundary machine.
+- **N5 — Real boundary package.** The general opaque `boundary data` carrier
+  surface is implemented and fails closed. Build the concrete Real package and
+  accepted axiom package; claim-free boundary symbols need no grant, while
+  accepted axioms use the ordinary trust carrier. Excluded middle remains an
+  ungranted core boundary machine.
 - **N6 — quotients.** Implement the settled
   `data Real = CauchySeq % converges_together` type expression, carrier-only
   `as` construction, respect/congruence obligations, and equivalence laws.

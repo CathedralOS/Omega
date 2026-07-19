@@ -1,0 +1,1 @@
+opaque boundary data `Lease` cannot relax its carry policy without an admitted property receipt

@@ -50,6 +50,11 @@ pub(crate) fn validate_data_properties(
     for data_definition in program.data_definitions() {
         let properties = data_definition.properties;
 
+        if data_definition.supply_mode == omega_core::semantics::DataSupplyMode::BoundaryOpaque {
+            validate_opaque_data_properties(data_definition, diagnostics);
+            continue;
+        }
+
         if properties.copy {
             validate_structural_property(program, symbols, data_definition, "copy", diagnostics);
         }
@@ -75,32 +80,36 @@ fn validate_no_linear_erasure(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let type_parameters = program.data_type_parameters(data_definition);
-    for_each_stored_field(program, data_definition, &mut |field, case: Option<&str>| {
-        // A case payload is path-sensitive storage: `Empty | Live(Token)` is
-        // allowed to remain an affine outer sum, with the linear obligation
-        // present only while `Live` is active. Common/record fields have no
-        // inactive case and therefore require unconditional propagation.
-        if case.is_some() {
-            return;
-        }
-        if !type_satisfies_structural_property(
-            program,
-            symbols,
-            type_parameters,
-            field.type_reference,
-            "linear",
-        ) {
-            return;
-        }
-        let place = match case {
-            Some(case) => format!("case `{case}` payload field `{}`", field.name),
-            None => format!("field `{}`", field.name),
-        };
-        diagnostics.push(Diagnostic::error(format!(
+    for_each_stored_field(
+        program,
+        data_definition,
+        &mut |field, case: Option<&str>| {
+            // A case payload is path-sensitive storage: `Empty | Live(Token)` is
+            // allowed to remain an affine outer sum, with the linear obligation
+            // present only while `Live` is active. Common/record fields have no
+            // inactive case and therefore require unconditional propagation.
+            if case.is_some() {
+                return;
+            }
+            if !type_satisfies_structural_property(
+                program,
+                symbols,
+                type_parameters,
+                field.type_reference,
+                "linear",
+            ) {
+                return;
+            }
+            let place = match case {
+                Some(case) => format!("case `{case}` payload field `{}`", field.name),
+                None => format!("field `{}`", field.name),
+            };
+            diagnostics.push(Diagnostic::error(format!(
             "data `{}` is affine but {place} carries a linear obligation; add `[linear]` to the enclosing data declaration so the obligation cannot be dropped",
             data_definition.name
         )));
-    });
+        },
+    );
 }
 
 /// `copy` is compositional: the property holds when every stored
@@ -117,35 +126,39 @@ fn validate_structural_property(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let type_parameters = program.data_type_parameters(data_definition);
-    for_each_stored_field(program, data_definition, &mut |field, case: Option<&str>| {
-        if type_satisfies_structural_property(
-            program,
-            symbols,
-            type_parameters,
-            field.type_reference,
-            property,
-        ) {
-            return;
-        }
-        let place = match case {
-            Some(case) => format!("case `{case}` payload field `{}`", field.name),
-            None => format!("field `{}`", field.name),
-        };
-        if let Some(parameter) =
-            referenced_type_parameter(program, type_parameters, field.type_reference)
-        {
-            diagnostics.push(Diagnostic::error(format!(
+    for_each_stored_field(
+        program,
+        data_definition,
+        &mut |field, case: Option<&str>| {
+            if type_satisfies_structural_property(
+                program,
+                symbols,
+                type_parameters,
+                field.type_reference,
+                property,
+            ) {
+                return;
+            }
+            let place = match case {
+                Some(case) => format!("case `{case}` payload field `{}`", field.name),
+                None => format!("field `{}`", field.name),
+            };
+            if let Some(parameter) =
+                referenced_type_parameter(program, type_parameters, field.type_reference)
+            {
+                diagnostics.push(Diagnostic::error(format!(
                 "data `{}` declares `[{property}]` but {place} type parameter `{name}` does not declare `[{property}]` — add `{name} [{property}]`",
                 data_definition.name,
                 name = parameter.name
             )));
-            return;
-        }
-        diagnostics.push(Diagnostic::error(format!(
+                return;
+            }
+            diagnostics.push(Diagnostic::error(format!(
             "data `{}` declares `[{property}]` but {place} is not `{property}`: only primitives and data types declaring `[{property}]` qualify",
             data_definition.name
         )));
-    });
+        },
+    );
 }
 
 fn validate_carry_policy(
@@ -155,29 +168,34 @@ fn validate_carry_policy(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let type_parameters = program.data_type_parameters(data_definition);
-    for_each_stored_field(program, data_definition, &mut |field, case: Option<&str>| {
-        let actual = CarryDerivation::new(program, type_parameters).derive(field.type_reference);
-        if actual.permits(required) {
-            return;
-        }
-        let place = match case {
-            Some(case) => format!("case `{case}` payload field `{}`", field.name),
-            None => format!("field `{}`", field.name),
-        };
-        if let Some(parameter) =
-            referenced_type_parameter(program, type_parameters, field.type_reference)
-        {
-            diagnostics.push(Diagnostic::error(format!(
+    for_each_stored_field(
+        program,
+        data_definition,
+        &mut |field, case: Option<&str>| {
+            let actual =
+                CarryDerivation::new(program, type_parameters).derive(field.type_reference);
+            if actual.permits(required) {
+                return;
+            }
+            let place = match case {
+                Some(case) => format!("case `{case}` payload field `{}`", field.name),
+                None => format!("field `{}`", field.name),
+            };
+            if let Some(parameter) =
+                referenced_type_parameter(program, type_parameters, field.type_reference)
+            {
+                diagnostics.push(Diagnostic::error(format!(
                 "data `{}` declares carry policy `{required}` but {place} type parameter `{}` has only `{actual}`; add a compatible `[carry(...)]` bound",
                 data_definition.name, parameter.name
             )));
-            return;
-        }
-        diagnostics.push(Diagnostic::error(format!(
-            "data `{}` declares carry policy `{required}` but {place} permits only `{actual}`",
-            data_definition.name
-        )));
-    });
+                return;
+            }
+            diagnostics.push(Diagnostic::error(format!(
+                "data `{}` declares carry policy `{required}` but {place} permits only `{actual}`",
+                data_definition.name
+            )));
+        },
+    );
 }
 
 struct CarryDerivation<'program> {
@@ -240,21 +258,27 @@ impl<'program> CarryDerivation<'program> {
             .clone()
         {
             TypeReferenceNode::Named { symbol, name } => {
-                if let Some((_, _, argument)) = self.substitutions.iter().rev().find(
-                    |(candidate, candidate_name, _)| {
-                        (*candidate == symbol && symbol.is_valid())
-                            || (!symbol.is_valid() && candidate_name == name.as_str())
-                    },
-                ) {
+                if let Some((_, _, argument)) =
+                    self.substitutions
+                        .iter()
+                        .rev()
+                        .find(|(candidate, candidate_name, _)| {
+                            (*candidate == symbol && symbol.is_valid())
+                                || (!symbol.is_valid() && candidate_name == name.as_str())
+                        })
+                {
                     let argument = *argument;
                     return self.derive(argument);
                 }
-                if let Some((_, _, policy)) = self.parameters.iter().rev().find(
-                    |(candidate, candidate_name, _)| {
-                        (*candidate == symbol && symbol.is_valid())
-                            || (!symbol.is_valid() && candidate_name == name.as_str())
-                    },
-                ) {
+                if let Some((_, _, policy)) =
+                    self.parameters
+                        .iter()
+                        .rev()
+                        .find(|(candidate, candidate_name, _)| {
+                            (*candidate == symbol && symbol.is_valid())
+                                || (!symbol.is_valid() && candidate_name == name.as_str())
+                        })
+                {
                     return *policy;
                 }
                 self.derive_named_data(symbol, name.as_str(), None)
@@ -312,18 +336,16 @@ impl<'program> CarryDerivation<'program> {
             ));
         }
         if let Some(arguments) = arguments {
-            self.substitutions.extend(
-                definition_parameters
-                    .iter()
-                    .zip(arguments)
-                    .map(|(parameter, argument)| {
+            self.substitutions
+                .extend(definition_parameters.iter().zip(arguments).map(
+                    |(parameter, argument)| {
                         (
                             parameter.symbol,
                             parameter.name.as_str().to_owned(),
                             *argument,
                         )
-                    }),
-            );
+                    },
+                ));
         }
 
         let mut field_types = Vec::new();
@@ -342,6 +364,38 @@ impl<'program> CarryDerivation<'program> {
     }
 }
 
+/// Opaque declarations expose no representation the compiler could inspect.
+/// Restrictive usage policy is safe (`[linear]`, or an explicitly strict carry
+/// floor), while any claim that grants additional behavior must come from the
+/// ordinary admission/receipt spine. Until that consumer lands, fail closed.
+fn validate_opaque_data_properties(
+    data_definition: &DataDefinition,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let properties = data_definition.properties;
+    if properties.copy {
+        diagnostics.push(Diagnostic::error(format!(
+            "opaque boundary data `{}` cannot claim `[copy]` without an admitted property receipt",
+            data_definition.name
+        )));
+    }
+    if properties.zero_init {
+        diagnostics.push(Diagnostic::error(format!(
+            "opaque boundary data `{}` cannot claim `[zero_init]` without an admitted property receipt",
+            data_definition.name
+        )));
+    }
+    if properties
+        .carry
+        .is_some_and(|policy| policy != omega_core::semantics::CarryPolicy::STRICT)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "opaque boundary data `{}` cannot relax its carry policy without an admitted property receipt",
+            data_definition.name
+        )));
+    }
+}
+
 /// Derive the effective carry policy of a transparent data declaration from
 /// its complete stored shape. This is the checker-owned result; an authored
 /// `carry(...)` clause is only a minimum promise validated against it.
@@ -349,6 +403,9 @@ pub fn effective_data_carry_policy(
     program: &TypedTrees,
     data_definition: &DataDefinition,
 ) -> omega_core::semantics::CarryPolicy {
+    if data_definition.supply_mode == omega_core::semantics::DataSupplyMode::BoundaryOpaque {
+        return omega_core::semantics::CarryPolicy::STRICT;
+    }
     CarryDerivation::new(program, &[]).derive_named_data(
         data_definition.symbol,
         data_definition.name.as_str(),
@@ -370,12 +427,11 @@ pub fn type_satisfies_declared_property(
         DeclaredPropertyRequirement::ZeroInit => {
             type_is_zero_init(program, symbols, type_parameters, type_reference)
         }
-        DeclaredPropertyRequirement::Carry(required) => CarryDerivation::new(
-            program,
-            type_parameters,
-        )
-        .derive(type_reference)
-        .permits(required),
+        DeclaredPropertyRequirement::Carry(required) => {
+            CarryDerivation::new(program, type_parameters)
+                .derive(type_reference)
+                .permits(required)
+        }
         DeclaredPropertyRequirement::Copy => type_satisfies_structural_property(
             program,
             symbols,
@@ -474,9 +530,7 @@ fn type_parameter_named<'program>(
 fn type_parameter_declares_property(parameter: &TypeParameter, property: &str) -> bool {
     match property {
         "copy" => parameter.bounds.copy,
-        "linear" => {
-            parameter.bounds.multiplicity == omega_core::semantics::Multiplicity::Linear
-        }
+        "linear" => parameter.bounds.multiplicity == omega_core::semantics::Multiplicity::Linear,
         "zero_init" => parameter.bounds.zero_init,
         _ => false,
     }
@@ -527,8 +581,7 @@ fn named_type_declares_property(
         .is_some_and(|definition| match property {
             "copy" => definition.properties.copy,
             "linear" => {
-                definition.properties.multiplicity
-                    == omega_core::semantics::Multiplicity::Linear
+                definition.properties.multiplicity == omega_core::semantics::Multiplicity::Linear
             }
             "zero_init" => definition.properties.zero_init,
             _ => false,
@@ -560,30 +613,33 @@ fn validate_zero_init(
         )));
     }
 
-    for_each_stored_field(program, data_definition, &mut |field, case: Option<&str>| {
-        let place = match case {
-            Some(case) => format!("case `{case}` payload field `{}`", field.name),
-            None => format!("field `{}`", field.name),
-        };
+    for_each_stored_field(
+        program,
+        data_definition,
+        &mut |field, case: Option<&str>| {
+            let place = match case {
+                Some(case) => format!("case `{case}` payload field `{}`", field.name),
+                None => format!("field `{}`", field.name),
+            };
 
-
-        if !type_is_zero_init(program, symbols, type_parameters, field.type_reference) {
-            if let Some(parameter) =
-                referenced_type_parameter(program, type_parameters, field.type_reference)
-            {
-                diagnostics.push(Diagnostic::error(format!(
+            if !type_is_zero_init(program, symbols, type_parameters, field.type_reference) {
+                if let Some(parameter) =
+                    referenced_type_parameter(program, type_parameters, field.type_reference)
+                {
+                    diagnostics.push(Diagnostic::error(format!(
                     "data `{}` declares `[zero_init]` but {place} type parameter `{name}` does not declare `[zero_init]` — add `{name} [zero_init]`",
                     data_definition.name,
                     name = parameter.name
                 )));
-                return;
-            }
-            diagnostics.push(Diagnostic::error(format!(
+                    return;
+                }
+                diagnostics.push(Diagnostic::error(format!(
                 "data `{}` declares `[zero_init]` but {place} is not zero-means-empty: nested data fields must declare `[zero_init]` themselves",
                 data_definition.name
             )));
-        }
-    });
+            }
+        },
+    );
 }
 
 /// Primitives are zero-means-empty by definition (zero, 0.0, false, the zero

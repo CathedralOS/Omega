@@ -49,6 +49,7 @@ pub(crate) struct PlanLaidRecord {
 
 struct IndexedData {
     has_type_parameters: bool,
+    supply_mode: omega_core::semantics::DataSupplyMode,
     members: HandleSpan<DataMember>,
     properties: DataProperties,
 }
@@ -77,6 +78,7 @@ pub(crate) fn desugar_plan_laid_value_types(
                     definition.name.as_str().to_string(),
                     IndexedData {
                         has_type_parameters: !definition.type_parameters.is_empty(),
+                        supply_mode: definition.supply_mode,
                         members: definition.members,
                         properties: definition.properties,
                     },
@@ -109,7 +111,10 @@ pub(crate) fn desugar_plan_laid_value_types(
             let TypeReferenceNode::Generic {
                 base_name,
                 arguments,
-            } = syntax.tables.type_references.type_reference(field.type_reference)
+            } = syntax
+                .tables
+                .type_references
+                .type_reference(field.type_reference)
             else {
                 continue;
             };
@@ -161,6 +166,12 @@ pub(crate) fn desugar_plan_laid_value_types(
             if schema_info.has_type_parameters {
                 diagnostics.push(Diagnostic::error(format!(
                     "layout policy `{base}` cannot be applied to generic data `{schema_name}`"
+                )));
+                continue;
+            }
+            if schema_info.supply_mode == omega_core::semantics::DataSupplyMode::BoundaryOpaque {
+                diagnostics.push(Diagnostic::error(format!(
+                    "layout policy `{base}` cannot inspect opaque boundary data `{schema_name}`"
                 )));
                 continue;
             }
@@ -219,9 +230,10 @@ pub(crate) fn desugar_plan_laid_value_types(
         }
         syntax.push_root_item(Item::Data(DataDefinition {
             name: Identifier::generated(record.synthetic_name.as_str()),
+            supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
             type_parameters: HandleSpan::default(),
             properties: schema_info.properties,
-                where_facts: omega_core::arena::HandleSpan::empty(),
+            where_facts: omega_core::arena::HandleSpan::empty(),
             members: HandleSpan::from_parts(first, count),
         }));
     }

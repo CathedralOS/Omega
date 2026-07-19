@@ -62,6 +62,7 @@ pub enum ItemSnapshot {
     },
     Data {
         name: IdentifierSnapshot,
+        supply: &'static str,
         type_parameters: Vec<TypeParameterSnapshot>,
         properties: DataPropertiesSnapshot,
         members: Vec<DataMemberSnapshot>,
@@ -592,6 +593,10 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         },
         Item::Data(value) => ItemSnapshot::Data {
             name: snapshot_identifier(&value.name),
+            supply: match value.supply_mode {
+                omega_core::semantics::DataSupplyMode::CheckedShape => "checked_shape",
+                omega_core::semantics::DataSupplyMode::BoundaryOpaque => "boundary_opaque",
+            },
             type_parameters: syntax_trees
                 .items
                 .type_parameters(value.type_parameters)
@@ -899,7 +904,10 @@ fn snapshot_type_parameter(
         crate::item::TypeParameterKind::Type => ("type", None, None),
         crate::item::TypeParameterKind::Const { type_reference } => (
             "const",
-            Some(snapshot_type_reference_handle(syntax_trees, *type_reference)),
+            Some(snapshot_type_reference_handle(
+                syntax_trees,
+                *type_reference,
+            )),
             None,
         ),
         crate::item::TypeParameterKind::Machine { contract } => (

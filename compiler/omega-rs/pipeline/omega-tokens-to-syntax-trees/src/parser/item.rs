@@ -1,6 +1,6 @@
 use crate::parser::capability::parse_capability_definition;
 use crate::parser::const_item::parse_const_definition;
-use crate::parser::data::parse_data_definition;
+use crate::parser::data::{parse_boundary_data_definition, parse_data_definition};
 use crate::parser::domain::parse_domain_definition;
 use crate::parser::export_item::parse_export_item;
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
@@ -228,6 +228,11 @@ pub(super) fn parse_item<'tokens, 'source>(
 
     if input.at_contextual("boundary") {
         let input = input.take_contextual("boundary")?;
+        if input.at_keyword(KeywordKind::Data) {
+            let input = input.take_keyword(KeywordKind::Data, "data")?;
+            let (item, rest) = parse_boundary_data_definition(syntax_trees, input)?;
+            return Ok((Item::Data(item), rest));
+        }
         // THE EXPORTED CALLABLE (settled 2026-07-04): `boundary machine ...`
         // declares "we export this as a callable surface" -- the entry, a
         // callback, an interrupt handler. Its parameter list is the
@@ -302,6 +307,7 @@ pub(super) fn parse_item<'tokens, 'source>(
         "`provider`",
         "`trait`",
         "`boundary operator`",
+        "`boundary data`",
         "`boundary trait`",
     ]))
 }
@@ -411,8 +417,7 @@ fn parse_wire_data_member<'tokens, 'source>(
     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
     // A wire field may be a borrowed view (`&[u8]`): the zero-copy raw-bytes
     // field that decodes as a window into the buffer rather than owning a copy.
-    let (type_reference, input) =
-        parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
+    let (type_reference, input) = parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
     let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
 
     Ok((

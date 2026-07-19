@@ -89,11 +89,47 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     Ok((
         ParsedDataDefinition::Plain(DataDefinition {
             name,
+            supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
             type_parameters,
             properties,
             where_facts,
             members,
         }),
+        input,
+    ))
+}
+
+/// An opaque carrier supplied by a boundary provider. It has no source-visible
+/// representation and therefore ends in `;`, never a body. Property claims are
+/// retained for the admission pass; validation fails closed where that path is
+/// not implemented yet.
+pub(super) fn parse_boundary_data_definition<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, DataDefinition> {
+    let (name, input) = input.take_identifier()?;
+    if name.as_str() == "Slice" {
+        return Err(input.error_here(
+            "data name `Slice` is reserved: `Slice<T>` is the slice type (alias of `[T]`)",
+        ));
+    }
+    let (type_parameters, input) = parse_type_parameters(syntax_trees, input)?;
+    let (properties, input) = parse_property_brackets(input)?;
+    if input.at_contextual("where") {
+        return Err(input.error_here(
+            "opaque `boundary data` has no visible fields for a default-domain `where` clause",
+        ));
+    }
+    let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+    Ok((
+        DataDefinition {
+            name,
+            supply_mode: omega_core::semantics::DataSupplyMode::BoundaryOpaque,
+            type_parameters,
+            properties,
+            where_facts: HandleSpan::empty(),
+            members: HandleSpan::empty(),
+        },
         input,
     ))
 }

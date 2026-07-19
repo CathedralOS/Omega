@@ -491,6 +491,7 @@ impl Default for BoundaryMode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataDefinition {
     pub name: Identifier,
+    pub supply_mode: omega_core::semantics::DataSupplyMode,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub properties: DataProperties,
     /// R2 rung 1 (ch12 "Dependent Data"): the DEFAULT-DOMAIN facts --

@@ -225,6 +225,7 @@ impl SyntaxTrees {
     ) -> DataDefinition {
         DataDefinition {
             name: data.name.clone(),
+            supply_mode: data.supply_mode,
             type_parameters: self.copy_type_parameter_span(other, data.type_parameters),
             properties: data.properties,
             where_facts: self.copy_domain_fact_span(other, data.where_facts),
