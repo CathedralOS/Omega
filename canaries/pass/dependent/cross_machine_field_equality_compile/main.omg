@@ -1,0 +1,26 @@
+// R1/R4: caller-authored equality between fields of two borrowed values is
+// substituted across a machine boundary and discharges the callee's matching
+// requirement. This is the matrix-shape agreement form (`a.cols == b.rows`).
+data Shape {
+    rows: u32;
+    cols: u32;
+}
+
+machine consume(left: &Shape, right: &Shape)
+requires
+    left.cols == right.rows
+{
+}
+
+machine relay(a: &Shape, b: &Shape)
+requires
+    a.cols == b.rows
+{
+    consume(a, b);
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

@@ -487,6 +487,59 @@ fn symbolic_walk_recast_footprint_discharges() {
 }
 
 #[test]
+fn boundary_ensures_equalities_couple_symbolic_recast_witnesses() {
+    // R1/R4: the boundary supplies bounds through equal out-parameters rather
+    // than directly on the values consumed by the walk. Equality transports
+    // both the upper map-size witness and lower descriptor-size witness.
+    validate_contract_source(
+        r#"
+    boundary trait Firmware {
+        machine get_memory_map(
+            map_size: &mut u32,
+            desc_size: &mut u32,
+            map_limit: &mut u32,
+            desc_floor: &mut u32
+        )
+        ensures map_size == map_limit && map_limit <= 64
+            && desc_size == desc_floor && desc_floor >= 8;
+    }
+    data Desc { a: u32; b: u32; }
+    data Main {
+        fw: Firmware;
+        buf: [u8; 64];
+        map_size: u32;
+        desc_size: u32;
+        map_limit: u32;
+        desc_floor: u32;
+    }
+    machine Main::main(&mut self) {
+        self.fw.get_memory_map(
+            &mut self.map_size,
+            &mut self.desc_size,
+            &mut self.map_limit,
+            &mut self.desc_floor
+        );
+        transition { _ -> walk(self.map_size, self.desc_size, 0) }
+        state walk(
+            &mut self,
+            map_size: u32 in Trapping,
+            desc_size: u32 in Trapping,
+            offset: u32 in Trapping
+        ) {
+            let d: &Desc = &self.buf[offset] as &Desc;
+            transition offset + desc_size + desc_size <= map_size {
+                true -> walk(map_size, desc_size, offset + desc_size)
+                _ -> done()
+            }
+        }
+        state done(&mut self) { }
+    }
+    "#,
+    )
+    .expect("equal out-parameters should transport both symbolic bounds");
+}
+
+#[test]
 fn symbolic_walk_guard_route_discharges() {
     // The owner-corrected HONEST spelling (Cathedral f0b7572): no trait
     // ensures (a vouch would be false under BUFFER_TOO_SMALL) -- a

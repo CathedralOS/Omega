@@ -1,0 +1,23 @@
+// FAIL CANARY. Field equality is transported only when the caller actually
+// owns the proof; matching names and types cannot manufacture matrix-shape
+// agreement at the call boundary.
+data Shape {
+    rows: u32;
+    cols: u32;
+}
+
+machine consume(left: &Shape, right: &Shape)
+requires
+    left.cols == right.rows
+{
+}
+
+machine relay(a: &Shape, b: &Shape) {
+    consume(a, b);
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
