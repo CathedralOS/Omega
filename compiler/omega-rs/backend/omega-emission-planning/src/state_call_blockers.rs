@@ -153,6 +153,7 @@ fn unresolved_call_is_asm_intrinsic(
                 instruction.kind,
                 omega_target_operations::TargetOperationKind::MachineHalt
                     | omega_target_operations::TargetOperationKind::MemoryFence(_)
+                    | omega_target_operations::TargetOperationKind::InterruptControl(_)
                     | omega_target_operations::TargetOperationKind::PortWrite { .. }
                     | omega_target_operations::TargetOperationKind::PortRead { .. }
             ) && state_key_matches_statement_source(instruction.source_key, state_call.source_key)

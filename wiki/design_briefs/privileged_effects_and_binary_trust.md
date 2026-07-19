@@ -86,6 +86,11 @@ The first useful slice is:
 - artifacts showing service reach, authority use, and accepted compiler trust
   separately.
 
+The subsequent x86 catalog now also carries `cli`/`sti` as `MachineControl`
+operations with explicit `MachineOwner` authority, target applicability, and
+RFLAGS.IF transitions (including STI's delayed recognition rule). Their
+higher-level save/restore protocol remains an ordinary linear token.
+
 ## Still open
 
 - concrete executable/component manifest encoding;

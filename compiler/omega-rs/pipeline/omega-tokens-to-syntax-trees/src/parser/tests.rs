@@ -969,6 +969,43 @@ fn parses_x86_memory_fences_as_zero_operand_intrinsics() {
 }
 
 #[test]
+fn parses_x86_interrupt_control_as_zero_operand_intrinsics() {
+    let source = r#"
+        data Main {}
+
+        machine Main::main(&mut self) effects machine_control {
+            asm where clobbers none { cli; sti }
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+    let entry = parsed.items.state_handles(machine.states)[0];
+    let statements = parsed
+        .items
+        .statements(parsed.items.state(entry).statements);
+
+    assert_eq!(statements.len(), 2);
+    for (statement, target) in statements.iter().zip(["asm#cli", "asm#sti"]) {
+        let StatementNode::Call(call) = parsed.statements.statement(*statement) else {
+            panic!("interrupt control should desugar to a call statement");
+        };
+        assert_eq!(call.target.as_str(), target);
+        assert!(call.receiver.is_empty());
+        assert_eq!(call.arguments.count(), 0);
+    }
+}
+
+#[test]
 fn parses_multi_instruction_asm_in_states_and_trait_defaults() {
     let source = r#"
         trait Idle {
@@ -1183,7 +1220,7 @@ fn rejects_inexact_asm_where_clobber_contracts() {
 /// instructions compile (privileged_effects_and_binary_trust, LOCKED point 2).
 #[test]
 fn rejects_unknown_asm_mnemonics() {
-    for block in ["asm { db 0xF4 }", "asm { wrmsr }", "asm { cli }"] {
+    for block in ["asm { db 0xF4 }", "asm { wrmsr }", "asm { lidt }"] {
         let source = format!(
             r#"
             data Main {{

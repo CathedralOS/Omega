@@ -66,6 +66,8 @@ pub(crate) fn validate_call_node(
             "asm#lfence" => ("lfence", 0),
             "asm#sfence" => ("sfence", 0),
             "asm#mfence" => ("mfence", 0),
+            "asm#cli" => ("cli", 0),
+            "asm#sti" => ("sti", 0),
             other => {
                 diagnostics.push(Diagnostic::error(format!(
                     "asm intrinsic `{other}` is not a statement form"

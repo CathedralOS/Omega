@@ -6,9 +6,10 @@ ownership, effects, authority, or machine-state rules.
 
 The full catalog and contract surface remain incremental. The implemented pilot
 accepts strict blocks containing known `hlt`, port `in`/`out`, x86
-`lfence`/`sfence`/`mfence`, and `jmp state(...)` instructions. Multiple
-instructions use `;` as an explicit separator because newlines are not grammar;
-empty blocks and a control transfer followed by another instruction reject.
+`lfence`/`sfence`/`mfence`, x86 `cli`/`sti`, and `jmp state(...)`
+instructions. Multiple instructions use `;` as an explicit separator because
+newlines are not grammar; empty blocks and a control transfer followed by
+another instruction reject.
 Catalogued entry/exit operations such as `iretq` and `eret` already refuse as
 **deriver only** rather than falling through an unknown-mnemonic path. Returns,
 calls, and indirect branches refuse as hidden exits, while recognized
@@ -40,6 +41,16 @@ target gate is enforced at realization, and the backend emits the exact
 `0f ae /5`, `/7`, and `/6`
 encodings; selecting an AArch64 target refuses instead of substituting a
 differently named barrier.
+
+`cli` and `sti` are zero-operand x86 instructions with `MachineControl` reach,
+an explicit `MachineOwner` authority requirement, and no general-purpose
+register clobbers. Their contracts record that `cli` clears RFLAGS.IF before
+the next instruction, while `sti` does not recognize maskable interrupts until
+after the following instruction. The current authority discharge admits them
+only in a freestanding boot root; listing `effects machine_control` in hosted
+code does not mint authority. Higher-level interrupt-control providers must
+still expose save/restore as the ordinary linear token described below rather
+than leaking a bare unmask operation into application code.
 
 The same `where` surface accepts boolean `requires` and `ensures` facts:
 
@@ -171,7 +182,7 @@ the page-table/provider path.
 
 The freestanding x86 vertical slice needs contracts for:
 
-- `cli`, `sti`, `hlt`, flags save/restore;
+- completed `cli`/`sti`, `hlt`, and flags save/restore;
 - `in`/`out` port I/O;
 - `lidt`/`lgdt`, control-register and MSR access;
 - atomics and the completed x86 fence slice;

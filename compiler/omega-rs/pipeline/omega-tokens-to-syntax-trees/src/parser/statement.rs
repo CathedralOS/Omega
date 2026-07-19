@@ -223,6 +223,8 @@ fn parse_discard_statement_handle<'tokens, 'source>(
 ///   (emits `device_io`)
 /// - `asm { in <dest>, <port> }`-> `<dest> = asm#port_in(port)` -- the
 ///   Intel dest-first operand order (emits `device_io`)
+/// - x86 fences and `cli`/`sti` -> zero-operand unnameable intrinsics carrying
+///   their catalog ordering/state/effect contracts
 ///
 /// `asm where ... { ... }` additionally authors block proof obligations and/or
 /// an exact clobber contract. `requires` facts become assertions immediately
@@ -503,7 +505,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
     let Some(entry) = asm_catalog_entry(mnemonic.as_str()) else {
         return Err(mnemonic_site.error_here(format!(
             "unknown asm instruction `{}`: only known-contract instructions compile \
-             (`hlt`, `in`, `out`, `jmp`, `lfence`, `sfence`, `mfence`); opaque forms \
+             (`hlt`, `in`, `out`, `jmp`, `lfence`, `sfence`, `mfence`, `cli`, `sti`); opaque forms \
              (`db`, raw bytes) are rejected",
             mnemonic.as_str()
         )));
@@ -624,6 +626,22 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             ))
         }
         AsmInstructionShape::MemoryFence(kind) => Ok((
+            ParsedAsmInstruction {
+                statement: syntax_trees
+                    .statements
+                    .insert(StatementNode::Call(TableCall {
+                        receiver: HandleSpan::empty(),
+                        receiver_starts_at_self: false,
+                        target: Identifier::new(kind.intrinsic_name(), mnemonic.source_span()),
+                        machine_arguments: Box::default(),
+                        arguments: HandleSpan::empty(),
+                        discards_result: false,
+                    })),
+                contract,
+            },
+            input,
+        )),
+        AsmInstructionShape::InterruptControl(kind) => Ok((
             ParsedAsmInstruction {
                 statement: syntax_trees
                     .statements

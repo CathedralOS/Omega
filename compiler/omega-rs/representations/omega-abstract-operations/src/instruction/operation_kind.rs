@@ -556,6 +556,8 @@ pub enum AbstractOperationKind {
     /// An x86 load/store/full memory-ordering fence. Zero operands and no
     /// relocations; the kind selects the exact opcode at emission.
     MemoryFence(omega_core::inline_assembly::AsmFenceKind),
+    /// x86 CLI/STI interrupt-flag control.
+    InterruptControl(omega_core::inline_assembly::AsmInterruptControlKind),
     /// The x86 `out dx, al` port write (`asm { out <port>, <value> }`),
     /// emitting the `device_io` effect. `port` is a u16 operand, `value` a u8
     /// operand (each an immediate or a storage read; storage operands relocate

@@ -72,11 +72,14 @@ pub fn validate_asm_discharge(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
-                let Some((instruction, effects)) = statement_asm_intrinsic(program, statement)
+                let Some((instruction, _, required_authority)) =
+                    statement_asm_intrinsic(program, statement)
                 else {
                     continue;
                 };
-                if effects.is_empty() {
+                if required_authority
+                    == omega_core::inline_assembly::AsmAuthorityRequirement::None
+                {
                     continue;
                 }
                 diagnostics.push(Diagnostic::error(format!(
@@ -125,7 +128,7 @@ fn validate_asm_intrinsic_declarations(
         // Rule 1: direct emission sites.
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
-                let Some((instruction, effects)) = statement_asm_intrinsic(program, statement)
+                let Some((instruction, effects, _)) = statement_asm_intrinsic(program, statement)
                 else {
                     continue;
                 };
@@ -173,14 +176,18 @@ fn validate_asm_intrinsic_declarations(
 }
 
 /// The asm intrinsic a statement carries, as (instruction label, contract
-/// effects): a statement call on an `asm#...` target (`asm { hlt }`,
-/// `asm { out .. }`) or an assignment whose value is the `asm#port_in` call
-/// (`asm { in dest, port }`). The parser's desugar emits exactly these two
-/// shapes and the names are unnameable from source.
+/// effects, required authority): a statement call on an `asm#...` target
+/// (`asm { hlt }`, `asm { out .. }`) or an assignment whose value is the
+/// `asm#port_in` call (`asm { in dest, port }`). The parser's desugar emits
+/// exactly these two shapes and the names are unnameable from source.
 fn statement_asm_intrinsic(
     program: &TypedTrees,
     statement: &StatementNode,
-) -> Option<(&'static str, omega_effects::EffectSet)> {
+) -> Option<(
+    &'static str,
+    omega_effects::EffectSet,
+    omega_core::inline_assembly::AsmAuthorityRequirement,
+)> {
     let target = match statement {
         StatementNode::Call(call) => call.target.as_str().to_owned(),
         StatementNode::Assignment(assignment) => {
@@ -206,9 +213,16 @@ fn statement_asm_intrinsic(
         omega_core::symbols::BuiltinFunction::AsmLoadFence => "lfence",
         omega_core::symbols::BuiltinFunction::AsmStoreFence => "sfence",
         omega_core::symbols::BuiltinFunction::AsmFullFence => "mfence",
+        omega_core::symbols::BuiltinFunction::AsmDisableInterrupts => "cli",
+        omega_core::symbols::BuiltinFunction::AsmEnableInterrupts => "sti",
         _ => return None,
     };
-    Some((instruction, effects))
+    let omega_core::inline_assembly::AsmCatalogEntry::Contract(contract) =
+        omega_core::inline_assembly::asm_catalog_entry(instruction)?
+    else {
+        return None;
+    };
+    Some((instruction, effects, contract.required_authority))
 }
 
 /// DECISION 12 -- DISCARD ADMITS EFFECTS: `_ = call();` exists to drop a

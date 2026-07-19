@@ -71,6 +71,7 @@ impl OperationSemanticQuery for AbstractOperationKind {
 
             Self::MachineHalt
             | Self::MemoryFence(_)
+            | Self::InterruptControl(_)
             | Self::PortWrite { .. }
             | Self::PortRead { .. } => {
                 AbstractOperationDomain::MachineControl

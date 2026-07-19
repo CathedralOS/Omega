@@ -604,6 +604,9 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
             omega_abstract_operations::AbstractOperationKind::MemoryFence(kind) => {
                 Self::MemoryFence(*kind)
             }
+            omega_abstract_operations::AbstractOperationKind::InterruptControl(kind) => {
+                Self::InterruptControl(*kind)
+            }
             omega_abstract_operations::AbstractOperationKind::PortWrite { port, value } => {
                 Self::PortWrite {
                     port: remap_runtime_value_handle(*port),

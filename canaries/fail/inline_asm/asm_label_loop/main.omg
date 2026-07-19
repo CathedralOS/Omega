@@ -2,8 +2,8 @@
 // back-edge is rejected. Every asm instruction is a known-contract intrinsic or
 // it does not compile (privileged_effects_and_binary_trust brief); `label` is
 // not one, so the block is refused rather than smuggling a free control-flow
-// loop into the Omega state graph. The accepted set is `hlt`, `in`, `out`, and
-// the control-flow form `jmp state(...)`.
+// loop into the Omega state graph. The accepted set is catalog-driven; control
+// flow itself remains limited to `jmp state(...)`.
 
 data Main {
     value: i32;

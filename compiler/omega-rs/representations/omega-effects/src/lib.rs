@@ -52,7 +52,7 @@ pub const STANDARD_EFFECT_NAMES: &[&str] = &[
     // per-signature declarations -- the build-time evaluation gates (const
     // array lengths, layout plan()) reject on it statically.
     "host_boundary",
-    // Ring-0 CPU control (`asm { hlt }`; later cli/sti, MSR/CR writes).
+    // Ring-0 CPU control (`asm { hlt/cli/sti }`; later MSR/CR writes).
     // DISTINCT from device_io because the enforcement substrate differs:
     // device_io is hardware-mediated (TSS I/O bitmap, grantable to ring-3
     // drivers); machine_control is ring-0-only and never grant-mediated
@@ -656,9 +656,9 @@ fn push_expression_call(
 }
 
 /// The service-reach effect component of an asm intrinsic call (`asm { hlt }`
-/// --> `machine_control`, `asm { in/out .. }` --> `device_io`, fences --> the
-/// empty set), or None for ordinary calls. Keyed by the unnameable `asm#...`
-/// names only the parser's asm-block desugar can emit.
+/// and `asm { cli/sti }` --> `machine_control`, `asm { in/out .. }` -->
+/// `device_io`, fences --> the empty set), or None for ordinary calls. Keyed by
+/// the unnameable `asm#...` names only the parser's asm-block desugar can emit.
 pub fn asm_intrinsic_effects(target: &str) -> Option<EffectSet> {
     let function = omega_core::symbols::BuiltinFunction::asm_intrinsics()
         .into_iter()

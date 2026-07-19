@@ -1,8 +1,8 @@
 // Inline Assembly: structured memory-access mnemonics `ldr`/`str` are not in the
-// known-contract accepted set (only `hlt`, `in`, `out`, and `jmp state(...)`
-// compile today), so the block is refused. Load/store contract emission is a
-// future rung (privileged_effects_and_binary_trust brief); until then an
-// unknown mnemonic does not compile rather than being smuggled through opaquely.
+// known-contract accepted set, so the block is refused. Load/store contract
+// emission is a future rung (privileged_effects_and_binary_trust brief); until
+// then an unknown mnemonic does not compile rather than being smuggled through
+// opaquely.
 
 data Main {
     value: i32;

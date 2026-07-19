@@ -64,6 +64,23 @@ pub const fn encode_memory_fence_bytes(
     }
 }
 
+pub const fn interrupt_control_width() -> usize {
+    1
+}
+
+/// Exact x86 interrupt-flag encodings: CLI clears RFLAGS.IF and STI sets it,
+/// with STI's architectural one-instruction recognition delay represented in
+/// the catalog contract.
+pub const fn encode_interrupt_control_bytes(
+    kind: omega_core::inline_assembly::AsmInterruptControlKind,
+) -> [u8; 1] {
+    use omega_core::inline_assembly::AsmInterruptControlKind;
+    match kind {
+        AsmInterruptControlKind::Disable => [0xfa],
+        AsmInterruptControlKind::Enable => [0xfb],
+    }
+}
+
 // --- port I/O (`asm { out .. }` / `asm { in .. }`) --------------------------
 //
 // The port operand loads into DX and the byte operand into AL by REUSING the
@@ -10149,6 +10166,21 @@ mod machine_control_tests {
             assert_eq!(encode_memory_fence_bytes(kind), bytes);
             assert_eq!(bytes.len(), memory_fence_width());
         }
+    }
+
+    #[test]
+    fn interrupt_control_has_exact_cli_sti_encodings() {
+        use omega_core::inline_assembly::AsmInterruptControlKind;
+
+        assert_eq!(
+            encode_interrupt_control_bytes(AsmInterruptControlKind::Disable),
+            [0xfa]
+        );
+        assert_eq!(
+            encode_interrupt_control_bytes(AsmInterruptControlKind::Enable),
+            [0xfb]
+        );
+        assert_eq!(interrupt_control_width(), 1);
     }
 
     /// A RuntimeValueOperandSource where every handle is an immediate integer

@@ -11,8 +11,8 @@ use omega_instruction_selection::{
     runtime_atomic_compare_exchange_width, runtime_atomic_fetch_add_width,
     runtime_byte_read_width, runtime_byte_write_width,
     dispatch_loop_enter_width, dispatch_state_write_width, function_enter_width,
-    host_call_sequence_width, machine_halt_width, memory_fence_width, port_read_width,
-    port_write_width,
+    host_call_sequence_width, interrupt_control_width, machine_halt_width, memory_fence_width,
+    port_read_width, port_write_width,
     return_register_integer_write_width, return_width, table_function_call_sequence_width,
     vtable_call_sequence_width,
     runtime_frame_base_indexed_binary_write_width, runtime_frame_base_indexed_integer_write_width,
@@ -719,6 +719,14 @@ fn machine_instruction_width(
         SelectedInstructionKind::MachineHalt => machine_halt_width(input.target.architecture),
         SelectedInstructionKind::MemoryFence(kind) => {
             return memory_fence_width(input.target.architecture).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "asm instruction `{}` is x86_64-only",
+                    kind.mnemonic(),
+                ))
+            });
+        }
+        SelectedInstructionKind::InterruptControl(kind) => {
+            return interrupt_control_width(input.target.architecture).ok_or_else(|| {
                 Diagnostic::error(format!(
                     "asm instruction `{}` is x86_64-only",
                     kind.mnemonic(),

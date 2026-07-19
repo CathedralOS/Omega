@@ -30806,6 +30806,7 @@ const WINDOWS_HOST_PASS_CANARIES: &[&str] = &[
 /// use the smallest registered architecture target that proves their gate.
 const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("inline_asm/asm_fences_compile", "linux_x64"),
+    ("inline_asm/asm_interrupt_control_compile", "linux_x64"),
     ("inline_asm/asm_multi_instruction_block_compile", "uefi_x64"),
     ("inline_asm/asm_where_exact_clobbers_compile", "uefi_x64"),
     ("targets/efi_vtable_call", "uefi_x64"),
@@ -30852,6 +30853,58 @@ fn x86_asm_fences_emit_exact_bytes_and_refuse_aarch64() {
     assert!(
         rendered.contains("asm instruction `lfence` is x86_64-only"),
         "expected an architecture-specific fence diagnostic, got:\n{rendered}"
+    );
+}
+
+#[test]
+fn x86_asm_interrupt_control_emits_exact_bytes_and_refuses_aarch64() {
+    let canary = pass_canary("inline_asm/asm_interrupt_control_compile");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-asm-interrupt-control-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("x86 interrupt control should cross-compile under the boot-root authority");
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86 ELF");
+    assert!(
+        image.windows(2).any(|window| window == [0xfa, 0xfb]),
+        "expected consecutive CLI/STI bytes in the emitted image"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+
+    let diagnostics = compile_canary_without_output_for_target(&canary, "linux_arm64")
+        .expect_err("x86 interrupt-control mnemonics must refuse an AArch64 target");
+    let rendered = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("asm instruction `cli` is x86_64-only"),
+        "expected an architecture-specific interrupt-control diagnostic, got:\n{rendered}"
+    );
+}
+
+#[test]
+fn hosted_cli_cannot_claim_machine_owner_authority_with_an_effect_row() {
+    let canary = fail_canary("inline_asm/asm_cli_requires_machine_authority");
+    let diagnostics = compile_canary_without_output(&canary)
+        .expect_err("hosted CLI must fail the machine-owner authority discharge");
+    let rendered = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("asm instruction `cli`, which requires a FREESTANDING boundary root"),
+        "expected the boot-root authority diagnostic, got:\n{rendered}"
     );
 }
 
@@ -34147,6 +34200,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "inline_asm/asm_structured_ldr_str",
     "inline_asm/asm_deriver_only_exit",
     "inline_asm/asm_hidden_return",
+    "inline_asm/asm_cli_requires_machine_authority",
     "inline_asm/asm_port_out_wrong_port_type",
     "inline_asm/asm_port_out_wrong_value_type",
     "inline_asm/asm_port_in_wrong_destination_type",
