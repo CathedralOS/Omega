@@ -413,6 +413,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("proofs/runtime_core_roster_ops_exit", 70),
     ("build/runtime_depend_mapping_exit", 70),
     ("recast/runtime_record_view_exit", 70),
+    ("recast/constant_offset_record_view_after_write_exit", 70),
     ("arithmetic/runtime_f32_field_guard_exit", 70),
     ("collections/runtime_indexed_guard_true_false_pair_exit", 70),
     ("collections/runtime_indexed_field_local_operand_exit", 70),

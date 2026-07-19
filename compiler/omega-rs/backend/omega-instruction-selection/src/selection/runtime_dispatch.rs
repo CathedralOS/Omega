@@ -1976,8 +1976,29 @@ fn select_runtime_dispatch_local_initializer_write(
             )
             && size != place.byte_count
         {
+            // A wide named-record reference follows the same address model
+            // at a constant offset as at a runtime offset below. Copying the
+            // record bytes into a referee-sized slot is inconsistent with the
+            // read side, which correctly treats that slot as pointer-bearing;
+            // its first field then becomes a bogus address. Preserve the
+            // backing-place identity instead.
+            let kind = if size > input.runtime_abi.pointer_size {
+                crate::selection::runtime_dispatch::write_place_address_direct(
+                    place.region,
+                    place.byte_offset,
+                    slot.byte_offset,
+                )
+            } else {
+                crate::selection::runtime_dispatch::copy_places_direct(
+                    place.region,
+                    place.byte_offset,
+                    omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                    slot.byte_offset,
+                    size,
+                )
+            };
             selected_instructions.push(SelectedInstruction {
-                kind: crate::selection::runtime_dispatch::copy_places_direct(place.region, place.byte_offset, omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame, slot.byte_offset, size),
+                kind,
                 source_key,
                 source_statement: statement_index,
             });

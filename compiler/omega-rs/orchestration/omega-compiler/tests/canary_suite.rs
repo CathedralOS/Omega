@@ -21049,6 +21049,33 @@ fn runtime_record_view_exit_canary_runs() {
 }
 
 #[test]
+fn constant_offset_record_view_after_write_exit_canary_runs() {
+    let canary = pass_canary("recast/constant_offset_record_view_after_write_exit");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-constant-offset-record-view-after-write-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("constant-offset record-view canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("constant-offset record-view canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "constant-offset record view read stale backing bytes; stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_f32_field_guard_exit_canary_runs() {
     // Plain f32 field guards: f32-pattern expectations, 4-byte compares.
     let canary = pass_canary("arithmetic/runtime_f32_field_guard_exit");
@@ -33081,6 +33108,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "proofs/runtime_core_roster_ops_exit",
     "build/runtime_depend_mapping_exit",
     "recast/runtime_record_view_exit",
+    "recast/constant_offset_record_view_after_write_exit",
     "arithmetic/runtime_f32_field_guard_exit",
     "collections/runtime_indexed_rmw_loop_exit",
     "collections/runtime_indexed_reduction_loop_exit",
