@@ -867,6 +867,11 @@ fn boundary_ensures_argument_bound(
     side: BoundSide,
 ) -> Option<i64> {
     use omega_typed_trees::statement::StatementNode;
+    let mut summary_diagnostics = Vec::new();
+    let symbols = crate::symbols::TopLevelSymbols::build(program, &mut summary_diagnostics);
+    let machine_symbols =
+        crate::symbols::MachineSymbols::build(program, machine, &mut summary_diagnostics);
+    let summaries_available = summary_diagnostics.is_empty();
     let mut witness: Option<i64> = None;
     for statement in &statements[..transition_index] {
         match statement {
@@ -886,16 +891,33 @@ fn boundary_ensures_argument_bound(
                 );
                 if minted.is_some() {
                     witness = minted;
-                } else if !matches!(
-                    boundary_call_mutably_reaches_label(
-                        program,
-                        machine,
-                        call,
-                        argument_label,
-                    ),
-                    Some(false)
-                ) {
-                    witness = None;
+                } else {
+                    let written = summaries_available
+                        .then(|| {
+                            crate::calls::known_call_written_paths(
+                                program,
+                                call,
+                                machine,
+                                &machine_symbols,
+                                &symbols,
+                            )
+                            .or_else(|| {
+                                crate::calls::known_boundary_call_written_paths(
+                                    program,
+                                    &machine_symbols,
+                                    &symbols,
+                                    call,
+                                )
+                            })
+                        })
+                        .flatten();
+                    if !written.is_some_and(|paths| {
+                        paths
+                            .iter()
+                            .all(|path| !recast_place_paths_overlap(path, argument_label))
+                    }) {
+                        witness = None;
+                    }
                 }
             }
             StatementNode::Assignment(assignment) => {
@@ -907,70 +929,6 @@ fn boundary_ensures_argument_bound(
         }
     }
     witness
-}
-
-/// Whether a resolved boundary call may write `argument_label` through its
-/// receiver or an explicit `&mut` argument. `None` means the call is not a
-/// boundary-trait call and retains the conservative invalidate-all behavior.
-fn boundary_call_mutably_reaches_label(
-    program: &TypedTrees,
-    machine: &omega_typed_trees::machine::Machine,
-    call: &omega_typed_trees::statement::TableCall,
-    argument_label: &str,
-) -> Option<bool> {
-    let receiver_members = program.statement_table.name_path_members(call.receiver);
-    let receiver = receiver_members.last()?;
-    let attached = machine.attached_data.as_ref()?;
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == attached.as_str())?;
-    let field_type = program.data_members(data).iter().find_map(|member| match member {
-        omega_typed_trees::data::DataMember::Field(field)
-            if field.name.as_str() == receiver.as_str() && field.type_reference.is_valid() =>
-        {
-            Some(field.type_reference)
-        }
-        _ => None,
-    })?;
-    let TypeReferenceNode::Named { name: trait_name, .. } =
-        program.type_reference_table.type_reference(field_type)
-    else {
-        return None;
-    };
-    let trait_definition = program
-        .traits()
-        .iter()
-        .find(|definition| definition.name.as_str() == trait_name.as_str())?;
-    program
-        .trait_machine_signatures(trait_definition)
-        .iter()
-        .find(|signature| signature.name == call.target)?;
-
-    let receiver_label = receiver_members
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join(".");
-    if recast_place_paths_overlap(&receiver_label, argument_label) {
-        return Some(true);
-    }
-    Some(
-        program
-            .statement_table
-            .expression_handles(call.arguments)
-            .iter()
-            .any(|argument| {
-                matches!(
-                    program.expression_table.expression(*argument),
-                    ExpressionNode::Mutable(inner)
-                        if recast_place_paths_overlap(
-                            &program.expression_table.display_name(*inner),
-                            argument_label,
-                        )
-                )
-            }),
-    )
 }
 
 fn recast_place_paths_overlap(left: &str, right: &str) -> bool {

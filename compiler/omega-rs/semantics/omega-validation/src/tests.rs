@@ -477,6 +477,62 @@ fn boundary_ensures_witness_dies_when_intervening_call_borrows_place_mutably() {
 }
 
 #[test]
+fn boundary_ensures_witness_survives_unrelated_internal_call() {
+    validate_contract_source(
+        r#"
+    boundary trait Firmware {
+        machine get_size(size: &mut u32)
+        ensures size <= 8;
+    }
+    data Main { fw: Firmware; buf: [u8; 12]; n: u32; other: u32; }
+    machine Main::main(&mut self) {
+        self.fw.get_size(&mut self.n);
+        self.touch_other();
+        transition { _ -> read(self.n) }
+        state read(&mut self, off: u32) {
+            let v: &u32 = &self.buf[off] as &u32;
+        }
+    }
+    machine Main::touch_other(&mut self) {
+        self.other = 1;
+    }
+    "#,
+    )
+    .expect("an internal call with a disjoint may-write set must preserve the witness");
+}
+
+#[test]
+fn boundary_ensures_witness_dies_when_internal_call_writes_place() {
+    let diagnostics = validate_contract_source(
+        r#"
+    boundary trait Firmware {
+        machine get_size(size: &mut u32)
+        ensures size <= 8;
+    }
+    data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
+    machine Main::main(&mut self) {
+        self.fw.get_size(&mut self.n);
+        self.touch_n();
+        transition { _ -> read(self.n) }
+        state read(&mut self, off: u32) {
+            let v: &u32 = &self.buf[off] as &u32;
+        }
+    }
+    machine Main::touch_n(&mut self) {
+        self.n = 1;
+    }
+    "#,
+    )
+    .expect_err("an internal may-write must invalidate the witness");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("recast")),
+        "expected a recast refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn symbolic_walk_recast_footprint_discharges() {
     // M2 gap 4b, the full chain: the walk state re-enters itself with
     // `offset + desc_size` under the guard `offset + desc_size + desc_size
