@@ -1,0 +1,12 @@
+// FAIL CANARY (R3 store-proof completion). Local declarations establish the
+// same Exact range invariant as fields; an unbounded initializer cannot become
+// a proof merely because the destination carries a narrow type.
+machine consume(source: u32) {
+    let index: u32 [0..=11] = source;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
