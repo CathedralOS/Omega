@@ -24390,6 +24390,12 @@ fn runtime_alias_indexed_read_through_transition_exit_canary_runs() {
 fn runtime_dispatch_binary_call_argument_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_dispatch_binary_call_argument_exit");
     let main_path = canary.join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("binary-local call-argument canary should compile to checked trees");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None);
+    assert_eq!(interpreted.exit_code, 70);
+
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-dispatch-binary-call-arg-{}",
         std::process::id()
@@ -24411,8 +24417,8 @@ fn runtime_dispatch_binary_call_argument_exit_canary_runs() {
     assert_eq!(
         output.status.code(),
         Some(70),
-        "expected a binary expression passed as a call argument (`carve(level, 100 + index)`) \
-         into a dispatched callee to lower and carry the correct value, exiting 70, got {:?}\nstderr:\n{}",
+        "expected a binary-initialized local passed as a call argument (`carve(level, tag)`) \
+         from the proof-bearing guarded state to copy its slot and exit 70, got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
