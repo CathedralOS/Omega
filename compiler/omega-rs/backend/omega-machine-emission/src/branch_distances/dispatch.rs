@@ -49,6 +49,10 @@ pub(crate) fn byte_distance_to_next_dispatch_action_end(
     // and `is_zeroish(inf)`'s NaN compare routed straight to the caller's
     // failure exit.
     let branch_program_counter = current.offset + current.byte_width.saturating_sub(4);
+    let branch_scope_id = enclosing_branch_scope_id(
+        machine_instructions,
+        machine_instruction_index,
+    );
     for instruction in machine_instructions
         .iter()
         .skip(machine_instruction_index + 1)
@@ -57,13 +61,16 @@ pub(crate) fn byte_distance_to_next_dispatch_action_end(
             instruction.kind,
             MachineInstructionKind::DispatchStateWrite | MachineInstructionKind::DispatchTerminate
         );
-        let is_arm_skip = matches!(
-            instruction.source_kind,
+        let arm_skip_scope_id = match instruction.source_kind {
             SelectedInstructionKind::EvaluateDispatchGuard {
                 guard_lowering: StateGuardLowering::ForwardBranchSkip,
+                byte_offset,
                 ..
-            }
-        );
+            } => Some(byte_offset),
+            _ => None,
+        };
+        let is_arm_skip = arm_skip_scope_id.is_some()
+            && branch_scope_id.is_none_or(|scope_id| arm_skip_scope_id == Some(scope_id));
         if is_dispatch_action || is_arm_skip {
             let target = instruction.offset + instruction.byte_width;
             return Ok(target as isize - branch_program_counter as isize);
@@ -73,6 +80,35 @@ pub(crate) fn byte_distance_to_next_dispatch_action_end(
         "cannot encode dispatch guard at byte {}: missing guarded dispatch action",
         current.offset
     )))
+}
+
+fn enclosing_branch_scope_id(
+    machine_instructions: &[LaidOutMachineInstruction],
+    machine_instruction_index: usize,
+) -> Option<usize> {
+    // See the matching marker emitted by runtime-dispatch branch selection.
+    for instruction in machine_instructions
+        .iter()
+        .take(machine_instruction_index)
+        .rev()
+    {
+        match instruction.source_kind {
+            SelectedInstructionKind::EvaluateDispatchGuard {
+                guard_lowering: StateGuardLowering::BranchArmsEnd,
+                ..
+            } => return None,
+            SelectedInstructionKind::EvaluateDispatchGuard {
+                guard_lowering: StateGuardLowering::NoOp,
+                byte_offset,
+                byte_size: 0,
+                expected_value: i64::MIN,
+                has_storage: false,
+                ..
+            } if byte_offset != 0 => return Some(byte_offset),
+            _ => {}
+        }
+    }
+    None
 }
 
 pub(crate) fn byte_distance_to_case_leave(

@@ -42,6 +42,7 @@ pub fn build_runtime_branching_call_plan(
         capacity.bindings,
         capacity.operations,
     );
+    let mut next_branch_scope_id = 1u32;
 
     for (_, body) in context.runtime_bodies.bodies.iter() {
         let Some(operations) = context
@@ -87,6 +88,8 @@ pub fn build_runtime_branching_call_plan(
             let Some(state_call) = state_call else {
                 continue;
             };
+            let root_scope_id = next_branch_scope_id;
+            next_branch_scope_id += 1;
             let branch_edges = build_branch_edges(
                 context,
                 state_call.target_key,
@@ -162,6 +165,7 @@ pub fn build_runtime_branching_call_plan(
                     &mut plan.straight_line_expansions,
                     &mut plan.straight_line_bindings,
                     &mut plan.straight_line_operations,
+                    &mut next_branch_scope_id,
                     operation.source_key,
                     *target_key,
                     operation.statement_index,
@@ -191,6 +195,7 @@ pub fn build_runtime_branching_call_plan(
                     &mut plan.leaf_expansions,
                     &mut plan.leaf_bindings,
                     &mut plan.leaf_operations,
+                    root_scope_id,
                     operation.source_key,
                     *target_key,
                     operation.statement_index,
@@ -221,6 +226,8 @@ pub fn build_runtime_branching_call_plan(
                     &mut plan.straight_line_expansions,
                     &mut plan.straight_line_bindings,
                     &mut plan.straight_line_operations,
+                    &mut next_branch_scope_id,
+                    root_scope_id,
                     operation.source_key,
                     *target_key,
                     operation.statement_index,
@@ -336,4 +343,3 @@ fn branch_target_has_prelude(context: &RuntimeBranchingContext, target_key: Stat
         .and_then(|state| context.control_flow.operations.span(state.operations))
         .is_some_and(|operations| !operations.is_empty())
 }
-

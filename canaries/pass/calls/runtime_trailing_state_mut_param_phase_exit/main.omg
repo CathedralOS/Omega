@@ -1,18 +1,10 @@
-// PENDING (the June-2026 dungeon instrumentation ghost, minimal skeleton
-// found 2026-07-16): a machine receives `random: &mut Rng`, forwards it to
-// mutating callees, and guard-reads the param's field -- CORRECT until a
-// TRAILING sub-state that also bumps-and-reads is APPENDED, at which point
-// the FIRST state's guard read goes stale natively (native 71 = the
-// calls==2 guard fails; interp 70). The single-state shapes are all green
-// (probed: one/two forwards, one/two fields); the trigger is the trailing
-// state's existence, i.e. cross-state phase/snapshot allocation for the
-// threaded &mut param -- the same family as the fs lane's CLAIMED
-// same-type-receiver-aliasing arc (per-instance receiver phases). Pinned
-// for that arc's follow-through; exits: 71 = first guard stale; 72 =
-// trailing guard stale; 70 = both correct.
-// MINIMAL: a machine receives `r: &mut Rng`, FORWARDS it to one mutating
-// callee, then guard-reads the param's field. Native sees the pre-call
-// snapshot.
+// RUN CANARY (exit 70, promoted 2026-07-19): a machine receives a threaded
+// `&mut Rng`, forwards it through two mutating calls, evaluates a guard, then
+// enters a trailing state that mutates and guards the same receiver again.
+// Native formerly flattened the descendant guard with its inherited guard
+// and re-evaluated `calls == 2` after the trailing bump made it 3 (exit 71).
+// Exact transition scopes now evaluate each guard at its authored phase;
+// exits 71/72 distinguish the outer/trailing stale-phase failures.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Rng { seed: u64 in Wrapping; calls: u32 in Wrapping; }
 data Main { console: Console; rng: Rng; }

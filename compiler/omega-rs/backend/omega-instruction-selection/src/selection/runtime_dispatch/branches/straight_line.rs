@@ -5,6 +5,7 @@ use omega_control_flow::{OperationKind, StateKey, StateParameterFlow};
 use omega_core::arena::Arena;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_runtime_branching::{
+    RuntimeLeafBranchExpansion,
     RuntimeStraightLineBranchBinding, RuntimeStraightLineBranchBindingKind,
     RuntimeStraightLineBranchExpansion, RuntimeStraightLineBranchOperation,
     RuntimeStraightLineBranchOperationKind,
@@ -40,7 +41,7 @@ use omega_abstract_operations::{
     SelectedInstructionKind, StateGuardOperator,
 };
 use omega_state_calls::{StateCallArgument, StateCallLowering, StateCallRole};
-use omega_state_guards::StateGuardLowering;
+use omega_state_guards::{StateGuardKind, StateGuardLowering};
 
 #[derive(Default)]
 pub(in crate::selection) struct StraightLineBranchSelectionScratch {
@@ -59,29 +60,198 @@ pub(in crate::selection) fn select_runtime_straight_line_branch_expansions_for_o
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    let expansions = input
-        .runtime_branching_calls
-        .straight_line_expansions
-        .storage_slice();
+    let Some(root_scope_id) = root_scope_id_for_operation(
+        input,
+        dispatch_index,
+        operation,
+        false,
+    ) else {
+        return;
+    };
+    select_runtime_branch_scope(
+        input,
+        dispatch_index,
+        operation,
+        root_scope_id,
+        false,
+        scratch,
+        operands,
+        runtime_value_operands,
+        selected_instructions,
+    );
+}
 
-    for expansion in expansions {
-        if straight_line_expansion_matches_operation(expansion, dispatch_index, operation) {
-            select_runtime_straight_line_branch_expansion(
-                input,
-                expansion,
-                scratch,
-                operands,
-                runtime_value_operands,
-                selected_instructions,
-            );
+#[derive(Clone, Copy)]
+enum RuntimeBranchTreeArm<'a> {
+    Straight(&'a RuntimeStraightLineBranchExpansion),
+    Leaf(&'a RuntimeLeafBranchExpansion),
+}
+
+impl RuntimeBranchTreeArm<'_> {
+    fn edge_order(self) -> usize {
+        match self {
+            Self::Straight(expansion) => expansion.edge_order,
+            Self::Leaf(expansion) => expansion.edge_order,
+        }
+    }
+
+    fn is_default(self, use_local_guard: bool) -> bool {
+        match self {
+            Self::Straight(expansion) => {
+                if use_local_guard {
+                    expansion.local_guard_kind == StateGuardKind::Always
+                } else {
+                    expansion.guard_kind == StateGuardKind::Always
+                }
+            }
+            Self::Leaf(expansion) => {
+                if use_local_guard {
+                    expansion.local_guard_kind == StateGuardKind::Always
+                } else {
+                    expansion.guard_kind == StateGuardKind::Always
+                }
+            }
         }
     }
 }
 
-fn straight_line_expansion_matches_operation(
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_branch_scope(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    operation: &RuntimeDispatchBodyOperation,
+    scope_id: u32,
+    use_local_guard: bool,
+    scratch: &mut StraightLineBranchSelectionScratch,
+    operands: &mut Arena<InstructionOperand>,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let straight = input
+        .runtime_branching_calls
+        .straight_line_expansions
+        .storage_slice();
+    let leaves = input.runtime_branching_calls.leaf_expansions.storage_slice();
+
+    // A synthetic self-target expansion is the nested call's entry prelude,
+    // not a transition arm. It runs once before the root scope's edges.
+    for prelude in straight.iter().filter(|expansion| {
+        expansion.scope_id == scope_id
+            && expansion.child_scope_id == scope_id
+            && expansion.branch_key == expansion.target_key
+            && straight_line_expansion_matches_tree_operation(
+                expansion,
+                dispatch_index,
+                operation,
+                true,
+            )
+    }) {
+        select_runtime_straight_line_tree_arm_body(
+            input,
+            prelude,
+            true,
+            false,
+            operation,
+            scratch,
+            operands,
+            runtime_value_operands,
+            selected_instructions,
+        );
+    }
+
+    let mut arms = Vec::new();
+    arms.extend(straight.iter().filter_map(|expansion| {
+        (expansion.scope_id == scope_id
+            && expansion.child_scope_id != scope_id
+            && straight_line_expansion_matches_tree_operation(
+                expansion,
+                dispatch_index,
+                operation,
+                true,
+            ))
+        .then_some(RuntimeBranchTreeArm::Straight(expansion))
+    }));
+    arms.extend(leaves.iter().filter_map(|expansion| {
+        (expansion.scope_id == scope_id
+            && leaf_expansion_matches_tree_operation(
+                expansion,
+                dispatch_index,
+                operation,
+                true,
+            ))
+        .then_some(RuntimeBranchTreeArm::Leaf(expansion))
+    }));
+    arms.sort_by_key(|arm| (arm.is_default(use_local_guard), arm.edge_order()));
+
+    let arm_count = arms.len();
+    let mut leaf_scratch = super::LeafBranchSelectionScratch::default();
+    for (index, arm) in arms.into_iter().enumerate() {
+        let has_following_arm = index + 1 < arm_count;
+        match arm {
+            RuntimeBranchTreeArm::Straight(expansion) => {
+                select_runtime_straight_line_tree_arm_body(
+                    input,
+                    expansion,
+                    use_local_guard,
+                    has_following_arm,
+                    operation,
+                    scratch,
+                    operands,
+                    runtime_value_operands,
+                    selected_instructions,
+                );
+            }
+            RuntimeBranchTreeArm::Leaf(expansion) => {
+                super::select_runtime_leaf_branch_expansion_for_tree(
+                    input,
+                    expansion,
+                    use_local_guard,
+                    has_following_arm,
+                    &mut leaf_scratch,
+                    runtime_value_operands,
+                    selected_instructions,
+                );
+            }
+        }
+    }
+    if arm_count > 1 {
+        super::push_branch_arms_end_marker(
+            scope_id,
+            operation.source_key,
+            operation.statement_index,
+            selected_instructions,
+        );
+    }
+}
+
+fn root_scope_id_for_operation(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    operation: &RuntimeDispatchBodyOperation,
+    allow_synthetic_nested_operation: bool,
+) -> Option<u32> {
+    input
+        .runtime_branching_calls
+        .straight_line_expansions
+        .storage_slice()
+        .iter()
+        .filter(|expansion| {
+            straight_line_expansion_matches_tree_operation(
+                expansion,
+                dispatch_index,
+                operation,
+                allow_synthetic_nested_operation,
+            )
+        })
+        .map(|expansion| expansion.scope_id)
+        .min()
+}
+
+fn straight_line_expansion_matches_tree_operation(
     expansion: &RuntimeStraightLineBranchExpansion,
     dispatch_index: u32,
     operation: &RuntimeDispatchBodyOperation,
+    allow_synthetic_nested_operation: bool,
 ) -> bool {
     expansion.dispatch_index == dispatch_index
         && super::super::state_key_matches_statement_source(
@@ -89,22 +259,83 @@ fn straight_line_expansion_matches_operation(
             operation.source_key,
         )
         && expansion.statement_index == operation.statement_index
+        && match operation.kind {
+            RuntimeDispatchBodyOperationKind::InlineLeafStateCall {
+                role, call_ordinal, ..
+            }
+            | RuntimeDispatchBodyOperationKind::InlineStateCall {
+                role, call_ordinal, ..
+            }
+            | RuntimeDispatchBodyOperationKind::StateCall {
+                role, call_ordinal, ..
+            } => expansion.role == role && expansion.call_ordinal == call_ordinal,
+            RuntimeDispatchBodyOperationKind::Other => allow_synthetic_nested_operation,
+            _ => false,
+        }
 }
 
-fn select_runtime_straight_line_branch_expansion(
+fn leaf_expansion_matches_tree_operation(
+    expansion: &RuntimeLeafBranchExpansion,
+    dispatch_index: u32,
+    operation: &RuntimeDispatchBodyOperation,
+    allow_synthetic_nested_operation: bool,
+) -> bool {
+    expansion.dispatch_index == dispatch_index
+        && super::super::state_key_matches_statement_source(
+            expansion.source_key,
+            operation.source_key,
+        )
+        && expansion.statement_index == operation.statement_index
+        && match operation.kind {
+            RuntimeDispatchBodyOperationKind::InlineLeafStateCall {
+                role, call_ordinal, ..
+            }
+            | RuntimeDispatchBodyOperationKind::InlineStateCall {
+                role, call_ordinal, ..
+            }
+            | RuntimeDispatchBodyOperationKind::StateCall {
+                role, call_ordinal, ..
+            } => expansion.role == role && expansion.call_ordinal == call_ordinal,
+            RuntimeDispatchBodyOperationKind::Other => allow_synthetic_nested_operation,
+            _ => false,
+        }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_straight_line_tree_arm_body(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeStraightLineBranchExpansion,
+    use_local_guard: bool,
+    has_following_arm: bool,
+    operation: &RuntimeDispatchBodyOperation,
     scratch: &mut StraightLineBranchSelectionScratch,
     operands: &mut Arena<InstructionOperand>,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    let mut local;
+    let expansion = if use_local_guard {
+        local = expansion.clone();
+        local.resolved_guard = local.guard;
+        local.guard_kind = local.local_guard_kind;
+        &local
+    } else {
+        expansion
+    };
     let guards =
         select_runtime_straight_line_branch_guards(input, expansion, runtime_value_operands);
     let emitted_guard = !guards.is_empty();
     let guard_start = selected_instructions.len();
+    if emitted_guard {
+        super::push_branch_scope_marker(
+            expansion.scope_id,
+            expansion.source_key,
+            expansion.statement_index,
+            selected_instructions,
+        );
+    }
     for guard in guards {
-        selected_instructions.push(omega_abstract_operations::SelectedInstruction {
+        selected_instructions.push(SelectedInstruction {
             kind: guard,
             source_key: expansion.source_key,
             source_statement: expansion.statement_index,
@@ -131,13 +362,44 @@ fn select_runtime_straight_line_branch_expansion(
         expansion,
         selected_instructions,
     );
-    if emitted_guard && selected_instructions.len() == write_start {
+    if expansion.child_scope_id != expansion.scope_id {
+        select_runtime_branch_scope(
+            input,
+            expansion.dispatch_index,
+            operation,
+            expansion.child_scope_id,
+            true,
+            scratch,
+            operands,
+            runtime_value_operands,
+            selected_instructions,
+        );
+    }
+    if selected_instructions.len() == write_start {
         while selected_instructions.len() > guard_start {
             selected_instructions.pop();
         }
-    } else if emitted_guard {
-        selected_instructions.push(omega_abstract_operations::SelectedInstruction {
-            kind: omega_abstract_operations::SelectedInstructionKind::EvaluateDispatchGuard {
+        return;
+    }
+    if has_following_arm {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::EvaluateDispatchGuard {
+                guard_lowering: StateGuardLowering::ForwardBranchSkip,
+                operator: StateGuardOperator::Equal,
+                storage_region: RuntimeStorageRegion::Machine,
+                byte_offset: expansion.scope_id as usize,
+                byte_size: 0,
+                expected_value: 0,
+                has_storage: false,
+                is_float: false,
+            },
+            source_key: expansion.target_key,
+            source_statement: expansion.target_statement_index,
+        });
+    }
+    if emitted_guard {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::EvaluateDispatchGuard {
                 guard_lowering: StateGuardLowering::NoOp,
                 operator: StateGuardOperator::Equal,
                 storage_region: RuntimeStorageRegion::Machine,
@@ -991,37 +1253,42 @@ pub(in crate::selection) fn select_runtime_straight_line_nested_branch_expansion
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    let RuntimeStraightLineBranchOperationKind::StateCall {
+        role,
+        call_ordinal,
+        target_key,
+        argument_count,
+        lowering,
+    } = operation.kind
+    else {
+        return;
+    };
     let body_operation = RuntimeDispatchBodyOperation {
         source_key: operation.source_key,
         statement_index: operation.statement_index,
-        kind: omega_runtime_bodies::RuntimeDispatchBodyOperationKind::Other,
+        kind: RuntimeDispatchBodyOperationKind::StateCall {
+            role,
+            call_ordinal,
+            target_key,
+            argument_count,
+            lowering,
+        },
     };
-    let expansions = input
-        .runtime_branching_calls
-        .straight_line_expansions
-        .storage_slice();
-    for expansion in expansions {
-        if straight_line_expansion_matches_operation(expansion, dispatch_index, &body_operation) {
-            select_runtime_straight_line_branch_expansion(
-                input,
-                expansion,
-                scratch,
-                operands,
-                runtime_value_operands,
-                selected_instructions,
-            );
-        }
+    if let Some(root_scope_id) =
+        root_scope_id_for_operation(input, dispatch_index, &body_operation, false)
+    {
+        select_runtime_branch_scope(
+            input,
+            dispatch_index,
+            &body_operation,
+            root_scope_id,
+            true,
+            scratch,
+            operands,
+            runtime_value_operands,
+            selected_instructions,
+        );
     }
-
-    let mut leaf_scratch = super::LeafBranchSelectionScratch::default();
-    super::select_runtime_leaf_branch_expansions_matching_operation(
-        input,
-        dispatch_index,
-        &body_operation,
-        &mut leaf_scratch,
-        runtime_value_operands,
-        selected_instructions,
-    );
 }
 
 pub(in crate::selection) fn select_assignment_value_call_result_local_copy(

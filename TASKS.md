@@ -112,9 +112,6 @@ argument or inferred contract.
 These are unblocked and should gain a focused pass/fail or differential canary
 before the fix.
 
-- **Threaded mutable receiver phases.** Resolve
-  `trailing_state_mut_param_phase_divergence` and the same-type receiver
-  aliasing fence for ambiguous multi-call states.
 - **Non-place record-pattern subjects.** Exhaustiveness validation currently
   lacks a declared type for non-place subjects. Preserve single evaluation and
   enforce the same missing/unknown-field law; add the copy-eligibility fence if

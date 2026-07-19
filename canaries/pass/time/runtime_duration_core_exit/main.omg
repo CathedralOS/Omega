@@ -38,12 +38,10 @@ machine Main::main(&mut self) {
         }
     }
     state do_subtract(&mut self) {
-        // KNOWN FACE (contained-machine-same-type-aliasing, value-call
-        // receiver flavor): a method receiver resolves to the FIRST field of
-        // its type, so every Duration receiver here must be `a` -- the sum is
-        // copied into `a` before subtracting. Arguments are unaffected.
-        self.a = self.sum;
-        self.difference_result = self.a.checked_subtract(self.b);
+        // Exercise the third same-type receiver directly. Per-instance
+        // receiver recovery must bind checked_subtract's `self` to `sum`,
+        // never the first Duration field (`a`).
+        self.difference_result = self.sum.checked_subtract(self.b);
         transition self.difference_result {
             DurationResult::Ok { duration } -> check_difference(duration)
             DurationResult::Overflow -> fail_subtract()

@@ -9,6 +9,7 @@ use omega_state_storage::{StateMutationKind, StateMutationLowering};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeLeafBranchExpansion {
+    pub scope_id: u32,
     pub dispatch_index: u32,
     pub source_key: StateKey,
     pub statement_index: usize,
@@ -18,6 +19,7 @@ pub struct RuntimeLeafBranchExpansion {
     pub guard: ExpressionHandle,
     pub resolved_guard: ExpressionHandle,
     pub guard_kind: StateGuardKind,
+    pub local_guard_kind: StateGuardKind,
     pub role: StateCallRole,
     pub call_ordinal: usize,
     pub leaf_key: StateKey,
@@ -30,6 +32,7 @@ pub struct RuntimeLeafBranchExpansion {
 impl Default for RuntimeLeafBranchExpansion {
     fn default() -> Self {
         Self {
+            scope_id: 0,
             dispatch_index: 0,
             source_key: StateKey::default(),
             statement_index: 0,
@@ -39,6 +42,7 @@ impl Default for RuntimeLeafBranchExpansion {
             guard: ExpressionHandle::invalid(),
             resolved_guard: ExpressionHandle::invalid(),
             guard_kind: StateGuardKind::Always,
+            local_guard_kind: StateGuardKind::Always,
             role: StateCallRole::Statement,
             call_ordinal: 0,
             leaf_key: StateKey::default(),

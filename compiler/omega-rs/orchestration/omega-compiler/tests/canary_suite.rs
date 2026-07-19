@@ -24565,6 +24565,44 @@ fn runtime_dispatch_result_field_binding_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A threaded mutable receiver crosses two calls, an outer guard, and a
+// trailing-state mutation. Each transition guard must observe its authored
+// phase rather than a flattened descendant predicate.
+#[test]
+fn runtime_trailing_state_mut_param_phase_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_trailing_state_mut_param_phase_exit");
+    let main_path = canary.join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("threaded mutable receiver phase canary should compile to checked trees");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None);
+    assert_eq!(interpreted.exit_code, 70);
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-trailing-mut-param-phase-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("threaded mutable receiver phase canary should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("threaded mutable receiver phase canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected outer and trailing guards to observe calls 2 and 3 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // The ORIGINAL same-type receiver aliasing repro, now serving:
 // self.b.increment() mutates b (was: mutated a via by-type resolution).
 #[test]
@@ -34285,10 +34323,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "the monomorphized result is never materialized",
         },
-    },
-    PendingCanary {
-        path: "calls/trailing_state_mut_param_phase_divergence",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     // float_to_int_overflow_divergence RETIRED 2026-07-16 by the F4 Exact
     // cast obligation: a BARE out-of-range float->int cast is now a compile

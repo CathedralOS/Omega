@@ -8,8 +8,8 @@ use omega_machine_instructions::MachineInstructionKind;
 use omega_target::Architecture;
 
 /// Distance (in bytes, from the start of the current instruction) to the next
-/// `BranchArmsEnd` marker -- the target of a `ForwardBranchSkip` jump emitted after
-/// a matched arm's body in a multi-arm guarded transition.
+/// same-scoped `BranchArmsEnd` marker -- the target of a `ForwardBranchSkip`
+/// jump emitted after a matched arm's body in a nested multi-arm transition.
 pub(crate) fn byte_distance_to_branch_arms_end(
     input: MachineEmissionContext<'_>,
     machine_instructions: &[LaidOutMachineInstruction],
@@ -18,10 +18,20 @@ pub(crate) fn byte_distance_to_branch_arms_end(
     let Some(current) = machine_instructions.get(machine_instruction_index) else {
         return Ok(0);
     };
+    let branch_scope_id = match current.source_kind {
+        SelectedInstructionKind::EvaluateDispatchGuard {
+            guard_lowering: StateGuardLowering::ForwardBranchSkip,
+            byte_offset,
+            ..
+        } => byte_offset,
+        _ => 0,
+    };
     let target = machine_instructions
         .iter()
         .skip(machine_instruction_index + 1)
-        .find(|instruction| is_branch_arms_end_marker(input, instruction))
+        .find(|instruction| {
+            branch_arms_end_scope_id(input, instruction) == Some(branch_scope_id)
+        })
         .ok_or_else(|| {
             Diagnostic::error(format!(
                 "cannot encode forward branch skip at byte {}: missing BranchArmsEnd marker",
@@ -31,10 +41,10 @@ pub(crate) fn byte_distance_to_branch_arms_end(
     Ok(target.offset as isize - current.offset as isize)
 }
 
-fn is_branch_arms_end_marker(
+fn branch_arms_end_scope_id(
     input: MachineEmissionContext<'_>,
     instruction: &LaidOutMachineInstruction,
-) -> bool {
+) -> Option<usize> {
     let handle = Handle::from_arena_index(instruction.selected_instruction_index);
     if !input
         .assigned_target_operations
@@ -42,20 +52,22 @@ fn is_branch_arms_end_marker(
         .instructions
         .is_valid(handle)
     {
-        return false;
+        return None;
     }
-    matches!(
-        input
-            .assigned_target_operations
-            .code
-            .instructions
-            .get(handle)
-            .kind,
+    match input
+        .assigned_target_operations
+        .code
+        .instructions
+        .get(handle)
+        .kind
+    {
         SelectedInstructionKind::EvaluateDispatchGuard {
             guard_lowering: StateGuardLowering::BranchArmsEnd,
+            byte_offset,
             ..
-        }
-    )
+        } => Some(byte_offset),
+        _ => None,
+    }
 }
 
 pub(crate) fn byte_distances_to_next_runtime_machine_write_end(
@@ -208,6 +220,32 @@ fn next_guarded_runtime_write_target_offset(
     let current_site =
         selected_instruction_site(input, machine_instructions.get(machine_instruction_index)?);
 
+    if let Some(scope_id) = enclosing_branch_scope_id(
+        machine_instructions,
+        machine_instruction_index,
+    ) {
+        for instruction in machine_instructions
+            .iter()
+            .skip(machine_instruction_index + 1)
+        {
+            match instruction.source_kind {
+                SelectedInstructionKind::EvaluateDispatchGuard {
+                    guard_lowering: StateGuardLowering::ForwardBranchSkip,
+                    byte_offset,
+                    ..
+                } if byte_offset == scope_id => {
+                    return Some(instruction.offset + instruction.byte_width);
+                }
+                SelectedInstructionKind::EvaluateDispatchGuard {
+                    guard_lowering: StateGuardLowering::BranchArmsEnd,
+                    byte_offset,
+                    ..
+                } if byte_offset == scope_id => return Some(instruction.offset),
+                _ => {}
+            }
+        }
+    }
+
     let first_write_index = machine_instructions
         .iter()
         .enumerate()
@@ -239,6 +277,37 @@ fn next_guarded_runtime_write_target_offset(
 
     next_runtime_write_group_end(input, machine_instructions, first_write_index)
         .map(|machine_write| machine_write.offset + machine_write.byte_width)
+}
+
+fn enclosing_branch_scope_id(
+    machine_instructions: &[LaidOutMachineInstruction],
+    machine_instruction_index: usize,
+) -> Option<usize> {
+    // Selection places this zero-width, sentinel-valued NoOp immediately
+    // before an arm's guard conjuncts. It keeps scope metadata out of real
+    // comparisons while letting their failure branches ignore inner scopes.
+    for instruction in machine_instructions
+        .iter()
+        .take(machine_instruction_index)
+        .rev()
+    {
+        match instruction.source_kind {
+            SelectedInstructionKind::EvaluateDispatchGuard {
+                guard_lowering: StateGuardLowering::BranchArmsEnd,
+                ..
+            } => return None,
+            SelectedInstructionKind::EvaluateDispatchGuard {
+                guard_lowering: StateGuardLowering::NoOp,
+                byte_offset,
+                byte_size: 0,
+                expected_value: i64::MIN,
+                has_storage: false,
+                ..
+            } if byte_offset != 0 => return Some(byte_offset),
+            _ => {}
+        }
+    }
+    None
 }
 
 fn next_runtime_write_group_end<'instructions>(
