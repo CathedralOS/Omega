@@ -601,6 +601,18 @@ manager holding selection authority may substitute a different admitted
 provider for an individual slot. Defaults are target-package declarations,
 not compiler tables.
 
+At the static root, an override is explicit and type-per-slot:
+
+```omega
+machine build(b: &mut Build) {
+    b.select_provider<Console, TestConsole>();
+}
+```
+
+The build declaration can select only a complete candidate already present in
+the loaded dependency closure and applicable to the selected target. It does
+not append rows, admit a candidate, or widen the requirement's effects.
+
 This is the same proof shape as a library import:
 
 - Omega proves caller-side type and state invariants.

@@ -6,12 +6,14 @@ boundary trait Pick {
 }
 
 data FirstProvider { }
-machine FirstProvider::choose() -> i32
-    satisfies Pick::choose via Binding::VtableSlot(1);
+machine FirstProvider::choose() -> i32 satisfies Pick::choose {
+    transition { _ -> (1) }
+}
 
 data SecondProvider { }
-machine SecondProvider::choose() -> i32
-    satisfies Pick::choose via Binding::VtableSlot(2);
+machine SecondProvider::choose() -> i32 satisfies Pick::choose {
+    transition { _ -> (2) }
+}
 
 data Main { }
 machine Main::main(&mut self) { }

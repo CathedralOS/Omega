@@ -87,6 +87,15 @@ build/test/component configuration may override individual slots. Defaults
 are package declarations/data, not compiler magic. Slot selection changes the
 selected provider; it does not reconstruct its rows.
 
+The static build-root spelling is
+`b.select_provider<BoundaryTrait, ProviderType>();`. Both arguments are types,
+not static machine parameters. The declaration is harvested only from the
+authoritative `build.omg` machine, and selection succeeds only when that
+provider's own derived candidate exists in the loaded dependency closure,
+applies to the selected target, and covers the complete slot schema. Thus the
+marker grants neither rows nor trust; it spends the build root's slot-selection
+authority over an already-derived and independently admitted candidate.
+
 The satisfied requirement supplies the public contract and effect ceiling.
 The external realization's behavior is derived from the binding/provider
 contract and must refine that ceiling at validation/admission. A `via` machine
@@ -205,6 +214,8 @@ handoff. Those details stay in providers. Image/subsystem selection belongs in
   demonstrate a need beyond build/provider selection); and
 - target-specific launch/exit details not covered by existing calling plans.
 
-Exact `Build` library method names for choosing a target profile or overriding
-a provider slot remain ordinary library/API design and are tracked as
-engineering work, not an open language grammar question.
+Exact `Build` library method names for choosing a target profile remain
+ordinary library/API engineering. Per-slot provider override has settled on
+`select_provider<BoundaryTrait, ProviderType>()`; equivalent scoped APIs for
+test and component slot owners remain engineering work, not an open grammar
+question.

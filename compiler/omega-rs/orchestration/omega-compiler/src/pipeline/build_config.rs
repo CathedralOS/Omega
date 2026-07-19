@@ -44,6 +44,16 @@ pub struct BuildConfig {
     /// from the build machine's marker calls (grants are declarations,
     /// not runtime effects; the evaluator serves the marker as a no-op).
     pub grants: Vec<String>,
+    /// PRV4c: explicit provider-type choices for boundary slots. These are
+    /// declarations harvested from the authoritative build machine; they are
+    /// validated against derived candidates before selection grants anything.
+    pub provider_selections: Vec<ProviderSelection>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProviderSelection {
+    pub boundary_trait: String,
+    pub provider_type: String,
 }
 
 impl Default for BuildConfig {
@@ -52,6 +62,7 @@ impl Default for BuildConfig {
             subsystem: 3, // IMAGE_SUBSYSTEM_WINDOWS_CUI -- the Console case's meaning
             freestanding: false,
             grants: Vec::new(),
+            provider_selections: Vec::new(),
         }
     }
 }
@@ -207,7 +218,68 @@ pub(crate) fn compute_build_config(
         ))]
     })?;
     config.grants = harvest_root_grants(typed, machine);
+    config.provider_selections = harvest_provider_selections(typed, machine)?;
     Ok(config)
+}
+
+/// PRV4c: collect `b.select_provider<BoundaryTrait, ProviderType>();` from
+/// the one authoritative build machine. Merely spelling either type elsewhere
+/// grants nothing; selection authority comes from this file-scoped root.
+fn harvest_provider_selections(
+    typed: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
+    let mut selections: Vec<ProviderSelection> = Vec::new();
+    let mut diagnostics = Vec::new();
+    let mut record = |target: &str| {
+        let Some(encoded) = target.strip_prefix("select_provider#") else {
+            return;
+        };
+        let Some((boundary_trait, provider_type)) = encoded.split_once('#') else {
+            diagnostics.push(Diagnostic::error(format!(
+                "malformed provider-selection declaration `{target}`"
+            )));
+            return;
+        };
+        if let Some(existing) = selections
+            .iter()
+            .find(|selection| selection.boundary_trait == boundary_trait)
+        {
+            if existing.provider_type != provider_type {
+                diagnostics.push(Diagnostic::error(format!(
+                    "build selects two provider types for slot `{boundary_trait}`: `{}` and `{provider_type}`",
+                    existing.provider_type,
+                )));
+            }
+            return;
+        }
+        selections.push(ProviderSelection {
+            boundary_trait: boundary_trait.to_owned(),
+            provider_type: provider_type.to_owned(),
+        });
+    };
+    for state in typed.machine_states(machine) {
+        for statement in typed.statement_table.statements(state.statement_nodes) {
+            match statement {
+                omega_typed_trees::statement::StatementNode::Expression(expression) => {
+                    if let omega_typed_trees::expression::ExpressionNode::Call(call) =
+                        typed.expression_table.expression(*expression)
+                    {
+                        record(call.target.as_str());
+                    }
+                }
+                omega_typed_trees::statement::StatementNode::Call(call) => {
+                    record(call.target.as_str());
+                }
+                _ => {}
+            }
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(selections)
+    } else {
+        Err(diagnostics)
+    }
 }
 
 /// The static grant harvest: every `accept_boundary#<path>` marker call in
@@ -282,7 +354,11 @@ fn extract_build_config(build: &BuildTimeValue) -> Result<BuildConfig, String> {
                 other => return Err(format!("unknown Subsystem case `{other}`")),
             }
         }
-        other => return Err(format!("Build.subsystem is not a Subsystem case: {other:?}")),
+        other => {
+            return Err(format!(
+                "Build.subsystem is not a Subsystem case: {other:?}"
+            ));
+        }
     };
 
     let freestanding = match field("freestanding")? {
@@ -294,5 +370,6 @@ fn extract_build_config(build: &BuildTimeValue) -> Result<BuildConfig, String> {
         subsystem,
         freestanding,
         grants: Vec::new(),
+        provider_selections: Vec::new(),
     })
 }

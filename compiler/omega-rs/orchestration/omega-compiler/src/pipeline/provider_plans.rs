@@ -333,17 +333,15 @@ pub(crate) fn validate_adapter_refinement(
     diagnostics
 }
 
-/// PRV4 step (2) selection v1: a SLOT -- a (boundary trait, target) pair --
-/// selects its provider implicitly when exactly one FULLY COVERING plan
-/// exists; two covering plans are AMBIGUOUS and refuse loudly, naming both
-/// (the build.omg per-slot override spelling rides the target-package
-/// surface and will resolve such ties explicitly). Partially covering
-/// plans never select and never collide -- the trust report's coverage
-/// column is their surface.
-pub(crate) fn validate_slot_selection(
+/// PRV4c: select one fully covering provider type per applicable boundary
+/// slot. An explicit build-root declaration wins; without one, a unique
+/// covering candidate is the conservative default. Rows are never selected
+/// individually and partial candidates never combine.
+pub(crate) fn select_provider_plan_names(
     plans: &[omega_effects::provider_plan::ProviderPlan],
     selected_target: omega_target::NativeTarget,
-) -> Vec<omega_core::diagnostics::Diagnostic> {
+    requested: &[crate::pipeline::build_config::ProviderSelection],
+) -> Result<Vec<String>, Vec<omega_core::diagnostics::Diagnostic>> {
     // Target inertness (the fail-canary host-portability convention): a
     // plan scoped to a NON-selected target is inert and never collides --
     // only plans that RESOLVE to the selected target participate.
@@ -355,68 +353,106 @@ pub(crate) fn validate_slot_selection(
             .is_ok_and(|resolved| resolved == selected_target)
     };
     let mut diagnostics = Vec::new();
-    for (index, plan) in plans.iter().enumerate() {
-        if plan.schema.methods.is_empty() || !plan.covers_schema() || !applies(&plan.target) {
+    let name_matches = |authored: &str, candidate: &str| -> bool {
+        authored == candidate
+            || (!authored.contains("::")
+                && candidate
+                    .rsplit("::")
+                    .next()
+                    .is_some_and(|leaf| leaf == authored))
+    };
+    let mut selected = Vec::new();
+    let mut slot_names: Vec<&str> = plans
+        .iter()
+        .filter(|plan| !plan.schema.methods.is_empty())
+        .map(|plan| plan.schema.trait_name.as_str())
+        .collect();
+    for request in requested {
+        if !slot_names
+            .iter()
+            .any(|slot| name_matches(&request.boundary_trait, slot))
+        {
+            diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                "build selects provider `{}` for unknown boundary slot `{}`; the slot must exist in the loaded dependency closure",
+                request.provider_type, request.boundary_trait,
+            )));
+        }
+    }
+    slot_names.sort_unstable();
+    slot_names.dedup();
+
+    for slot_name in slot_names {
+        let explicit = requested
+            .iter()
+            .find(|selection| name_matches(&selection.boundary_trait, slot_name));
+        let candidates: Vec<&ProviderPlan> = plans
+            .iter()
+            .filter(|plan| plan.schema.trait_name == slot_name && applies(&plan.target))
+            .collect();
+        let covering: Vec<&ProviderPlan> = candidates
+            .iter()
+            .copied()
+            .filter(|plan| plan.covers_schema())
+            .collect();
+
+        if let Some(explicit) = explicit {
+            let matching: Vec<&ProviderPlan> = candidates
+                .iter()
+                .copied()
+                .filter(|plan| name_matches(&explicit.provider_type, &plan.provider_type))
+                .collect();
+            match matching.as_slice() {
+                [plan] if plan.covers_schema() => selected.push(plan.name.clone()),
+                [plan] => diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                    "build selects provider `{}` for slot `{slot_name}`, but candidate `{}` is partial ({}/{}) and cannot be selected",
+                    explicit.provider_type,
+                    plan.name,
+                    plan.rows.len(),
+                    plan.schema.methods.len(),
+                ))),
+                [] => {
+                    let wrong_target = plans.iter().any(|plan| {
+                        plan.schema.trait_name == slot_name
+                            && name_matches(&explicit.provider_type, &plan.provider_type)
+                    });
+                    diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                        "build selects provider `{}` for slot `{slot_name}`, but no {}candidate exists in the loaded dependency closure",
+                        explicit.provider_type,
+                        if wrong_target { "selected-target " } else { "" },
+                    )));
+                }
+                _ => diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                    "build selection `{}` for slot `{slot_name}` resolves to multiple provider candidates; qualify the provider type",
+                    explicit.provider_type,
+                ))),
+            }
             continue;
         }
-        for other in plans.iter().skip(index + 1) {
-            if other.schema.trait_name == plan.schema.trait_name
-                && applies(&other.target)
-                && other.covers_schema()
-                && !other.schema.methods.is_empty()
-            {
+
+        match covering.as_slice() {
+            [] => {}
+            [plan] => selected.push(plan.name.clone()),
+            many => {
+                let count = if many.len() == 2 {
+                    "two".to_owned()
+                } else {
+                    many.len().to_string()
+                };
                 diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
-                    "slot `{}` (target `{}`) has two covering provider plans: `{}` \
-                     [{:016x}] and `{}` [{:016x}] -- selection is implicit only when \
-                     unique; retire one or scope them to different targets",
-                    plan.schema.trait_name,
-                    if plan.target.is_empty() {
-                        "portable"
-                    } else {
-                        &plan.target
-                    },
-                    plan.name,
-                    plan.identity_fingerprint(),
-                    other.name,
-                    other.identity_fingerprint(),
+                    "slot `{slot_name}` has {count} covering provider plans for the selected target: {} -- choose one in build.omg with `b.select_provider<{slot_name}, ProviderType>();`",
+                    many.iter()
+                        .map(|plan| format!("`{}` [{:016x}]", plan.name, plan.identity_fingerprint()))
+                        .collect::<Vec<_>>()
+                        .join(", "),
                 )));
             }
         }
     }
-    diagnostics
-}
-
-/// Return the uniquely selected covering plans for the current target.
-/// Partial plans remain reportable candidates but contribute no backend rows,
-/// preventing unrelated providers from being assembled accidentally.
-pub(crate) fn implicitly_selected_plan_names(
-    plans: &[omega_effects::provider_plan::ProviderPlan],
-    selected_target: omega_target::NativeTarget,
-) -> Vec<String> {
-    let applies = |target: &str| -> bool {
-        target.is_empty()
-            || omega_target::NativeTarget::from_omega_target_name(Some(target))
-                .is_ok_and(|resolved| resolved == selected_target)
-    };
-    let mut selected = Vec::new();
-    for plan in plans {
-        if plan.schema.methods.is_empty() || !plan.covers_schema() || !applies(&plan.target) {
-            continue;
-        }
-        let covering_count = plans
-            .iter()
-            .filter(|candidate| {
-                candidate.schema.trait_name == plan.schema.trait_name
-                    && !candidate.schema.methods.is_empty()
-                    && candidate.covers_schema()
-                    && applies(&candidate.target)
-            })
-            .count();
-        if covering_count == 1 {
-            selected.push(plan.name.clone());
-        }
+    if diagnostics.is_empty() {
+        Ok(selected)
+    } else {
+        Err(diagnostics)
     }
-    selected
 }
 
 /// P4a: the CONSOLE methods the platform block declares -- the vertical's
@@ -552,8 +588,10 @@ mod tests {
             selection_plan("FirstProvider", &["first", "second"], &["first"]),
             selection_plan("SecondProvider", &["first", "second"], &["second"]),
         ];
-        assert!(
-            implicitly_selected_plan_names(&plans, omega_target::NativeTarget::host()).is_empty(),
+        assert_eq!(
+            select_provider_plan_names(&plans, omega_target::NativeTarget::host(), &[])
+                .expect("partial candidates are reportable, not ambiguous"),
+            Vec::<String>::new(),
             "two partial candidates are not one provider"
         );
     }
@@ -569,9 +607,47 @@ mod tests {
             selection_plan("PartialProvider", &["first", "second"], &["first"]),
         ];
         assert_eq!(
-            implicitly_selected_plan_names(&plans, omega_target::NativeTarget::host()),
+            select_provider_plan_names(&plans, omega_target::NativeTarget::host(), &[])
+                .expect("one covering candidate selects"),
             vec!["CompleteProvider".to_owned()]
         );
+    }
+
+    #[test]
+    fn explicit_selection_resolves_covering_ambiguity_by_provider_type() {
+        let plans = vec![
+            selection_plan("FirstProvider", &["first"], &["first"]),
+            selection_plan("SecondProvider", &["first"], &["first"]),
+        ];
+        let selected = select_provider_plan_names(
+            &plans,
+            omega_target::NativeTarget::host(),
+            &[crate::pipeline::build_config::ProviderSelection {
+                boundary_trait: "Pair".to_owned(),
+                provider_type: "SecondProvider".to_owned(),
+            }],
+        )
+        .expect("the build root owns the slot choice");
+        assert_eq!(selected, vec!["SecondProvider".to_owned()]);
+    }
+
+    #[test]
+    fn explicit_selection_refuses_partial_provider() {
+        let plans = vec![selection_plan(
+            "PartialProvider",
+            &["first", "second"],
+            &["first"],
+        )];
+        let diagnostics = select_provider_plan_names(
+            &plans,
+            omega_target::NativeTarget::host(),
+            &[crate::pipeline::build_config::ProviderSelection {
+                boundary_trait: "Pair".to_owned(),
+                provider_type: "PartialProvider".to_owned(),
+            }],
+        )
+        .expect_err("selection never manufactures missing rows");
+        assert!(diagnostics[0].message.contains("is partial"));
     }
 
     #[test]

@@ -367,21 +367,16 @@ impl Compiler {
         let selected_native_target =
             omega_target::NativeTarget::from_omega_target_name(self.options.target_name.as_deref())
                 .unwrap_or_else(|_| omega_target::NativeTarget::host());
-        let mut selection_diagnostics = crate::pipeline::provider_plans::validate_slot_selection(
+        let adapter_diagnostics =
+            crate::pipeline::provider_plans::validate_adapter_refinement(&typed, &provider_plans);
+        if !adapter_diagnostics.is_empty() {
+            return Err(adapter_diagnostics);
+        }
+        let selected_provider_plans = crate::pipeline::provider_plans::select_provider_plan_names(
             &provider_plans,
             selected_native_target,
-        );
-        selection_diagnostics.extend(
-            crate::pipeline::provider_plans::validate_adapter_refinement(&typed, &provider_plans),
-        );
-        if !selection_diagnostics.is_empty() {
-            return Err(selection_diagnostics);
-        }
-        let selected_provider_plans =
-            crate::pipeline::provider_plans::implicitly_selected_plan_names(
-                &provider_plans,
-                selected_native_target,
-            );
+            &build_config.provider_selections,
+        )?;
         // PRV4 adapter dispatch (both engines, before checking): only the
         // uniquely selected provider candidate may rewrite boundary calls.
         crate::pipeline::adapter_dispatch::rewrite_adapter_calls(
