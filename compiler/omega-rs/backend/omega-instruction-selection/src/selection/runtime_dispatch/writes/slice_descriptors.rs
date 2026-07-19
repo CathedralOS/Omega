@@ -710,6 +710,40 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
     let ExpressionNode::Call(call) = expressions.expression(value) else {
         return false;
     };
+
+    // `String::as_view()` and `string::bytes()` preserve the canonical
+    // `{ptr, len}` descriptor. Their result is a borrow of the same bytes, not
+    // an owned-String-to-slice conversion. Materialize the explicitly typed
+    // local/argument slot by copying that descriptor from the receiver. The
+    // storage-place normalizer peels the nested view calls, so `s.as_view()`
+    // resolves the String descriptor and `view.bytes()` resolves the
+    // intermediate borrowed descriptor without exposing a raw offset API.
+    if call.receiver.is_valid()
+        && call.arguments.is_empty()
+        && matches!(call.target.as_str(), "as_view" | "bytes")
+        && let Some(source) = resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            call.receiver,
+        )
+        && source.byte_count == slot.byte_size
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind: crate::selection::runtime_dispatch::copy_places_direct(
+                source.region,
+                source.byte_offset,
+                RuntimeStorageRegion::RuntimeFrame,
+                slot.byte_offset,
+                slot.byte_size,
+            ),
+            source_key: value_source_key,
+            source_statement: statement_index,
+        });
+        return true;
+    }
+
     if !call.receiver.is_valid()
         || !call.arguments.is_empty()
         || (call.target.as_str() != "as_slice" && call.target.as_str() != "as_mut_slice")

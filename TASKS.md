@@ -66,10 +66,11 @@ Omega bodies; irreducible leaves use
 `satisfies Requirement via <Binding>;`. Target packages provide defaults and a
 slot owner may override by type. The migration order remains load-bearing.
 
-1. **PRV4b — Console adapters.** First land the honest owned-`String` to
-   borrowed-byte-view runtime path (`as_view`/`bytes`), or complete the planned
-   `String` retirement; do not exploit the current loose named-argument shape
-   check to pass an owned `String` as `&[u8]`. Then add the standard
+1. **PRV4b — Console adapters.** The honest owned-`String` to
+   borrowed-byte-view runtime path (`as_view`/`bytes`) now runs in both engines:
+   the borrow checker ties the view to its owner and lowering preserves the
+   canonical descriptor instead of exploiting the loose named-argument shape
+   check to pass an owned `String` as `&[u8]`. Add the standard
    `write_line`/`write` checked adapters over byte operations, compare them
    against the lossless built-in oracle, make both interpreter and native
    routes use them, and remove the built-in Console composite rows.

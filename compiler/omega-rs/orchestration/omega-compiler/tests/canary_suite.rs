@@ -19154,6 +19154,39 @@ fn zii_default_string_equality_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_owned_string_byte_view_exit_canary_runs() {
+    // The honest adapter prerequisite: owned String -> borrowed text view ->
+    // borrowed bytes. Native lowering copies the descriptor, and the
+    // interpreter shares the same byte cell; neither path passes the owned
+    // String directly as a byte-slice argument.
+    let canary = pass_canary("text/runtime_owned_string_byte_view_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("owned String byte-view canary should check");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        interpreted.error, None,
+        "owned String byte-view canary should interpret"
+    );
+    assert_eq!(interpreted.exit_code, 70);
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-string-view-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("owned String byte-view canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("owned String byte-view canary should run");
+    assert_eq!(output.status.code(), Some(70));
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn equatable_sum_stale_payload_exit_canary_runs() {
     // Synthesized sum equality is tag-aware: stale bytes from a longer
     // variant reassigned away must not leak into ==.
@@ -33400,6 +33433,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/case_literal_texteq_terminal_exit",
     "text/runtime_text_equals_boolean_operand_exit",
     "text/runtime_text_not_equals_exit",
+    "text/runtime_owned_string_byte_view_exit",
     "text/zii_default_string_equality_exit",
     "text/zii_string_host_write_exit",
     "text/runtime_text_equals_value_positions_exit",

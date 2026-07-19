@@ -119,6 +119,8 @@ The exact surface spelling may stay Rust-like for a while:
 let fixed: [Item; 4];
 let view: &[Item] = fixed.as_slice();
 let text: String;
+let text_view: &string = text.as_view();
+let bytes: &[u8] = text_view.bytes();
 ```
 
 But semantically, `Array`, `Vec`, and `Slice` should be visible core concepts,
@@ -127,6 +129,13 @@ the common borrowed view they can produce. Likewise, an owned `String` can
 produce a borrowed text window. The owned text type is `String`; a borrowed text
 window is its own type spelled `&string` (or `&mut string`). The capitalization
 distinguishes owner from window.
+
+`as_view()` and `bytes()` are borrowed, descriptor-preserving views. They do
+not copy the owned text and do not convert ownership: mutating the owner while
+either view remains live is rejected, and both native lowering and the
+interpreter retain the same pointer-and-length window. This is the explicit
+bridge used while the longer-term `String` retirement migrates borrowed text
+directly to `&[u8] in Utf8`.
 
 The implementation can still use privileged internal carriers. A slice view is
 likely lowered as a descriptor such as pointer plus length. A vector is likely

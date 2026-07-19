@@ -4557,6 +4557,21 @@ impl<'program> Evaluator<'program> {
             }
         }
 
+        // Borrowed text-view builtins are descriptor-preserving views. The
+        // interpreter represents owned String, `&string`, and `&[u8]` text
+        // views with the same shared `Value::Str` cell, mirroring the native
+        // `{ptr, len}` descriptor copy. Returning a clone shares the bytes; it
+        // never copies or converts the owned String into an unrelated value.
+        if matches!(target, "as_view" | "bytes") && call.receiver.is_valid() {
+            if let Ok(cell) = self.resolve_place(call.receiver, frame) {
+                let cell = self.deref_cell(cell);
+                let value = cell.borrow().clone();
+                if matches!(value, Value::Str(_)) {
+                    return Ok(value);
+                }
+            }
+        }
+
         // A transition's guard subject evaluates ONCE per transition evaluation: the
         // parser lowers `transition self.f(x) { true -> a false -> b }` into one guard
         // per arm, each holding a COPY of the subject call (distinct handles, identical

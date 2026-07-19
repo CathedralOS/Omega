@@ -1285,7 +1285,10 @@ fn initial_value_blocks_inline_fold(
 /// must not be inline-folded during argument resolution.
 fn expression_contains_result_call(table: &ExpressionTable, expression: ExpressionHandle) -> bool {
     match table.expression(expression) {
-        ExpressionNode::Call(call) => !matches!(call.target.as_str(), "as_slice" | "as_mut_slice"),
+        ExpressionNode::Call(call) => !matches!(
+            call.target.as_str(),
+            "as_slice" | "as_mut_slice" | "as_view" | "bytes"
+        ),
         ExpressionNode::Binary(binary) => {
             expression_contains_result_call(table, binary.left)
                 || expression_contains_result_call(table, binary.right)

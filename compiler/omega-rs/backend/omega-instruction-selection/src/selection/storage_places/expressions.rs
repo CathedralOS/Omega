@@ -304,7 +304,10 @@ fn slice_view_call_receiver_expression(
     call: &omega_checked_trees::expression::CallExpression,
 ) -> Option<&Expression> {
     if !call.arguments.is_empty()
-        || (call.target.as_str() != "as_slice" && call.target.as_str() != "as_mut_slice")
+        || !matches!(
+            call.target.as_str(),
+            "as_slice" | "as_mut_slice" | "as_view" | "bytes"
+        )
     {
         return None;
     }
@@ -314,7 +317,10 @@ fn slice_view_call_receiver_expression(
 fn slice_view_call_receiver_handle(call: &TableCallExpression) -> Option<ExpressionHandle> {
     if !call.receiver.is_valid()
         || !call.arguments.is_empty()
-        || (call.target.as_str() != "as_slice" && call.target.as_str() != "as_mut_slice")
+        || !matches!(
+            call.target.as_str(),
+            "as_slice" | "as_mut_slice" | "as_view" | "bytes"
+        )
     {
         return None;
     }
