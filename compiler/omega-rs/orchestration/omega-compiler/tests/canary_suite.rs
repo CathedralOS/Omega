@@ -30482,6 +30482,7 @@ const WINDOWS_HOST_PASS_CANARIES: &[&str] = &[
 /// the name registered they pin cross-host -- the stronger form of the
 /// former windows-gating.
 const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
+    ("inline_asm/asm_multi_instruction_block_compile", "uefi_x64"),
     ("targets/efi_vtable_call", "uefi_x64"),
     ("targets/efi_vtable_field_call", "uefi_x64"),
     ("targets/efi_out_param_call", "uefi_x64"),

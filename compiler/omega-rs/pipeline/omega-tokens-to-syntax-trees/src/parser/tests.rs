@@ -828,6 +828,148 @@ fn parses_asm_mnemonics_as_intrinsic_calls() {
     assert!(!port_in.receiver.is_valid());
 }
 
+#[test]
+fn parses_multiple_known_asm_instructions_in_one_block() {
+    let source = r#"
+        data Main {
+            port: u16;
+        }
+
+        machine Main::main(&mut self) {
+            let mut status: u8 = 0;
+            asm {
+                out self.port, status;
+                in status, self.port;
+                hlt
+            }
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+    let entry = parsed
+        .items
+        .state_handles(machine.states)
+        .first()
+        .copied()
+        .expect("entry state");
+    let statements = parsed
+        .items
+        .statements(parsed.items.state(entry).statements)
+        .to_vec();
+
+    assert_eq!(statements.len(), 4, "let + three asm instructions");
+    assert!(matches!(
+        parsed.statements.statement(statements[1]),
+        StatementNode::Call(call) if call.target.as_str() == "asm#port_out"
+    ));
+    assert!(matches!(
+        parsed.statements.statement(statements[2]),
+        StatementNode::Assignment(_)
+    ));
+    assert!(matches!(
+        parsed.statements.statement(statements[3]),
+        StatementNode::Call(call) if call.target.as_str() == "asm#hlt"
+    ));
+}
+
+#[test]
+fn parses_multi_instruction_asm_in_states_and_trait_defaults() {
+    let source = r#"
+        trait Idle {
+            machine idle(&mut self) {
+                asm { hlt; hlt }
+            }
+        }
+
+        data Main {}
+
+        machine Main::main(&mut self) {
+            transition { _ -> next() }
+
+            state next() {
+                asm { hlt; hlt }
+            }
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+    let explicit = parsed
+        .items
+        .state_handles(machine.states)
+        .get(1)
+        .copied()
+        .expect("explicit state");
+    assert_eq!(
+        parsed
+            .items
+            .statements(parsed.items.state(explicit).statements)
+            .len(),
+        2,
+        "explicit state should retain both asm instructions"
+    );
+}
+
+#[test]
+fn rejects_ambiguous_or_empty_multi_instruction_asm_blocks() {
+    for (block, expected) in [
+        (
+            "asm { out self.port, self.value hlt }",
+            "multiple asm instructions must be separated by `;`",
+        ),
+        (
+            "asm { jmp done(); hlt }",
+            "an asm control transfer must be the final instruction",
+        ),
+        (
+            "asm {}",
+            "an asm block must contain at least one known instruction",
+        ),
+    ] {
+        let source = format!(
+            r#"
+            data Main {{
+                port: u16;
+                value: u8;
+            }}
+
+            machine Main::main(&mut self) {{
+                {block}
+                state done() {{}}
+            }}
+            "#
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens).expect_err("asm block should reject");
+        let rendered = format!("{error:?}");
+        assert!(
+            rendered.contains(expected),
+            "expected `{expected}`, got `{rendered}`"
+        );
+    }
+}
+
 /// Opaque asm forms have no attributable contract; only known-contract
 /// instructions compile (privileged_effects_and_binary_trust, LOCKED point 2).
 #[test]

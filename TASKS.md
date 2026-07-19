@@ -21,16 +21,13 @@ the first timer tick. The design is recorded in
 `wiki/design_briefs/os_memory_and_hardware_foundation.md`, chapter 19, and
 chapter 23.
 
-1. **ASM1 — parsed checked assembly.** Extend the existing
-   `asm { jmp state(...) }` subset to parsed target mnemonics, operands,
-   registers, clobbers, availability classes, and `asm where` contracts.
-   Reject unknown instructions, raw byte injection, hidden exits, and
-   unmodeled memory access.
-2. **ASM2 — first x86 contract catalog.** Add save/restore flags, `cli`,
-   `sti`, `lidt`, `hlt`, port I/O, fences, and the needed MSR/control
-   operations. Direct assembly and abstract boundary services must contribute
-   identical normalized reach/authority. Mark `iretq` and equivalent exits
-   deriver-only.
+1. **ASM1 — contract surface.** Add `asm where` contracts, structured target
+   operands/register constraints, explicit clobbers, and availability classes
+   to the strict parsed block. Reject hidden exits and unmodeled memory access.
+2. **ASM2 — expand the x86 catalog.** Add save/restore flags, `cli`, `sti`,
+   `lidt`, fences, and the needed MSR/control operations. Direct assembly and
+   abstract boundary services must contribute identical normalized
+   reach/authority. Mark `iretq` and equivalent exits deriver-only.
 3. **ASM3 — retire the transitional instruction binding.** Replace every
    `Binding::Instruction` customer with checked assembly, then delete the
    binding variant and its compatibility paths.
@@ -122,6 +119,14 @@ argument or inferred contract.
 These are unblocked and should gain a focused pass/fail or differential canary
 before the fix.
 
+- **Restore the pass-canary baseline.** The broad compile gate is currently red
+  in independent clusters: `CommutativeSemiring::mul_identity` satisfier
+  ambiguity across the core Nat/Rat/rearrange corpus; default-domain
+  membership, length, equality, capacity, and standing-bound facts; anonymous
+  exact-Rat arithmetic in runtime guards; the compiler-known `Finite` domain;
+  `Finite & Saturating` parsing; and nonliteral exact float-to-int proofs.
+  Fix the implementation or migrate a stale canary only when the settled guide
+  proves the canary spelling wrong; do not normalize a red pass corpus.
 - **Constant-offset recast stale read.** A record view such as
   `&self.buf[K] as &Rec` can fold field reads against the zero-initialized
   static image after runtime writes. A small runtime-offset loop can likewise

@@ -48,4 +48,5 @@ machine Main::main(&mut self) {
     state retired_modular_zero(&mut self) { self.console.exit_process(71); }
     state wrong_operand40(&mut self) { self.console.exit_process(72); }
     state wrong_operand70(&mut self) { self.console.exit_process(73); }
+    state weird(&mut self)           { self.console.exit_process(99); }
 }
