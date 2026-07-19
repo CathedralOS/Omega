@@ -34103,6 +34103,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "control_flow/bare_state_arrow_transition",
     "inline_asm/asm_label_loop",
     "inline_asm/asm_structured_ldr_str",
+    "inline_asm/asm_deriver_only_exit",
+    "inline_asm/asm_hidden_return",
     "inline_asm/asm_where_contract",
     "control_flow/termination_countdown_stalled_decrease",
     "control_flow/termination_cycle_missing_decreases",

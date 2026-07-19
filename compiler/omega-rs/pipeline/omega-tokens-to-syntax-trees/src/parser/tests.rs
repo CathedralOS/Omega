@@ -1016,6 +1016,34 @@ fn rejects_ambiguous_or_empty_multi_instruction_asm_blocks() {
     }
 }
 
+#[test]
+fn rejects_asm_availability_and_unmodeled_operation_classes() {
+    for (instruction, expected) in [
+        ("iretq", "deriver-only"),
+        ("ret", "creates a hidden control exit"),
+        (
+            "ldr x0, self.value",
+            "no structured operand provenance/permission contract",
+        ),
+    ] {
+        let source = format!(
+            r#"
+            data Main {{ value: i32; }}
+            machine Main::main(&mut self) {{ asm {{ {instruction} }} }}
+            "#
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens).expect_err("asm instruction should reject");
+        let rendered = format!("{error:?}");
+        assert!(
+            rendered.contains(expected),
+            "expected `{expected}` for `{instruction}`, got `{rendered}`"
+        );
+    }
+}
+
 /// Opaque asm forms have no attributable contract; only known-contract
 /// instructions compile (privileged_effects_and_binary_trust, LOCKED point 2).
 #[test]
