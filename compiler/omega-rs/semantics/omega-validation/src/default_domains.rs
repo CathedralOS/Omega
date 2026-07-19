@@ -13,8 +13,8 @@
 //! runtime-valued store to a where-mentioned field refuses (the entailment
 //! integration relaxes this later); a whole-place struct-literal store
 //! reseeds the valuation from the literal (already proven at construction
-//! by rung 2b); any CALL statement poisons every tracked valuation
-//! (conservative aliasing fence).
+//! by rung 2b). Resolved calls invalidate valuations overlapping their R5
+//! may-write paths; opaque calls retain the conservative whole-state fence.
 
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
@@ -414,9 +414,13 @@ fn walk_state(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> (Vec<String>, Vec<PlaceValuation>, Vec<(String, String)>) {
     let mut tracked: Vec<TrackedPlace> = Vec::new();
-    // A call statement poisons transported valuations (the callee may write
-    // any place); establishment survives (globally monotone).
-    let mut poisoned = false;
+    // Known calls poison only transported valuations they may write. An
+    // opaque call poisons every valuation; establishment survives either
+    // case because it is globally monotone.
+    let mut poisoned_all = false;
+    let mut poisoned_paths: Vec<String> = Vec::new();
+    let mut call_symbols = None;
+    let mut call_symbols_initialized = false;
     // Slice 11: establishment ADDED by callee summaries at call sites.
     let mut call_established: Vec<String> = Vec::new();
     // WINDOW TRANSPORT: windows still open from predecessor states
@@ -449,7 +453,8 @@ fn walk_state(
                     assignment.value,
                     &mut tracked,
                     entry_valuations,
-                    poisoned,
+                    poisoned_all,
+                    &poisoned_paths,
                     born_zero,
                     diagnostics,
                 );
@@ -461,14 +466,63 @@ fn walk_state(
                         .any(|place| place.spelling == *spelling && !place.window_open)
                 });
             }
-            // Conservative aliasing fence: a call may write any place --
-            // and OBSERVES state, so it is a consumption point (ch11): any
-            // open window must have closed.
+            // A call OBSERVES state, so it remains a hard consumption point
+            // (ch11): every open window must have closed. After that check,
+            // R5 summaries preserve exact valuations outside known writes.
             StatementNode::Call(call) => {
                 refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
                 preserve_proven_establishment(&tracked, &mut call_established);
-                tracked.clear();
-                poisoned = true;
+                if !call_symbols_initialized {
+                    let mut symbol_diagnostics = Vec::new();
+                    let symbols = crate::symbols::TopLevelSymbols::build(
+                        program,
+                        &mut symbol_diagnostics,
+                    );
+                    let machine_symbols = crate::symbols::MachineSymbols::build(
+                        program,
+                        machine,
+                        &mut symbol_diagnostics,
+                    );
+                    if symbol_diagnostics.is_empty() {
+                        call_symbols = Some((symbols, machine_symbols));
+                    }
+                    call_symbols_initialized = true;
+                }
+                let written = call_symbols.as_ref().and_then(|(symbols, machine_symbols)| {
+                    crate::calls::known_call_written_paths(
+                        program,
+                        call,
+                        machine,
+                        machine_symbols,
+                        symbols,
+                    )
+                    .or_else(|| {
+                        crate::calls::known_boundary_call_written_paths(
+                            program,
+                            machine_symbols,
+                            symbols,
+                            call,
+                        )
+                    })
+                });
+                if let Some(written) = written {
+                    tracked.retain(|place| {
+                        !written.iter().any(|written| {
+                            crate::arithmetic_domains::place_paths_overlap(
+                                &place.spelling,
+                                written,
+                            )
+                        })
+                    });
+                    for written in written {
+                        if !poisoned_paths.contains(&written) {
+                            poisoned_paths.push(written);
+                        }
+                    }
+                } else {
+                    tracked.clear();
+                    poisoned_all = true;
+                }
                 // Slice 11: the callee's establishment summary joins
                 // (call.target_symbol is the target STATE's symbol; resolve
                 // to its owning machine).
@@ -485,7 +539,7 @@ fn walk_state(
                     refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
                     preserve_proven_establishment(&tracked, &mut call_established);
                     tracked.clear();
-                    poisoned = true;
+                    poisoned_all = true;
                     collect_call_summaries(program, *expression, summaries, &mut call_established);
                 }
             }
@@ -496,7 +550,7 @@ fn walk_state(
                     refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
                     preserve_proven_establishment(&tracked, &mut call_established);
                     tracked.clear();
-                    poisoned = true;
+                    poisoned_all = true;
                     collect_call_summaries(
                         program,
                         local.initial_value,
@@ -539,16 +593,19 @@ fn walk_state(
     exit_established.sort();
     exit_established.dedup();
 
-    // Exit valuations: in-state tracked places, plus (when no call poisoned
-    // the state) the untouched entry places passing through.
+    // Exit valuations: in-state tracked places, plus entry places that no
+    // known write overlaps. An opaque call poisons every untouched entry.
     let mut exit_valuations: Vec<PlaceValuation> = tracked
         .iter()
         .filter(|place| is_self_rooted(&place.spelling))
         .map(|place| (place.spelling.clone(), place.fields.clone()))
         .collect();
-    if !poisoned {
+    if !poisoned_all {
         for (spelling, fields) in entry_valuations {
-            if !exit_valuations.iter().any(|(name, _)| name == spelling) {
+            let poisoned = poisoned_paths.iter().any(|written| {
+                crate::arithmetic_domains::place_paths_overlap(spelling, written)
+            });
+            if !poisoned && !exit_valuations.iter().any(|(name, _)| name == spelling) {
                 exit_valuations.push((spelling.clone(), fields.clone()));
             }
         }
@@ -689,7 +746,8 @@ fn handle_assignment<'program>(
     value: ExpressionHandle,
     tracked: &mut Vec<TrackedPlace<'program>>,
     entry_valuations: &[PlaceValuation],
-    poisoned: bool,
+    poisoned_all: bool,
+    poisoned_paths: &[String],
     born_zero: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -773,8 +831,13 @@ fn handle_assignment<'program>(
     {
         &mut tracked[position]
     } else {
-        // R2 rung 3 slice 5: seed the fresh place from the transported
-        // entry valuation (unless a call poisoned this state's view).
+        // R2 rung 3 slice 5: seed the fresh place from its transported entry
+        // valuation unless an opaque call, or a known overlapping write,
+        // poisoned this place's view.
+        let poisoned = poisoned_all
+            || poisoned_paths.iter().any(|written| {
+                crate::arithmetic_domains::place_paths_overlap(&receiver_spelling, written)
+            });
         let seeded_fields = if poisoned {
             Vec::new()
         } else {
