@@ -368,6 +368,8 @@ struct TrackedPlace<'program> {
     spelling: String,
     definition: &'program DataDefinition,
     fields: Vec<(String, Option<i128>)>,
+    symbols: Vec<(String, omega_core::symbols::SymbolHandle)>,
+    measures: Vec<(String, Option<i128>, Option<i128>)>,
     /// R2 rung 3 slice 2: the ACCESS GATE. A `zero_gated` place starts
     /// UNESTABLISHED (its zero violates the domain); a proven whole-place
     /// literal or an accepted constrained write establishes it (every
@@ -680,12 +682,34 @@ fn handle_assignment<'program>(
                 )
             })
             .collect();
+        let symbols = program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .filter_map(|field| {
+                expression_symbol(program, field.value)
+                    .map(|symbol| (field.name.as_str().to_string(), symbol))
+            })
+            .collect();
+        let measures = program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .filter_map(|field| {
+                expression_sequence_measures(program, field.value)
+                    .map(|(length, capacity)| {
+                        (field.name.as_str().to_string(), length, capacity)
+                    })
+            })
+            .collect();
         tracked.retain(|place| place.spelling != spelling);
         let place_born_zero = born_zero && is_self_rooted(&spelling);
         tracked.push(TrackedPlace {
             spelling,
             definition,
             fields,
+            symbols,
+            measures,
             // Rung 2b proved this literal against the domain.
             established: true,
             born_zero: place_born_zero,
@@ -737,6 +761,8 @@ fn handle_assignment<'program>(
             spelling: receiver_spelling,
             definition,
             fields: seeded_fields,
+            symbols: Vec::new(),
+            measures: Vec::new(),
             // Zero-satisfying data is born established; gated data must
             // earn it (the accepted write below does, since it re-proves
             // the whole domain). A parameter place arrives ALREADY VALID
@@ -752,6 +778,16 @@ fn handle_assignment<'program>(
     };
     place.fields.retain(|(name, _)| *name != field_name);
     place.fields.push((field_name.clone(), written));
+    place.symbols.retain(|(name, _)| *name != field_name);
+    if let Some(symbol) = expression_symbol(program, value) {
+        place.symbols.push((field_name.clone(), symbol));
+    }
+    place.measures.retain(|(name, _, _)| *name != field_name);
+    if let Some((length, capacity)) = expression_sequence_measures(program, value) {
+        place
+            .measures
+            .push((field_name.clone(), length, capacity));
+    }
 
     // Obligation: a field participating in either an authored `where` fact or
     // an implicit range/containment gate must help re-establish the whole
@@ -786,23 +822,36 @@ fn handle_assignment<'program>(
     {
         match fact {
             omega_typed_trees::domain::ProofFact::Expression(expression) => {
-                match fold_with_valuation(program, &valuation, place.born_zero, *expression) {
+                match fold_with_valuation(
+                    program,
+                    &valuation,
+                    &place.symbols,
+                    &place.measures,
+                    place.born_zero,
+                    *expression,
+                ) {
                     Some(value) if value != 0 => {}
                     // Ch11 (slice 8): a checkable violation OPENS a window instead
                     // of refusing -- the consumption points demand closure.
                     Some(_) => all_hold = false,
                     None => {
                         all_hold = false;
-                        diagnostics.push(Diagnostic::error(format!(
-                            "write to `{}.{field_name}` cannot PROVE data `{}`'s default domain: \
-                             a `where`-mentioned field's value is not a literal known here (a \
-                             runtime value, or a co-field last written in another state) -- \
-                             restructure with literal stores in one state for now (the \
-                             entailment integration and cross-state valuation transport relax \
-                             this)",
-                            place.spelling,
-                            place.definition.name.as_str()
-                        )));
+                        // A named runtime value may be written into multiple
+                        // correlated fields inside one invariant window. Its
+                        // stable symbol lets a later write prove equality; do
+                        // not reject before that closing write arrives.
+                        if expression_symbol(program, value).is_none() {
+                            diagnostics.push(Diagnostic::error(format!(
+                                "write to `{}.{field_name}` cannot PROVE data `{}`'s default domain: \
+                                 a `where`-mentioned field's value is not a literal known here (a \
+                                 runtime value, or a co-field last written in another state) -- \
+                                 restructure with literal stores in one state for now (the \
+                                 entailment integration and cross-state valuation transport relax \
+                                 this)",
+                                place.spelling,
+                                place.definition.name.as_str()
+                            )));
+                        }
                     }
                 }
             }
@@ -1375,6 +1424,9 @@ fn expression_mentions_name(
             expression_mentions_name(program, binary.left, name)
                 || expression_mentions_name(program, binary.right, name)
         }
+        ExpressionNode::Member(member) => {
+            expression_mentions_name(program, member.receiver, name)
+        }
         _ => false,
     }
 }
@@ -1393,6 +1445,8 @@ fn integer_literal_value(program: &TypedTrees, expression: ExpressionHandle) -> 
 fn fold_with_valuation(
     program: &TypedTrees,
     valuation: &[(&str, Option<i128>)],
+    symbols: &[(String, omega_core::symbols::SymbolHandle)],
+    measures: &[(String, Option<i128>, Option<i128>)],
     born_zero: bool,
     expression: ExpressionHandle,
 ) -> Option<i128> {
@@ -1414,9 +1468,52 @@ fn fold_with_valuation(
             }
         }
         ExpressionNode::Integer(value) => value.text().parse::<i128>().ok(),
+        ExpressionNode::Member(member) if matches!(member.member.as_str(), "len" | "capacity") => {
+            let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver)
+            else {
+                return None;
+            };
+            let field = program
+                .expression_table
+                .name_path_members(path.members)
+                .last()?
+                .as_str();
+            match measures.iter().find(|(name, _, _)| name == field) {
+                Some((_, length, capacity)) => match member.member.as_str() {
+                    "len" => *length,
+                    "capacity" => *capacity,
+                    _ => None,
+                },
+                None if born_zero => Some(0),
+                None => None,
+            }
+        }
         ExpressionNode::Binary(binary) => {
-            let left = fold_with_valuation(program, valuation, born_zero, binary.left)?;
-            let right = fold_with_valuation(program, valuation, born_zero, binary.right)?;
+            if matches!(binary.operator, BinaryOperator::Equal | BinaryOperator::NotEqual)
+                && let (Some(left), Some(right)) = (
+                    symbolic_operand(program, symbols, binary.left),
+                    symbolic_operand(program, symbols, binary.right),
+                )
+                && left == right
+            {
+                return Some(i128::from(matches!(binary.operator, BinaryOperator::Equal)));
+            }
+            let left = fold_with_valuation(
+                program,
+                valuation,
+                symbols,
+                measures,
+                born_zero,
+                binary.left,
+            )?;
+            let right = fold_with_valuation(
+                program,
+                valuation,
+                symbols,
+                measures,
+                born_zero,
+                binary.right,
+            )?;
             match binary.operator {
                 BinaryOperator::Add => left.checked_add(right),
                 BinaryOperator::Subtract => left.checked_sub(right),
@@ -1431,6 +1528,48 @@ fn fold_with_valuation(
                 BinaryOperator::Or => Some(i128::from(left != 0 || right != 0)),
                 _ => None,
             }
+        }
+        _ => None,
+    }
+}
+
+fn expression_symbol(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<omega_core::symbols::SymbolHandle> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    path.symbol.is_valid().then_some(path.symbol)
+}
+
+fn symbolic_operand(
+    program: &TypedTrees,
+    symbols: &[(String, omega_core::symbols::SymbolHandle)],
+    expression: ExpressionHandle,
+) -> Option<omega_core::symbols::SymbolHandle> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let field = program
+        .expression_table
+        .name_path_members(path.members)
+        .last()?
+        .as_str();
+    symbols
+        .iter()
+        .find(|(name, _)| name == field)
+        .map(|(_, symbol)| *symbol)
+}
+
+fn expression_sequence_measures(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<(Option<i128>, Option<i128>)> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::String(literal) => {
+            let measure = i128::try_from(literal.as_bytes().len()).ok();
+            Some((measure, measure))
         }
         _ => None,
     }

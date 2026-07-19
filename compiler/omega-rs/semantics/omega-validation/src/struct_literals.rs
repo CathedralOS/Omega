@@ -835,17 +835,35 @@ fn membership_domain_label(
 struct Bounds {
     low: Option<i64>,
     high: Option<i64>,
+    symbol: omega_core::symbols::SymbolHandle,
+    length: Option<i64>,
+    capacity: Option<i64>,
 }
 
 impl Bounds {
     const UNKNOWN: Bounds = Bounds {
         low: None,
         high: None,
+        symbol: omega_core::symbols::SymbolHandle::invalid(),
+        length: None,
+        capacity: None,
     };
     fn point(value: i64) -> Bounds {
         Bounds {
             low: Some(value),
             high: Some(value),
+            symbol: omega_core::symbols::SymbolHandle::invalid(),
+            length: None,
+            capacity: None,
+        }
+    }
+
+    fn sequence(byte_length: usize) -> Bounds {
+        let measure = i64::try_from(byte_length).ok();
+        Bounds {
+            length: measure,
+            capacity: measure,
+            ..Bounds::UNKNOWN
         }
     }
 }
@@ -866,6 +884,7 @@ fn value_bounds(
     expression: ExpressionHandle,
 ) -> Bounds {
     match program.expression_table.expression(expression) {
+        ExpressionNode::String(literal) => Bounds::sequence(literal.as_bytes().len()),
         ExpressionNode::Integer(value) => value
             .text()
             .parse::<i64>()
@@ -878,18 +897,69 @@ fn value_bounds(
             let Some(handle) =
                 crate::places::declared_place_type_raw(program, machine, Some(state), expression)
             else {
-                return Bounds::UNKNOWN;
+                let mut bounds = Bounds::UNKNOWN;
+                if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
+                {
+                    bounds.symbol = path.symbol;
+                    if let Some(sequence) = local_sequence_bounds(program, state, expression) {
+                        bounds.length = sequence.length;
+                        bounds.capacity = sequence.capacity;
+                    }
+                }
+                return bounds;
             };
-            match crate::arithmetic_domains::range_constraint_interval(program, handle) {
+            let mut bounds = match crate::arithmetic_domains::range_constraint_interval(program, handle) {
                 Some(interval) => Bounds {
                     low: interval.low,
                     high: interval.high,
+                    ..Bounds::UNKNOWN
                 },
                 None => Bounds::UNKNOWN,
+            };
+            if let ExpressionNode::Name(path) = program.expression_table.expression(expression) {
+                bounds.symbol = path.symbol;
+                if let Some(sequence) = local_sequence_bounds(program, state, expression) {
+                    bounds.length = sequence.length;
+                    bounds.capacity = sequence.capacity;
+                }
             }
+            bounds
         }
         _ => Bounds::UNKNOWN,
     }
+}
+
+fn local_sequence_bounds(
+    program: &TypedTrees,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<Bounds> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let name = program
+        .expression_table
+        .name_path_members(path.members)
+        .last()?
+        .as_str();
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            StatementNode::LocalData(local)
+                if (path.symbol.is_valid() && local.symbol == path.symbol)
+                    || local.name.as_str() == name =>
+            {
+                match program.expression_table.expression(local.initial_value) {
+                    ExpressionNode::String(literal) => {
+                        Some(Bounds::sequence(literal.as_bytes().len()))
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        })
 }
 
 /// Fold a `where` fact over the field-value intervals. Comparisons yield a
@@ -935,6 +1005,28 @@ fn bounds_eval(
             .parse::<i64>()
             .map(Bounds::point)
             .unwrap_or(Bounds::UNKNOWN),
+        ExpressionNode::Member(member) if matches!(member.member.as_str(), "len" | "capacity") => {
+            let measure = match program.expression_table.expression(member.receiver) {
+                ExpressionNode::Name(path) => program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .last()
+                    .and_then(|name| match valuation
+                        .iter()
+                        .find(|(field, _)| *field == name.as_str())
+                    {
+                        Some((_, bounds)) => match member.member.as_str() {
+                            "len" => bounds.length,
+                            "capacity" => bounds.capacity,
+                            _ => None,
+                        },
+                        // An omitted sequence field has the ZII empty value.
+                        None => Some(0),
+                    }),
+                _ => None,
+            };
+            measure.map(Bounds::point).unwrap_or(Bounds::UNKNOWN)
+        }
         ExpressionNode::Binary(binary) => {
             let left = bounds_eval(program, valuation, binary.left);
             let right = bounds_eval(program, valuation, binary.right);
@@ -942,10 +1034,12 @@ fn bounds_eval(
                 BinaryOperator::Add => Bounds {
                     low: left.low.zip(right.low).map(|(a, b)| a.saturating_add(b)),
                     high: left.high.zip(right.high).map(|(a, b)| a.saturating_add(b)),
+                    ..Bounds::UNKNOWN
                 },
                 BinaryOperator::Subtract => Bounds {
                     low: left.low.zip(right.high).map(|(a, b)| a.saturating_sub(b)),
                     high: left.high.zip(right.low).map(|(a, b)| a.saturating_sub(b)),
+                    ..Bounds::UNKNOWN
                 },
                 BinaryOperator::Multiply => match (left.low, left.high, right.low, right.high) {
                     (Some(a), Some(b), Some(c), Some(d)) => {
@@ -958,6 +1052,7 @@ fn bounds_eval(
                         Bounds {
                             low: products.iter().min().copied(),
                             high: products.iter().max().copied(),
+                            ..Bounds::UNKNOWN
                         }
                     }
                     _ => Bounds::UNKNOWN,
@@ -1001,9 +1096,10 @@ fn equality(left: Bounds, right: Bounds, wants_equal: bool) -> Truth {
         && right.low == right.high
         && left.low.is_some()
         && left.low == right.low;
+    let same_symbol = left.symbol.is_valid() && left.symbol == right.symbol;
     let disjoint = matches!((left.high, right.low), (Some(a), Some(b)) if a < b)
         || matches!((right.high, left.low), (Some(a), Some(b)) if a < b);
-    match (same_point, disjoint, wants_equal) {
+    match (same_point || same_symbol, disjoint, wants_equal) {
         (true, _, true) | (_, true, false) => Truth::True,
         (true, _, false) | (_, true, true) => Truth::False,
         _ => Truth::Unknown,
@@ -1041,6 +1137,7 @@ fn tri(truth: Truth) -> Bounds {
         Truth::Unknown => Bounds {
             low: Some(0),
             high: Some(1),
+            ..Bounds::UNKNOWN
         },
     }
 }

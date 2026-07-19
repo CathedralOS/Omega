@@ -97,6 +97,13 @@ pub(crate) fn zero_fold(
     use omega_symbol_resolved_trees::expression::{BinaryOperator, ExpressionNode};
     match expressions.expression(expression) {
         ExpressionNode::Name(_) => Some(0),
+        ExpressionNode::Member(member)
+            if matches!(member.member.as_str(), "len" | "capacity") =>
+        {
+            // The ZII value of every builtin sequence carrier is empty; both
+            // standing measures are therefore exactly zero.
+            Some(0)
+        }
         ExpressionNode::Integer(literal) => literal.text().parse::<i128>().ok(),
         ExpressionNode::Binary(binary) => {
             let left = zero_fold(expressions, binary.left)?;
