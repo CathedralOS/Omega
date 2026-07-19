@@ -19819,6 +19819,38 @@ fn runtime_generic_value_call_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_generic_param_position_inference_exit_canary_runs() {
+    let canary = pass_canary("generics/runtime_generic_param_position_inference_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("borrowed-place parameter inference canary should check");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None);
+    assert_eq!(interpreted.exit_code, 70);
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-gen-param-infer-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("borrowed-place parameter inference canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("borrowed-place parameter inference canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected T := Light inferred through &T and a materialized result (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_generic_enum_payload_exit_canary_runs() {
     // A monomorphized generic ENUM with a T-typed payload (`Maybe<i32 in Wrapping>`), constructed,
     // matched, and destructured natively -- the Option<T> shape. Exit 70 via the payload.
@@ -34221,6 +34253,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/runtime_generic_enum_payload_exit",
     "generics/runtime_generic_value_call_exit",
     "generics/runtime_generic_value_call_agreeing_exit",
+    "generics/runtime_generic_param_position_inference_exit",
     "host/runtime_tick_count_monotonic_exit",
     "host/runtime_user32_key_state_exit",
     "host/runtime_tick_paced_marquee_exit",
@@ -34617,7 +34650,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/property_sized_declared",
     "data/property_unknown",
     "generics/colon_bound_rejected",
-    "generics/machine_bound_satisfied_value_call_fenced",
+    "generics/machine_multiple_specialization_tuples_fenced",
     "generics/machine_bound_value_call_unchecked",
     "generics/machine_bound_violated_at_call",
     "generics/property_bound_missing_on_field",
@@ -34940,12 +34973,6 @@ struct PendingCanary {
 // divergences (those stay documented in the headers and the periodic
 // omega-run --both sweep), but it pins accepts-vs-rejects drift for free.
 const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
-    PendingCanary {
-        path: "generics/runtime_generic_param_position_inference_exit",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "the monomorphized result is never materialized",
-        },
-    },
     // float_to_int_overflow_divergence RETIRED 2026-07-16 by the F4 Exact
     // cast obligation: a BARE out-of-range float->int cast is now a compile
     // error (proof-or-policy), so the pinned three-way native divergence is

@@ -228,7 +228,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
     for (candidate_index, approved) in approved.into_iter().enumerate() {
         let candidate = candidates[candidate_index].clone();
         let has_static_selection = candidate.machine_bindings.iter().any(Option::is_some);
-        if has_static_selection && candidate.conflicted {
+        if candidate.conflicted {
             diagnostics.push(Diagnostic::error(format!(
                 "generic machine `{}` is selected with more than one concrete specialization tuple; per-instance cloning has not landed yet, so split the template or use one static selection",
                 candidate.template_name
@@ -459,6 +459,24 @@ fn infer_type_bindings(
             program,
             *required,
             *actual,
+            parameters,
+            candidate_index,
+            proposals,
+        ),
+        // Borrow syntax is carried by the CALL edge, not as a wrapper on the
+        // place expression itself. Thus `f<T>(&T)` called as `f(&place)` sees
+        // the declared type of `place` here. Peel the requirement-side borrow
+        // and infer from that place type; ordinary call validation separately
+        // checks that the authored borrow mode is legal.
+        (
+            TypeReferenceNode::Reference {
+                referee: required, ..
+            },
+            _,
+        ) => infer_type_bindings(
+            program,
+            *required,
+            actual,
             parameters,
             candidate_index,
             proposals,

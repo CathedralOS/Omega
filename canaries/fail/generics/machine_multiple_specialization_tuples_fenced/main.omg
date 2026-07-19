@@ -1,0 +1,20 @@
+// MP4b fence: one template is called with two distinct concrete tuples.
+// Until per-instance cloning lands, the compiler must reject the ambiguity
+// before mutating the shared template to either tuple.
+data Light [copy] {
+    weight: i32;
+}
+
+data Main {
+    light: Light;
+    number: i32;
+}
+
+machine Main::pick<T [copy]>(&self, value: &T) -> i32 {
+    7
+}
+
+machine Main::main(&mut self) {
+    let from_light: i32 = self.pick(&self.light);
+    let from_number: i32 = self.pick(&self.number);
+}
