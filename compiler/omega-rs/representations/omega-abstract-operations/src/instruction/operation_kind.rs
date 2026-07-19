@@ -530,6 +530,8 @@ pub enum AbstractOperationKind {
         dispatch_index: u32,
     },
     WriteReturnRegisterInteger {
+        /// Exact integer result register selected by the normalized call plan.
+        register: omega_calling_conventions::MachineRegister,
         byte_size: usize,
         value: i64,
     },
@@ -537,6 +539,8 @@ pub enum AbstractOperationKind {
     /// so a NON-CONSTANT terminal value (a local read, a field read-back) becomes
     /// the process exit code, exactly like the constant path above.
     CopyRuntimeStorageToReturnRegister {
+        /// Exact integer result register selected by the normalized call plan.
+        register: omega_calling_conventions::MachineRegister,
         region: RuntimeStorageRegion,
         byte_offset: usize,
         byte_size: usize,

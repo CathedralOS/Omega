@@ -322,6 +322,7 @@ pub fn encode_machine_halt_bytes() -> [u8; 4] {
 }
 
 pub fn encode_return_register_integer_write_bytes(
+    register: omega_calling_conventions::MachineRegister,
     byte_size: usize,
     value: i64,
 ) -> Result<[u8; 4], Diagnostic> {
@@ -330,16 +331,43 @@ pub fn encode_return_register_integer_write_bytes(
             "AArch64 MVP encoder cannot write {byte_size}-byte return integers yet"
         )));
     }
+    let omega_calling_conventions::MachineRegister::Aarch64X(register_index) = register else {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot use {register:?} as an integer result register"
+        )));
+    };
+    if register_index > 30 {
+        return Err(Diagnostic::error(format!(
+            "AArch64 integer result register x{register_index} is outside the encodable set"
+        )));
+    }
     let immediate = u16::try_from(value).map_err(|_| {
         Diagnostic::error(format!(
             "AArch64 MVP encoder cannot write return integer `{value}` yet"
         ))
     })?;
     Ok(if byte_size == 8 {
-        encode_movz(0, immediate)
+        encode_movz(register_index, immediate)
     } else {
-        encode_movz_w(0, immediate)
+        encode_movz_w(register_index, immediate)
     })
+}
+
+#[cfg(test)]
+mod result_register_tests {
+    use super::*;
+    use omega_calling_conventions::MachineRegister;
+
+    #[test]
+    fn constant_result_uses_the_plan_selected_x_register() {
+        let bytes = encode_return_register_integer_write_bytes(
+            MachineRegister::Aarch64X(3),
+            4,
+            7,
+        )
+        .expect("w3 result write");
+        assert_eq!(bytes, 0x5280_00e3u32.to_le_bytes());
+    }
 }
 
 fn append_call_operands(

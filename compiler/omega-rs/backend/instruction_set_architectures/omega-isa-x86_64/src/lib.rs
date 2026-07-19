@@ -335,8 +335,16 @@ pub fn encode_port_read(
     Ok(bytes)
 }
 
-pub fn return_register_integer_write_width() -> usize {
-    5
+pub fn return_register_integer_write_width(
+    register: omega_calling_conventions::MachineRegister,
+    byte_size: usize,
+) -> usize {
+    let high_register = x86_gpr_number(register).is_some_and(|number| number >= 8);
+    if byte_size == 8 {
+        10
+    } else {
+        5 + usize::from(high_register)
+    }
 }
 
 pub fn runtime_storage_copy_to_return_register_width(
@@ -354,6 +362,31 @@ pub fn runtime_storage_copy_to_return_register_width(
 /// `encode_runtime_machine_indexed_address_to_runtime_frame_write` (the
 /// relocation machinery adds the +2 to reach its immediate).
 pub const MACHINE_INDEXED_ADDRESS_INDEX_BASE_IMM_OFFSET: usize = 10;
+
+fn x86_gpr_number(
+    register: omega_calling_conventions::MachineRegister,
+) -> Option<u8> {
+    Some(match register {
+        omega_calling_conventions::MachineRegister::X86Rax => 0,
+        omega_calling_conventions::MachineRegister::X86Rcx => 1,
+        omega_calling_conventions::MachineRegister::X86Rdx => 2,
+        omega_calling_conventions::MachineRegister::X86Rbx => 3,
+        omega_calling_conventions::MachineRegister::X86Rsp => 4,
+        omega_calling_conventions::MachineRegister::X86Rbp => 5,
+        omega_calling_conventions::MachineRegister::X86Rsi => 6,
+        omega_calling_conventions::MachineRegister::X86Rdi => 7,
+        omega_calling_conventions::MachineRegister::X86R8 => 8,
+        omega_calling_conventions::MachineRegister::X86R9 => 9,
+        omega_calling_conventions::MachineRegister::X86R10 => 10,
+        omega_calling_conventions::MachineRegister::X86R11 => 11,
+        omega_calling_conventions::MachineRegister::X86R12 => 12,
+        omega_calling_conventions::MachineRegister::X86R13 => 13,
+        omega_calling_conventions::MachineRegister::X86R14 => 14,
+        omega_calling_conventions::MachineRegister::X86R15 => 15,
+        _ => return None,
+    })
+}
+
 pub fn entry_argument_register_write_width(
     register: omega_calling_conventions::MachineRegister,
     byte_size: usize,
@@ -403,29 +436,11 @@ pub fn encode_entry_argument_register_write_bytes(
     }
     let mut bytes = Vec::with_capacity(entry_argument_register_write_width(register, byte_size));
     append_mov_r15_imm64(&mut bytes, 0); // relocated to the runtime-frame region base
-    let register_number = match register {
-        omega_calling_conventions::MachineRegister::X86Rax => 0,
-        omega_calling_conventions::MachineRegister::X86Rcx => 1,
-        omega_calling_conventions::MachineRegister::X86Rdx => 2,
-        omega_calling_conventions::MachineRegister::X86Rbx => 3,
-        omega_calling_conventions::MachineRegister::X86Rsp => 4,
-        omega_calling_conventions::MachineRegister::X86Rbp => 5,
-        omega_calling_conventions::MachineRegister::X86Rsi => 6,
-        omega_calling_conventions::MachineRegister::X86Rdi => 7,
-        omega_calling_conventions::MachineRegister::X86R8 => 8,
-        omega_calling_conventions::MachineRegister::X86R9 => 9,
-        omega_calling_conventions::MachineRegister::X86R10 => 10,
-        omega_calling_conventions::MachineRegister::X86R11 => 11,
-        omega_calling_conventions::MachineRegister::X86R12 => 12,
-        omega_calling_conventions::MachineRegister::X86R13 => 13,
-        omega_calling_conventions::MachineRegister::X86R14 => 14,
-        omega_calling_conventions::MachineRegister::X86R15 => 15,
-        other => {
-            return Err(Diagnostic::error(format!(
-                "x86-64 entry prologue cannot store non-GPR plan location {other:?}"
-            )));
-        }
-    };
+    let register_number = x86_gpr_number(register).ok_or_else(|| {
+        Diagnostic::error(format!(
+            "x86-64 entry prologue cannot store non-GPR plan location {register:?}"
+        ))
+    })?;
     if byte_size == 2 {
         bytes.push(0x66);
     }
@@ -714,6 +729,7 @@ pub const FRAME_FIXED_INDEXED_COPY_TARGET_IMM_OFFSET: usize = 17;
 pub const FRAME_INDEXED_COPY_TARGET_IMM_OFFSET: usize = 34;
 
 pub fn encode_return_register_integer_write_bytes(
+    register: omega_calling_conventions::MachineRegister,
     byte_size: usize,
     value: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -722,18 +738,32 @@ pub fn encode_return_register_integer_write_bytes(
             "X86_64 MVP encoder cannot write {byte_size}-byte return integers yet"
         )));
     }
-    let value = i32::try_from(value).map_err(|_| {
+    let register_number = x86_gpr_number(register).ok_or_else(|| {
         Diagnostic::error(format!(
-            "X86_64 MVP encoder cannot write return integer `{value}` yet"
+            "X86_64 MVP encoder cannot use {register:?} as an integer result register"
         ))
     })?;
-    let mut bytes = Vec::with_capacity(return_register_integer_write_width());
-    bytes.push(0xb8); // mov eax, imm32
-    bytes.extend(value.to_le_bytes());
+    let mut bytes = Vec::with_capacity(return_register_integer_write_width(register, byte_size));
+    if byte_size == 8 {
+        bytes.extend([0x48 | u8::from(register_number >= 8), 0xb8 + (register_number & 7)]);
+        bytes.extend(value.to_le_bytes());
+    } else {
+        let value = i32::try_from(value).map_err(|_| {
+            Diagnostic::error(format!(
+                "X86_64 MVP encoder cannot write return integer `{value}` yet"
+            ))
+        })?;
+        if register_number >= 8 {
+            bytes.push(0x41);
+        }
+        bytes.push(0xb8 + (register_number & 7));
+        bytes.extend(value.to_le_bytes());
+    }
+    debug_assert_eq!(bytes.len(), return_register_integer_write_width(register, byte_size));
     Ok(bytes)
 }
 
-/// Load a runtime-storage scalar into the return register (eax/rax) so a
+/// Load a runtime-storage scalar into the plan-selected integer result register so a
 /// NON-CONSTANT terminal value (a local read, a field read-back) becomes the
 /// process exit code. The `mov r15, imm64=0` (imm at instruction start + 2) is
 /// relocated to the storage region's data symbol by the relocation planner,
@@ -741,6 +771,7 @@ pub fn encode_return_register_integer_write_bytes(
 /// sign-extending movsx forms so a negative i8/i16 terminal survives the
 /// widening read.
 pub fn encode_runtime_storage_copy_to_return_register_bytes(
+    register: omega_calling_conventions::MachineRegister,
     byte_offset: usize,
     byte_size: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -750,11 +781,18 @@ pub fn encode_runtime_storage_copy_to_return_register_bytes(
     ));
     append_mov_r15_imm64(&mut bytes, 0);
     let displacement = disp32(byte_offset)?;
+    let register_number = x86_gpr_number(register).ok_or_else(|| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot use {register:?} as an integer result register"
+        ))
+    })?;
+    let modrm = 0x87 | ((register_number & 7) << 3);
+    let rex_r = if register_number >= 8 { 0x04 } else { 0 };
     match byte_size {
-        1 => bytes.extend([0x41, 0x0f, 0xbe, 0x87]), // movsx eax, byte [r15 + disp32]
-        2 => bytes.extend([0x41, 0x0f, 0xbf, 0x87]), // movsx eax, word [r15 + disp32]
-        4 => bytes.extend([0x41, 0x8b, 0x87]),       // mov eax, [r15 + disp32]
-        8 => bytes.extend([0x49, 0x8b, 0x87]),       // mov rax, [r15 + disp32]
+        1 => bytes.extend([0x41 | rex_r, 0x0f, 0xbe, modrm]),
+        2 => bytes.extend([0x41 | rex_r, 0x0f, 0xbf, modrm]),
+        4 => bytes.extend([0x41 | rex_r, 0x8b, modrm]),
+        8 => bytes.extend([0x49 | rex_r, 0x8b, modrm]),
         _ => {
             return Err(Diagnostic::error(format!(
                 "X86_64 MVP encoder cannot copy {byte_size}-byte terminal values to the return register yet"
@@ -767,6 +805,34 @@ pub fn encode_runtime_storage_copy_to_return_register_bytes(
         runtime_storage_copy_to_return_register_width(byte_offset, byte_size)
     );
     Ok(bytes)
+}
+
+#[cfg(test)]
+mod result_register_tests {
+    use super::*;
+    use omega_calling_conventions::MachineRegister;
+
+    #[test]
+    fn constant_result_uses_the_plan_selected_high_gpr() {
+        let bytes = encode_return_register_integer_write_bytes(
+            MachineRegister::X86R9,
+            4,
+            7,
+        )
+        .expect("r9d result write");
+        assert_eq!(bytes, [0x41, 0xb9, 7, 0, 0, 0]);
+    }
+
+    #[test]
+    fn runtime_result_load_uses_the_plan_selected_high_gpr() {
+        let bytes = encode_runtime_storage_copy_to_return_register_bytes(
+            MachineRegister::X86R10,
+            16,
+            4,
+        )
+        .expect("r10d result load");
+        assert_eq!(&bytes[10..17], &[0x45, 0x8b, 0x97, 16, 0, 0, 0]);
+    }
 }
 
 pub fn dispatch_loop_enter_width() -> usize {

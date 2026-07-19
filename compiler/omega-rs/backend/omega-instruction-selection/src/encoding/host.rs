@@ -224,15 +224,29 @@ pub fn encode_interrupt_control_bytes(
 
 pub fn encode_runtime_storage_copy_to_return_register_bytes(
     architecture: Architecture,
+    register: omega_calling_conventions::MachineRegister,
     byte_offset: usize,
     byte_size: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
+    if register.architecture() != architecture {
+        return Err(Diagnostic::error(format!(
+            "result register {register:?} does not belong to target architecture {architecture:?}"
+        )));
+    }
     match architecture {
         Architecture::Aarch64 => {
-            aarch64::encode_runtime_storage_copy_to_return_register_bytes(byte_offset, byte_size)
+            aarch64::encode_runtime_storage_copy_to_return_register_bytes(
+                register,
+                byte_offset,
+                byte_size,
+            )
         }
         Architecture::X86_64 => {
-            x86_64::encode_runtime_storage_copy_to_return_register_bytes(byte_offset, byte_size)
+            x86_64::encode_runtime_storage_copy_to_return_register_bytes(
+                register,
+                byte_offset,
+                byte_size,
+            )
         }
     }
 }
@@ -303,20 +317,52 @@ pub fn encode_entry_arguments_slice_descriptor_write_bytes(
 
 pub fn encode_return_register_integer_write_bytes(
     architecture: Architecture,
+    register: omega_calling_conventions::MachineRegister,
     byte_size: usize,
     value: i64,
 ) -> Result<(Vec<u8>, usize), Diagnostic> {
+    if register.architecture() != architecture {
+        return Err(Diagnostic::error(format!(
+            "result register {register:?} does not belong to target architecture {architecture:?}"
+        )));
+    }
     match architecture {
         Architecture::Aarch64 => {
-            let bytes =
-                aarch64::encode_return_register_integer_write_bytes(byte_size, value)?.to_vec();
+            let bytes = aarch64::encode_return_register_integer_write_bytes(
+                register,
+                byte_size,
+                value,
+            )?
+            .to_vec();
             let byte_count = bytes.len();
             Ok((bytes, byte_count))
         }
         Architecture::X86_64 => {
-            let bytes = x86_64::encode_return_register_integer_write_bytes(byte_size, value)?;
+            let bytes = x86_64::encode_return_register_integer_write_bytes(
+                register,
+                byte_size,
+                value,
+            )?;
             let byte_count = bytes.len();
             Ok((bytes, byte_count))
         }
+    }
+}
+
+#[cfg(test)]
+mod result_register_architecture_tests {
+    use super::*;
+    use omega_calling_conventions::MachineRegister;
+
+    #[test]
+    fn result_registers_cannot_cross_target_architectures() {
+        let error = encode_return_register_integer_write_bytes(
+            Architecture::Aarch64,
+            MachineRegister::X86Rax,
+            4,
+            0,
+        )
+        .expect_err("foreign result register must reject");
+        assert!(error.message.contains("does not belong to target architecture"));
     }
 }

@@ -693,10 +693,15 @@ fn selected_instruction_name(
                 selected_instruction_operands_name(backend_plan, *operands)
             )
         }
-        SelectedInstructionKind::WriteReturnRegisterInteger { byte_size, value } => {
-            format!("write return register integer bytes {byte_size} value {value}")
+        SelectedInstructionKind::WriteReturnRegisterInteger {
+            register,
+            byte_size,
+            value,
+        } => {
+            format!("write {register:?} integer bytes {byte_size} value {value}")
         }
         SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+            register,
             region,
             byte_offset,
             byte_size,
@@ -704,7 +709,7 @@ fn selected_instruction_name(
             let region_symbol =
                 storage_region_symbol_name(*region, backend_plan.entry_machine_name());
             format!(
-                "copy runtime storage {region_symbol}@{byte_offset} bytes {byte_size} to return register"
+                "copy runtime storage {region_symbol}@{byte_offset} bytes {byte_size} to {register:?}"
             )
         }
         SelectedInstructionKind::MachineHalt => "machine halt (hlt)".to_owned(),

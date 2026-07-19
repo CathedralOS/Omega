@@ -190,12 +190,15 @@ the entry return-address or function-frame bias. This removes both the former
 backend convention that interpreted an abstract argument index as the
 Microsoft x64 register sequence and the global four-register entry limit.
 Incoming scalar `f32`/`f64` parameters follow XMM/V locations as well.
-Classified aggregate/HFA entry parameters and source-selected policies remain.
-Remaining order:
+Integer process-entry terminal values likewise carry the normalized plan's
+exact result register through abstract/target operations and x86-64/AArch64
+emission; ISA encoders no longer invent `rax` or `x0`. Classified aggregate/HFA
+entry parameters, general outbound calls/results, and source-selected policies
+remain. Remaining order:
 
 1. Evaluate the policy selected by `Calling<C>` against the requirement
    signature and hash the evaluated pair into requirement identity.
-2. Complete plan-driven outbound calls and results;
+2. Complete plan-driven outbound calls and their results;
    differential-check every supported compatibility encoder against the plan,
    add the concrete firmware/interrupt state policies, and make the plan
    authoritative.

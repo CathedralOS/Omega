@@ -339,10 +339,15 @@ fn insert_fixed_machine_instruction_bytes(
             )?;
             Ok(true)
         }
-        SelectedInstructionKind::WriteReturnRegisterInteger { byte_size, value } => {
+        SelectedInstructionKind::WriteReturnRegisterInteger {
+            register,
+            byte_size,
+            value,
+        } => {
             let (bytes, byte_count) =
                 omega_instruction_selection::encode_return_register_integer_write_bytes(
                     emission_context.target.architecture,
+                    *register,
                     *byte_size,
                     *value,
                 )?;
@@ -352,6 +357,7 @@ fn insert_fixed_machine_instruction_bytes(
             Ok(true)
         }
         SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+            register,
             byte_offset,
             byte_size,
             ..
@@ -359,6 +365,7 @@ fn insert_fixed_machine_instruction_bytes(
             let bytes =
                 omega_instruction_selection::encode_runtime_storage_copy_to_return_register_bytes(
                     emission_context.target.architecture,
+                    *register,
                     *byte_offset,
                     *byte_size,
                 )?;

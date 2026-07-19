@@ -585,17 +585,21 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 dispatch_index: *dispatch_index,
             },
             omega_abstract_operations::AbstractOperationKind::WriteReturnRegisterInteger {
+                register,
                 byte_size,
                 value,
             } => Self::WriteReturnRegisterInteger {
+                register: *register,
                 byte_size: *byte_size,
                 value: *value,
             },
             omega_abstract_operations::AbstractOperationKind::CopyRuntimeStorageToReturnRegister {
+                register,
                 region,
                 byte_offset,
                 byte_size,
             } => Self::CopyRuntimeStorageToReturnRegister {
+                register: *register,
                 region: *region,
                 byte_offset: *byte_offset,
                 byte_size: *byte_size,
