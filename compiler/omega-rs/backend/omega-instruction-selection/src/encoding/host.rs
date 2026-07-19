@@ -237,21 +237,24 @@ pub fn encode_runtime_storage_copy_to_return_register_bytes(
     }
 }
 
-/// The entry prologue's inbound argument unmarshal (`mov [frame+off], rcx/rdx/
-/// r8/r9`). x86_64 only; an aarch64 entry with parameters is a clean error
-/// until its stub (x0-x3) exists.
+/// The entry prologue's inbound argument unmarshal. The normalized call plan
+/// names the exact register; target encoders only realize that selection.
 pub fn encode_entry_argument_register_write_bytes(
-    architecture: Architecture,
-    argument_index: u8,
+    register: omega_calling_conventions::MachineRegister,
     byte_offset: usize,
+    byte_size: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
-        Architecture::Aarch64 => {
-            aarch64::encode_entry_argument_register_write_bytes(argument_index, byte_offset)
-        }
-        Architecture::X86_64 => {
-            x86_64::encode_entry_argument_register_write_bytes(argument_index, byte_offset)
-        }
+    match register.architecture() {
+        Architecture::Aarch64 => aarch64::encode_entry_argument_register_write_bytes(
+            register,
+            byte_offset,
+            byte_size,
+        ),
+        Architecture::X86_64 => x86_64::encode_entry_argument_register_write_bytes(
+            register,
+            byte_offset,
+            byte_size,
+        ),
     }
 }
 

@@ -32,7 +32,10 @@ register/value-placement vocabularies, deterministic `CallPlan + StatePlan`
 identity, MS-x64/SysV-x64/AAPCS64/Linux-syscall evaluators, plan validation,
 and a separately fingerprinted footprint-evidence carrier. Existing host
 bindings can be evaluated through this model as an independent oracle while
-their hardcoded encoders remain in service.
+their hardcoded encoders remain in service. The inbound process-entry
+argument prologue now consumes the normalized native `CallPlan`'s exact
+register and width on x86-64 and AArch64; incoming stack arguments and
+source-selected policies remain below.
 
 1. **ENT2b — source policy evaluation and identity.** Evaluate the policy type
    selected by `Calling<C>` against each requirement signature, validate the
@@ -40,8 +43,10 @@ their hardcoded encoders remain in service.
    `C`'s symbol—into published requirement identity.
 2. **ENT2c — lowering migration and concrete entry state.** Express the
    existing MS-x64, SysV-x64, AAPCS64, Linux-syscall, and firmware lowering
-   choices through the normalized plan; differential-check the compatibility
-   encoders, then make the plan authoritative. Add the concrete x86 interrupt
+   choices through the normalized plan; continue beyond the completed
+   register-resident process-entry argument path to incoming stack arguments,
+   outbound calls, results, and compatibility-binding differential checks,
+   then make the plan authoritative. Add the concrete x86 interrupt
    `StatePlan`, stack/IST, nesting, and acknowledgement policy used by Cathedral.
 3. **ENT3 — constrained entry codegen.** Derive entry stubs, specialize/codegen
    under the state ceiling, emit a checkable final footprint certificate, and

@@ -354,41 +354,59 @@ pub fn runtime_storage_copy_to_return_register_width(
 /// `encode_runtime_machine_indexed_address_to_runtime_frame_write` (the
 /// relocation machinery adds the +2 to reach its immediate).
 pub const MACHINE_INDEXED_ADDRESS_INDEX_BASE_IMM_OFFSET: usize = 10;
-pub fn entry_argument_register_write_width() -> usize {
-    // mov r15,imm64(frame base, relocated at +2) (10) + mov [r15+disp32],reg (7).
-    17
+pub fn entry_argument_register_write_width(byte_size: usize) -> usize {
+    // mov r15,imm64(frame base, relocated at +2) (10) + mov
+    // [r15+disp32],reg (7). A 16-bit store adds the operand-size prefix.
+    17 + usize::from(byte_size == 2)
 }
 
-/// The ENTRY PROLOGUE's inbound unmarshal: store an incoming MS-x64 argument
-/// register (0=RCX 1=RDX 2=R8 3=R9 -- the order firmware/OS passes the entry's
-/// arguments) into the entry parameter's runtime-frame slot. Runs BEFORE
-/// anything else at the entry (the argument registers are volatile); this is
-/// how a UEFI `main(image_handle, system_table)` receives RCX/RDX
-/// (calling_plans.md, the entry stub = the calling plan's inbound direction).
+/// The ENTRY PROLOGUE's inbound unmarshal: store the exact GPR selected by the
+/// normalized call plan into the entry parameter's runtime-frame slot. Runs
+/// before anything else at the entry because argument registers are volatile.
 pub fn encode_entry_argument_register_write_bytes(
-    argument_index: u8,
+    register: omega_calling_conventions::MachineRegister,
     byte_offset: usize,
+    byte_size: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(entry_argument_register_write_width());
+    if !matches!(byte_size, 1 | 2 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "x86-64 entry prologue cannot store a {byte_size}-byte register value"
+        )));
+    }
+    let mut bytes = Vec::with_capacity(entry_argument_register_write_width(byte_size));
     append_mov_r15_imm64(&mut bytes, 0); // relocated to the runtime-frame region base
-    // mov [r15 + disp32], reg -- REX.W + REX.B (base r15), ModRM mod=10 rm=111,
-    // reg = the argument register (r8/r9 add REX.R).
-    let (rex, modrm) = match argument_index {
-        0 => (0x49, 0x8f), // mov [r15+disp32], rcx
-        1 => (0x49, 0x97), // mov [r15+disp32], rdx
-        2 => (0x4d, 0x87), // mov [r15+disp32], r8
-        3 => (0x4d, 0x8f), // mov [r15+disp32], r9
+    let register_number = match register {
+        omega_calling_conventions::MachineRegister::X86Rax => 0,
+        omega_calling_conventions::MachineRegister::X86Rcx => 1,
+        omega_calling_conventions::MachineRegister::X86Rdx => 2,
+        omega_calling_conventions::MachineRegister::X86Rbx => 3,
+        omega_calling_conventions::MachineRegister::X86Rsp => 4,
+        omega_calling_conventions::MachineRegister::X86Rbp => 5,
+        omega_calling_conventions::MachineRegister::X86Rsi => 6,
+        omega_calling_conventions::MachineRegister::X86Rdi => 7,
+        omega_calling_conventions::MachineRegister::X86R8 => 8,
+        omega_calling_conventions::MachineRegister::X86R9 => 9,
+        omega_calling_conventions::MachineRegister::X86R10 => 10,
+        omega_calling_conventions::MachineRegister::X86R11 => 11,
+        omega_calling_conventions::MachineRegister::X86R12 => 12,
+        omega_calling_conventions::MachineRegister::X86R13 => 13,
+        omega_calling_conventions::MachineRegister::X86R14 => 14,
+        omega_calling_conventions::MachineRegister::X86R15 => 15,
         other => {
             return Err(Diagnostic::error(format!(
-                "X86_64 entry prologue supports at most 4 register arguments \
-                 (argument index {other}); stack-passed entry arguments are not \
-                 implemented"
+                "x86-64 entry prologue cannot store non-GPR plan location {other:?}"
             )));
         }
     };
-    bytes.extend([rex, 0x89, modrm]);
+    if byte_size == 2 {
+        bytes.push(0x66);
+    }
+    let rex = (if byte_size == 8 { 0x49 } else { 0x41 })
+        | if register_number >= 8 { 0x04 } else { 0 };
+    let modrm = 0x87 | ((register_number & 7) << 3);
+    bytes.extend([rex, if byte_size == 1 { 0x88 } else { 0x89 }, modrm]);
     bytes.extend(disp32(byte_offset)?.to_le_bytes());
-    debug_assert_eq!(bytes.len(), entry_argument_register_write_width());
+    debug_assert_eq!(bytes.len(), entry_argument_register_write_width(byte_size));
     Ok(bytes)
 }
 

@@ -12,7 +12,8 @@ use super::primitives::{
     encode_conditional_branch_not_equal, encode_conditional_branch_plus, encode_float_compare,
     encode_float_move_from_gpr,
     encode_load_w_from_x, encode_load_x_from_x, encode_move_x_register, encode_movz_w,
-    encode_sign_extend_byte_to_w, encode_sign_extend_halfword_to_w, encode_store_x_to_x,
+    encode_sign_extend_byte_to_w, encode_sign_extend_halfword_to_w, encode_store_w_to_x,
+    encode_store_x_to_x,
     encode_unconditional_branch,
 };
 use super::widths::dispatch_guard_compare_static_width;
@@ -253,20 +254,37 @@ fn append_guard_load(
 /// anything clobbers them (the function-enter stp prologue touches only
 /// callee-saved pairs).
 pub fn encode_entry_argument_register_write_bytes(
-    argument_index: u8,
+    register: omega_calling_conventions::MachineRegister,
     byte_offset: usize,
+    byte_size: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    if argument_index > 7 {
+    let omega_calling_conventions::MachineRegister::Aarch64X(register_index) = register else {
         return Err(Diagnostic::error(format!(
-            "AArch64 entry prologue supports at most 8 register arguments \
-             (argument index {argument_index}); stack-passed entry arguments are not \
-             implemented"
+            "AArch64 entry prologue cannot store non-GPR plan location {register:?}"
+        )));
+    };
+    if register_index > 30 {
+        return Err(Diagnostic::error(format!(
+            "AArch64 entry prologue register x{register_index} is outside the encodable GPR set"
         )));
     }
     let mut bytes = Vec::with_capacity(super::widths::entry_argument_register_write_width());
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
-    bytes.extend(encode_store_x_to_x(argument_index, 16, byte_offset)?);
+    match byte_size {
+        1 | 2 | 4 => bytes.extend(encode_store_w_to_x(
+            register_index,
+            16,
+            byte_offset,
+            byte_size,
+        )?),
+        8 => bytes.extend(encode_store_x_to_x(register_index, 16, byte_offset)?),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 entry prologue cannot store a {byte_size}-byte register value"
+            )));
+        }
+    }
     debug_assert_eq!(
         bytes.len(),
         super::widths::entry_argument_register_write_width()

@@ -1309,18 +1309,7 @@ impl HostAbiPlan {
             | HostBindingMechanism::VtableSlot { .. }
             | HostBindingMechanism::VtableField { .. }
             | HostBindingMechanism::TableFunction { .. } => {
-                match (self.target.architecture, self.target.object_format) {
-                    (omega_target::Architecture::X86_64, ObjectFormat::Coff) => {
-                        CallingPolicy::MicrosoftX64
-                    }
-                    (omega_target::Architecture::X86_64, ObjectFormat::Elf) => {
-                        CallingPolicy::SystemVAMD64
-                    }
-                    (omega_target::Architecture::Aarch64, _) => CallingPolicy::Aapcs64,
-                    (omega_target::Architecture::X86_64, ObjectFormat::MachO) => {
-                        CallingPolicy::SystemVAMD64
-                    }
-                }
+                CallingPolicy::native_for_target(self.target)
             }
         };
         let plan = evaluate_call_plan(policy, signature)?;

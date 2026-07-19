@@ -164,6 +164,14 @@ impl CallingPolicy {
             Self::Aapcs64 | Self::LinuxSyscallAarch64 => Architecture::Aarch64,
         }
     }
+
+    pub const fn native_for_target(target: omega_target::NativeTarget) -> Self {
+        match (target.architecture, target.object_format) {
+            (Architecture::X86_64, omega_target::ObjectFormat::Coff) => Self::MicrosoftX64,
+            (Architecture::X86_64, _) => Self::SystemVAMD64,
+            (Architecture::Aarch64, _) => Self::Aapcs64,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

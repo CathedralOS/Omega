@@ -4,7 +4,7 @@ Only unresolved owner-level language or architecture decisions belong here.
 Settled decisions live in the language guide and design briefs; implementation
 and deliberately deferred research live in `TASKS.md`.
 
-Last pruned: 2026-07-18.
+Last pruned: 2026-07-19.
 
 ## 1. Control-flow integrity and protected returns
 
@@ -39,3 +39,30 @@ not source attributes or a new `unsafe` escape.
 
 Detailed surrounding context and engineering residue are in
 [`wiki/design_briefs/os_memory_and_hardware_foundation.md`](wiki/design_briefs/os_memory_and_hardware_foundation.md).
+
+## 2. How does a source `Calling<C>` policy evaluate?
+
+Generic trait composition can now retain `Calling<X86InterruptConvention>`,
+and the compiler has normalized `CallPlan + StatePlan` records and validators.
+The source model still lacks the relationship that qualifies `C` as a policy
+and evaluates it against the satisfied requirement's signature.
+
+The decision must preserve these settled constraints:
+
+- never infer a policy from `C`'s spelling, target nickname, import library, or
+  binding mechanism;
+- validate the evaluated `BoundaryEntryPlan` before it can contribute identity;
+- hash the normalized evaluated plan, not merely `C`'s symbol, into the
+  requirement contract; and
+- keep placement and machine-state vocabularies closed/compiler-validated
+  without making Omega's internal calling convention programmable.
+
+Recommendation: make `C` satisfy one sealed core policy requirement whose
+compile-time machine computes `BoundaryEntryPlan` from the requirement
+signature. Calling layout is genuine computation, so this does not revive an
+imperative plan-builder API; the machine chooses from closed plan data and the
+compiler validates its result. A smaller alternative is a compiler-owned
+closed policy value selected explicitly by `C`, but it needs an honest source
+relationship rather than friendly-name recognition. Decide the source/core
+spelling and whether user packages may define new policies subject to the same
+validator, or only platform packages may do so.

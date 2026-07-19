@@ -2,6 +2,7 @@ use crate::InstructionSelectionInput;
 use omega_checked_trees::data::DataMember;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::statement::StatementNode;
+use omega_checked_trees::types::PrimitiveType;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, PagedSlice};
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
@@ -34,6 +35,9 @@ use edges::select_runtime_dispatch_edge;
 use omega_abstract_operations::{
     InstructionOperand, RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction,
     SelectedInstructionKind,
+};
+use omega_calling_conventions::{
+    CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
 };
 use operation_aliases::bind_runtime_operation_aliases;
 use writes::select_runtime_storage_write_for_operation;
@@ -1164,15 +1168,14 @@ pub(crate) fn select_runtime_unaliased_storage_mutation_write_with_scratch(
 
 /// Emit the ENTRY PROLOGUE's argument unmarshal: one register store per declared
 /// entry parameter, mapping the parameter's frame slot (in declaration = offset
-/// order) to the platform's incoming argument register (MS-x64: RCX, RDX, R8,
-/// R9). This is the calling plan's INBOUND direction -- how a UEFI
+/// order) through the target's normalized native `CallPlan`. This is the
+/// calling plan's INBOUND direction -- how a UEFI
 /// `main(image_handle, system_table)` receives the firmware handoff. Emitted
 /// FIRST at the entry (before the field-default writes) because the argument
 /// registers are volatile. `&mut self` takes no frame slot (the machine's static
 /// storage), so declared non-self parameters map 1:1 to the argument registers.
-/// Parameters past the fourth would arrive on the stack -- not implemented; they
-/// stay unpopulated exactly as ALL entry parameters were before this stub, and
-/// the x86_64 encoder rejects an explicit 5th register index.
+/// Parameters assigned to the incoming stack remain deferred; this slice
+/// replaces the old architecture-local register-index convention only.
 fn select_entry_argument_register_writes(
     input: &InstructionSelectionInput<'_>,
     selected_instructions: &mut SelectedInstructionSink,
@@ -1199,16 +1202,10 @@ fn select_entry_argument_register_writes(
         let Some(descriptor_offset) = descriptor_offset else {
             return;
         };
-        for index in 0..4u8 {
-            selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::WriteEntryArgumentRegister {
-                    argument_index: index,
-                    byte_offset: spill_base + usize::from(index) * 8,
-                },
-                source_key: input.entry_key,
-                source_statement: 0,
-            });
-        }
+        let destinations = (0..4)
+            .map(|index| (spill_base + index * 8, ValueShape::integer(8, 8)))
+            .collect::<Vec<_>>();
+        select_normalized_entry_register_writes(input, &destinations, selected_instructions);
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::WriteEntryArgumentsSliceDescriptor {
                 descriptor_offset,
@@ -1223,7 +1220,7 @@ fn select_entry_argument_register_writes(
 
     // TYPED entry parameters: each declared non-self parameter receives its
     // argument register directly (`main(handle: addr, table: addr)`).
-    let mut parameter_slots: Vec<(usize, usize)> = input
+    let mut parameter_slots: Vec<(usize, usize, ValueShape)> = input
         .runtime_storage
         .frame_slots
         .iter()
@@ -1235,10 +1232,30 @@ fn select_entry_argument_register_writes(
                 slot.kind,
                 omega_runtime_storage::RuntimeFrameSlotKind::Parameter
             ) && slot.source_key == input.entry_key)
-            .then_some((slot.byte_offset, slot.byte_size))
+            .then(|| {
+                entry_slot_value_shape(slot)
+                    .map(|shape| (slot.byte_offset, slot.byte_size, shape))
+            })
+            .flatten()
         })
         .collect();
-    parameter_slots.sort_unstable();
+    let declared_parameter_count = input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .filter(|(_, slot)| {
+            matches!(
+                slot.kind,
+                omega_runtime_storage::RuntimeFrameSlotKind::Parameter
+            ) && slot.source_key == input.entry_key
+        })
+        .count();
+    if parameter_slots.len() != declared_parameter_count {
+        // Aggregates and descriptor-shaped arguments need source-policy ABI
+        // classification before this lowering can populate them honestly.
+        return;
+    }
+    parameter_slots.sort_unstable_by_key(|(byte_offset, _, _)| *byte_offset);
 
     // THE STRUCT-SHAPED HANDOFF (ladder step 3, boundary machines): a BOUNDARY
     // entry whose sole declared parameter is a multi-word struct receives the
@@ -1255,33 +1272,71 @@ fn select_entry_argument_register_writes(
         .find(|machine| machine.symbol == input.entry_key.machine)
         .is_some_and(|machine| machine.boundary);
     if entry_is_boundary
-        && let [(byte_offset, byte_size)] = parameter_slots.as_slice()
+        && let [(byte_offset, byte_size, _)] = parameter_slots.as_slice()
         && *byte_size > 8
         && *byte_size % 8 == 0
         && *byte_size <= 32
     {
-        for index in 0..(*byte_size / 8) {
+        let destinations = (0..(*byte_size / 8))
+            .map(|index| (*byte_offset + index * 8, ValueShape::integer(8, 8)))
+            .collect::<Vec<_>>();
+        select_normalized_entry_register_writes(input, &destinations, selected_instructions);
+        return;
+    }
+
+    let destinations = parameter_slots
+        .into_iter()
+        .map(|(byte_offset, _, shape)| (byte_offset, shape))
+        .collect::<Vec<_>>();
+    select_normalized_entry_register_writes(input, &destinations, selected_instructions);
+}
+
+fn select_normalized_entry_register_writes(
+    input: &InstructionSelectionInput<'_>,
+    destinations: &[(usize, ValueShape)],
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let signature = CallSignature {
+        parameters: destinations.iter().map(|(_, shape)| *shape).collect(),
+        result: None,
+    };
+    let plan = evaluate_call_plan(CallingPolicy::native_for_target(input.target), &signature)
+        .expect("runtime entry signature must have a normalized native call plan");
+
+    for ((destination_offset, _), placement) in destinations.iter().zip(&plan.parameters) {
+        for location in &placement.locations {
+            let ValueLocation::Register {
+                register,
+                value_byte_offset,
+                byte_size,
+            } = *location
+            else {
+                // Incoming stack arguments are a separate lowering slice.
+                continue;
+            };
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::WriteEntryArgumentRegister {
-                    argument_index: index as u8,
-                    byte_offset: *byte_offset + index * 8,
+                    register,
+                    byte_offset: *destination_offset + usize::from(value_byte_offset),
+                    byte_size: usize::from(byte_size),
                 },
                 source_key: input.entry_key,
                 source_statement: 0,
             });
         }
-        return;
     }
+}
 
-    for (index, (byte_offset, _)) in parameter_slots.into_iter().enumerate().take(4) {
-        selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::WriteEntryArgumentRegister {
-                argument_index: index as u8,
-                byte_offset,
-            },
-            source_key: input.entry_key,
-            source_statement: 0,
-        });
+fn entry_slot_value_shape(slot: &omega_runtime_storage::RuntimeFrameSlot) -> Option<ValueShape> {
+    let byte_size = u16::try_from(slot.byte_size).ok()?;
+    let alignment = u16::try_from(slot.alignment).ok()?;
+    if slot.type_descriptor.reference_referee().is_some() {
+        return Some(ValueShape::integer(byte_size, alignment));
+    }
+    match PrimitiveType::from_name(slot.type_name.as_ref())? {
+        PrimitiveType::F32 | PrimitiveType::F64 => Some(ValueShape::float(byte_size)),
+        PrimitiveType::String => None,
+        _ => Some(ValueShape::integer(byte_size, alignment)),
     }
 }
 
