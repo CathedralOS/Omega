@@ -22,29 +22,64 @@ pub enum AsmInstructionShape {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AsmOperandConstraint {
-    /// x86 `DX`: an exact `u16` place or a literal in `0..=65535`.
-    PortU16,
-    /// x86 `AL`: an exact `u8` place or a literal in `0..=255`.
-    ByteU8,
-    /// A mutable place whose declared type is exactly `u8`.
-    WritableBytePlace,
+pub enum AsmOperandAccess {
+    Read,
+    Write,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AsmOperandConstraint {
+    /// Source-facing role used in diagnostics (`port`, `value`, ...).
+    pub role: &'static str,
+    /// Exact architectural register the realized sequence presents to the
+    /// instruction. This is a register constraint, not source register syntax.
+    pub target_register: &'static str,
+    pub access: AsmOperandAccess,
+    pub expected_type_name: &'static str,
+    /// Literals are admitted only when this bound is present.
+    pub maximum_literal: Option<u64>,
 }
 
 impl AsmOperandConstraint {
-    pub const fn expected_type_name(self) -> &'static str {
-        match self {
-            Self::PortU16 => "u16",
-            Self::ByteU8 | Self::WritableBytePlace => "u8",
+    pub const fn read(
+        role: &'static str,
+        target_register: &'static str,
+        expected_type_name: &'static str,
+        maximum_literal: u64,
+    ) -> Self {
+        Self {
+            role,
+            target_register,
+            access: AsmOperandAccess::Read,
+            expected_type_name,
+            maximum_literal: Some(maximum_literal),
         }
     }
 
-    pub const fn maximum_literal(self) -> Option<u64> {
-        match self {
-            Self::PortU16 => Some(u16::MAX as u64),
-            Self::ByteU8 => Some(u8::MAX as u64),
-            Self::WritableBytePlace => None,
+    pub const fn write_place(
+        role: &'static str,
+        target_register: &'static str,
+        expected_type_name: &'static str,
+    ) -> Self {
+        Self {
+            role,
+            target_register,
+            access: AsmOperandAccess::Write,
+            expected_type_name,
+            maximum_literal: None,
         }
+    }
+
+    pub const fn expected_type_name(self) -> &'static str {
+        self.expected_type_name
+    }
+
+    pub const fn maximum_literal(self) -> Option<u64> {
+        self.maximum_literal
+    }
+
+    pub const fn requires_writable_place(self) -> bool {
+        matches!(self.access, AsmOperandAccess::Write)
     }
 }
 
@@ -75,11 +110,13 @@ pub enum AsmCatalogEntry {
 }
 
 const NO_OPERANDS: &[AsmOperandConstraint] = &[];
-const PORT_OUT_OPERANDS: &[AsmOperandConstraint] =
-    &[AsmOperandConstraint::PortU16, AsmOperandConstraint::ByteU8];
+const PORT_OUT_OPERANDS: &[AsmOperandConstraint] = &[
+    AsmOperandConstraint::read("port", "dx", "u16", u16::MAX as u64),
+    AsmOperandConstraint::read("value", "al", "u8", u8::MAX as u64),
+];
 const PORT_IN_OPERANDS: &[AsmOperandConstraint] = &[
-    AsmOperandConstraint::WritableBytePlace,
-    AsmOperandConstraint::PortU16,
+    AsmOperandConstraint::write_place("destination", "al", "u8"),
+    AsmOperandConstraint::read("port", "dx", "u16", u16::MAX as u64),
 ];
 const NO_CLOBBERS: &[&str] = &[];
 const PORT_OUT_CLOBBERS: &[&str] = &["rax", "rdx", "r10", "r11"];
@@ -147,7 +184,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
 #[cfg(test)]
 mod tests {
     use super::{
-        AsmCatalogEntry, AsmInstructionAvailability, AsmInstructionRefusal, AsmOperandConstraint,
+        AsmCatalogEntry, AsmInstructionAvailability, AsmInstructionRefusal, AsmOperandAccess,
         asm_catalog_entry,
     };
 
@@ -171,8 +208,19 @@ mod tests {
             panic!("out must be a contracted instruction");
         };
         assert_eq!(
-            out.operands,
-            &[AsmOperandConstraint::PortU16, AsmOperandConstraint::ByteU8]
+            out.operands
+                .iter()
+                .map(|operand| (
+                    operand.role,
+                    operand.target_register,
+                    operand.access,
+                    operand.expected_type_name,
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                ("port", "dx", AsmOperandAccess::Read, "u16"),
+                ("value", "al", AsmOperandAccess::Read, "u8"),
+            ]
         );
         assert_eq!(out.clobbers, &["rax", "rdx", "r10", "r11"]);
 
@@ -180,10 +228,19 @@ mod tests {
             panic!("in must be a contracted instruction");
         };
         assert_eq!(
-            input.operands,
-            &[
-                AsmOperandConstraint::WritableBytePlace,
-                AsmOperandConstraint::PortU16
+            input
+                .operands
+                .iter()
+                .map(|operand| (
+                    operand.role,
+                    operand.target_register,
+                    operand.access,
+                    operand.expected_type_name,
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                ("destination", "al", AsmOperandAccess::Write, "u8"),
+                ("port", "dx", AsmOperandAccess::Read, "u16"),
             ]
         );
         assert_eq!(input.clobbers, &["rax", "rdx", "r10", "r15"]);

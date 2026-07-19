@@ -1,1 +1,1 @@
-operand `port` requires an exact `u16`
+operand `port` requires an exact `u16` for target register `dx`

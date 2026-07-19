@@ -18,10 +18,12 @@ The port-I/O pilot already uses structured operand constraints. `out` accepts
 an exact `u16` port place (or a fitting literal) and an exact `u8` value place
 (or a fitting literal); `in` accepts an exact writable `u8` destination and the
 same `u16` port class. These constraints are target-register constraints, so a
-wider integer place never narrows implicitly. The shared catalog also records
-the registers clobbered by each realized sequence: the current `out` lowering
-uses `rax`, `rdx`, `r10`, and `r11`, while `in` uses `rax`, `rdx`, `r10`, and
-`r15`.
+wider integer place never narrows implicitly. Each catalog operand records its
+source role, read/write access, exact primitive class, literal policy, and
+architectural register: port values bind to `dx`, byte values and destinations
+to `al`. The shared catalog also records the registers clobbered by each
+realized sequence: the current `out` lowering uses `rax`, `rdx`, `r10`, and
+`r11`, while `in` uses `rax`, `rdx`, `r10`, and `r15`.
 
 An author may restate a block's exact realized register footprint with
 `asm where clobbers ... { ... }`. The declaration is checked against the union
