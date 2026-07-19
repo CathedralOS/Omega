@@ -1,3 +1,8 @@
+// RUN CANARY (exit 70) + interpreter differential. The binary value is first
+// stored in a local, then passed to a state-machine call from a state whose
+// guarded re-entry proves the ranged `index` parameter. Selection must copy
+// the local slot; re-expanding its initializer as an unlowered CallArgument is
+// neither necessary nor sound.
 boundary trait Console {
     machine exit_process(return_code: i32);
 }
@@ -19,8 +24,9 @@ machine Main::main(&mut self) {
 machine Builder::build(&mut self, level: &mut Level) {
     level.room_count = 4;
     transition { _ -> carve_at(level, 0) }
-    state carve_at(&mut self, level: &mut Level, index: u64) {
-        self.carve(level, 100 + index);
+    state carve_at(&mut self, level: &mut Level, index: u64 [0..=3]) {
+        let tag: i32 = 100 + index;
+        self.carve(level, tag);
         let next: u64 = index + 1;
         transition next < 4 { true -> carve_at(level, next) false -> {} }
     }

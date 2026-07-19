@@ -123,10 +123,6 @@ before the fix.
 - **Threaded mutable receiver phases.** Resolve
   `trailing_state_mut_param_phase_divergence` and the same-type receiver
   aliasing fence for ambiguous multi-call states.
-- **State-call binary local argument.** A binary-initialized local passed to a
-  state call inside a proof-bearing guarded state still reports that a
-  `CallArgument` binary expression needs runtime lowering. Make the state-value
-  fold copy the local's slot.
 - **Non-place record-pattern subjects.** Exhaustiveness validation currently
   lacks a declared type for non-place subjects. Preserve single evaluation and
   enforce the same missing/unknown-field law; add the copy-eligibility fence if
