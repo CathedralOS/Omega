@@ -1796,6 +1796,66 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     }
                 }
 
+                if let RuntimeDispatchBodyOperationKind::ControlRegisterWrite(register) =
+                    operation.kind
+                    && let Some((_, source_expression)) =
+                        super::lookups::asm_control_register_write_source(
+                            input,
+                            operation.source_key,
+                            operation.statement_index,
+                        )
+                {
+                    let scratch = writes::RuntimeStaticValues::with_capacity(0);
+                    if let Some(source) = writes::mutation::resolve_runtime_value_operand_in_table(
+                        input,
+                        dispatch_case.dispatch_index,
+                        operation.source_key,
+                        operation.statement_index,
+                        &input.state_calls.expressions,
+                        source_expression,
+                        &scratch,
+                        runtime_value_operands,
+                    ) {
+                        selected_instructions.push(SelectedInstruction {
+                            kind: SelectedInstructionKind::ControlRegisterWrite {
+                                register,
+                                source,
+                            },
+                            source_key: operation.source_key,
+                            source_statement: operation.statement_index,
+                        });
+                    }
+                }
+
+                if let RuntimeDispatchBodyOperationKind::ControlRegisterRead(register) =
+                    operation.kind
+                    && let Some((_, dest_expr)) =
+                        super::lookups::asm_control_register_read_destination(
+                            input,
+                            operation.source_key,
+                            operation.statement_index,
+                        )
+                {
+                    let dest = crate::selection::storage_places::resolve_runtime_storage_place_in_table(
+                        input,
+                        dispatch_case.dispatch_index,
+                        operation.source_key,
+                        &input.state_storage.expressions,
+                        dest_expr,
+                    );
+                    if let Some(dest) = dest {
+                        selected_instructions.push(SelectedInstruction {
+                            kind: SelectedInstructionKind::ControlRegisterRead {
+                                register,
+                                dest_region: dest.region,
+                                dest_byte_offset: dest.byte_offset,
+                            },
+                            source_key: operation.source_key,
+                            source_statement: operation.statement_index,
+                        });
+                    }
+                }
+
                 if matches!(operation.kind, RuntimeDispatchBodyOperationKind::PortWrite)
                     && let Some((port_expr, value_expr)) = super::lookups::asm_port_write_operands(
                         input,

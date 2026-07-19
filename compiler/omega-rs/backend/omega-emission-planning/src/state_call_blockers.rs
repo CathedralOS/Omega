@@ -158,6 +158,8 @@ fn unresolved_call_is_asm_intrinsic(
                     | omega_target_operations::TargetOperationKind::FlagsRestore { .. }
                     | omega_target_operations::TargetOperationKind::MsrRead { .. }
                     | omega_target_operations::TargetOperationKind::MsrWrite { .. }
+                    | omega_target_operations::TargetOperationKind::ControlRegisterRead { .. }
+                    | omega_target_operations::TargetOperationKind::ControlRegisterWrite { .. }
                     | omega_target_operations::TargetOperationKind::PortWrite { .. }
                     | omega_target_operations::TargetOperationKind::PortRead { .. }
             ) && state_key_matches_statement_source(instruction.source_key, state_call.source_key)

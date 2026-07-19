@@ -136,6 +136,7 @@ fn state_value_has_planned_storage_write(
                         | SelectedInstructionKind::PortRead { .. }
                         | SelectedInstructionKind::FlagsSnapshot { .. }
                         | SelectedInstructionKind::MsrRead { .. }
+                        | SelectedInstructionKind::ControlRegisterRead { .. }
                 )
             })
 }
@@ -331,6 +332,7 @@ fn runtime_text_write_has_selected_instruction(
                         | SelectedInstructionKind::PortRead { .. }
                         | SelectedInstructionKind::FlagsSnapshot { .. }
                         | SelectedInstructionKind::MsrRead { .. }
+                        | SelectedInstructionKind::ControlRegisterRead { .. }
                 )
         })
 }

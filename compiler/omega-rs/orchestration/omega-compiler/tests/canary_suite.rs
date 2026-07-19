@@ -30809,6 +30809,7 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("inline_asm/asm_interrupt_control_compile", "linux_x64"),
     ("inline_asm/asm_flags_compile", "linux_x64"),
     ("inline_asm/asm_msr_compile", "linux_x64"),
+    ("inline_asm/asm_control_registers_compile", "linux_x64"),
     ("inline_asm/asm_multi_instruction_block_compile", "uefi_x64"),
     ("inline_asm/asm_where_exact_clobbers_compile", "uefi_x64"),
     ("targets/efi_vtable_call", "uefi_x64"),
@@ -31038,6 +31039,85 @@ fn asm_msr_enforces_authority_and_value_contracts() {
     ] {
         let diagnostics = compile_canary_without_output(&fail_canary(name))
             .expect_err("invalid MSR contract should reject");
+        let rendered = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            rendered.contains(expected),
+            "expected `{expected}` for {name}, got:\n{rendered}"
+        );
+    }
+}
+
+#[test]
+fn x86_asm_control_registers_emit_exact_sequences_and_refuse_aarch64() {
+    let canary = pass_canary("inline_asm/asm_control_registers_compile");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-asm-control-registers-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("x86 control-register operations should compile under boot-root authority");
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86 ELF");
+    for (register, read, write) in [
+        ("cr0", [0x41, 0x0f, 0x20, 0xc2], Some([0x41, 0x0f, 0x22, 0xc2])),
+        ("cr2", [0x41, 0x0f, 0x20, 0xd2], None),
+        ("cr3", [0x41, 0x0f, 0x20, 0xda], Some([0x41, 0x0f, 0x22, 0xda])),
+        ("cr4", [0x41, 0x0f, 0x20, 0xe2], Some([0x41, 0x0f, 0x22, 0xe2])),
+    ] {
+        assert!(
+            image.windows(4).any(|window| window == read),
+            "expected exact read sequence for {register}"
+        );
+        if let Some(write) = write {
+            assert!(
+                image.windows(4).any(|window| window == write),
+                "expected exact write sequence for {register}"
+            );
+        }
+    }
+    let _ = fs::remove_dir_all(&build_dir);
+
+    let diagnostics = compile_canary_without_output_for_target(&canary, "linux_arm64")
+        .expect_err("x86 control-register mnemonics must refuse an AArch64 target");
+    let rendered = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("asm instruction `read_cr0` is x86_64-only"),
+        "expected an architecture-specific control-register diagnostic, got:\n{rendered}"
+    );
+}
+
+#[test]
+fn asm_control_registers_enforce_authority_and_value_contracts() {
+    for (name, expected) in [
+        (
+            "inline_asm/asm_write_cr3_requires_machine_authority",
+            "asm instruction `write_cr3`, which requires a FREESTANDING boundary root",
+        ),
+        (
+            "inline_asm/asm_read_cr3_requires_u64_destination",
+            "asm instruction `read_cr3` operand `destination` requires an exact `u64` writable place",
+        ),
+        (
+            "inline_asm/asm_write_cr3_requires_u64_value",
+            "asm instruction `write_cr3` operand `value` requires an exact `u64` for target register `cr3`, found `u32`",
+        ),
+    ] {
+        let diagnostics = compile_canary_without_output(&fail_canary(name))
+            .expect_err("invalid control-register contract should reject");
         let rendered = diagnostics
             .iter()
             .map(ToString::to_string)
@@ -34349,6 +34429,9 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "inline_asm/asm_wrmsr_requires_machine_authority",
     "inline_asm/asm_rdmsr_requires_u64_destination",
     "inline_asm/asm_wrmsr_requires_u64_value",
+    "inline_asm/asm_write_cr3_requires_machine_authority",
+    "inline_asm/asm_read_cr3_requires_u64_destination",
+    "inline_asm/asm_write_cr3_requires_u64_value",
     "inline_asm/asm_port_out_wrong_port_type",
     "inline_asm/asm_port_out_wrong_value_type",
     "inline_asm/asm_port_in_wrong_destination_type",

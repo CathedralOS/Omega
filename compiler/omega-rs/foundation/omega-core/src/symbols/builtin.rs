@@ -77,10 +77,17 @@ pub enum BuiltinFunction {
     /// machine-control intrinsics.
     AsmReadMsr,
     AsmWriteMsr,
+    AsmReadCr0,
+    AsmReadCr2,
+    AsmReadCr3,
+    AsmReadCr4,
+    AsmWriteCr0,
+    AsmWriteCr3,
+    AsmWriteCr4,
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 15;
+    pub const COUNT: usize = 22;
 
     pub fn name(self) -> &'static str {
         match self {
@@ -99,6 +106,13 @@ impl BuiltinFunction {
             Self::AsmRestoreFlags => "asm#popfq",
             Self::AsmReadMsr => "asm#rdmsr",
             Self::AsmWriteMsr => "asm#wrmsr",
+            Self::AsmReadCr0 => "asm#read_cr0",
+            Self::AsmReadCr2 => "asm#read_cr2",
+            Self::AsmReadCr3 => "asm#read_cr3",
+            Self::AsmReadCr4 => "asm#read_cr4",
+            Self::AsmWriteCr0 => "asm#write_cr0",
+            Self::AsmWriteCr3 => "asm#write_cr3",
+            Self::AsmWriteCr4 => "asm#write_cr4",
         }
     }
 
@@ -119,6 +133,13 @@ impl BuiltinFunction {
             Self::AsmRestoreFlags => 12,
             Self::AsmReadMsr => 13,
             Self::AsmWriteMsr => 14,
+            Self::AsmReadCr0 => 15,
+            Self::AsmReadCr2 => 16,
+            Self::AsmReadCr3 => 17,
+            Self::AsmReadCr4 => 18,
+            Self::AsmWriteCr0 => 19,
+            Self::AsmWriteCr3 => 20,
+            Self::AsmWriteCr4 => 21,
         }
     }
 
@@ -133,7 +154,14 @@ impl BuiltinFunction {
             | Self::AsmEnableInterrupts
             | Self::AsmRestoreFlags
             | Self::AsmReadMsr
-            | Self::AsmWriteMsr => Some("machine_control"),
+            | Self::AsmWriteMsr
+            | Self::AsmReadCr0
+            | Self::AsmReadCr2
+            | Self::AsmReadCr3
+            | Self::AsmReadCr4
+            | Self::AsmWriteCr0
+            | Self::AsmWriteCr3
+            | Self::AsmWriteCr4 => Some("machine_control"),
             Self::AsmPortOut | Self::AsmPortIn => Some("device_io"),
             Self::Max
             | Self::Min
@@ -160,10 +188,17 @@ impl BuiltinFunction {
                 | Self::AsmRestoreFlags
                 | Self::AsmReadMsr
                 | Self::AsmWriteMsr
+                | Self::AsmReadCr0
+                | Self::AsmReadCr2
+                | Self::AsmReadCr3
+                | Self::AsmReadCr4
+                | Self::AsmWriteCr0
+                | Self::AsmWriteCr3
+                | Self::AsmWriteCr4
         )
     }
 
-    pub fn asm_intrinsics() -> [Self; 12] {
+    pub fn asm_intrinsics() -> [Self; 19] {
         [
             Self::AsmHlt,
             Self::AsmPortOut,
@@ -177,6 +212,13 @@ impl BuiltinFunction {
             Self::AsmRestoreFlags,
             Self::AsmReadMsr,
             Self::AsmWriteMsr,
+            Self::AsmReadCr0,
+            Self::AsmReadCr2,
+            Self::AsmReadCr3,
+            Self::AsmReadCr4,
+            Self::AsmWriteCr0,
+            Self::AsmWriteCr3,
+            Self::AsmWriteCr4,
         ]
     }
 }
@@ -293,6 +335,34 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
         (
             SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::AsmWriteMsr.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmReadCr0.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmReadCr2.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmReadCr3.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmReadCr4.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmWriteCr0.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmWriteCr3.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmWriteCr4.name()),
         ),
     ]
 }

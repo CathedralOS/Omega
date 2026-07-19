@@ -60,7 +60,17 @@ pub(crate) fn validate_call_node(
     // state signature. (`asm { in dest, port }` is an assignment whose value
     // is the `asm#port_in` call; the value-call path owns it.)
     if receiver_members.is_empty() && call.target.as_str().starts_with("asm#") {
-        let (source_mnemonic, expected_arguments) = match call.target.as_str() {
+        let control_write = omega_core::inline_assembly::AsmControlRegister::from_write_intrinsic_name(
+            call.target.as_str(),
+        );
+        let (source_mnemonic, expected_arguments) = match control_write {
+            Some(register) => (
+                register
+                    .write_mnemonic()
+                    .expect("writable control-register intrinsic"),
+                1,
+            ),
+            None => match call.target.as_str() {
             "asm#hlt" => ("hlt", 0),
             "asm#port_out" => ("out", 2),
             "asm#lfence" => ("lfence", 0),
@@ -76,6 +86,7 @@ pub(crate) fn validate_call_node(
                 )));
                 return;
             }
+            },
         };
         if arguments.len() != expected_arguments {
             diagnostics.push(Diagnostic::error(format!(
@@ -86,7 +97,7 @@ pub(crate) fn validate_call_node(
             )));
             return;
         }
-        if matches!(source_mnemonic, "out" | "popfq" | "wrmsr") {
+        if matches!(source_mnemonic, "out" | "popfq" | "wrmsr" | "write_cr0" | "write_cr3" | "write_cr4") {
             let contract = user_asm_contract(source_mnemonic);
             for (operand, constraint) in arguments.iter().zip(contract.operands.iter()) {
                 validate_asm_operand_constraint(
@@ -498,11 +509,16 @@ pub(crate) fn validate_asm_value_destination(
     let ExpressionNode::Call(call) = program.expression_table.expression(assignment.value) else {
         return;
     };
-    let instruction = match call.target.as_str() {
+    let instruction = match omega_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(
+        call.target.as_str(),
+    ) {
+        Some(register) => register.read_mnemonic(),
+        None => match call.target.as_str() {
         "asm#port_in" => "in",
         "asm#pushfq" => "pushfq",
         "asm#rdmsr" => "rdmsr",
         _ => return,
+        },
     };
     let contract = user_asm_contract(instruction);
     validate_asm_operand_constraint(
@@ -3017,11 +3033,18 @@ fn validate_expression_call_bounds(
     call: &TableCallExpression,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if call.target.as_str() == "asm#pushfq" && !call.receiver.is_valid() {
+    if (call.target.as_str() == "asm#pushfq"
+        || omega_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(
+            call.target.as_str(),
+        )
+        .is_some())
+        && !call.receiver.is_valid()
+    {
         let arguments = program.expression_table.expression_handles(call.arguments);
         if !arguments.is_empty() {
             diagnostics.push(Diagnostic::error(format!(
-                "asm intrinsic `asm#pushfq` takes 0 operands, found {}",
+                "asm intrinsic `{}` takes 0 operands, found {}",
+                call.target,
                 arguments.len()
             )));
         }
@@ -3764,10 +3787,10 @@ fn report_unresolved_value_call(
         // value builtins remain. `asm#port_in` is the value-position asm
         // intrinsic (`asm { in dest, port }` desugars to `dest =
         // asm#port_in(port)`); the name is unnameable from source.
-        if matches!(
-            target,
-            "min" | "max" | "sqrt" | "asm#port_in" | "asm#pushfq" | "asm#rdmsr"
-        ) {
+        if matches!(target, "min" | "max" | "sqrt" | "asm#port_in" | "asm#pushfq" | "asm#rdmsr")
+            || omega_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(target)
+                .is_some()
+        {
             return;
         }
         diagnostics.push(Diagnostic::error(format!(

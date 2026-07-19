@@ -1089,6 +1089,67 @@ fn parses_x86_msr_as_structured_value_operations() {
 }
 
 #[test]
+fn parses_x86_control_registers_as_structured_value_operations() {
+    let source = r#"
+        data Main { value: u64; }
+
+        machine Main::main(&mut self) effects machine_control {
+            asm where clobbers rax, r10, r11, r15 {
+                read_cr0 self.value;
+                write_cr0 self.value;
+                read_cr2 self.value;
+                read_cr3 self.value;
+                write_cr3 self.value;
+                read_cr4 self.value;
+                write_cr4 self.value
+            }
+        }
+        "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+    let state = parsed.items.state(parsed.items.state_handles(machine.states)[0]);
+    let statements = parsed.items.statements(state.statements);
+    assert_eq!(statements.len(), 7);
+
+    for (statement_index, target) in [
+        (0, "asm#read_cr0"),
+        (2, "asm#read_cr2"),
+        (3, "asm#read_cr3"),
+        (5, "asm#read_cr4"),
+    ] {
+        let StatementNode::Assignment(read) =
+            parsed.statements.statement(statements[statement_index])
+        else {
+            panic!("control-register read should desugar to assignment");
+        };
+        let ExpressionNode::Call(call) = parsed.expressions.expression(read.value) else {
+            panic!("control-register assignment should contain read intrinsic");
+        };
+        assert_eq!(call.target.as_str(), target);
+        assert_eq!(call.arguments.count(), 0);
+    }
+
+    for (statement_index, target) in
+        [(1, "asm#write_cr0"), (4, "asm#write_cr3"), (6, "asm#write_cr4")]
+    {
+        let StatementNode::Call(write) = parsed.statements.statement(statements[statement_index])
+        else {
+            panic!("control-register write should desugar to call");
+        };
+        assert_eq!(write.target.as_str(), target);
+        assert_eq!(write.arguments.count(), 1);
+    }
+}
+
+#[test]
 fn parses_multi_instruction_asm_in_states_and_trait_defaults() {
     let source = r#"
         trait Idle {

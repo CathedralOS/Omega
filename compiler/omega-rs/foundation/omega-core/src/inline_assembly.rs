@@ -25,7 +25,88 @@ pub enum AsmInstructionShape {
     FlagsRestore,
     MsrRead,
     MsrWrite,
+    ControlRegisterRead(AsmControlRegister),
+    ControlRegisterWrite(AsmControlRegister),
     DerivedExit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AsmControlRegister {
+    Cr0,
+    Cr2,
+    Cr3,
+    Cr4,
+}
+
+impl AsmControlRegister {
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Cr0 => "cr0",
+            Self::Cr2 => "cr2",
+            Self::Cr3 => "cr3",
+            Self::Cr4 => "cr4",
+        }
+    }
+
+    pub const fn read_mnemonic(self) -> &'static str {
+        match self {
+            Self::Cr0 => "read_cr0",
+            Self::Cr2 => "read_cr2",
+            Self::Cr3 => "read_cr3",
+            Self::Cr4 => "read_cr4",
+        }
+    }
+
+    pub const fn write_mnemonic(self) -> Option<&'static str> {
+        match self {
+            Self::Cr0 => Some("write_cr0"),
+            Self::Cr2 => None,
+            Self::Cr3 => Some("write_cr3"),
+            Self::Cr4 => Some("write_cr4"),
+        }
+    }
+
+    pub const fn read_intrinsic_name(self) -> &'static str {
+        match self {
+            Self::Cr0 => "asm#read_cr0",
+            Self::Cr2 => "asm#read_cr2",
+            Self::Cr3 => "asm#read_cr3",
+            Self::Cr4 => "asm#read_cr4",
+        }
+    }
+
+    pub const fn write_intrinsic_name(self) -> Option<&'static str> {
+        match self {
+            Self::Cr0 => Some("asm#write_cr0"),
+            Self::Cr2 => None,
+            Self::Cr3 => Some("asm#write_cr3"),
+            Self::Cr4 => Some("asm#write_cr4"),
+        }
+    }
+
+    pub fn from_read_mnemonic(name: &str) -> Option<Self> {
+        [Self::Cr0, Self::Cr2, Self::Cr3, Self::Cr4]
+            .into_iter()
+            .find(|register| register.read_mnemonic() == name)
+    }
+
+    pub fn from_write_mnemonic(name: &str) -> Option<Self> {
+        [Self::Cr0, Self::Cr3, Self::Cr4]
+            .into_iter()
+            .find(|register| register.write_mnemonic() == Some(name))
+    }
+
+    pub fn from_read_intrinsic_name(name: &str) -> Option<Self> {
+        [Self::Cr0, Self::Cr2, Self::Cr3, Self::Cr4]
+            .into_iter()
+            .find(|register| register.read_intrinsic_name() == name)
+    }
+
+    pub fn from_write_intrinsic_name(name: &str) -> Option<Self> {
+        [Self::Cr0, Self::Cr3, Self::Cr4]
+            .into_iter()
+            .find(|register| register.write_intrinsic_name() == Some(name))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -277,12 +358,28 @@ const MSR_WRITE_OPERANDS: &[AsmOperandConstraint] = &[
     AsmOperandConstraint::read("MSR index", "ecx", "u32", u32::MAX as u64),
     AsmOperandConstraint::read("value", "edx:eax", "u64", u64::MAX),
 ];
+const CR0_READ_OPERANDS: &[AsmOperandConstraint] =
+    &[AsmOperandConstraint::write_place("destination", "cr0", "u64")];
+const CR2_READ_OPERANDS: &[AsmOperandConstraint] =
+    &[AsmOperandConstraint::write_place("destination", "cr2", "u64")];
+const CR3_READ_OPERANDS: &[AsmOperandConstraint] =
+    &[AsmOperandConstraint::write_place("destination", "cr3", "u64")];
+const CR4_READ_OPERANDS: &[AsmOperandConstraint] =
+    &[AsmOperandConstraint::write_place("destination", "cr4", "u64")];
+const CR0_WRITE_OPERANDS: &[AsmOperandConstraint] =
+    &[AsmOperandConstraint::read("value", "cr0", "u64", u64::MAX)];
+const CR3_WRITE_OPERANDS: &[AsmOperandConstraint] =
+    &[AsmOperandConstraint::read("value", "cr3", "u64", u64::MAX)];
+const CR4_WRITE_OPERANDS: &[AsmOperandConstraint] =
+    &[AsmOperandConstraint::read("value", "cr4", "u64", u64::MAX)];
 const NO_CLOBBERS: &[&str] = &[];
 const PORT_OUT_CLOBBERS: &[&str] = &["rax", "rdx", "r10", "r11", "r15"];
 const PORT_IN_CLOBBERS: &[&str] = &["rax", "rdx", "r10", "r15"];
 const FLAGS_OPERAND_CLOBBERS: &[&str] = &["r10", "r15"];
 const MSR_READ_CLOBBERS: &[&str] = &["rax", "rcx", "rdx", "r10", "r11", "r15"];
 const MSR_WRITE_CLOBBERS: &[&str] = &["rax", "rcx", "rdx", "r10", "r11", "r15"];
+const CONTROL_REGISTER_READ_CLOBBERS: &[&str] = &["r10", "r15"];
+const CONTROL_REGISTER_WRITE_CLOBBERS: &[&str] = &["rax", "r10", "r11", "r15"];
 
 pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
     use AsmAuthorityRequirement::{MachineOwner, None as NoAuthority, PortIo as PortIoAuthority};
@@ -305,6 +402,45 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
     };
     use AsmMemoryOrdering::{Fence, None as NoOrdering};
     use AsmTargetApplicability::{Aarch64, Any, X86_64};
+
+    if let Some(register) = AsmControlRegister::from_read_mnemonic(mnemonic) {
+        let operands = match register {
+            AsmControlRegister::Cr0 => CR0_READ_OPERANDS,
+            AsmControlRegister::Cr2 => CR2_READ_OPERANDS,
+            AsmControlRegister::Cr3 => CR3_READ_OPERANDS,
+            AsmControlRegister::Cr4 => CR4_READ_OPERANDS,
+        };
+        return Some(Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: AsmInstructionShape::ControlRegisterRead(register),
+            target: X86_64,
+            required_authority: MachineOwner,
+            operands,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: CONTROL_REGISTER_READ_CLOBBERS,
+        }));
+    }
+    if let Some(register) = AsmControlRegister::from_write_mnemonic(mnemonic) {
+        let operands = match register {
+            AsmControlRegister::Cr0 => CR0_WRITE_OPERANDS,
+            AsmControlRegister::Cr2 => unreachable!("CR2 has no source write form"),
+            AsmControlRegister::Cr3 => CR3_WRITE_OPERANDS,
+            AsmControlRegister::Cr4 => CR4_WRITE_OPERANDS,
+        };
+        return Some(Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: AsmInstructionShape::ControlRegisterWrite(register),
+            target: X86_64,
+            required_authority: MachineOwner,
+            operands,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: CONTROL_REGISTER_WRITE_CLOBBERS,
+        }));
+    }
 
     let entry = match mnemonic {
         "jmp" => Contract(AsmInstructionContract {
@@ -497,9 +633,10 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
 #[cfg(test)]
 mod tests {
     use super::{
-        AsmAuthorityRequirement, AsmCatalogEntry, AsmFenceKind, AsmFlagsDataFlow,
-        AsmInstructionAvailability, AsmInstructionRefusal, AsmInterruptFlagEffect,
-        AsmMemoryOrdering, AsmOperandAccess, AsmTargetApplicability, asm_catalog_entry,
+        AsmAuthorityRequirement, AsmCatalogEntry, AsmControlRegister, AsmFenceKind,
+        AsmFlagsDataFlow, AsmInstructionAvailability, AsmInstructionRefusal,
+        AsmInstructionShape, AsmInterruptFlagEffect, AsmMemoryOrdering, AsmOperandAccess,
+        AsmTargetApplicability, asm_catalog_entry,
     };
 
     #[test]
@@ -631,6 +768,50 @@ mod tests {
             write.clobbers,
             &["rax", "rcx", "rdx", "r10", "r11", "r15"]
         );
+    }
+
+    #[test]
+    fn control_register_contracts_pin_exact_u64_flow_and_machine_authority() {
+        for register in [
+            AsmControlRegister::Cr0,
+            AsmControlRegister::Cr2,
+            AsmControlRegister::Cr3,
+            AsmControlRegister::Cr4,
+        ] {
+            let AsmCatalogEntry::Contract(read) =
+                asm_catalog_entry(register.read_mnemonic()).expect("control-register read contract")
+            else {
+                panic!("control-register read must be contracted");
+            };
+            assert_eq!(read.shape, AsmInstructionShape::ControlRegisterRead(register));
+            assert_eq!(read.target, AsmTargetApplicability::X86_64);
+            assert_eq!(read.required_authority, AsmAuthorityRequirement::MachineOwner);
+            assert_eq!(read.operands[0].access, AsmOperandAccess::Write);
+            assert_eq!(read.operands[0].target_register, register.name());
+            assert_eq!(read.operands[0].expected_type_name, "u64");
+            assert_eq!(read.clobbers, &["r10", "r15"]);
+        }
+
+        for register in [
+            AsmControlRegister::Cr0,
+            AsmControlRegister::Cr3,
+            AsmControlRegister::Cr4,
+        ] {
+            let mnemonic = register.write_mnemonic().expect("writable control register");
+            let AsmCatalogEntry::Contract(write) =
+                asm_catalog_entry(mnemonic).expect("control-register write contract")
+            else {
+                panic!("control-register write must be contracted");
+            };
+            assert_eq!(write.shape, AsmInstructionShape::ControlRegisterWrite(register));
+            assert_eq!(write.required_authority, AsmAuthorityRequirement::MachineOwner);
+            assert_eq!(write.operands[0].access, AsmOperandAccess::Read);
+            assert_eq!(write.operands[0].target_register, register.name());
+            assert_eq!(write.operands[0].expected_type_name, "u64");
+            assert_eq!(write.clobbers, &["rax", "r10", "r11", "r15"]);
+        }
+
+        assert_eq!(asm_catalog_entry("write_cr2"), None);
     }
 
     #[test]

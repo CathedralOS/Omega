@@ -1,0 +1,1 @@
+asm instruction `write_cr3`, which requires a FREESTANDING boundary root

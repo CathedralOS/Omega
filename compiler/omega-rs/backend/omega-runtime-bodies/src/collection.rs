@@ -266,6 +266,20 @@ fn append_state_body_operations(
             has_receiver: false,
             ..
         } = &operation.kind
+            && let Some(register) = omega_core::inline_assembly::AsmControlRegister::from_write_intrinsic_name(target.as_str())
+        {
+            operations.insert(body_operation(
+                state_key,
+                operation.statement_index,
+                RuntimeDispatchBodyOperationKind::ControlRegisterWrite(register),
+            ));
+            continue;
+        }
+        if let OperationKind::Call {
+            target,
+            has_receiver: false,
+            ..
+        } = &operation.kind
             && let Some(kind) =
                 omega_core::inline_assembly::AsmFenceKind::from_intrinsic_name(target.as_str())
         {
@@ -338,6 +352,20 @@ fn append_state_body_operations(
                 state_key,
                 operation.statement_index,
                 RuntimeDispatchBodyOperationKind::PortRead,
+            ));
+            continue;
+        }
+        if matches!(operation.kind, OperationKind::Assignment)
+            && let Some(mutation) =
+                mutation_for_statement(context, state_key, operation.statement_index)
+            && let omega_checked_trees::expression::ExpressionNode::Call(call) =
+                context.state_storage.expressions.expression(mutation.value)
+            && let Some(register) = omega_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(call.target.as_str())
+        {
+            operations.insert(body_operation(
+                state_key,
+                operation.statement_index,
+                RuntimeDispatchBodyOperationKind::ControlRegisterRead(register),
             ));
             continue;
         }

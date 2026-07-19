@@ -76,6 +76,8 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::FlagsRestore { .. }
             | Self::MsrRead { .. }
             | Self::MsrWrite { .. }
+            | Self::ControlRegisterRead { .. }
+            | Self::ControlRegisterWrite { .. }
             | Self::PortWrite { .. }
             | Self::PortRead { .. } => TargetOperationDomain::MachineControl,
         }

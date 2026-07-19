@@ -40,6 +40,8 @@ pub(super) fn bind_runtime_operation_aliases(
         | RuntimeDispatchBodyOperationKind::FlagsRestore
         | RuntimeDispatchBodyOperationKind::MsrRead
         | RuntimeDispatchBodyOperationKind::MsrWrite
+        | RuntimeDispatchBodyOperationKind::ControlRegisterRead(_)
+        | RuntimeDispatchBodyOperationKind::ControlRegisterWrite(_)
         | RuntimeDispatchBodyOperationKind::PortWrite
         | RuntimeDispatchBodyOperationKind::PortRead
         | RuntimeDispatchBodyOperationKind::LocalStorage { .. }

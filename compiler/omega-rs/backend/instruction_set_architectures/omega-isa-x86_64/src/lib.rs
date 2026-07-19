@@ -204,6 +204,60 @@ pub fn encode_msr_write(
     Ok(bytes)
 }
 
+// --- control registers -----------------------------------------------------
+
+pub const CONTROL_REGISTER_READ_DESTINATION_BASE_OFFSET: usize = 4;
+const CONTROL_REGISTER_DESTINATION_STORE_WIDTH: usize = 10 + 7;
+
+pub const fn control_register_read_width() -> usize {
+    4 + CONTROL_REGISTER_DESTINATION_STORE_WIDTH
+}
+
+const fn control_register_modrm(
+    register: omega_core::inline_assembly::AsmControlRegister,
+) -> u8 {
+    use omega_core::inline_assembly::AsmControlRegister;
+    match register {
+        AsmControlRegister::Cr0 => 0xc2,
+        AsmControlRegister::Cr2 => 0xd2,
+        AsmControlRegister::Cr3 => 0xda,
+        AsmControlRegister::Cr4 => 0xe2,
+    }
+}
+
+/// Read CR0/CR2/CR3/CR4 into R10, then store the exact u64 value to `dest`.
+pub fn encode_control_register_read(
+    register: omega_core::inline_assembly::AsmControlRegister,
+    dest_byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(control_register_read_width());
+    bytes.extend([0x41, 0x0f, 0x20, control_register_modrm(register)]);
+    append_mov_r15_imm64(&mut bytes, 0);
+    append_store_r10_to_r15(&mut bytes, dest_byte_offset)?;
+    debug_assert_eq!(bytes.len(), control_register_read_width());
+    Ok(bytes)
+}
+
+pub fn control_register_write_width(
+    source: &impl RuntimeValueOperandSource,
+    operand: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_value_operand_width(source, operand) + 4
+}
+
+/// Load a u64 source into R10 and write it to CR0/CR3/CR4.
+pub fn encode_control_register_write(
+    source: &impl RuntimeValueOperandSource,
+    register: omega_core::inline_assembly::AsmControlRegister,
+    operand: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(control_register_write_width(source, operand));
+    append_runtime_value_operand(source, &mut bytes, Reg64::R10, operand)?;
+    bytes.extend([0x41, 0x0f, 0x22, control_register_modrm(register)]);
+    debug_assert_eq!(bytes.len(), control_register_write_width(source, operand));
+    Ok(bytes)
+}
+
 // --- port I/O (`asm { out .. }` / `asm { in .. }`) --------------------------
 //
 // The port operand loads into DX and the byte operand into AL by REUSING the
@@ -10457,6 +10511,47 @@ mod machine_control_tests {
         assert_eq!(&bytes[24..30], &[0x44, 0x89, 0xd1, 0x44, 0x89, 0xd8]);
         assert_eq!(&bytes[30..37], &[0x4c, 0x89, 0xda, 0x48, 0xc1, 0xea, 0x20]);
         assert_eq!(&bytes[37..39], &[0x0f, 0x30]);
+    }
+
+    #[test]
+    fn control_register_reads_use_exact_modrm_and_store_u64() {
+        use omega_core::inline_assembly::AsmControlRegister;
+
+        for (register, modrm) in [
+            (AsmControlRegister::Cr0, 0xc2),
+            (AsmControlRegister::Cr2, 0xd2),
+            (AsmControlRegister::Cr3, 0xda),
+            (AsmControlRegister::Cr4, 0xe2),
+        ] {
+            let bytes = encode_control_register_read(register, 24).expect("encode MOV from CR");
+            assert_eq!(bytes.len(), control_register_read_width());
+            assert_eq!(&bytes[0..4], &[0x41, 0x0f, 0x20, modrm]);
+            assert_eq!(&bytes[4..6], &[0x49, 0xbf]);
+            assert_eq!(&bytes[6..14], &0u64.to_le_bytes());
+            assert_eq!(&bytes[14..17], &[0x4d, 0x89, 0x97]);
+            assert_eq!(&bytes[17..21], &24u32.to_le_bytes());
+        }
+        assert_eq!(CONTROL_REGISTER_READ_DESTINATION_BASE_OFFSET, 4);
+    }
+
+    #[test]
+    fn control_register_writes_use_exact_modrm_after_u64_materialization() {
+        use omega_core::inline_assembly::AsmControlRegister;
+
+        let source = ImmediateOperands(vec![0x1122_3344_5566_7788]);
+        let value = RuntimeValueOperandHandle::from_parts(0, 1);
+        for (register, modrm) in [
+            (AsmControlRegister::Cr0, 0xc2),
+            (AsmControlRegister::Cr3, 0xda),
+            (AsmControlRegister::Cr4, 0xe2),
+        ] {
+            let bytes = encode_control_register_write(&source, register, value)
+                .expect("encode MOV to CR");
+            assert_eq!(bytes.len(), control_register_write_width(&source, value));
+            assert_eq!(&bytes[0..2], &[0x49, 0xba]);
+            assert_eq!(&bytes[2..10], &0x1122_3344_5566_7788u64.to_le_bytes());
+            assert_eq!(&bytes[10..14], &[0x41, 0x0f, 0x22, modrm]);
+        }
     }
 
     #[test]

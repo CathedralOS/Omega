@@ -190,6 +190,32 @@ pub fn encode_msr_write_bytes(
     x86_64::encode_msr_write(source, index, value)
 }
 
+pub fn control_register_read_width() -> usize {
+    x86_64::control_register_read_width()
+}
+
+pub fn encode_control_register_read_bytes(
+    register: omega_core::inline_assembly::AsmControlRegister,
+    dest_byte_offset: usize,
+) -> Result<Vec<u8>, omega_core::diagnostics::Diagnostic> {
+    x86_64::encode_control_register_read(register, dest_byte_offset)
+}
+
+pub fn control_register_write_width(
+    source: &impl RuntimeValueOperandSource,
+    operand: RuntimeValueOperandHandle,
+) -> usize {
+    x86_64::control_register_write_width(source, operand)
+}
+
+pub fn encode_control_register_write_bytes(
+    source: &impl RuntimeValueOperandSource,
+    register: omega_core::inline_assembly::AsmControlRegister,
+    operand: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, omega_core::diagnostics::Diagnostic> {
+    x86_64::encode_control_register_write(source, register, operand)
+}
+
 /// Port I/O is x86_64-only (ARM has no port space -- MMIO instead), so these
 /// take no architecture: the layout/encoding sites reject a non-x86_64 target
 /// before calling them.

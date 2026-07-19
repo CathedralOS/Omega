@@ -231,6 +231,8 @@ fn parse_discard_statement_handle<'tokens, 'source>(
 ///   balanced restore sequence
 /// - `rdmsr <dest>, <index>`    -> `<dest> = asm#rdmsr(index)`
 /// - `wrmsr <index>, <value>`   -> `asm#wrmsr(index, value)`
+/// - `read_crN <dest>` / `write_crN <source>` -> structured u64 control-
+///   register value flow
 ///
 /// `asm where ... { ... }` additionally authors block proof obligations and/or
 /// an exact clobber contract. `requires` facts become assertions immediately
@@ -514,7 +516,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
         return Err(mnemonic_site.error_here(format!(
             "unknown asm instruction `{}`: only known-contract instructions compile \
              (`hlt`, `in`, `out`, `jmp`, `lfence`, `sfence`, `mfence`, `cli`, `sti`, \
-             `pushfq`, `popfq`, `rdmsr`, `wrmsr`); opaque forms \
+             `pushfq`, `popfq`, `rdmsr`, `wrmsr`, structured `read_crN`/`write_crN`); opaque forms \
              (`db`, raw bytes) are rejected",
             mnemonic.as_str()
         )));
@@ -759,6 +761,51 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                             arguments,
                             discards_result: false,
                         })),
+                    contract,
+                },
+                input,
+            ))
+        }
+        AsmInstructionShape::ControlRegisterRead(register) => {
+            let (destination, input) = parse_expression_handle(syntax_trees, input)?;
+            let value = syntax_trees
+                .expressions
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    receiver: ExpressionHandle::invalid(),
+                    target: Identifier::new(register.read_intrinsic_name(), mnemonic.source_span()),
+                    machine_arguments: Box::default(),
+                    arguments: HandleSpan::empty(),
+                }));
+            Ok((
+                ParsedAsmInstruction {
+                    statement: syntax_trees.statements.insert(StatementNode::Assignment(
+                        TableAssignment { target: destination, value },
+                    )),
+                    contract,
+                },
+                input,
+            ))
+        }
+        AsmInstructionShape::ControlRegisterWrite(register) => {
+            let (source, input) = parse_expression_handle(syntax_trees, input)?;
+            let arguments = syntax_trees
+                .statements
+                .insert_expression_handles(vec![source]);
+            Ok((
+                ParsedAsmInstruction {
+                    statement: syntax_trees.statements.insert(StatementNode::Call(TableCall {
+                        receiver: HandleSpan::empty(),
+                        receiver_starts_at_self: false,
+                        target: Identifier::new(
+                            register
+                                .write_intrinsic_name()
+                                .expect("writable control-register shape"),
+                            mnemonic.source_span(),
+                        ),
+                        machine_arguments: Box::default(),
+                        arguments,
+                        discards_result: false,
+                    })),
                     contract,
                 },
                 input,

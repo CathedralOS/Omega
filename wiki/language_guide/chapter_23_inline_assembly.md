@@ -7,7 +7,8 @@ ownership, effects, authority, or machine-state rules.
 The full catalog and contract surface remain incremental. The implemented pilot
 accepts strict blocks containing known `hlt`, port `in`/`out`, x86
 `lfence`/`sfence`/`mfence`, x86 `cli`/`sti`, structured x86
-`pushfq`/`popfq`, structured x86 `rdmsr`/`wrmsr`, and `jmp state(...)`
+`pushfq`/`popfq`, structured x86 `rdmsr`/`wrmsr`, structured x86
+control-register reads/writes, and `jmp state(...)`
 instructions. Multiple instructions use `;` as an explicit separator because
 newlines are not grammar; empty blocks and a control transfer followed by
 another instruction reject.
@@ -72,6 +73,15 @@ carry `MachineControl`, require `MachineOwner`, and declare every scratch or
 architectural register changed by their realized sequences. A higher-level
 MSR provider therefore cannot hide reach or authority by choosing direct
 assembly.
+
+`read_cr0`/`read_cr2`/`read_cr3`/`read_cr4` each copy the named x86 control
+register into an exact writable `u64` destination. `write_cr0`/`write_cr3`/
+`write_cr4` accept one exact `u64` source; CR2 is read-only on this surface.
+Every form is x86-only, carries `MachineControl`, requires `MachineOwner`, and
+declares the scratch registers used to materialize or store its value. These
+operations expose register value flow only: broader regime transitions and
+page-table installation invariants remain obligations of the provider that
+uses them.
 
 The same `where` surface accepts boolean `requires` and `ensures` facts:
 
@@ -209,7 +219,7 @@ The freestanding x86 vertical slice needs contracts for:
 
 - completed `cli`/`sti`, `hlt`, and structured flags save/restore;
 - `in`/`out` port I/O;
-- `lidt`/`lgdt` and control-register access (structured MSR access is complete);
+- `lidt`/`lgdt` (structured control-register and MSR access is complete);
 - atomics and the completed x86 fence slice;
 - cache/TLB maintenance and invalidation;
 - mode-transition operations; and

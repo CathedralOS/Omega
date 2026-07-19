@@ -428,3 +428,48 @@ pub(super) fn asm_msr_write_operands(
     let arguments = input.state_calls.arguments.span(state_call.arguments)?;
     Some((arguments.first()?.expression, arguments.get(1)?.expression))
 }
+
+pub(super) fn asm_control_register_read_destination(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> Option<(
+    omega_core::inline_assembly::AsmControlRegister,
+    ExpressionHandle,
+)> {
+    let mutation = state_mutation_for_statement(input, source_key, statement_index)?;
+    let ExpressionNode::Call(call) = input.state_storage.expressions.expression(mutation.value)
+    else {
+        return None;
+    };
+    let register = omega_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(
+        call.target.as_str(),
+    )?;
+    Some((register, mutation.target))
+}
+
+pub(super) fn asm_control_register_write_source(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> Option<(
+    omega_core::inline_assembly::AsmControlRegister,
+    ExpressionHandle,
+)> {
+    let omega_checked_trees::statement::StatementNode::Call(call) =
+        checked_statement_node(input, source_key, statement_index)?
+    else {
+        return None;
+    };
+    let register = omega_core::inline_assembly::AsmControlRegister::from_write_intrinsic_name(
+        call.target.as_str(),
+    )?;
+    let state_call = state_call_for_statement(input, source_key, statement_index)?;
+    let source = input
+        .state_calls
+        .arguments
+        .span(state_call.arguments)?
+        .first()?
+        .expression;
+    Some((register, source))
+}

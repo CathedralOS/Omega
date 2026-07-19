@@ -168,6 +168,31 @@ pub(super) fn select_state_body_instructions(
             continue;
         }
 
+        if let Some((register, source_expression)) =
+            super::lookups::asm_control_register_write_source(
+                input,
+                state.key,
+                operation.statement_index,
+            )
+        {
+            let storage_dispatch_index =
+                storage_dispatch_index_for_state(input, state.key, dispatch_index);
+            if let Some(source) = crate::selection::runtime_dispatch::writes::mutation::resolve_runtime_value_operand_in_table(
+                input, storage_dispatch_index, state.key, operation.statement_index,
+                &input.state_calls.expressions, source_expression, &static_values, runtime_value_operands,
+            ) {
+                selected_instructions.push(SelectedInstruction {
+                    kind: omega_abstract_operations::SelectedInstructionKind::ControlRegisterWrite {
+                        register,
+                        source,
+                    },
+                    source_key: state.key,
+                    source_statement: operation.statement_index,
+                });
+            }
+            continue;
+        }
+
         if let OperationKind::Call {
             target,
             has_receiver: false,
@@ -373,6 +398,32 @@ pub(super) fn select_state_body_instructions(
         {
             let storage_dispatch_index =
                 storage_dispatch_index_for_state(input, state.key, dispatch_index);
+
+            if let Some((register, dest_expr)) =
+                super::lookups::asm_control_register_read_destination(
+                    input,
+                    state.key,
+                    operation.statement_index,
+                )
+            {
+                let dest = crate::selection::storage_places::resolve_runtime_storage_place_in_table(
+                    input, storage_dispatch_index, state.key,
+                    &input.state_storage.expressions, dest_expr,
+                );
+                if let Some(dest) = dest {
+                    selected_instructions.push(SelectedInstruction {
+                        kind: omega_abstract_operations::SelectedInstructionKind::ControlRegisterRead {
+                            register,
+                            dest_region: dest.region,
+                            dest_byte_offset: dest.byte_offset,
+                        },
+                        source_key: state.key,
+                        source_statement: operation.statement_index,
+                    });
+                    static_values.clear();
+                }
+                continue;
+            }
 
             if let Some((index_expr, dest_expr)) = super::lookups::asm_msr_read_operands(
                 input,

@@ -99,6 +99,13 @@ model the implicit ECX and EDX:EAX registers as explicit exact `u32`/`u64`
 value flow. Both carry `MachineControl`, require `MachineOwner`, enumerate the
 realized architectural and scratch clobbers, and refuse non-x86 targets.
 
+Structured `read_cr0`/`read_cr2`/`read_cr3`/`read_cr4` and
+`write_cr0`/`write_cr3`/`write_cr4` likewise expose exact `u64` value flow,
+carry `MachineControl`, require `MachineOwner`, and refuse non-x86 targets.
+CR2 intentionally has no write form. The instruction contract does not by
+itself claim that a new paging or execution regime is valid; provider-level
+facts must discharge those transitions.
+
 ## Still open
 
 - concrete executable/component manifest encoding;

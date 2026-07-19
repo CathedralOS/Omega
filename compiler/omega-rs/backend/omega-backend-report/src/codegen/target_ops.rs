@@ -716,6 +716,15 @@ fn selected_instruction_name(
         SelectedInstructionKind::MsrWrite { .. } => {
             "model-specific register write (wrmsr)".to_owned()
         }
+        SelectedInstructionKind::ControlRegisterRead {
+            register,
+            dest_byte_offset,
+            ..
+        } => format!("control-register read ({}) -> [{dest_byte_offset}]", register.read_mnemonic()),
+        SelectedInstructionKind::ControlRegisterWrite { register, .. } => format!(
+            "control-register write ({})",
+            register.write_mnemonic().expect("writable control register")
+        ),
         SelectedInstructionKind::PortWrite { .. } => "port write (out)".to_owned(),
         SelectedInstructionKind::PortRead { dest_byte_offset, .. } => {
             format!("port read (in) -> [{dest_byte_offset}]")

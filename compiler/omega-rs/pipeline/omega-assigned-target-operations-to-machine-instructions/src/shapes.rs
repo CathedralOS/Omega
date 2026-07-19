@@ -118,6 +118,12 @@ pub(super) fn lower_machine_instruction_kind(
         SelectedInstructionKind::FlagsRestore { .. } => MachineInstructionKind::FlagsRestore,
         SelectedInstructionKind::MsrRead { .. } => MachineInstructionKind::MsrRead,
         SelectedInstructionKind::MsrWrite { .. } => MachineInstructionKind::MsrWrite,
+        SelectedInstructionKind::ControlRegisterRead { register, .. } => {
+            MachineInstructionKind::ControlRegisterRead(*register)
+        }
+        SelectedInstructionKind::ControlRegisterWrite { register, .. } => {
+            MachineInstructionKind::ControlRegisterWrite(*register)
+        }
         SelectedInstructionKind::PortWrite { .. } => MachineInstructionKind::PortWrite,
         SelectedInstructionKind::PortRead { .. } => MachineInstructionKind::PortRead,
         SelectedInstructionKind::LeaveFunction => dispatch::return_kind(),

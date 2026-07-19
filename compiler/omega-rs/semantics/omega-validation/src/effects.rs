@@ -219,6 +219,13 @@ fn statement_asm_intrinsic(
         omega_core::symbols::BuiltinFunction::AsmRestoreFlags => "popfq",
         omega_core::symbols::BuiltinFunction::AsmReadMsr => "rdmsr",
         omega_core::symbols::BuiltinFunction::AsmWriteMsr => "wrmsr",
+        omega_core::symbols::BuiltinFunction::AsmReadCr0 => "read_cr0",
+        omega_core::symbols::BuiltinFunction::AsmReadCr2 => "read_cr2",
+        omega_core::symbols::BuiltinFunction::AsmReadCr3 => "read_cr3",
+        omega_core::symbols::BuiltinFunction::AsmReadCr4 => "read_cr4",
+        omega_core::symbols::BuiltinFunction::AsmWriteCr0 => "write_cr0",
+        omega_core::symbols::BuiltinFunction::AsmWriteCr3 => "write_cr3",
+        omega_core::symbols::BuiltinFunction::AsmWriteCr4 => "write_cr4",
         _ => return None,
     };
     let omega_core::inline_assembly::AsmCatalogEntry::Contract(contract) =
