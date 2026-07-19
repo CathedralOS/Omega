@@ -776,8 +776,9 @@ fn boundary_ensures_witness_wide_bounded_assignment_refuses() {
 }
 
 #[test]
-fn boundary_ensures_witness_bounded_assignment_dies_on_later_call() {
-    // A second call between the witness and the assignment invalidates it.
+fn boundary_ensures_witness_survives_unrelated_later_call() {
+    // The later resolved boundary call can mutate its receiver (`self.fw`),
+    // but its may-write frame is disjoint from `self.n`, so the witness lives.
     let source = r#"
         boundary trait Firmware {
             machine get_size(size: &mut u32)
@@ -791,22 +792,9 @@ fn boundary_ensures_witness_bounded_assignment_dies_on_later_call() {
             self.m = self.n + 1;
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
-        .expect_err("an intervening call must kill the witness");
-    // The kill shows up at whichever engine checks first: validation's
-    // exact-arithmetic fold (its S4 witness died too) or the checker's
-    // containment obligation -- both name the unproven value.
-    assert!(
-        diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message
-                .contains("satisfies bounded target `self.m`")
-                || diagnostic.message.contains("may overflow `u32`")
-        }),
-        "expected a refusal naming the unproven value, got {diagnostics:#?}"
-    );
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("a disjoint resolved boundary call must preserve the witness");
 }
-
 
 #[test]
 fn value_vs_value_guard_transfers_the_range_endpoint() {
