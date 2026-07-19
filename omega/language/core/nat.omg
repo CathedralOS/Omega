@@ -324,7 +324,6 @@ ensures
 // and the machine's own ensures is the inductive hypothesis. Lean analog:
 // `Nat.mul_one`.
 machine mul_one_right(a: Nat) -> Nat
-satisfies CommutativeSemiring::mul_identity
 terminates by a;
 ensures
     (mul(a, Nat::Succ { prev: Nat::Zero })) == a

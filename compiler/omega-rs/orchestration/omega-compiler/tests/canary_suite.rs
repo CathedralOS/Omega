@@ -31276,6 +31276,29 @@ fn default_domain_product_hypothesis_canary() {
 }
 
 #[test]
+fn commutative_semiring_core_canaries() {
+    for name in [
+        "proofs/polynomial_expand_core_nat",
+        "proofs/proof_nat_structural_lemmas",
+        "proofs/ring_rearrange_core_nat",
+        "traits/ring_requirement_satisfies_exit",
+    ] {
+        let canary = pass_canary(name);
+        compile_canary_without_output(&canary).unwrap_or_else(|diagnostics| {
+            panic!(
+                "{} failed:\n{}",
+                canary.display(),
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+    }
+}
+
+#[test]
 fn runtime_float_min_max_abs_clamp_exit_canary_runs() {
     // Float min/max on SSE (maxsd/minsd), plus abs/clamp over floats which
     // desugar to them: max(3,7)+min(3,7)+abs(-12)+clamp(300,0,200) = 222.
