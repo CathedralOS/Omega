@@ -833,7 +833,7 @@ impl ValueEnv {
     }
 }
 
-fn place_paths_overlap(left: &str, right: &str) -> bool {
+pub(crate) fn place_paths_overlap(left: &str, right: &str) -> bool {
     left == right || place_path_is_descendant(left, right) || place_path_is_descendant(right, left)
 }
 

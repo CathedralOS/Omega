@@ -120,12 +120,12 @@ before the fix.
 ### Dependent facts and frames
 
 - **R5 — frames.** Direct and acyclic transitive internal calls, plus resolved
-  boundary calls, now preserve linear arithmetic facts, recast witnesses, and
-  dependent entry facts outside their conservatively instantiated
-  receiver/exclusive-argument may-write paths (unknown, transitioning,
-  static-machine, and cyclic calls still invalidate all facts). Finish the
-  `stores` clause, explicit state-arrival contracts, and broader Houdini-style
-  inference for facts crossing sibling calls.
+  boundary calls, now preserve linear arithmetic facts, recast witnesses,
+  dependent entry facts, and exact default-domain valuations outside their
+  conservatively instantiated receiver/exclusive-argument may-write paths
+  (unknown, transitioning, static-machine, and cyclic calls still invalidate
+  all facts). Finish the `stores` clause, explicit state-arrival contracts, and
+  broader Houdini-style inference for facts crossing sibling calls.
 
 ### Domain facets, effects, termination, and trust
 

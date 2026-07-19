@@ -1,0 +1,29 @@
+// R5 default-domain frame: the predecessor proves an exact valuation for
+// self.pair. A known sibling call writes only self.other, so the transported
+// right == 20 witness survives and proves that left = 15 restores left <= right.
+data Pair
+where
+    left <= right,
+{
+    left: i32;
+    right: i32;
+}
+
+data Main {
+    pair: Pair;
+    other: i32;
+}
+
+machine Main::run(&mut self) {
+    self.pair.right = 20;
+    transition { _ -> update() }
+
+    state update(&mut self) {
+        self.touch_other();
+        self.pair.left = 15;
+    }
+}
+
+machine Main::touch_other(&mut self) {
+    self.other = 1;
+}

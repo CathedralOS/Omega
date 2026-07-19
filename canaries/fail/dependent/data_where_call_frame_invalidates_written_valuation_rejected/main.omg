@@ -1,0 +1,28 @@
+// FAIL CANARY (R5 default-domain frame soundness): the sibling call replaces
+// self.pair, so the predecessor's right == 20 valuation cannot survive it.
+// Writing left = 15 afterward is not proven to restore left <= right.
+data Pair
+where
+    left <= right,
+{
+    left: i32;
+    right: i32;
+}
+
+data Main {
+    pair: Pair;
+}
+
+machine Main::run(&mut self) {
+    self.pair.right = 20;
+    transition { _ -> update() }
+
+    state update(&mut self) {
+        self.replace_pair();
+        self.pair.left = 15;
+    }
+}
+
+machine Main::replace_pair(&mut self) {
+    self.pair = Pair { left: 0, right: 5 };
+}
