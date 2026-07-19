@@ -70,7 +70,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansi
         })
         .collect::<Vec<_>>();
 
-    order_return_value_fallbacks_first(&mut matching_expansions);
+    order_return_value_fallbacks_last(&mut matching_expansions);
 
     let multi_arm = matching_expansions.len() > 1;
     for expansion in matching_expansions {
@@ -110,7 +110,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansi
         })
         .collect::<Vec<_>>();
 
-    order_return_value_fallbacks_first(&mut matching_expansions);
+    order_return_value_fallbacks_last(&mut matching_expansions);
 
     let multi_arm = matching_expansions.len() > 1;
     for expansion in matching_expansions {
@@ -199,14 +199,14 @@ fn leaf_expansion_matches_operation(
         }
 }
 
-/// A machine is RE-ENTRANT when any of its states transitions back to its
-/// ENTRY state (the first StateFlow) -- the `terminates by ..;`
-/// walk shape (`true -> walk(path, i + 1)`). Ordinary forward state chains
-/// never target the entry, so they are not flagged.
-fn order_return_value_fallbacks_first(expansions: &mut [&RuntimeLeafBranchExpansion]) {
+/// Emit guarded terminal-value arms in source order and the transition's
+/// default arm last. A matched guarded arm emits `ForwardBranchSkip`, so a
+/// default emitted first would skip its guarded siblings before they are
+/// tested.
+fn order_return_value_fallbacks_last(expansions: &mut [&RuntimeLeafBranchExpansion]) {
     expansions.sort_by_key(|expansion| {
         (
-            !(expansion.target_value.is_valid() && expansion.is_default_target),
+            expansion.target_value.is_valid() && expansion.is_default_target,
             expansion.edge_order,
         )
     });
@@ -479,7 +479,7 @@ fn select_runtime_leaf_nested_call_argument_writes(
             .position(|call_argument| call_argument.call_ordinal != call_ordinal)
             .map_or(call_arguments.len(), |offset| group_start + offset);
         let group = &mut call_arguments[group_start..group_end];
-        order_return_value_fallbacks_first(group);
+        order_return_value_fallbacks_last(group);
 
         let multi_arm = group.len() > 1;
         for call_argument in group.iter().copied() {

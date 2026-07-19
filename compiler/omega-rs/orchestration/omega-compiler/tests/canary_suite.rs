@@ -24990,6 +24990,69 @@ fn runtime_multiarm_texteq_local_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A selected sub-state's call-free LocalData runs in its straight-line prelude,
+// before that sub-state's nested guard. Text equality needs the dedicated
+// frame-slot comparison writer on this path; otherwise the guard reads ZII.
+#[test]
+fn runtime_pre_guard_texteq_local_guard_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_pre_guard_texteq_local_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-pre-guard-texteq-local-guard-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("pre-guard texteq local guard canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("pre-guard texteq local guard canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the nested guard to read the initialized texteq local (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// The same pre-guard value must exist before nested transition-argument
+// capture, not only before a guard read.
+#[test]
+fn runtime_pre_guard_texteq_local_arg_forward_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_pre_guard_texteq_local_arg_forward_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-pre-guard-texteq-local-arg-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("pre-guard texteq local argument canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("pre-guard texteq local argument canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected argument capture to forward the initialized texteq local (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // PARAM-BINDING SERVE: a spliced helper's `&mut Tally` param receiver
 // delivers on the PASSED instance (the second of two) -- the receiver
 // chain walk binds the param to its argument's base at each descent.
@@ -34222,14 +34285,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "the monomorphized result is never materialized",
         },
-    },
-    PendingCanary {
-        path: "calls/texteq_local_guard_read_divergence",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "calls/texteq_local_arg_forward_divergence",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     PendingCanary {
         path: "calls/trailing_state_mut_param_phase_divergence",

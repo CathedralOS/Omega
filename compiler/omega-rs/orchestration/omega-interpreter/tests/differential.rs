@@ -268,6 +268,8 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ),
     ("calls/runtime_multiarm_same_named_locals_exit", 70),
     ("calls/runtime_multiarm_texteq_local_exit", 70),
+    ("calls/runtime_pre_guard_texteq_local_guard_exit", 70),
+    ("calls/runtime_pre_guard_texteq_local_arg_forward_exit", 70),
     ("calls/runtime_param_receiver_single_instance_exit", 70),
     ("calls/runtime_param_receiver_second_instance_exit", 70),
     ("calls/runtime_param_forward_chain_second_receiver_exit", 70),
@@ -2035,8 +2037,6 @@ enum PendingInterpOutcome {
 /// omega-run sweep. Entries mirror canaries/pending/*/ headers -- update BOTH
 /// when a divergence's documented behavior changes.
 const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
-    ("calls/texteq_local_guard_read_divergence", 71, PendingInterpOutcome::Exit(70)),
-    ("calls/texteq_local_arg_forward_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("calls/trailing_state_mut_param_phase_divergence", 71, PendingInterpOutcome::Exit(70)),
     // Host-correct legs (this gate runs native on the HOST), ARCH-AWARE:
     // x86 truncation (cvttsd2si integer-indefinite -> 0) yields 70; aarch64

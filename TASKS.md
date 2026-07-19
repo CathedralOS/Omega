@@ -112,11 +112,6 @@ argument or inferred contract.
 These are unblocked and should gain a focused pass/fail or differential canary
 before the fix.
 
-- **Pre-guard local initialization.** Resolve
-  `texteq_local_guard_read_divergence` and its argument-forward twin. Dispatch
-  guards need a per-branch pre-guard region for call-free local-data
-  initializers without moving side effects ahead of arm selection. The
-  trailing-state mutable-parameter divergence may share this phase boundary.
 - **Threaded mutable receiver phases.** Resolve
   `trailing_state_mut_param_phase_divergence` and the same-type receiver
   aliasing fence for ambiguous multi-call states.
