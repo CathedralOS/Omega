@@ -1,0 +1,11 @@
+// FAIL CANARY (R3 store-proof completion). An Exact ranged field is trusted
+// at every later read, so assigning an unbounded source cannot silently seed
+// that invariant. The store must prove both declared endpoints.
+data Main {
+    source: u32;
+    index: u32 [0..=11];
+}
+
+machine Main::main(&mut self) {
+    self.index = self.source;
+}

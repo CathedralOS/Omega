@@ -3358,13 +3358,9 @@ fn refine_dependent_product_factor(
 }
 
 /// Containment of a cleanly-analyzed store interval in the target's declared
-/// Exact `[a..=b]` range -- refusing when a BOUND exists and provably
-/// escapes (`[0, 12]` into `[0..=11]`: the R3-era native-OOB shape). An
-/// UNBOUNDED side does NOT refuse here: the interval engine's env seeding
-/// is conservative in post-entry states, so treating unknown as
-/// out-of-range would flip provably-sound corpus shapes; the unbounded
-/// residue of the store-proof gap stays pinned in TASKS.md until the env
-/// seeding tightens. Non-Exact shells and unranged targets are untouched.
+/// Exact `[a..=b]` range. Both ends must be proven: later reads trust this
+/// range as an invariant, so an unknown store cannot establish it. Non-Exact
+/// shells and unranged targets remain deliberately permissive.
 pub(crate) fn check_range_containment(
     program: &TypedTrees,
     target_type: TypeReferenceHandle,
@@ -3375,15 +3371,15 @@ pub(crate) fn check_range_containment(
     let Some(declared) = enforced_declared_range_interval(program, target_type) else {
         return;
     };
-    let escapes_low = match (interval.low, declared.low) {
-        (Some(low), Some(declared_low)) => low < declared_low,
+    let contained_low = match (interval.low, declared.low) {
+        (Some(low), Some(declared_low)) => low >= declared_low,
         _ => false,
     };
-    let escapes_high = match (interval.high, declared.high) {
-        (Some(high), Some(declared_high)) => high > declared_high,
+    let contained_high = match (interval.high, declared.high) {
+        (Some(high), Some(declared_high)) => high <= declared_high,
         _ => false,
     };
-    if escapes_low || escapes_high {
+    if !contained_low || !contained_high {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} stores a value not provably within its declared range: the range is a \
              store-enforced invariant every read trusts (indexes, exact arithmetic), so the \

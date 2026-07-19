@@ -119,8 +119,6 @@ before the fix.
 
 ### Dependent facts and frames
 
-- **R3 — store-proof completion.** Replace permissive unbounded-store seeding
-  with a sound post-entry fact plan without flipping valid corpus shapes.
 - **R5 — frames.** Implement preserve-unless-written facts, the `stores`
   clause, state-arrival facts, and Houdini-style inference for facts crossing
   sibling calls.
