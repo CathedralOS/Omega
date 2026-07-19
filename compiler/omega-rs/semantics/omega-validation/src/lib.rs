@@ -354,6 +354,13 @@ fn validate_state_statement_node(
                 machine_symbols.state(state_name),
                 state_name,
             );
+            calls::validate_asm_port_read_destination(
+                program,
+                machine,
+                machine_symbols.state(state_name),
+                assignment,
+                diagnostics,
+            );
             // Indexing the `String` carrier as an assignment TARGET (`s[i] = x`) is
             // the write complement of the read rejection in `scan_expression_calls`:
             // an indexed `String` resolves to no element type, so every store check

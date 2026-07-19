@@ -1,0 +1,6 @@
+// `in al, dx` produces one byte. A wider destination would overwrite only its
+// low byte and leave stale neighboring bytes, so it is not a legal operand.
+data Main { port: u16; status: u16; }
+machine Main::main(&mut self) effects device_io {
+    asm { in self.status, self.port }
+}

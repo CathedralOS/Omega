@@ -1,0 +1,6 @@
+// The port source feeds DX and therefore requires exact u16 storage. A u32
+// place cannot narrow implicitly merely because assembly consumes it.
+data Main { port: u32; status: u8; }
+machine Main::main(&mut self) effects device_io {
+    asm { in self.status, self.port }
+}

@@ -21,11 +21,12 @@ the first timer tick. The design is recorded in
 `wiki/design_briefs/os_memory_and_hardware_foundation.md`, chapter 19, and
 chapter 23.
 
-1. **ASM1 — contract surface.** Add `asm where` contracts, structured target
-   operands/register constraints, and explicit clobbers to the strict parsed
-   block. Availability classes and the refusal rails for hidden exits and
-   unmodeled memory access are in place; expand the accepted catalog only
-   through complete instruction contracts.
+1. **ASM1 — contract surface.** Add `asm where` contracts and the general
+   structured target-operand/register/clobber surface to the strict parsed
+   block. The port-I/O pilot now pins exact operand classes and realized
+   register clobbers in the shared catalog; availability classes and refusal
+   rails for hidden exits and unmodeled memory access are also in place.
+   Expand the accepted catalog only through complete instruction contracts.
 2. **ASM2 — expand the x86 catalog.** Add save/restore flags, `cli`, `sti`,
    `lidt`, fences, and the needed MSR/control operations. Direct assembly and
    abstract boundary services must contribute identical normalized

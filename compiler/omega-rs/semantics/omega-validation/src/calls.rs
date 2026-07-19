@@ -60,9 +60,9 @@ pub(crate) fn validate_call_node(
     // state signature. (`asm { in dest, port }` is an assignment whose value
     // is the `asm#port_in` call; the value-call path owns it.)
     if receiver_members.is_empty() && call.target.as_str().starts_with("asm#") {
-        let expected_arguments = match call.target.as_str() {
-            "asm#hlt" => 0,
-            "asm#port_out" => 2,
+        let (source_mnemonic, expected_arguments) = match call.target.as_str() {
+            "asm#hlt" => ("hlt", 0),
+            "asm#port_out" => ("out", 2),
             other => {
                 diagnostics.push(Diagnostic::error(format!(
                     "asm intrinsic `{other}` is not a statement form"
@@ -77,6 +77,26 @@ pub(crate) fn validate_call_node(
                 expected_arguments,
                 arguments.len()
             )));
+            return;
+        }
+        if source_mnemonic == "out" {
+            let contract = user_asm_contract(source_mnemonic);
+            for ((operand, constraint), role) in arguments
+                .iter()
+                .zip(contract.operands.iter())
+                .zip(["port", "value"])
+            {
+                validate_asm_operand_constraint(
+                    program,
+                    current_machine,
+                    machine_symbols.state(state_name),
+                    source_mnemonic,
+                    role,
+                    *operand,
+                    *constraint,
+                    diagnostics,
+                );
+            }
         }
         return;
     }
@@ -372,6 +392,117 @@ pub(crate) fn validate_call_node(
     }
 
     let _ = diagnostics;
+}
+
+fn user_asm_contract(mnemonic: &str) -> omega_core::inline_assembly::AsmInstructionContract {
+    let Some(omega_core::inline_assembly::AsmCatalogEntry::Contract(contract)) =
+        omega_core::inline_assembly::asm_catalog_entry(mnemonic)
+    else {
+        panic!("accepted asm intrinsic `{mnemonic}` is absent from the shared catalog");
+    };
+    assert_eq!(
+        contract.availability,
+        omega_core::inline_assembly::AsmInstructionAvailability::UserChecked,
+        "source asm intrinsic `{mnemonic}` must be user-checked"
+    );
+    contract
+}
+
+fn validate_asm_operand_constraint(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    instruction: &str,
+    role: &str,
+    operand: ExpressionHandle,
+    constraint: omega_core::inline_assembly::AsmOperandConstraint,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    use omega_core::inline_assembly::AsmOperandConstraint;
+
+    if let ExpressionNode::Integer(literal) = program.expression_table.expression(operand) {
+        if let Some(maximum) = constraint.maximum_literal()
+            && literal.value_u64().is_some_and(|value| value <= maximum)
+        {
+            return;
+        }
+        diagnostics.push(Diagnostic::error(format!(
+            "asm instruction `{instruction}` operand `{role}` requires target register \
+             constraint `{}`{}; integer literal `{}` is outside that operand class",
+            constraint.expected_type_name(),
+            constraint
+                .maximum_literal()
+                .map(|maximum| format!(" or a literal in 0..={maximum}"))
+                .unwrap_or_default(),
+            literal.text(),
+        )));
+        return;
+    }
+
+    let actual = asm_operand_primitive_type(program, machine, state, operand);
+    let expected = PrimitiveType::from_name(constraint.expected_type_name())
+        .expect("asm operand constraint must name a primitive type");
+    if actual == Some(expected) {
+        return;
+    }
+
+    let actual = actual
+        .map(|primitive| format!("`{}`", primitive.name()))
+        .unwrap_or_else(|| expression_type_name_handle(program, operand).to_owned());
+    let place_requirement = matches!(constraint, AsmOperandConstraint::WritableBytePlace)
+        .then_some(" writable place")
+        .unwrap_or("");
+    diagnostics.push(Diagnostic::error(format!(
+        "asm instruction `{instruction}` operand `{role}` requires an exact `{}`{place_requirement} \
+         for its target register constraint, found {actual}",
+        constraint.expected_type_name(),
+    )));
+}
+
+fn asm_operand_primitive_type(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    operand: ExpressionHandle,
+) -> Option<PrimitiveType> {
+    match program.expression_table.expression(operand) {
+        ExpressionNode::Mutable(inner) => {
+            asm_operand_primitive_type(program, machine, state, *inner)
+        }
+        ExpressionNode::Cast(cast) => program
+            .expression_table
+            .name_path_members(cast.target_type)
+            .last()
+            .and_then(|name| PrimitiveType::from_name(name.as_str())),
+        _ => crate::places::declared_place_type(program, machine, state, operand)
+            .and_then(|type_reference| program.primitive_type_reference(type_reference)),
+    }
+}
+
+pub(crate) fn validate_asm_port_read_destination(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    assignment: &omega_typed_trees::statement::TableAssignment,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let ExpressionNode::Call(call) = program.expression_table.expression(assignment.value) else {
+        return;
+    };
+    if call.target.as_str() != "asm#port_in" {
+        return;
+    }
+    let contract = user_asm_contract("in");
+    validate_asm_operand_constraint(
+        program,
+        machine,
+        state,
+        "in",
+        "destination",
+        assignment.target,
+        contract.operands[0],
+        diagnostics,
+    );
 }
 
 /// The boundary-trait signature a call statement resolves to (`self.fw.
@@ -2879,6 +3010,29 @@ fn validate_expression_call_bounds(
     call: &TableCallExpression,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if call.target.as_str() == "asm#port_in" && !call.receiver.is_valid() {
+        let arguments = program.expression_table.expression_handles(call.arguments);
+        if arguments.len() != 1 {
+            diagnostics.push(Diagnostic::error(format!(
+                "asm intrinsic `asm#port_in` takes 1 operand, found {}",
+                arguments.len()
+            )));
+            return;
+        }
+        let contract = user_asm_contract("in");
+        validate_asm_operand_constraint(
+            program,
+            current_machine,
+            Some(current_state),
+            "in",
+            "port",
+            arguments[0],
+            contract.operands[1],
+            diagnostics,
+        );
+        return;
+    }
+
     // Resolve the receiver: is this a self-call, and if not, the name of the
     // receiver object (field/local). A self-call has no receiver (`call.receiver`
     // invalid) or an explicit `self`. A `Name`-path receiver names the object via

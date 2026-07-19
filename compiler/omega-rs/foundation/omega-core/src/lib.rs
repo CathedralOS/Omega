@@ -2,6 +2,7 @@ pub mod byte_predicates;
 pub mod allocations;
 pub mod arena;
 pub mod arithmetic;
+pub mod inline_assembly;
 pub mod semantics;
 pub mod trust;
 pub mod value_domain;
