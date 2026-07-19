@@ -141,12 +141,6 @@ argument or inferred contract.
 These are unblocked and should gain a focused pass/fail or differential canary
 before the fix.
 
-- **R5 regression — opaque boundary call must kill prior range evidence.**
-  `boundary_ensures_witness_bounded_assignment_dies_on_later_call` currently
-  accepts `self.n + 1` after an intervening bodiless boundary call. Restore the
-  conservative invalidation (or an equally sound normalized may-write/effect
-  summary) so the checked-tree suite returns green.
-
 ## Type, proof, and semantic-model work
 
 ### Dependent facts and frames
