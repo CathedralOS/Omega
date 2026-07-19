@@ -3,7 +3,9 @@
 Current as of 2026-07-18. Boundary conventions are normalized policy artifacts;
 Omega's internal calling convention remains compiler-sovereign. This brief now
 includes inbound machine-state preservation, which ordinary calls do not expose.
-Engineering is incomplete.
+Engineering is incomplete. The normalized compiler model and initial policy
+evaluators are implemented; source-policy evaluation and authoritative lowering
+remain.
 
 ## One boundary entry plan, two independent facets
 
@@ -169,9 +171,24 @@ Generic trait-parent composition used by `Calling<C>` is implemented. Header
 parents and body-level `requires` share one validated graph; boundary parents
 contribute service reach and ordinary policy parents do not.
 
-1. Normalize existing MS-x64, syscall, and firmware conventions as evaluated
-   `CallPlan` artifacts and validate them against current hardcoded lowering.
-2. Add `StatePlan` and complete boundary-entry identity.
+The `omega-calling-conventions` foundation now owns normalized
+`CallPlan`, `StatePlan`, and `BoundaryEntryPlan` compiler records. It evaluates
+MS-x64, SysV-x64, AAPCS64, x86-64 Linux-syscall, and AArch64 Linux-syscall
+policies for the currently classified scalar/HFA shapes. Validation rejects
+unclassified aggregates, incomplete or overlapping placements, incompatible
+regimes, unsaved permitted state, and footprints above the state ceiling.
+Register use derives its machine-state class, so evidence cannot hide SIMD use
+by omitting a self-reported class. Contract and evidence fingerprints are
+separate by type.
+
+Existing compatibility bindings select this normalized policy as an independent
+oracle. Remaining order:
+
+1. Evaluate the policy selected by `Calling<C>` against the requirement
+   signature and hash the evaluated pair into requirement identity.
+2. Differential-check every supported compatibility encoder against the plan,
+   add the concrete firmware/interrupt state policies, and make the plan
+   authoritative.
 3. Derive outbound encoders and inbound stubs from the same plan.
 4. Add state-ceiling-aware instruction selection/register allocation and
    contextual specialization.
@@ -180,8 +197,10 @@ contribute service reach and ordinary policy parents do not.
 
 ## Still open
 
-- core-data spelling and evaluation of the policy selected by `Calling<C>`;
-- the normalized register/machine-state vocabulary per architecture;
+- core-data spelling and source evaluation of the policy selected by
+  `Calling<C>`;
+- register/machine-state vocabulary extensions beyond the implemented x86-64
+  and AArch64 foundation;
 - object-certificate composition and final-image validation format;
 - admitted indirect-call footprint contracts;
 - unwind/non-local-exit representation; and

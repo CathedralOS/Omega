@@ -1,8 +1,16 @@
 mod darwin;
 mod linux;
+mod plans;
 mod windows;
 pub use darwin::{
     DARWIN_COREGRAPHICS_PATH, DARWIN_LIBOBJC_PATH, DARWIN_LIBSYSTEM_PATH, darwin_import_library,
+};
+pub use plans::{
+    BoundaryEntryPlan, CallPlan, CallSignature, CallingPolicy, EntryControl, EntryStack,
+    MachineRegime, MachineRegister, MachineState, MachineStateSet, PlanDiagnostic, Preemption,
+    RegisterSet, StateFootprintEvidence, StatePlan, ValueClass, ValueLocation, ValuePlacement,
+    ValidatedBoundaryEntryPlan, ValueShape, evaluate_call_plan, validate_boundary_entry_plan,
+    validate_call_plan, validate_state_footprint,
 };
 pub use windows::windows_import_library;
 
@@ -1283,6 +1291,64 @@ impl HostAbiPlan {
             .iter()
             .any(|(_, allowed)| allowed.checked && allowed.path.as_ref() == policy)
     }
+
+    /// ENT2 migration seam: evaluate the normalized calling plan for one
+    /// existing compatibility binding. Encoders still consume the old binding
+    /// fields, so this result is currently their independent semantic oracle.
+    pub fn evaluate_binding_call_plan(
+        &self,
+        mechanism: &HostBindingMechanism,
+        signature: &CallSignature,
+    ) -> Result<CallPlan, PlanDiagnostic> {
+        let policy = match mechanism {
+            HostBindingMechanism::Syscall { .. } => match self.target.architecture {
+                omega_target::Architecture::X86_64 => CallingPolicy::LinuxSyscallX86_64,
+                omega_target::Architecture::Aarch64 => CallingPolicy::LinuxSyscallAarch64,
+            },
+            HostBindingMechanism::Import { .. }
+            | HostBindingMechanism::VtableSlot { .. }
+            | HostBindingMechanism::VtableField { .. }
+            | HostBindingMechanism::TableFunction { .. } => {
+                match (self.target.architecture, self.target.object_format) {
+                    (omega_target::Architecture::X86_64, ObjectFormat::Coff) => {
+                        CallingPolicy::MicrosoftX64
+                    }
+                    (omega_target::Architecture::X86_64, ObjectFormat::Elf) => {
+                        CallingPolicy::SystemVAMD64
+                    }
+                    (omega_target::Architecture::Aarch64, _) => CallingPolicy::Aapcs64,
+                    (omega_target::Architecture::X86_64, ObjectFormat::MachO) => {
+                        CallingPolicy::SystemVAMD64
+                    }
+                }
+            }
+        };
+        let plan = evaluate_call_plan(policy, signature)?;
+
+        // The compatibility syscall row still carries AArch64 encoder facts.
+        // Validate them against the normalized plan while both paths coexist.
+        if let HostBindingMechanism::Syscall {
+            number_register,
+            supervisor_call,
+            ..
+        } = mechanism
+            && self.target.architecture == omega_target::Architecture::Aarch64
+        {
+            match plan.entry_control {
+                EntryControl::SupervisorCall {
+                    number_register: MachineRegister::Aarch64X(expected_register),
+                    immediate,
+                } if expected_register == *number_register && immediate == *supervisor_call => {}
+                _ => {
+                    return Err(PlanDiagnostic(
+                        "compatibility syscall binding disagrees with its normalized calling plan"
+                            .into(),
+                    ));
+                }
+            }
+        }
+        Ok(plan)
+    }
 }
 
 fn insert_platform_lowering<const COUNT: usize>(
@@ -1325,7 +1391,11 @@ pub fn host_operation_fixed_leading_immediate(
 
 #[cfg(test)]
 mod call_shape_tests {
-    use super::PlatformCallData;
+    use super::{
+        CallSignature, CallingPolicy, HostBindingMechanism, PlatformCallData, ValueShape,
+        build_host_abi_plan,
+    };
+    use omega_target::NativeTarget;
 
     #[test]
     fn call_shape_round_trips() {
@@ -1355,5 +1425,35 @@ mod call_shape_tests {
             PlatformCallData::parse_call_shape(Some("mystery")).is_err(),
             "unknown spellings surface as errors"
         );
+    }
+
+    #[test]
+    fn compatibility_bindings_select_normalized_target_policies() {
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: Some(ValueShape::integer(8, 8)),
+        };
+
+        let windows = build_host_abi_plan(NativeTarget::windows_x64());
+        let (_, windows_binding) = windows
+            .bindings
+            .iter()
+            .find(|(_, binding)| matches!(binding.mechanism, HostBindingMechanism::Import { .. }))
+            .expect("Windows import binding");
+        let windows_plan = windows
+            .evaluate_binding_call_plan(&windows_binding.mechanism, &signature)
+            .expect("Windows plan");
+        assert_eq!(windows_plan.policy, CallingPolicy::MicrosoftX64);
+
+        let linux = build_host_abi_plan(NativeTarget::linux_arm64());
+        let (_, linux_binding) = linux
+            .bindings
+            .iter()
+            .find(|(_, binding)| matches!(binding.mechanism, HostBindingMechanism::Syscall { .. }))
+            .expect("Linux syscall binding");
+        let linux_plan = linux
+            .evaluate_binding_call_plan(&linux_binding.mechanism, &signature)
+            .expect("Linux syscall plan");
+        assert_eq!(linux_plan.policy, CallingPolicy::LinuxSyscallAarch64);
     }
 }

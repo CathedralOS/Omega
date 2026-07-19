@@ -27,29 +27,40 @@ are deriver-only. Do not expose source-level `lidt` before IDT2: the current
 freestanding-root authority bridge cannot record installed inbound roots, so a
 raw catalog entry would create an effect/WCSU audit hole.
 
-1. **ENT2 — paired entry plans.** Normalize `CallPlan` for ABI placement and
-   `StatePlan` for initial regime, interrupted register classes, save/restore,
-   stack/preemption class, and permitted transitive machine-state use. Hash the
-   evaluated plan into requirement identity while keeping emitted footprint
-   evidence outside public contract identity.
-2. **ENT3 — constrained entry codegen.** Derive entry stubs, specialize/codegen
+The first ENT2 slice is implemented in `omega-calling-conventions`: normalized
+register/value-placement vocabularies, deterministic `CallPlan + StatePlan`
+identity, MS-x64/SysV-x64/AAPCS64/Linux-syscall evaluators, plan validation,
+and a separately fingerprinted footprint-evidence carrier. Existing host
+bindings can be evaluated through this model as an independent oracle while
+their hardcoded encoders remain in service.
+
+1. **ENT2b — source policy evaluation and identity.** Evaluate the policy type
+   selected by `Calling<C>` against each requirement signature, validate the
+   resulting `BoundaryEntryPlan`, and put its normalized fingerprint—not merely
+   `C`'s symbol—into published requirement identity.
+2. **ENT2c — lowering migration and concrete entry state.** Express the
+   existing MS-x64, SysV-x64, AAPCS64, Linux-syscall, and firmware lowering
+   choices through the normalized plan; differential-check the compatibility
+   encoders, then make the plan authoritative. Add the concrete x86 interrupt
+   `StatePlan`, stack/IST, nesting, and acknowledgement policy used by Cathedral.
+3. **ENT3 — constrained entry codegen.** Derive entry stubs, specialize/codegen
    under the state ceiling, emit a checkable final footprint certificate, and
    validate after relaxation, veneers, thunks, and generated stubs.
-3. **IDT1 — fragmented layouts and symbolic materialization.** Move
+4. **IDT1 — fragmented layouts and symbolic materialization.** Move
    `LayoutPlan` to name-keyed fragmented placements, validate exact source and
    destination tiling, add sealed symbolic `Entry(EntryStubId)` relocation
    sources, and generate the post-load split-address writer.
-4. **IDT2 — installed-root ledger.** Add `lidt` only as an installation path
+5. **IDT2 — installed-root ledger.** Add `lidt` only as an installation path
    that consumes scoped IDT
    authority and records every installed entry as an external analysis root
    with effects, receipts, state plan, stack/IST class, nesting/WCSU, and
    component/version pins. The stack/IST policy is one fact consumed by both
    layout materialization and WCSU analysis.
-5. **IDT3 — linear interrupt obligations.** Implement saved-mask guards and EOI
+6. **IDT3 — linear interrupt obligations.** Implement saved-mask guards and EOI
    obligations as provider-minted linear values with explicit consuming
    restore/complete operations. Do not use drop cleanup or interrupt-specific
    linearity rules.
-6. **Cathedral timer acceptance.** Program PIT or LAPIC, install the IDT, post
+7. **Cathedral timer acceptance.** Program PIT or LAPIC, install the IDT, post
     a bounded tick event, report ticks over the owned serial line, and `hlt`
     between ticks under QEMU. Negative rails: direct assembly cannot launder
     reach; user `iretq` rejects; incomplete fragment tiling rejects; forbidden
