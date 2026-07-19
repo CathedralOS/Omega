@@ -15,7 +15,7 @@
 //! loop-bound narrowing -- the ergonomics that keep this from being annotation-
 //! hell -- are S4.)
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::diagnostics::Diagnostic;
@@ -241,6 +241,57 @@ fn narrow_env_by_condition(
         _ => {}
     }
     let comparison = comparison.clone();
+    // Float facts are independent from the integer interval lattice. A
+    // positive self-equality proves non-NaN; a positive ordered comparison
+    // proves both non-NaN and its one-sided bound. Negated IEEE comparisons
+    // do not yield the complementary bound because NaN makes both ordered
+    // directions false.
+    if positive {
+        if comparison.operator == BinaryOperator::Equal
+            && let (Some(left), Some(right)) = (
+                place_path(program, comparison.left),
+                place_path(program, comparison.right),
+            )
+            && left == right
+            && declared_place_type_raw(program, machine, state, comparison.left)
+                .is_some_and(|handle| {
+                    matches!(
+                        program.primitive_type_reference(handle),
+                        Some(PrimitiveType::F32 | PrimitiveType::F64)
+                    )
+                })
+        {
+            env.mark_non_nan(left);
+            return;
+        }
+        let float_sides = if let Some(literal) = float_literal_value(program, comparison.right) {
+            Some((comparison.left, literal, true))
+        } else {
+            float_literal_value(program, comparison.left)
+                .map(|literal| (comparison.right, literal, false))
+        };
+        if let Some((place_expr, literal, name_on_left)) = float_sides
+            && literal.is_finite()
+            && let Some(handle) = declared_place_type_raw(program, machine, state, place_expr)
+            && matches!(
+                program.primitive_type_reference(handle),
+                Some(PrimitiveType::F32 | PrimitiveType::F64)
+            )
+            && let Some(name) = place_path(program, place_expr)
+            && let Some(mut interval) = float_bound_from(
+                comparison.operator,
+                literal,
+                name_on_left,
+            )
+        {
+            if let Some(declared) = float_range_constraint_interval(program, handle) {
+                interval = interval.intersect(declared);
+            }
+            env.narrow_float(name.clone(), interval);
+            env.mark_non_nan(name);
+            return;
+        }
+    }
     // Identify the (place, literal) sides.
     let (place_expr, literal, name_on_left) =
         if let Some(literal) = literal_i64(program, comparison.right) {
@@ -641,9 +692,47 @@ fn expression_calls_state(
 /// entry is only present when its value is definitely established on the linear
 /// path; on anything we cannot model (a call that may mutate, a branch) the
 /// relevant entries are dropped and the place falls back to its type bounds.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct FloatInterval {
+    low: Option<f64>,
+    high: Option<f64>,
+}
+
+impl FloatInterval {
+    const UNBOUNDED: FloatInterval = FloatInterval {
+        low: None,
+        high: None,
+    };
+
+    fn intersect(self, other: FloatInterval) -> FloatInterval {
+        FloatInterval {
+            low: match (self.low, other.low) {
+                (Some(left), Some(right)) => Some(left.max(right)),
+                (left, right) => left.or(right),
+            },
+            high: match (self.high, other.high) {
+                (Some(left), Some(right)) => Some(left.min(right)),
+                (left, right) => left.or(right),
+            },
+        }
+    }
+
+    fn union(self, other: FloatInterval) -> FloatInterval {
+        FloatInterval {
+            low: self.low.zip(other.low).map(|(left, right)| left.min(right)),
+            high: self
+                .high
+                .zip(other.high)
+                .map(|(left, right)| left.max(right)),
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone)]
 pub(crate) struct ValueEnv {
     intervals: BTreeMap<String, Interval>,
+    float_intervals: BTreeMap<String, FloatInterval>,
+    non_nan: BTreeSet<String>,
 }
 
 impl ValueEnv {
@@ -655,6 +744,8 @@ impl ValueEnv {
     /// mutate fields through `&mut`, or when leaving the linear prefix).
     pub(crate) fn clear(&mut self) {
         self.intervals.clear();
+        self.float_intervals.clear();
+        self.non_nan.clear();
     }
 
     fn get(&self, path: &str) -> Option<Interval> {
@@ -676,6 +767,28 @@ impl ValueEnv {
         self.intervals.insert(path, merged);
     }
 
+    fn narrow_float(&mut self, path: String, interval: FloatInterval) {
+        let merged = match self.float_intervals.get(&path) {
+            Some(existing) => existing.intersect(interval),
+            None => interval,
+        };
+        self.float_intervals.insert(path, merged);
+    }
+
+    fn mark_non_nan(&mut self, path: String) {
+        self.non_nan.insert(path);
+    }
+
+    fn float_fact(&self, path: &str) -> (FloatInterval, bool) {
+        (
+            self.float_intervals
+                .get(path)
+                .copied()
+                .unwrap_or(FloatInterval::UNBOUNDED),
+            self.non_nan.contains(path),
+        )
+    }
+
     /// The JOIN of two envs at a control-flow merge: only places tracked in
     /// BOTH survive, each at the UNION of its intervals (the fact that holds
     /// regardless of which path was taken). Used to seed a multi-predecessor
@@ -689,6 +802,18 @@ impl ValueEnv {
                     .insert(path.clone(), interval.union(*other_interval));
             }
         }
+        for (path, interval) in &self.float_intervals {
+            if let Some(other_interval) = other.float_intervals.get(path) {
+                joined
+                    .float_intervals
+                    .insert(path.clone(), interval.union(*other_interval));
+            }
+        }
+        joined.non_nan.extend(
+            self.non_nan
+                .intersection(&other.non_nan)
+                .cloned(),
+        );
         joined
     }
 }
@@ -1256,6 +1381,67 @@ fn float_literal_value(program: &TypedTrees, value: ExpressionHandle) -> Option<
     match node {
         ExpressionNode::Float(literal) => Some(literal.landed_f64()),
         _ => None,
+    }
+}
+
+fn float_source_proves_int_cast(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    env: &ValueEnv,
+    value: ExpressionHandle,
+    target: PrimitiveType,
+) -> bool {
+    let (range, non_nan) = if let Some(literal) = float_literal_value(program, value) {
+        (
+            FloatInterval {
+                low: Some(literal),
+                high: Some(literal),
+            },
+            !literal.is_nan(),
+        )
+    } else {
+        let Some(path) = place_path(program, value) else {
+            return false;
+        };
+        let (flow_range, flow_non_nan) = env.float_fact(&path);
+        let declared = declared_place_type_raw(program, machine, state, value)
+            .and_then(|handle| float_range_constraint_interval(program, handle));
+        let range = declared
+            .map(|declared| declared.intersect(flow_range))
+            .unwrap_or(flow_range);
+        let declared_finite = declared.is_some_and(|declared| {
+            declared.low.is_some_and(f64::is_finite)
+                && declared.high.is_some_and(f64::is_finite)
+        });
+        (range, flow_non_nan || declared_finite)
+    };
+    if !non_nan {
+        return false;
+    }
+    let (Some(low), Some(high)) = (range.low, range.high) else {
+        return false;
+    };
+    if !low.is_finite() || !high.is_finite() || low > high {
+        return false;
+    }
+    float_interval_fits_integer(low.trunc(), high.trunc(), target)
+}
+
+fn float_interval_fits_integer(low: f64, high: f64, target: PrimitiveType) -> bool {
+    // The i64/u64 upper endpoints need strict comparisons: `i64::MAX as f64`
+    // rounds to 2^63, and 2^64 itself is likewise outside u64 even though it
+    // is exactly representable as a float. Smaller integer endpoints are all
+    // exactly representable in f64 and may use the ordinary closed interval.
+    match target {
+        PrimitiveType::I64 => {
+            low >= -9223372036854775808.0 && high < 9223372036854775808.0
+        }
+        PrimitiveType::U64 => low >= 0.0 && high < 18446744073709551616.0,
+        _ => primitive_range(target).is_some_and(|range| {
+            matches!((range.low, range.high), (Some(target_low), Some(target_high))
+                if low >= target_low as f64 && high <= target_high as f64)
+        }),
     }
 }
 
@@ -1834,30 +2020,21 @@ fn analyze(
                 && let Some(target) = primitive
                 && integer_bit_width(target).is_some()
             {
-                let provable = float_literal_value(program, cast.value).is_some_and(|value| {
-                    !value.is_nan()
-                        && primitive_range(target).is_some_and(|range| {
-                            let truncated = value.trunc();
-                            // The u64-classed row has no i64 upper bound; its
-                            // range check is the exact [0, 2^64) window.
-                            match (range.low, range.high) {
-                                (Some(low), Some(high)) => {
-                                    truncated >= low as f64 && truncated <= high as f64
-                                }
-                                (Some(low), None) => {
-                                    truncated >= low as f64
-                                        && truncated < 18446744073709551616.0
-                                }
-                                _ => false,
-                            }
-                        })
-                });
+                let provable = float_source_proves_int_cast(
+                    program,
+                    machine,
+                    state,
+                    env,
+                    cast.value,
+                    target,
+                );
                 if !provable {
                     diagnostics.push(Diagnostic::error(format!(
                         "float-to-int cast in {owner} is not provably in `{}`'s range \
-                         (ch5 cast ruling -- proof-or-policy; only a float-LITERAL source \
-                         proves today). Use `in Saturating` (NaN -> 0, clamp to the target \
-                         range) or `in Trapping` (trap on NaN/out-of-range).",
+                         (ch5 cast ruling -- proof-or-policy). Prove a finite declared range \
+                         or a dominating non-NaN/range guard, or use `in Saturating` (NaN \
+                         -> 0, clamp to the target range) or `in Trapping` \
+                         (trap on NaN/out-of-range).",
                         primitive_name(target),
                     )));
                 }
@@ -2113,6 +2290,60 @@ pub(crate) fn range_constraint_interval(
             }),
         _ => None,
     }
+}
+
+fn float_range_constraint_interval(
+    program: &TypedTrees,
+    handle: TypeReferenceHandle,
+) -> Option<FloatInterval> {
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            float_range_constraint_interval(program, *referee)
+        }
+        TypeReferenceNode::Constrained { constraints, .. } => program
+            .type_reference_table
+            .constraints(*constraints)
+            .iter()
+            .find_map(|constraint| match constraint {
+                TypeConstraintNode::Range { minimum, maximum } => Some(FloatInterval {
+                    low: Some(float_literal_value(program, *minimum)?),
+                    high: Some(float_literal_value(program, *maximum)?),
+                }),
+                _ => None,
+            }),
+        _ => None,
+    }
+}
+
+fn float_bound_from(
+    operator: BinaryOperator,
+    literal: f64,
+    name_on_left: bool,
+) -> Option<FloatInterval> {
+    let operator = if name_on_left {
+        operator
+    } else {
+        match operator {
+            BinaryOperator::Less => BinaryOperator::Greater,
+            BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
+            BinaryOperator::Greater => BinaryOperator::Less,
+            BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
+            _ => return None,
+        }
+    };
+    Some(match operator {
+        // Treat strict bounds as inclusive at the same endpoint. This is a
+        // conservative widening and avoids target-format nextafter logic.
+        BinaryOperator::Less | BinaryOperator::LessOrEqual => FloatInterval {
+            low: None,
+            high: Some(literal),
+        },
+        BinaryOperator::Greater | BinaryOperator::GreaterOrEqual => FloatInterval {
+            low: Some(literal),
+            high: None,
+        },
+        _ => return None,
+    })
 }
 
 /// R1a dependent maximum in interval position: `[0..=self.count]` reads as
@@ -2494,7 +2725,8 @@ fn primitive_name(primitive: PrimitiveType) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::Interval;
+    use super::{float_interval_fits_integer, Interval};
+    use omega_typed_trees::types::PrimitiveType;
 
     fn iv(low: i64, high: i64) -> Interval {
         Interval {
@@ -2572,6 +2804,25 @@ mod tests {
         assert_eq!(iv(0, 100).nonzero_magnitude_bound(), None); // includes 0
         assert_eq!(iv(-5, 5).nonzero_magnitude_bound(), None); // spans 0
         assert_eq!(Interval::UNBOUNDED.nonzero_magnitude_bound(), None);
+    }
+
+    #[test]
+    fn exact_float_to_wide_integer_rejects_rounded_upper_endpoint() {
+        assert!(float_interval_fits_integer(
+            i64::MIN as f64,
+            9223372036854774784.0,
+            PrimitiveType::I64,
+        ));
+        assert!(!float_interval_fits_integer(
+            0.0,
+            9223372036854775808.0,
+            PrimitiveType::I64,
+        ));
+        assert!(!float_interval_fits_integer(
+            0.0,
+            18446744073709551616.0,
+            PrimitiveType::U64,
+        ));
     }
 }
 
