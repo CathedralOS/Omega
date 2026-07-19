@@ -1,0 +1,12 @@
+// A zero-excluding field range gates the machine-owned value, but does not
+// outlaw its zero-filled representation. An explicit in-range write
+// establishes the value before its first read/consumption.
+data Main {
+    m: i32 [1..=100];
+    q: i32;
+}
+
+machine Main::main(&mut self) {
+    self.m = 5;
+    self.q = 10 % self.m;
+}

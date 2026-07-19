@@ -68,135 +68,141 @@ pub(crate) fn validate_data_field_types(
 // itself zeroed, so the value stays valid), while zero-MEANS-EMPTY is the
 // opt-in property that demands a payload-free zero case (frozen decision 8).
 
-/// ZII-range soundness: every machine's attached data (and every `[zero_init]`
-/// data) starts PHYSICALLY ZEROED, so an integer range that EXCLUDES 0 on a
-/// reachable field would let the S4 range facts trust a bound the startup
-/// value violates. Probed consequence: `10 % self.m` with `m: i32 [1..=100]`
-/// compiles ("provably nonzero divisor") and then divides by the actual 0 at
-/// runtime -- a crash in a fully-"proven" Exact program. Reject the
-/// declaration instead: include 0 in the range, or carry the value in a shape
-/// that is not zero-initialized (a parameter, a constructed payload). The
-/// reachable set closes over Named field/payload types and array elements.
-pub(crate) fn validate_zero_reachable_field_ranges(
+/// Whether zero-filled storage is already an established value of this type.
+/// Representation stays zero-expressible; a range/default domain that excludes
+/// zero gates VALUE establishment instead of making the declaration illegal.
+/// The check composes through record fields, arrays, and the payload of the
+/// zero-tag (first) sum case. Later cases do not inhabit zero storage.
+pub(crate) fn type_requires_establishment(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    type_requires_establishment_inner(program, type_reference, &mut Vec::new())
+}
+
+fn type_requires_establishment_inner(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    seen: &mut Vec<String>,
+) -> bool {
+    if !type_reference.is_valid() {
+        return false;
+    }
+    if let Some(interval) =
+        crate::arithmetic_domains::range_constraint_interval(program, type_reference)
+        && (interval.low().is_some_and(|low| low > 0)
+            || interval.high().is_some_and(|high| high < 0))
+    {
+        return true;
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_requires_establishment_inner(program, *base_type, seen)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            type_requires_establishment_inner(program, *element_type, seen)
+        }
+        TypeReferenceNode::Named { name, .. } => program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == name.as_str())
+            .is_some_and(|definition| data_requires_establishment_inner(program, definition, seen)),
+        _ => false,
+    }
+}
+
+pub(crate) fn data_requires_establishment(
+    program: &TypedTrees,
+    definition: &omega_typed_trees::data::DataDefinition,
+) -> bool {
+    data_requires_establishment_inner(program, definition, &mut Vec::new())
+}
+
+/// `[zero_init]` is stronger than representation-level zero expressibility: it
+/// promises that zeroed bytes are already an established value. A field whose
+/// type gates zero would make that promise false, so this explicit opt-in is
+/// the one declaration form that must still reject such a composition.
+pub(crate) fn validate_zero_init_establishment(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut queue: Vec<&str> = Vec::new();
-    for machine in program.machines() {
-        if let Some(attached) = machine.attached_data.as_ref() {
-            queue.push(attached.as_str());
+    for definition in program
+        .data_definitions()
+        .iter()
+        .filter(|definition| definition.properties.zero_init)
+    {
+        if definition.zero_gated {
+            diagnostics.push(Diagnostic::error(format!(
+                "`[zero_init]` data `{}` declares a default domain that excludes its \
+                 zero representation; remove `[zero_init]` or make zero satisfy the facts",
+                definition.name.as_str(),
+            )));
         }
-    }
-    for data_definition in program.data_definitions() {
-        if data_definition.properties.zero_init {
-            queue.push(data_definition.name.as_str());
-        }
-    }
-
-    let mut seen: Vec<&str> = Vec::new();
-    while let Some(name) = queue.pop() {
-        if seen.contains(&name) {
-            continue;
-        }
-        seen.push(name);
-        let Some(data_definition) = program
-            .data_definitions()
+        let members = program.data_members(definition);
+        let zero_variant = members.iter().find_map(|member| match member {
+            DataMember::Variant(variant) => Some(variant),
+            DataMember::Field(_) => None,
+        });
+        let fields = members
             .iter()
-            .find(|data| data.name.as_str() == name)
-        else {
-            continue;
-        };
-        for member in program.data_members(data_definition) {
-            let fields = match member {
-                DataMember::Field(field) => std::slice::from_ref(field),
-                DataMember::Variant(variant) => program.data_payload_fields(variant),
-            };
-            for field in fields {
-                if let Some(interval) = crate::arithmetic_domains::range_constraint_interval(
-                    program,
-                    field.type_reference,
-                ) && (interval.low().is_some_and(|low| low > 0)
-                    || interval.high().is_some_and(|high| high < 0))
-                {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "field `{}` of `{name}` declares a range that excludes 0, but `{name}` \
-                         is zero-initialized (machine state starts zeroed): a read before the \
-                         first assignment would trust a bound the actual value 0 violates. \
-                         Include 0 in the range, or carry the value in a shape that is not \
-                         zero-initialized (a parameter or a constructed payload)",
-                        field.name.as_str(),
-                    )));
-                }
-                // A FIXED-ARRAY field's ELEMENT range is the same invariant one
-                // level down: ZII zeroes every element, so an element range
-                // excluding 0 (`cells: [i32 [1..=7]; 4]`) is violated by the
-                // initial state before the first write.
-                if let Some(element_type) =
-                    fixed_array_element_type(program, field.type_reference)
-                    && let Some(interval) = crate::arithmetic_domains::range_constraint_interval(
-                        program,
-                        element_type,
-                    )
-                    && (interval.low().is_some_and(|low| low > 0)
-                        || interval.high().is_some_and(|high| high < 0))
-                {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "field `{}` of `{name}` declares an array ELEMENT range that excludes \
-                         0, but `{name}` is zero-initialized (every element starts 0): a read \
-                         before the first write would trust a bound the actual value 0 \
-                         violates. Include 0 in the element range",
-                        field.name.as_str(),
-                    )));
-                }
-                if let Some(inner) = embedded_data_name(program, field.type_reference) {
-                    queue.push(inner);
-                }
+            .filter_map(|member| match member {
+                DataMember::Field(field) => Some(field),
+                DataMember::Variant(_) => None,
+            })
+            .chain(
+                zero_variant
+                    .into_iter()
+                    .flat_map(|variant| program.data_payload_fields(variant)),
+            );
+        for field in fields {
+            if type_requires_establishment(program, field.type_reference) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "field `{}` of `[zero_init]` data `{}` declares a range that excludes \
+                     0 or contains a nested gated default domain, so zeroed bytes are not an \
+                     established value; remove `[zero_init]` or make zero valid",
+                    field.name.as_str(),
+                    definition.name.as_str(),
+                )));
             }
         }
     }
 }
 
-/// The ELEMENT type of a fixed-array field (through constraint shells,
-/// recursing nested arrays): `[i32 [0..=7]; 4]` -> the constrained `i32`.
-/// `None` for non-array types.
-fn fixed_array_element_type(
+fn data_requires_establishment_inner(
     program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> Option<TypeReferenceHandle> {
-    if !type_reference.is_valid() {
-        return None;
+    definition: &omega_typed_trees::data::DataDefinition,
+    seen: &mut Vec<String>,
+) -> bool {
+    if definition.zero_gated {
+        return true;
     }
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            fixed_array_element_type(program, *base_type)
-        }
-        TypeReferenceNode::FixedArray { element_type, .. } => Some(
-            fixed_array_element_type(program, *element_type).unwrap_or(*element_type),
-        ),
-        _ => None,
+    let name = definition.name.as_str().to_owned();
+    if seen.contains(&name) {
+        return false;
     }
-}
+    seen.push(name.clone());
 
-/// The Named data type a field EMBEDS (its bytes live inline, so ZII zeroes
-/// them): through constraint shells and fixed-array elements. References are
-/// NOT embedded -- a `&T` field is a zeroed pointer, not zeroed `T` bytes.
-fn embedded_data_name<'program>(
-    program: &'program TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> Option<&'program str> {
-    if !type_reference.is_valid() {
-        return None;
-    }
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            embedded_data_name(program, *base_type)
+    let members = program.data_members(definition);
+    let common_gated = members.iter().any(|member| match member {
+        DataMember::Field(field) => {
+            type_requires_establishment_inner(program, field.type_reference, seen)
         }
-        TypeReferenceNode::FixedArray { element_type, .. } => {
-            embedded_data_name(program, *element_type)
-        }
-        TypeReferenceNode::Named { name, .. } => Some(name.as_str()),
-        _ => None,
-    }
+        DataMember::Variant(_) => false,
+    });
+    let zero_case_gated = members
+        .iter()
+        .find_map(|member| match member {
+            DataMember::Variant(variant) => Some(variant),
+            DataMember::Field(_) => None,
+        })
+        .is_some_and(|variant| {
+            program.data_payload_fields(variant).iter().any(|field| {
+                type_requires_establishment_inner(program, field.type_reference, seen)
+            })
+        });
+
+    seen.retain(|candidate| candidate != &name);
+    common_gated || zero_case_gated
 }
 
 fn validate_payload_field_names(

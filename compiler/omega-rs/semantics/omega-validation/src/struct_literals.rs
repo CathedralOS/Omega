@@ -201,6 +201,7 @@ fn validate_literal_field_names(
     // read 0). Definitely-false refuses as a violation; unprovable refuses
     // with direction.
     validate_literal_default_domain(program, machine, state, literal, data_definition, diagnostics);
+    validate_omitted_gated_fields(program, literal, data_definition, diagnostics);
 
     match &literal.case_name {
         None => {
@@ -256,6 +257,60 @@ fn validate_literal_field_names(
                     )));
                 }
             }
+        }
+    }
+}
+
+/// Omitted fields are physically zeroed. That is construction sugar only when
+/// zero is already an established value of the field type; a zero-excluding
+/// range or nested gated record makes the field mandatory. Sum construction
+/// checks common fields plus the selected case payload only, so a payload-free
+/// zero case honestly absorbs gates carried by later cases.
+fn validate_omitted_gated_fields(
+    program: &TypedTrees,
+    literal: &TableStructLiteral,
+    data_definition: &DataDefinition,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let authored = program.expression_table.struct_fields(literal.fields);
+    let field_was_authored = |name: &str| {
+        authored
+            .iter()
+            .any(|field| field.name.as_str() == name)
+    };
+    let mut candidates: Vec<&omega_typed_trees::data::DataField> = program
+        .data_members(data_definition)
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) => Some(field),
+            DataMember::Variant(_) => None,
+        })
+        .collect();
+    if let Some(case_name) = literal.case_name.as_ref()
+        && let Some(variant) = program
+            .data_members(data_definition)
+            .iter()
+            .find_map(|member| match member {
+                DataMember::Variant(variant)
+                    if variant.name.as_str() == case_name.as_str() =>
+                {
+                    Some(variant)
+                }
+                _ => None,
+            })
+    {
+        candidates.extend(program.data_payload_fields(variant));
+    }
+
+    for field in candidates {
+        if !field_was_authored(field.name.as_str())
+            && crate::data::type_requires_establishment(program, field.type_reference)
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "construction of `{}` omits gated field `{}`: its zero-filled representation is not an established value -- initialize it explicitly",
+                literal.type_name.as_str(),
+                field.name.as_str(),
+            )));
         }
     }
 }

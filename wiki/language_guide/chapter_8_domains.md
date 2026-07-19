@@ -46,6 +46,20 @@ remain ordinary operations and may perform runtime work.
 > copies, construction, and writes. Other operator facts and broader relational
 > discharge remain open.
 
+Zero expressibility and value establishment are separate. Storage for every
+data layout may be zero-filled, but a default-domain fact or field range that
+excludes zero gates when those bytes become an accessible value. It does not
+make the declaration illegal. Construction must explicitly initialize omitted
+gated fields, and machine-owned zero storage must establish every gated field
+before its first read or other consumption point.
+
+The gate composes structurally through embedded data, fixed-array elements,
+common sum fields, and the payload of the zero-tag (first) case. Establishing a
+nested child contributes to establishing its parent; a debt-free zero case may
+honestly absorb gates carried only by later cases. Explicit `[zero_init]` is a
+stronger promise that zeroed bytes are already an established value, so it is
+rejected when the default domain or any zero-reachable field excludes zero.
+
 ```omega
 data Player {
     health: i32;
