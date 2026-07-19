@@ -18,11 +18,13 @@ const MARKER_PREFIX: &str = "__destructure#";
 /// after `V=` is the case variant (empty for a record arm), the rest are the
 /// spelled fields.
 const ARM_MARKER_PREFIX: &str = "__arm_destructure#V=";
+const TRANSITION_SUBJECT_PREFIX: &str = "__transition_subject#";
 
 pub(crate) fn validate_destructure_exhaustiveness(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let proof_only = omega_typed_trees::proof_only::classify(program);
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
@@ -37,6 +39,7 @@ pub(crate) fn validate_destructure_exhaustiveness(
                         state,
                         local,
                         encoded,
+                        &proof_only,
                         diagnostics,
                     );
                     continue;
@@ -132,6 +135,7 @@ fn validate_arm_pattern_marker(
     state: &omega_typed_trees::state::State,
     local: &omega_typed_trees::statement::TableLocalData,
     encoded: &str,
+    proof_only: &omega_typed_trees::proof_only::ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut parts = encoded.split('#');
@@ -167,6 +171,24 @@ fn validate_arm_pattern_marker(
     let Some(data) = crate::places::data_definition_for_type(program, declared) else {
         return;
     };
+
+    // A computed subject is captured once before dispatch, then its pattern
+    // fields are read independently from that local. That extraction is only
+    // sound for an unrestricted (`[copy]`) RUNTIME record until affine/linear
+    // destructuring gains move-aware field projection. Proof-only recursive
+    // data has no runtime storage to copy and is exempt. Authored places retain
+    // their existing ownership behavior; this fence is specifically for the
+    // newly admitted non-place runtime face.
+    if is_captured_transition_subject(program, local.initial_value)
+        && !proof_only.is_proof_only(data.symbol)
+        && data.properties.multiplicity != omega_core::semantics::Multiplicity::Unrestricted
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "destructure arm in machine `{}` state `{}` has a computed subject of non-copy data `{}` -- non-place record extraction currently requires `data {} [copy]`; otherwise bind the value to an authored typed place before the transition",
+            machine.name, state.name, data.name, data.name,
+        )));
+        return;
+    }
 
     let declared_fields: Vec<&str> = if variant.is_empty() {
         let mut fields = Vec::new();
@@ -230,4 +252,17 @@ fn validate_arm_pattern_marker(
             )));
         }
     }
+}
+
+fn is_captured_transition_subject(
+    program: &TypedTrees,
+    expression: omega_typed_trees::expression::ExpressionHandle,
+) -> bool {
+    let omega_typed_trees::expression::ExpressionNode::Name(path) =
+        program.expression_table.expression(expression)
+    else {
+        return false;
+    };
+    let members = program.expression_table.name_path_members(path.members);
+    members.len() == 1 && members[0].as_str().starts_with(TRANSITION_SUBJECT_PREFIX)
 }

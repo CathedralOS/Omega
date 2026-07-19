@@ -1,0 +1,37 @@
+// A computed record-pattern subject is captured once before arm dispatch.
+// `make` increments `calls`; reading both x and y must use that one captured
+// Point, not evaluate the call once per extracted field. `[copy]` is the
+// current eligibility fence for extracting fields from a non-place subject.
+// Native and interpreter both exit 70; exit 2/3 exposes repeated evaluation.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Point [copy] { x: i32; y: i32; }
+data Main { console: Console; calls: u32 in Wrapping; }
+
+machine Main::make(&mut self) -> Point {
+    self.calls = self.calls + 1;
+    transition { _ -> Point { x: 30, y: 40 } }
+}
+
+machine Main::main(&mut self) {
+    self.calls = 0;
+    transition self.make() {
+        Point { x, y } -> check(x, y)
+        _ -> bad()
+    }
+    state check(&mut self, x: i32, y: i32) {
+        transition self.calls {
+            1 -> check_values(x, y)
+            2 -> exit_two()
+            3 -> exit_three()
+            _ -> bad()
+        }
+    }
+    state check_values(&mut self, x: i32, y: i32) {
+        transition x == 30 && y == 40 { true -> good() _ -> exit_values() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state exit_two(&mut self) { self.console.exit_process(2); }
+    state exit_three(&mut self) { self.console.exit_process(3); }
+    state exit_values(&mut self) { self.console.exit_process(4); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

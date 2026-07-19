@@ -364,6 +364,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         70,
     ),
     (
+        "control_flow/runtime_nonplace_record_pattern_single_evaluation_exit",
+        70,
+    ),
+    (
         "calls/runtime_two_string_call_results_through_reference_fields_exit",
         194,
     ),

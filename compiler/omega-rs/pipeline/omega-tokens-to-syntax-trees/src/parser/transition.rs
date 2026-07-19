@@ -1,25 +1,26 @@
 use crate::parse_error::ParseError;
-use crate::parser::input::{Input, ParseResult};
+use crate::parser::input::{Input, ParseResult, is_identifier_token_for_parser};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::expression::ExpressionHandle;
+use omega_syntax_trees::expression::{ExpressionHandle, ExpressionNode};
+use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::statement::{
     StatementHandle, StatementNode, TableTransition, TransitionTargetHandle, TransitionTargetNode,
 };
-use omega_tokens::PunctuationKind;
+use omega_tokens::{KeywordKind, PunctuationKind};
 
 mod guards;
 mod targets;
 
 use guards::{parse_transition_expression_list, parse_transition_guard_node};
-use targets::parse_transition_block_target_with_bindings;
 pub(super) use targets::parse_transition_block_target_handle;
+use targets::parse_transition_block_target_with_bindings;
 
 pub(super) fn parse_transition_block_handles<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<StatementHandle>> {
-    let (subject, mut input) = if input.at_punctuation(PunctuationKind::LeftBrace) {
+    let (mut subject, mut input) = if input.at_punctuation(PunctuationKind::LeftBrace) {
         (
             Vec::new(),
             input.take_punctuation(PunctuationKind::LeftBrace, "{")?,
@@ -34,6 +35,32 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
         (expressions, input)
     };
 
+    // A transition SUBJECT is evaluated once, before arm dispatch. Pure places
+    // can be re-read directly; computed subjects (notably value-machine calls)
+    // are captured into generated locals and every guard / pattern extraction
+    // below reads that place. Besides making the general transition law
+    // explicit, this gives record-pattern validation an inferred DECLARED type
+    // to resolve: `transition self.make() { Point { x, y } -> ... }` must not
+    // call `make` once for `x` and again for `y`, nor skip the field law merely
+    // because the authored subject was not already a place.
+    let mut subject_captures: Vec<(Identifier, ExpressionHandle)> = Vec::new();
+    if transition_contains_destructure_pattern(input) {
+        for subject_expression in &mut subject {
+            if expression_is_place(syntax_trees, *subject_expression) {
+                continue;
+            }
+            let captured = *subject_expression;
+            let name =
+                Identifier::generated(format!("__transition_subject#{}", captured.arena_index()));
+            let path_start = syntax_trees
+                .expressions
+                .append_identifier_path_member(name.clone());
+            let path = HandleSpan::from_parts(path_start, 1);
+            *subject_expression = syntax_trees.expressions.insert(ExpressionNode::Name(path));
+            subject_captures.push((name, captured));
+        }
+    }
+
     let mut start = Handle::invalid();
     let mut count = 0u32;
     let mut arm_statements: Vec<StatementHandle> = Vec::new();
@@ -46,8 +73,9 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
         omega_syntax_trees::statement::TransitionGuardNode,
         TransitionTargetHandle,
     )> = Vec::new();
-    // (marker name, subject) per `..`-free destructure arm on a PLACE
-    // subject: the exhaustiveness law's carrier, deduplicated by name
+    // (marker name, subject) per destructure arm. Computed transition subjects
+    // have already become generated places above, so every arm has a declared
+    // type carrier for the missing/unknown-field law. Deduplicated by name
     // (identical patterns share one marker; duplicate local names would
     // collide in symbol resolution).
     let mut pattern_markers: Vec<(String, ExpressionHandle)> = Vec::new();
@@ -76,9 +104,7 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
         // encoded into a marker let (`__arm_destructure#V=<variant>#<f1>...`;
         // `#`/`=` cannot appear in identifiers, so the split is unambiguous)
         // whose initializer is the subject place -- the typed-stage
-        // validation resolves it against the data definition. Non-place
-        // subjects skip the marker (no declared type to resolve; the law is
-        // enforced where the type is knowable).
+        // validation resolves it against the data definition.
         if let Some(bindings) = bindings.as_ref()
             && let Some(spelling) = bindings.spelling.as_ref()
             && expression_is_place(syntax_trees, bindings.subject)
@@ -105,6 +131,24 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
 
         parsed_arms.push((guard, target));
         arm_bool_tuples.push(bool_tuple);
+    }
+
+    for (name, initial_value) in subject_captures {
+        let capture = syntax_trees.statements.insert(StatementNode::LocalData(
+            omega_syntax_trees::statement::TableLocalData {
+                name,
+                type_reference: omega_syntax_trees::types::TypeReferenceHandle::invalid(),
+                initial_value,
+                is_mutable: false,
+            },
+        ));
+        let handle = syntax_trees.items.append_statement_handle(capture);
+        if count == 0 {
+            start = handle;
+        }
+        count = count
+            .checked_add(1)
+            .expect("transition block statement span count overflow");
     }
 
     for (marker_name, subject_place) in pattern_markers {
@@ -206,6 +250,102 @@ fn expression_is_place(syntax_trees: &SyntaxTrees, expression: ExpressionHandle)
     }
 }
 
+/// A cheap structural lookahead for the one syntax that needs a computed
+/// subject capture. It recognizes plain-record `Type { .. } [if ..] ->`
+/// arms anywhere in the token stream. Case-pattern subjects retain their
+/// existing structural form: proof-only recursive case machines use that
+/// expression shape as part of their termination argument, and they have no
+/// runtime value whose evaluation needs capturing. Requiring
+/// the pattern's closing brace to be followed immediately by `->` or `if`
+/// distinguishes it from a struct-literal arm TARGET, whose closing brace is
+/// followed by the next arm's pattern.
+fn transition_contains_destructure_pattern(input: Input<'_, '_>) -> bool {
+    // `Input` is the remainder of the SOURCE, not a slice already bounded to
+    // this transition. Stop at this block's own closing brace or a later
+    // machine/state containing a record arm would spuriously capture an
+    // earlier scalar transition subject.
+    let mut tokens = Vec::new();
+    let mut outer_brace_depth = 0usize;
+    for token in input.tokens.iter().filter(|token| !token.is_non_semantic()) {
+        match token.punctuation() {
+            Some(PunctuationKind::LeftBrace) => outer_brace_depth += 1,
+            Some(PunctuationKind::RightBrace) if outer_brace_depth == 0 => break,
+            Some(PunctuationKind::RightBrace) => outer_brace_depth -= 1,
+            _ => {}
+        }
+        tokens.push(token);
+    }
+
+    for start in 0..tokens.len() {
+        if !is_identifier_token_for_parser(tokens[start]) {
+            continue;
+        }
+        if start > 0 && tokens[start - 1].punctuation() == Some(PunctuationKind::ColonColon) {
+            continue;
+        }
+        let mut cursor = start + 1;
+        if tokens
+            .get(cursor)
+            .is_some_and(|token| token.punctuation() == Some(PunctuationKind::ColonColon))
+        {
+            continue;
+        }
+        if !tokens
+            .get(cursor)
+            .is_some_and(|token| token.punctuation() == Some(PunctuationKind::LeftBrace))
+        {
+            continue;
+        }
+
+        let mut depth = 1usize;
+        cursor += 1;
+        while cursor < tokens.len() && depth > 0 {
+            match tokens[cursor].punctuation() {
+                Some(PunctuationKind::LeftBrace) => depth += 1,
+                Some(PunctuationKind::RightBrace) => depth -= 1,
+                _ => {}
+            }
+            cursor += 1;
+        }
+        if depth != 0 {
+            continue;
+        }
+        if tokens
+            .get(cursor)
+            .is_some_and(|token| token.punctuation() == Some(PunctuationKind::Arrow))
+        {
+            return true;
+        }
+        if !tokens
+            .get(cursor)
+            .is_some_and(|token| token.keyword() == Some(KeywordKind::If))
+        {
+            continue;
+        }
+
+        let mut paren = 0usize;
+        let mut bracket = 0usize;
+        let mut brace = 0usize;
+        cursor += 1;
+        while cursor < tokens.len() {
+            match tokens[cursor].punctuation() {
+                Some(PunctuationKind::LeftParen) => paren += 1,
+                Some(PunctuationKind::RightParen) => paren = paren.saturating_sub(1),
+                Some(PunctuationKind::LeftBracket) => bracket += 1,
+                Some(PunctuationKind::RightBracket) => bracket = bracket.saturating_sub(1),
+                Some(PunctuationKind::LeftBrace) => brace += 1,
+                Some(PunctuationKind::RightBrace) if brace > 0 => brace -= 1,
+                Some(PunctuationKind::Arrow) if paren == 0 && bracket == 0 && brace == 0 => {
+                    return true;
+                }
+                _ => {}
+            }
+            cursor += 1;
+        }
+    }
+    false
+}
+
 fn parse_expression_list_until_punctuation<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -221,4 +361,49 @@ fn parse_expression_list_until_punctuation<'tokens, 'source>(
     }
 
     Ok((expressions, rest))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::transition_contains_destructure_pattern;
+    use crate::parser::input::Input;
+    use omega_core::source::SourceId;
+    use omega_source_files_to_tokens::Lexer;
+
+    #[test]
+    fn destructure_lookahead_finds_a_later_record_arm() {
+        let tokens = Lexer::new("_ -> fallback() Point { x, y } if x > 0 -> done(x, y) }")
+            .tokenize()
+            .expect("tokenize transition arms")
+            .into_tokens();
+        assert!(transition_contains_destructure_pattern(Input::new(
+            SourceId::default(),
+            &tokens
+        )));
+    }
+
+    #[test]
+    fn destructure_lookahead_does_not_confuse_a_struct_literal_target() {
+        let tokens =
+            Lexer::new("_ -> Point { x: 1, y: 2 } _ -> fallback() } Point { x, y } -> later()")
+                .tokenize()
+                .expect("tokenize transition arms")
+                .into_tokens();
+        assert!(!transition_contains_destructure_pattern(Input::new(
+            SourceId::default(),
+            &tokens
+        )));
+    }
+
+    #[test]
+    fn destructure_lookahead_leaves_case_patterns_structural() {
+        let tokens = Lexer::new("Nat::Zero -> base() Nat::Succ { prev } -> step(prev) }")
+            .tokenize()
+            .expect("tokenize transition case arms")
+            .into_tokens();
+        assert!(!transition_contains_destructure_pattern(Input::new(
+            SourceId::default(),
+            &tokens
+        )));
+    }
 }

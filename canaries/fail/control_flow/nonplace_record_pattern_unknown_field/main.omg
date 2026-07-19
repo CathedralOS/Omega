@@ -1,0 +1,15 @@
+// `..` opts out of missing-field exhaustiveness, not field existence. A
+// computed `[copy]` subject must still reject the unknown z spelling.
+data Point [copy] { x: i32; y: i32; }
+data Main { calls: u32 in Wrapping; }
+machine Main::make(&mut self) -> Point {
+    self.calls = self.calls + 1;
+    transition { _ -> Point { x: 30, y: 40 } }
+}
+machine Main::main(&mut self) {
+    transition self.make() {
+        Point { x, z as _, .. } -> done(x)
+        _ -> {}
+    }
+    state done(&mut self, x: i32) {}
+}

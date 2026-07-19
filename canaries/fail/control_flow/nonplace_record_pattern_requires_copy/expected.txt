@@ -1,0 +1,1 @@
+non-place record extraction currently requires `data Point [copy]`

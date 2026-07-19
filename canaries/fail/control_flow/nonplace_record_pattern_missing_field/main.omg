@@ -1,0 +1,16 @@
+// Computed subjects obey the same exhaustive record-pattern law as places.
+// Point is `[copy]`, so the eligibility fence passes; omitting y is the only
+// refusal and must name the missing field.
+data Point [copy] { x: i32; y: i32; }
+data Main { calls: u32 in Wrapping; }
+machine Main::make(&mut self) -> Point {
+    self.calls = self.calls + 1;
+    transition { _ -> Point { x: 30, y: 40 } }
+}
+machine Main::main(&mut self) {
+    transition self.make() {
+        Point { x } -> done(x)
+        _ -> {}
+    }
+    state done(&mut self, x: i32) {}
+}
