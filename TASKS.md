@@ -127,9 +127,6 @@ before the fix.
   state call inside a proof-bearing guarded state still reports that a
   `CallArgument` binary expression needs runtime lowering. Make the state-value
   fold copy the local's slot.
-- **Terminal value-machine call on boot paths.** Triage the remaining red
-  `value_call_terminal` shape before Cathedral scheduler code relies on
-  machine calls.
 - **Non-place record-pattern subjects.** Exhaustiveness validation currently
   lacks a declared type for non-place subjects. Preserve single evaluation and
   enforce the same missing/unknown-field law; add the copy-eligibility fence if
