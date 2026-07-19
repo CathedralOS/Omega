@@ -896,10 +896,19 @@ fn boundary_trait_canary_reports_capability_use() {
 
     let manifest = fs::read_to_string(build_dir.join("05_capability_manifest.json"))
         .expect("capability manifest should be written");
+    let carry_manifest = fs::read_to_string(build_dir.join("05_carry_manifest.json"))
+        .expect("carry manifest should be written");
     assert!(
         manifest.contains("\"capability_flows\": {\"uses\": 2"),
         "capability manifest should report both boundary capability uses\n{}",
         manifest
+    );
+    assert!(
+        carry_manifest.contains("\"effective\":")
+            && carry_manifest.contains("\"suspension\":")
+            && carry_manifest.contains("\"address\":"),
+        "carry manifest should expose structured checked policies\n{}",
+        carry_manifest
     );
 
     let _ = fs::remove_dir_all(&build_dir);

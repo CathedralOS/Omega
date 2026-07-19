@@ -120,6 +120,77 @@ pub fn capability_manifest_json(program: &CheckedTrees) -> String {
     json
 }
 
+/// Checked carry-policy artifact. The authored clause is retained only as a
+/// diagnostic/publication input; `effective` is the checker-derived policy
+/// later liveness, runtime-admission, and model-export consumers must use.
+/// Keeping the axes structured avoids making presentation spelling part of
+/// artifact identity.
+pub fn carry_manifest_json(program: &CheckedTrees) -> String {
+    let mut json = String::from("{\n  \"data\": [");
+    for (index, fact) in program.facts.carry.data.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        let name = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.symbol == fact.data)
+            .map(|definition| definition.name.as_str())
+            .unwrap_or("<unknown>");
+        json.push_str("\n    {\n      \"type\": ");
+        push_json_string(&mut json, name);
+        json.push_str(",\n      \"declared\": ");
+        if let Some(declared) = fact.declared {
+            push_carry_policy_json(&mut json, declared);
+        } else {
+            json.push_str("null");
+        }
+        json.push_str(",\n      \"effective\": ");
+        push_carry_policy_json(&mut json, fact.effective);
+        json.push_str("\n    }");
+    }
+    json.push_str("\n  ]\n}\n");
+    json
+}
+
+fn push_carry_policy_json(output: &mut String, policy: omega_core::semantics::CarryPolicy) {
+    use omega_core::semantics::{CarryAddress, CarryCpu, CarryHostThread, CarrySuspension};
+
+    output.push_str("{\"suspension\": ");
+    push_json_string(
+        output,
+        match policy.suspension {
+            CarrySuspension::Forbidden => "forbidden",
+            CarrySuspension::Allowed => "allowed",
+        },
+    );
+    output.push_str(", \"cpu\": ");
+    push_json_string(
+        output,
+        match policy.cpu {
+            CarryCpu::Origin => "same",
+            CarryCpu::Any => "any",
+        },
+    );
+    output.push_str(", \"thread\": ");
+    push_json_string(
+        output,
+        match policy.host_thread {
+            CarryHostThread::Origin => "same",
+            CarryHostThread::Any => "any",
+        },
+    );
+    output.push_str(", \"address\": ");
+    push_json_string(
+        output,
+        match policy.address {
+            CarryAddress::Stable => "stable",
+            CarryAddress::Movable => "movable",
+        },
+    );
+    output.push('}');
+}
+
 /// Decision 20/23's externally inspectable machine-contract artifact. The
 /// object shape is the firewall: authored interface identity and checked
 /// implementation evidence are siblings, never one flattened bag. Consumers
@@ -998,15 +1069,52 @@ fn push_json_string(output: &mut String, value: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::machine_contract_manifest_json;
-    use omega_checked_trees::{CheckedTrees, MachineContractPlan, MachineTerminationFact};
+    use super::{carry_manifest_json, machine_contract_manifest_json};
+    use omega_checked_trees::{
+        CheckedTrees, DataCarryFact, MachineContractPlan, MachineTerminationFact,
+    };
     use omega_core::semantics::{
-        EffectRowId, MachineSupplyMode, MachineTerminationPlan, RankingViewId, RankingWitness,
+        CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension, EffectRowId,
+        MachineSupplyMode, MachineTerminationPlan, RankingViewId, RankingWitness,
         TerminationGuarantee,
     };
     use omega_core::symbols::SymbolHandle;
     use omega_typed_trees::machine::Machine;
     use omega_typed_trees::name::Identifier;
+
+    #[test]
+    fn carry_manifest_keeps_authored_and_effective_policies_separate() {
+        let symbol = SymbolHandle::from_arena_index(7);
+        let declared = CarryPolicy {
+            suspension: CarrySuspension::Forbidden,
+            cpu: CarryCpu::Origin,
+            host_thread: CarryHostThread::Any,
+            address: CarryAddress::Stable,
+        };
+        let mut program = CheckedTrees::default();
+        program
+            .typed
+            .push_data_definition(omega_typed_trees::data::DataDefinition {
+                symbol,
+                name: Identifier::generated("PerCpuLease"),
+                ..Default::default()
+            });
+        program.facts.carry.data.push(DataCarryFact {
+            data: symbol,
+            declared: Some(declared),
+            effective: CarryPolicy::PERMISSIVE,
+        });
+
+        let json = carry_manifest_json(&program);
+
+        assert!(json.contains("\"type\": \"PerCpuLease\""));
+        assert!(json.contains(
+            "\"declared\": {\"suspension\": \"forbidden\", \"cpu\": \"same\", \"thread\": \"any\", \"address\": \"stable\"}"
+        ));
+        assert!(json.contains(
+            "\"effective\": {\"suspension\": \"allowed\", \"cpu\": \"any\", \"thread\": \"any\", \"address\": \"movable\"}"
+        ));
+    }
 
     #[test]
     fn machine_contract_manifest_keeps_interface_and_witness_separate() {
