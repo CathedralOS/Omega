@@ -23,6 +23,8 @@ pub enum AsmInstructionShape {
     InterruptControl(AsmInterruptControlKind),
     FlagsSnapshot,
     FlagsRestore,
+    MsrRead,
+    MsrWrite,
     DerivedExit,
 }
 
@@ -267,10 +269,20 @@ const FLAGS_RESTORE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::
     "rflags",
     "u64",
 )];
+const MSR_READ_OPERANDS: &[AsmOperandConstraint] = &[
+    AsmOperandConstraint::write_place("destination", "edx:eax", "u64"),
+    AsmOperandConstraint::read("MSR index", "ecx", "u32", u32::MAX as u64),
+];
+const MSR_WRITE_OPERANDS: &[AsmOperandConstraint] = &[
+    AsmOperandConstraint::read("MSR index", "ecx", "u32", u32::MAX as u64),
+    AsmOperandConstraint::read("value", "edx:eax", "u64", u64::MAX),
+];
 const NO_CLOBBERS: &[&str] = &[];
 const PORT_OUT_CLOBBERS: &[&str] = &["rax", "rdx", "r10", "r11", "r15"];
 const PORT_IN_CLOBBERS: &[&str] = &["rax", "rdx", "r10", "r15"];
 const FLAGS_OPERAND_CLOBBERS: &[&str] = &["r10", "r15"];
+const MSR_READ_CLOBBERS: &[&str] = &["rax", "rcx", "rdx", "r10", "r11", "r15"];
+const MSR_WRITE_CLOBBERS: &[&str] = &["rax", "rcx", "rdx", "r10", "r11", "r15"];
 
 pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
     use AsmAuthorityRequirement::{MachineOwner, None as NoAuthority, PortIo as PortIoAuthority};
@@ -284,7 +296,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
     use AsmInstructionRefusal::{HiddenControlExit, UnmodeledMemoryAccess};
     use AsmInstructionShape::{
         DerivedExit, FlagsRestore, FlagsSnapshot, Halt, InterruptControl, JumpState, MemoryFence,
-        PortIn, PortOut,
+        MsrRead, MsrWrite, PortIn, PortOut,
     };
     use AsmInterruptControlKind::{Disable, Enable};
     use AsmInterruptFlagEffect::{
@@ -415,6 +427,28 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             interrupt_flag_effect: RestoreInterruptFlag,
             flags_data_flow: RestoreFlags,
             clobbers: FLAGS_OPERAND_CLOBBERS,
+        }),
+        "rdmsr" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: MsrRead,
+            target: X86_64,
+            required_authority: MachineOwner,
+            operands: MSR_READ_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: MSR_READ_CLOBBERS,
+        }),
+        "wrmsr" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: MsrWrite,
+            target: X86_64,
+            required_authority: MachineOwner,
+            operands: MSR_WRITE_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: MSR_WRITE_CLOBBERS,
         }),
 
         // These are real catalog operations, but only derived entry/exit
@@ -567,6 +601,36 @@ mod tests {
         );
         assert_eq!(restore.operands[0].access, AsmOperandAccess::ReadPlace);
         assert_eq!(restore.clobbers, &["r10", "r15"]);
+    }
+
+    #[test]
+    fn msr_contracts_pin_structured_value_flow_and_machine_authority() {
+        let AsmCatalogEntry::Contract(read) = asm_catalog_entry("rdmsr").expect("rdmsr contract")
+        else {
+            panic!("rdmsr must be contracted");
+        };
+        assert_eq!(read.target, AsmTargetApplicability::X86_64);
+        assert_eq!(read.required_authority, AsmAuthorityRequirement::MachineOwner);
+        assert_eq!(read.operands[0].access, AsmOperandAccess::Write);
+        assert_eq!(read.operands[0].target_register, "edx:eax");
+        assert_eq!(read.operands[1].expected_type_name, "u32");
+        assert_eq!(
+            read.clobbers,
+            &["rax", "rcx", "rdx", "r10", "r11", "r15"]
+        );
+
+        let AsmCatalogEntry::Contract(write) =
+            asm_catalog_entry("wrmsr").expect("wrmsr contract")
+        else {
+            panic!("wrmsr must be contracted");
+        };
+        assert_eq!(write.required_authority, AsmAuthorityRequirement::MachineOwner);
+        assert_eq!(write.operands[0].target_register, "ecx");
+        assert_eq!(write.operands[1].expected_type_name, "u64");
+        assert_eq!(
+            write.clobbers,
+            &["rax", "rcx", "rdx", "r10", "r11", "r15"]
+        );
     }
 
     #[test]

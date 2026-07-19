@@ -135,6 +135,7 @@ fn state_value_has_planned_storage_write(
                         // creates a runtime-value record).
                         | SelectedInstructionKind::PortRead { .. }
                         | SelectedInstructionKind::FlagsSnapshot { .. }
+                        | SelectedInstructionKind::MsrRead { .. }
                 )
             })
 }
@@ -329,6 +330,7 @@ fn runtime_text_write_has_selected_instruction(
                         // creates a runtime-value record).
                         | SelectedInstructionKind::PortRead { .. }
                         | SelectedInstructionKind::FlagsSnapshot { .. }
+                        | SelectedInstructionKind::MsrRead { .. }
                 )
         })
 }

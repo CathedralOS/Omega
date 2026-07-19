@@ -159,6 +159,37 @@ pub fn encode_flags_restore_bytes(
     x86_64::encode_flags_restore(source, operand)
 }
 
+pub fn msr_read_width(
+    source: &impl RuntimeValueOperandSource,
+    index: RuntimeValueOperandHandle,
+) -> usize {
+    x86_64::msr_read_width(source, index)
+}
+
+pub fn msr_write_width(
+    source: &impl RuntimeValueOperandSource,
+    index: RuntimeValueOperandHandle,
+    value: RuntimeValueOperandHandle,
+) -> usize {
+    x86_64::msr_write_width(source, index, value)
+}
+
+pub fn encode_msr_read_bytes(
+    source: &impl RuntimeValueOperandSource,
+    index: RuntimeValueOperandHandle,
+    dest_byte_offset: usize,
+) -> Result<Vec<u8>, omega_core::diagnostics::Diagnostic> {
+    x86_64::encode_msr_read(source, index, dest_byte_offset)
+}
+
+pub fn encode_msr_write_bytes(
+    source: &impl RuntimeValueOperandSource,
+    index: RuntimeValueOperandHandle,
+    value: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, omega_core::diagnostics::Diagnostic> {
+    x86_64::encode_msr_write(source, index, value)
+}
+
 /// Port I/O is x86_64-only (ARM has no port space -- MMIO instead), so these
 /// take no architecture: the layout/encoding sites reject a non-x86_64 target
 /// before calling them.

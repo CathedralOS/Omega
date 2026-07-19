@@ -123,6 +123,87 @@ pub fn encode_flags_restore(
     Ok(bytes)
 }
 
+// --- model-specific registers (`rdmsr` / `wrmsr`) --------------------------
+
+const MSR_READ_RESULT_COMBINE_WIDTH: usize = 3 + 4 + 3;
+const MSR_DESTINATION_STORE_WIDTH: usize = 10 + 7;
+pub const MSR_WRITE_INDEX_STASH_WIDTH: usize = 2;
+
+pub fn msr_read_destination_base_offset(
+    source: &impl RuntimeValueOperandSource,
+    index: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_value_operand_width(source, index)
+        + 3 // mov ecx, r10d
+        + 2 // rdmsr
+        + MSR_READ_RESULT_COMBINE_WIDTH
+}
+
+pub fn msr_read_width(
+    source: &impl RuntimeValueOperandSource,
+    index: RuntimeValueOperandHandle,
+) -> usize {
+    msr_read_destination_base_offset(source, index) + MSR_DESTINATION_STORE_WIDTH
+}
+
+/// `asm { rdmsr <dest>, <index> }`: load ECX, execute RDMSR, combine the
+/// architectural EDX:EAX result into one u64, and store it to `dest`.
+pub fn encode_msr_read(
+    source: &impl RuntimeValueOperandSource,
+    index: RuntimeValueOperandHandle,
+    dest_byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(msr_read_width(source, index));
+    append_runtime_value_operand(source, &mut bytes, Reg64::R10, index)?;
+    bytes.extend([0x44, 0x89, 0xd1]); // mov ecx, r10d
+    bytes.extend([0x0f, 0x32]); // rdmsr -> edx:eax
+    bytes.extend([0x41, 0x89, 0xc2]); // mov r10d, eax (zero extends)
+    bytes.extend([0x48, 0xc1, 0xe2, 0x20]); // shl rdx, 32
+    bytes.extend([0x49, 0x09, 0xd2]); // or r10, rdx
+    append_mov_r15_imm64(&mut bytes, 0); // destination region base (relocated)
+    append_store_r10_to_r15(&mut bytes, dest_byte_offset)?;
+    debug_assert_eq!(bytes.len(), msr_read_width(source, index));
+    Ok(bytes)
+}
+
+pub fn msr_write_width(
+    source: &impl RuntimeValueOperandSource,
+    index: RuntimeValueOperandHandle,
+    value: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_value_operand_width(source, index)
+        + MSR_WRITE_INDEX_STASH_WIDTH // push r10
+        + runtime_value_operand_width(source, value)
+        + 2 // pop r10
+        + 3 // mov ecx, r10d
+        + 3 // mov eax, r11d
+        + 3 // mov rdx, r11
+        + 4 // shr rdx, 32
+        + 2 // wrmsr
+}
+
+/// `asm { wrmsr <index>, <value> }`: preserve the index while evaluating the
+/// value, split the u64 into EDX:EAX, then execute WRMSR. The temporary stack
+/// use is balanced inside the realized sequence.
+pub fn encode_msr_write(
+    source: &impl RuntimeValueOperandSource,
+    index: RuntimeValueOperandHandle,
+    value: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(msr_write_width(source, index, value));
+    append_runtime_value_operand(source, &mut bytes, Reg64::R10, index)?;
+    bytes.extend([0x41, 0x52]); // push r10
+    append_runtime_value_operand(source, &mut bytes, Reg64::R11, value)?;
+    bytes.extend([0x41, 0x5a]); // pop r10
+    bytes.extend([0x44, 0x89, 0xd1]); // mov ecx, r10d
+    bytes.extend([0x44, 0x89, 0xd8]); // mov eax, r11d
+    bytes.extend([0x4c, 0x89, 0xda]); // mov rdx, r11
+    bytes.extend([0x48, 0xc1, 0xea, 0x20]); // shr rdx, 32
+    bytes.extend([0x0f, 0x30]); // wrmsr
+    debug_assert_eq!(bytes.len(), msr_write_width(source, index, value));
+    Ok(bytes)
+}
+
 // --- port I/O (`asm { out .. }` / `asm { in .. }`) --------------------------
 //
 // The port operand loads into DX and the byte operand into AL by REUSING the
@@ -10348,6 +10429,34 @@ mod machine_control_tests {
         assert_eq!(&bytes[0..2], &[0x49, 0xba]); // mov r10, imm64
         assert_eq!(&bytes[2..10], &0x202u64.to_le_bytes());
         assert_eq!(&bytes[10..13], &[0x41, 0x52, 0x9d]); // push r10; popfq
+    }
+
+    #[test]
+    fn msr_read_combines_edx_eax_and_stores_u64() {
+        let source = ImmediateOperands(vec![0xc000_0080]);
+        let index = RuntimeValueOperandHandle::from_parts(0, 1);
+        let bytes = encode_msr_read(&source, index, 24).expect("encode RDMSR");
+        assert_eq!(bytes.len(), msr_read_width(&source, index));
+        assert_eq!(&bytes[10..15], &[0x44, 0x89, 0xd1, 0x0f, 0x32]);
+        assert_eq!(&bytes[15..25], &[0x41, 0x89, 0xc2, 0x48, 0xc1, 0xe2, 0x20, 0x49, 0x09, 0xd2]);
+        assert_eq!(msr_read_destination_base_offset(&source, index), 25);
+        assert_eq!(&bytes[25..27], &[0x49, 0xbf]);
+        assert_eq!(&bytes[35..38], &[0x4d, 0x89, 0x97]);
+        assert_eq!(&bytes[38..42], &24u32.to_le_bytes());
+    }
+
+    #[test]
+    fn msr_write_preserves_index_and_splits_u64_value() {
+        let source = ImmediateOperands(vec![0xc000_0080, 0x1122_3344_5566_7788]);
+        let index = RuntimeValueOperandHandle::from_parts(0, 1);
+        let value = RuntimeValueOperandHandle::from_parts(1, 1);
+        let bytes = encode_msr_write(&source, index, value).expect("encode WRMSR");
+        assert_eq!(bytes.len(), msr_write_width(&source, index, value));
+        assert_eq!(&bytes[10..12], &[0x41, 0x52]); // push r10 index
+        assert_eq!(&bytes[22..24], &[0x41, 0x5a]); // pop r10 index
+        assert_eq!(&bytes[24..30], &[0x44, 0x89, 0xd1, 0x44, 0x89, 0xd8]);
+        assert_eq!(&bytes[30..37], &[0x4c, 0x89, 0xda, 0x48, 0xc1, 0xea, 0x20]);
+        assert_eq!(&bytes[37..39], &[0x0f, 0x30]);
     }
 
     #[test]

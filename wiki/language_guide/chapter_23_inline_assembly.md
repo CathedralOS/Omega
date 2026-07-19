@@ -7,7 +7,7 @@ ownership, effects, authority, or machine-state rules.
 The full catalog and contract surface remain incremental. The implemented pilot
 accepts strict blocks containing known `hlt`, port `in`/`out`, x86
 `lfence`/`sfence`/`mfence`, x86 `cli`/`sti`, structured x86
-`pushfq`/`popfq`, and `jmp state(...)`
+`pushfq`/`popfq`, structured x86 `rdmsr`/`wrmsr`, and `jmp state(...)`
 instructions. Multiple instructions use `;` as an explicit separator because
 newlines are not grammar; empty blocks and a control transfer followed by
 another instruction reject.
@@ -63,6 +63,15 @@ restored from the operand. A literal cannot stand in for a saved-flags place.
 The higher-level provider will wrap this value flow in the ordinary linear
 `InterruptMask` protocol; the instruction contract itself does not invent
 special-purpose linearity.
+
+`rdmsr <destination>, <index>` and `wrmsr <index>, <value>` expose the
+architectural EDX:EAX pair as one exact `u64` value and the ECX selector as an
+exact `u32` index. The read stores into an explicit writable place; the write
+splits its source into the architectural low/high halves. Both are x86-only,
+carry `MachineControl`, require `MachineOwner`, and declare every scratch or
+architectural register changed by their realized sequences. A higher-level
+MSR provider therefore cannot hide reach or authority by choosing direct
+assembly.
 
 The same `where` surface accepts boolean `requires` and `ensures` facts:
 
@@ -200,7 +209,7 @@ The freestanding x86 vertical slice needs contracts for:
 
 - completed `cli`/`sti`, `hlt`, and structured flags save/restore;
 - `in`/`out` port I/O;
-- `lidt`/`lgdt`, control-register and MSR access;
+- `lidt`/`lgdt` and control-register access (structured MSR access is complete);
 - atomics and the completed x86 fence slice;
 - cache/TLB maintenance and invalidation;
 - mode-transition operations; and

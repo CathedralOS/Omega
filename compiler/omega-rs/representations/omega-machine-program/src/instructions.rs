@@ -116,6 +116,10 @@ pub enum MachineInstructionKind {
     FlagsSnapshot,
     /// Compiler-balanced RFLAGS restore.
     FlagsRestore,
+    /// Structured x86 RDMSR.
+    MsrRead,
+    /// Structured x86 WRMSR.
+    MsrWrite,
     /// The x86 `out dx, al` port write (`asm { out .. }`). Storage operands
     /// relocate like any runtime-value read.
     PortWrite,

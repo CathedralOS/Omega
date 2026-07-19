@@ -428,6 +428,17 @@ pub enum TargetOperationKind {
     FlagsRestore {
         source: TargetValueOperandHandle,
     },
+    /// Structured x86 RDMSR: u32 index operand, u64 destination place.
+    MsrRead {
+        index: TargetValueOperandHandle,
+        dest_region: RuntimeStorageRegion,
+        dest_byte_offset: usize,
+    },
+    /// Structured x86 WRMSR: u32 index plus u64 value operands.
+    MsrWrite {
+        index: TargetValueOperandHandle,
+        value: TargetValueOperandHandle,
+    },
     /// The x86 `out dx, al` port write (`asm { out <port>, <value> }`),
     /// emitting `device_io`. `port` u16 + `value` u8 operands (immediate or
     /// storage; storage operands relocate).

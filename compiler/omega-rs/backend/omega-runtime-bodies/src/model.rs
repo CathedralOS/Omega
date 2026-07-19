@@ -67,6 +67,10 @@ pub enum RuntimeDispatchBodyOperationKind {
     FlagsSnapshot,
     /// Compiler-balanced RFLAGS restore from a u64 source place.
     FlagsRestore,
+    /// Structured x86 RDMSR into a u64 destination place.
+    MsrRead,
+    /// Structured x86 WRMSR from a u32 index and u64 value.
+    MsrWrite,
     /// An `asm { out <port>, <value> }` statement (a Call to `asm#port_out`):
     /// a raw port write, operands resolved at selection.
     PortWrite,

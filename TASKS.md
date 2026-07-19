@@ -21,8 +21,9 @@ the first timer tick. The design is recorded in
 `wiki/design_briefs/os_memory_and_hardware_foundation.md`, chapter 19, and
 chapter 23.
 
-1. **ASM2 — expand the x86 catalog.** Add `lidt` and the needed MSR/control
-   operations. Structured, stack-balanced `pushfq`/`popfq` flags value flow,
+1. **ASM2 — expand the x86 catalog.** Add `lidt` and the needed control-register
+   operations. Structured `rdmsr`/`wrmsr` value flow, stack-balanced
+   `pushfq`/`popfq` flags value flow,
    `lfence`/`sfence`/`mfence` ordering, and `cli`/`sti` interrupt control
    are complete. Direct assembly and
    abstract boundary services must contribute identical normalized

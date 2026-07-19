@@ -334,6 +334,7 @@ fn statement_covered_by_asm_storage_write(
                 instruction.kind,
                 SelectedInstructionKind::PortRead { .. }
                     | SelectedInstructionKind::FlagsSnapshot { .. }
+                    | SelectedInstructionKind::MsrRead { .. }
             ) && (instruction.source_key == source_key
                 || (instruction.source_key.machine == source_key.machine
                     && instruction.source_key.state == source_key.state))

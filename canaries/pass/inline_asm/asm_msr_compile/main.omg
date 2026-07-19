@@ -1,0 +1,19 @@
+// COMPILE CANARY (linux_x64 freestanding): MSR access is structured around a
+// u32 index and u64 value, carries machine-control reach, and exposes the full
+// realized register clobber set.
+data Main {
+    value: u64;
+}
+
+machine Main::main(&mut self) effects machine_control {
+    asm where clobbers rax, rcx, rdx, r10, r11, r15 {
+        rdmsr self.value, 3221225600;
+        wrmsr 3221225600, self.value
+    }
+}
+
+target linux_x64 {
+}
+
+target linux_arm64 {
+}

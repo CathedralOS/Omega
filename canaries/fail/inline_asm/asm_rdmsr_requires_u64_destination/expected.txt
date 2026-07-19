@@ -1,0 +1,1 @@
+asm instruction `rdmsr` operand `destination` requires an exact `u64` writable place

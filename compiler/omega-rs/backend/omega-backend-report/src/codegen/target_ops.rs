@@ -710,6 +710,12 @@ fn selected_instruction_name(
             dest_byte_offset, ..
         } => format!("RFLAGS snapshot -> +{dest_byte_offset}"),
         SelectedInstructionKind::FlagsRestore { .. } => "RFLAGS restore".to_owned(),
+        SelectedInstructionKind::MsrRead {
+            dest_byte_offset, ..
+        } => format!("model-specific register read (rdmsr) -> [{dest_byte_offset}]"),
+        SelectedInstructionKind::MsrWrite { .. } => {
+            "model-specific register write (wrmsr)".to_owned()
+        }
         SelectedInstructionKind::PortWrite { .. } => "port write (out)".to_owned(),
         SelectedInstructionKind::PortRead { dest_byte_offset, .. } => {
             format!("port read (in) -> [{dest_byte_offset}]")

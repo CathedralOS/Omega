@@ -288,6 +288,42 @@ pub(super) fn collect_runtime_storage_write_relocations(
             );
             true
         }
+        SelectedInstructionKind::MsrRead {
+            index, dest_region, ..
+        } => {
+            collect_runtime_value_operand_relocations(
+                context,
+                context.selected_text_offset,
+                *index,
+            );
+            let dest_symbol = context.storage_region_symbol_handle(*dest_region);
+            let dest_relative = omega_isa_x86_64::msr_read_destination_base_offset(
+                context.input.assigned_target_operations,
+                *index,
+            );
+            context.insert_data_address_at_relative_offset(dest_relative, dest_symbol);
+            true
+        }
+        SelectedInstructionKind::MsrWrite { index, value } => {
+            collect_runtime_value_operand_relocations(
+                context,
+                context.selected_text_offset,
+                *index,
+            );
+            let index_width = omega_instruction_selection::runtime_value_operand_width(
+                context.input.target.architecture,
+                context.input.assigned_target_operations,
+                *index,
+            );
+            collect_runtime_value_operand_relocations(
+                context,
+                context.selected_text_offset
+                    + index_width
+                    + omega_isa_x86_64::MSR_WRITE_INDEX_STASH_WIDTH,
+                *value,
+            );
+            true
+        }
         _ => false,
     }
 }

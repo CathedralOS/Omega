@@ -11,7 +11,8 @@ use omega_instruction_selection::{
     dispatch_loop_enter_width, dispatch_state_write_width, entry_argument_register_write_width,
     entry_arguments_slice_descriptor_write_width, flags_restore_width, flags_snapshot_width,
     function_enter_width, host_call_sequence_width, interrupt_control_width, machine_halt_width,
-    memory_fence_width, port_read_width, port_write_width, return_register_integer_write_width,
+    memory_fence_width, msr_read_width, msr_write_width, port_read_width, port_write_width,
+    return_register_integer_write_width,
     return_width, runtime_atomic_compare_exchange_width, runtime_atomic_fetch_add_width,
     runtime_byte_read_width, runtime_byte_write_width,
     runtime_frame_base_indexed_binary_write_width, runtime_frame_base_indexed_integer_write_width,
@@ -745,6 +746,22 @@ fn machine_instruction_width(
                 ));
             }
             flags_restore_width(input.assigned_target_operations, *source)
+        }
+        SelectedInstructionKind::MsrRead { index, .. } => {
+            if input.target.architecture != omega_target::Architecture::X86_64 {
+                return Err(Diagnostic::error(
+                    "asm instruction `rdmsr` is x86_64-only",
+                ));
+            }
+            msr_read_width(input.assigned_target_operations, *index)
+        }
+        SelectedInstructionKind::MsrWrite { index, value } => {
+            if input.target.architecture != omega_target::Architecture::X86_64 {
+                return Err(Diagnostic::error(
+                    "asm instruction `wrmsr` is x86_64-only",
+                ));
+            }
+            msr_write_width(input.assigned_target_operations, *index, *value)
         }
         SelectedInstructionKind::PortWrite { port, value } => {
             if input.target.architecture != omega_target::Architecture::X86_64 {
