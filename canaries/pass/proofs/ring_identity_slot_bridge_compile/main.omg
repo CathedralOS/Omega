@@ -1,5 +1,8 @@
 // COMPILE CANARY. The semiring constant slots are ordinary nullary machines;
 // compute-mode must bridge their applications to Nat's constructor constants.
+// Citations name the concrete satisfying proof machines; `satisfies` records
+// which abstract law slot each contract discharges, but does not mint a local
+// callable alias under the requirement's name.
 use omega::language::core::nat;
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
@@ -12,6 +15,6 @@ ensures
     add(a, zero()) == a;
     mul(a, one()) == a
 {
-    add_identity(a);
+    add_zero_right(a);
     mul_identity(a);
 }
