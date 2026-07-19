@@ -215,6 +215,8 @@ fn statement_asm_intrinsic(
         omega_core::symbols::BuiltinFunction::AsmFullFence => "mfence",
         omega_core::symbols::BuiltinFunction::AsmDisableInterrupts => "cli",
         omega_core::symbols::BuiltinFunction::AsmEnableInterrupts => "sti",
+        omega_core::symbols::BuiltinFunction::AsmSnapshotFlags => "pushfq",
+        omega_core::symbols::BuiltinFunction::AsmRestoreFlags => "popfq",
         _ => return None,
     };
     let omega_core::inline_assembly::AsmCatalogEntry::Contract(contract) =

@@ -173,9 +173,8 @@ pub(super) fn select_state_body_instructions(
             has_receiver: false,
             ..
         } = &operation.kind
-            && let Some(kind) = omega_core::inline_assembly::AsmFenceKind::from_intrinsic_name(
-                target.as_str(),
-            )
+            && let Some(kind) =
+                omega_core::inline_assembly::AsmFenceKind::from_intrinsic_name(target.as_str())
         {
             selected_instructions.push(SelectedInstruction {
                 kind: omega_abstract_operations::SelectedInstructionKind::MemoryFence(kind),
@@ -203,6 +202,42 @@ pub(super) fn select_state_body_instructions(
             continue;
         }
 
+        if let OperationKind::Call {
+            target,
+            has_receiver: false,
+            ..
+        } = &operation.kind
+            && target.as_str() == "asm#popfq"
+        {
+            if let Some(source_expression) = super::lookups::asm_flags_restore_source(
+                input,
+                state.key,
+                operation.statement_index,
+            ) {
+                let storage_dispatch_index =
+                    storage_dispatch_index_for_state(input, state.key, dispatch_index);
+                if let Some(source) = crate::selection::runtime_dispatch::writes::mutation::resolve_runtime_value_operand_in_table(
+                    input,
+                    storage_dispatch_index,
+                    state.key,
+                    operation.statement_index,
+                    &input.state_calls.expressions,
+                    source_expression,
+                    &static_values,
+                    runtime_value_operands,
+                ) {
+                    selected_instructions.push(SelectedInstruction {
+                        kind: omega_abstract_operations::SelectedInstructionKind::FlagsRestore {
+                            source,
+                        },
+                        source_key: state.key,
+                        source_statement: operation.statement_index,
+                    });
+                }
+            }
+            continue;
+        }
+
         // `asm { out <port>, <value> }` -- a Call to `asm#port_out`: resolve the
         // two operands and emit a raw port write.
         if let OperationKind::Call {
@@ -212,11 +247,9 @@ pub(super) fn select_state_body_instructions(
         } = &operation.kind
             && target.as_str() == "asm#port_out"
         {
-            if let Some((port_expr, value_expr)) = super::lookups::asm_port_write_operands(
-                input,
-                state.key,
-                operation.statement_index,
-            ) {
+            if let Some((port_expr, value_expr)) =
+                super::lookups::asm_port_write_operands(input, state.key, operation.statement_index)
+            {
                 let storage_dispatch_index =
                     storage_dispatch_index_for_state(input, state.key, dispatch_index);
                 let port = crate::selection::runtime_dispatch::writes::mutation::resolve_runtime_value_operand_in_table(
@@ -307,6 +340,31 @@ pub(super) fn select_state_body_instructions(
             let storage_dispatch_index =
                 storage_dispatch_index_for_state(input, state.key, dispatch_index);
 
+            if let Some(dest_expr) = super::lookups::asm_flags_snapshot_destination(
+                input,
+                state.key,
+                operation.statement_index,
+            ) {
+                let dest = crate::selection::storage_places::resolve_runtime_storage_place_in_table(
+                    input, storage_dispatch_index, state.key,
+                    &input.state_storage.expressions, dest_expr,
+                );
+                if let Some(dest) = dest {
+                    selected_instructions.push(SelectedInstruction {
+                        kind: omega_abstract_operations::SelectedInstructionKind::FlagsSnapshot {
+                            dest_region: dest.region,
+                            dest_byte_offset: dest.byte_offset,
+                        },
+                        source_key: state.key,
+                        source_statement: operation.statement_index,
+                    });
+                    // The hardware value is not a compile-time constant. Keep
+                    // later reads from reusing any pre-snapshot fold.
+                    static_values.clear();
+                }
+                continue;
+            }
+
             // `asm { in <dest>, <port> }` -- an assignment whose value is the
             // `asm#port_in` call: emit a raw port read into the destination
             // place instead of a mutation write.
@@ -318,8 +376,11 @@ pub(super) fn select_state_body_instructions(
                     &input.state_storage.expressions, port_expr, &static_values, runtime_value_operands,
                 );
                 let dest = crate::selection::storage_places::resolve_runtime_storage_place_in_table(
-                    input, storage_dispatch_index, state.key,
-                    &input.state_storage.expressions, dest_expr,
+                    input,
+                    storage_dispatch_index,
+                    state.key,
+                    &input.state_storage.expressions,
+                    dest_expr,
                 );
                 if let (Some(port), Some(dest)) = (port, dest) {
                     selected_instructions.push(SelectedInstruction {

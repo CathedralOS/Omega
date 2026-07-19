@@ -36,6 +36,8 @@ pub(super) fn bind_runtime_operation_aliases(
         | RuntimeDispatchBodyOperationKind::MachineHalt
         | RuntimeDispatchBodyOperationKind::MemoryFence(_)
         | RuntimeDispatchBodyOperationKind::InterruptControl(_)
+        | RuntimeDispatchBodyOperationKind::FlagsSnapshot
+        | RuntimeDispatchBodyOperationKind::FlagsRestore
         | RuntimeDispatchBodyOperationKind::PortWrite
         | RuntimeDispatchBodyOperationKind::PortRead
         | RuntimeDispatchBodyOperationKind::LocalStorage { .. }

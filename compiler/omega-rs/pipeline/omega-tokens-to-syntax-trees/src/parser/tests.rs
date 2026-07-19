@@ -151,10 +151,7 @@ fn linear_property_is_first_class_on_data_and_type_parameters() {
 
 #[test]
 fn copy_and_linear_properties_are_mutually_exclusive() {
-    for source in [
-        "data Bad [copy, linear] {}",
-        "data Bad [linear, copy] {}",
-    ] {
+    for source in ["data Bad [copy, linear] {}", "data Bad [linear, copy] {}"] {
         let tokens = Lexer::new(source)
             .tokenize()
             .expect("tokenize should succeed");
@@ -1006,6 +1003,50 @@ fn parses_x86_interrupt_control_as_zero_operand_intrinsics() {
 }
 
 #[test]
+fn parses_x86_flags_as_explicit_value_operations() {
+    let source = r#"
+        data Main { saved: u64; }
+
+        machine Main::main(&mut self) effects machine_control {
+            asm where clobbers r10, r15 {
+                pushfq self.saved;
+                popfq self.saved
+            }
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+    let state = parsed.items.state(parsed.items.state_handles(machine.states)[0]);
+    let statements = parsed.items.statements(state.statements);
+    assert_eq!(statements.len(), 2);
+
+    let StatementNode::Assignment(snapshot) = parsed.statements.statement(statements[0]) else {
+        panic!("pushfq should desugar to a destination assignment");
+    };
+    let ExpressionNode::Call(call) = parsed.expressions.expression(snapshot.value) else {
+        panic!("pushfq assignment should contain the snapshot intrinsic");
+    };
+    assert_eq!(call.target.as_str(), "asm#pushfq");
+    assert_eq!(call.arguments.count(), 0);
+
+    let StatementNode::Call(restore) = parsed.statements.statement(statements[1]) else {
+        panic!("popfq should desugar to a call statement");
+    };
+    assert_eq!(restore.target.as_str(), "asm#popfq");
+    assert_eq!(restore.arguments.count(), 1);
+}
+
+#[test]
 fn parses_multi_instruction_asm_in_states_and_trait_defaults() {
     let source = r#"
         trait Idle {
@@ -1129,7 +1170,7 @@ fn rejects_asm_availability_and_unmodeled_operation_classes() {
 fn parses_exact_asm_where_clobber_contracts() {
     for block in [
         "asm where clobbers none { hlt }",
-        "asm where clobbers r11, rax, rdx, r10 { out self.port, self.value }",
+        "asm where clobbers r11, rax, rdx, r10, r15 { out self.port, self.value }",
     ] {
         let source = format!(
             r#"
@@ -1151,7 +1192,7 @@ fn parses_asm_where_facts_at_entry_and_exit() {
         machine Main::main(&mut self) {
             asm where
                 requires self.ready
-                clobbers rax, rdx, r10, r11
+                clobbers rax, rdx, r10, r11, r15
                 ensures self.ready
             { out self.port, self.value }
         }
@@ -1165,7 +1206,9 @@ fn parses_asm_where_facts_at_entry_and_exit() {
             _ => None,
         })
         .expect("machine");
-    let state = parsed.items.state(parsed.items.state_handles(machine.states)[0]);
+    let state = parsed
+        .items
+        .state(parsed.items.state_handles(machine.states)[0]);
     let statements = parsed.items.statements(state.statements);
     assert_eq!(statements.len(), 3);
     assert!(matches!(

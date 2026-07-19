@@ -133,6 +133,32 @@ pub fn interrupt_control_width(architecture: Architecture) -> Option<usize> {
     }
 }
 
+/// RFLAGS value operations are x86_64-only. Layout/encoding reject other
+/// architectures before using these target-specific helpers.
+pub fn flags_snapshot_width() -> usize {
+    x86_64::flags_snapshot_width()
+}
+
+pub fn flags_restore_width(
+    source: &impl RuntimeValueOperandSource,
+    operand: RuntimeValueOperandHandle,
+) -> usize {
+    x86_64::flags_restore_width(source, operand)
+}
+
+pub fn encode_flags_snapshot_bytes(
+    dest_byte_offset: usize,
+) -> Result<Vec<u8>, omega_core::diagnostics::Diagnostic> {
+    x86_64::encode_flags_snapshot(dest_byte_offset)
+}
+
+pub fn encode_flags_restore_bytes(
+    source: &impl RuntimeValueOperandSource,
+    operand: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, omega_core::diagnostics::Diagnostic> {
+    x86_64::encode_flags_restore(source, operand)
+}
+
 /// Port I/O is x86_64-only (ARM has no port space -- MMIO instead), so these
 /// take no architecture: the layout/encoding sites reject a non-x86_64 target
 /// before calling them.
@@ -888,7 +914,12 @@ pub fn runtime_machine_indexed_binary_write_width(
             right,
         ),
         Architecture::X86_64 => {
-            let _ = (base_byte_offset, index_offset, element_byte_size, field_byte_offset);
+            let _ = (
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+            );
             x86_64::runtime_machine_indexed_binary_write_width(
                 runtime_value_operands,
                 index_region,
@@ -1143,7 +1174,12 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
             // layout comment): the single-value layout has it after the
             // element load (+44 frame-index / +34 machine-index); the chunked
             // layout puts it right after `add r15,rax` (+37 / +27).
-            let _ = (base_byte_offset, index_offset, element_byte_size, field_byte_offset);
+            let _ = (
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+            );
             let frame_index =
                 index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
             if matches!(byte_count, 1 | 4 | 8) {
@@ -1186,7 +1222,10 @@ pub fn runtime_frame_base_indexed_address_target_frame_offset(
 
 /// Width of the ByteRead stdin read (0 = the refuse-to-emit convention for
 /// mechanisms the op can never bind to).
-pub fn runtime_byte_read_width(architecture: Architecture, binding: &HostBindingMechanism) -> usize {
+pub fn runtime_byte_read_width(
+    architecture: Architecture,
+    binding: &HostBindingMechanism,
+) -> usize {
     match architecture {
         Architecture::Aarch64 => match binding {
             HostBindingMechanism::Import { .. } => aarch64::runtime_byte_read_import_width(),
@@ -1420,7 +1459,13 @@ pub fn runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
             )
         }
         Architecture::X86_64 => {
-            let _ = (base_byte_offset, index_region, index_offset, element_byte_size, field_byte_offset);
+            let _ = (
+                base_byte_offset,
+                index_region,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+            );
             0
         }
     }
@@ -1668,12 +1713,10 @@ pub fn runtime_machine_double_indexed_binary_left_operand_offset(
                 inner_index_region,
             )
         }
-        Architecture::X86_64 => {
-            x86_64::runtime_machine_double_indexed_binary_left_operand_offset(
-                outer_index_region,
-                inner_index_region,
-            )
-        }
+        Architecture::X86_64 => x86_64::runtime_machine_double_indexed_binary_left_operand_offset(
+            outer_index_region,
+            inner_index_region,
+        ),
     }
 }
 
@@ -1710,7 +1753,9 @@ pub fn append_wire_literal_byte_width(
     written_offset: usize,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => aarch64::append_wire_literal_byte_width(out_offset, written_offset),
+        Architecture::Aarch64 => {
+            aarch64::append_wire_literal_byte_width(out_offset, written_offset)
+        }
         Architecture::X86_64 => x86_64::append_wire_literal_byte_width(out_offset, written_offset),
     }
 }

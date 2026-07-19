@@ -607,6 +607,18 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
             omega_abstract_operations::AbstractOperationKind::InterruptControl(kind) => {
                 Self::InterruptControl(*kind)
             }
+            omega_abstract_operations::AbstractOperationKind::FlagsSnapshot {
+                dest_region,
+                dest_byte_offset,
+            } => Self::FlagsSnapshot {
+                dest_region: *dest_region,
+                dest_byte_offset: *dest_byte_offset,
+            },
+            omega_abstract_operations::AbstractOperationKind::FlagsRestore { source } => {
+                Self::FlagsRestore {
+                    source: remap_runtime_value_handle(*source),
+                }
+            }
             omega_abstract_operations::AbstractOperationKind::PortWrite { port, value } => {
                 Self::PortWrite {
                     port: remap_runtime_value_handle(*port),

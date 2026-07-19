@@ -8,35 +8,32 @@ use omega_calling_conventions::HostBindingMechanism;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection::{
     dispatch_case_enter_width, dispatch_case_leave_width, dispatch_guard_compare_static_width,
-    runtime_atomic_compare_exchange_width, runtime_atomic_fetch_add_width,
+    dispatch_loop_enter_width, dispatch_state_write_width, entry_argument_register_write_width,
+    entry_arguments_slice_descriptor_write_width, flags_restore_width, flags_snapshot_width,
+    function_enter_width, host_call_sequence_width, interrupt_control_width, machine_halt_width,
+    memory_fence_width, port_read_width, port_write_width, return_register_integer_write_width,
+    return_width, runtime_atomic_compare_exchange_width, runtime_atomic_fetch_add_width,
     runtime_byte_read_width, runtime_byte_write_width,
-    dispatch_loop_enter_width, dispatch_state_write_width, function_enter_width,
-    host_call_sequence_width, interrupt_control_width, machine_halt_width, memory_fence_width,
-    port_read_width, port_write_width,
-    return_register_integer_write_width, return_width, table_function_call_sequence_width,
-    vtable_call_sequence_width,
     runtime_frame_base_indexed_binary_write_width, runtime_frame_base_indexed_integer_write_width,
     runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
     runtime_machine_bounded_buffer_literal_append_width,
     runtime_machine_bounded_buffer_source_append_width,
-    runtime_machine_indexed_binary_write_width, runtime_machine_integer_write_width,
-    runtime_pointee_binary_write_width, runtime_pointee_integer_write_width,
-    runtime_storage_binary_write_width,
-    runtime_storage_convert_width,
-    runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width,
-    runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage_width,
-    runtime_machine_double_indexed_integer_write_width,
     runtime_machine_double_indexed_binary_write_width,
+    runtime_machine_double_indexed_integer_write_width, runtime_machine_indexed_binary_write_width,
+    runtime_machine_integer_write_width, runtime_pointee_binary_write_width,
+    runtime_pointee_integer_write_width, runtime_storage_binary_write_width,
+    runtime_storage_convert_width,
     runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width,
+    runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width,
     runtime_storage_copy_machine_indexed_to_machine_indexed_width,
-    entry_argument_register_write_width, entry_arguments_slice_descriptor_write_width,
     runtime_storage_copy_to_return_register_width,
-    runtime_text_buffer_materialize_width,
-    runtime_text_line_read_width, runtime_text_literal_append_width,
-    runtime_text_literal_compare_width, runtime_text_literal_segment_write_width,
-    runtime_text_literal_write_width, runtime_text_storage_compare_width,
-    runtime_text_stored_place_append_width, runtime_text_stored_suffix_append_width,
-    runtime_value_compare_width, syscall_sequence_width,
+    runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage_width,
+    runtime_text_buffer_materialize_width, runtime_text_line_read_width,
+    runtime_text_literal_append_width, runtime_text_literal_compare_width,
+    runtime_text_literal_segment_write_width, runtime_text_literal_write_width,
+    runtime_text_storage_compare_width, runtime_text_stored_place_append_width,
+    runtime_text_stored_suffix_append_width, runtime_value_compare_width, syscall_sequence_width,
+    table_function_call_sequence_width, vtable_call_sequence_width,
 };
 use omega_machine_instructions::{MachineInstruction, MachineInstructionKind};
 
@@ -732,6 +729,22 @@ fn machine_instruction_width(
                     kind.mnemonic(),
                 ))
             });
+        }
+        SelectedInstructionKind::FlagsSnapshot { .. } => {
+            if input.target.architecture != omega_target::Architecture::X86_64 {
+                return Err(Diagnostic::error(
+                    "asm instruction `pushfq` is x86_64-only",
+                ));
+            }
+            flags_snapshot_width()
+        }
+        SelectedInstructionKind::FlagsRestore { source } => {
+            if input.target.architecture != omega_target::Architecture::X86_64 {
+                return Err(Diagnostic::error(
+                    "asm instruction `popfq` is x86_64-only",
+                ));
+            }
+            flags_restore_width(input.assigned_target_operations, *source)
         }
         SelectedInstructionKind::PortWrite { port, value } => {
             if input.target.architecture != omega_target::Architecture::X86_64 {

@@ -129,4 +129,3 @@ fn validate_transition_arguments_handles(
         diagnostics,
     );
 }
-

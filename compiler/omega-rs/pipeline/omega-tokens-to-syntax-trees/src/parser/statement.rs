@@ -225,6 +225,10 @@ fn parse_discard_statement_handle<'tokens, 'source>(
 ///   Intel dest-first operand order (emits `device_io`)
 /// - x86 fences and `cli`/`sti` -> zero-operand unnameable intrinsics carrying
 ///   their catalog ordering/state/effect contracts
+/// - `pushfq <dest>`            -> `<dest> = asm#pushfq()`; the backend emits
+///   a balanced snapshot sequence
+/// - `popfq <source>`           -> `asm#popfq(source)`; the backend emits a
+///   balanced restore sequence
 ///
 /// `asm where ... { ... }` additionally authors block proof obligations and/or
 /// an exact clobber contract. `requires` facts become assertions immediately
@@ -247,9 +251,11 @@ pub(super) fn parse_asm_block_statement_handles<'tokens, 'source>(
     // flattened statement stream. `true` is a proof-neutral requires fact: it
     // brackets the block without granting any authored proposition.
     if contract.requires.is_empty() && !contract.ensures.is_empty() {
-        contract
-            .requires
-            .push(syntax_trees.expressions.insert(ExpressionNode::Boolean(true)));
+        contract.requires.push(
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Boolean(true)),
+        );
     }
 
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
@@ -505,7 +511,8 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
     let Some(entry) = asm_catalog_entry(mnemonic.as_str()) else {
         return Err(mnemonic_site.error_here(format!(
             "unknown asm instruction `{}`: only known-contract instructions compile \
-             (`hlt`, `in`, `out`, `jmp`, `lfence`, `sfence`, `mfence`, `cli`, `sti`); opaque forms \
+             (`hlt`, `in`, `out`, `jmp`, `lfence`, `sfence`, `mfence`, `cli`, `sti`, \
+             `pushfq`, `popfq`); opaque forms \
              (`db`, raw bytes) are rejected",
             mnemonic.as_str()
         )));
@@ -657,6 +664,52 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             },
             input,
         )),
+        AsmInstructionShape::FlagsSnapshot => {
+            let (destination, input) = parse_expression_handle(syntax_trees, input)?;
+            let value =
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Call(TableCallExpression {
+                        receiver: ExpressionHandle::invalid(),
+                        target: Identifier::new("asm#pushfq", mnemonic.source_span()),
+                        machine_arguments: Box::default(),
+                        arguments: HandleSpan::empty(),
+                    }));
+            Ok((
+                ParsedAsmInstruction {
+                    statement: syntax_trees.statements.insert(StatementNode::Assignment(
+                        TableAssignment {
+                            target: destination,
+                            value,
+                        },
+                    )),
+                    contract,
+                },
+                input,
+            ))
+        }
+        AsmInstructionShape::FlagsRestore => {
+            let (source, input) = parse_expression_handle(syntax_trees, input)?;
+            let arguments = syntax_trees
+                .statements
+                .insert_expression_handles(vec![source]);
+            Ok((
+                ParsedAsmInstruction {
+                    statement: syntax_trees
+                        .statements
+                        .insert(StatementNode::Call(TableCall {
+                            receiver: HandleSpan::empty(),
+                            receiver_starts_at_self: false,
+                            target: Identifier::new("asm#popfq", mnemonic.source_span()),
+                            machine_arguments: Box::default(),
+                            arguments,
+                            discards_result: false,
+                        })),
+                    contract,
+                },
+                input,
+            ))
+        }
         AsmInstructionShape::DerivedExit => {
             unreachable!("deriver-only instructions refuse before source lowering")
         }
@@ -823,8 +876,10 @@ fn parse_local_data_statement_handle<'tokens, 'source>(
 pub(super) fn try_parse_atomic_compare_exchange_let<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> Option<(HandleSpan<omega_syntax_trees::statement::StatementHandle>, Input<'tokens, 'source>)>
-{
+) -> Option<(
+    HandleSpan<omega_syntax_trees::statement::StatementHandle>,
+    Input<'tokens, 'source>,
+)> {
     // Must start with `let`.
     if !input.at_keyword(KeywordKind::Let) {
         return None;
@@ -957,8 +1012,10 @@ pub(super) fn try_parse_atomic_compare_exchange_let<'tokens, 'source>(
 pub(super) fn try_parse_destructure_let<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> Option<(HandleSpan<omega_syntax_trees::statement::StatementHandle>, Input<'tokens, 'source>)>
-{
+) -> Option<(
+    HandleSpan<omega_syntax_trees::statement::StatementHandle>,
+    Input<'tokens, 'source>,
+)> {
     use omega_syntax_trees::expression::{ExpressionNode, TableMemberExpression};
 
     if !input.at_keyword(KeywordKind::Let) {
@@ -972,8 +1029,10 @@ pub(super) fn try_parse_destructure_let<'tokens, 'source>(
         .take_punctuation(PunctuationKind::LeftBrace, "{")
         .ok()?;
     // (field, binding-or-None-for-waived)
-    let mut fields: Vec<(omega_syntax_trees::identifier::Identifier, Option<omega_syntax_trees::identifier::Identifier>)> =
-        Vec::new();
+    let mut fields: Vec<(
+        omega_syntax_trees::identifier::Identifier,
+        Option<omega_syntax_trees::identifier::Identifier>,
+    )> = Vec::new();
     loop {
         if rest.at_punctuation(PunctuationKind::RightBrace) {
             rest = rest
@@ -1022,7 +1081,10 @@ pub(super) fn try_parse_destructure_let<'tokens, 'source>(
         .ok()?;
     // V1 place gate: the destructured value must be a Name or member chain
     // (pure re-readable place; calls would double-evaluate).
-    fn is_place(syntax_trees: &SyntaxTrees, expression: omega_syntax_trees::expression::ExpressionHandle) -> bool {
+    fn is_place(
+        syntax_trees: &SyntaxTrees,
+        expression: omega_syntax_trees::expression::ExpressionHandle,
+    ) -> bool {
         match syntax_trees.expressions.expression(expression) {
             ExpressionNode::Name(_) | ExpressionNode::SelfValue => true,
             ExpressionNode::Member(member) => is_place(syntax_trees, member.receiver),
@@ -1084,8 +1146,10 @@ pub(super) fn try_parse_destructure_let<'tokens, 'source>(
 pub(super) fn try_parse_atomic_fetch_add_let<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> Option<(HandleSpan<omega_syntax_trees::statement::StatementHandle>, Input<'tokens, 'source>)>
-{
+) -> Option<(
+    HandleSpan<omega_syntax_trees::statement::StatementHandle>,
+    Input<'tokens, 'source>,
+)> {
     // Must start with `let`.
     if !input.at_keyword(KeywordKind::Let) {
         return None;

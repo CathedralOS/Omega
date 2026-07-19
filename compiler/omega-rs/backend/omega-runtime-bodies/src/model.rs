@@ -63,6 +63,10 @@ pub enum RuntimeDispatchBodyOperationKind {
     /// x86 CLI/STI interrupt-flag control. The kind retains the catalog's
     /// disable versus delayed-enable distinction through selection.
     InterruptControl(omega_core::inline_assembly::AsmInterruptControlKind),
+    /// Compiler-balanced RFLAGS snapshot into a u64 destination place.
+    FlagsSnapshot,
+    /// Compiler-balanced RFLAGS restore from a u64 source place.
+    FlagsRestore,
     /// An `asm { out <port>, <value> }` statement (a Call to `asm#port_out`):
     /// a raw port write, operands resolved at selection.
     PortWrite,

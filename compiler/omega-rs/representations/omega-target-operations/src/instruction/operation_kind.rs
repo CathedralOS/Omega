@@ -419,6 +419,15 @@ pub enum TargetOperationKind {
     MemoryFence(omega_core::inline_assembly::AsmFenceKind),
     /// x86 CLI/STI interrupt-flag control.
     InterruptControl(omega_core::inline_assembly::AsmInterruptControlKind),
+    /// Compiler-balanced `pushfq` snapshot into explicit runtime storage.
+    FlagsSnapshot {
+        dest_region: RuntimeStorageRegion,
+        dest_byte_offset: usize,
+    },
+    /// Compiler-balanced `popfq` restore from an explicit u64 operand.
+    FlagsRestore {
+        source: TargetValueOperandHandle,
+    },
     /// The x86 `out dx, al` port write (`asm { out <port>, <value> }`),
     /// emitting `device_io`. `port` u16 + `value` u8 operands (immediate or
     /// storage; storage operands relocate).

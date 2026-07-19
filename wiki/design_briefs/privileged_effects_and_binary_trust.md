@@ -88,8 +88,11 @@ The first useful slice is:
 
 The subsequent x86 catalog now also carries `cli`/`sti` as `MachineControl`
 operations with explicit `MachineOwner` authority, target applicability, and
-RFLAGS.IF transitions (including STI's delayed recognition rule). Their
-higher-level save/restore protocol remains an ordinary linear token.
+RFLAGS.IF transitions (including STI's delayed recognition rule). Structured
+`pushfq <destination>`/`popfq <source>` operations preserve RSP, use exact
+`u64` places, and give restore the same `MachineControl`/`MachineOwner`
+contract. Their higher-level saved-mask/restore protocol remains an ordinary
+provider-minted linear token.
 
 ## Still open
 

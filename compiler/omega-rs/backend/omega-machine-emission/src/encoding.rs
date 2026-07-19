@@ -208,12 +208,7 @@ pub(super) fn encode_machine_instruction_bytes(
             byte_size,
             delta,
             ..
-        } => runtime_storage::encode_atomic_fetch_add(
-            input,
-            *target_offset,
-            *byte_size,
-            *delta,
-        ),
+        } => runtime_storage::encode_atomic_fetch_add(input, *target_offset, *byte_size, *delta),
         SelectedInstructionKind::AtomicCompareExchange {
             target_offset,
             byte_size,
@@ -522,16 +517,13 @@ pub(super) fn encode_machine_instruction_bytes(
             omega_instruction_selection::encode_machine_halt_bytes(input.target.architecture),
         ),
         SelectedInstructionKind::MemoryFence(kind) => {
-            omega_instruction_selection::encode_memory_fence_bytes(
-                input.target.architecture,
-                *kind,
-            )
-            .ok_or_else(|| {
-                omega_core::diagnostics::Diagnostic::error(format!(
-                    "asm instruction `{}` is x86_64-only",
-                    kind.mnemonic(),
-                ))
-            })
+            omega_instruction_selection::encode_memory_fence_bytes(input.target.architecture, *kind)
+                .ok_or_else(|| {
+                    omega_core::diagnostics::Diagnostic::error(format!(
+                        "asm instruction `{}` is x86_64-only",
+                        kind.mnemonic(),
+                    ))
+                })
         }
         SelectedInstructionKind::InterruptControl(kind) => {
             omega_instruction_selection::encode_interrupt_control_bytes(
@@ -544,6 +536,27 @@ pub(super) fn encode_machine_instruction_bytes(
                     kind.mnemonic(),
                 ))
             })
+        }
+        SelectedInstructionKind::FlagsSnapshot {
+            dest_byte_offset, ..
+        } => {
+            if input.target.architecture != omega_target::Architecture::X86_64 {
+                return Err(omega_core::diagnostics::Diagnostic::error(
+                    "asm instruction `pushfq` is x86_64-only",
+                ));
+            }
+            omega_instruction_selection::encode_flags_snapshot_bytes(*dest_byte_offset)
+        }
+        SelectedInstructionKind::FlagsRestore { source } => {
+            if input.target.architecture != omega_target::Architecture::X86_64 {
+                return Err(omega_core::diagnostics::Diagnostic::error(
+                    "asm instruction `popfq` is x86_64-only",
+                ));
+            }
+            omega_instruction_selection::encode_flags_restore_bytes(
+                input.assigned_target_operations,
+                *source,
+            )
         }
         // Port I/O (`asm { out .. }` / `asm { in .. }`) has no branch distance;
         // its storage operands carry relocations, applied by omega-relocations

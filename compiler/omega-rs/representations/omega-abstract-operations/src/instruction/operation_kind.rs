@@ -558,6 +558,15 @@ pub enum AbstractOperationKind {
     MemoryFence(omega_core::inline_assembly::AsmFenceKind),
     /// x86 CLI/STI interrupt-flag control.
     InterruptControl(omega_core::inline_assembly::AsmInterruptControlKind),
+    /// Compiler-balanced `pushfq` snapshot into explicit runtime storage.
+    FlagsSnapshot {
+        dest_region: RuntimeStorageRegion,
+        dest_byte_offset: usize,
+    },
+    /// Compiler-balanced `popfq` restore from an explicit u64 operand.
+    FlagsRestore {
+        source: AbstractValueOperandHandle,
+    },
     /// The x86 `out dx, al` port write (`asm { out <port>, <value> }`),
     /// emitting the `device_io` effect. `port` is a u16 operand, `value` a u8
     /// operand (each an immediate or a storage read; storage operands relocate

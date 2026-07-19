@@ -272,6 +272,22 @@ pub(super) fn collect_runtime_storage_write_relocations(
             context.insert_data_address_at_relative_offset(dest_store_relative, dest_symbol);
             true
         }
+        SelectedInstructionKind::FlagsSnapshot { dest_region, .. } => {
+            let dest_symbol = context.storage_region_symbol_handle(*dest_region);
+            context.insert_data_address_at_relative_offset(
+                omega_isa_x86_64::FLAGS_SNAPSHOT_DESTINATION_BASE_OFFSET,
+                dest_symbol,
+            );
+            true
+        }
+        SelectedInstructionKind::FlagsRestore { source } => {
+            collect_runtime_value_operand_relocations(
+                context,
+                context.selected_text_offset,
+                *source,
+            );
+            true
+        }
         _ => false,
     }
 }

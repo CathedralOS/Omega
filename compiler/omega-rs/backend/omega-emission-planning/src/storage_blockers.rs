@@ -56,7 +56,11 @@ pub(super) fn collect_state_storage_blockers(
             continue;
         }
         if state_mutation_is_planned(input, local.source_key, local.statement_index)
-            || statement_covered_by_port_read(input, local.source_key, local.statement_index)
+            || statement_covered_by_asm_storage_write(
+                input,
+                local.source_key,
+                local.statement_index,
+            )
         {
             continue;
         }
@@ -151,7 +155,11 @@ pub(super) fn collect_state_storage_blockers(
         // is the `asm#port_in` call; instruction selection lowers it to a raw
         // PortRead into the destination place, so its residual mutation record
         // is legitimately unlowered.
-        if statement_covered_by_port_read(input, mutation.source_key, mutation.statement_index) {
+        if statement_covered_by_asm_storage_write(
+            input,
+            mutation.source_key,
+            mutation.statement_index,
+        ) {
             continue;
         }
 
@@ -311,7 +319,7 @@ fn runtime_storage_write_is_planned(
 /// True when statement `(source_key, statement_index)` emitted a raw PortRead
 /// instruction (an `asm { in .. }`), whose destination store covers the
 /// assignment's mutation record.
-fn statement_covered_by_port_read(
+fn statement_covered_by_asm_storage_write(
     input: &EmissionPlanningInput<'_>,
     source_key: StateKey,
     statement_index: usize,
@@ -322,10 +330,13 @@ fn statement_covered_by_port_read(
         .instructions
         .iter()
         .any(|(_, instruction)| {
-            matches!(instruction.kind, SelectedInstructionKind::PortRead { .. })
-                && (instruction.source_key == source_key
-                    || (instruction.source_key.machine == source_key.machine
-                        && instruction.source_key.state == source_key.state))
+            matches!(
+                instruction.kind,
+                SelectedInstructionKind::PortRead { .. }
+                    | SelectedInstructionKind::FlagsSnapshot { .. }
+            ) && (instruction.source_key == source_key
+                || (instruction.source_key.machine == source_key.machine
+                    && instruction.source_key.state == source_key.state))
                 && instruction.source_statement == statement_index
         })
 }

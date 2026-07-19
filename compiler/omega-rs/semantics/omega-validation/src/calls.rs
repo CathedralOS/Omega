@@ -68,6 +68,7 @@ pub(crate) fn validate_call_node(
             "asm#mfence" => ("mfence", 0),
             "asm#cli" => ("cli", 0),
             "asm#sti" => ("sti", 0),
+            "asm#popfq" => ("popfq", 1),
             other => {
                 diagnostics.push(Diagnostic::error(format!(
                     "asm intrinsic `{other}` is not a statement form"
@@ -84,7 +85,7 @@ pub(crate) fn validate_call_node(
             )));
             return;
         }
-        if source_mnemonic == "out" {
+        if matches!(source_mnemonic, "out" | "popfq") {
             let contract = user_asm_contract(source_mnemonic);
             for (operand, constraint) in arguments.iter().zip(contract.operands.iter()) {
                 validate_asm_operand_constraint(
@@ -438,7 +439,12 @@ fn validate_asm_operand_constraint(
         return;
     }
 
-    let actual = asm_operand_primitive_type(program, machine, state, operand);
+    let actual = if constraint.requires_place() {
+        crate::places::declared_place_type(program, machine, state, operand)
+            .and_then(|type_reference| program.primitive_type_reference(type_reference))
+    } else {
+        asm_operand_primitive_type(program, machine, state, operand)
+    };
     let expected = PrimitiveType::from_name(constraint.expected_type_name())
         .expect("asm operand constraint must name a primitive type");
     if actual == Some(expected) {
@@ -481,7 +487,7 @@ fn asm_operand_primitive_type(
     }
 }
 
-pub(crate) fn validate_asm_port_read_destination(
+pub(crate) fn validate_asm_value_destination(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
@@ -491,15 +497,17 @@ pub(crate) fn validate_asm_port_read_destination(
     let ExpressionNode::Call(call) = program.expression_table.expression(assignment.value) else {
         return;
     };
-    if call.target.as_str() != "asm#port_in" {
-        return;
-    }
-    let contract = user_asm_contract("in");
+    let instruction = match call.target.as_str() {
+        "asm#port_in" => "in",
+        "asm#pushfq" => "pushfq",
+        _ => return,
+    };
+    let contract = user_asm_contract(instruction);
     validate_asm_operand_constraint(
         program,
         machine,
         state,
-        "in",
+        instruction,
         assignment.target,
         contract.operands[0],
         diagnostics,
@@ -1754,12 +1762,7 @@ fn guarded_integer_predecessor_call(
         return false;
     };
     if predecessor.operator != omega_typed_trees::expression::BinaryOperator::Subtract
-        || !expression_names_measure(
-            program,
-            predecessor.left,
-            measure_symbol,
-            measure_name,
-        )
+        || !expression_names_measure(program, predecessor.left, measure_symbol, measure_name)
         || !matches!(
             program.expression_table.expression(predecessor.right),
             ExpressionNode::Integer(literal) if literal.value_i64() == Some(1)
@@ -1786,7 +1789,10 @@ fn guarded_integer_predecessor_call(
                         && matches!(
                             program.expression_table.expression(wrapper.right),
                             ExpressionNode::Boolean(true)
-                        ) => wrapper.left,
+                        ) =>
+                {
+                    wrapper.left
+                }
                 _ => guard,
             };
             let ExpressionNode::Binary(positive) = program.expression_table.expression(guard)
@@ -1794,12 +1800,7 @@ fn guarded_integer_predecessor_call(
                 return false;
             };
             if positive.operator != omega_typed_trees::expression::BinaryOperator::Greater
-                || !expression_names_measure(
-                    program,
-                    positive.left,
-                    measure_symbol,
-                    measure_name,
-                )
+                || !expression_names_measure(program, positive.left, measure_symbol, measure_name)
                 || !matches!(
                     program.expression_table.expression(positive.right),
                     ExpressionNode::Integer(literal) if literal.value_i64() == Some(0)
@@ -3014,6 +3015,17 @@ fn validate_expression_call_bounds(
     call: &TableCallExpression,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if call.target.as_str() == "asm#pushfq" && !call.receiver.is_valid() {
+        let arguments = program.expression_table.expression_handles(call.arguments);
+        if !arguments.is_empty() {
+            diagnostics.push(Diagnostic::error(format!(
+                "asm intrinsic `asm#pushfq` takes 0 operands, found {}",
+                arguments.len()
+            )));
+        }
+        return;
+    }
+
     if call.target.as_str() == "asm#port_in" && !call.receiver.is_valid() {
         let arguments = program.expression_table.expression_handles(call.arguments);
         if arguments.len() != 1 {
@@ -3743,7 +3755,10 @@ fn report_unresolved_value_call(
         // value builtins remain. `asm#port_in` is the value-position asm
         // intrinsic (`asm { in dest, port }` desugars to `dest =
         // asm#port_in(port)`); the name is unnameable from source.
-        if matches!(target, "min" | "max" | "sqrt" | "asm#port_in") {
+        if matches!(
+            target,
+            "min" | "max" | "sqrt" | "asm#port_in" | "asm#pushfq"
+        ) {
             return;
         }
         diagnostics.push(Diagnostic::error(format!(

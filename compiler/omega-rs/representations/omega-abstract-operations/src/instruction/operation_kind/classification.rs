@@ -27,9 +27,7 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::AppendRuntimeTextStoredSuffix { .. }
             | Self::MaterializeTextBufferToPlace { .. }
             | Self::AppendTextStoredToPlace { .. }
-            | Self::AppendTextLiteralToPlace { .. } => {
-                AbstractOperationDomain::RuntimeTextAssembly
-            }
+            | Self::AppendTextLiteralToPlace { .. } => AbstractOperationDomain::RuntimeTextAssembly,
 
             Self::AtomicFetchAdd { .. }
             | Self::AtomicCompareExchange { .. }
@@ -49,7 +47,9 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::AppendWireRepeatedScalarVarint { .. }
             | Self::ReadWireRepeatedScalarVarint { .. }
             | Self::WriteReturnRegisterInteger { .. }
-            | Self::CopyRuntimeStorageToReturnRegister { .. } => AbstractOperationDomain::RuntimeWrite,
+            | Self::CopyRuntimeStorageToReturnRegister { .. } => {
+                AbstractOperationDomain::RuntimeWrite
+            }
 
             Self::CopyPlaces { .. } => AbstractOperationDomain::RuntimeCopy,
 
@@ -72,10 +72,10 @@ impl OperationSemanticQuery for AbstractOperationKind {
             Self::MachineHalt
             | Self::MemoryFence(_)
             | Self::InterruptControl(_)
+            | Self::FlagsSnapshot { .. }
+            | Self::FlagsRestore { .. }
             | Self::PortWrite { .. }
-            | Self::PortRead { .. } => {
-                AbstractOperationDomain::MachineControl
-            }
+            | Self::PortRead { .. } => AbstractOperationDomain::MachineControl,
         }
     }
 

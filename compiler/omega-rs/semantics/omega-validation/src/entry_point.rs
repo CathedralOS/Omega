@@ -92,4 +92,3 @@ fn find_entry_point<'trees>(
         .find(|state| state.symbol == state_symbol)?;
     Some((machine, state))
 }
-
