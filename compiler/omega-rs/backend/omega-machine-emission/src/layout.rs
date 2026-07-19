@@ -705,8 +705,12 @@ fn machine_instruction_width(
             *byte_offset,
             *byte_size,
         ),
-        SelectedInstructionKind::WriteEntryArgumentRegister { byte_size, .. } => {
-            entry_argument_register_write_width(input.target.architecture, *byte_size)
+        SelectedInstructionKind::WriteEntryArgumentRegister {
+            register,
+            byte_size,
+            ..
+        } => {
+            entry_argument_register_write_width(input.target.architecture, *register, *byte_size)
         }
         SelectedInstructionKind::WriteEntryArgumentsSliceDescriptor { .. } => {
             entry_arguments_slice_descriptor_write_width(input.target.architecture)

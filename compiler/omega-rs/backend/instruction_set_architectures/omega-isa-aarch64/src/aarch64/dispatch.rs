@@ -11,7 +11,7 @@ use super::primitives::{
     encode_conditional_branch_lower, encode_conditional_branch_lower_or_same,
     encode_conditional_branch_not_equal, encode_conditional_branch_plus, encode_float_compare,
     encode_float_move_from_gpr,
-    encode_load_w_from_x, encode_load_x_from_x, encode_move_x_register, encode_movz_w,
+    encode_instruction, encode_load_w_from_x, encode_load_x_from_x, encode_move_x_register, encode_movz_w,
     encode_sign_extend_byte_to_w, encode_sign_extend_halfword_to_w, encode_store_w_to_x,
     encode_store_x_to_x,
     encode_unconditional_branch,
@@ -258,31 +258,44 @@ pub fn encode_entry_argument_register_write_bytes(
     byte_offset: usize,
     byte_size: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let omega_calling_conventions::MachineRegister::Aarch64X(register_index) = register else {
-        return Err(Diagnostic::error(format!(
-            "AArch64 entry prologue cannot store non-GPR plan location {register:?}"
-        )));
+    let (register_index, is_vector) = match register {
+        omega_calling_conventions::MachineRegister::Aarch64X(index) => (index, false),
+        omega_calling_conventions::MachineRegister::Aarch64V(index) => (index, true),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 entry prologue cannot store foreign plan location {register:?}"
+            )));
+        }
     };
-    if register_index > 30 {
+    if register_index > if is_vector { 31 } else { 30 } {
         return Err(Diagnostic::error(format!(
-            "AArch64 entry prologue register x{register_index} is outside the encodable GPR set"
+            "AArch64 entry prologue register {register:?} is outside the encodable set"
         )));
     }
     let mut bytes = Vec::with_capacity(super::widths::entry_argument_register_write_width());
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
-    match byte_size {
-        1 | 2 | 4 => bytes.extend(encode_store_w_to_x(
+    if is_vector {
+        bytes.extend(encode_entry_vector_store(
             register_index,
             16,
             byte_offset,
             byte_size,
-        )?),
-        8 => bytes.extend(encode_store_x_to_x(register_index, 16, byte_offset)?),
-        _ => {
-            return Err(Diagnostic::error(format!(
-                "AArch64 entry prologue cannot store a {byte_size}-byte register value"
-            )));
+        )?);
+    } else {
+        match byte_size {
+            1 | 2 | 4 => bytes.extend(encode_store_w_to_x(
+                register_index,
+                16,
+                byte_offset,
+                byte_size,
+            )?),
+            8 => bytes.extend(encode_store_x_to_x(register_index, 16, byte_offset)?),
+            _ => {
+                return Err(Diagnostic::error(format!(
+                    "AArch64 entry prologue cannot store a {byte_size}-byte register value"
+                )));
+            }
         }
     }
     debug_assert_eq!(
@@ -290,6 +303,63 @@ pub fn encode_entry_argument_register_write_bytes(
         super::widths::entry_argument_register_write_width()
     );
     Ok(bytes)
+}
+
+fn encode_entry_vector_store(
+    source_register: u8,
+    base_register: u8,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<[u8; 4], Diagnostic> {
+    let (opcode, scale) = match byte_size {
+        4 => (0xbd00_0000, 4), // str sN, [xBase, #offset]
+        8 => (0xfd00_0000, 8), // str dN, [xBase, #offset]
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 entry prologue cannot store {byte_size} bytes from v{source_register}"
+            )));
+        }
+    };
+    if !byte_offset.is_multiple_of(scale) || byte_offset / scale > 4095 {
+        return Err(Diagnostic::error(format!(
+            "AArch64 entry prologue cannot store v{source_register} at offset `{byte_offset}`"
+        )));
+    }
+    Ok(encode_instruction(
+        opcode
+            | (((byte_offset / scale) as u32) << 10)
+            | (u32::from(base_register) << 5)
+            | u32::from(source_register),
+    ))
+}
+
+#[cfg(test)]
+mod entry_argument_register_tests {
+    use super::*;
+    use omega_calling_conventions::MachineRegister;
+
+    #[test]
+    fn scalar_float_entry_arguments_store_from_the_selected_v_register() {
+        let bytes = encode_entry_argument_register_write_bytes(
+            MachineRegister::Aarch64V(3),
+            8,
+            8,
+        )
+        .expect("str d3 entry store");
+        assert_eq!(bytes.len(), 12);
+        assert_eq!(&bytes[8..12], &0xfd00_0603u32.to_le_bytes());
+    }
+
+    #[test]
+    fn scalar_float_entry_arguments_reject_non_scalar_widths() {
+        let error = encode_entry_argument_register_write_bytes(
+            MachineRegister::Aarch64V(0),
+            0,
+            16,
+        )
+        .expect_err("unclassified vector argument must reject");
+        assert!(error.message.contains("cannot store 16 bytes"));
+    }
 }
 
 /// The bytes-handoff half of the entry prologue: bind `args: &[u8]` as a view

@@ -187,8 +187,9 @@ policy and carries each register-resident integer argument's exact register and
 width through abstract operations, target operations, layout, and x86-64 or
 AArch64 emission. This removes the former backend convention that interpreted
 an abstract argument index as the Microsoft x64 register sequence. Incoming
-stack arguments, float/vector entry parameters, and source-selected policies
-remain. Remaining order:
+scalar `f32`/`f64` parameters now follow XMM/V locations as well. Incoming
+stack arguments, classified aggregate/HFA entry parameters, and source-selected
+policies remain. Remaining order:
 
 1. Evaluate the policy selected by `Calling<C>` against the requirement
    signature and hash the evaluated pair into requirement identity.

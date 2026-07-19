@@ -273,10 +273,16 @@ pub fn runtime_storage_copy_to_return_register_width(
 }
 
 /// Width of the entry prologue's exact argument-register store.
-pub fn entry_argument_register_write_width(architecture: Architecture, byte_size: usize) -> usize {
+pub fn entry_argument_register_write_width(
+    architecture: Architecture,
+    register: omega_calling_conventions::MachineRegister,
+    byte_size: usize,
+) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::entry_argument_register_write_width(),
-        Architecture::X86_64 => x86_64::entry_argument_register_write_width(byte_size),
+        Architecture::X86_64 => {
+            x86_64::entry_argument_register_write_width(register, byte_size)
+        }
     }
 }
 
