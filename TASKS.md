@@ -120,8 +120,7 @@ These are unblocked and should gain a focused pass/fail or differential canary
 before the fix.
 
 - **Restore the pass-canary baseline.** The broad compile gate is currently red
-  in independent clusters: structural `Nat` extraction and citation bridges;
-  and anonymous exact-Rat arithmetic in runtime guards. The fail gate
+  on structural `Nat` extraction and citation bridges. The fail gate
   additionally exposes unfinished arithmetic-measured `Nat`
   extraction/refutation; do not weaken those canaries to accept the earlier
   unsupported-tier rejection.

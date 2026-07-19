@@ -26129,10 +26129,9 @@ fn f32_guard_const_arith_landed_exit_canary_runs() {
 
 #[test]
 fn f32_arg_const_arith_landed_exit_canary_runs() {
-    // F2c ARG face: a constant float tree in transition-ARGUMENT position lands
-    // at the parameter's declared f32 width and evaluates per-op there
-    // (1.0 + (2^-24 tie) ties DOWN to 1.0 at f32; the f64 window rounds the sum
-    // UP to 1 + 2^-23 and takes the wrong arm) on BOTH engines.
+    // F2c ARG face: a wholly anonymous constant tree remains exact Rat until
+    // the transition parameter requests f32, then rounds once to 1 + 2^-23 on
+    // BOTH engines. Explicitly landed/runtime trees remain per-op elsewhere.
     let canary = pass_canary("float/f32_arg_const_arith_landed_exit");
     let main_path = canary.join("main.omg");
 
@@ -26141,7 +26140,7 @@ fn f32_arg_const_arith_landed_exit_canary_runs() {
     let outcome = omega_interpreter::interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
-        "interpreter should evaluate the arg tree per-op at f32 (exit 70), got {}",
+        "interpreter should exact-fold then land the arg tree once at f32 (exit 70), got {}",
         outcome.exit_code
     );
 

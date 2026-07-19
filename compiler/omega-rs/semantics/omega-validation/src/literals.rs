@@ -335,10 +335,13 @@ pub(crate) fn validate_suffix_magnitudes(program: &TypedTrees, diagnostics: &mut
 
 /// F2b -- float DESTINATION stamping (ch5 two-phase constants, the float
 /// half): an UNSUFFIXED float literal initializing a declared `f32`/`f64`
-/// place lands that format ON ITS TEXT CARRIER, so every downstream read --
-/// native store, guard compare, argument materialization, AND the
-/// interpreter's eval -- rounds ONCE, correctly, from the decimal spelling.
-/// Without the stamp an anonymous literal at an f32 place takes the
+/// place lands that format ON ITS VALUE. A wholly anonymous literal-arithmetic
+/// tree is first evaluated as an exact rational and then replaced by one
+/// landed literal, so every downstream reader -- native store, guard compare,
+/// argument materialization, AND the interpreter -- consumes the same single
+/// rounding. A nonconstant tree instead stamps its anonymous literal leaves;
+/// its runtime operations then execute at the destination format.
+/// Without this landing pass an anonymous literal at an f32 place takes the
 /// transitional f64-then-narrow route (double rounding; the
 /// 8388609.499999999999999 witness lands on the wrong side of the tie).
 ///
@@ -355,29 +358,83 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
         ExpressionHandle,
         omega_typed_trees::types::TypeReferenceHandle,
     )> = Vec::new();
+    let mut direct_formats: Vec<(ExpressionHandle, FloatFormat)> = Vec::new();
+    let mut anonymous_comparisons: Vec<ExpressionHandle> = Vec::new();
 
     for (handle, node) in program.expression_table.expression_entries() {
-        let _ = handle;
-        let ExpressionNode::StructLiteral(literal) = node else {
-            continue;
-        };
-        let Some(data_definition) = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.name.as_str() == literal.type_name.as_str())
-        else {
-            continue;
-        };
-        for field in program.expression_table.struct_fields(literal.fields) {
-            let Some(field_type) = crate::struct_literals::construction_field_type(
-                program,
-                data_definition,
-                literal.case_name.as_ref().map(|name| name.as_str()),
-                field.name.as_str(),
-            ) else {
-                continue;
-            };
-            pairs.push((field.value, field_type));
+        match node {
+            ExpressionNode::StructLiteral(literal) => {
+                let Some(data_definition) = program
+                    .data_definitions()
+                    .iter()
+                    .find(|definition| definition.name.as_str() == literal.type_name.as_str())
+                else {
+                    continue;
+                };
+                for field in program.expression_table.struct_fields(literal.fields) {
+                    let Some(field_type) = crate::struct_literals::construction_field_type(
+                        program,
+                        data_definition,
+                        literal.case_name.as_ref().map(|name| name.as_str()),
+                        field.name.as_str(),
+                    ) else {
+                        continue;
+                    };
+                    pairs.push((field.value, field_type));
+                }
+            }
+            ExpressionNode::Cast(cast) => {
+                let format = program
+                    .expression_table
+                    .name_path_members(cast.target_type)
+                    .last()
+                    .and_then(|name| match name.as_str() {
+                        "f32" => Some(FloatFormat::F32),
+                        "f64" => Some(FloatFormat::F64),
+                        _ => None,
+                    });
+                if let Some(format) = format {
+                    direct_formats.push((cast.value, format));
+                }
+            }
+            ExpressionNode::Call(call) => {
+                let Some(callee) = program.machines().iter().find_map(|machine| {
+                    program
+                        .machine_states(machine)
+                        .iter()
+                        .find(|state| state.symbol == call.target_symbol)
+                }) else {
+                    continue;
+                };
+                let parameters = program
+                    .state_parameters(callee)
+                    .iter()
+                    .filter(|parameter| !parameter.is_self);
+                let arguments = program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .copied();
+                for (parameter, argument) in parameters.zip(arguments) {
+                    if parameter.type_reference.is_valid() {
+                        pairs.push((argument, parameter.type_reference));
+                    }
+                }
+            }
+            ExpressionNode::Binary(binary)
+                if matches!(
+                    binary.operator,
+                    omega_typed_trees::expression::BinaryOperator::Equal
+                        | omega_typed_trees::expression::BinaryOperator::NotEqual
+                        | omega_typed_trees::expression::BinaryOperator::Less
+                        | omega_typed_trees::expression::BinaryOperator::LessOrEqual
+                        | omega_typed_trees::expression::BinaryOperator::Greater
+                        | omega_typed_trees::expression::BinaryOperator::GreaterOrEqual
+                ) =>
+            {
+                anonymous_comparisons.push(handle);
+            }
+            _ => {}
         }
     }
 
@@ -430,10 +487,19 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                             if !target.is_valid() {
                                 continue;
                             }
+                            let target_node = program.statement_table.transition_target(target);
+                            if let omega_typed_trees::statement::TransitionTargetNode::Value(
+                                value,
+                            ) = target_node
+                                && state.return_type.is_valid()
+                            {
+                                pairs.push((*value, state.return_type));
+                                continue;
+                            }
                             let omega_typed_trees::statement::TransitionTargetNode::Named {
                                 path,
                                 arguments,
-                            } = program.statement_table.transition_target(target)
+                            } = target_node
                             else {
                                 continue;
                             };
@@ -476,29 +542,144 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
         }
     }
 
+    for (value, format) in direct_formats {
+        land_float_tree(program, value, format);
+    }
     for (value, declared) in pairs {
-        let Some(unwrapped) = crate::places::unwrapped_type_reference(program, declared) else {
-            continue;
-        };
-        let Some(primitive) = program.primitive_type_reference(unwrapped) else {
-            continue;
-        };
-        let format = match primitive {
-            PrimitiveType::F32 => FloatFormat::F32,
-            PrimitiveType::F64 => FloatFormat::F64,
-            _ => continue,
-        };
-        stamp_float_tree(program, value, format);
+        land_float_value_for_type(program, value, declared);
+    }
+    // A comparison with no typed operand is itself the first destination: it
+    // produces bool. Its anonymous float operands therefore compare as exact
+    // values (including format-independent NaN/infinity), rather than each
+    // independently falling through the transitional f64 window.
+    for comparison in anonymous_comparisons {
+        fold_anonymous_float_comparison(program, comparison);
     }
 }
 
-/// Stamp every UNSTAMPED float literal reachable through Mutable/Unary/Binary
-/// wrappers with `format` -- the destination/comparison landing propagates
-/// through a constant arithmetic tree so each NODE folds/evaluates per-op at
-/// the landed width (ch5; float ladder F2c). Suffixed literals keep their own
-/// landing (disagreement is validate_suffix_landings' domain). Deliberately
-/// does NOT descend into calls/indexes/places -- only the pure literal-
-/// arithmetic spine the folders fold.
+fn land_float_value_for_type(
+    program: &mut TypedTrees,
+    value: ExpressionHandle,
+    declared: omega_typed_trees::types::TypeReferenceHandle,
+) {
+    use omega_typed_trees::types::TypeReferenceNode;
+
+    let declared_node = program
+        .type_reference_table
+        .type_reference(declared)
+        .clone();
+    match declared_node {
+        TypeReferenceNode::Reference { referee, .. } => {
+            land_float_value_for_type(program, value, referee);
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            land_float_value_for_type(program, value, base_type);
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            let ExpressionNode::ArrayLiteral(elements) =
+                program.expression_table.expression(value).clone()
+            else {
+                return;
+            };
+            let elements = program
+                .expression_table
+                .expression_handles(elements)
+                .to_vec();
+            for element in elements {
+                land_float_value_for_type(program, element, element_type);
+            }
+        }
+        TypeReferenceNode::Named { .. } => {
+            let format = match program.primitive_type_reference(declared) {
+                Some(PrimitiveType::F32) => omega_core::literals::FloatFormat::F32,
+                Some(PrimitiveType::F64) => omega_core::literals::FloatFormat::F64,
+                _ => return,
+            };
+            land_float_tree(program, value, format);
+        }
+        TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::Generic { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Unit => {}
+    }
+}
+
+fn land_float_tree(
+    program: &mut TypedTrees,
+    expression: ExpressionHandle,
+    format: omega_core::literals::FloatFormat,
+) {
+    if let Some(exact) = anonymous_exact_float_tree(program, expression) {
+        let value = match format {
+            omega_core::literals::FloatFormat::F32 => f64::from(exact.to_f32()),
+            omega_core::literals::FloatFormat::F64 => exact.to_f64(),
+        };
+        *program.expression_table.expression_mut(expression) = ExpressionNode::Float(
+            omega_core::literals::FloatLiteral::from_f64(value).with_landing(format),
+        );
+    } else {
+        stamp_float_tree(program, expression, format);
+    }
+}
+
+fn anonymous_exact_float_tree(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<omega_core::bignum::ExactFloat> {
+    use omega_typed_trees::expression::BinaryOperator;
+
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Float(literal) if literal.landing().is_none() => {
+            omega_core::bignum::ExactFloat::from_decimal_str(literal.text())
+        }
+        ExpressionNode::Mutable(inner) => anonymous_exact_float_tree(program, *inner),
+        ExpressionNode::Binary(binary) => {
+            let left = anonymous_exact_float_tree(program, binary.left)?;
+            let right = anonymous_exact_float_tree(program, binary.right)?;
+            Some(match binary.operator {
+                BinaryOperator::Add => left.add(&right),
+                BinaryOperator::Subtract => left.sub(&right),
+                BinaryOperator::Multiply => left.mul(&right),
+                BinaryOperator::Divide => left.div(&right),
+                _ => return None,
+            })
+        }
+        _ => None,
+    }
+}
+
+fn fold_anonymous_float_comparison(program: &mut TypedTrees, expression: ExpressionHandle) {
+    use omega_typed_trees::expression::BinaryOperator;
+    use std::cmp::Ordering;
+
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression).clone()
+    else {
+        return;
+    };
+    let Some(left) = anonymous_exact_float_tree(program, binary.left) else {
+        return;
+    };
+    let Some(right) = anonymous_exact_float_tree(program, binary.right) else {
+        return;
+    };
+    let value = match binary.operator {
+        BinaryOperator::Equal => left.equal_value(&right),
+        BinaryOperator::NotEqual => !left.equal_value(&right),
+        BinaryOperator::Greater => left.partial_cmp_value(&right) == Some(Ordering::Greater),
+        BinaryOperator::GreaterOrEqual => matches!(
+            left.partial_cmp_value(&right),
+            Some(Ordering::Greater | Ordering::Equal)
+        ),
+        BinaryOperator::Less => left.partial_cmp_value(&right) == Some(Ordering::Less),
+        BinaryOperator::LessOrEqual => matches!(
+            left.partial_cmp_value(&right),
+            Some(Ordering::Less | Ordering::Equal)
+        ),
+        _ => return,
+    };
+    *program.expression_table.expression_mut(expression) = ExpressionNode::Boolean(value);
+}
+
 /// Collect (float-literal-tree, place-declared-type) pairs from every
 /// comparison reachable in a guard expression: And/Or legs recurse, and each
 /// Equal/NotEqual/ordering node pairs its literal side with its place side's
@@ -556,6 +737,12 @@ fn collect_guard_float_comparison_pairs(
     }
 }
 
+/// Stamp every UNSTAMPED float literal reachable through Mutable/Unary/Binary
+/// wrappers with `format` when the tree is not wholly anonymous and constant.
+/// This is the runtime-expression case: operations execute per-op at the
+/// landed width. Suffixed literals keep their own landing (disagreement is
+/// validate_suffix_landings' domain). Deliberately does NOT descend into
+/// calls/indexes/places.
 fn stamp_float_tree(
     program: &mut TypedTrees,
     expression: ExpressionHandle,
