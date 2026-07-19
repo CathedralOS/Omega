@@ -34442,7 +34442,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/citation_requires_bearing_rejected",
     "proofs/nat_substate_nondescending_rejected",
     "boundary/entry_typed_params_unmarked",
-    "boundary/boundary_entry_too_many_params",
     "wire/decode_into_ranged_field",
     "wire/encode_wire_spelling_renamed",
     "wire/decode_verdict_must_be_enum",

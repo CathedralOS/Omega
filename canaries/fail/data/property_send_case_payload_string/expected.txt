@@ -1,1 +1,1 @@
-declares `[send]` but case `Label` payload field `text` is not `send`
+type property `[send]` is retired; declare the required four-axis `[carry(...)]` policy
