@@ -31247,6 +31247,35 @@ fn default_domain_measure_and_symbolic_canaries() {
 }
 
 #[test]
+fn default_domain_product_hypothesis_canary() {
+    let canary = pass_canary("dependent/data_where_product_hypothesis");
+    compile_canary_without_output(&canary).unwrap_or_else(|diagnostics| {
+        panic!(
+            "{} failed:\n{}",
+            canary.display(),
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+
+    for name in [
+        "dependent/data_where_gated_machine_unestablished_rejected",
+        "dependent/data_where_read_before_establish",
+        "dependent/data_where_invariant_window_unclosed_rejected",
+    ] {
+        let canary = fail_canary(name);
+        assert!(
+            compile_canary_without_output(&canary).is_err(),
+            "{} unexpectedly compiled; calls must not establish an invalid or open default domain",
+            canary.display()
+        );
+    }
+}
+
+#[test]
 fn runtime_float_min_max_abs_clamp_exit_canary_runs() {
     // Float min/max on SSE (maxsd/minsd), plus abs/clamp over floats which
     // desugar to them: max(3,7)+min(3,7)+abs(-12)+clamp(300,0,200) = 222.
