@@ -68,29 +68,25 @@ Omega bodies; irreducible leaves use
 `satisfies Requirement via <Binding>;`. Target packages provide defaults and a
 slot owner may override by type. The migration order remains load-bearing.
 
-1. **PRV4a — text-call argument lowering.** Fix literal-to-`String` parameter
-   threading through native host text calls. Field-backed text works; the
-   literal form currently reports no encodable call sequence and blocks the
-   Console row flip.
-2. **PRV4b — Console adapters.** Add the standard `write_line`/`write` checked
+1. **PRV4b — Console adapters.** Add the standard `write_line`/`write` checked
    adapters over byte operations, compare them against the lossless built-in
    oracle, make both interpreter and native routes use them, then remove the
    built-in Console composite rows.
-3. **PRV4c — target defaults and overrides.** Add target-package default
+2. **PRV4c — target defaults and overrides.** Add target-package default
    provider types plus explicit type-per-slot build selection. Validate full
    coverage, signatures, transitive effect refinement, dependency closure,
    normalized identity, and ambiguity at the selected target only.
-4. **PRV4d — remaining leaf mechanisms.** Wire authored/leaf Syscall rows into
+3. **PRV4d — remaining leaf mechanisms.** Wire authored/leaf Syscall rows into
    the same lowering and admission path. Preserve the deliberate interpreter
    refusal for arbitrary host imports rather than using evaluator `dlsym`.
-5. **PRV4e — foreign format facts.** Move foreign offsets and bit constants
+4. **PRV4e — foreign format facts.** Move foreign offsets and bit constants
    from `Binding::Value` into programmable layout/format declarations and
    migrate filesystem leaves.
-6. **PRV4f — compatibility deletion.** After the last consumers move, delete
+5. **PRV4f — compatibility deletion.** After the last consumers move, delete
    `call_shape`, `HostOperations`, `Value`, populate tables, `provides` syntax,
    and every compatibility consumer. Keep only the directed retirement
    diagnostic if useful.
-7. **Supply-shape negatives.** Finish coverage for qualified
+6. **Supply-shape negatives.** Finish coverage for qualified
    `Binding::DllImport`, runtime-dependent `via` values, missing `satisfies`,
    repeated `effects`, signature mismatch, and admission/refinement failure.
 
