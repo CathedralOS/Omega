@@ -204,6 +204,7 @@ fn operator_snapshot(
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DataDefinitionSnapshot {
     pub name: String,
+    pub supply: String,
     pub type_parameters: Vec<String>,
     pub members: Vec<DataMemberSnapshot>,
 }
@@ -513,6 +514,11 @@ pub enum TypeConstraintSnapshot {
 fn data_definition_snapshot(program: &TypedTrees, data: &DataDefinition) -> DataDefinitionSnapshot {
     DataDefinitionSnapshot {
         name: data.name.to_string(),
+        supply: match data.supply_mode {
+            omega_core::semantics::DataSupplyMode::CheckedShape => "checked_shape",
+            omega_core::semantics::DataSupplyMode::BoundaryOpaque => "boundary_opaque",
+        }
+        .to_owned(),
         type_parameters: program
             .data_type_parameters(data)
             .iter()

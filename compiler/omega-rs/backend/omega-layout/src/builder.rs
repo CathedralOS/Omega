@@ -33,6 +33,9 @@ pub fn build_layout_plan(
         if !data_definition.type_parameters.is_empty() {
             continue;
         }
+        if data_definition.supply_mode == omega_core::semantics::DataSupplyMode::BoundaryOpaque {
+            continue;
+        }
         if proof_only.is_proof_only(data_definition.symbol) {
             continue;
         }

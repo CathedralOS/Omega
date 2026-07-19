@@ -11,6 +11,7 @@ pub(crate) fn lower_data_definition(
     let mut typed_data_definition = typed::data::DataDefinition {
         symbol: data_definition.symbol,
         name: crate::name::lower_name(&data_definition.name),
+        supply_mode: data_definition.supply_mode,
         type_parameters: omega_core::arena::HandleSpan::empty(),
         properties: typed::data::DataProperties {
             copy: data_definition.properties.copy,

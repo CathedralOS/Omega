@@ -7,6 +7,7 @@ use omega_core::symbols::SymbolHandle;
 pub struct DataDefinition {
     pub symbol: SymbolHandle,
     pub name: Identifier,
+    pub supply_mode: omega_core::semantics::DataSupplyMode,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub properties: DataProperties,
     /// R2 rung 2 slice 2 (ch12): the ADMITTED zero-satisfying
@@ -24,6 +25,7 @@ impl Default for DataDefinition {
         Self {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
+            supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
             type_parameters: HandleSpan::empty(),
             properties: DataProperties::default(),
             where_facts: HandleSpan::empty(),

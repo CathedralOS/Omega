@@ -26,6 +26,17 @@ pub enum Multiplicity {
     Linear,
 }
 
+/// How a data declaration obtains its representation. A checked shape exposes
+/// fields/cases for structural derivation. A boundary-opaque carrier exposes no
+/// representation: it can be named in contracts, but only boundary providers
+/// may establish values and any permissive property claim requires admission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DataSupplyMode {
+    #[default]
+    CheckedShape,
+    BoundaryOpaque,
+}
+
 /// Whether a live value may cross a suspension point. This is checked locally
 /// against `Suspend` reach; it is intentionally independent from migration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -578,9 +589,7 @@ impl SemanticDomainTable {
     /// Intern a declared domain name and return its identity (idempotent).
     pub fn intern(&mut self, name: &str) -> SemanticDomainId {
         if let Some(position) = self.names.iter().position(|candidate| candidate == name) {
-            return SemanticDomainId(
-                u32::try_from(position + 1).expect("domain table fits u32"),
-            );
+            return SemanticDomainId(u32::try_from(position + 1).expect("domain table fits u32"));
         }
         self.names.push(name.to_owned());
         SemanticDomainId(u32::try_from(self.names.len()).expect("domain table fits u32"))
@@ -588,8 +597,7 @@ impl SemanticDomainTable {
 
     /// The declared name of an interned identity (`None` for NULL/unknown).
     pub fn name(&self, id: SemanticDomainId) -> Option<&str> {
-        id.0
-            .checked_sub(1)
+        id.0.checked_sub(1)
             .and_then(|index| self.names.get(index as usize))
             .map(String::as_str)
     }
@@ -626,12 +634,18 @@ mod tests {
         // the same id; NULL never resolves to a name.
         let mut table = SemanticDomainTable::default();
         // Policies pre-seed with FIXED ids; declared domains follow.
-        assert_eq!(table.lookup("Wrapping"), Some(SemanticDomainTable::WRAPPING));
+        assert_eq!(
+            table.lookup("Wrapping"),
+            Some(SemanticDomainTable::WRAPPING)
+        );
         assert_eq!(
             table.lookup("Saturating"),
             Some(SemanticDomainTable::SATURATING)
         );
-        assert_eq!(table.lookup("Trapping"), Some(SemanticDomainTable::TRAPPING));
+        assert_eq!(
+            table.lookup("Trapping"),
+            Some(SemanticDomainTable::TRAPPING)
+        );
         let kilometres = table.intern("Km");
         assert_eq!(kilometres, SemanticDomainId(4));
         assert_eq!(table.intern("Km"), kilometres);

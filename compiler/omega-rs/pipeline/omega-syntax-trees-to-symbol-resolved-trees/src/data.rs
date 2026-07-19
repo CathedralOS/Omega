@@ -72,6 +72,7 @@ pub(crate) fn lower_data_definition(
         symbol: SymbolHandle::invalid(),
         name: crate::name::lower_name(&data_definition.name),
         storage: DataDefinitionStorage {
+            supply_mode: data_definition.supply_mode,
             type_parameters,
             properties: DataProperties {
                 copy: data_definition.properties.multiplicity
@@ -97,9 +98,7 @@ pub(crate) fn zero_fold(
     use omega_symbol_resolved_trees::expression::{BinaryOperator, ExpressionNode};
     match expressions.expression(expression) {
         ExpressionNode::Name(_) => Some(0),
-        ExpressionNode::Member(member)
-            if matches!(member.member.as_str(), "len" | "capacity") =>
-        {
+        ExpressionNode::Member(member) if matches!(member.member.as_str(), "len" | "capacity") => {
             // The ZII value of every builtin sequence carrier is empty; both
             // standing measures are therefore exactly zero.
             Some(0)
@@ -181,6 +180,7 @@ pub(crate) fn lower_data_version_definitions(
                 version.shape_name(data_definition.name.as_str()),
             )),
             storage: DataDefinitionStorage {
+                supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
                 type_parameters: HandleSpan::empty(),
                 where_facts: omega_core::arena::HandleSpan::empty(),
                 zero_gated: false,
@@ -275,6 +275,7 @@ pub(crate) fn lower_versioned_container_definition(
             versioning::versioned_container_name(data_name),
         )),
         storage: DataDefinitionStorage {
+            supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
             type_parameters: HandleSpan::empty(),
             where_facts: omega_core::arena::HandleSpan::empty(),
             zero_gated: false,

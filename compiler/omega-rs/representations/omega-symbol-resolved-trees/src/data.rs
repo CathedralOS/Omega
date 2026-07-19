@@ -13,6 +13,7 @@ pub struct DataDefinition {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataDefinitionStorage {
+    pub supply_mode: omega_core::semantics::DataSupplyMode,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub properties: DataProperties,
     /// R2 (ch12): DEFAULT-DOMAIN facts. Facts that hold at zero are born

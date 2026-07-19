@@ -1,0 +1,11 @@
+// An opaque carrier's representation cannot prove a permissive carry policy.
+// The claim remains unavailable until the admission spine can issue a receipt.
+boundary data Lease [carry(
+    suspension: allowed,
+    cpu: any,
+    thread: any,
+    address: movable,
+)];
+
+data Main { }
+machine Main::main(&mut self) { }

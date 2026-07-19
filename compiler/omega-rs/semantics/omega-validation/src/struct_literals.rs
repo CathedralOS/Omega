@@ -210,6 +210,12 @@ fn validate_literal_field_names(
     if data_definition.type_parameters.count() > 0 {
         return;
     }
+    if data_definition.supply_mode == omega_core::semantics::DataSupplyMode::BoundaryOpaque {
+        diagnostics.push(Diagnostic::error(format!(
+            "opaque boundary data `{type_name}` has no public constructor; a boundary provider must establish its values"
+        )));
+        return;
+    }
 
     // R2 rung 2b + slice 9 (ch12 "Construction is the gate"): a literal of
     // a domain-carrying type must PROVE the default domain -- every `where`
@@ -913,14 +919,15 @@ fn value_bounds(
                 }
                 return bounds;
             };
-            let mut bounds = match crate::arithmetic_domains::range_constraint_interval(program, handle) {
-                Some(interval) => Bounds {
-                    low: interval.low,
-                    high: interval.high,
-                    ..Bounds::UNKNOWN
-                },
-                None => Bounds::UNKNOWN,
-            };
+            let mut bounds =
+                match crate::arithmetic_domains::range_constraint_interval(program, handle) {
+                    Some(interval) => Bounds {
+                        low: interval.low,
+                        high: interval.high,
+                        ..Bounds::UNKNOWN
+                    },
+                    None => Bounds::UNKNOWN,
+                };
             if let ExpressionNode::Name(path) = program.expression_table.expression(expression) {
                 bounds.symbol = path.symbol;
                 if let Some(local) = local_initializer_bounds(program, state, expression) {
@@ -1021,17 +1028,16 @@ fn bounds_eval(
                     .expression_table
                     .name_path_members(path.members)
                     .last()
-                    .and_then(|name| match valuation
-                        .iter()
-                        .find(|(field, _)| *field == name.as_str())
-                    {
-                        Some((_, bounds)) => match member.member.as_str() {
-                            "len" => bounds.length,
-                            "capacity" => bounds.capacity,
-                            _ => None,
-                        },
-                        // An omitted sequence field has the ZII empty value.
-                        None => Some(0),
+                    .and_then(|name| {
+                        match valuation.iter().find(|(field, _)| *field == name.as_str()) {
+                            Some((_, bounds)) => match member.member.as_str() {
+                                "len" => bounds.length,
+                                "capacity" => bounds.capacity,
+                                _ => None,
+                            },
+                            // An omitted sequence field has the ZII empty value.
+                            None => Some(0),
+                        }
                     }),
                 _ => None,
             };

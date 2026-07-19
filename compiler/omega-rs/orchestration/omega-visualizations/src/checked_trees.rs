@@ -139,6 +139,15 @@ pub fn carry_manifest_json(program: &CheckedTrees) -> String {
             .unwrap_or("<unknown>");
         json.push_str("\n    {\n      \"type\": ");
         push_json_string(&mut json, name);
+        json.push_str(",\n      \"opaque\": ");
+        let opaque = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.symbol == fact.data)
+            .is_some_and(|definition| {
+                definition.supply_mode == omega_core::semantics::DataSupplyMode::BoundaryOpaque
+            });
+        json.push_str(if opaque { "true" } else { "false" });
         json.push_str(",\n      \"declared\": ");
         if let Some(declared) = fact.declared {
             push_carry_policy_json(&mut json, declared);

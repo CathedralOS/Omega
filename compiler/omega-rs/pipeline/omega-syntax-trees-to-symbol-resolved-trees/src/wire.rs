@@ -66,9 +66,10 @@ pub(crate) fn data_definition_from_wire_schema(
         symbol: SymbolHandle::invalid(),
         name: schema.name.clone(),
         storage: DataDefinitionStorage {
+            supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
             type_parameters: omega_core::arena::HandleSpan::empty(),
             where_facts: omega_core::arena::HandleSpan::empty(),
-                zero_gated: false,
+            zero_gated: false,
             properties: DataProperties::default(),
             members,
         },

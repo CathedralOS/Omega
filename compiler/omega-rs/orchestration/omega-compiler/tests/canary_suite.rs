@@ -1,4 +1,4 @@
-use omega_compiler::{CompileOptions, CompileReport, compile};
+use omega_compiler::{CompileOptions, CompileReport, compile, compile_to_checked};
 use omega_core::diagnostics::Diagnostic;
 use std::fs;
 #[cfg(not(windows))]
@@ -538,9 +538,7 @@ fn external_leaf_syscall_reaches_linux_x64_backend() {
     let exit_sequence = [
         0x48, 0xb8, 0x3c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x05,
     ];
-    let exit_argument = [
-        0x48, 0xbf, 0x46, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    ];
+    let exit_argument = [0x48, 0xbf, 0x46, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
     assert!(
         elf.windows(exit_argument.len())
             .any(|window| window == exit_argument),
@@ -912,6 +910,33 @@ fn boundary_trait_canary_reports_capability_use() {
     );
 
     let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn opaque_boundary_data_reaches_checked_facts_without_a_layout_claim() {
+    let canary = pass_canary("proofs/boundary_data_opaque_contract");
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("opaque boundary data should be usable in frontend contracts");
+    let opaque = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "OpaqueToken")
+        .expect("opaque carrier");
+
+    assert_eq!(
+        opaque.supply_mode,
+        omega_core::semantics::DataSupplyMode::BoundaryOpaque
+    );
+    assert_eq!(
+        checked
+            .facts
+            .carry
+            .for_data(opaque.symbol)
+            .expect("opaque carry fact")
+            .effective,
+        omega_core::semantics::CarryPolicy::STRICT,
+        "opacity must fail closed rather than deriving permissive carry from an empty visible shape"
+    );
 }
 
 // Frozen decision 10 (wire eras): cross-era type changes are legal evolution
@@ -13683,15 +13708,12 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
         .statements(entry.statement_nodes)
         .iter()
         .filter_map(|statement| match statement {
-            omega_checked_trees::statement::StatementNode::Call(call) => {
-                Some(call.target.as_str())
-            }
+            omega_checked_trees::statement::StatementNode::Call(call) => Some(call.target.as_str()),
             _ => None,
         })
         .collect::<Vec<_>>();
     assert!(
-        call_targets.contains(&"console_write")
-            && call_targets.contains(&"console_write_line"),
+        call_targets.contains(&"console_write") && call_targets.contains(&"console_write_line"),
         "std Console composite calls must rewrite to checked adapters: {call_targets:?}"
     );
     let outcome = omega_interpreter::interpret(&checked, &[]);
@@ -19218,8 +19240,7 @@ fn runtime_owned_string_byte_view_exit_canary_runs() {
     );
     assert_eq!(interpreted.exit_code, 70);
 
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-string-view-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-string-view-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -30904,10 +30925,8 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
 #[test]
 fn aarch64_hfa_entry_argument_spreads_vector_registers() {
     let canary = pass_canary("targets/aarch64_hfa_entry_argument");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-aarch64-hfa-entry-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-aarch64-hfa-entry-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -30922,9 +30941,9 @@ fn aarch64_hfa_entry_argument_spreads_vector_registers() {
     let store_d0 = 0xfd00_0200u32.to_le_bytes();
     let store_d1 = 0xfd00_0601u32.to_le_bytes();
     assert!(
-        image.windows(16).any(|window| {
-            window[..4] == store_d0 && window[12..16] == store_d1
-        }),
+        image
+            .windows(16)
+            .any(|window| { window[..4] == store_d0 && window[12..16] == store_d1 }),
         "expected entry prologue stores from d0 @ +0 and d1 @ +8"
     );
     let _ = fs::remove_dir_all(&build_dir);
@@ -30933,10 +30952,7 @@ fn aarch64_hfa_entry_argument_spreads_vector_registers() {
 #[test]
 fn x86_asm_fences_emit_exact_bytes_and_refuse_aarch64() {
     let canary = pass_canary("inline_asm/asm_fences_compile");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-asm-fences-{}",
-        std::process::id()
-    ));
+    let build_dir = std::env::temp_dir().join(format!("omega-asm-fences-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -30953,7 +30969,9 @@ fn x86_asm_fences_emit_exact_bytes_and_refuse_aarch64() {
         0x0f, 0xae, 0xf0, // mfence
     ];
     assert!(
-        image.windows(sequence.len()).any(|window| window == sequence),
+        image
+            .windows(sequence.len())
+            .any(|window| window == sequence),
         "expected consecutive LFENCE/SFENCE/MFENCE bytes in the emitted image"
     );
     let _ = fs::remove_dir_all(&build_dir);
@@ -31181,10 +31199,22 @@ fn x86_asm_control_registers_emit_exact_sequences_and_refuse_aarch64() {
     .expect("x86 control-register operations should compile under boot-root authority");
     let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86 ELF");
     for (register, read, write) in [
-        ("cr0", [0x41, 0x0f, 0x20, 0xc2], Some([0x41, 0x0f, 0x22, 0xc2])),
+        (
+            "cr0",
+            [0x41, 0x0f, 0x20, 0xc2],
+            Some([0x41, 0x0f, 0x22, 0xc2]),
+        ),
         ("cr2", [0x41, 0x0f, 0x20, 0xd2], None),
-        ("cr3", [0x41, 0x0f, 0x20, 0xda], Some([0x41, 0x0f, 0x22, 0xda])),
-        ("cr4", [0x41, 0x0f, 0x20, 0xe2], Some([0x41, 0x0f, 0x22, 0xe2])),
+        (
+            "cr3",
+            [0x41, 0x0f, 0x20, 0xda],
+            Some([0x41, 0x0f, 0x22, 0xda]),
+        ),
+        (
+            "cr4",
+            [0x41, 0x0f, 0x20, 0xe2],
+            Some([0x41, 0x0f, 0x22, 0xe2]),
+        ),
     ] {
         assert!(
             image.windows(4).any(|window| window == read),
@@ -34299,6 +34329,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/array_scalar_shape_mismatch_rejected",
     "data/array_return_shape_mismatch_rejected",
     "data/construction_field_shape_mismatch_rejected",
+    "data/boundary_data_construction_rejected",
+    "data/boundary_data_relaxed_carry_unadmitted",
     "expressions/match_duplicate_pattern_rejected",
     "expressions/primitive_member_access_rejected",
     "expressions/cross_class_binary_operands_rejected",

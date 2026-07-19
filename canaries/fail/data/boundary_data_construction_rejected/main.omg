@@ -1,0 +1,9 @@
+// Opaque boundary data has no public representation. A package cannot mint a
+// value by spelling an empty record literal.
+boundary data Token;
+
+data Main { }
+
+machine Main::main(&mut self) {
+    let token: Token = Token { };
+}
