@@ -255,15 +255,30 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
                 // fences.
                 arithmetic_domains::incoming_guard_env(program, machine, state)
             };
+            let call_frames = calls::CallFrameResolver::new(program);
             for statement in program.statement_table.statements(state.statement_nodes) {
+                // R5 value-call frame: conservatively apply the aggregate
+                // may-write set of every call nested in this statement before
+                // checking any of its value uses. This intentionally gives up
+                // evaluation-order precision within one expression, but never
+                // carries a pre-call fact across a mutating value call. A
+                // call-free expression reports an empty frame; any unresolved
+                // call fails closed and clears the environment.
+                let value_written = call_frames
+                    .as_ref()
+                    .and_then(|frames| frames.statement_value_may_write_paths(machine, statement));
+                if let Some(written) = value_written {
+                    value_env.invalidate_written_paths(&written);
+                } else {
+                    value_env.clear();
+                }
                 // VALUE-position calls inside this statement's expression trees
                 // (LocalData initializers, transition arguments, guard subjects,
                 // etc.) are not reached by `validate_state_statement_node`; run
-                // their bound + argument checks here, BEFORE the statement records
-                // its own effects, so the flow-sensitive `value_env` reflects the
-                // state in which the arguments are actually evaluated (a narrowing
-                // arg like `self.take_i8(self.big)` is judged against `big`'s
-                // pre-statement interval).
+                // their bound + argument checks here, before the statement records
+                // its own writes. The flow-sensitive environment has already
+                // crossed every nested value-call frame above, so no argument can
+                // rely on a fact an earlier or opaque call may invalidate.
                 validate_value_position_calls(
                     program,
                     machine,

@@ -1,0 +1,25 @@
+// R5 value-call frame: a value-position sibling call writes only self.other,
+// so it preserves i's entry-time relation to self.count for later forwarding.
+data Main {
+    count: u32;
+    other: u32;
+    input: u32;
+}
+
+machine Main::run(&mut self) {
+    transition self.input <= self.count { true -> forward(self.input) _ -> done() }
+
+    state forward(&mut self, i: u32 [0..=self.count]) {
+        let marker: u32 = self.touch_other();
+        self.consume(i);
+    }
+
+    state done(&mut self) { }
+}
+
+machine Main::touch_other(&mut self) -> u32 {
+    self.other = 1;
+    self.other
+}
+
+machine Main::consume(&mut self, value: u32 [0..=self.count]) { }

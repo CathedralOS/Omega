@@ -75,6 +75,60 @@ impl<'program> CallFrameResolver<'program> {
             )
         })
     }
+
+    /// Conservative aggregate frame of every value-position call nested in
+    /// `expression`. `Some([])` means the expression is call-free; `None`
+    /// means at least one call is opaque, so consumers must fail closed.
+    pub fn expression_may_write_paths(
+        &self,
+        current_machine: &'program Machine,
+        expression: ExpressionHandle,
+    ) -> Option<Vec<String>> {
+        let mut diagnostics = Vec::new();
+        let machine_symbols =
+            MachineSymbols::build(self.program, current_machine, &mut diagnostics);
+        if !diagnostics.is_empty() {
+            return None;
+        }
+        let mut written = Vec::new();
+        collect_expression_call_written_paths(
+            self.program,
+            expression,
+            current_machine,
+            &machine_symbols,
+            &self.symbols,
+            &mut written,
+        )?;
+        Some(written)
+    }
+
+    /// Aggregate only the value-position calls embedded in a statement. The
+    /// statement-position call itself is handled separately by
+    /// `may_write_paths`; its receiver is a path, not an evaluated expression.
+    pub fn statement_value_may_write_paths(
+        &self,
+        current_machine: &'program Machine,
+        statement: &StatementNode,
+    ) -> Option<Vec<String>> {
+        let mut diagnostics = Vec::new();
+        let machine_symbols =
+            MachineSymbols::build(self.program, current_machine, &mut diagnostics);
+        if !diagnostics.is_empty() {
+            return None;
+        }
+        let mut written = Vec::new();
+        for expression in statement_value_expression_roots(self.program, statement) {
+            collect_expression_call_written_paths(
+                self.program,
+                expression,
+                current_machine,
+                &machine_symbols,
+                &self.symbols,
+                &mut written,
+            )?;
+        }
+        Some(written)
+    }
 }
 
 /// Parent/child places overlap in both directions: writing `self.item` kills a
@@ -87,6 +141,179 @@ pub fn frame_paths_overlap(left: &str, right: &str) -> bool {
         || right
             .strip_prefix(left)
             .is_some_and(|suffix| suffix.starts_with('.') || suffix.starts_with('['))
+}
+
+fn statement_value_expression_roots(
+    program: &TypedTrees,
+    statement: &StatementNode,
+) -> Vec<ExpressionHandle> {
+    let mut roots = Vec::new();
+    match statement {
+        StatementNode::AssemblyFact(fact) => roots.push(fact.expression),
+        StatementNode::Assignment(assignment) => {
+            roots.push(assignment.target);
+            roots.push(assignment.value);
+        }
+        StatementNode::Call(call) => roots.extend(
+            program
+                .statement_table
+                .expression_handles(call.arguments)
+                .iter()
+                .copied(),
+        ),
+        StatementNode::Expression(expression) => roots.push(*expression),
+        StatementNode::LocalData(local) => roots.push(local.initial_value),
+        StatementNode::Transition(transition) => {
+            if let TransitionGuardNode::When(guard) = transition.guard {
+                roots.push(guard);
+            }
+            for target in [transition.target, transition.continuation] {
+                if !target.is_valid() {
+                    continue;
+                }
+                match program.statement_table.transition_target(target) {
+                    TransitionTargetNode::Named { arguments, .. } => roots.extend(
+                        program
+                            .statement_table
+                            .expression_handles(*arguments)
+                            .iter()
+                            .copied(),
+                    ),
+                    TransitionTargetNode::Value(value) => roots.push(*value),
+                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                }
+            }
+        }
+    }
+    roots
+}
+
+#[allow(clippy::too_many_arguments)]
+fn collect_expression_call_written_paths(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    written: &mut Vec<String>,
+) -> Option<()> {
+    if !expression.is_valid() {
+        return Some(());
+    }
+    let mut visit = |child| {
+        collect_expression_call_written_paths(
+            program,
+            child,
+            current_machine,
+            machine_symbols,
+            symbols,
+            written,
+        )
+    };
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Call(call) => {
+            if call.receiver.is_valid() {
+                visit(call.receiver)?;
+            }
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                visit(*argument)?;
+            }
+            let receiver_members = if call.receiver.is_valid() {
+                receiver_member_chain(program, call.receiver)?
+            } else {
+                Vec::new()
+            };
+            let arguments = program.expression_table.expression_handles(call.arguments);
+            let paths = known_call_written_paths_for_parts(
+                program,
+                call.target_symbol,
+                call.target.as_str(),
+                &receiver_members,
+                arguments,
+                current_machine,
+                machine_symbols,
+                symbols,
+                &mut Vec::new(),
+            )
+            .or_else(|| {
+                known_boundary_call_written_paths_for_parts(
+                    program,
+                    machine_symbols,
+                    symbols,
+                    &receiver_members,
+                    call.target.as_str(),
+                    arguments,
+                )
+            })
+            // Even when the callee body is opaque (transitioning, cyclic,
+            // static-machine, or unresolved), ownership still gives a sound
+            // caller-visible floor: it cannot mutate an unpassed caller local.
+            // Conservatively poison the whole receiver (`self` for an implicit
+            // receiver) plus every explicit mutable argument.
+            .or_else(|| {
+                syntactic_call_written_paths(program, &receiver_members, arguments)
+            })?;
+            for path in paths {
+                if !written.contains(&path) {
+                    written.push(path);
+                }
+            }
+        }
+        ExpressionNode::Binary(binary) => {
+            visit(binary.left)?;
+            visit(binary.right)?;
+        }
+        ExpressionNode::Unary(unary) => visit(unary.operand)?,
+        ExpressionNode::Cast(cast) => visit(cast.value)?,
+        ExpressionNode::Indexed(indexed) => {
+            visit(indexed.collection)?;
+            visit(indexed.index)?;
+        }
+        ExpressionNode::Member(member) => visit(member.receiver)?,
+        ExpressionNode::Mutable(inner) => visit(*inner)?,
+        ExpressionNode::ArrayLiteral(elements) => {
+            for element in program.expression_table.expression_handles(*elements) {
+                visit(*element)?;
+            }
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            for field in program.expression_table.struct_fields(literal.fields) {
+                visit(field.value)?;
+            }
+        }
+        ExpressionNode::Range(range) => {
+            visit(range.start)?;
+            visit(range.end)?;
+        }
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_) => {}
+    }
+    Some(())
+}
+
+fn syntactic_call_written_paths(
+    program: &TypedTrees,
+    receiver_members: &[String],
+    arguments: &[ExpressionHandle],
+) -> Option<Vec<String>> {
+    let mut written = vec![if receiver_members.is_empty() {
+        "self".to_owned()
+    } else {
+        receiver_members.join(".")
+    }];
+    for argument in arguments {
+        let ExpressionNode::Mutable(place) = program.expression_table.expression(*argument) else {
+            continue;
+        };
+        let path = coarse_place_path(program, *place)?;
+        if !written.contains(&path) {
+            written.push(path);
+        }
+    }
+    Some(written)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -611,14 +838,35 @@ pub(crate) fn boundary_trait_signature<'program>(
     symbols: &TopLevelSymbols<'program>,
     call: &TableCall,
 ) -> Option<&'program omega_typed_trees::signature::StateSignature> {
-    let receiver_members = program.statement_table.name_path_members(call.receiver);
-    let receiver = receiver_members.last().map(|member| member.as_str())?;
+    let receiver_members = program
+        .statement_table
+        .name_path_members(call.receiver)
+        .iter()
+        .map(|member| member.as_str().to_owned())
+        .collect::<Vec<_>>();
+    boundary_trait_signature_for_parts(
+        program,
+        machine_symbols,
+        symbols,
+        &receiver_members,
+        call.target.as_str(),
+    )
+}
+
+fn boundary_trait_signature_for_parts<'program>(
+    program: &'program TypedTrees,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'program>,
+    receiver_members: &[String],
+    target: &str,
+) -> Option<&'program omega_typed_trees::signature::StateSignature> {
+    let receiver = receiver_members.last()?.as_str();
     let receiver_type = machine_symbols.contained_type(receiver)?;
     let trait_definition = symbols.trait_definition(receiver_type)?;
     program
         .trait_machine_signatures(trait_definition)
         .iter()
-        .find(|signature| signature.name == call.target)
+        .find(|signature| signature.name.as_str() == target)
 }
 
 /// The program-place frame of a resolved boundary call before authored
@@ -632,17 +880,36 @@ pub(crate) fn known_boundary_call_written_paths(
     symbols: &TopLevelSymbols<'_>,
     call: &TableCall,
 ) -> Option<Vec<String>> {
-    let signature = boundary_trait_signature(program, machine_symbols, symbols, call)?;
-    let receiver = program.statement_table.name_path_members(call.receiver);
+    let receiver = program
+        .statement_table
+        .name_path_members(call.receiver)
+        .iter()
+        .map(|member| member.as_str().to_owned())
+        .collect::<Vec<_>>();
+    known_boundary_call_written_paths_for_parts(
+        program,
+        machine_symbols,
+        symbols,
+        &receiver,
+        call.target.as_str(),
+        program.statement_table.expression_handles(call.arguments),
+    )
+}
+
+fn known_boundary_call_written_paths_for_parts(
+    program: &TypedTrees,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    receiver: &[String],
+    target: &str,
+    arguments: &[ExpressionHandle],
+) -> Option<Vec<String>> {
+    let signature =
+        boundary_trait_signature_for_parts(program, machine_symbols, symbols, receiver, target)?;
     if receiver.is_empty() {
         return None;
     }
-    let mut written = vec![receiver
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join(".")];
-    let arguments = program.statement_table.expression_handles(call.arguments);
+    let mut written = vec![receiver.join(".")];
     let parameters = program
         .state_signature_parameters(signature)
         .iter()
@@ -717,9 +984,18 @@ pub(crate) fn known_call_written_paths(
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
 ) -> Option<Vec<String>> {
-    known_call_written_paths_inner(
+    let receiver_members = program
+        .statement_table
+        .name_path_members(call.receiver)
+        .iter()
+        .map(|member| member.as_str().to_owned())
+        .collect::<Vec<_>>();
+    known_call_written_paths_for_parts(
         program,
-        call,
+        call.target_symbol,
+        call.target.as_str(),
+        &receiver_members,
+        program.statement_table.expression_handles(call.arguments),
         current_machine,
         machine_symbols,
         symbols,
@@ -727,9 +1003,13 @@ pub(crate) fn known_call_written_paths(
     )
 }
 
-fn known_call_written_paths_inner(
+#[allow(clippy::too_many_arguments)]
+fn known_call_written_paths_for_parts(
     program: &TypedTrees,
-    call: &TableCall,
+    target_symbol: SymbolHandle,
+    target: &str,
+    receiver_members: &[String],
+    arguments: &[ExpressionHandle],
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
@@ -739,20 +1019,19 @@ fn known_call_written_paths_inner(
     // not an ordinary receiver binding. Until MP summaries instantiate that
     // binding explicitly, retain the sound all-facts invalidation.
     if program
-        .machine_parameter_signature_in(current_machine, call.target_symbol)
+        .machine_parameter_signature_in(current_machine, target_symbol)
         .is_some()
     {
         return None;
     }
-    let receiver_members = program.statement_table.name_path_members(call.receiver);
     let (callee_machine, callee_state) = if receiver_members.is_empty()
-        || matches!(receiver_members, [receiver] if receiver.as_str() == "self")
+        || matches!(receiver_members, [receiver] if receiver == "self")
     {
-        machine_state_by_symbol(program, call.target_symbol)
+        machine_state_by_symbol(program, target_symbol)
             .filter(|(machine, _)| machine.symbol != current_machine.symbol)
             .or_else(|| {
                 machine_symbols
-                    .state(call.target.as_str())
+                    .state(target)
                     .map(|state| (current_machine, state))
             })
             .or_else(|| {
@@ -763,11 +1042,11 @@ fn known_call_written_paths_inner(
                         symbols.attached_machine_state(
                             program,
                             attached_data.as_str(),
-                            call.target.as_str(),
+                            target,
                         )
                     })
             })
-            .or_else(|| free_machine_entry_state(program, symbols, call.target.as_str()))?
+            .or_else(|| free_machine_entry_state(program, symbols, target))?
     } else {
         let receiver = receiver_members.last()?.as_str();
         let machine = machine_symbols
@@ -777,7 +1056,7 @@ fn known_call_written_paths_inner(
         let state = program
             .machine_states(machine)
             .iter()
-            .find(|state| state.name == call.target)?;
+            .find(|state| state.name.as_str() == target)?;
         (machine, state)
     };
 
@@ -787,7 +1066,7 @@ fn known_call_written_paths_inner(
     active_states.push(callee_state.symbol);
     let result = summarize_resolved_call(
         program,
-        call,
+        arguments,
         callee_machine,
         callee_state,
         receiver_members,
@@ -801,23 +1080,16 @@ fn known_call_written_paths_inner(
 #[allow(clippy::too_many_arguments)]
 fn summarize_resolved_call(
     program: &TypedTrees,
-    call: &TableCall,
+    arguments: &[ExpressionHandle],
     callee_machine: &Machine,
     callee_state: &State,
-    receiver_members: &[Identifier],
+    receiver_members: &[String],
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
 ) -> Option<Vec<String>> {
     let receiver_base = (!receiver_members.is_empty())
-        .then(|| {
-            receiver_members
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join(".")
-        })
+        .then(|| receiver_members.join("."))
         .or_else(|| callee_machine.attached_data.as_ref().map(|_| "self".to_owned()));
-    let arguments = program.statement_table.expression_handles(call.arguments);
     let parameters = program.state_parameters(callee_state);
     let mut locals = Vec::new();
     let mut written = Vec::new();
@@ -858,9 +1130,20 @@ fn summarize_resolved_call(
                 }
             }
             StatementNode::Call(nested_call) => {
-                let nested_writes = known_call_written_paths_inner(
+                let nested_receiver_members = program
+                    .statement_table
+                    .name_path_members(nested_call.receiver)
+                    .iter()
+                    .map(|member| member.as_str().to_owned())
+                    .collect::<Vec<_>>();
+                let nested_writes = known_call_written_paths_for_parts(
                     program,
-                    nested_call,
+                    nested_call.target_symbol,
+                    nested_call.target.as_str(),
+                    &nested_receiver_members,
+                    program
+                        .statement_table
+                        .expression_handles(nested_call.arguments),
                     callee_machine,
                     &callee_symbols,
                     symbols,
