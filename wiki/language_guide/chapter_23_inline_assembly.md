@@ -184,7 +184,8 @@ instruction family.
 - Memory operations preserve Omega provenance, permission, and invariant rules.
 - Machine-state footprints are validated against the complete boundary
   `StatePlan` after final code realization.
-- `Binding::Instruction` retires as the checked catalog covers its customers.
+- The retired `Binding::Instruction` path has no compatibility spelling;
+  parsed checked assembly is the only source-level instruction surface.
 
 See
 [`OS Memory And Hardware Foundation`](../design_briefs/os_memory_and_hardware_foundation.md)
