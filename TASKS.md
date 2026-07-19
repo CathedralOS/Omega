@@ -137,8 +137,6 @@ before the fix.
 - **Terminal value-machine call on boot paths.** Triage the remaining red
   `value_call_terminal` shape before Cathedral scheduler code relies on
   machine calls.
-- **Trapping constant shift.** The state-values folder must not wrap a constant
-  `Trapping` left-shift whose value overflows while runtime lowering traps.
 - **Non-place record-pattern subjects.** Exhaustiveness validation currently
   lacks a declared type for non-place subjects. Preserve single evaluation and
   enforce the same missing/unknown-field law; add the copy-eligibility fence if
