@@ -533,6 +533,48 @@ fn boundary_ensures_witness_dies_when_internal_call_writes_place() {
 }
 
 #[test]
+fn dependent_entry_fact_survives_unrelated_internal_call() {
+    validate_contract_source(
+        r#"
+    data Main { count: u32; other: u32; remaining: u32; }
+    machine Main::main(&mut self) { }
+    machine Main::read(&mut self, i: u32 [0..=self.count]) {
+        self.touch_other();
+        self.remaining = self.count - i;
+    }
+    machine Main::touch_other(&mut self) {
+        self.other = 1;
+    }
+    "#,
+    )
+    .expect("a disjoint internal call must preserve the dependent entry fact");
+}
+
+#[test]
+fn dependent_entry_fact_dies_when_internal_call_writes_bound_field() {
+    let diagnostics = validate_contract_source(
+        r#"
+    data Main { count: u32; remaining: u32; }
+    machine Main::main(&mut self) { }
+    machine Main::read(&mut self, i: u32 [0..=self.count]) {
+        self.touch_count();
+        self.remaining = self.count - i;
+    }
+    machine Main::touch_count(&mut self) {
+        self.count = 1;
+    }
+    "#,
+    )
+    .expect_err("a call writing the bound field must invalidate the dependent fact");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("may overflow `u32`")),
+        "expected the exact-arithmetic refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn symbolic_walk_recast_footprint_discharges() {
     // M2 gap 4b, the full chain: the walk state re-enters itself with
     // `offset + desc_size` under the guard `offset + desc_size + desc_size

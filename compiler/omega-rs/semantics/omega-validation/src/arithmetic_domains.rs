@@ -2908,7 +2908,7 @@ fn refine_dependent_subtract(
     if left_bound.field.as_str() != right_field.as_str() {
         return naive;
     }
-    if !validation_state_preserves_field(program, state, &right_field) {
+    if !validation_state_preserves_field(program, machine, state, &right_field) {
         return naive;
     }
     let Some(floor) = left_bound.offset.checked_sub(right_offset) else {
@@ -2968,19 +2968,65 @@ fn dependent_maximum_of_type_reference(
 }
 
 /// Conservative whole-state field-preservation scan (twin of omega-proof's
-/// route-c fence): any assignment mentioning the field or any call defeats
-/// the entry-fact bridge.
+/// route-c fence). Assignments to the field defeat the entry-fact bridge;
+/// resolved calls use the same R5 may-write summaries as the linear value
+/// environment, while opaque calls remain a fail-closed fence.
 fn validation_state_preserves_field(
     program: &TypedTrees,
+    machine: &Machine,
     state: &State,
     field: &omega_typed_trees::name::Identifier,
 ) -> bool {
     use omega_typed_trees::statement::StatementNode;
+    let field_path = format!("self.{}", field.as_str());
+    let mut call_symbols = None;
+    let mut call_symbols_initialized = false;
+
     for statement in program.statement_table.statements(state.statement_nodes) {
         match statement {
             StatementNode::Assignment(assignment) => {
                 if validation_expression_mentions_field(program, assignment.target, field)
                     || validation_expression_contains_call(program, assignment.value)
+                {
+                    return false;
+                }
+            }
+            StatementNode::Call(call) => {
+                if !call_symbols_initialized {
+                    let mut diagnostics = Vec::new();
+                    let symbols =
+                        crate::symbols::TopLevelSymbols::build(program, &mut diagnostics);
+                    let machine_symbols =
+                        crate::symbols::MachineSymbols::build(program, machine, &mut diagnostics);
+                    if diagnostics.is_empty() {
+                        call_symbols = Some((symbols, machine_symbols));
+                    }
+                    call_symbols_initialized = true;
+                }
+                let Some((symbols, machine_symbols)) = call_symbols.as_ref() else {
+                    return false;
+                };
+                let written = crate::calls::known_call_written_paths(
+                    program,
+                    call,
+                    machine,
+                    machine_symbols,
+                    symbols,
+                )
+                .or_else(|| {
+                    crate::calls::known_boundary_call_written_paths(
+                        program,
+                        machine_symbols,
+                        symbols,
+                        call,
+                    )
+                });
+                let Some(written) = written else {
+                    return false;
+                };
+                if written
+                    .iter()
+                    .any(|written| place_paths_overlap(&field_path, written))
                 {
                     return false;
                 }
@@ -3135,7 +3181,7 @@ fn machine_preserves_expression_fields(
         program
             .machine_states(machine)
             .iter()
-            .all(|state| validation_state_preserves_field(program, state, field))
+            .all(|state| validation_state_preserves_field(program, machine, state, field))
     })
 }
 
@@ -3230,7 +3276,7 @@ fn refine_dependent_product(
         let preserved = program
             .machine_states(machine)
             .iter()
-            .all(|state| validation_state_preserves_field(program, state, field));
+            .all(|state| validation_state_preserves_field(program, machine, state, field));
         if !preserved {
             return naive;
         }
@@ -3369,7 +3415,7 @@ fn refine_dependent_product_factor(
         let preserved = program
             .machine_states(machine)
             .iter()
-            .all(|state| validation_state_preserves_field(program, state, field));
+            .all(|state| validation_state_preserves_field(program, machine, state, field));
         if !preserved {
             return naive;
         }
