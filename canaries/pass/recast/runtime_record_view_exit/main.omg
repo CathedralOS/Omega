@@ -1,11 +1,10 @@
 // RUN CANARY (exit 70) + interpreter differential. RUNG C2 -- the
 // Cathedral M2 shape: a RECORD re-viewed over a byte region at a RUNTIME
 // offset (`&self.buf[off] as &Desc`), member reads through the view on
-// BOTH engines. The view MATERIALIZES as a SNAPSHOT: the reference
-// local's slot is sized by the REFEREE record (runtime-storage layout),
-// the initializer byte-copies size_of(record) from base+offset (the C1
-// indexed copy at the record's width), and member reads are ordinary
-// frame-resident record reads. Legs pin the ALIGNMENT LOCKSTEP across
+// BOTH engines. The view PRESERVES ADDRESS IDENTITY: the reference local's
+// slot is sized by the REFEREE record (runtime-storage's wide-view carrier),
+// its first word receives base+offset, and member reads dereference that
+// address. Legs pin the ALIGNMENT LOCKSTEP across
 // the three sizing implementations (validation's footprint gate, the
 // layout plan, the interp's field decode): Desc { a: u32; b: u64 } has
 // b at natural offset 8 (4 bytes padding), so buf[off+8..] must read as

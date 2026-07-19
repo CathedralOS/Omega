@@ -126,11 +126,24 @@ pub(super) fn build_runtime_storage_body_plan(
                 type_reference,
                 invariant_names,
             } => {
-                let layout = layout_for_type_reference(
+                // Dispatch-root locals take this direct arm instead of the
+                // branch/straight-line helper below. Preserve the same recast
+                // record-view rule here: `let d: &Record = &bytes[K] as
+                // &Record` reserves the referee width used to distinguish its
+                // address-bearing carrier from an ordinary pointer slot.
+                let layout = local_storage_for_operation(
                     context,
-                    &context.runtime_bodies.type_references,
-                    *type_reference,
-                );
+                    operation.source_key,
+                    operation.statement_index,
+                )
+                .and_then(|local| recast_view_slot_layout(context, local))
+                .unwrap_or_else(|| {
+                    layout_for_type_reference(
+                        context,
+                        &context.runtime_bodies.type_references,
+                        *type_reference,
+                    )
+                });
                 append_local_slot(
                     &mut plan,
                     body.dispatch_index,
@@ -687,7 +700,7 @@ fn append_branch_operation_storage(
 
 
 /// Rung C2: a reference-typed local INITIALIZED BY A JUDGED RECAST sizes by
-/// its referee record (the snapshot view). `None` keeps the ordinary layout
+/// its referee record (the wide-view carrier). `None` keeps the ordinary layout
 /// -- the gate is the recast initializer, so boundary pointer-model locals
 /// are untouched.
 fn recast_view_slot_layout(

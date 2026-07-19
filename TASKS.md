@@ -119,11 +119,6 @@ argument or inferred contract.
 These are unblocked and should gain a focused pass/fail or differential canary
 before the fix.
 
-- **Constant-offset recast stale read.** A record view such as
-  `&self.buf[K] as &Rec` can fold field reads against the zero-initialized
-  static image after runtime writes. A small runtime-offset loop can likewise
-  specialize to wrong fixed displacements. Fix frontend recast/const-fold
-  provenance and add a genuinely runtime-but-small differential witness.
 - **Pre-guard local initialization.** Resolve
   `texteq_local_guard_read_divergence` and its argument-forward twin. Dispatch
   guards need a per-branch pre-guard region for call-free local-data

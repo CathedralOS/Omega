@@ -5,12 +5,12 @@ use omega_checked_trees::types::{
 use omega_core::symbols::{BuiltinType, SymbolHandle};
 use omega_layout::TypeLayout;
 
-/// Rung C2's snapshot view: a reference-typed local whose initializer is a
-/// judged RECAST over a byte region sizes by the REFEREE RECORD (the slot
-/// materializes the referee's bytes; member reads are ordinary
-/// frame-resident record reads). Every other reference local keeps the
-/// pointer model -- gating on the recast initializer is what keeps the
-/// boundary machinery's pointer-in-slot locals untouched.
+/// Rung C2's record view: a reference-typed local whose initializer is a
+/// judged RECAST over a byte region reserves the REFEREE RECORD's width. For
+/// wide records the slot's first word carries the backing address; the wider
+/// reservation is the read-side discriminator between this view and an
+/// ordinary pointer slot. Every other reference local keeps the pointer model
+/// -- gating on the recast initializer keeps boundary pointer locals intact.
 pub(super) fn recast_view_layout(
     context: &RuntimeStorageContext,
     table: &TypeReferenceTable,
