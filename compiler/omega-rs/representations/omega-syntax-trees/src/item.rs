@@ -527,9 +527,10 @@ pub struct DataProperties {
     /// Zero means empty: the zeroed value is the type's empty value; owns the
     /// zero-case-payload-free rule and rejects non-zero field defaults.
     pub zero_init: bool,
-    /// Values may cross thread boundaries; verified structurally like `copy`
-    /// until the concurrency model lands.
-    pub send: bool,
+    /// Authored carry-policy floor. Omission remains distinct from an authored
+    /// strict policy so transparent derivation and opaque admission can choose
+    /// their respective establishment paths later.
+    pub carry: Option<omega_core::semantics::CarryPolicy>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

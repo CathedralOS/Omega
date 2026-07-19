@@ -42,6 +42,11 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
                     source_backed: false,
                 },
                 type_parameters: Vec::new(),
+                properties: super::DataPropertiesSnapshot {
+                    multiplicity: "affine",
+                    zero_init: false,
+                    carry: None,
+                },
                 members: vec![super::DataMemberSnapshot::Field {
                     name: super::IdentifierSnapshot {
                         text: "field".to_owned(),

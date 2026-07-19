@@ -1,6 +1,7 @@
 use crate::{
-    BorrowFacts, CheckedOperatorFacts, CheckedValueFacts, DomainFacts, FlowFacts, InvariantFacts,
-    EffectRowFacts, MachineContractPlans, ProofFacts, QualificationFacts, TerminationFacts,
+    BorrowFacts, CarryFacts, CheckedOperatorFacts, CheckedValueFacts, DomainFacts, EffectRowFacts,
+    FlowFacts, InvariantFacts, MachineContractPlans, ProofFacts, QualificationFacts,
+    TerminationFacts,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -27,6 +28,10 @@ pub struct CheckFacts {
     /// STR4 checked plans (machine_taxonomy.md): the normalized machine
     /// semantic contracts -- published halves + deterministic fingerprint.
     pub contract_plans: MachineContractPlans,
+    /// CRY1: checker-derived four-axis carry policy per transparent data
+    /// declaration. Later live-set and runtime-admission passes consume this
+    /// plan rather than re-deriving policy from syntax.
+    pub carry: CarryFacts,
 }
 
 impl CheckFacts {
@@ -45,6 +50,7 @@ impl CheckFacts {
         effect_rows: EffectRowFacts,
         qualifications: QualificationFacts,
         contract_plans: MachineContractPlans,
+        carry: CarryFacts,
     ) -> Self {
         Self {
             semantic,
@@ -61,6 +67,7 @@ impl CheckFacts {
             effect_rows,
             qualifications,
             contract_plans,
+            carry,
         }
     }
 }

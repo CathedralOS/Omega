@@ -6,7 +6,7 @@ use crate::expression_types::{
 use crate::locals::WritableRoots;
 use crate::places::declared_place_type;
 use crate::properties::{
-    declared_property_names, referenced_type_parameter, type_satisfies_declared_property,
+    declared_property_requirements, referenced_type_parameter, type_satisfies_declared_property,
 };
 use crate::struct_literals::data_declares_field;
 use crate::symbols::{MachineSymbols, TopLevelSymbols};
@@ -1319,16 +1319,17 @@ fn validate_machine_call_type_parameter_bounds(
         else {
             continue;
         };
-        let bound_names = declared_property_names(&type_parameter.bounds);
-        if bound_names.is_empty() {
+        let bounds = declared_property_requirements(&type_parameter.bounds);
+        if bounds.is_empty() {
             continue;
         }
+        let bound_labels = bounds.iter().map(ToString::to_string).collect::<Vec<_>>();
         let Some(argument_type) =
             declared_place_type(program, current_machine, current_state, *argument)
         else {
             continue;
         };
-        for property in &bound_names {
+        for property in bounds {
             if type_satisfies_declared_property(
                 program,
                 symbols,
@@ -1339,9 +1340,9 @@ fn validate_machine_call_type_parameter_bounds(
                 continue;
             }
             diagnostics.push(Diagnostic::error(format!(
-                "type parameter `{} [{}]` of machine `{target_name}` was instantiated with `{}`, which does not declare `[{property}]`",
+                "type parameter `{} [{}]` of machine `{target_name}` was instantiated with `{}`, which does not satisfy `[{property}]`",
                 type_parameter.name,
-                bound_names.join(", "),
+                bound_labels.join(", "),
                 type_reference_label(program, argument_type)
             )));
         }

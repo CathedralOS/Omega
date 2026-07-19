@@ -4,9 +4,10 @@
 //! (`data Point [copy, zero_init]`). The spelling set is closed at parse
 //! time; this pass verifies the declared facts hold:
 //!
-//! - `copy`/`send`: structural — every field (and case payload field) must be
-//!   a primitive or a data type that itself declares the property. Until the
-//!   concurrency model lands, `send` uses the same structural walk as `copy`.
+//! - `copy`: structural — every field (and case payload field) must be a
+//!   primitive or a data type that itself declares the property.
+//! - `carry(...)`: the authored four-axis floor may not be more permissive
+//!   than the policy derived from every stored field.
 //! - `zero_init` (zero means empty): the zero case must be payload-free, no
 //!   field may declare a non-zero default, and nested data fields must
 //!   themselves be `zero_init` so the zeroed aggregate is the empty value.
@@ -22,6 +23,25 @@ use omega_typed_trees::data::{DataDefinition, DataField, DataMember, TypeParamet
 use omega_typed_trees::expression::ExpressionNode;
 use omega_typed_trees::types::TypeReferenceNode;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeclaredPropertyRequirement {
+    Copy,
+    Linear,
+    ZeroInit,
+    Carry(omega_core::semantics::CarryPolicy),
+}
+
+impl std::fmt::Display for DeclaredPropertyRequirement {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Copy => formatter.write_str("copy"),
+            Self::Linear => formatter.write_str("linear"),
+            Self::ZeroInit => formatter.write_str("zero_init"),
+            Self::Carry(policy) => write!(formatter, "{policy}"),
+        }
+    }
+}
+
 pub(crate) fn validate_data_properties(
     program: &TypedTrees,
     symbols: &TopLevelSymbols<'_>,
@@ -33,8 +53,8 @@ pub(crate) fn validate_data_properties(
         if properties.copy {
             validate_structural_property(program, symbols, data_definition, "copy", diagnostics);
         }
-        if properties.send {
-            validate_structural_property(program, symbols, data_definition, "send", diagnostics);
+        if let Some(carry) = properties.carry {
+            validate_carry_policy(program, data_definition, carry, diagnostics);
         }
         if properties.zero_init {
             validate_zero_init(program, symbols, data_definition, diagnostics);
@@ -83,7 +103,7 @@ fn validate_no_linear_erasure(
     });
 }
 
-/// `copy` and `send` are compositional: the property holds when every stored
+/// `copy` is compositional: the property holds when every stored
 /// field holds it. Primitives qualify; named data must declare the property
 /// itself; a type parameter qualifies when it declares the matching bound
 /// (`data Box<T [copy]> [copy]`, frozen decision 13); everything else
@@ -128,27 +148,172 @@ fn validate_structural_property(
     });
 }
 
+fn validate_carry_policy(
+    program: &TypedTrees,
+    data_definition: &DataDefinition,
+    required: omega_core::semantics::CarryPolicy,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let type_parameters = program.data_type_parameters(data_definition);
+    for_each_stored_field(program, data_definition, &mut |field, case: Option<&str>| {
+        let actual = derive_type_carry_policy(
+            program,
+            type_parameters,
+            field.type_reference,
+            &mut Vec::new(),
+        );
+        if actual.permits(required) {
+            return;
+        }
+        let place = match case {
+            Some(case) => format!("case `{case}` payload field `{}`", field.name),
+            None => format!("field `{}`", field.name),
+        };
+        if let Some(parameter) =
+            referenced_type_parameter(program, type_parameters, field.type_reference)
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "data `{}` declares carry policy `{required}` but {place} type parameter `{}` has only `{actual}`; add a compatible `[carry(...)]` bound",
+                data_definition.name, parameter.name
+            )));
+            return;
+        }
+        diagnostics.push(Diagnostic::error(format!(
+            "data `{}` declares carry policy `{required}` but {place} permits only `{actual}`",
+            data_definition.name
+        )));
+    });
+}
+
+fn derive_type_carry_policy(
+    program: &TypedTrees,
+    type_parameters: &[TypeParameter],
+    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    visiting: &mut Vec<String>,
+) -> omega_core::semantics::CarryPolicy {
+    use omega_core::semantics::CarryPolicy;
+
+    if program
+        .type_reference_table
+        .primitive_type(type_reference)
+        .is_some()
+    {
+        return CarryPolicy::PERMISSIVE;
+    }
+
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { name, .. } => {
+            if let Some(parameter) = type_parameter_named(type_parameters, name.as_str()) {
+                return parameter.bounds.carry.unwrap_or(CarryPolicy::STRICT);
+            }
+            named_type_carry_policy(program, name.as_str(), visiting)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            derive_type_carry_policy(program, type_parameters, *base_type, visiting)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            derive_type_carry_policy(program, type_parameters, *element_type, visiting)
+        }
+        TypeReferenceNode::Generic { base_name, .. } => {
+            named_type_carry_policy(program, base_name.as_str(), visiting)
+        }
+        TypeReferenceNode::Unit => CarryPolicy::PERMISSIVE,
+        // Borrows, slices, and erased satisfiers need per-value/provenance
+        // evidence. Until that enforcement lands, absence fails closed.
+        TypeReferenceNode::Reference { .. }
+        | TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::DynamicTrait { .. } => CarryPolicy::STRICT,
+    }
+}
+
+fn named_type_carry_policy(
+    program: &TypedTrees,
+    name: &str,
+    visiting: &mut Vec<String>,
+) -> omega_core::semantics::CarryPolicy {
+    use omega_core::semantics::CarryPolicy;
+    let Some(definition) = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == name)
+    else {
+        return CarryPolicy::STRICT;
+    };
+    if visiting.iter().any(|current| current == name) {
+        return CarryPolicy::STRICT;
+    }
+    visiting.push(name.to_owned());
+    let type_parameters = program.data_type_parameters(definition);
+    let mut derived = CarryPolicy::PERMISSIVE;
+    for_each_stored_field(program, definition, &mut |field, _| {
+        derived = derived.intersect(derive_type_carry_policy(
+            program,
+            type_parameters,
+            field.type_reference,
+            visiting,
+        ));
+    });
+    visiting.pop();
+    derived
+}
+
+/// Derive the effective carry policy of a transparent data declaration from
+/// its complete stored shape. This is the checker-owned result; an authored
+/// `carry(...)` clause is only a minimum promise validated against it.
+pub fn effective_data_carry_policy(
+    program: &TypedTrees,
+    data_definition: &DataDefinition,
+) -> omega_core::semantics::CarryPolicy {
+    use omega_core::semantics::CarryPolicy;
+
+    let type_parameters = program.data_type_parameters(data_definition);
+    let mut effective = CarryPolicy::PERMISSIVE;
+    for_each_stored_field(program, data_definition, &mut |field, _| {
+        effective = effective.intersect(derive_type_carry_policy(
+            program,
+            type_parameters,
+            field.type_reference,
+            &mut vec![data_definition.name.as_str().to_owned()],
+        ));
+    });
+    effective
+}
+
 /// One entry point for "does this type carry the declared property?", shared
-/// with the instantiation-time bound check: `zero_init` has its own walk
-/// (String's zeroed descriptor IS empty), `copy`/`send` share the structural
-/// walk.
+/// with the instantiation-time bound check: `zero_init` has its own walk and
+/// carry requirements use the normalized four-axis comparison.
 pub fn type_satisfies_declared_property(
     program: &TypedTrees,
     symbols: &TopLevelSymbols<'_>,
     type_parameters: &[TypeParameter],
     type_reference: omega_typed_trees::types::TypeReferenceHandle,
-    property: &str,
+    property: DeclaredPropertyRequirement,
 ) -> bool {
-    if property == "zero_init" {
-        type_is_zero_init(program, symbols, type_parameters, type_reference)
-    } else {
-        type_satisfies_structural_property(
+    match property {
+        DeclaredPropertyRequirement::ZeroInit => {
+            type_is_zero_init(program, symbols, type_parameters, type_reference)
+        }
+        DeclaredPropertyRequirement::Carry(required) => derive_type_carry_policy(
+            program,
+            type_parameters,
+            type_reference,
+            &mut Vec::new(),
+        )
+        .permits(required),
+        DeclaredPropertyRequirement::Copy => type_satisfies_structural_property(
             program,
             symbols,
             type_parameters,
             type_reference,
-            property,
-        )
+            "copy",
+        ),
+        DeclaredPropertyRequirement::Linear => type_satisfies_structural_property(
+            program,
+            symbols,
+            type_parameters,
+            type_reference,
+            "linear",
+        ),
     }
 }
 
@@ -162,7 +327,7 @@ fn type_satisfies_structural_property(
     if let Some(primitive) = program.type_reference_table.primitive_type(type_reference) {
         // String is lexed as a primitive but owns text storage: a bitwise copy
         // aliases the buffer, and crossing a spawn boundary moves ownership of
-        // it. Scalars are the only copy/send-satisfying primitives.
+        // it. Scalars are the only copy-satisfying primitives.
         return property != "linear"
             && !matches!(primitive, omega_typed_trees::types::PrimitiveType::String);
     }
@@ -202,21 +367,21 @@ fn type_satisfies_structural_property(
 
 /// The declared property names in canonical order, for diagnostics and for
 /// iterating a parameter's bounds.
-pub fn declared_property_names(
+pub fn declared_property_requirements(
     properties: &omega_typed_trees::data::DataProperties,
-) -> Vec<&'static str> {
+) -> Vec<DeclaredPropertyRequirement> {
     let mut names = Vec::new();
     if properties.copy {
-        names.push("copy");
+        names.push(DeclaredPropertyRequirement::Copy);
     }
     if properties.multiplicity == omega_core::semantics::Multiplicity::Linear {
-        names.push("linear");
+        names.push(DeclaredPropertyRequirement::Linear);
     }
     if properties.zero_init {
-        names.push("zero_init");
+        names.push(DeclaredPropertyRequirement::ZeroInit);
     }
-    if properties.send {
-        names.push("send");
+    if let Some(carry) = properties.carry {
+        names.push(DeclaredPropertyRequirement::Carry(carry));
     }
     names
 }
@@ -236,7 +401,6 @@ fn type_parameter_declares_property(parameter: &TypeParameter, property: &str) -
         "linear" => {
             parameter.bounds.multiplicity == omega_core::semantics::Multiplicity::Linear
         }
-        "send" => parameter.bounds.send,
         "zero_init" => parameter.bounds.zero_init,
         _ => false,
     }
@@ -290,7 +454,6 @@ fn named_type_declares_property(
                 definition.properties.multiplicity
                     == omega_core::semantics::Multiplicity::Linear
             }
-            "send" => definition.properties.send,
             "zero_init" => definition.properties.zero_init,
             _ => false,
         })

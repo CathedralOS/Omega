@@ -41,6 +41,9 @@ pub(crate) fn build_check_facts(
     // STR4 checked plans: the normalized machine contracts (published
     // halves + fingerprint; prover-independent by construction).
     let contract_plans = build_contract_plans(program, &effect_rows);
+    // CRY1: materialize the effective structural policy once in the checked
+    // fact layer; authored clauses remain minimum promises on typed data.
+    let carry = build_carry_facts(program);
 
     CheckFacts::with_roots(
         semantic,
@@ -57,7 +60,21 @@ pub(crate) fn build_check_facts(
         effect_rows,
         qualifications,
         contract_plans,
+        carry,
     )
+}
+
+fn build_carry_facts(program: &TypedTrees) -> omega_checked_trees::CarryFacts {
+    let data = program
+        .data_definitions()
+        .iter()
+        .map(|definition| omega_checked_trees::DataCarryFact {
+            data: definition.symbol,
+            declared: definition.properties.carry,
+            effective: omega_validation::effective_data_carry_policy(program, definition),
+        })
+        .collect();
+    omega_checked_trees::CarryFacts { data }
 }
 
 /// STR4 checked plans (machine_taxonomy.md): assemble each machine's

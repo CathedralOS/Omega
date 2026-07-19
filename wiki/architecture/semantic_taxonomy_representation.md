@@ -149,6 +149,16 @@ Checked provider evidence may prove a narrower record; accepted evidence needs
 an ordinary admission receipt. No second provider/admission representation is
 introduced.
 
+Implementation status (2026-07-19): `CarryPolicy` and its four closed axes live
+in the dependency-safe semantic vocabulary and are copied through syntax,
+resolved, typed, and syntax snapshots. Checked trees own a `CarryFacts` plan
+that keeps the authored minimum separate from the effective derived policy.
+The parser requires a complete `[carry(...)]` product and rejects retired
+`[send]` with guidance. Transparent data and generic bounds use independent
+per-axis composition/comparison. Opaque admission, per-mint qualification,
+canonical place-liveness checks, runtime admission, and artifact/model export
+remain.
+
 Executable provenance and control-flow integrity must also remain separate.
 `Artifact::AdmittedExecutable` plus linear placement states prove which bytes
 may be installed. A normalized CFI plan/certificate proves which transfers are

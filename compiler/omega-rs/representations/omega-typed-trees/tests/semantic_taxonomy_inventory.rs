@@ -128,7 +128,8 @@ fn termination_plan_witness_swap_is_contract_invisible() {
 /// syntax->resolved lowering (`[copy]` -> Unrestricted, ordinary data ->
 /// Affine; `[linear]` maps to Linear) and COPIED (never re-derived)
 /// through resolved->typed. The named distinction survived: one explicit
-/// multiplicity per type, `zero_init`/`send` orthogonal. `copy` remains
+/// multiplicity per type, `zero_init` and the normalized carry record
+/// orthogonal. `copy` remains
 /// the compatibility bool until STR7 retires it; the retirement updates
 /// this pin again.
 #[test]
@@ -137,7 +138,7 @@ fn data_properties_carries_first_class_multiplicity() {
     let DataProperties {
         copy,
         zero_init: _,
-        send: _,
+        carry: _,
         multiplicity,
     } = DataProperties::default();
     // The default (ZII) properties describe ordinary data: Affine, and the

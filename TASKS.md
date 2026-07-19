@@ -141,6 +141,12 @@ argument or inferred contract.
 These are unblocked and should gain a focused pass/fail or differential canary
 before the fix.
 
+- **R5 regression — opaque boundary call must kill prior range evidence.**
+  `boundary_ensures_witness_bounded_assignment_dies_on_later_call` currently
+  accepts `self.n + 1` after an intervening bodiless boundary call. Restore the
+  conservative invalidation (or an equally sound normalized may-write/effect
+  summary) so the checked-tree suite returns green.
+
 ## Type, proof, and semantic-model work
 
 ### Dependent facts and frames
@@ -188,11 +194,15 @@ before the fix.
 
 ### Carry, multiplicity, task lifecycle, and allocation
 
-- **CRY1–CRY6 — four-axis carry policy.** Propagate the normalized
-  suspension/CPU/thread/address record through all trees and snapshots; parse
-  `[carry(...)]` and remove `[send]`; derive transparent aggregates and generic
-  bounds; add sealed per-mint facts; check canonical live sets locally; join
-  activation demands with pessimistic admitted runtime behavior and emit
+- **CRY1–CRY6 — four-axis carry policy.** The normalized
+  suspension/CPU/thread/address record now survives syntax, resolved, typed,
+  syntax snapshots, and a checked `CarryFacts` plan that separates authored
+  minimums from effective derived policies. `[carry(...)]` requires all
+  four axes, `[send]` has a directed retirement diagnostic, transparent
+  aggregates derive per-axis intersections, and data/machine generic bounds
+  compare the complete policy (including specialization admission). Continue
+  with opaque/admitted and sealed per-mint facts; canonical live-set checks;
+  activation-demand joins against pessimistic admitted runtime behavior; and
   diagnostic/artifact/model-export facts.
 - **CML4 — finish multiplicity migration.** Remove downstream dependence on
   legacy move/drop arenas, cover remaining ownership forms and per-field debt,

@@ -428,8 +428,9 @@ fn validate_generic_argument_bounds(
     let parameters = program.data_type_parameters(definition);
     let argument_handles = program.type_reference_table.type_reference_handles(arguments);
     for (parameter, argument) in parameters.iter().zip(argument_handles) {
-        let bound_names = crate::properties::declared_property_names(&parameter.bounds);
-        for property in &bound_names {
+        let bounds = crate::properties::declared_property_requirements(&parameter.bounds);
+        let bound_labels = bounds.iter().map(ToString::to_string).collect::<Vec<_>>();
+        for property in bounds {
             if crate::properties::type_satisfies_declared_property(
                 program,
                 symbols,
@@ -440,9 +441,9 @@ fn validate_generic_argument_bounds(
                 continue;
             }
             diagnostics.push(Diagnostic::error(format!(
-                "type parameter `{} [{}]` of `{base_name}` was instantiated with `{}`, which does not declare `[{property}]`",
+                "type parameter `{} [{}]` of `{base_name}` was instantiated with `{}`, which does not satisfy `[{property}]`",
                 parameter.name,
-                bound_names.join(", "),
+                bound_labels.join(", "),
                 type_reference_label(program, *argument)
             )));
         }

@@ -15,6 +15,72 @@ fn typed_program_from_source(source: &str) -> omega_typed_trees::TypedTrees {
 }
 
 #[test]
+fn carry_policy_survives_lowering_and_derives_through_transparent_data() {
+    let typed = typed_program_from_source(
+        r#"
+        data Inner { value: i32; }
+        data Outer [carry(
+            suspension: allowed,
+            cpu: any,
+            thread: any,
+            address: movable,
+        )] { inner: Inner; }
+        "#,
+    );
+    let outer = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Outer")
+        .expect("Outer");
+    assert_eq!(
+        outer.properties.carry,
+        Some(omega_core::semantics::CarryPolicy::PERMISSIVE)
+    );
+    validate_program(&typed).expect("transparent scalar aggregate should derive permissive carry");
+}
+
+#[test]
+fn authored_carry_floor_rejects_a_stricter_stored_borrow() {
+    let typed = typed_program_from_source(
+        r#"
+        data Bad [carry(
+            suspension: allowed,
+            cpu: any,
+            thread: any,
+            address: movable,
+        )] { borrowed: &i32; }
+        "#,
+    );
+    let diagnostics = validate_program(&typed).expect_err("borrow must fail permissive carry floor");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("declares carry policy")
+            && diagnostic.message.contains("field `borrowed`")
+    }));
+}
+
+#[test]
+fn carry_bound_rejects_a_stricter_generic_argument() {
+    let typed = typed_program_from_source(
+        r#"
+        data Envelope<T [carry(
+            suspension: allowed,
+            cpu: any,
+            thread: any,
+            address: movable,
+        )]> { value: T; }
+        data Borrowed { value: &i32; }
+        data UsesEnvelope { value: Envelope<Borrowed>; }
+        "#,
+    );
+    let diagnostics =
+        validate_program(&typed).expect_err("borrow type must not satisfy permissive carry bound");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("type parameter `T")
+            && diagnostic.message.contains("carry(")
+    }));
+}
+
+#[test]
 fn static_machine_argument_refines_authored_generic_contract() {
     let typed = typed_program_from_source(
         r#"
