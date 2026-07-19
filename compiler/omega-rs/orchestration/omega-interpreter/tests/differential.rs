@@ -150,6 +150,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/unsigned_min_max_wrapping_local_exit", 77),
     ("storage/runtime_slice_indexed_binary_rmw_exit", 70),
     ("calls/runtime_mut_ref_forward_exit", 70),
+    ("calls/runtime_trailing_state_mut_param_phase_exit", 70),
     ("storage/runtime_local_slice_forward_exit", 70),
     ("float/f32_guard_const_arith_landed_exit", 70),
     ("float/f32_arg_const_arith_landed_exit", 70),
@@ -2024,6 +2025,7 @@ fn pass_canary(path: &str) -> PathBuf {
 }
 
 /// What the INTERPRETER leg of a parked divergence is documented to do.
+#[allow(dead_code)]
 enum PendingInterpOutcome {
     Exit(i32),
     Traps,
@@ -2037,7 +2039,6 @@ enum PendingInterpOutcome {
 /// omega-run sweep. Entries mirror canaries/pending/*/ headers -- update BOTH
 /// when a divergence's documented behavior changes.
 const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
-    ("calls/trailing_state_mut_param_phase_divergence", 71, PendingInterpOutcome::Exit(70)),
     // Host-correct legs (this gate runs native on the HOST), ARCH-AWARE:
     // x86 truncation (cvttsd2si integer-indefinite -> 0) yields 70; aarch64
     // FCVTZS SATURATES (like the interp's i64 saturation) and yields 99 --
@@ -2058,6 +2059,9 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     // liveness scan (its only reference rode a later `let` value), so its
     // frame slot was elided and the forwarded descriptor stayed ZII; the
     // slice-view carve-out in state-storage collection.rs keeps the slot.
+    // trailing_state_mut_param_phase_divergence PROMOTED 2026-07-19 to
+    // pass/calls/runtime_trailing_state_mut_param_phase_exit: exact transition
+    // scopes preserve authored guard phases through trailing mutable calls.
 ];
 
 /// COLLECT-ALL runtime drift-check over the parked divergences above.

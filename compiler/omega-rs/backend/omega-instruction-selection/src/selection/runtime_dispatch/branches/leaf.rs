@@ -60,6 +60,9 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansi
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    if operation_has_straight_line_expansions(input, dispatch_index, operation, false) {
+        return;
+    }
     let mut matching_expansions = input
         .runtime_branching_calls
         .leaf_expansions
@@ -73,6 +76,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansi
     order_return_value_fallbacks_last(&mut matching_expansions);
 
     let multi_arm = matching_expansions.len() > 1;
+    let scope_id = matching_expansions.first().map_or(0, |expansion| expansion.scope_id);
     for expansion in matching_expansions {
         select_runtime_leaf_branch_expansion(
             input,
@@ -85,6 +89,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansi
     }
     if multi_arm {
         push_branch_arms_end_marker(
+            scope_id,
             operation.source_key,
             operation.statement_index,
             selected_instructions,
@@ -92,41 +97,68 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansi
     }
 }
 
-pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansions_matching_operation(
+fn operation_has_straight_line_expansions(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation: &RuntimeDispatchBodyOperation,
+    allow_synthetic_nested_operation: bool,
+) -> bool {
+    input
+        .runtime_branching_calls
+        .straight_line_expansions
+        .storage_slice()
+        .iter()
+        .any(|expansion| {
+            expansion.dispatch_index == dispatch_index
+                && super::super::state_key_matches_statement_source(
+                    expansion.source_key,
+                    operation.source_key,
+                )
+                && expansion.statement_index == operation.statement_index
+                && match operation.kind {
+                    RuntimeDispatchBodyOperationKind::InlineLeafStateCall {
+                        role, call_ordinal, ..
+                    }
+                    | RuntimeDispatchBodyOperationKind::InlineStateCall {
+                        role, call_ordinal, ..
+                    }
+                    | RuntimeDispatchBodyOperationKind::StateCall {
+                        role, call_ordinal, ..
+                    } => expansion.role == role && expansion.call_ordinal == call_ordinal,
+                    RuntimeDispatchBodyOperationKind::Other => allow_synthetic_nested_operation,
+                    _ => false,
+                }
+        })
+}
+
+pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansion_for_tree(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &RuntimeLeafBranchExpansion,
+    use_local_guard: bool,
+    has_following_arm: bool,
     scratch: &mut LeafBranchSelectionScratch,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    let mut matching_expansions = input
-        .runtime_branching_calls
-        .leaf_expansions
-        .storage_slice()
-        .iter()
-        .filter(|expansion| {
-            leaf_expansion_matches_operation(expansion, dispatch_index, operation, true)
-        })
-        .collect::<Vec<_>>();
-
-    order_return_value_fallbacks_last(&mut matching_expansions);
-
-    let multi_arm = matching_expansions.len() > 1;
-    for expansion in matching_expansions {
+    if use_local_guard {
+        let mut local = expansion.clone();
+        local.resolved_guard = local.guard;
+        local.guard_kind = local.local_guard_kind;
         select_runtime_leaf_branch_expansion(
             input,
-            expansion,
-            multi_arm,
+            &local,
+            has_following_arm,
             scratch,
             runtime_value_operands,
             selected_instructions,
         );
-    }
-    if multi_arm {
-        push_branch_arms_end_marker(
-            operation.source_key,
-            operation.statement_index,
+    } else {
+        select_runtime_leaf_branch_expansion(
+            input,
+            expansion,
+            has_following_arm,
+            scratch,
+            runtime_value_operands,
             selected_instructions,
         );
     }
@@ -310,6 +342,14 @@ fn select_runtime_leaf_branch_expansion(
     }
     let guards_were_empty = guards.is_empty();
     let guard_start = selected_instructions.len();
+    if !guards_were_empty {
+        push_branch_scope_marker(
+            expansion.scope_id,
+            expansion.source_key,
+            expansion.statement_index,
+            selected_instructions,
+        );
+    }
     for guard in guards {
         selected_instructions.push(SelectedInstruction {
             kind: guard,
@@ -392,7 +432,7 @@ fn select_runtime_leaf_branch_expansion(
                         omega_abstract_operations::StateGuardLowering::ForwardBranchSkip,
                     operator: omega_abstract_operations::StateGuardOperator::Equal,
                     storage_region: RuntimeStorageRegion::Machine,
-                    byte_offset: 0,
+                    byte_offset: expansion.scope_id as usize,
                     byte_size: 0,
                     expected_value: 0,
                     has_storage: false,
@@ -494,6 +534,7 @@ fn select_runtime_leaf_nested_call_argument_writes(
         }
         if multi_arm {
             push_branch_arms_end_marker(
+                group.first().map_or(0, |expansion| expansion.scope_id),
                 expansion.source_key,
                 expansion.statement_index,
                 selected_instructions,
@@ -505,7 +546,8 @@ fn select_runtime_leaf_nested_call_argument_writes(
 
 /// Emit the `BranchArmsEnd` marker that terminates a multi-arm guarded transition's
 /// arms; it is the target of every `ForwardBranchSkip` emitted for that transition.
-fn push_branch_arms_end_marker(
+pub(in crate::selection::runtime_dispatch) fn push_branch_arms_end_marker(
+    scope_id: u32,
     source_key: omega_control_flow::StateKey,
     statement_index: usize,
     selected_instructions: &mut SelectedInstructionSink,
@@ -515,9 +557,33 @@ fn push_branch_arms_end_marker(
             guard_lowering: omega_abstract_operations::StateGuardLowering::BranchArmsEnd,
             operator: omega_abstract_operations::StateGuardOperator::Equal,
             storage_region: RuntimeStorageRegion::Machine,
-            byte_offset: 0,
+            byte_offset: scope_id as usize,
             byte_size: 0,
             expected_value: 0,
+            has_storage: false,
+            is_float: false,
+        },
+        source_key,
+        source_statement: statement_index,
+    });
+}
+
+pub(in crate::selection::runtime_dispatch) fn push_branch_scope_marker(
+    scope_id: u32,
+    source_key: omega_control_flow::StateKey,
+    statement_index: usize,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    // Zero-width marker consumed by branch-distance planning. i64::MIN keeps
+    // it distinguishable from ordinary guard-closing NoOps.
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::EvaluateDispatchGuard {
+            guard_lowering: omega_abstract_operations::StateGuardLowering::NoOp,
+            operator: omega_abstract_operations::StateGuardOperator::Equal,
+            storage_region: RuntimeStorageRegion::Machine,
+            byte_offset: scope_id as usize,
+            byte_size: 0,
+            expected_value: i64::MIN,
             has_storage: false,
             is_float: false,
         },

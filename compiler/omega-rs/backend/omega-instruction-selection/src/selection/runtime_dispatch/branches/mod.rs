@@ -5,8 +5,9 @@ mod straight_line;
 
 pub(super) use leaf::{
     LeafBranchSelectionScratch, leaf_expansions_defer_to_local_initializer,
+    push_branch_arms_end_marker, push_branch_scope_marker,
+    select_runtime_leaf_branch_expansion_for_tree,
     select_runtime_leaf_branch_expansions_for_operation,
-    select_runtime_leaf_branch_expansions_matching_operation,
 };
 pub(in crate::selection) use prelude::{
     BranchPreludeSelectionScratch, select_runtime_branch_preludes_for_operation,

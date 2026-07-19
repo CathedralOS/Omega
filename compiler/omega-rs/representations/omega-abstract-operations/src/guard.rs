@@ -49,10 +49,10 @@ pub enum StateGuardLowering {
     /// An unconditional forward jump emitted after a MATCHED arm's body in a
     /// multi-arm guarded transition, to skip the remaining sibling arms (which
     /// would otherwise execute and clobber this arm's effect). Jumps to the next
-    /// `BranchArmsEnd` marker.
+    /// `BranchArmsEnd` marker carrying the same branch-scope identity.
     ForwardBranchSkip,
     /// A zero-byte marker placed after all arms of a multi-arm guarded transition;
-    /// the target of every `ForwardBranchSkip` for that transition.
+    /// the target of every same-scoped `ForwardBranchSkip` for that transition.
     BranchArmsEnd,
     /// POISON: an inline-leaf VALUE arm whose guard selection could NOT
     /// resolve. The arm's compare and its result write would both have been
