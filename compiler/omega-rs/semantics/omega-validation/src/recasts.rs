@@ -871,9 +871,12 @@ fn boundary_ensures_argument_bound(
     for statement in &statements[..transition_index] {
         match statement {
             StatementNode::Call(call) => {
-                // Any call invalidates an earlier witness; this call may
-                // itself mint a new one.
-                witness = boundary_call_ensures_bound(
+                // A boundary call that explicitly mutably reaches this place
+                // invalidates an earlier witness, and may itself mint a new
+                // one. An unrelated boundary receiver/argument frame preserves
+                // it. Unknown and internal calls remain fail-closed here until
+                // the shared R5 summary feeds recast witnesses too.
+                let minted = boundary_call_ensures_bound(
                     program,
                     machine,
                     source,
@@ -881,6 +884,19 @@ fn boundary_ensures_argument_bound(
                     argument_label,
                     side,
                 );
+                if minted.is_some() {
+                    witness = minted;
+                } else if !matches!(
+                    boundary_call_mutably_reaches_label(
+                        program,
+                        machine,
+                        call,
+                        argument_label,
+                    ),
+                    Some(false)
+                ) {
+                    witness = None;
+                }
             }
             StatementNode::Assignment(assignment) => {
                 if program.expression_table.display_name(assignment.target) == argument_label {
@@ -891,6 +907,80 @@ fn boundary_ensures_argument_bound(
         }
     }
     witness
+}
+
+/// Whether a resolved boundary call may write `argument_label` through its
+/// receiver or an explicit `&mut` argument. `None` means the call is not a
+/// boundary-trait call and retains the conservative invalidate-all behavior.
+fn boundary_call_mutably_reaches_label(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    call: &omega_typed_trees::statement::TableCall,
+    argument_label: &str,
+) -> Option<bool> {
+    let receiver_members = program.statement_table.name_path_members(call.receiver);
+    let receiver = receiver_members.last()?;
+    let attached = machine.attached_data.as_ref()?;
+    let data = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == attached.as_str())?;
+    let field_type = program.data_members(data).iter().find_map(|member| match member {
+        omega_typed_trees::data::DataMember::Field(field)
+            if field.name.as_str() == receiver.as_str() && field.type_reference.is_valid() =>
+        {
+            Some(field.type_reference)
+        }
+        _ => None,
+    })?;
+    let TypeReferenceNode::Named { name: trait_name, .. } =
+        program.type_reference_table.type_reference(field_type)
+    else {
+        return None;
+    };
+    let trait_definition = program
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == trait_name.as_str())?;
+    program
+        .trait_machine_signatures(trait_definition)
+        .iter()
+        .find(|signature| signature.name == call.target)?;
+
+    let receiver_label = receiver_members
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join(".");
+    if recast_place_paths_overlap(&receiver_label, argument_label) {
+        return Some(true);
+    }
+    Some(
+        program
+            .statement_table
+            .expression_handles(call.arguments)
+            .iter()
+            .any(|argument| {
+                matches!(
+                    program.expression_table.expression(*argument),
+                    ExpressionNode::Mutable(inner)
+                        if recast_place_paths_overlap(
+                            &program.expression_table.display_name(*inner),
+                            argument_label,
+                        )
+                )
+            }),
+    )
+}
+
+fn recast_place_paths_overlap(left: &str, right: &str) -> bool {
+    left == right
+        || left
+            .strip_prefix(right)
+            .is_some_and(|suffix| suffix.starts_with('.') || suffix.starts_with('['))
+        || right
+            .strip_prefix(left)
+            .is_some_and(|suffix| suffix.starts_with('.') || suffix.starts_with('['))
 }
 
 /// `call`'s `ensures <param> <= K`/`< K` INCLUSIVE bound for the `&mut`

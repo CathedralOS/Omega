@@ -422,10 +422,11 @@ fn boundary_ensures_witness_too_wide_refuses_recast_footprint() {
 }
 
 #[test]
-fn boundary_ensures_witness_dies_on_intervening_call() {
-    // A SECOND call between the witness and the transition may rewrite the
-    // field through `&mut self` -- the witness must not survive it.
-    let diagnostics = validate_contract_source(
+fn boundary_ensures_witness_survives_unrelated_intervening_call() {
+    // The boundary receiver and the caller's `n` field are distinct places.
+    // A second call that receives neither `n` nor its owner cannot erase the
+    // first call's established bound.
+    validate_contract_source(
         r#"
     boundary trait Firmware {
         machine get_size(size: &mut u32)
@@ -443,7 +444,30 @@ fn boundary_ensures_witness_dies_on_intervening_call() {
     }
     "#,
     )
-    .expect_err("an intervening call must kill the witness");
+    .expect("an unreachable caller field must retain its witness");
+}
+
+#[test]
+fn boundary_ensures_witness_dies_when_intervening_call_borrows_place_mutably() {
+    let diagnostics = validate_contract_source(
+        r#"
+    boundary trait Firmware {
+        machine get_size(size: &mut u32)
+        ensures size <= 8;
+        machine poke(size: &mut u32);
+    }
+    data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
+    machine Main::main(&mut self) {
+        self.fw.get_size(&mut self.n);
+        self.fw.poke(&mut self.n);
+        transition { _ -> read(self.n) }
+        state read(&mut self, off: u32) {
+            let v: &u32 = &self.buf[off] as &u32;
+        }
+    }
+    "#,
+    )
+    .expect_err("an explicit exclusive argument must kill the witness");
     assert!(
         diagnostics
             .iter()
