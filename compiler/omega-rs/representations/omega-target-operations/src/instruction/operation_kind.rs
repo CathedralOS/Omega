@@ -417,6 +417,8 @@ pub enum TargetOperationKind {
     MachineHalt,
     /// An x86 load/store/full memory-ordering fence.
     MemoryFence(omega_core::inline_assembly::AsmFenceKind),
+    /// x86 CLI/STI interrupt-flag control.
+    InterruptControl(omega_core::inline_assembly::AsmInterruptControlKind),
     /// The x86 `out dx, al` port write (`asm { out <port>, <value> }`),
     /// emitting `device_io`. `port` u16 + `value` u8 operands (immediate or
     /// storage; storage operands relocate).

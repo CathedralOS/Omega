@@ -110,6 +110,8 @@ pub enum MachineInstructionKind {
     MachineHalt,
     /// An x86 load/store/full memory-ordering fence.
     MemoryFence(omega_core::inline_assembly::AsmFenceKind),
+    /// x86 CLI/STI interrupt-flag control.
+    InterruptControl(omega_core::inline_assembly::AsmInterruptControlKind),
     /// The x86 `out dx, al` port write (`asm { out .. }`). Storage operands
     /// relocate like any runtime-value read.
     PortWrite,

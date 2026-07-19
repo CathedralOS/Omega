@@ -210,6 +210,18 @@ pub fn encode_memory_fence_bytes(
     }
 }
 
+pub fn encode_interrupt_control_bytes(
+    architecture: Architecture,
+    kind: omega_core::inline_assembly::AsmInterruptControlKind,
+) -> Option<Vec<u8>> {
+    match architecture {
+        Architecture::Aarch64 => None,
+        Architecture::X86_64 => {
+            Some(x86_64::encode_interrupt_control_bytes(kind).to_vec())
+        }
+    }
+}
+
 pub fn encode_runtime_storage_copy_to_return_register_bytes(
     architecture: Architecture,
     byte_offset: usize,

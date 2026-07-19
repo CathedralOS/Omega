@@ -703,6 +703,9 @@ fn selected_instruction_name(
         SelectedInstructionKind::MemoryFence(kind) => {
             format!("memory fence ({})", kind.mnemonic())
         }
+        SelectedInstructionKind::InterruptControl(kind) => {
+            format!("interrupt control ({})", kind.mnemonic())
+        }
         SelectedInstructionKind::PortWrite { .. } => "port write (out)".to_owned(),
         SelectedInstructionKind::PortRead { dest_byte_offset, .. } => {
             format!("port read (in) -> [{dest_byte_offset}]")

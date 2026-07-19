@@ -1,0 +1,8 @@
+// CLI truthfully declares MachineControl reach, but a hosted program does not
+// own the machine and therefore cannot discharge the instruction's authority
+// requirement merely by listing the effect.
+data Main {}
+
+machine Main::main(&mut self) effects machine_control {
+    asm { cli }
+}

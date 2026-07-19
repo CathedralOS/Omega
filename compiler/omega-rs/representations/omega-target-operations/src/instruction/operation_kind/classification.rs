@@ -71,6 +71,7 @@ impl OperationSemanticQuery for TargetOperationKind {
 
             Self::MachineHalt
             | Self::MemoryFence(_)
+            | Self::InterruptControl(_)
             | Self::PortWrite { .. }
             | Self::PortRead { .. } => {
                 TargetOperationDomain::MachineControl

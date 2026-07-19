@@ -63,10 +63,14 @@ pub enum BuiltinFunction {
     AsmLoadFence,
     AsmStoreFence,
     AsmFullFence,
+    /// x86 interrupt-enable flag control. Both are unnameable, zero-operand
+    /// asm intrinsics with `machine_control` reach.
+    AsmDisableInterrupts,
+    AsmEnableInterrupts,
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 9;
+    pub const COUNT: usize = 11;
 
     pub fn name(self) -> &'static str {
         match self {
@@ -79,6 +83,8 @@ impl BuiltinFunction {
             Self::AsmLoadFence => "asm#lfence",
             Self::AsmStoreFence => "asm#sfence",
             Self::AsmFullFence => "asm#mfence",
+            Self::AsmDisableInterrupts => "asm#cli",
+            Self::AsmEnableInterrupts => "asm#sti",
         }
     }
 
@@ -93,6 +99,8 @@ impl BuiltinFunction {
             Self::AsmLoadFence => 6,
             Self::AsmStoreFence => 7,
             Self::AsmFullFence => 8,
+            Self::AsmDisableInterrupts => 9,
+            Self::AsmEnableInterrupts => 10,
         }
     }
 
@@ -102,7 +110,9 @@ impl BuiltinFunction {
     /// shared inline-assembly catalog.
     pub fn asm_intrinsic_effect_name(self) -> Option<&'static str> {
         match self {
-            Self::AsmHlt => Some("machine_control"),
+            Self::AsmHlt | Self::AsmDisableInterrupts | Self::AsmEnableInterrupts => {
+                Some("machine_control")
+            }
             Self::AsmPortOut | Self::AsmPortIn => Some("device_io"),
             Self::Max
             | Self::Min
@@ -122,10 +132,12 @@ impl BuiltinFunction {
                 | Self::AsmLoadFence
                 | Self::AsmStoreFence
                 | Self::AsmFullFence
+                | Self::AsmDisableInterrupts
+                | Self::AsmEnableInterrupts
         )
     }
 
-    pub fn asm_intrinsics() -> [Self; 6] {
+    pub fn asm_intrinsics() -> [Self; 8] {
         [
             Self::AsmHlt,
             Self::AsmPortOut,
@@ -133,6 +145,8 @@ impl BuiltinFunction {
             Self::AsmLoadFence,
             Self::AsmStoreFence,
             Self::AsmFullFence,
+            Self::AsmDisableInterrupts,
+            Self::AsmEnableInterrupts,
         ]
     }
 }
@@ -226,6 +240,14 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
             SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::AsmFullFence.name()),
         ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmDisableInterrupts.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmEnableInterrupts.name()),
+        ),
     ]
 }
 
@@ -300,6 +322,8 @@ mod builtin_ordinal_tests {
             BuiltinFunction::AsmLoadFence,
             BuiltinFunction::AsmStoreFence,
             BuiltinFunction::AsmFullFence,
+            BuiltinFunction::AsmDisableInterrupts,
+            BuiltinFunction::AsmEnableInterrupts,
         ] {
             assert_eq!(
                 table[function.ordinal()].1.as_str(),
@@ -343,6 +367,10 @@ mod builtin_ordinal_tests {
         assert_eq!(
             BuiltinFunction::AsmFullFence.asm_intrinsic_effect_name(),
             None
+        );
+        assert_eq!(
+            BuiltinFunction::AsmDisableInterrupts.asm_intrinsic_effect_name(),
+            Some("machine_control")
         );
     }
 }
