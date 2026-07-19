@@ -9,13 +9,14 @@ use super::super::widths::{
     runtime_byte_read_import_width, runtime_byte_read_syscall_width,
     runtime_byte_write_import_width, runtime_byte_write_syscall_width,
 };
+use super::{Aarch64SyscallRegisters, aarch64_syscall_registers};
 
 #[derive(Clone, Copy)]
 enum RuntimeByteCall {
     Import,
     Syscall {
         number: u32,
-        number_register: u8,
+        registers: Aarch64SyscallRegisters,
         supervisor_call: u16,
     },
 }
@@ -47,15 +48,22 @@ pub fn encode_runtime_byte_read_syscall(
     target_offset: usize,
     payload_offset: usize,
     number: u32,
-    number_register: u8,
+    parameter_registers: &[omega_calling_conventions::MachineRegister],
+    result_register: omega_calling_conventions::MachineRegister,
+    number_register: omega_calling_conventions::MachineRegister,
     supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
+    let registers = aarch64_syscall_registers(
+        parameter_registers,
+        result_register,
+        number_register,
+    )?;
     encode_runtime_byte_read(
         target_offset,
         payload_offset,
         RuntimeByteCall::Syscall {
             number,
-            number_register,
+            registers,
             supervisor_call,
         },
     )
@@ -76,21 +84,33 @@ fn encode_runtime_byte_read(
     bytes.extend(encode_add_page_offset_placeholder(20));
     bytes.extend(encode_store_w_to_x(31, 20, target_offset, 4)?);
     bytes.extend(encode_store_w_to_x(31, 20, payload_absolute, 4)?);
-    bytes.extend(encode_movz(0, 0));
-    bytes.extend(encode_add_x_immediate(1, 20, payload_absolute)?);
-    bytes.extend(encode_movz(2, 1));
+    let argument_registers = match call {
+        RuntimeByteCall::Import => [0, 1, 2],
+        RuntimeByteCall::Syscall { registers, .. } => registers.parameters,
+    };
+    bytes.extend(encode_movz(argument_registers[0], 0));
+    bytes.extend(encode_add_x_immediate(
+        argument_registers[1],
+        20,
+        payload_absolute,
+    )?);
+    bytes.extend(encode_movz(argument_registers[2], 1));
     match call {
         RuntimeByteCall::Import => bytes.extend(encode_branch_link_placeholder()),
         RuntimeByteCall::Syscall {
             number,
-            number_register,
+            registers,
             supervisor_call,
         } => {
-            append_unsigned_immediate(&mut bytes, number_register, u64::from(number));
+            append_unsigned_immediate(&mut bytes, registers.number, u64::from(number));
             bytes.extend(encode_svc(supervisor_call));
         }
     }
-    bytes.extend(encode_cbz_x(0, 12)?);
+    let result_register = match call {
+        RuntimeByteCall::Import => 0,
+        RuntimeByteCall::Syscall { registers, .. } => registers.result,
+    };
+    bytes.extend(encode_cbz_x(result_register, 12)?);
     bytes.extend(encode_movz(9, 1));
     bytes.extend(encode_store_w_to_x(9, 20, target_offset, 4)?);
     debug_assert_eq!(bytes.len(), expected_width);
@@ -114,14 +134,21 @@ pub fn encode_runtime_byte_write_import(source_offset: usize) -> Result<Vec<u8>,
 pub fn encode_runtime_byte_write_syscall(
     source_offset: usize,
     number: u32,
-    number_register: u8,
+    parameter_registers: &[omega_calling_conventions::MachineRegister],
+    result_register: omega_calling_conventions::MachineRegister,
+    number_register: omega_calling_conventions::MachineRegister,
     supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
+    let registers = aarch64_syscall_registers(
+        parameter_registers,
+        result_register,
+        number_register,
+    )?;
     encode_runtime_byte_write(
         source_offset,
         RuntimeByteCall::Syscall {
             number,
-            number_register,
+            registers,
             supervisor_call,
         },
     )
@@ -138,17 +165,25 @@ fn encode_runtime_byte_write(
     let mut bytes = Vec::with_capacity(expected_width);
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
-    bytes.extend(encode_movz(0, 1));
-    bytes.extend(encode_add_x_immediate(1, 20, source_offset)?);
-    bytes.extend(encode_movz(2, 1));
+    let argument_registers = match call {
+        RuntimeByteCall::Import => [0, 1, 2],
+        RuntimeByteCall::Syscall { registers, .. } => registers.parameters,
+    };
+    bytes.extend(encode_movz(argument_registers[0], 1));
+    bytes.extend(encode_add_x_immediate(
+        argument_registers[1],
+        20,
+        source_offset,
+    )?);
+    bytes.extend(encode_movz(argument_registers[2], 1));
     match call {
         RuntimeByteCall::Import => bytes.extend(encode_branch_link_placeholder()),
         RuntimeByteCall::Syscall {
             number,
-            number_register,
+            registers,
             supervisor_call,
         } => {
-            append_unsigned_immediate(&mut bytes, number_register, u64::from(number));
+            append_unsigned_immediate(&mut bytes, registers.number, u64::from(number));
             bytes.extend(encode_svc(supervisor_call));
         }
     }
@@ -164,6 +199,13 @@ mod tests {
         runtime_byte_write_import_width, runtime_byte_write_syscall_width,
     };
     use super::*;
+    use omega_calling_conventions::MachineRegister;
+
+    const PARAMETERS: [MachineRegister; 3] = [
+        MachineRegister::Aarch64X(0),
+        MachineRegister::Aarch64X(1),
+        MachineRegister::Aarch64X(2),
+    ];
 
     // The width fns and the relocation call offsets are consumed WITHOUT the
     // encoders (layout planning + relocation records), so emission and width
@@ -177,8 +219,16 @@ mod tests {
             // darwin read = 3, linux_arm64 read = 63: one- and one-halfword numbers.
             for number in [3u32, 63] {
                 let syscall =
-                    encode_runtime_byte_read_syscall(target_offset, payload_offset, number, 16, 0x80)
-                        .unwrap();
+                    encode_runtime_byte_read_syscall(
+                        target_offset,
+                        payload_offset,
+                        number,
+                        &PARAMETERS,
+                        MachineRegister::Aarch64X(0),
+                        MachineRegister::Aarch64X(16),
+                        0x80,
+                    )
+                    .unwrap();
                 assert_eq!(syscall.len(), runtime_byte_read_syscall_width(number));
             }
         }
@@ -191,11 +241,42 @@ mod tests {
             let import = encode_runtime_byte_write_import(source_offset).unwrap();
             assert_eq!(import.len(), runtime_byte_write_import_width());
             for number in [4u32, 64] {
-                let syscall =
-                    encode_runtime_byte_write_syscall(source_offset, number, 16, 0x80).unwrap();
+                let syscall = encode_runtime_byte_write_syscall(
+                    source_offset,
+                    number,
+                    &PARAMETERS,
+                    MachineRegister::Aarch64X(0),
+                    MachineRegister::Aarch64X(16),
+                    0x80,
+                )
+                .unwrap();
                 assert_eq!(syscall.len(), runtime_byte_write_syscall_width(number));
             }
         }
         assert!(runtime_byte_write_import_call_offset() < runtime_byte_write_import_width());
+    }
+
+    #[test]
+    fn byte_write_syscall_uses_normalized_registers() {
+        let parameters = [
+            MachineRegister::Aarch64X(3),
+            MachineRegister::Aarch64X(4),
+            MachineRegister::Aarch64X(5),
+        ];
+        let bytes = encode_runtime_byte_write_syscall(
+            24,
+            64,
+            &parameters,
+            MachineRegister::Aarch64X(7),
+            MachineRegister::Aarch64X(12),
+            5,
+        )
+        .unwrap();
+
+        assert_eq!(&bytes[8..12], &encode_movz(3, 1));
+        assert_eq!(&bytes[12..16], &encode_add_x_immediate(4, 20, 24).unwrap());
+        assert_eq!(&bytes[16..20], &encode_movz(5, 1));
+        assert_eq!(&bytes[20..24], &encode_movz(12, 64));
+        assert_eq!(&bytes[24..28], &encode_svc(5));
     }
 }

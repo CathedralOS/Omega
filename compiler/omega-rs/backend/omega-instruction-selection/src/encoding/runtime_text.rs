@@ -4,6 +4,8 @@ use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
 
+use super::host::normalized_syscall_registers;
+
 pub fn encode_runtime_text_literal_compare(
     architecture: Architecture,
     literal: &str,
@@ -302,18 +304,18 @@ pub fn encode_runtime_byte_read(
             HostBindingMechanism::Import { .. } => {
                 aarch64::encode_runtime_byte_read_import(target_offset, payload_offset)
             }
-            HostBindingMechanism::Syscall {
-                number,
-                number_register,
-                supervisor_call,
-                ..
-            } => aarch64::encode_runtime_byte_read_syscall(
-                target_offset,
-                payload_offset,
-                *number,
-                *number_register,
-                *supervisor_call,
-            ),
+            HostBindingMechanism::Syscall { number, .. } => {
+                let registers = normalized_syscall_registers(architecture, 3, true)?;
+                aarch64::encode_runtime_byte_read_syscall(
+                    target_offset,
+                    payload_offset,
+                    *number,
+                    &registers.parameters,
+                    registers.required_result()?,
+                    registers.number,
+                    registers.immediate,
+                )
+            }
             HostBindingMechanism::VtableSlot { .. }
             | HostBindingMechanism::VtableField { .. }
             | HostBindingMechanism::TableFunction { .. } => {
@@ -325,7 +327,16 @@ pub fn encode_runtime_byte_read(
                 x86_64::encode_runtime_byte_read_import(target_offset, payload_offset)
             }
             HostBindingMechanism::Syscall { number, .. } => {
-                x86_64::encode_runtime_byte_read_syscall(target_offset, payload_offset, *number)
+                let registers = normalized_syscall_registers(architecture, 3, true)?;
+                x86_64::encode_runtime_byte_read_syscall(
+                    target_offset,
+                    payload_offset,
+                    *number,
+                    &registers.parameters,
+                    registers.required_result()?,
+                    registers.number,
+                    registers.immediate,
+                )
             }
             HostBindingMechanism::VtableSlot { .. }
             | HostBindingMechanism::VtableField { .. }
@@ -348,17 +359,17 @@ pub fn encode_runtime_byte_write(
             HostBindingMechanism::Import { .. } => {
                 aarch64::encode_runtime_byte_write_import(source_offset)
             }
-            HostBindingMechanism::Syscall {
-                number,
-                number_register,
-                supervisor_call,
-                ..
-            } => aarch64::encode_runtime_byte_write_syscall(
-                source_offset,
-                *number,
-                *number_register,
-                *supervisor_call,
-            ),
+            HostBindingMechanism::Syscall { number, .. } => {
+                let registers = normalized_syscall_registers(architecture, 3, true)?;
+                aarch64::encode_runtime_byte_write_syscall(
+                    source_offset,
+                    *number,
+                    &registers.parameters,
+                    registers.required_result()?,
+                    registers.number,
+                    registers.immediate,
+                )
+            }
             HostBindingMechanism::VtableSlot { .. }
             | HostBindingMechanism::VtableField { .. }
             | HostBindingMechanism::TableFunction { .. } => {
@@ -370,7 +381,15 @@ pub fn encode_runtime_byte_write(
                 x86_64::encode_runtime_byte_write_import(source_offset)
             }
             HostBindingMechanism::Syscall { number, .. } => {
-                x86_64::encode_runtime_byte_write_syscall(source_offset, *number)
+                let registers = normalized_syscall_registers(architecture, 3, true)?;
+                x86_64::encode_runtime_byte_write_syscall(
+                    source_offset,
+                    *number,
+                    &registers.parameters,
+                    registers.required_result()?,
+                    registers.number,
+                    registers.immediate,
+                )
             }
             HostBindingMechanism::VtableSlot { .. }
             | HostBindingMechanism::VtableField { .. }
@@ -400,27 +419,28 @@ pub fn encode_runtime_text_line_read(
                     aarch64::encode_runtime_text_line_read_import(target_offset, byte_capacity)
                 }
             }
-            HostBindingMechanism::Syscall {
-                number,
-                number_register,
-                supervisor_call,
-                ..
-            } => {
+            HostBindingMechanism::Syscall { number, .. } => {
+                let registers = normalized_syscall_registers(architecture, 3, true)?;
+                let result_register = registers.required_result()?;
                 if is_bounded_buffer {
                     aarch64::encode_runtime_text_line_read_carrier_syscall(
                         target_offset,
                         byte_capacity,
                         *number,
-                        *number_register,
-                        *supervisor_call,
+                        &registers.parameters,
+                        result_register,
+                        registers.number,
+                        registers.immediate,
                     )
                 } else {
                     aarch64::encode_runtime_text_line_read_syscall(
                         target_offset,
                         byte_capacity,
                         *number,
-                        *number_register,
-                        *supervisor_call,
+                        &registers.parameters,
+                        result_register,
+                        registers.number,
+                        registers.immediate,
                     )
                 }
             }
@@ -439,17 +459,27 @@ pub fn encode_runtime_text_line_read(
                 }
             }
             HostBindingMechanism::Syscall { number, .. } => {
+                let registers = normalized_syscall_registers(architecture, 3, true)?;
+                let result_register = registers.required_result()?;
                 if is_bounded_buffer {
                     x86_64::encode_runtime_text_line_read_syscall_carrier(
                         target_offset,
                         byte_capacity,
                         *number,
+                        &registers.parameters,
+                        result_register,
+                        registers.number,
+                        registers.immediate,
                     )
                 } else {
                     x86_64::encode_runtime_text_line_read_syscall(
                         target_offset,
                         byte_capacity,
                         *number,
+                        &registers.parameters,
+                        result_register,
+                        registers.number,
+                        registers.immediate,
                     )
                 }
             }
