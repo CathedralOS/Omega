@@ -25,7 +25,10 @@ use super::super::super::storage_places::{
     resolve_runtime_storage_primitive_type_in_table, static_integer_value_in_table,
 };
 use omega_checked_trees::types::PrimitiveType;
-use super::super::guards::{runtime_value_compare_byte_size, static_guard_conjunct_summary_in_table};
+use super::super::guards::static_guard_conjunct_summary_in_table;
+use super::super::writes::mutation::{
+    binary_value_operand_byte_width, binary_value_operands_are_float,
+};
 use super::super::text_writes::{
     runtime_text_builder_write_in_table_emit, string_literal_data_handle,
 };
@@ -1373,20 +1376,28 @@ fn resolve_runtime_value_operand_in_table(
                 binary.left,
                 binary.right,
             );
+            let is_float = binary_value_operands_are_float(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                binary.left,
+                binary.right,
+            );
+            let byte_width = binary_value_operand_byte_width(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                binary.left,
+                binary.right,
+            );
             return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
                 left,
                 operator,
                 right,
-                // Branch-arm value operand: float detection not wired on this path yet.
-                is_float: false,
-                // The plain integer arm ignores the width; a non-Exact
-                // operand needs its REAL operand width for the
-                // width-correct op + clamp bounds.
-                byte_width: if domain_signedness.0 != omega_core::arithmetic::ArithmeticDomain::Exact {
-                    runtime_value_compare_byte_size(runtime_value_operands, left, right)
-                } else {
-                    8
-                },
+                is_float,
+                byte_width,
                 // Recorded so the Saturating/Trapping operand-position
                 // lowering picks its width-correct op + clamp/trap bounds.
                 arithmetic_domain: domain_signedness.0,

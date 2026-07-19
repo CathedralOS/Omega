@@ -39,7 +39,7 @@ use super::resolve_runtime_call_result_source_place;
 /// integer add over the IEEE bits. A float operand is either a float-typed place
 /// or a float literal; checking both operands covers `place OP literal` in any
 /// order and `place OP place`.
-pub(super) fn binary_value_operands_are_float(
+pub(in crate::selection::runtime_dispatch) fn binary_value_operands_are_float(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
@@ -59,7 +59,7 @@ pub(super) fn binary_value_operands_are_float(
 /// `addsd` (8) instead of hardcoding a width at the ISA. Defaults to 8 when the
 /// operand types do not resolve (the prior behavior; the integer arm ignores
 /// this and keeps its own operand-derived width).
-pub(super) fn binary_value_operand_byte_width(
+pub(in crate::selection::runtime_dispatch) fn binary_value_operand_byte_width(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,

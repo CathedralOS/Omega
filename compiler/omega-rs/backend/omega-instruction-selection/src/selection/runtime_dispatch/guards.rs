@@ -28,6 +28,9 @@ use super::super::storage_places::{
     static_fixed_array_len_in_table,
 };
 use super::writes::resolve_runtime_text_equals_operand_in_table;
+use super::writes::mutation::{
+    binary_value_operand_byte_width, binary_value_operands_are_float,
+};
 use omega_abstract_operations::{
     RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstructionKind, TargetDataObjectHandle,
 };
@@ -1824,21 +1827,30 @@ fn resolve_runtime_value_operand_in_table(
             binary.left,
             binary.right,
         );
+        let is_float = binary_value_operands_are_float(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            binary.left,
+            binary.right,
+        );
+        let byte_width = binary_value_operand_byte_width(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            binary.left,
+            binary.right,
+        );
         return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
             left,
             operator,
             right,
-            // Guard comparison operands; float comparisons lower via ucomisd
-            // elsewhere, so the integer value-operand path stays as-is here.
-            is_float: false,
-            // The plain integer arm ignores the width (default 8 matches prior
-            // behavior); a non-Exact operand instead needs its REAL
-            // operand width for the width-correct op + clamp bounds.
-            byte_width: if domain_signedness.0 != omega_core::arithmetic::ArithmeticDomain::Exact {
-                runtime_value_compare_byte_size(runtime_value_operands, left, right)
-            } else {
-                8
-            },
+            is_float,
+            // Float emission needs the declared scalar width even under Exact;
+            // integer emission continues to derive its effective width.
+            byte_width,
             // Recorded so the Saturating/Trapping operand-position lowering
             // picks its width-correct op + clamp/trap bounds (the plain op
             // silently computed the unclamped 150 for `sat_a + sat_b == 127`).

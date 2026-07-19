@@ -467,6 +467,52 @@ fn parses_data_default_domain_where_clause() {
 }
 
 #[test]
+fn parses_value_and_policy_domain_chain_as_one_constrained_type() {
+    let source = r#"
+        data Sample {
+            value: f32 in Finite & Saturating;
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let data = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Data(data) => Some(data),
+            _ => None,
+        })
+        .expect("data root item");
+    let field = parsed
+        .items
+        .data_members(data.members)
+        .iter()
+        .find_map(|member| match member {
+            omega_syntax_trees::item::DataMember::Field(field) => Some(field),
+            _ => None,
+        })
+        .expect("data field");
+    let TypeReferenceNode::Constrained { constraints, .. } = parsed
+        .type_references
+        .type_reference(field.type_reference)
+    else {
+        panic!("domain chain should produce one constrained type");
+    };
+    let constraints = parsed.type_references.constraints(*constraints);
+    assert!(matches!(
+        constraints,
+        [
+            omega_syntax_trees::types::TypeConstraintNode::Domain(name),
+            omega_syntax_trees::types::TypeConstraintNode::ArithmeticDomain(
+                omega_core::arithmetic::ArithmeticDomain::Saturating
+            )
+        ] if name.as_str() == "Finite"
+    ));
+}
+
+#[test]
 fn rejects_bare_arrow_transition_in_explicit_state_body() {
     let source = r#"
         machine Main::main(&mut self) {
