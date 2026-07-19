@@ -1,0 +1,10 @@
+// A scalar float entry parameter follows the selected boundary calling plan.
+// On MS x64 the value arrives in XMM0, not RCX; the source-to-object canary
+// pins the emitted movsd store so later lowering cannot regress to GPR-only
+// entry unmarshalling.
+data Main { observed: f64; }
+
+boundary machine Main::main(&mut self, value: f64) -> i32 {
+    self.observed = value;
+    transition { _ -> (0) }
+}

@@ -354,10 +354,16 @@ pub fn runtime_storage_copy_to_return_register_width(
 /// `encode_runtime_machine_indexed_address_to_runtime_frame_write` (the
 /// relocation machinery adds the +2 to reach its immediate).
 pub const MACHINE_INDEXED_ADDRESS_INDEX_BASE_IMM_OFFSET: usize = 10;
-pub fn entry_argument_register_write_width(byte_size: usize) -> usize {
-    // mov r15,imm64(frame base, relocated at +2) (10) + mov
-    // [r15+disp32],reg (7). A 16-bit store adds the operand-size prefix.
-    17 + usize::from(byte_size == 2)
+pub fn entry_argument_register_write_width(
+    register: omega_calling_conventions::MachineRegister,
+    byte_size: usize,
+) -> usize {
+    // mov r15,imm64(frame base, relocated at +2) (10), followed by either a
+    // GPR store (7; 16-bit adds one prefix) or movss/movsd from XMM (9).
+    match register {
+        omega_calling_conventions::MachineRegister::X86Xmm(_) => 19,
+        _ => 17 + usize::from(byte_size == 2),
+    }
 }
 
 /// The ENTRY PROLOGUE's inbound unmarshal: store the exact GPR selected by the
@@ -368,12 +374,34 @@ pub fn encode_entry_argument_register_write_bytes(
     byte_offset: usize,
     byte_size: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
+    if let omega_calling_conventions::MachineRegister::X86Xmm(register_index) = register {
+        if register_index > 15 || !matches!(byte_size, 4 | 8) {
+            return Err(Diagnostic::error(format!(
+                "x86-64 entry prologue cannot store {byte_size} bytes from XMM{register_index}"
+            )));
+        }
+        let mut bytes = Vec::with_capacity(entry_argument_register_write_width(
+            register, byte_size,
+        ));
+        append_mov_r15_imm64(&mut bytes, 0);
+        // movss/movsd [r15+disp32], xmmN. The mandatory F3/F2 prefix precedes
+        // REX; B names r15 and R extends XMM8..15.
+        bytes.push(if byte_size == 4 { 0xf3 } else { 0xf2 });
+        bytes.push(0x41 | if register_index >= 8 { 0x04 } else { 0 });
+        bytes.extend([0x0f, 0x11, 0x87 | ((register_index & 7) << 3)]);
+        bytes.extend(disp32(byte_offset)?.to_le_bytes());
+        debug_assert_eq!(
+            bytes.len(),
+            entry_argument_register_write_width(register, byte_size)
+        );
+        return Ok(bytes);
+    }
     if !matches!(byte_size, 1 | 2 | 4 | 8) {
         return Err(Diagnostic::error(format!(
             "x86-64 entry prologue cannot store a {byte_size}-byte register value"
         )));
     }
-    let mut bytes = Vec::with_capacity(entry_argument_register_write_width(byte_size));
+    let mut bytes = Vec::with_capacity(entry_argument_register_write_width(register, byte_size));
     append_mov_r15_imm64(&mut bytes, 0); // relocated to the runtime-frame region base
     let register_number = match register {
         omega_calling_conventions::MachineRegister::X86Rax => 0,
@@ -406,8 +434,41 @@ pub fn encode_entry_argument_register_write_bytes(
     let modrm = 0x87 | ((register_number & 7) << 3);
     bytes.extend([rex, if byte_size == 1 { 0x88 } else { 0x89 }, modrm]);
     bytes.extend(disp32(byte_offset)?.to_le_bytes());
-    debug_assert_eq!(bytes.len(), entry_argument_register_write_width(byte_size));
+    debug_assert_eq!(
+        bytes.len(),
+        entry_argument_register_write_width(register, byte_size)
+    );
     Ok(bytes)
+}
+
+#[cfg(test)]
+mod entry_argument_register_tests {
+    use super::*;
+    use omega_calling_conventions::MachineRegister;
+
+    #[test]
+    fn scalar_float_entry_arguments_store_from_the_selected_xmm_register() {
+        let bytes = encode_entry_argument_register_write_bytes(
+            MachineRegister::X86Xmm(8),
+            8,
+            8,
+        )
+        .expect("movsd entry store");
+        assert_eq!(bytes.len(), 19);
+        assert_eq!(&bytes[10..15], &[0xf2, 0x45, 0x0f, 0x11, 0x87]);
+        assert_eq!(&bytes[15..19], &8i32.to_le_bytes());
+    }
+
+    #[test]
+    fn scalar_float_entry_arguments_reject_non_scalar_widths() {
+        let error = encode_entry_argument_register_write_bytes(
+            MachineRegister::X86Xmm(0),
+            0,
+            16,
+        )
+        .expect_err("unclassified vector argument must reject");
+        assert!(error.message.contains("cannot store 16 bytes"));
+    }
 }
 
 pub fn entry_arguments_slice_descriptor_write_width() -> usize {

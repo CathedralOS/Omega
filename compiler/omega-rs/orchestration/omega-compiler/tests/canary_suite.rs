@@ -31369,6 +31369,47 @@ fn efi_entry_arguments_prologue_unmarshals_rcx_rdx() {
 }
 
 #[test]
+fn efi_float_entry_argument_unmarshals_xmm0() {
+    let canary = pass_canary("targets/efi_float_entry_argument");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-efi-float-arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("uefi_x64".into()),
+        write_output: true,
+    })
+    .expect("EFI float entry-argument canary should compile");
+
+    let image = fs::read(build_dir.join("omega-program.exe")).expect("emitted image should exist");
+    let e_lfanew = u32::from_le_bytes(image[0x3c..0x40].try_into().unwrap()) as usize;
+    let optional_size =
+        u16::from_le_bytes(image[e_lfanew + 20..e_lfanew + 22].try_into().unwrap()) as usize;
+    let section_count = u16::from_le_bytes(image[e_lfanew + 6..e_lfanew + 8].try_into().unwrap());
+    let sections = e_lfanew + 4 + 20 + optional_size;
+    let text_raw = (0..section_count as usize)
+        .map(|index| sections + index * 40)
+        .find(|offset| &image[*offset..*offset + 6] == b".text\0")
+        .map(|offset| {
+            u32::from_le_bytes(image[offset + 20..offset + 24].try_into().unwrap()) as usize
+        })
+        .expect(".text section should exist");
+
+    let entry = &image[text_raw..text_raw + 19];
+    assert_eq!(&entry[0..2], &[0x49, 0xbf], "mov r15, frame base");
+    assert_eq!(
+        &entry[10..15],
+        &[0xf2, 0x41, 0x0f, 0x11, 0x87],
+        "movsd [r15+disp32], xmm0"
+    );
+    assert_eq!(&entry[15..19], &0u32.to_le_bytes(), "frame offset 0");
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn entry_run_args_bytes_canary_runs() {
     // The canonical entry `Main::run(&self, args: &[u8])`: the prologue binds
     // `args` as a 32-byte view over the spilled argument registers, so
@@ -33320,6 +33361,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "filesystem/windows_wrapper_copy_exit",
     "targets/efi_freestanding_skeleton",
     "targets/efi_entry_arguments",
+    "targets/efi_float_entry_argument",
     "targets/entry_run_args_bytes",
     "targets/efi_struct_handoff",
     "targets/efi_conout_projection",

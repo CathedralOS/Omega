@@ -1,0 +1,8 @@
+// Register the freestanding x86-64 PE target used to inspect the entry stub.
+target uefi_x64 {
+}
+
+machine build(b: &mut Build) {
+    b.subsystem = Subsystem::EfiApplication;
+    b.freestanding = true;
+}

@@ -35,7 +35,8 @@ bindings can be evaluated through this model as an independent oracle while
 their hardcoded encoders remain in service. The inbound process-entry
 argument prologue now consumes the normalized native `CallPlan`'s exact
 register and width on x86-64 and AArch64; incoming stack arguments and
-source-selected policies remain below.
+scalar float register locations are covered as well. Incoming stack arguments,
+classified aggregates/HFAs, and source-selected policies remain below.
 
 1. **ENT2b — source policy evaluation and identity.** Evaluate the policy type
    selected by `Calling<C>` against each requirement signature, validate the
