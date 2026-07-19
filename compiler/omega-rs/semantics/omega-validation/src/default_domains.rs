@@ -1014,6 +1014,48 @@ fn scan_expression_reads(
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
+            if members.len() == 1
+                && members[0].as_str() == "self"
+                && let Some(definition) = machine.attached_data.as_ref().and_then(|attached| {
+                    program
+                        .data_definitions()
+                        .iter()
+                        .find(|definition| definition.name == *attached)
+                })
+                && let Some(place) = tracked.iter().find(|place| place.spelling == "self")
+                && place.window_open
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "the next whole-value read of `self` occurs inside an OPEN invariant \
+                     window: a prior write left data `{}`'s default domain FALSE -- \
+                     restore the facts before copying or exposing the value (ch11)",
+                    definition.name.as_str()
+                )));
+            }
+            if members.len() > 1 {
+                let receiver_spelling = members[..members.len() - 1]
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join(".");
+                if let Some(place) = tracked
+                    .iter()
+                    .find(|place| place.spelling == receiver_spelling)
+                {
+                    validate_data_read(
+                        program,
+                        machine,
+                        place.definition,
+                        &receiver_spelling,
+                        members.last().expect("non-empty path").as_str(),
+                        tracked,
+                        entry_established,
+                        call_established,
+                        inherited_windows,
+                        diagnostics,
+                    );
+                }
+            }
             // A machine call such as `self.console.exit_process(..)` stores
             // `self.console` as the call receiver Name path. It still consumes
             // the attached `self` value, so it must not bypass establishment
@@ -1042,17 +1084,36 @@ fn scan_expression_reads(
             }
         }
         ExpressionNode::Member(member) => {
-            if let Some(receiver_spelling) = self_place_spelling(program, member.receiver)
-                && let Some(definition) =
+            if let Some(receiver_spelling) = self_place_spelling(program, member.receiver) {
+                let tracked_receiver = tracked
+                    .iter()
+                    .find(|place| place.spelling == receiver_spelling);
+                let definition = tracked_receiver.map(|place| place.definition).or_else(|| {
                     data_definition_for_expression(program, machine, Some(state), member.receiver)
-                && crate::data::data_requires_establishment(program, definition)
-            {
-                validate_data_read(
+                });
+                if let Some(definition) = definition
+                    && crate::data::data_requires_establishment(program, definition)
+                {
+                    validate_data_read(
+                        program,
+                        machine,
+                        definition,
+                        &receiver_spelling,
+                        member.member.as_str(),
+                        tracked,
+                        entry_established,
+                        call_established,
+                        inherited_windows,
+                        diagnostics,
+                    );
+                }
+            }
+            if !is_bare_self_name(program, member.receiver) {
+                scan_expression_reads(
                     program,
                     machine,
-                    definition,
-                    &receiver_spelling,
-                    member.member.as_str(),
+                    state,
+                    member.receiver,
                     tracked,
                     entry_established,
                     call_established,
@@ -1060,11 +1121,24 @@ fn scan_expression_reads(
                     diagnostics,
                 );
             }
+        }
+        ExpressionNode::Indexed(indexed) => {
             scan_expression_reads(
                 program,
                 machine,
                 state,
-                member.receiver,
+                indexed.collection,
+                tracked,
+                entry_established,
+                call_established,
+                inherited_windows,
+                diagnostics,
+            );
+            scan_expression_reads(
+                program,
+                machine,
+                state,
+                indexed.index,
                 tracked,
                 entry_established,
                 call_established,
@@ -1097,6 +1171,25 @@ fn scan_expression_reads(
             );
         }
         ExpressionNode::Mutable(inner) => {
+            if let ExpressionNode::Member(member) = program.expression_table.expression(*inner)
+                && let Some(receiver_spelling) = self_place_spelling(program, member.receiver)
+                && let Some(place) = tracked
+                    .iter()
+                    .find(|place| place.spelling == receiver_spelling && place.window_open)
+            {
+                validate_data_read(
+                    program,
+                    machine,
+                    place.definition,
+                    &receiver_spelling,
+                    member.member.as_str(),
+                    tracked,
+                    entry_established,
+                    call_established,
+                    inherited_windows,
+                    diagnostics,
+                );
+            }
             scan_expression_reads(
                 program,
                 machine,
@@ -1137,6 +1230,14 @@ fn scan_expression_reads(
         }
         _ => {}
     }
+}
+
+fn is_bare_self_name(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    let members = program.expression_table.name_path_members(path.members);
+    members.len() == 1 && members[0].as_str() == "self"
 }
 
 fn validate_data_read(
@@ -1345,6 +1446,14 @@ fn self_place_spelling(program: &TypedTrees, expression: ExpressionHandle) -> Op
             let receiver = self_place_spelling(program, member.receiver)?;
             Some(format!("{receiver}.{}", member.member.as_str()))
         }
+        ExpressionNode::Indexed(indexed) => {
+            let collection = self_place_spelling(program, indexed.collection)?;
+            let index = match program.expression_table.expression(indexed.index) {
+                ExpressionNode::Integer(value) => value.text().to_owned(),
+                _ => return None,
+            };
+            Some(format!("{collection}[{index}]"))
+        }
         ExpressionNode::Mutable(inner) => self_place_spelling(program, *inner),
         _ => None,
     }
@@ -1388,6 +1497,27 @@ fn data_definition_for_expression<'program>(
             .data_definitions()
             .iter()
             .find(|definition| definition.name == *attached);
+    }
+    if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) {
+        let mut collection_type =
+            crate::places::declared_place_type_raw(program, machine, state, indexed.collection)?;
+        loop {
+            match program.type_reference_table.type_reference(collection_type) {
+                omega_typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+                    collection_type = *referee;
+                }
+                omega_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                    collection_type = *base_type;
+                }
+                omega_typed_trees::types::TypeReferenceNode::FixedArray {
+                    element_type, ..
+                }
+                | omega_typed_trees::types::TypeReferenceNode::Slice { element_type } => {
+                    return data_definition_for_type(program, *element_type);
+                }
+                _ => return None,
+            }
+        }
     }
     let receiver_type = crate::places::declared_place_type(program, machine, state, expression)?;
     data_definition_for_type(program, receiver_type)

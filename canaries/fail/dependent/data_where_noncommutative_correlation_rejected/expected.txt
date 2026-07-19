@@ -1,1 +1,1 @@
-open default-domain invariant window
+data `DifferenceTriple`'s default domain is still FALSE at state exit

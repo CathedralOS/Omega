@@ -6,12 +6,15 @@ where
 {
     start: i32;
     end: i32;
+    tag: i32;
 }
 data Main { map: Map; }
 machine Main::run(&mut self) {
     self.map.start = 10;
     self.map.end = 20;
     let view: &mut i32 = &mut self.map.start;
+    // The loan pins the coupled witness fields, not unrelated siblings.
+    self.map.tag = 7;
     self.touch(view);
     self.map.start = 10;
     self.map.end = 30;
