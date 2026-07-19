@@ -140,13 +140,23 @@ target runtime's carry contract both permit it. Sending a shared reference also
 requires a sanctioned shared-access/atomic/protocol contract. Neither question
 is a marker trait, and neither follows merely from `[copy]`.
 
-At every suspension, migration, or relocation point the local checker reads
-canonical place liveness and rejects when a live value's policy forbids the
-transition. Provider admission separately checks the activation's accumulated
-demands against normalized runtime behavior. The future temporal/model checker
-will consume the same policies, provenance anchors, operation contracts,
-effects, and provider hypotheses; carry is an input to that model, not a
-miniature trace language.
+The enforcement sites are not symmetric. Suspension is a static reach
+question: at a call or park, canonical place liveness plus possible `Suspend`
+reach decides legality, and provider selection cannot erase that ceiling.
+CPU/thread migration and address movement are runtime behavior, so activation
+admission compares those accumulated demands with the selected provider's
+normalized contract. Preemption granularity determines which points require
+the migration/stability live-value check.
+
+Runtime behavior is born pessimistic. Checked providers derive and prove their
+claims; opaque providers require an admission receipt before the checker may
+rely on narrower behavior such as CPU pinning. A missing receipt therefore
+fails closed. The receipt authorizes reliance on a claim; it does not change
+the provider's behavior. No new type property or declaration clause is added.
+
+The future temporal/model checker will consume the same policies, provenance
+anchors, operation contracts, effects, and provider hypotheses; carry is an
+input to that model, not a miniature trace language.
 
 ## Task Storage: Accountable, Provider-Planned
 

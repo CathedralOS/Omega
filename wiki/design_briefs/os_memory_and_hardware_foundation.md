@@ -6,8 +6,8 @@ vocabularies, and backend validators remain open and are listed explicitly
 below.
 
 This brief is the common foundation for MMIO, page tables, DMA, shared-memory
-IPC, descriptor tables, interrupt entry, executable publication, and early
-multicore boot. These are not separate language features.
+IPC, descriptor tables, interrupt entry, admitted executable installation, and
+early multicore boot. These are not separate language features.
 
 ## Governing invariant
 
@@ -39,6 +39,7 @@ status.
 | parsed checked assembly | target instructions whose contracts emit effects, authority, clobbers, state changes, and exits | control registers, port I/O, fences, mode changes |
 | boundary entry plan | one normalized contract containing a `CallPlan` and a `StatePlan` | firmware entry, interrupts, exceptions, syscalls, callbacks |
 | symbolic materialization | toolchain-resolved identities placed into structures at the last legal phase | IDT targets, image symbols, callbacks |
+| executable-artifact installation | validate and place immutable admitted code under scoped authority; never convert arbitrary bytes to code | boot images, components, AP trampolines |
 | external-root ledger | all installed inbound roots plus their effects, trust, stack domains, preemption relations, and version pins | interrupts, callbacks, runtime entries |
 | external loan | a linear token standing in for a borrower the checker cannot observe | DMA and device ownership transfer |
 | carry/runtime contracts | value demands joined with scheduler/storage behavior at admission | suspension, migration, CPU/thread affinity, address stability |
@@ -313,7 +314,7 @@ Checked Omega code produces checkable footprint evidence. Admitted leaves
 supply accepted footprint claims under receipt. The validator, not backend
 optimism, decides acceptance.
 
-## Symbolic materialization and executable publication
+## Symbolic materialization and admitted executable installation
 
 Runtime-known addresses are ordinary `addr` data, used only with separate
 authority at mapping, installation, or access. Toolchain-known identities do
@@ -333,26 +334,39 @@ Each target also declares its consumption phase. A field the loader consumes
 before the first Omega instruction must fit the object format's native
 relocation vocabulary. Post-handoff structures may use the generated writer.
 Placement plans may constrain range, alignment, phase, machine regime, and
-executable-memory authority.
+scoped artifact-installation authority.
 
-Executable memory has a lifecycle:
+There is no general `ExecutableMemory` capability, arbitrary byte-to-code
+conversion, JIT facility, or self-modifying-code path. Executable eligibility
+is a sealed admission-established fact over an immutable artifact, bound to its
+normalized content, identity, relocation plan, footprint, and placement plan.
+Mutation destroys that eligibility. Runtime installation only realizes an
+already-admitted artifact in executable mappings.
 
-1. writable, not yet published;
-2. finalized and published executable; and
-3. replacement of already-published executable code.
+This invariant covers every route to execute permission. Correct-by-construction
+page-table APIs require admitted-artifact provenance before deriving an
+executable mapping, and checked assembly emits the same installation authority
+and reach obligations rather than exposing a back door. Device firmware and
+GPU/NIC programs are device-provider uploads, not host executable artifacts.
 
-First publication performs the target-specific W^X transition, cache
-maintenance, ordering, and instruction-fetch synchronization through one
-contracted provider operation. AP bringup is first publication followed by a
-target boot protocol. Live patching is replacement and requires the component
-versioning/quiescence machinery; it is not merely publication with a larger
-`CoreSet` argument.
+Installation performs final post-materialization validation, target-specific
+W^X transition, cache maintenance, ordering, and instruction-fetch
+synchronization through one contracted provider operation. Its authority is
+scoped to the admitted artifact identity, destination/slot, placement, and
+audience. AP bringup installs a compiler-produced low-memory trampoline and
+then invokes a target boot protocol; it does not generate host code at runtime.
 
-The publication target must record execution/liveness status, not merely a set
-of cores. Publishing for a dormant AP that cannot currently fetch the range is
-not the same authority or protocol as changing bytes that an executing core may
-already be running. The exact evidence/API spelling remains open in
-`OWNER_QUESTIONS.md`; the two lifecycle cases must not collapse meanwhile.
+Audience state has three cases:
+
+1. a dormant/local target needs local installation completion;
+2. a future remote fetcher needs a visibility-completion fact before entry; and
+3. a possible current executor requires component replacement and quiescence.
+
+Visibility gates future entry; quiescence gates retirement of existing code.
+They may share linear-obligation infrastructure but establish different facts
+and are not one token algebra. Template patching of already-live code uses
+admitted fragments at declared patch sites through the replacement path. The
+exact installation evidence/API remains open in `OWNER_QUESTIONS.md`.
 
 ## External roots and interrupt tables
 
@@ -441,6 +455,16 @@ Admission joins demand and behavior. The effect row stays static: a live mask
 or affinity token may make a particular call locally inadmissible without
 editing or masking the machine's published effects.
 
+The enforcement sites are deliberately asymmetric. A value that forbids
+suspension is checked locally against possible `Suspend` reach; provider
+selection cannot erase that ceiling. CPU affinity, host-thread affinity, and
+address stability instead join the activation's demands with the runtime's
+normalized behavior at admission. Preemption granularity selects which points
+need those live-value checks. Runtime behavior is born pessimistic: a checked
+provider proves narrower behavior, while an opaque provider needs an admission
+receipt authorizing reliance on its narrower claim. The receipt does not change
+behavior; it changes what admission may trust.
+
 Structural composition selects the most restrictive live-field demand on each
 axis; the axes share traversal, not an algebra. Interrupt masking and
 scheduler-switch suppression are different linear tokens: the former defers
@@ -472,8 +496,8 @@ than re-reading source attributes.
    derivation, borrow-polarity checks, and exact volatile/atomic primitives.
 6. Split boundary entry planning into `CallPlan + StatePlan`; constrain codegen,
    emit footprint evidence, and validate final artifacts.
-7. Add symbolic relocation sources, phase/constraint-aware materialization, and
-   executable publication.
+7. Add symbolic relocation sources, phase/constraint-aware materialization,
+   admitted-artifact validation, and scoped executable installation.
 8. Add the external-root ledger and IDT/timer vertical slice.
 9. Add external loans and DMA/hostile-IPC vertical slices.
 10. Add carry/runtime admission and the Arena-backed Cathedral task profile.
@@ -488,7 +512,8 @@ when the same pieces implement, without new customer-shaped syntax:
 3. trusted and hostile shared-page IPC;
 4. zero-copy DMA with completion and revocation;
 5. IDT, timer interrupt, nesting, and acknowledgement;
-6. SMP AP bringup through low-memory trampoline publication and mode changes.
+6. SMP AP bringup through installation of an admitted low-memory trampoline and
+   checked mode changes.
 
 Required negative tests include hidden reach through direct assembly, forged
 addresses without authority, stale hostile-peer validation, CPU access during
@@ -503,12 +528,10 @@ origins and reject ordinary non-atomic writes through two shared projections.
 These are the remaining design questions, not permission to invent local
 syntax while implementing:
 
-- the provider-side source/artifact supply for normalized runtime behavior
-  (value-side carry spelling and defaults are settled);
-- the first-publication evidence/state types and how target boot protocols
-  consume them;
+- the exact admitted/installed artifact evidence and how target boot protocols
+  consume it;
 - the final artifact-footprint certificate format and validation boundary for
-  static, dynamically linked, and runtime-generated code; and
+  static and dynamically loaded admitted artifacts; and
 - the concrete x86 interrupt requirement, stack/preemption classes, and IDT
   materialization records used by the timer slice.
 

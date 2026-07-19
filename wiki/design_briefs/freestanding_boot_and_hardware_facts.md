@@ -57,7 +57,7 @@ the satisfied requirement through `Calling<C>`.
 - target assumptions are explicit environment/provider contracts.
 
 An address value is never authority. A package cannot gain physical memory,
-MMIO, executable-memory, interrupt-table, or machine-control authority by
+MMIO, artifact-installation, interrupt-table, or machine-control authority by
 naming a type or manufacturing an integer.
 
 ## Firmware handoff and memory authority
@@ -155,24 +155,32 @@ the image base is known is the canonical path. Fields consumed by the loader
 before the first Omega instruction must remain expressible in the object
 format's native relocation vocabulary.
 
-## Executable publication and AP bringup
+## Admitted executable installation and AP bringup
 
-Publishing generated or copied code is a contracted provider operation. It
-owns W^X transition, target-specific cache maintenance, ordering, and
-instruction-fetch synchronization. Callers never reproduce an architecture
-memorization sequence.
+Omega does not convert arbitrary bytes into host code. An immutable executable
+artifact is admitted first, with eligibility bound to normalized content,
+identity, relocations, footprint, and placement plan. A contracted installation
+provider may then place and realize that artifact under authority scoped to its
+identity, destination, and audience. It owns final validation, W^X transition,
+target-specific cache maintenance, ordering, and instruction-fetch
+synchronization. Callers never reproduce an architecture maintenance sequence.
 
-First publication of previously non-executable bytes and replacement of live
-code are different lifecycle transitions. AP trampoline publication is the
-first case followed by a target boot protocol. Live patching requires
-quiescence/component versioning and is not modeled as publication with a larger
-audience argument.
+AP trampoline installation consumes a compiler-produced admitted artifact and
+is followed by a target boot protocol; it is not runtime code generation. A
+dormant/local target needs local completion, while a future remote fetcher needs
+visibility completion before entry. Code that may already be executing instead
+requires quiescence/component replacement. Visibility and quiescence are
+distinct linear obligations with opposite lifecycle roles.
+
+Every executable page-table mapping and relevant checked-assembly operation
+requires admitted-artifact provenance. There is no `ExecutableMemory`
+capability, JIT path, self-modifying code, or alternate raw-byte route.
 
 AP bringup is a mandatory foundation test: low-memory placement, alignment,
 real/protected/long-mode code regions, checked regime-changing instructions,
-runtime materialization, executable authority, cross-core visibility, AP entry
-as an external root, and per-CPU stack/state. Calling plans describe stable
-regimes; checked instructions describe transitions between them.
+runtime materialization, artifact-installation authority, cross-core visibility,
+AP entry as an external root, and per-CPU stack/state. Calling plans describe
+stable regimes; checked instructions describe transitions between them.
 
 ## Required artifact report
 
@@ -183,7 +191,8 @@ than relying on friendly names:
 - evaluated `CallPlan + StatePlan` identities;
 - accepted target/environment assumptions and receipt identities;
 - physical/mapped/executable extents and granted scopes;
-- symbolic materializations, placement constraints, and publication phases;
+- admitted artifact identities, symbolic materializations, placement
+  constraints, installation phases, and visibility evidence;
 - external roots, effect closure, stack domains, nesting/WCSU, and version pins;
 - checked assembly footprint and any accepted leaf claims; and
 - all remaining authority and linear obligations at image handoff.

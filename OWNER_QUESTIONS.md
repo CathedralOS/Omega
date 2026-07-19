@@ -6,50 +6,39 @@ and deliberately deferred research live in `TASKS.md`.
 
 Last pruned: 2026-07-18.
 
-## 1. Runtime-provider behavior contract supply
+## 1. Admitted executable installation evidence
 
-Value-side carry spelling is settled: compiler-built-in `[carry(...)]` records
-type-wide guarantees over four independent axes; transparent data derives;
-opaque data is born strict; sealed `ensures` domains establish per-mint
-relaxations. The normalized policy is compiler IR, not ordinary `omega::core`
-data, a trait, or a machine-produced plan.
+Omega has no general byte-to-code conversion, `ExecutableMemory` capability,
+JIT facility, or self-modifying-code path. Executable eligibility is a sealed,
+non-self-assertable fact over an immutable artifact, established by the normal
+validation/admission spine and bound to normalized content, identity,
+relocations, footprint, and placement plan. Installation may realize an
+already-admitted artifact in executable mappings; mutation destroys eligibility.
 
-The remaining owner decision is only how a `TaskRuntime` provider authors or
-supplies its behavior counterpart:
-
-- Where do safe-point/asynchronous preemption, migration, affinity support,
-  host-thread behavior, and continuation-storage stability enter the derived
-  provider plan?
-- Which claims are proved from a checked provider and which are accepted under
-  admission receipt for an opaque/host runtime?
-- How does a dynamically admitted runtime supply the same normalized contract
-  without creating a second admission path?
-
-Recommendation: add one normalized runtime-behavior contract to the existing
-provider-plan/admission spine; derive checked claims, receipt-gate accepted
-claims, and add no runtime type property or new declaration clause.
-
-## 2. Executable publication evidence and lifecycle
-
-The architecture distinguishes first publication of writable/unpublished bytes
-from replacement of already-executable code. The first is a target provider
-operation; the second belongs to component quiescence/versioning.
+Every executable-mapping route, including page-table construction and checked
+assembly, must require this provenance. Otherwise those routes would recreate
+the deleted conversion as a security bypass. Device firmware remains device
+I/O, and template patching of already-live code remains component
+replacement/quiescence rather than arbitrary code generation.
 
 The remaining owner decision is the normalized evidence/API boundary:
 
-- What value/domain proves bytes are finalized and eligible for first
-  publication?
-- What artifact records cache/coherence/W^X completion and target scope?
-- How does the publication contract distinguish dormant future executors (for
-  example an AP waiting for SIPI) from cores that may already be executing the
-  range and therefore require quiescence/replacement authority?
-- How do static images, runtime-generated code, and dynamically admitted code
-  share footprint validation without pretending there is one universal final
-  link step?
+- What exact state/domain records admitted-but-uninstalled and installed
+  artifacts?
+- Where is final validation performed after declared relocation,
+  materialization, and placement?
+- How is installation authority scoped to artifact identity, slot, placement,
+  and audience?
+- What evidence records W^X and local or cross-core instruction-fetch
+  visibility, including targets where enforcement is convention-only?
+- How do static images and dynamically loaded admitted artifacts share this
+  discipline without pretending there is one universal final link step?
 
-Recommendation: a linear publication-state transition producing an executable
-artifact/capability; validate at every realization/admission boundary; keep
-live replacement entirely separate.
+Recommendation: a linear installation transition accepting only an admitted
+artifact, validating the final realization, and producing a scoped installed
+executable plus any visibility-completion obligation. A dormant/local audience,
+a future remote fetcher, and a possible current executor are distinct: the last
+requires replacement/quiescence, never installation.
 
 Detailed settled context and engineering residue are in
 [`wiki/design_briefs/os_memory_and_hardware_foundation.md`](wiki/design_briefs/os_memory_and_hardware_foundation.md).

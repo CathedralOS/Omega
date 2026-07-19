@@ -1076,7 +1076,9 @@ lowering can use it. Authoritative audit and target shapes:
   checked parsed asm carries instruction contracts; boundary entries normalize
   independent `CallPlan + StatePlan`; symbolic materialization owns toolchain
   addresses; installed inbound entries join an external-root ledger; DMA uses
-  linear external loans; carry demands join runtime behavior at admission. No
+  linear external loans; carry demands join runtime behavior at admission;
+  admitted executable artifacts install through scoped authority with no
+  arbitrary byte-to-code conversion. No
   interrupt DSL, volatile qualifier, external-satisfier keyword, instruction
   wrappers, source-visible static entry pointer, or parallel admission spine.
 - **Carry policy (settled 2026-07-18):** compiler-built-in
@@ -1092,8 +1094,22 @@ lowering can use it. Authoritative audit and target shapes:
   structural derivation and generic-bound ordering; CRY4 add sealed per-mint
   facts to the permission context; CRY5 check canonical live sets at local
   transitions; CRY6 join activation demands with admitted runtime behavior and
-  emit diagnostic/artifact/model-export facts. CRY1-5 are design-unblocked.
-  CRY6 waits only on `OWNER_QUESTIONS.md`'s provider-side supply spelling.
+  emit diagnostic/artifact/model-export facts. CRY1-6 are design-unblocked:
+  suspension is checked locally against `Suspend` reach, while CPU/thread/
+  address demands join a born-pessimistic runtime contract plus preemption
+  granularity through the existing provider-plan/admission spine.
+- **Admitted executable installation (settled direction 2026-07-18):** delete
+  any general `ExecutableMemory`/byte-to-code/JIT surface. Executable
+  eligibility is sealed admission provenance over immutable normalized content,
+  relocation/footprint evidence, and placement plan. EXI1 add the admitted
+  artifact state/identity; EXI2 make page-table execute permission and relevant
+  checked-asm contracts require that provenance; EXI3 materialize declared
+  relocations and validate the final realization; EXI4 install under authority
+  scoped to artifact/slot/placement/audience and record W^X plus visibility;
+  EXI5 route possibly-live code and admitted template patches through
+  replacement/quiescence. No device-firmware path may be mistaken for host
+  execution. EXI1-3 are design-unblocked; EXI4 waits only on the exact evidence
+  API in `OWNER_QUESTIONS.md`.
 
 Ordering gates: no general domain mint/operator-family build on the old
 undifferentiated domain record; no linear Task/transaction/buffer build on
