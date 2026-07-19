@@ -305,6 +305,43 @@ pub fn encode_entry_argument_register_write_bytes(
     Ok(bytes)
 }
 
+/// Copy one AAPCS64 incoming stack fragment into runtime-frame storage. The
+/// normalized offset is relative to the caller's SP; the ordinary function
+/// prologue has already reserved `FUNCTION_FRAME_BYTES` beneath it.
+pub fn encode_entry_stack_argument_write_bytes(
+    stack_byte_offset: u32,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_size, 1 | 2 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "AArch64 entry prologue cannot copy a {byte_size}-byte stack value"
+        )));
+    }
+    let source_offset = usize::try_from(stack_byte_offset)
+        .ok()
+        .and_then(|offset| offset.checked_add(super::FUNCTION_FRAME_BYTES))
+        .ok_or_else(|| Diagnostic::error("AArch64 incoming stack offset overflow"))?;
+    let mut bytes = Vec::with_capacity(super::widths::entry_stack_argument_write_width());
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    match byte_size {
+        1 | 2 | 4 => bytes.extend(encode_load_w_from_x(17, 31, source_offset, byte_size)?),
+        8 => bytes.extend(encode_load_x_from_x(17, 31, source_offset)?),
+        _ => unreachable!("stack-copy width validated above"),
+    }
+    match byte_size {
+        1 | 2 | 4 => bytes.extend(encode_store_w_to_x(17, 16, byte_offset, byte_size)?),
+        8 => bytes.extend(encode_store_x_to_x(17, 16, byte_offset)?),
+        _ => unreachable!("stack-copy width validated above"),
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        super::widths::entry_stack_argument_write_width()
+    );
+    Ok(bytes)
+}
+
 fn encode_entry_vector_store(
     source_register: u8,
     base_register: u8,
@@ -359,6 +396,15 @@ mod entry_argument_register_tests {
         )
         .expect_err("unclassified vector argument must reject");
         assert!(error.message.contains("cannot store 16 bytes"));
+    }
+
+    #[test]
+    fn ninth_aapcs64_argument_loads_above_the_function_frame() {
+        let bytes = encode_entry_stack_argument_write_bytes(0, 0, 8)
+            .expect("incoming stack copy");
+        assert_eq!(bytes.len(), 16);
+        assert_eq!(&bytes[8..12], &0xf940_33f1u32.to_le_bytes());
+        assert_eq!(&bytes[12..16], &0xf900_0211u32.to_le_bytes());
     }
 }
 

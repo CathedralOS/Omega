@@ -183,17 +183,19 @@ separate by type.
 
 Existing compatibility bindings select this normalized policy as an independent
 oracle. The process-entry prologue now evaluates the target's normalized native
-policy and carries each register-resident integer argument's exact register and
-width through abstract operations, target operations, layout, and x86-64 or
-AArch64 emission. This removes the former backend convention that interpreted
-an abstract argument index as the Microsoft x64 register sequence. Incoming
-scalar `f32`/`f64` parameters now follow XMM/V locations as well. Incoming
-stack arguments, classified aggregate/HFA entry parameters, and source-selected
-policies remain. Remaining order:
+policy and carries every classified scalar argument's exact register or
+ABI-relative stack offset and width through abstract operations, target
+operations, layout, and x86-64 or AArch64 emission. Target encoders alone add
+the entry return-address or function-frame bias. This removes both the former
+backend convention that interpreted an abstract argument index as the
+Microsoft x64 register sequence and the global four-register entry limit.
+Incoming scalar `f32`/`f64` parameters follow XMM/V locations as well.
+Classified aggregate/HFA entry parameters and source-selected policies remain.
+Remaining order:
 
 1. Evaluate the policy selected by `Calling<C>` against the requirement
    signature and hash the evaluated pair into requirement identity.
-2. Complete plan-driven incoming stack arguments, outbound calls and results;
+2. Complete plan-driven outbound calls and results;
    differential-check every supported compatibility encoder against the plan,
    add the concrete firmware/interrupt state policies, and make the plan
    authoritative.

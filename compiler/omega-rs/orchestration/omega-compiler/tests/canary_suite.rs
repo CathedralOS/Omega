@@ -31410,6 +31410,54 @@ fn efi_float_entry_argument_unmarshals_xmm0() {
 }
 
 #[test]
+fn efi_fifth_entry_argument_unmarshals_from_the_ms_x64_stack_area() {
+    let canary = pass_canary("targets/efi_stack_entry_argument");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-efi-stack-arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("uefi_x64".into()),
+        write_output: true,
+    })
+    .expect("EFI stack entry-argument canary should compile");
+
+    let image = fs::read(build_dir.join("omega-program.exe")).expect("emitted image should exist");
+    let e_lfanew = u32::from_le_bytes(image[0x3c..0x40].try_into().unwrap()) as usize;
+    let optional_size =
+        u16::from_le_bytes(image[e_lfanew + 20..e_lfanew + 22].try_into().unwrap()) as usize;
+    let section_count = u16::from_le_bytes(image[e_lfanew + 6..e_lfanew + 8].try_into().unwrap());
+    let sections = e_lfanew + 4 + 20 + optional_size;
+    let text_raw = (0..section_count as usize)
+        .map(|index| sections + index * 40)
+        .find(|offset| &image[*offset..*offset + 6] == b".text\0")
+        .map(|offset| {
+            u32::from_le_bytes(image[offset + 20..offset + 24].try_into().unwrap()) as usize
+        })
+        .expect(".text section should exist");
+
+    // Four 17-byte register stores precede the fifth parameter's 25-byte
+    // stack copy. The source displacement is return address (8) + shadow
+    // space (32), and the destination is the fifth 8-byte frame slot.
+    let stack_copy = &image[text_raw + 68..text_raw + 93];
+    assert_eq!(&stack_copy[0..2], &[0x49, 0xbf], "mov r15, frame base");
+    assert_eq!(
+        &stack_copy[10..18],
+        &[0x4c, 0x8b, 0x94, 0x24, 40, 0, 0, 0],
+        "mov r10, [rsp + return-address + shadow-space]"
+    );
+    assert_eq!(
+        &stack_copy[18..25],
+        &[0x4d, 0x89, 0x97, 32, 0, 0, 0],
+        "mov [r15 + fifth-slot], r10"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn entry_run_args_bytes_canary_runs() {
     // The canonical entry `Main::run(&self, args: &[u8])`: the prologue binds
     // `args` as a 32-byte view over the spilled argument registers, so
@@ -33362,6 +33410,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "targets/efi_freestanding_skeleton",
     "targets/efi_entry_arguments",
     "targets/efi_float_entry_argument",
+    "targets/efi_stack_entry_argument",
     "targets/entry_run_args_bytes",
     "targets/efi_struct_handoff",
     "targets/efi_conout_projection",

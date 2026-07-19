@@ -385,6 +385,15 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 byte_offset: *byte_offset,
                 byte_size: *byte_size,
             },
+            omega_abstract_operations::AbstractOperationKind::WriteEntryStackArgument {
+                stack_byte_offset,
+                byte_offset,
+                byte_size,
+            } => Self::WriteEntryStackArgument {
+                stack_byte_offset: *stack_byte_offset,
+                byte_offset: *byte_offset,
+                byte_size: *byte_size,
+            },
             omega_abstract_operations::AbstractOperationKind::WriteEntryArgumentsSliceDescriptor {
                 descriptor_offset,
                 spill_offset,

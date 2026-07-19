@@ -1205,7 +1205,7 @@ fn select_entry_argument_register_writes(
         let destinations = (0..4)
             .map(|index| (spill_base + index * 8, ValueShape::integer(8, 8)))
             .collect::<Vec<_>>();
-        select_normalized_entry_register_writes(input, &destinations, selected_instructions);
+        select_normalized_entry_argument_writes(input, &destinations, selected_instructions);
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::WriteEntryArgumentsSliceDescriptor {
                 descriptor_offset,
@@ -1280,7 +1280,7 @@ fn select_entry_argument_register_writes(
         let destinations = (0..(*byte_size / 8))
             .map(|index| (*byte_offset + index * 8, ValueShape::integer(8, 8)))
             .collect::<Vec<_>>();
-        select_normalized_entry_register_writes(input, &destinations, selected_instructions);
+        select_normalized_entry_argument_writes(input, &destinations, selected_instructions);
         return;
     }
 
@@ -1288,10 +1288,10 @@ fn select_entry_argument_register_writes(
         .into_iter()
         .map(|(byte_offset, _, shape)| (byte_offset, shape))
         .collect::<Vec<_>>();
-    select_normalized_entry_register_writes(input, &destinations, selected_instructions);
+    select_normalized_entry_argument_writes(input, &destinations, selected_instructions);
 }
 
-fn select_normalized_entry_register_writes(
+fn select_normalized_entry_argument_writes(
     input: &InstructionSelectionInput<'_>,
     destinations: &[(usize, ValueShape)],
     selected_instructions: &mut SelectedInstructionSink,
@@ -1305,21 +1305,29 @@ fn select_normalized_entry_register_writes(
 
     for ((destination_offset, _), placement) in destinations.iter().zip(&plan.parameters) {
         for location in &placement.locations {
-            let ValueLocation::Register {
-                register,
-                value_byte_offset,
-                byte_size,
-            } = *location
-            else {
-                // Incoming stack arguments are a separate lowering slice.
-                continue;
-            };
-            selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::WriteEntryArgumentRegister {
+            let kind = match *location {
+                ValueLocation::Register {
+                    register,
+                    value_byte_offset,
+                    byte_size,
+                } => SelectedInstructionKind::WriteEntryArgumentRegister {
                     register,
                     byte_offset: *destination_offset + usize::from(value_byte_offset),
                     byte_size: usize::from(byte_size),
                 },
+                ValueLocation::Stack {
+                    stack_byte_offset,
+                    value_byte_offset,
+                    byte_size,
+                    ..
+                } => SelectedInstructionKind::WriteEntryStackArgument {
+                    stack_byte_offset,
+                    byte_offset: *destination_offset + usize::from(value_byte_offset),
+                    byte_size: usize::from(byte_size),
+                },
+            };
+            selected_instructions.push(SelectedInstruction {
+                kind,
                 source_key: input.entry_key,
                 source_statement: 0,
             });

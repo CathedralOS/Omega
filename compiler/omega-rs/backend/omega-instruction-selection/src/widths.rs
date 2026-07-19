@@ -286,6 +286,17 @@ pub fn entry_argument_register_write_width(
     }
 }
 
+/// Width of one incoming stack-fragment copy into entry-frame storage.
+pub fn entry_stack_argument_write_width(
+    architecture: Architecture,
+    byte_size: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::entry_stack_argument_write_width(),
+        Architecture::X86_64 => x86_64::entry_stack_argument_write_width(byte_size),
+    }
+}
+
 /// Width of the entry prologue's `args: &[u8]` descriptor write.
 pub fn entry_arguments_slice_descriptor_write_width(architecture: Architecture) -> usize {
     match architecture {

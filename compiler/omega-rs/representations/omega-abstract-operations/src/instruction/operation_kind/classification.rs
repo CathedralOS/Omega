@@ -32,6 +32,7 @@ impl OperationSemanticQuery for AbstractOperationKind {
             Self::AtomicFetchAdd { .. }
             | Self::AtomicCompareExchange { .. }
             | Self::WriteEntryArgumentRegister { .. }
+            | Self::WriteEntryStackArgument { .. }
             | Self::WriteEntryArgumentsSliceDescriptor { .. }
             | Self::WriteRuntimeStorageConvert { .. }
             | Self::AppendRuntimeMachineBoundedBufferSource { .. }

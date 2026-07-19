@@ -14,6 +14,7 @@ pub(super) fn collect_runtime_storage_write_relocations(
 ) -> bool {
     match instruction {
         SelectedInstructionKind::WriteEntryArgumentRegister { .. }
+        | SelectedInstructionKind::WriteEntryStackArgument { .. }
         | SelectedInstructionKind::WriteEntryArgumentsSliceDescriptor { .. } => {
             // The entry prologue's `mov r15, imm64` materializes the RUNTIME
             // FRAME base (the entry parameters + the argument spill are frame

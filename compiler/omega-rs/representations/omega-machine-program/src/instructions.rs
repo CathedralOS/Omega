@@ -99,6 +99,9 @@ pub enum MachineInstructionKind {
     /// Entry prologue: store an incoming argument register into the entry
     /// parameter's frame slot (the calling plan's inbound direction).
     EntryArgumentRegisterWrite,
+    /// Entry prologue: copy an incoming stack-argument fragment into the
+    /// parameter's frame slot (the calling plan's inbound direction).
+    EntryStackArgumentWrite,
     /// Entry prologue: bind `args: &[u8]` as a slice descriptor over the
     /// entry-argument spill.
     EntryArgumentsSliceDescriptorWrite,

@@ -645,6 +645,7 @@ pub(super) fn encode_machine_instruction_bytes(
         | SelectedInstructionKind::WriteReturnRegisterInteger { .. }
         | SelectedInstructionKind::CopyRuntimeStorageToReturnRegister { .. }
         | SelectedInstructionKind::WriteEntryArgumentRegister { .. }
+        | SelectedInstructionKind::WriteEntryStackArgument { .. }
         | SelectedInstructionKind::WriteEntryArgumentsSliceDescriptor { .. }
         | SelectedInstructionKind::TerminateDispatch
         | SelectedInstructionKind::LeaveDispatchCase

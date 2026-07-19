@@ -132,6 +132,9 @@ pub enum ValueLocation {
         value_byte_offset: u16,
         byte_size: u16,
     },
+    /// Fragment resident in the ABI's incoming stack-argument area. This
+    /// offset deliberately excludes return addresses and callee prologue
+    /// storage; the inbound target encoder adds those target-specific biases.
     Stack {
         stack_byte_offset: u32,
         value_byte_offset: u16,

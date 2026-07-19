@@ -1077,6 +1077,11 @@ pub fn entry_argument_register_write_width() -> usize {
     12
 }
 
+/// Frame-base `adrp`+`add`, one source load, and one destination store.
+pub fn entry_stack_argument_write_width() -> usize {
+    16
+}
+
 fn double_indexed_any_frame(
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
