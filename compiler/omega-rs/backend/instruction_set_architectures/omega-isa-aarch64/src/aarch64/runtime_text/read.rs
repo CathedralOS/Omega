@@ -13,13 +13,14 @@ use super::super::widths::{
     runtime_text_line_read_carrier_import_width, runtime_text_line_read_carrier_syscall_width,
     runtime_text_line_read_import_width, runtime_text_line_read_syscall_width,
 };
+use super::{Aarch64SyscallRegisters, aarch64_syscall_registers};
 
 #[derive(Clone, Copy)]
 enum RuntimeTextReadCall {
     Import,
     Syscall {
         number: u32,
-        number_register: u8,
+        registers: Aarch64SyscallRegisters,
         supervisor_call: u16,
     },
 }
@@ -54,15 +55,22 @@ pub fn encode_runtime_text_line_read_syscall(
     target_offset: usize,
     byte_capacity: usize,
     number: u32,
-    number_register: u8,
+    parameter_registers: &[omega_calling_conventions::MachineRegister],
+    result_register: omega_calling_conventions::MachineRegister,
+    number_register: omega_calling_conventions::MachineRegister,
     supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
+    let registers = aarch64_syscall_registers(
+        parameter_registers,
+        result_register,
+        number_register,
+    )?;
     encode_runtime_text_line_read(
         target_offset,
         byte_capacity,
         RuntimeTextReadCall::Syscall {
             number,
-            number_register,
+            registers,
             supervisor_call,
         },
         RuntimeTextReadTarget::StringDescriptor,
@@ -85,15 +93,22 @@ pub fn encode_runtime_text_line_read_carrier_syscall(
     target_offset: usize,
     byte_capacity: usize,
     number: u32,
-    number_register: u8,
+    parameter_registers: &[omega_calling_conventions::MachineRegister],
+    result_register: omega_calling_conventions::MachineRegister,
+    number_register: omega_calling_conventions::MachineRegister,
     supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
+    let registers = aarch64_syscall_registers(
+        parameter_registers,
+        result_register,
+        number_register,
+    )?;
     encode_runtime_text_line_read(
         target_offset,
         byte_capacity,
         RuntimeTextReadCall::Syscall {
             number,
-            number_register,
+            registers,
             supervisor_call,
         },
         RuntimeTextReadTarget::BoundedByteCarrier,
@@ -152,23 +167,31 @@ fn encode_runtime_text_line_read(
     bytes.extend(encode_movz(22, 0));
 
     let read_loop_offset = bytes.len();
-    bytes.extend(encode_movz(0, 0));
-    bytes.extend(encode_move_x_register(1, 21));
-    bytes.extend(encode_movz(2, 1));
+    let argument_registers = match call {
+        RuntimeTextReadCall::Import => [0, 1, 2],
+        RuntimeTextReadCall::Syscall { registers, .. } => registers.parameters,
+    };
+    bytes.extend(encode_movz(argument_registers[0], 0));
+    bytes.extend(encode_move_x_register(argument_registers[1], 21));
+    bytes.extend(encode_movz(argument_registers[2], 1));
     match call {
         RuntimeTextReadCall::Import => {
             bytes.extend(encode_branch_link_placeholder());
         }
         RuntimeTextReadCall::Syscall {
             number,
-            number_register,
+            registers,
             supervisor_call,
         } => {
-            append_unsigned_immediate(&mut bytes, number_register, u64::from(number));
+            append_unsigned_immediate(&mut bytes, registers.number, u64::from(number));
             bytes.extend(encode_svc(supervisor_call));
         }
     }
-    bytes.extend(encode_cbz_x(0, 64)?);
+    let result_register = match call {
+        RuntimeTextReadCall::Import => 0,
+        RuntimeTextReadCall::Syscall { registers, .. } => registers.result,
+    };
+    bytes.extend(encode_cbz_x(result_register, 64)?);
     bytes.extend(encode_load_byte_w_from_x(24, 21, 0)?);
     // A '\n'/'\r' delimiter terminates the line only once content is present
     // (x22 > 0); a LEADING one is skipped (branch back to the read loop without

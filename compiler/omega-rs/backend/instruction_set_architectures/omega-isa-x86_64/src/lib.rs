@@ -3778,7 +3778,17 @@ pub fn encode_runtime_text_line_read_syscall(
     target_offset: usize,
     byte_capacity: usize,
     number: u32,
+    parameter_registers: &[omega_calling_conventions::MachineRegister],
+    result_register: omega_calling_conventions::MachineRegister,
+    number_register: omega_calling_conventions::MachineRegister,
+    supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
+    validate_composite_linux_syscall_plan(
+        parameter_registers,
+        result_register,
+        number_register,
+        supervisor_call,
+    )?;
     let capacity = u32::try_from(byte_capacity).map_err(|_| {
         Diagnostic::error(format!(
             "X86_64 MVP encoder cannot encode line-read capacity `{byte_capacity}` yet"
@@ -3794,7 +3804,17 @@ pub fn encode_runtime_text_line_read_syscall_carrier(
     target_offset: usize,
     byte_capacity: usize,
     number: u32,
+    parameter_registers: &[omega_calling_conventions::MachineRegister],
+    result_register: omega_calling_conventions::MachineRegister,
+    number_register: omega_calling_conventions::MachineRegister,
+    supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
+    validate_composite_linux_syscall_plan(
+        parameter_registers,
+        result_register,
+        number_register,
+        supervisor_call,
+    )?;
     let capacity = u32::try_from(byte_capacity).map_err(|_| {
         Diagnostic::error(format!(
             "X86_64 MVP encoder cannot encode line-read capacity `{byte_capacity}` yet"
@@ -11270,7 +11290,17 @@ pub fn encode_runtime_byte_read_syscall(
     target_offset: usize,
     payload_offset: usize,
     number: u32,
+    parameter_registers: &[omega_calling_conventions::MachineRegister],
+    result_register: omega_calling_conventions::MachineRegister,
+    number_register: omega_calling_conventions::MachineRegister,
+    supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
+    validate_composite_linux_syscall_plan(
+        parameter_registers,
+        result_register,
+        number_register,
+        supervisor_call,
+    )?;
     let tag_disp = disp32(target_offset)?;
     let payload_disp = disp32(target_offset + payload_offset)?;
     let mut bytes = Vec::with_capacity(runtime_byte_read_syscall_width());
@@ -11323,7 +11353,17 @@ pub fn encode_runtime_byte_write_import(source_offset: usize) -> Result<Vec<u8>,
 pub fn encode_runtime_byte_write_syscall(
     source_offset: usize,
     number: u32,
+    parameter_registers: &[omega_calling_conventions::MachineRegister],
+    result_register: omega_calling_conventions::MachineRegister,
+    number_register: omega_calling_conventions::MachineRegister,
+    supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
+    validate_composite_linux_syscall_plan(
+        parameter_registers,
+        result_register,
+        number_register,
+        supervisor_call,
+    )?;
     let source_disp = disp32(source_offset)?;
     let mut bytes = Vec::with_capacity(runtime_byte_write_syscall_width());
     bytes.extend([0x49, 0xbe]); // mov r14, imm64 (source, relocated)
@@ -11337,6 +11377,25 @@ pub fn encode_runtime_byte_write_syscall(
     bytes.extend([0x0f, 0x05]); // syscall
     debug_assert_eq!(bytes.len(), runtime_byte_write_syscall_width());
     Ok(bytes)
+}
+
+fn validate_composite_linux_syscall_plan(
+    parameter_registers: &[omega_calling_conventions::MachineRegister],
+    result_register: omega_calling_conventions::MachineRegister,
+    number_register: omega_calling_conventions::MachineRegister,
+    supervisor_call: u16,
+) -> Result<(), Diagnostic> {
+    use omega_calling_conventions::MachineRegister::*;
+    if parameter_registers != [X86Rdi, X86Rsi, X86Rdx]
+        || result_register != X86Rax
+        || number_register != X86Rax
+        || supervisor_call != 0
+    {
+        return Err(Diagnostic::error(format!(
+            "X86_64 composite runtime-text syscall encoder cannot realize normalized plan parameters={parameter_registers:?}, result={result_register:?}, number={number_register:?}, immediate={supervisor_call}"
+        )));
+    }
+    Ok(())
 }
 
 /// `mov dword [r14 + disp32], 0` (11 bytes).
@@ -11383,6 +11442,13 @@ pub fn runtime_byte_write_syscall_width() -> usize {
 #[cfg(test)]
 mod byte_io_width_tests {
     use super::*;
+    use omega_calling_conventions::MachineRegister;
+
+    const PARAMETERS: [MachineRegister; 3] = [
+        MachineRegister::X86Rdi,
+        MachineRegister::X86Rsi,
+        MachineRegister::X86Rdx,
+    ];
 
     #[test]
     fn byte_op_widths_match_emission() {
@@ -11390,14 +11456,51 @@ mod byte_io_width_tests {
             let import = encode_runtime_byte_read_import(target_offset, payload_offset).unwrap();
             assert_eq!(import.len(), runtime_byte_read_import_width());
             let syscall =
-                encode_runtime_byte_read_syscall(target_offset, payload_offset, 0).unwrap();
+                encode_runtime_byte_read_syscall(
+                    target_offset,
+                    payload_offset,
+                    0,
+                    &PARAMETERS,
+                    MachineRegister::X86Rax,
+                    MachineRegister::X86Rax,
+                    0,
+                )
+                .unwrap();
             assert_eq!(syscall.len(), runtime_byte_read_syscall_width());
         }
         for source_offset in [0usize, 8, 48] {
             let import = encode_runtime_byte_write_import(source_offset).unwrap();
             assert_eq!(import.len(), runtime_byte_write_import_width());
-            let syscall = encode_runtime_byte_write_syscall(source_offset, 1).unwrap();
+            let syscall = encode_runtime_byte_write_syscall(
+                source_offset,
+                1,
+                &PARAMETERS,
+                MachineRegister::X86Rax,
+                MachineRegister::X86Rax,
+                0,
+            )
+            .unwrap();
             assert_eq!(syscall.len(), runtime_byte_write_syscall_width());
         }
+    }
+
+    #[test]
+    fn composite_syscalls_reject_registers_the_encoder_cannot_realize() {
+        let noncanonical_parameters = [
+            MachineRegister::X86Rcx,
+            MachineRegister::X86Rsi,
+            MachineRegister::X86Rdx,
+        ];
+        let diagnostic = encode_runtime_byte_write_syscall(
+            0,
+            1,
+            &noncanonical_parameters,
+            MachineRegister::X86Rax,
+            MachineRegister::X86Rax,
+            0,
+        )
+        .unwrap_err();
+
+        assert!(diagnostic.message.contains("cannot realize normalized plan"));
     }
 }

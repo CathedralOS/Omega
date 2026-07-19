@@ -9,6 +9,84 @@ use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
 use omega_target_operations::InstructionOperandLike;
 
+pub(super) struct NormalizedSyscallRegisters {
+    pub parameters: Vec<omega_calling_conventions::MachineRegister>,
+    pub result: Option<omega_calling_conventions::MachineRegister>,
+    pub number: omega_calling_conventions::MachineRegister,
+    pub immediate: u16,
+}
+
+impl NormalizedSyscallRegisters {
+    pub(super) fn required_result(
+        &self,
+    ) -> Result<omega_calling_conventions::MachineRegister, Diagnostic> {
+        self.result.ok_or_else(|| {
+            Diagnostic::error("normalized syscall plan did not place its required result")
+        })
+    }
+}
+
+pub(super) fn normalized_syscall_registers(
+    architecture: Architecture,
+    parameter_count: usize,
+    has_result: bool,
+) -> Result<NormalizedSyscallRegisters, Diagnostic> {
+    let policy = match architecture {
+        Architecture::Aarch64 => CallingPolicy::LinuxSyscallAarch64,
+        Architecture::X86_64 => CallingPolicy::LinuxSyscallX86_64,
+    };
+    let word = ValueShape::integer(8, 8);
+    let signature = CallSignature {
+        parameters: vec![word; parameter_count],
+        result: has_result.then_some(word),
+    };
+    let plan = evaluate_call_plan(policy, &signature)
+        .map_err(|error| Diagnostic::error(format!("cannot evaluate syscall call plan: {error}")))?;
+    let parameters = plan
+        .parameters
+        .iter()
+        .enumerate()
+        .map(|(index, placement)| full_width_register(&placement.locations, "parameter", index))
+        .collect::<Result<Vec<_>, _>>()?;
+    let result = plan
+        .result
+        .as_ref()
+        .map(|placement| full_width_register(&placement.locations, "result", 0))
+        .transpose()?;
+    let EntryControl::SupervisorCall {
+        number_register,
+        immediate,
+    } = plan.entry_control
+    else {
+        return Err(Diagnostic::error(
+            "normalized syscall plan did not select supervisor-call entry control",
+        ));
+    };
+    Ok(NormalizedSyscallRegisters {
+        parameters,
+        result,
+        number: number_register,
+        immediate,
+    })
+}
+
+fn full_width_register(
+    locations: &[ValueLocation],
+    role: &str,
+    index: usize,
+) -> Result<omega_calling_conventions::MachineRegister, Diagnostic> {
+    match locations {
+        [ValueLocation::Register {
+            register,
+            value_byte_offset: 0,
+            byte_size: 8,
+        }] => Ok(*register),
+        locations => Err(Diagnostic::error(format!(
+            "normalized syscall {role} {index} did not resolve to one full-width register: {locations:?}"
+        ))),
+    }
+}
+
 /// A VtableSlot call (provides-sourced, per-object dispatch). x86_64 only; an
 /// aarch64 vtable call awaits its stub.
 pub fn encode_vtable_call_sequence<T: InstructionOperandLike>(
@@ -147,55 +225,22 @@ pub fn encode_syscall_sequence<T: InstructionOperandLike>(
     operands: &[T],
     syscall_number: u32,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let policy = match architecture {
-        Architecture::Aarch64 => CallingPolicy::LinuxSyscallAarch64,
-        Architecture::X86_64 => CallingPolicy::LinuxSyscallX86_64,
-    };
-    let signature = CallSignature {
-        parameters: vec![ValueShape::integer(8, 8); operands.len()],
-        result: None,
-    };
-    let plan = evaluate_call_plan(policy, &signature)
-        .map_err(|error| Diagnostic::error(format!("cannot evaluate syscall call plan: {error}")))?;
-    let argument_registers = plan
-        .parameters
-        .iter()
-        .enumerate()
-        .map(|(index, placement)| match placement.locations.as_slice() {
-            [ValueLocation::Register {
-                register,
-                value_byte_offset: 0,
-                byte_size: 8,
-            }] => Ok(*register),
-            locations => Err(Diagnostic::error(format!(
-                "normalized syscall parameter {index} did not resolve to one full-width register: {locations:?}"
-            ))),
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let EntryControl::SupervisorCall {
-        number_register,
-        immediate: supervisor_call,
-    } = plan.entry_control
-    else {
-        return Err(Diagnostic::error(
-            "normalized syscall plan did not select supervisor-call entry control",
-        ));
-    };
+    let registers = normalized_syscall_registers(architecture, operands.len(), false)?;
 
     match architecture {
         Architecture::Aarch64 => aarch64::encode_syscall_sequence_from_operands(
             operands.iter().map(aarch64_call_operand),
             syscall_number,
-            &argument_registers,
-            number_register,
-            supervisor_call,
+            &registers.parameters,
+            registers.number,
+            registers.immediate,
         ),
         Architecture::X86_64 => x86_64::encode_syscall_sequence(
             operands,
             syscall_number,
-            &argument_registers,
-            number_register,
-            supervisor_call,
+            &registers.parameters,
+            registers.number,
+            registers.immediate,
         ),
     }
 }

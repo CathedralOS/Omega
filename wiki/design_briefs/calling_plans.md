@@ -202,7 +202,11 @@ authoritative: emission evaluates the x86-64 or AArch64 syscall policy for the
 operand signature, then passes its exact parameter registers, number register,
 and supervisor-call immediate to the ISA encoder. The legacy binding's
 `number_register`/`supervisor_call` fields no longer select those facts on that
-path; composite runtime-text syscall encoders still await the same migration.
+path. Composite runtime-text byte and line syscalls now use the same evaluated
+placements. AArch64 emits the plan-selected registers and supervisor-call
+immediate; the current fixed x86-64 sequences fail closed when asked to realize
+a different normalized plan rather than silently overriding it.
+
 Remaining order:
 
 1. Evaluate the policy selected by `Calling<C>` against the requirement
