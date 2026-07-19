@@ -99,17 +99,14 @@ argument or inferred contract.
 
 1. **MP4b — full template specialization.** Compose typed deep copy, one
    lexical-symbol remap, and fresh symbols to clone a complete template;
-   group/rewrite calls per selected tuple; remove the single-tuple fence.
+   group/rewrite calls per selected tuple; remove the single-tuple fence; then
+   restore `pending/generics/runtime_generic_param_position_inference_exit`
+   once specialized value results materialize.
 2. **MP5 — admitted templates.** Grant accepted templates once, preserve their
    contract identity, and validate each instance against argument contract IDs.
 3. **MP6 — consuming slices.** Add `Seq` map/filter, nested proof schemas used
    by N5/N6, task-runtime machine selection, and build-surface canaries. No
    runtime callable values, dictionaries, or capture inference.
-4. **Generic inference negative.** Resolve
-   `canaries/pending/generics/runtime_generic_param_position_inference_exit`:
-   a parameter that only happens to line up at existing call sites must not
-   acquire an implicit machine contract.
-
 ## Correctness bugs and missing lowering
 
 These are unblocked and should gain a focused pass/fail or differential canary
@@ -127,10 +124,6 @@ before the fix.
   lacks a declared type for non-place subjects. Preserve single evaluation and
   enforce the same missing/unknown-field law; add the copy-eligibility fence if
   non-copy extraction is not yet sound.
-- **Unlowered payload fields.** When the next unsupported payload-field shape
-  appears, turn `UnloweredCaseLiteralField` into a directed fail canary rather
-  than silently widening lowering.
-
 ## Type, proof, and semantic-model work
 
 ### Dependent facts and frames
@@ -222,8 +215,6 @@ before the fix.
   machine-parameter signatures that themselves take machine parameters.
 - **N8 — construction corpus.** Build Cauchy Real, order, completeness, and
   well-definedness, retiring axioms through the normal boundary-upgrade path.
-- **Divisibility theory.** Add `gcd_pos`, `gcd_dvd_left/right`, and
-  `div_mul_cancel` when the Rat/quotient corpus demands them.
 - **F6 — total float order.** Add named `TotalOrder` satisfiers for f32/f64
   using sign-magnitude integer comparison once satisfier dispatch serves.
 - **F7 — float format providers.** Move IEEE format records into
