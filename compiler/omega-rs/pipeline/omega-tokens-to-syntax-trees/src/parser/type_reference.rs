@@ -244,46 +244,54 @@ fn apply_in_domain_suffix<'tokens, 'source>(
     if !input.at_contextual("in") {
         return Ok((type_reference, input));
     }
-    let after_in = input.take_contextual("in")?;
-    let (domain_name, rest) = after_in.take_identifier()?;
-    // A PARAMETERIZED domain name (`in OmegaLayout<Save>`, ch20 "grammars are
-    // layout policies") flattens to a single instance name -- the same
-    // monomorphization-by-instantiation shape as generic data: no unification,
-    // no bounds, just a name resolved to a flat derived domain instance.
-    // Arguments are plain identifiers (a schema name + optionally a grammar).
-    let (domain_name, rest) = if rest.at_punctuation(PunctuationKind::Less) {
-        let mut flat = String::from(domain_name.as_str());
-        flat.push('<');
-        let mut cursor = rest.take_punctuation(PunctuationKind::Less, "<")?;
-        loop {
-            let (argument, next) = cursor.take_identifier()?;
-            flat.push_str(argument.as_str());
-            if next.at_punctuation(PunctuationKind::Comma) {
-                flat.push_str(", ");
-                cursor = next.take_punctuation(PunctuationKind::Comma, ",")?;
-                continue;
+    let mut cursor = input.take_contextual("in")?;
+    let mut constraints = Vec::new();
+    loop {
+        let (domain_name, rest) = cursor.take_identifier()?;
+        // A PARAMETERIZED domain name (`in OmegaLayout<Save>`, ch20 "grammars
+        // are layout policies") flattens to one instance name -- the same
+        // monomorphization-by-instantiation shape as generic data.
+        let (domain_name, rest) = if rest.at_punctuation(PunctuationKind::Less) {
+            let mut flat = String::from(domain_name.as_str());
+            flat.push('<');
+            let mut argument_cursor = rest.take_punctuation(PunctuationKind::Less, "<")?;
+            loop {
+                let (argument, next) = argument_cursor.take_identifier()?;
+                flat.push_str(argument.as_str());
+                if next.at_punctuation(PunctuationKind::Comma) {
+                    flat.push_str(", ");
+                    argument_cursor = next.take_punctuation(PunctuationKind::Comma, ",")?;
+                    continue;
+                }
+                argument_cursor = next.take_punctuation(PunctuationKind::Greater, ">")?;
+                break;
             }
-            cursor = next.take_punctuation(PunctuationKind::Greater, ">")?;
+            flat.push('>');
+            (Identifier::generated(flat), argument_cursor)
+        } else {
+            (domain_name, rest)
+        };
+        constraints.push(
+            match omega_core::arithmetic::ArithmeticDomain::from_name(domain_name.as_str()) {
+                Some(domain) => TypeConstraintNode::ArithmeticDomain(domain),
+                None => TypeConstraintNode::Domain(domain_name),
+            },
+        );
+
+        if !rest.at_punctuation(PunctuationKind::Ampersand) {
+            cursor = rest;
             break;
         }
-        flat.push('>');
-        (Identifier::generated(flat), cursor)
-    } else {
-        (domain_name, rest)
-    };
-    let constraint =
-        match omega_core::arithmetic::ArithmeticDomain::from_name(domain_name.as_str()) {
-            Some(domain) => TypeConstraintNode::ArithmeticDomain(domain),
-            None => TypeConstraintNode::Domain(domain_name),
-        };
-    let constraint = syntax_trees.type_references.append_constraint(constraint);
+        cursor = rest.take_punctuation(PunctuationKind::Ampersand, "&")?;
+    }
+    let constraints = syntax_trees.type_references.insert_constraints(constraints);
     let type_reference = syntax_trees
         .type_references
         .insert(TypeReferenceNode::Constrained {
             base_type: type_reference,
-            constraints: HandleSpan::from_parts(constraint, 1),
+            constraints,
         });
-    Ok((type_reference, rest))
+    Ok((type_reference, cursor))
 }
 
 pub(super) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(

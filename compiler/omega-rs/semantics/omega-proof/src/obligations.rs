@@ -93,6 +93,10 @@ pub enum ProofConstraint {
         minimum: FloatLiteral,
         maximum: FloatLiteral,
     },
+    /// Operand-driven arithmetic behavior carried through expression
+    /// derivation. This is metadata for deciding which value facts an
+    /// operation establishes, not itself a proof predicate.
+    ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
 }
 
 impl Default for ProofConstraint {
@@ -117,9 +121,12 @@ impl ProofConstraint {
             TypeConstraintNode::Range { minimum, maximum } => {
                 Self::range_from_expression_handles(program, *minimum, *maximum)
             }
-            // An arithmetic overflow domain is a codegen behaviour tag, not a
-            // proof predicate, so it produces no proof constraint.
-            TypeConstraintNode::ArithmeticDomain(_) => None,
+            // Arithmetic policy is not a predicate, but the proof derivation
+            // needs it to judge facts established by the operation (for
+            // example, finite Saturating add/subtract/multiply stays Finite).
+            TypeConstraintNode::ArithmeticDomain(domain) => {
+                Some(Self::ArithmeticDomain(*domain))
+            }
         }
     }
 
@@ -2164,6 +2171,28 @@ fn derived_binary_constraints(
     right_constraints: &ConstraintBuffer,
 ) -> ConstraintBuffer {
     let mut constraints = ConstraintBuffer::new();
+    let arithmetic_domain = arithmetic_domain_from_constraints(left_constraints)
+        .combine(arithmetic_domain_from_constraints(right_constraints));
+    if arithmetic_domain != omega_core::arithmetic::ArithmeticDomain::Exact {
+        constraints.push(ProofConstraint::ArithmeticDomain(arithmetic_domain));
+    }
+
+    // Saturating floats clamp magnitude overflow, so finite operands remain
+    // finite for the operations whose only non-finite route is overflow.
+    // Divide/modulo deliberately stay out: zero divisors and invalid
+    // operations retain IEEE Inf/NaN under the settled policy.
+    if arithmetic_domain == omega_core::arithmetic::ArithmeticDomain::Saturating
+        && constraints_prove_finite(left_constraints)
+        && constraints_prove_finite(right_constraints)
+        && matches!(
+            operator,
+            BinaryOperator::Add | BinaryOperator::Multiply | BinaryOperator::Subtract
+        )
+    {
+        constraints.push(ProofConstraint::Named(Identifier::generated_static(
+            "finite",
+        )));
+    }
 
     if integer_constraints_are_exact(left_constraints)
         && integer_constraints_are_exact(right_constraints)
@@ -2462,6 +2491,25 @@ fn integer_constraints_are_exact(constraints: &ConstraintBuffer) -> bool {
 
 fn integer_constraints_are_wrapping(constraints: &ConstraintBuffer) -> bool {
     has_named_constraint(constraints, "wrapping")
+        || arithmetic_domain_from_constraints(constraints)
+            == omega_core::arithmetic::ArithmeticDomain::Wrapping
+}
+
+fn arithmetic_domain_from_constraints(
+    constraints: &ConstraintBuffer,
+) -> omega_core::arithmetic::ArithmeticDomain {
+    constraints
+        .iter()
+        .find_map(|constraint| match constraint {
+            ProofConstraint::ArithmeticDomain(domain) => Some(*domain),
+            _ => None,
+        })
+        .unwrap_or(omega_core::arithmetic::ArithmeticDomain::Exact)
+}
+
+fn constraints_prove_finite(constraints: &ConstraintBuffer) -> bool {
+    has_named_constraint(constraints, "finite")
+        || float_range_from_constraints(constraints).is_some()
 }
 
 fn has_named_constraint(constraints: &ConstraintBuffer, name: &str) -> bool {

@@ -471,8 +471,26 @@ fn validate_type_constraints_node(
     owner: TypeReferenceOwner<'_>,
 ) {
     let primitive_type = program.type_reference_table.primitive_type(base_type);
+    let constraints = program.type_reference_table.constraints(constraints);
+    let policy_domains = constraints
+        .iter()
+        .filter_map(|constraint| match constraint {
+            TypeConstraintNode::ArithmeticDomain(domain) => Some(*domain),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if policy_domains.len() > 1 {
+        diagnostics.push(Diagnostic::error(format!(
+            "{owner} declares a domain chain with policy domains {}; a domain chain may carry at most one policy domain",
+            policy_domains
+                .iter()
+                .map(|domain| format!("`{}`", domain.name()))
+                .collect::<Vec<_>>()
+                .join(", "),
+        )));
+    }
 
-    for constraint in program.type_reference_table.constraints(constraints) {
+    for constraint in constraints {
         match constraint {
             TypeConstraintNode::Named(name) if name.as_str() == "finite" => {
                 let Some(primitive_type) = primitive_type else {

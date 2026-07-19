@@ -6,6 +6,9 @@ mod static_writes;
 mod value_operands;
 
 pub(crate) use value_operands::resolve_runtime_value_operand_in_table;
+pub(in crate::selection::runtime_dispatch) use value_operands::{
+    binary_value_operand_byte_width, binary_value_operands_are_float,
+};
 
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
