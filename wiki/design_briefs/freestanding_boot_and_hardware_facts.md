@@ -160,9 +160,11 @@ format's native relocation vocabulary.
 Omega does not convert arbitrary bytes into host code. An immutable executable
 artifact is admitted first, with eligibility bound to normalized content,
 identity, relocations, footprint, and placement plan. A contracted installation
-provider may then place and realize that artifact under authority scoped to its
-identity, destination, and audience. It owns final validation, W^X transition,
-target-specific cache maintenance, ordering, and instruction-fetch
+provider borrows that reusable artifact and consumes extent-backed linear
+`CodePlacement`. Materialization spends write access; freezing ends every
+writer; validation checks the exact final bytes; installation produces the
+linear `InstalledCode` claim. The provider owns final validation, W^X
+transition, target-specific cache maintenance, ordering, and instruction-fetch
 synchronization. Callers never reproduce an architecture maintenance sequence.
 
 AP trampoline installation consumes a compiler-produced admitted artifact and
@@ -170,11 +172,22 @@ is followed by a target boot protocol; it is not runtime code generation. A
 dormant/local target needs local completion, while a future remote fetcher needs
 visibility completion before entry. Code that may already be executing instead
 requires quiescence/component replacement. Visibility and quiescence are
-distinct linear obligations with opposite lifecycle roles.
+distinct linear obligations with opposite lifecycle roles. V1 completes
+visibility inside the loader; it exposes no asynchronous token without a real
+provider customer.
 
 Every executable page-table mapping and relevant checked-assembly operation
 requires admitted-artifact provenance. There is no `ExecutableMemory`
 capability, JIT path, self-modifying code, or alternate raw-byte route.
+Component-slot binding is a later logical dispatch/versioning operation, not
+part of code placement. Installation prevents injection; sealed entries and
+protected-return/final CFI validation remain a separate control-transfer gate.
+
+The initial image uses the same trust discipline at an earlier phase: the build
+checks PCC/CFI and signs the admitted artifact identity, secure boot
+authenticates that identity and gates entry, and measured boot records what
+entered. The boot-admitted installer then loads later admitted artifacts.
+Measurement is evidence, never the admission gate.
 
 AP bringup is a mandatory foundation test: low-memory placement, alignment,
 real/protected/long-mode code regions, checked regime-changing instructions,

@@ -1108,8 +1108,20 @@ lowering can use it. Authoritative audit and target shapes:
   scoped to artifact/slot/placement/audience and record W^X plus visibility;
   EXI5 route possibly-live code and admitted template patches through
   replacement/quiescence. No device-firmware path may be mistaken for host
-  execution. EXI1-3 are design-unblocked; EXI4 waits only on the exact evidence
-  API in `OWNER_QUESTIONS.md`.
+  execution. EXI1-5 are design-unblocked. The artifact is borrowed and reusable;
+  linearity begins at extent-backed `CodePlacement`; v1 visibility completes
+  synchronously; component-slot binding is a separate operation. Use a minimal
+  canonical Omega container internally, with PE/COFF only as a required outer
+  firmware envelope.
+- **Control-flow integrity (owner question open 2026-07-18):** installation
+  provenance prevents code injection but does not prove legal control transfer.
+  CFI1 normalize direct/indirect/return/entry-site plans and certificates; CFI2
+  enforce requirement-compatible sealed entry references and dynamic
+  descriptor identity; CFI3 settle and implement protected returns across
+  calls, continuations, exceptions, interrupts, and tail calls; CFI4 validate
+  every final indirect site after relocation/relaxation/veneers/thunks; CFI5
+  require admitted foreign-provider claims or hardware isolation. CFI1-2 can
+  inventory/propagate now; CFI3-5 wait on `OWNER_QUESTIONS.md`.
 
 Ordering gates: no general domain mint/operator-family build on the old
 undifferentiated domain record; no linear Task/transaction/buffer build on
