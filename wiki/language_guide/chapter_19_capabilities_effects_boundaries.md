@@ -353,11 +353,13 @@ for free, and native lowerings exploit the ZII rule directly (the result
 slot is pre-zeroed; only an arrived byte writes the non-zero tag, so the
 EOF path executes no write at all).
 
-Implementation state: std's shipping console is still the transitional
-`platform Console` block, which cannot carry effect rows. The shape above is
-the prescribed end state; `TASKS.md` tracks the migration. Until then the
-purity checker incorrectly classifies `read_byte` as row-empty, but existing
-refusal checks prevent that classification from eliding the operation.
+Implementation state: the standard Console is now a boundary trait with effect
+rows. Its friendly `write` and `write_line` members are ordinary checked Omega
+adapters over `write_byte`: they borrow the owned `String` through
+`as_view().bytes()` and walk the slice with a measured state machine. The raw
+byte operation remains the provider leaf. Legacy composite provider rows remain
+temporarily for inline Console declarations in the existing corpus; `TASKS.md`
+tracks that migration and their deletion.
 
 Domain requirements stay normal proof language. A filesystem boundary should
 not invent special "initialized" words when a domain is what it means:

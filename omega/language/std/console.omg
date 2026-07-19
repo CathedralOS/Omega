@@ -24,9 +24,8 @@ boundary trait Console {
     // Byte-level stdin/stdout (the universal console surface, OWNER_QUESTIONS
     // #12): `read_byte` yields the next stdin byte as `ByteRead::Byte`, or
     // `ByteRead::Eof` at end-of-input; `write_byte` appends one byte to
-    // stdout. Interpreter serving landed first; native lowering is the
-    // recorded next slice (TASKS_FS #0) -- native compiles refuse loudly
-    // until it lands.
+    // stdout. Both interpreter and native providers implement these leaves;
+    // the friendly text adapters below are shared checked Omega code.
     machine read_byte() -> ByteRead
     effects
         stdin_io;
@@ -34,4 +33,60 @@ boundary trait Console {
     effects
         stdout_io;
     machine exit_process(return_code: i32);
+}
+
+// Friendly text output is checked Omega code over the byte-level boundary
+// leaf. The private writer walks a borrowed byte view as one measured state
+// loop. Each guarded edge stages the head byte and tail slice; the loop state's
+// body performs the byte effect only after that edge was selected.
+machine console_write_bytes(console: Console, bytes: &[u8], newline: bool)
+terminates by bytes -> Slice::Length;
+effects
+    stdout_io
+{
+    transition bytes.len > 0 {
+        true -> emit(console, bytes[0], bytes[1..], newline)
+        false -> finish(console, newline)
+    }
+
+    state emit(console: Console, byte: u8, bytes: &[u8], newline: bool) {
+        let mut output: u8 = byte;
+        console.write_byte(output);
+        transition bytes.len > 0 {
+            true -> emit(console, bytes[0], bytes[1..], newline)
+            false -> finish(console, newline)
+        }
+    }
+
+    state finish(console: Console, newline: bool) {
+        transition newline {
+            true -> emit_newline(console, 10)
+            false -> done()
+        }
+    }
+
+    state emit_newline(console: Console, byte: u8) {
+        let mut output: u8 = byte;
+        console.write_byte(output);
+    }
+
+    state done() { }
+}
+
+machine console_write(console: Console, text: String) satisfies Console::write
+effects
+    stdout_io
+{
+    let view: &string = text.as_view();
+    let bytes: &[u8] = view.bytes();
+    console_write_bytes(console, bytes, false);
+}
+
+machine console_write_line(console: Console, text: String) satisfies Console::write_line
+effects
+    stdout_io
+{
+    let view: &string = text.as_view();
+    let bytes: &[u8] = view.bytes();
+    console_write_bytes(console, bytes, true);
 }
