@@ -22,6 +22,7 @@ pub use dispatch::{
 };
 pub use host::{
     encode_entry_argument_register_write_bytes,
+    encode_entry_stack_argument_write_bytes,
     encode_entry_arguments_slice_descriptor_write_bytes, encode_function_enter_bytes,
     encode_authored_import_call_sequence, encode_host_call_sequence,
     encode_interrupt_control_bytes, encode_machine_halt_bytes, encode_memory_fence_bytes,

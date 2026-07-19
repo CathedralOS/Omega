@@ -441,6 +441,60 @@ pub fn encode_entry_argument_register_write_bytes(
     Ok(bytes)
 }
 
+/// Width of one incoming stack-fragment copy. The runtime-frame base
+/// materialization is 10 bytes; byte/dword/qword loads and stores total 15,
+/// while the operand-size prefixes make the word form two bytes longer.
+pub fn entry_stack_argument_write_width(byte_size: usize) -> usize {
+    if byte_size == 2 { 27 } else { 25 }
+}
+
+/// Copy an incoming x86-64 stack argument into runtime-frame storage. Calling
+/// plans measure `stack_byte_offset` from the ABI stack-argument area, so the
+/// source is eight bytes beyond that offset at entry (past the return address).
+pub fn encode_entry_stack_argument_write_bytes(
+    stack_byte_offset: u32,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_size, 1 | 2 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "x86-64 entry prologue cannot copy a {byte_size}-byte stack value"
+        )));
+    }
+    let source_offset = stack_byte_offset
+        .checked_add(8)
+        .ok_or_else(|| Diagnostic::error("x86-64 incoming stack offset overflow"))?;
+    let source_offset = i32::try_from(source_offset)
+        .map_err(|_| Diagnostic::error("x86-64 incoming stack offset exceeds disp32"))?;
+    let mut bytes = Vec::with_capacity(entry_stack_argument_write_width(byte_size));
+    append_mov_r15_imm64(&mut bytes, 0); // runtime-frame base, relocated
+
+    // mov r10{b,w,d,q}, [rsp + disp32]
+    if byte_size == 2 {
+        bytes.push(0x66);
+    }
+    bytes.extend([
+        if byte_size == 8 { 0x4c } else { 0x44 },
+        if byte_size == 1 { 0x8a } else { 0x8b },
+        0x94,
+        0x24,
+    ]);
+    bytes.extend(source_offset.to_le_bytes());
+
+    // mov [r15 + disp32], r10{b,w,d,q}
+    if byte_size == 2 {
+        bytes.push(0x66);
+    }
+    bytes.extend([
+        if byte_size == 8 { 0x4d } else { 0x45 },
+        if byte_size == 1 { 0x88 } else { 0x89 },
+        0x97,
+    ]);
+    bytes.extend(disp32(byte_offset)?.to_le_bytes());
+    debug_assert_eq!(bytes.len(), entry_stack_argument_write_width(byte_size));
+    Ok(bytes)
+}
+
 #[cfg(test)]
 mod entry_argument_register_tests {
     use super::*;
@@ -468,6 +522,15 @@ mod entry_argument_register_tests {
         )
         .expect_err("unclassified vector argument must reject");
         assert!(error.message.contains("cannot store 16 bytes"));
+    }
+
+    #[test]
+    fn ms_x64_fifth_argument_loads_after_return_address_and_shadow_space() {
+        let bytes = encode_entry_stack_argument_write_bytes(32, 24, 8)
+            .expect("incoming stack copy");
+        assert_eq!(bytes.len(), 25);
+        assert_eq!(&bytes[10..18], &[0x4c, 0x8b, 0x94, 0x24, 40, 0, 0, 0]);
+        assert_eq!(&bytes[18..25], &[0x4d, 0x89, 0x97, 24, 0, 0, 0]);
     }
 }
 

@@ -333,6 +333,15 @@ pub enum AbstractOperationKind {
         byte_offset: usize,
         byte_size: usize,
     },
+    /// Entry prologue: copy one normalized incoming stack-argument fragment
+    /// into the entry parameter's runtime-frame slot. `stack_byte_offset` is
+    /// relative to the ABI's incoming stack-argument area; the target encoder
+    /// accounts for its return address and/or function-enter frame.
+    WriteEntryStackArgument {
+        stack_byte_offset: u32,
+        byte_offset: usize,
+        byte_size: usize,
+    },
     /// The bytes-handoff half of the entry prologue: bind the entry's
     /// `args: &[u8]` parameter as a view over the ENTRY-ARGUMENT SPILL (where
     /// the prologue stored the platform's argument registers). Writes the

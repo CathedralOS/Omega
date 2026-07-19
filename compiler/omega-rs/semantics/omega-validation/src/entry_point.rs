@@ -53,16 +53,9 @@ pub(crate) fn validate_entry_point(program: &TypedTrees, diagnostics: &mut Vec<D
         )));
     }
 
-    // (2) THE ARRIVAL-FIT LAW (v1): the platform hands the entry at most four
-    // register arguments (MS-x64). A fifth declared parameter would read
-    // garbage -- a clear error, never a silently-unpopulated slot.
-    if parameters.len() > 4 {
-        diagnostics.push(Diagnostic::error(format!(
-            "the entry `{}` declares {} parameters; the platform's arrival delivers at most 4 register arguments",
-            machine.name.as_str(),
-            parameters.len()
-        )));
-    }
+    // Arrival fit is a property of the evaluated boundary call plan, not a
+    // global register-count rule. Parameters beyond the register bank are
+    // legal when the selected plan places them in its incoming stack area.
 }
 
 fn find_entry_point<'trees>(

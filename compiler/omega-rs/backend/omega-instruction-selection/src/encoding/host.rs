@@ -258,6 +258,28 @@ pub fn encode_entry_argument_register_write_bytes(
     }
 }
 
+/// Copy one normalized incoming stack-argument fragment into its entry-frame
+/// destination. Target encoders add their ABI return-address/prologue bias.
+pub fn encode_entry_stack_argument_write_bytes(
+    architecture: Architecture,
+    stack_byte_offset: u32,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_entry_stack_argument_write_bytes(
+            stack_byte_offset,
+            byte_offset,
+            byte_size,
+        ),
+        Architecture::X86_64 => x86_64::encode_entry_stack_argument_write_bytes(
+            stack_byte_offset,
+            byte_offset,
+            byte_size,
+        ),
+    }
+}
+
 /// The entry prologue's `args: &[u8]` descriptor write (x86_64 only).
 pub fn encode_entry_arguments_slice_descriptor_write_bytes(
     architecture: Architecture,

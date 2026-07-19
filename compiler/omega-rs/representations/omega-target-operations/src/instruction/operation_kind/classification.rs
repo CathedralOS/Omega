@@ -33,6 +33,7 @@ impl OperationSemanticQuery for TargetOperationKind {
             Self::AtomicFetchAdd { .. }
             | Self::AtomicCompareExchange { .. }
             | Self::WriteEntryArgumentRegister { .. }
+            | Self::WriteEntryStackArgument { .. }
             | Self::WriteEntryArgumentsSliceDescriptor { .. }
             | Self::WriteRuntimeStorageConvert { .. }
             | Self::AppendRuntimeMachineBoundedBufferSource { .. }

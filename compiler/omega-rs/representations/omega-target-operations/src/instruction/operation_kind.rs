@@ -246,6 +246,13 @@ pub enum TargetOperationKind {
         byte_offset: usize,
         byte_size: usize,
     },
+    /// Entry prologue: copy the normalized plan's incoming stack fragment into
+    /// the entry parameter's frame slot.
+    WriteEntryStackArgument {
+        stack_byte_offset: u32,
+        byte_offset: usize,
+        byte_size: usize,
+    },
     /// Entry prologue: bind `args: &[u8]` as {ptr -> frame+spill, len}.
     WriteEntryArgumentsSliceDescriptor {
         descriptor_offset: usize,

@@ -10,6 +10,7 @@ use omega_instruction_selection::{
     control_register_read_width, control_register_write_width, dispatch_case_enter_width,
     dispatch_case_leave_width, dispatch_guard_compare_static_width, dispatch_loop_enter_width,
     dispatch_state_write_width, entry_argument_register_write_width,
+    entry_stack_argument_write_width,
     entry_arguments_slice_descriptor_write_width, flags_restore_width, flags_snapshot_width,
     function_enter_width, host_call_sequence_width, interrupt_control_width, machine_halt_width,
     memory_fence_width, msr_read_width, msr_write_width, port_read_width, port_write_width,
@@ -711,6 +712,9 @@ fn machine_instruction_width(
             ..
         } => {
             entry_argument_register_write_width(input.target.architecture, *register, *byte_size)
+        }
+        SelectedInstructionKind::WriteEntryStackArgument { byte_size, .. } => {
+            entry_stack_argument_write_width(input.target.architecture, *byte_size)
         }
         SelectedInstructionKind::WriteEntryArgumentsSliceDescriptor { .. } => {
             entry_arguments_slice_descriptor_write_width(input.target.architecture)

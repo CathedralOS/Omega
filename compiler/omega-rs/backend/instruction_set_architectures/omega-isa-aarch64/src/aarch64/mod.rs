@@ -286,6 +286,10 @@ pub fn encode_syscall_sequence_from_operands(
     Ok(bytes)
 }
 
+/// Bytes reserved by the ordinary AArch64 function-enter prologue. Incoming
+/// stack arguments remain relative to the caller's pre-prologue SP.
+pub const FUNCTION_FRAME_BYTES: usize = 96;
+
 pub fn encode_function_enter_bytes() -> [u8; 28] {
     let mut bytes = [0; 28];
     bytes[0..4].copy_from_slice(&encode_instruction(0xA9BA7BFD));

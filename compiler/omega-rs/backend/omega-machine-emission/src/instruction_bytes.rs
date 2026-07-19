@@ -382,6 +382,22 @@ fn insert_fixed_machine_instruction_bytes(
             }
             Ok(true)
         }
+        SelectedInstructionKind::WriteEntryStackArgument {
+            stack_byte_offset,
+            byte_offset,
+            byte_size,
+        } => {
+            let bytes = omega_instruction_selection::encode_entry_stack_argument_write_bytes(
+                emission_context.target.architecture,
+                *stack_byte_offset,
+                *byte_offset,
+                *byte_size,
+            )?;
+            for byte in bytes {
+                inserter.insert(byte);
+            }
+            Ok(true)
+        }
         SelectedInstructionKind::WriteEntryArgumentsSliceDescriptor {
             descriptor_offset,
             spill_offset,
