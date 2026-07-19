@@ -82,8 +82,6 @@ Last pruned: 2026-07-18.
   relation between case-union domains and exhaustiveness.
 - Define foreign-type domain imports, orphan/coherence restrictions, and their
   authority-report representation.
-- Decide the zero-excluding-invariant lint and whether non-linear types need an
-  explicit constructed-only establishment policy.
 - Implement generic bounds for `copy`, `linear`, `zero_init`, `sized`, and the
   parameterized carry policy, then decide whether any further core properties
   earn inclusion.

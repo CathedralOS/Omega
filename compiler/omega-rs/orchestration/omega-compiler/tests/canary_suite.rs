@@ -31026,6 +31026,63 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
 }
 
 #[test]
+fn range_gated_establishment_canaries_compile() {
+    for name in [
+        "dependent/range_sugar_gated_construction_compile",
+        "dependent/nested_gated_construction_compile",
+        "dependent/zero_case_absorbs_nested_gate_compile",
+        "dependent/range_gated_machine_establishment_compile",
+        "dependent/data_where_cross_state_establish",
+        "dependent/data_where_callee_establishes",
+        "dependent/data_where_multistate_callee",
+        "dependent/data_where_gated_literal_proves",
+    ] {
+        let canary = pass_canary(name);
+        compile_canary_without_output(&canary).unwrap_or_else(|diagnostics| {
+            panic!(
+                "{} failed:\n{}",
+                canary.display(),
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+    }
+}
+
+#[test]
+fn range_gated_establishment_canaries_reject_unsafe_uses() {
+    for name in [
+        "arithmetic/zii_range_excludes_zero_rejected",
+        "range/element_range_zero_excluded",
+        "dependent/range_sugar_gated_field_omitted_rejected",
+        "dependent/nested_gated_field_omitted_rejected",
+        "dependent/zero_init_range_excludes_zero_rejected",
+        "dependent/data_where_gated_machine_unestablished_rejected",
+    ] {
+        let canary = fail_canary(name);
+        let expected = fs::read_to_string(canary.join("expected.txt"))
+            .expect("range-gated fail canary should carry expected.txt");
+        let diagnostics = compile_canary_without_output(&canary)
+            .expect_err("unsafe range-gated use should be rejected");
+        let combined = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            combined.contains(expected.trim()),
+            "{} missing expected fragment {:?}:\n{}",
+            canary.display(),
+            expected.trim(),
+            combined
+        );
+    }
+}
+
+#[test]
 fn runtime_float_min_max_abs_clamp_exit_canary_runs() {
     // Float min/max on SSE (maxsd/minsd), plus abs/clamp over floats which
     // desugar to them: max(3,7)+min(3,7)+abs(-12)+clamp(300,0,200) = 222.
@@ -32681,6 +32738,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "dependent/range_sugar_gated_construction_compile",
     "dependent/nested_gated_construction_compile",
     "dependent/zero_case_absorbs_nested_gate_compile",
+    "dependent/range_gated_machine_establishment_compile",
     "dependent/nested_data_where_window_restored_exit",
     "dependent/nested_data_where_standing_bound_exit",
     "dependent/data_where_witness_write_after_borrow_compile",

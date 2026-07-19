@@ -90,7 +90,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     proof_only_faces::validate_proof_only_consumption(program, &proof_only, &mut diagnostics);
     // Q6 ruling: machine call cycles are banned regardless of boundedness.
     call_cycles::validate_machine_call_cycles(program, &symbols, &mut diagnostics);
-    data::validate_zero_reachable_field_ranges(program, &mut diagnostics);
+    data::validate_zero_init_establishment(program, &mut diagnostics);
     properties::validate_data_properties(program, &symbols, &mut diagnostics);
     // Bare-payload-case `==` (decision 11) is checked on the RESOLVED trees,
     // before membership lowering synthesizes its internal tag compares; see
