@@ -344,9 +344,9 @@ fn state_edges(program: &TypedTrees, states: &[State]) -> Vec<(usize, usize)> {
                                     .name_path_members(path.members)
                                     .last()
                                     .and_then(|target_name| {
-                                        states.iter().position(|candidate| {
-                                            candidate.name == *target_name
-                                        })
+                                        states
+                                            .iter()
+                                            .position(|candidate| candidate.name == *target_name)
                                     })
                             });
                         if let Some(to) = to {
@@ -702,12 +702,9 @@ fn handle_assignment<'program>(
     let Some(receiver_spelling) = self_place_spelling(program, member.receiver) else {
         return;
     };
-    let Some(definition) = data_definition_for_expression(
-        program,
-        machine,
-        Some(state),
-        member.receiver,
-    ) else {
+    let Some(definition) =
+        data_definition_for_expression(program, machine, Some(state), member.receiver)
+    else {
         return;
     };
     if definition.where_facts.is_empty()
@@ -759,21 +756,21 @@ fn handle_assignment<'program>(
     // Obligation: a field participating in either an authored `where` fact or
     // an implicit range/containment gate must help re-establish the whole
     // value. Unrelated writes preserve the current establishment state.
-    let field_type = program
-        .data_members(place.definition)
-        .iter()
-        .find_map(|member| match member {
-            omega_typed_trees::data::DataMember::Field(field)
-                if field.name.as_str() == field_name =>
-            {
-                Some(field.type_reference)
-            }
-            _ => None,
-        });
+    let field_type =
+        program
+            .data_members(place.definition)
+            .iter()
+            .find_map(|member| match member {
+                omega_typed_trees::data::DataMember::Field(field)
+                    if field.name.as_str() == field_name =>
+                {
+                    Some(field.type_reference)
+                }
+                _ => None,
+            });
     if !field_is_where_mentioned(program, place.definition, &field_name)
-        && !field_type.is_some_and(|field_type| {
-            crate::data::type_requires_establishment(program, field_type)
-        })
+        && !field_type
+            .is_some_and(|field_type| crate::data::type_requires_establishment(program, field_type))
     {
         return;
     }
@@ -787,26 +784,43 @@ fn handle_assignment<'program>(
         .proof_facts
         .span_or_empty(place.definition.where_facts)
     {
-        let omega_typed_trees::domain::ProofFact::Expression(expression) = fact else {
-            continue;
-        };
-        match fold_with_valuation(program, &valuation, place.born_zero, *expression) {
-            Some(value) if value != 0 => {}
-            // Ch11 (slice 8): a checkable violation OPENS a window instead
-            // of refusing -- the consumption points demand closure.
-            Some(_) => all_hold = false,
-            None => {
-                all_hold = false;
-                diagnostics.push(Diagnostic::error(format!(
-                    "write to `{}.{field_name}` cannot PROVE data `{}`'s default domain: \
-                     a `where`-mentioned field's value is not a literal known here (a \
-                     runtime value, or a co-field last written in another state) -- \
-                     restructure with literal stores in one state for now (the \
-                     entailment integration and cross-state valuation transport relax \
-                     this)",
-                    place.spelling,
-                    place.definition.name.as_str()
-                )));
+        match fact {
+            omega_typed_trees::domain::ProofFact::Expression(expression) => {
+                match fold_with_valuation(program, &valuation, place.born_zero, *expression) {
+                    Some(value) if value != 0 => {}
+                    // Ch11 (slice 8): a checkable violation OPENS a window instead
+                    // of refusing -- the consumption points demand closure.
+                    Some(_) => all_hold = false,
+                    None => {
+                        all_hold = false;
+                        diagnostics.push(Diagnostic::error(format!(
+                            "write to `{}.{field_name}` cannot PROVE data `{}`'s default domain: \
+                             a `where`-mentioned field's value is not a literal known here (a \
+                             runtime value, or a co-field last written in another state) -- \
+                             restructure with literal stores in one state for now (the \
+                             entailment integration and cross-state valuation transport relax \
+                             this)",
+                            place.spelling,
+                            place.definition.name.as_str()
+                        )));
+                    }
+                }
+            }
+            omega_typed_trees::domain::ProofFact::Membership(membership) => {
+                let mentioned = membership_field_name(program, membership.value);
+                if mentioned == Some(field_name.as_str()) {
+                    if !crate::proof_facts::string_literal_grants_domain(
+                        program,
+                        value,
+                        membership.domain_symbol,
+                    ) {
+                        all_hold = false;
+                    }
+                } else if !place.established || place.window_open {
+                    // A write to another field preserves a previously true
+                    // membership, but cannot manufacture a missing one.
+                    all_hold = false;
+                }
             }
         }
     }
@@ -848,7 +862,8 @@ fn scan_statement_reads(
         }
         StatementNode::Call(call) => {
             let receiver = program.statement_table.name_path_members(call.receiver);
-            if receiver.len() > 1 && receiver[0].as_str() == "self"
+            if receiver.len() > 1
+                && receiver[0].as_str() == "self"
                 && let Some(definition) = machine.attached_data.as_ref().and_then(|attached| {
                     program
                         .data_definitions()
@@ -922,7 +937,8 @@ fn scan_expression_reads(
             // `self.console` as the call receiver Name path. It still consumes
             // the attached `self` value, so it must not bypass establishment
             // merely because no standalone Member node was built.
-            if members.len() > 1 && members[0].as_str() == "self"
+            if members.len() > 1
+                && members[0].as_str() == "self"
                 && let Some(definition) = machine.attached_data.as_ref().and_then(|attached| {
                     program
                         .data_definitions()
@@ -946,12 +962,8 @@ fn scan_expression_reads(
         }
         ExpressionNode::Member(member) => {
             if let Some(receiver_spelling) = self_place_spelling(program, member.receiver)
-                && let Some(definition) = data_definition_for_expression(
-                    program,
-                    machine,
-                    Some(state),
-                    member.receiver,
-                )
+                && let Some(definition) =
+                    data_definition_for_expression(program, machine, Some(state), member.receiver)
                 && crate::data::data_requires_establishment(program, definition)
             {
                 validate_data_read(
@@ -977,7 +989,7 @@ fn scan_expression_reads(
                 call_established,
                 inherited_windows,
                 diagnostics,
-                );
+            );
         }
         ExpressionNode::Binary(binary) => {
             scan_expression_reads(
@@ -990,7 +1002,7 @@ fn scan_expression_reads(
                 call_established,
                 inherited_windows,
                 diagnostics,
-                );
+            );
             scan_expression_reads(
                 program,
                 machine,
@@ -1001,7 +1013,7 @@ fn scan_expression_reads(
                 call_established,
                 inherited_windows,
                 diagnostics,
-                );
+            );
         }
         ExpressionNode::Mutable(inner) => {
             scan_expression_reads(
@@ -1014,7 +1026,7 @@ fn scan_expression_reads(
                 call_established,
                 inherited_windows,
                 diagnostics,
-                );
+            );
         }
         ExpressionNode::Call(call) => {
             scan_expression_reads(
@@ -1039,7 +1051,7 @@ fn scan_expression_reads(
                     call_established,
                     inherited_windows,
                     diagnostics,
-                    );
+                );
             }
         }
         _ => {}
@@ -1152,10 +1164,9 @@ fn attached_value_established(
         if !crate::data::type_requires_establishment(program, field.type_reference) {
             continue;
         }
-        if let Some(interval) = crate::arithmetic_domains::range_constraint_interval(
-            program,
-            field.type_reference,
-        ) {
+        if let Some(interval) =
+            crate::arithmetic_domains::range_constraint_interval(program, field.type_reference)
+        {
             let Some(value) = root
                 .and_then(|place| {
                     place
@@ -1174,12 +1185,7 @@ fn attached_value_established(
             }
         } else {
             let child = format!("self.{}", field.name.as_str());
-            if !direct_place_established(
-                &child,
-                tracked,
-                entry_established,
-                call_established,
-            ) {
+            if !direct_place_established(&child, tracked, entry_established, call_established) {
                 return false;
             }
         }
@@ -1213,10 +1219,9 @@ fn range_gates_hold(program: &TypedTrees, place: &TrackedPlace<'_>) -> bool {
         if !crate::data::type_requires_establishment(program, field.type_reference) {
             continue;
         }
-        let Some(interval) = crate::arithmetic_domains::range_constraint_interval(
-            program,
-            field.type_reference,
-        ) else {
+        let Some(interval) =
+            crate::arithmetic_domains::range_constraint_interval(program, field.type_reference)
+        else {
             // Nested records and arrays require whole-value establishment in
             // this first slice.
             return false;
@@ -1338,11 +1343,28 @@ fn field_is_where_mentioned(
             omega_typed_trees::domain::ProofFact::Expression(expression) => {
                 expression_mentions_name(program, *expression, field)
             }
-            _ => false,
+            omega_typed_trees::domain::ProofFact::Membership(membership) => {
+                membership_field_name(program, membership.value) == Some(field)
+            }
         })
 }
 
-fn expression_mentions_name(program: &TypedTrees, expression: ExpressionHandle, name: &str) -> bool {
+fn membership_field_name(program: &TypedTrees, value: ExpressionHandle) -> Option<&str> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(value) else {
+        return None;
+    };
+    program
+        .expression_table
+        .name_path_members(path.members)
+        .last()
+        .map(|member| member.as_str())
+}
+
+fn expression_mentions_name(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    name: &str,
+) -> bool {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => program
             .expression_table
@@ -1445,8 +1467,7 @@ pub(crate) fn where_fact_interval(
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
         return None;
     };
-    let definition =
-        data_definition_for_expression(program, machine, state, member.receiver)?;
+    let definition = data_definition_for_expression(program, machine, state, member.receiver)?;
     field_fact_interval(program, definition, member.member.as_str(), 0)
 }
 
@@ -1476,8 +1497,7 @@ fn field_fact_interval(
         let omega_typed_trees::domain::ProofFact::Expression(fact_expression) = fact else {
             continue;
         };
-        let ExpressionNode::Binary(binary) =
-            program.expression_table.expression(*fact_expression)
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(*fact_expression)
         else {
             continue;
         };
@@ -1612,22 +1632,22 @@ fn bound_source_interval(
                 .expression_table
                 .name_path_members(path.members)
                 .last()?;
-            let handle = program
-                .data_members(definition)
-                .iter()
-                .find_map(|member| match member {
-                    omega_typed_trees::data::DataMember::Field(data_field)
-                        if data_field.name == *name =>
-                    {
-                        Some(data_field.type_reference)
-                    }
-                    _ => None,
-                })?;
+            let handle =
+                program
+                    .data_members(definition)
+                    .iter()
+                    .find_map(|member| match member {
+                        omega_typed_trees::data::DataMember::Field(data_field)
+                            if data_field.name == *name =>
+                        {
+                            Some(data_field.type_reference)
+                        }
+                        _ => None,
+                    })?;
             // Declared range first; an UNRANGED co-field chains through its
             // own where-fact interval (depth-capped -- cycles resolve None).
-            crate::arithmetic_domains::range_constraint_interval(program, handle).or_else(|| {
-                field_fact_interval(program, definition, name.as_str(), depth + 1)
-            })
+            crate::arithmetic_domains::range_constraint_interval(program, handle)
+                .or_else(|| field_fact_interval(program, definition, name.as_str(), depth + 1))
         }
         _ => None,
     }
@@ -1695,9 +1715,7 @@ fn factor_lower_bound(
                 integer_literal_value(program, binary.right)
                     .map(|value| (value as i64).saturating_add(1))
             }
-            BinaryOperator::LessOrEqual
-                if side_names_field(program, binary.right, factor_name) =>
-            {
+            BinaryOperator::LessOrEqual if side_names_field(program, binary.right, factor_name) => {
                 integer_literal_value(program, binary.left).map(|value| value as i64)
             }
             BinaryOperator::Less if side_names_field(program, binary.right, factor_name) => {

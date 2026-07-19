@@ -155,3 +155,20 @@ fn domain_path_label(
         .collect::<Vec<_>>()
         .join("::")
 }
+
+pub(crate) fn string_literal_grants_domain(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    let ExpressionNode::String(literal) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    omega_typed_trees::byte_predicates::domain_classifier_byte_predicate(program, domain_symbol)
+        .is_some_and(|predicate| predicate.holds_for(literal.as_bytes()))
+}
+
+pub(crate) fn domain_admits_empty_bytes(program: &TypedTrees, domain_symbol: SymbolHandle) -> bool {
+    omega_typed_trees::byte_predicates::domain_classifier_byte_predicate(program, domain_symbol)
+        .is_some_and(|predicate| predicate.holds_for(&[]))
+}

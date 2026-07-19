@@ -37,30 +37,33 @@ pub(crate) fn lower_data_definition(
         crate::domain::lower_proof_facts(lowerer, syntax_trees, data_definition.where_facts)?;
     let mut zero_gated = false;
     for fact in lowerer.symbol_resolved_trees.proof_facts(where_facts) {
-        let omega_symbol_resolved_trees::domain::ProofFact::Expression(expression) = fact else {
-            return Err(Diagnostic::error(format!(
-                "data `{}`: a domain-membership fact in the default-domain `where` \
-                 clause is not supported yet (R2) -- spell arithmetic facts over the \
-                 fields",
-                data_definition.name.as_str()
-            )));
-        };
-        match zero_fold(
-            &lowerer.symbol_resolved_trees.tables.bodies.expressions,
-            *expression,
-        ) {
-            Some(value) if value != 0 => {}
-            // R2 rung 2b: zero violates the domain -- the type is GATED
-            // (admitted; its literals must PROVE the domain, and rung 3's
-            // access gate covers zeroed storage).
-            Some(_) => zero_gated = true,
-            None => {
-                return Err(Diagnostic::error(format!(
-                    "data `{}`: a default-domain `where` fact is outside the v1 \
-                     zero-foldable fragment (field names, integer literals, + - *, \
-                     comparisons, && ) -- simplify the fact for now (R2)",
-                    data_definition.name.as_str()
-                )));
+        match fact {
+            omega_symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
+                match zero_fold(
+                    &lowerer.symbol_resolved_trees.tables.bodies.expressions,
+                    *expression,
+                ) {
+                    Some(value) if value != 0 => {}
+                    // R2 rung 2b: zero violates the domain -- the type is GATED
+                    // (admitted; its literals must PROVE the domain, and rung 3's
+                    // access gate covers zeroed storage).
+                    Some(_) => zero_gated = true,
+                    None => {
+                        return Err(Diagnostic::error(format!(
+                            "data `{}`: a default-domain `where` fact is outside the v1 \
+                             zero-foldable fragment (field names, integer literals, + - *, \
+                             comparisons, && ) -- simplify the fact for now (R2)",
+                            data_definition.name.as_str()
+                        )));
+                    }
+                }
+            }
+            // Membership symbols and classifiers are assigned after every
+            // top-level declaration exists. Start conservative; the symbol
+            // pass below clears the gate only when it can prove that the
+            // referenced classifier admits the carrier's zero value.
+            omega_symbol_resolved_trees::domain::ProofFact::Membership(_) => {
+                zero_gated = true;
             }
         }
     }
@@ -87,7 +90,7 @@ pub(crate) fn lower_data_definition(
 /// R2 rung 2 slice 1: fold one default-domain fact AT THE ZERO VALUE --
 /// every field name reads 0, literals read themselves, `+ - *` fold,
 /// comparisons and `&&`/`||` yield 1/0. `None` = outside the fragment.
-fn zero_fold(
+pub(crate) fn zero_fold(
     expressions: &omega_symbol_resolved_trees::expression::ExpressionTable,
     expression: omega_symbol_resolved_trees::expression::ExpressionHandle,
 ) -> Option<i128> {

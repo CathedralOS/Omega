@@ -1,6 +1,8 @@
+use crate::proof_facts::{ProofFactOwner, validate_proof_facts};
 use crate::symbols::TopLevelSymbols;
 use crate::type_references::{
-    TypeReferenceOwner, validate_type_reference_handle_with_type_parameters,
+    TypeReferenceOwner, type_reference_label, type_references_match,
+    validate_type_reference_handle_with_type_parameters,
 };
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
@@ -35,6 +37,7 @@ pub(crate) fn validate_data_field_types(
         let type_parameters = program.data_type_parameters(data_definition);
         validate_data_member_names(data_definition, data_members, diagnostics);
         validate_data_shape(program, data_definition, data_members, diagnostics);
+        validate_data_default_domain(program, data_definition, data_members, diagnostics);
 
         for member in data_members {
             let payload_fields = match member {
@@ -78,6 +81,69 @@ pub(crate) fn type_requires_establishment(
     type_reference: TypeReferenceHandle,
 ) -> bool {
     type_requires_establishment_inner(program, type_reference, &mut Vec::new())
+}
+
+fn validate_data_default_domain(
+    program: &TypedTrees,
+    definition: &omega_typed_trees::data::DataDefinition,
+    members: &[DataMember],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let facts = program.proof_facts.span_or_empty(definition.where_facts);
+    validate_proof_facts(
+        program,
+        facts,
+        diagnostics,
+        ProofFactOwner::DataDefaultDomain(definition.name.as_str()),
+    );
+
+    for fact in facts {
+        let omega_typed_trees::domain::ProofFact::Membership(membership) = fact else {
+            continue;
+        };
+        let Some(domain) = program
+            .domain_definitions()
+            .iter()
+            .find(|domain| domain.symbol == membership.domain_symbol)
+        else {
+            continue;
+        };
+        let omega_typed_trees::expression::ExpressionNode::Name(path) =
+            program.expression_table.expression(membership.value)
+        else {
+            continue;
+        };
+        let Some(field_name) = program
+            .expression_table
+            .name_path_members(path.members)
+            .last()
+        else {
+            continue;
+        };
+        let Some(field_type) = members.iter().find_map(|member| match member {
+            DataMember::Field(field) if field.name.as_str() == field_name.as_str() => {
+                Some(field.type_reference)
+            }
+            DataMember::Field(_) | DataMember::Variant(_) => None,
+        }) else {
+            continue;
+        };
+        let field_carrier =
+            crate::places::unwrapped_type_reference(program, field_type).unwrap_or(field_type);
+        let domain_carrier = crate::places::unwrapped_type_reference(program, domain.target_type)
+            .unwrap_or(domain.target_type);
+        if type_references_match(program, field_carrier, domain_carrier) {
+            continue;
+        }
+        diagnostics.push(Diagnostic::error(format!(
+            "data `{}` default-domain fact puts field `{}` in domain `{}`, but the field carrier is `{}` while the domain classifies `{}`",
+            definition.name.as_str(),
+            field_name.as_str(),
+            domain.name.as_str(),
+            type_reference_label(program, field_carrier),
+            type_reference_label(program, domain_carrier),
+        )));
+    }
 }
 
 fn type_requires_establishment_inner(
@@ -196,9 +262,10 @@ fn data_requires_establishment_inner(
             DataMember::Field(_) => None,
         })
         .is_some_and(|variant| {
-            program.data_payload_fields(variant).iter().any(|field| {
-                type_requires_establishment_inner(program, field.type_reference, seen)
-            })
+            program
+                .data_payload_fields(variant)
+                .iter()
+                .any(|field| type_requires_establishment_inner(program, field.type_reference, seen))
         });
 
     seen.retain(|candidate| candidate != &name);
