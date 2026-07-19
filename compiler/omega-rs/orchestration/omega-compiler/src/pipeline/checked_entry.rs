@@ -42,6 +42,7 @@ pub fn compile_to_checked(
         &mut syntax.syntax_trees,
         target_name,
     )?;
+    let syntax_trees = syntax.syntax_trees.clone();
     let resolved = syntax_trees_to_symbol_resolved_trees(syntax, &mut timings)?;
     let mut typed = symbol_resolved_trees_to_typed_trees(resolved, &mut timings)?;
     // COMPTIME STAGE 1: substitute const-evaluated fixed-array lengths before
@@ -52,9 +53,37 @@ pub fn compile_to_checked(
     // WIRE PLANS (mint arc rung 2a): mirror the full pipeline so tests see
     // the same derived plans the codec selection consumes.
     crate::pipeline::wire_plans::compute_wire_plans(&mut typed)?;
-    // PRV4 adapter dispatch (both engines, before checking): boundary-trait
-    // calls with a unique satisfying adapter rewrite to direct calls.
-    crate::pipeline::adapter_dispatch::rewrite_adapter_calls(&mut typed)?;
+    // PRV4 provider selection mirrors the native pipeline: candidates remain
+    // separate by provider type and only the uniquely covering candidate may
+    // rewrite adapter calls in the interpreter program.
+    let mut provider_plans =
+        crate::pipeline::provider_plans::derive_provider_plans(&syntax_trees, &typed);
+    provider_plans.extend(crate::pipeline::provider_plans::derive_satisfies_plans(
+        &syntax_trees,
+        &typed,
+        target_name,
+    ));
+    let selected_native_target = omega_target::NativeTarget::from_omega_target_name(target_name)
+        .unwrap_or_else(|_| omega_target::NativeTarget::host());
+    let mut diagnostics = crate::pipeline::provider_plans::validate_slot_selection(
+        &provider_plans,
+        selected_native_target,
+    );
+    diagnostics.extend(
+        crate::pipeline::provider_plans::validate_adapter_refinement(&typed, &provider_plans),
+    );
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+    let selected_provider_plans = crate::pipeline::provider_plans::implicitly_selected_plan_names(
+        &provider_plans,
+        selected_native_target,
+    );
+    crate::pipeline::adapter_dispatch::rewrite_adapter_calls(
+        &mut typed,
+        &selected_provider_plans,
+        target_name,
+    )?;
     let checked = typed_trees_to_checked_trees(typed, &mut timings)?;
 
     // `typed_trees_to_checked_trees` wraps the program in an `Arc`; unwrap it for the

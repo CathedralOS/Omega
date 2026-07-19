@@ -75,10 +75,14 @@ slot owner may override by type. The migration order remains load-bearing.
    `write_line`/`write` checked adapters over byte operations, compare them
    against the lossless built-in oracle, make both interpreter and native
    routes use them, and remove the built-in Console composite rows.
-2. **PRV4c — target defaults and overrides.** Add target-package default
-   provider types plus explicit type-per-slot build selection. Validate full
-   coverage, signatures, transitive effect refinement, dependency closure,
-   normalized identity, and ambiguity at the selected target only.
+2. **PRV4c — target defaults and overrides.** Candidate plans are now keyed by
+   provider type, unrelated conformance closures never combine, and only the
+   uniquely covering selected-target candidate reaches adapter or leaf
+   lowering. Add target-package default provider declarations plus explicit
+   type-per-slot `build.omg` selection, including dependency-closure and
+   slot-owner authority validation. Coverage, signature conformance,
+   transitive effect refinement, normalized identity, and selected-target-only
+   ambiguity are already enforced.
 3. **PRV4e — foreign format facts.** Move foreign offsets and bit constants
    from `Binding::Value` into programmable layout/format declarations and
    migrate filesystem leaves.

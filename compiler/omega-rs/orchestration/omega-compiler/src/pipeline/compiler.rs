@@ -65,6 +65,7 @@ fn validate_boundary_providers(
 fn extract_provides_rows(
     syntax_trees: &omega_syntax_trees::SyntaxTrees,
     selected_target: Option<&str>,
+    selected_plan_names: &[String],
 ) -> Vec<omega_calling_conventions::ProvidesRow> {
     use omega_calling_conventions::{ProvidesBindingKind, ProvidesRow};
     use omega_syntax_trees::item::HostProviderMappingKind;
@@ -154,6 +155,26 @@ fn extract_provides_rows(
             else {
                 continue;
             };
+            let plan_target = machine.target.as_ref().map_or_else(
+                || selected_target.unwrap_or_default().to_owned(),
+                |target| target.as_str().to_owned(),
+            );
+            let provider_type = machine
+                .attached_data
+                .as_ref()
+                .map(|name| name.as_str())
+                .unwrap_or_default();
+            let plan_name = crate::pipeline::provider_plans::satisfies_plan_name(
+                &plan_target,
+                clause.trait_name.as_str(),
+                provider_type,
+            );
+            if !selected_plan_names
+                .iter()
+                .any(|selected| selected == &plan_name)
+            {
+                continue;
+            }
             use omega_syntax_trees::item::HostProviderMappingKind;
             let binding = match binding {
                 HostProviderMappingKind::Syscall { number } => {
@@ -287,16 +308,14 @@ impl Compiler {
                 file.path.file_name().and_then(|name| name.to_str()) == Some("build.omg")
             })
             .flat_map(|file| file.root_items.iter())
-            .filter_map(
-                |handle| match syntax.syntax_trees.root_item(*handle) {
-                    // The syntax machine's `name` is already the FULL spelled
-                    // path (`Stager::build` -- split_machine_path joins it).
-                    omega_syntax_trees::item::Item::Machine(machine) => {
-                        Some(machine.name.as_str().to_owned())
-                    }
-                    _ => None,
-                },
-            )
+            .filter_map(|handle| match syntax.syntax_trees.root_item(*handle) {
+                // The syntax machine's `name` is already the FULL spelled
+                // path (`Stager::build` -- split_machine_path joins it).
+                omega_syntax_trees::item::Item::Machine(machine) => {
+                    Some(machine.name.as_str().to_owned())
+                }
+                _ => None,
+            })
             .collect();
         remove_stale_phase_diagrams(&self.options)?;
         write_pipeline_index(&self.options)?;
@@ -320,17 +339,12 @@ impl Compiler {
         // placement plan; the wire codec selection consumes it (tag + framing
         // from the plan, asserted against its own walk).
         crate::pipeline::wire_plans::compute_wire_plans(&mut typed)?;
-    // PRV4 adapter dispatch (both engines, before checking): boundary-trait
-    // calls with a unique satisfying adapter rewrite to direct calls.
-    crate::pipeline::adapter_dispatch::rewrite_adapter_calls(&mut typed)?;
         // BUILD CONFIG (build_and_package_model.md): image facts from
         // build.omg's augmenting `build(b: &mut Build)` machine, evaluated at
         // build time. When present it is AUTHORITATIVE; the legacy in-source
         // `target { subsystem }` word is the fallback until its removal.
-        let build_config = crate::pipeline::build_config::compute_build_config(
-            &typed,
-            &build_file_machine_names,
-        )?;
+        let build_config =
+            crate::pipeline::build_config::compute_build_config(&typed, &build_file_machine_names)?;
         let build_machine_present = typed.machines().iter().any(|machine| {
             crate::pipeline::build_config::is_build_machine(machine, &build_file_machine_names)
         });
@@ -350,10 +364,9 @@ impl Compiler {
             &typed,
             self.options.target_name.as_deref(),
         ));
-        let selected_native_target = omega_target::NativeTarget::from_omega_target_name(
-            self.options.target_name.as_deref(),
-        )
-        .unwrap_or_else(|_| omega_target::NativeTarget::host());
+        let selected_native_target =
+            omega_target::NativeTarget::from_omega_target_name(self.options.target_name.as_deref())
+                .unwrap_or_else(|_| omega_target::NativeTarget::host());
         let mut selection_diagnostics = crate::pipeline::provider_plans::validate_slot_selection(
             &provider_plans,
             selected_native_target,
@@ -364,6 +377,18 @@ impl Compiler {
         if !selection_diagnostics.is_empty() {
             return Err(selection_diagnostics);
         }
+        let selected_provider_plans =
+            crate::pipeline::provider_plans::implicitly_selected_plan_names(
+                &provider_plans,
+                selected_native_target,
+            );
+        // PRV4 adapter dispatch (both engines, before checking): only the
+        // uniquely selected provider candidate may rewrite boundary calls.
+        crate::pipeline::adapter_dispatch::rewrite_adapter_calls(
+            &mut typed,
+            &selected_provider_plans,
+            self.options.target_name.as_deref(),
+        )?;
         crate::pipeline::trust_lockfile::enforce_trust_lockfile(
             &self.options,
             &typed,
@@ -401,8 +426,11 @@ impl Compiler {
         let (subsystem, freestanding) = (build_config.subsystem, build_config.freestanding);
         // provides-sourced bindings (extern brief §12): parsed rows become
         // the freestanding target's authored platform surface.
-        let provides_rows =
-            extract_provides_rows(&syntax_trees, self.options.target_name.as_deref());
+        let provides_rows = extract_provides_rows(
+            &syntax_trees,
+            self.options.target_name.as_deref(),
+            &selected_provider_plans,
+        );
 
         let backend = control_flow_to_backend_plan(
             checked,

@@ -508,10 +508,7 @@ fn linux_x64_cli_mvp_emits_elf_with_syscalls() {
 #[test]
 fn external_leaf_syscall_reaches_linux_x64_backend() {
     let canary = pass_canary("providers/external_leaf_syscall_compile");
-    let scratch = std::env::temp_dir().join(format!(
-        "omega-via-syscall-{}",
-        std::process::id()
-    ));
+    let scratch = std::env::temp_dir().join(format!("omega-via-syscall-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
     let src_dir = scratch.join("src");
     let build_dir = scratch.join("out");
@@ -548,10 +545,8 @@ fn external_leaf_syscall_reaches_linux_x64_backend() {
     );
     let _ = fs::remove_dir_all(&scratch);
 
-    let arm_scratch = std::env::temp_dir().join(format!(
-        "omega-via-syscall-arm-{}",
-        std::process::id()
-    ));
+    let arm_scratch =
+        std::env::temp_dir().join(format!("omega-via-syscall-arm-{}", std::process::id()));
     let _ = fs::remove_dir_all(&arm_scratch);
     let arm_src = arm_scratch.join("src");
     let arm_out = arm_scratch.join("out");
@@ -33751,6 +33746,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "platform/platform_block_retired",
     "providers/via_with_body_rejected",
     "providers/slot_plan_ambiguous",
+    "providers/provider_type_slot_ambiguous",
     "providers/adapter_hidden_effect",
     "providers/adapter_forwarding_bad_lead",
     "providers/via_on_axiom_rejected",

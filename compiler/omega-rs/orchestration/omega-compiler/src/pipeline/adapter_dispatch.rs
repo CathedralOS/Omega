@@ -7,8 +7,9 @@
 //! Without a satisfying adapter the call keeps its host-lowering route
 //! (the built-in tables / provides rows serve it exactly as before).
 //!
-//! Adapters are FREE machines; receiver state never reaches one. Two shapes
-//! are admitted:
+//! Adapters are static machines; receiver state never reaches one. They may be
+//! free during migration or attached to a nominal provider type so selection
+//! can choose that type's whole conformance closure. Two call shapes are admitted:
 //! * EXACT: the adapter's entry signature matches the requirement -- the
 //!   call rewrites to a bare call (the boundary field is dispatch-only).
 //! * SELF-FORWARDING: the adapter takes the requirement's OWN trait as one
@@ -30,16 +31,17 @@ struct AdapterRow {
     forward_receiver: bool,
 }
 
-pub(crate) fn rewrite_adapter_calls(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    // (trait leaf, method) -> adapter row, FREE machines with a body and a
-    // requirement-named satisfies edge (no via) over a BOUNDARY trait. Two
-    // adapters for one requirement refuse.
+pub(crate) fn rewrite_adapter_calls(
+    typed: &mut TypedTrees,
+    selected_plan_names: &[String],
+    selected_target: Option<&str>,
+) -> Result<(), Vec<Diagnostic>> {
+    // (trait leaf, method) -> selected adapter row: machines with a body and a
+    // requirement-named satisfies edge (no via) over a BOUNDARY trait. A
+    // provider-type adapter is static (it receives no provider instance).
     let mut adapters: Vec<AdapterRow> = Vec::new();
     let mut diagnostics = Vec::new();
     for machine in typed.machines() {
-        if machine.attached_data.is_some() {
-            continue; // adapters are FREE machines (the field is dispatch-only)
-        }
         let Some(entry_state) = typed.machine_states(machine).first() else {
             continue; // bodyless = a via leaf, not an adapter
         };
@@ -62,6 +64,27 @@ pub(crate) fn rewrite_adapter_calls(typed: &mut TypedTrees) -> Result<(), Vec<Di
             }) else {
                 continue;
             };
+            let provider_type = machine
+                .attached_data
+                .as_ref()
+                .map(|name| name.as_str())
+                .unwrap_or_default();
+            let plan_name = crate::pipeline::provider_plans::satisfies_plan_name(
+                selected_target.unwrap_or_default(),
+                &trait_leaf,
+                provider_type,
+            );
+            // Anonymous FREE adapters are the PRV4b migration bridge: a
+            // partial checked Console composite currently overlays the
+            // built-in primitive provider. Nominal provider-type adapters,
+            // however, participate only through their selected whole closure.
+            if !provider_type.is_empty()
+                && !selected_plan_names
+                    .iter()
+                    .any(|selected| selected == &plan_name)
+            {
+                continue;
+            }
             // Self-forwarding: entry takes the trait itself first, then the
             // requirement's parameters (the conformance validator admitted
             // the shape; this re-derivation only picks the rewrite form).
@@ -121,8 +144,9 @@ pub(crate) fn rewrite_adapter_calls(typed: &mut TypedTrees) -> Result<(), Vec<Di
             let omega_typed_trees::data::DataMember::Field(field) = member else {
                 continue;
             };
-            let omega_typed_trees::types::TypeReferenceNode::Named { name, .. } =
-                typed.type_reference_table.type_reference(field.type_reference)
+            let omega_typed_trees::types::TypeReferenceNode::Named { name, .. } = typed
+                .type_reference_table
+                .type_reference(field.type_reference)
             else {
                 continue;
             };
@@ -186,10 +210,9 @@ pub(crate) fn rewrite_adapter_calls(typed: &mut TypedTrees) -> Result<(), Vec<Di
                 let Some(trait_leaf) = trait_for_field(attached.as_deref(), &field) else {
                     continue;
                 };
-                let Some(row) = adapters
-                    .iter()
-                    .find(|row| row.trait_leaf == trait_leaf && row.requirement == call.target.as_str())
-                else {
+                let Some(row) = adapters.iter().find(|row| {
+                    row.trait_leaf == trait_leaf && row.requirement == call.target.as_str()
+                }) else {
                     continue;
                 };
                 let receiver_members: Vec<omega_typed_trees::name::Identifier> = typed
@@ -263,9 +286,9 @@ pub(crate) fn rewrite_adapter_calls(typed: &mut TypedTrees) -> Result<(), Vec<Di
             .iter()
             .find(|(_, name, _)| *name == field)
             .and_then(|(_, _, trait_leaf)| {
-                adapters
-                    .iter()
-                    .find(|row| row.trait_leaf == *trait_leaf && row.requirement == call.target.as_str())
+                adapters.iter().find(|row| {
+                    row.trait_leaf == *trait_leaf && row.requirement == call.target.as_str()
+                })
             })
             .map(|row| (row.symbol, row.adapter_leaf.clone(), row.forward_receiver))
         else {

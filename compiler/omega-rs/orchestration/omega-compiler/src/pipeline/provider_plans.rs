@@ -4,12 +4,10 @@
 //! own-package dev-active (standing warning) until the final build grants
 //! it by name, with the lockfile receipt hashing the plan's NORMALIZED
 //! IDENTITY (identity_fingerprint), so a plan that changes under a grant
-//! drifts. Selection (binding a plan to a slot) is the separately held
-//! slot-owner capability and lands with PRV4's target packages.
+//! drifts. Implicit selection consumes only a unique covering candidate;
+//! explicit binding under slot-owner authority lands with PRV4c's build API.
 
-use omega_effects::provider_plan::{
-    ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema,
-};
+use omega_effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 use omega_typed_trees::TypedTrees;
 
 /// Derive one plan per authored `<target> provides <Trait> { .. }` block.
@@ -53,26 +51,20 @@ pub(super) fn derive_provider_plans(
         for mapping in syntax_trees.items.host_provider_mappings(provider.mappings) {
             use omega_syntax_trees::item::HostProviderMappingKind;
             let binding = match &mapping.binding {
-                HostProviderMappingKind::Syscall { number } => {
-                    ProviderBinding::Syscall {
-                        number: u32::try_from(*number).unwrap_or_default(),
-                    }
-                }
-                HostProviderMappingKind::DllImport { module, symbol } => {
-                    ProviderBinding::Import {
-                        library: module.as_str().to_owned(),
-                        symbol: symbol.as_str().to_owned(),
-                    }
-                }
+                HostProviderMappingKind::Syscall { number } => ProviderBinding::Syscall {
+                    number: u32::try_from(*number).unwrap_or_default(),
+                },
+                HostProviderMappingKind::DllImport { module, symbol } => ProviderBinding::Import {
+                    library: module.as_str().to_owned(),
+                    symbol: symbol.as_str().to_owned(),
+                },
                 HostProviderMappingKind::VtableSlot { index } => {
                     ProviderBinding::VtableSlot { index: *index }
                 }
-                HostProviderMappingKind::VtableField { field } => {
-                    ProviderBinding::VtableField {
-                        table: provider.vtable_struct.as_str().to_owned(),
-                        field: field.as_str().to_owned(),
-                    }
-                }
+                HostProviderMappingKind::VtableField { field } => ProviderBinding::VtableField {
+                    table: provider.vtable_struct.as_str().to_owned(),
+                    field: field.as_str().to_owned(),
+                },
                 HostProviderMappingKind::TableFunction { field } => {
                     ProviderBinding::TableFunction {
                         table: provider.vtable_struct.as_str().to_owned(),
@@ -91,6 +83,7 @@ pub(super) fn derive_provider_plans(
         }
         plans.push(ProviderPlan {
             name: format!("{}::{}", provider.target.as_str(), trait_leaf),
+            provider_type: String::new(),
             target: provider.target.as_str().to_owned(),
             schema,
             rows,
@@ -101,11 +94,12 @@ pub(super) fn derive_provider_plans(
     plans
 }
 
-
 /// PRV4 order step (2): derive plans from explicit SATISFIES edges -- one
-/// plan per (boundary trait, target) assembled from that pair's external
-/// leaves (checked adapter machines join the same derivation when their
-/// satisfies edges land). Coverage/signatures come from the typed schema
+/// plan per (provider type, boundary trait, target), assembled only from
+/// that provider's conformance closure. External leaves and checked adapters
+/// attached to the same provider type join one plan; legacy free machines
+/// retain one anonymous compatibility candidate until PRV4f. Coverage never
+/// combines unrelated provider types. Coverage/signatures come from the typed schema
 /// (signature refinement is enforced by the conformance checker on each
 /// edge); the effect surface is the union of the SATISFIED requirements'
 /// declared effects -- the requirement supplies the ceiling, never the
@@ -171,11 +165,12 @@ pub(crate) fn derive_satisfies_plans(
                 |target| target.as_str().to_owned(),
             );
             let trait_leaf = clause.trait_name.as_str().to_owned();
-            let plan_name = if target.is_empty() {
-                format!("satisfies::{trait_leaf}")
-            } else {
-                format!("{target}::satisfies::{trait_leaf}")
-            };
+            let provider_type = machine
+                .attached_data
+                .as_ref()
+                .map(|name| name.as_str().to_owned())
+                .unwrap_or_default();
+            let plan_name = satisfies_plan_name(&target, &trait_leaf, &provider_type);
             let position = plans
                 .iter()
                 .position(|plan| plan.name == plan_name)
@@ -199,6 +194,7 @@ pub(crate) fn derive_satisfies_plans(
                         });
                     plans.push(ProviderPlan {
                         name: plan_name.clone(),
+                        provider_type: provider_type.clone(),
                         target: target.clone(),
                         schema,
                         rows: Vec::new(),
@@ -214,31 +210,33 @@ pub(crate) fn derive_satisfies_plans(
                     machine: machine.name.as_str().to_owned(),
                 },
                 Some(binding) => match binding {
-                HostProviderMappingKind::Syscall { number } => ProviderBinding::Syscall {
-                    number: u32::try_from(*number).unwrap_or_default(),
-                },
-                HostProviderMappingKind::DllImport { module, symbol } => {
-                    ProviderBinding::Import {
-                        library: module.clone(),
-                        symbol: symbol.clone(),
+                    HostProviderMappingKind::Syscall { number } => ProviderBinding::Syscall {
+                        number: u32::try_from(*number).unwrap_or_default(),
+                    },
+                    HostProviderMappingKind::DllImport { module, symbol } => {
+                        ProviderBinding::Import {
+                            library: module.clone(),
+                            symbol: symbol.clone(),
+                        }
                     }
-                }
-                HostProviderMappingKind::VtableSlot { index } => {
-                    ProviderBinding::VtableSlot { index: *index }
-                }
-                HostProviderMappingKind::VtableField { field } => ProviderBinding::VtableField {
-                    table: String::new(),
-                    field: field.as_str().to_owned(),
-                },
-                HostProviderMappingKind::TableFunction { field } => {
-                    ProviderBinding::TableFunction {
-                        table: String::new(),
-                        field: field.as_str().to_owned(),
+                    HostProviderMappingKind::VtableSlot { index } => {
+                        ProviderBinding::VtableSlot { index: *index }
                     }
-                }
-                HostProviderMappingKind::Value { value } => {
-                    ProviderBinding::Value { value: *value }
-                }
+                    HostProviderMappingKind::VtableField { field } => {
+                        ProviderBinding::VtableField {
+                            table: String::new(),
+                            field: field.as_str().to_owned(),
+                        }
+                    }
+                    HostProviderMappingKind::TableFunction { field } => {
+                        ProviderBinding::TableFunction {
+                            table: String::new(),
+                            field: field.as_str().to_owned(),
+                        }
+                    }
+                    HostProviderMappingKind::Value { value } => {
+                        ProviderBinding::Value { value: *value }
+                    }
                 },
             };
             plan.rows.push(ProviderPlanRow {
@@ -263,6 +261,18 @@ pub(crate) fn derive_satisfies_plans(
         }
     }
     plans
+}
+
+/// The stable name shared by derivation, reports, selection, and backend row
+/// extraction. The anonymous form preserves the free-machine migration bridge;
+/// a real provider type is deliberately visible in artifact identity.
+pub(crate) fn satisfies_plan_name(target: &str, trait_name: &str, provider_type: &str) -> String {
+    match (target.is_empty(), provider_type.is_empty()) {
+        (true, true) => format!("satisfies::{trait_name}"),
+        (false, true) => format!("{target}::satisfies::{trait_name}"),
+        (true, false) => format!("{provider_type}::satisfies::{trait_name}"),
+        (false, false) => format!("{target}::{provider_type}::satisfies::{trait_name}"),
+    }
 }
 
 /// PRV4 adapter ADMISSION (the refinement half): a checked adapter's
@@ -360,7 +370,11 @@ pub(crate) fn validate_slot_selection(
                      [{:016x}] and `{}` [{:016x}] -- selection is implicit only when \
                      unique; retire one or scope them to different targets",
                     plan.schema.trait_name,
-                    if plan.target.is_empty() { "portable" } else { &plan.target },
+                    if plan.target.is_empty() {
+                        "portable"
+                    } else {
+                        &plan.target
+                    },
                     plan.name,
                     plan.identity_fingerprint(),
                     other.name,
@@ -370,6 +384,39 @@ pub(crate) fn validate_slot_selection(
         }
     }
     diagnostics
+}
+
+/// Return the uniquely selected covering plans for the current target.
+/// Partial plans remain reportable candidates but contribute no backend rows,
+/// preventing unrelated providers from being assembled accidentally.
+pub(crate) fn implicitly_selected_plan_names(
+    plans: &[omega_effects::provider_plan::ProviderPlan],
+    selected_target: omega_target::NativeTarget,
+) -> Vec<String> {
+    let applies = |target: &str| -> bool {
+        target.is_empty()
+            || omega_target::NativeTarget::from_omega_target_name(Some(target))
+                .is_ok_and(|resolved| resolved == selected_target)
+    };
+    let mut selected = Vec::new();
+    for plan in plans {
+        if plan.schema.methods.is_empty() || !plan.covers_schema() || !applies(&plan.target) {
+            continue;
+        }
+        let covering_count = plans
+            .iter()
+            .filter(|candidate| {
+                candidate.schema.trait_name == plan.schema.trait_name
+                    && !candidate.schema.methods.is_empty()
+                    && candidate.covers_schema()
+                    && applies(&candidate.target)
+            })
+            .count();
+        if covering_count == 1 {
+            selected.push(plan.name.clone());
+        }
+    }
+    selected
 }
 
 /// P4a: the CONSOLE methods the platform block declares -- the vertical's
@@ -422,6 +469,7 @@ pub(crate) fn builtin_console_plan(
     }
     ProviderPlan {
         name: format!("{target_name}::Console"),
+        provider_type: String::new(),
         target: target_name.to_owned(),
         schema: ServiceSchema {
             trait_name: "Console".to_owned(),
@@ -445,7 +493,10 @@ pub(crate) fn plan_row_to_lowering(
     String,
 > {
     let ProviderBinding::HostOperations { operations } = &row.binding else {
-        return Err(format!("row `{}` is not a host-operations binding", row.method));
+        return Err(format!(
+            "row `{}` is not a host-operations binding",
+            row.method
+        ));
     };
     let mut keys = Vec::with_capacity(operations.len());
     for operation in operations {
@@ -456,16 +507,72 @@ pub(crate) fn plan_row_to_lowering(
             capability, name,
         ));
     }
-    let data = omega_calling_conventions::PlatformCallData::parse_call_shape(
-        row.call_shape.as_deref(),
-    )?;
+    let data =
+        omega_calling_conventions::PlatformCallData::parse_call_shape(row.call_shape.as_deref())?;
     Ok((keys, data))
 }
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn selection_plan(name: &str, methods: &[&str], rows: &[&str]) -> ProviderPlan {
+        ProviderPlan {
+            name: name.to_owned(),
+            provider_type: name.to_owned(),
+            target: String::new(),
+            schema: ServiceSchema {
+                trait_name: "Pair".to_owned(),
+                methods: methods
+                    .iter()
+                    .map(|method| omega_effects::provider_plan::ServiceMethod {
+                        name: (*method).to_owned(),
+                        parameter_count: 0,
+                        has_result: false,
+                        effects: Vec::new(),
+                    })
+                    .collect(),
+            },
+            rows: rows
+                .iter()
+                .map(|method| ProviderPlanRow {
+                    method: (*method).to_owned(),
+                    binding: ProviderBinding::VtableSlot { index: 0 },
+                    call_shape: None,
+                })
+                .collect(),
+            effect_set: omega_effects::EffectSet::empty(),
+            origin_package: String::new(),
+        }
+    }
+
+    #[test]
+    fn implicit_selection_never_combines_partial_candidates() {
+        let plans = vec![
+            selection_plan("FirstProvider", &["first", "second"], &["first"]),
+            selection_plan("SecondProvider", &["first", "second"], &["second"]),
+        ];
+        assert!(
+            implicitly_selected_plan_names(&plans, omega_target::NativeTarget::host()).is_empty(),
+            "two partial candidates are not one provider"
+        );
+    }
+
+    #[test]
+    fn implicit_selection_returns_the_unique_covering_candidate() {
+        let plans = vec![
+            selection_plan(
+                "CompleteProvider",
+                &["first", "second"],
+                &["first", "second"],
+            ),
+            selection_plan("PartialProvider", &["first", "second"], &["first"]),
+        ];
+        assert_eq!(
+            implicitly_selected_plan_names(&plans, omega_target::NativeTarget::host()),
+            vec!["CompleteProvider".to_owned()]
+        );
+    }
 
     #[test]
     fn console_plan_round_trips_the_populate_tables() {
@@ -495,9 +602,7 @@ mod tests {
                 if !CONSOLE_METHODS.contains(&lowering.state.as_ref()) {
                     continue;
                 }
-                if lowering.platform.as_ref() != "*"
-                    && lowering.platform.as_ref() != "Console"
-                {
+                if lowering.platform.as_ref() != "*" && lowering.platform.as_ref() != "Console" {
                     continue;
                 }
                 let row = plan
@@ -505,19 +610,29 @@ mod tests {
                     .iter()
                     .find(|row| row.method == lowering.state.as_ref())
                     .unwrap_or_else(|| panic!("{format:?}: no row for {}", lowering.state));
-                let (keys, data) =
-                    plan_row_to_lowering(row).expect("derived rows convert back");
+                let (keys, data) = plan_row_to_lowering(row).expect("derived rows convert back");
                 let table_keys: Vec<omega_calling_conventions::HostOperationKey> = abi_plan
                     .host_operations
                     .span_or_empty(lowering.operations)
                     .iter()
                     .map(|reference| reference.key)
                     .collect();
-                assert_eq!(keys, table_keys, "{format:?}: {} operations", lowering.state);
-                assert_eq!(data, lowering.data, "{format:?}: {} call data", lowering.state);
+                assert_eq!(
+                    keys, table_keys,
+                    "{format:?}: {} operations",
+                    lowering.state
+                );
+                assert_eq!(
+                    data, lowering.data,
+                    "{format:?}: {} call data",
+                    lowering.state
+                );
                 matched += 1;
             }
-            assert!(matched >= 4, "{format:?}: expected the Console surface, matched {matched}");
+            assert!(
+                matched >= 4,
+                "{format:?}: expected the Console surface, matched {matched}"
+            );
         }
     }
 }
