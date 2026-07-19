@@ -1,0 +1,12 @@
+// `asm where clobbers` is an exact block contract. The union of the realized
+// out/in sequences is {rax, rdx, r10, r11, r15}; declaration order is not
+// semantic. This is a compile-only UEFI canary because port I/O is privileged.
+data Main { port: u16; status: u8; }
+machine Main::main(&mut self) effects device_io {
+    asm where
+        clobbers r15, r11, rax, r10, rdx
+    {
+        out self.port, self.status;
+        in self.status, self.port
+    }
+}

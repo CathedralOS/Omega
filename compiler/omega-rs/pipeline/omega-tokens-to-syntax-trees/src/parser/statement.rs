@@ -1,3 +1,4 @@
+use crate::parse_error::ParseError;
 use crate::parser::expression::parse_expression_handle;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::transition::parse_transition_block_target_handle;
@@ -222,6 +223,12 @@ fn parse_discard_statement_handle<'tokens, 'source>(
 /// - `asm { in <dest>, <port> }`-> `<dest> = asm#port_in(port)` -- the
 ///   Intel dest-first operand order (emits `device_io`)
 ///
+/// `asm where clobbers ... { ... }` additionally authors an exact block-level
+/// clobber contract. The parser compares it with the union of the shared
+/// instruction catalog's realized clobbers; omitted and invented registers
+/// both reject. `requires`/`ensures` remain fenced until their proof facts have
+/// a lossless typed-stage carrier.
+///
 /// The intrinsic names contain `#`, which is not an identifier character, so
 /// they are unnameable from source -- only this desugar can reference them.
 pub(super) fn parse_asm_block_statement_handles<'tokens, 'source>(
@@ -229,16 +236,17 @@ pub(super) fn parse_asm_block_statement_handles<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<StatementHandle>> {
     let input = input.take_contextual("asm")?;
-    if input.at_contextual("where") {
-        return Err(input.error_here("asm where contracts are not implemented yet"));
-    }
+    let (declared_clobbers, input) = parse_asm_where_clobber_contract(input)?;
 
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut statement_start = Handle::invalid();
     let mut statement_count = 0u32;
+    let mut realized_clobbers = std::collections::BTreeSet::new();
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
-        let (statement, rest) = parse_asm_instruction_statement_handle(syntax_trees, input)?;
+        let (parsed, rest) = parse_asm_instruction_statement_handle(syntax_trees, input)?;
+        let statement = parsed.statement;
+        realized_clobbers.extend(parsed.contract.clobbers.iter().copied());
         let transfers_control = matches!(
             syntax_trees.statements.statement(statement),
             StatementNode::Transition(_)
@@ -269,16 +277,128 @@ pub(super) fn parse_asm_block_statement_handles<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    if let Some(declared_clobbers) = declared_clobbers {
+        validate_asm_clobber_contract(&declared_clobbers, &realized_clobbers, input)?;
+    }
     Ok((
         HandleSpan::from_parts(statement_start, statement_count),
         input,
     ))
 }
 
+fn parse_asm_where_clobber_contract<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, Option<std::collections::BTreeSet<String>>> {
+    if !input.at_contextual("where") {
+        return Ok((None, input));
+    }
+    let mut input = input.take_contextual("where")?;
+    let contract_site = input.clone();
+    let mut clobbers = None;
+
+    while !input.at_punctuation(PunctuationKind::LeftBrace) {
+        if input.at_contextual("requires") || input.at_contextual("ensures") {
+            return Err(input.error_here(
+                "asm where `requires`/`ensures` fact contracts are not implemented yet; \
+                 only an exact `clobbers <registers>` contract is implemented losslessly",
+            ));
+        }
+        if !input.at_contextual("clobbers") {
+            return Err(input.expected_one_of_here(&[
+                "`clobbers <registers>`",
+                "`requires`",
+                "`ensures`",
+                "`{`",
+            ]));
+        }
+        if clobbers.is_some() {
+            return Err(input.error_here("an asm where block may declare `clobbers` only once"));
+        }
+        input = input.take_contextual("clobbers")?;
+        let clobber_list_site = input.clone();
+        let mut declared = std::collections::BTreeSet::new();
+        if input.at_contextual("none") {
+            input = input.take_contextual("none")?;
+        } else {
+            while !input.at_punctuation(PunctuationKind::LeftBrace)
+                && !input.at_contextual("requires")
+                && !input.at_contextual("ensures")
+                && !input.at_contextual("clobbers")
+            {
+                let (register, rest) = input.take_identifier()?;
+                declared.insert(register.as_str().to_owned());
+                input = rest;
+                if input.at_punctuation(PunctuationKind::Comma) {
+                    input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+                }
+            }
+            if declared.is_empty() {
+                return Err(clobber_list_site.error_here(
+                    "an empty asm clobber contract must be explicit: spell `clobbers none`",
+                ));
+            }
+        }
+        clobbers = Some(declared);
+    }
+
+    let Some(clobbers) = clobbers else {
+        return Err(contract_site.error_here(
+            "asm where requires a contract clause; spell an empty clobber contract as \
+             `clobbers none`",
+        ));
+    };
+    Ok((Some(clobbers), input))
+}
+
+fn validate_asm_clobber_contract<'tokens, 'source>(
+    declared: &std::collections::BTreeSet<String>,
+    realized: &std::collections::BTreeSet<&'static str>,
+    input: Input<'tokens, 'source>,
+) -> Result<(), ParseError> {
+    let missing = realized
+        .iter()
+        .filter(|register| !declared.contains(**register))
+        .copied()
+        .collect::<Vec<_>>();
+    let extra = declared
+        .iter()
+        .filter(|register| !realized.contains(register.as_str()))
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    if missing.is_empty() && extra.is_empty() {
+        return Ok(());
+    }
+
+    let mut details = Vec::new();
+    if !missing.is_empty() {
+        details.push(format!("missing {}", format_asm_registers(&missing)));
+    }
+    if !extra.is_empty() {
+        details.push(format!("not clobbered {}", format_asm_registers(&extra)));
+    }
+    Err(input.error_here(format!(
+        "asm where `clobbers` must exactly match the realized instruction contract: {}",
+        details.join("; ")
+    )))
+}
+
+fn format_asm_registers(registers: &[&str]) -> String {
+    registers
+        .iter()
+        .map(|register| format!("`{register}`"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+struct ParsedAsmInstruction {
+    statement: StatementHandle,
+    contract: omega_core::inline_assembly::AsmInstructionContract,
+}
+
 fn parse_asm_instruction_statement_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, StatementHandle> {
+) -> ParseResult<'tokens, 'source, ParsedAsmInstruction> {
     let mnemonic_site = input.clone();
     let (mnemonic, input) = input.take_identifier()?;
 
@@ -319,27 +439,33 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
         AsmInstructionShape::JumpState => {
             let (target, input) = parse_transition_block_target_handle(syntax_trees, input)?;
             Ok((
-                syntax_trees
-                    .statements
-                    .insert(StatementNode::Transition(TableTransition {
-                        target,
-                        continuation: TransitionTargetHandle::invalid(),
-                        guard: TransitionGuardNode::Always,
-                    })),
+                ParsedAsmInstruction {
+                    statement: syntax_trees.statements.insert(StatementNode::Transition(
+                        TableTransition {
+                            target,
+                            continuation: TransitionTargetHandle::invalid(),
+                            guard: TransitionGuardNode::Always,
+                        },
+                    )),
+                    contract,
+                },
                 input,
             ))
         }
         AsmInstructionShape::Halt => Ok((
-            syntax_trees
-                .statements
-                .insert(StatementNode::Call(TableCall {
-                    receiver: HandleSpan::empty(),
-                    receiver_starts_at_self: false,
-                    target: Identifier::new("asm#hlt", mnemonic.source_span()),
-                    machine_arguments: Box::default(),
-                    arguments: HandleSpan::empty(),
-                    discards_result: false,
-                })),
+            ParsedAsmInstruction {
+                statement: syntax_trees
+                    .statements
+                    .insert(StatementNode::Call(TableCall {
+                        receiver: HandleSpan::empty(),
+                        receiver_starts_at_self: false,
+                        target: Identifier::new("asm#hlt", mnemonic.source_span()),
+                        machine_arguments: Box::default(),
+                        arguments: HandleSpan::empty(),
+                        discards_result: false,
+                    })),
+                contract,
+            },
             input,
         )),
         AsmInstructionShape::PortOut => {
@@ -353,16 +479,19 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 .statements
                 .insert_expression_handles(vec![port, value]);
             Ok((
-                syntax_trees
-                    .statements
-                    .insert(StatementNode::Call(TableCall {
-                        receiver: HandleSpan::empty(),
-                        receiver_starts_at_self: false,
-                        target: Identifier::new("asm#port_out", mnemonic.source_span()),
-                        machine_arguments: Box::default(),
-                        arguments,
-                        discards_result: false,
-                    })),
+                ParsedAsmInstruction {
+                    statement: syntax_trees
+                        .statements
+                        .insert(StatementNode::Call(TableCall {
+                            receiver: HandleSpan::empty(),
+                            receiver_starts_at_self: false,
+                            target: Identifier::new("asm#port_out", mnemonic.source_span()),
+                            machine_arguments: Box::default(),
+                            arguments,
+                            discards_result: false,
+                        })),
+                    contract,
+                },
                 input,
             ))
         }
@@ -383,12 +512,15 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                         arguments,
                     }));
             Ok((
-                syntax_trees
-                    .statements
-                    .insert(StatementNode::Assignment(TableAssignment {
-                        target: destination,
-                        value,
-                    })),
+                ParsedAsmInstruction {
+                    statement: syntax_trees.statements.insert(StatementNode::Assignment(
+                        TableAssignment {
+                            target: destination,
+                            value,
+                        },
+                    )),
+                    contract,
+                },
                 input,
             ))
         }

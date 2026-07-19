@@ -1,7 +1,7 @@
-// Chapter 22 (Inline Assembly): contract-heavy assembly carries explicit proof
-// conditions, `asm where requires ... ensures ... { ... }`. Unimplemented: the
-// `asm where` form is not parsed; `asm` is consumed as an identifier and the
-// trailing `where` is unexpected.
+// Contract-heavy assembly carries explicit proof conditions through
+// `asm where requires ... ensures ... { ... }`. Exact clobber contracts are
+// parsed already; proof facts remain fenced until they have a lossless typed
+// carrier and cannot be mistaken for trusted instruction guarantees.
 
 data Main {
     value: i32;
