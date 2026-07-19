@@ -1,1 +1,1 @@
-does not make ranking subject `n` descend structurally at this self-call
+cannot prove the measure `n` structurally decreases at this self-call
