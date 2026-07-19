@@ -272,14 +272,11 @@ pub fn runtime_storage_copy_to_return_register_width(
     }
 }
 
-/// Width of the entry prologue's argument-register store (x86_64 only; the
-/// aarch64 encoder rejects the instruction with a clear diagnostic, so its
-/// width is never consumed -- 0 keeps the layout honest until an aarch64 entry
-/// stub exists).
-pub fn entry_argument_register_write_width(architecture: Architecture) -> usize {
+/// Width of the entry prologue's exact argument-register store.
+pub fn entry_argument_register_write_width(architecture: Architecture, byte_size: usize) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::entry_argument_register_write_width(),
-        Architecture::X86_64 => x86_64::entry_argument_register_write_width(),
+        Architecture::X86_64 => x86_64::entry_argument_register_write_width(byte_size),
     }
 }
 

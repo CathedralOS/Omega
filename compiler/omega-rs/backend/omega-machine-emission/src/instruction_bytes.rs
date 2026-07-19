@@ -368,13 +368,14 @@ fn insert_fixed_machine_instruction_bytes(
             Ok(true)
         }
         SelectedInstructionKind::WriteEntryArgumentRegister {
-            argument_index,
+            register,
             byte_offset,
+            byte_size,
         } => {
             let bytes = omega_instruction_selection::encode_entry_argument_register_write_bytes(
-                emission_context.target.architecture,
-                *argument_index,
+                *register,
                 *byte_offset,
+                *byte_size,
             )?;
             for byte in bytes {
                 inserter.insert(byte);

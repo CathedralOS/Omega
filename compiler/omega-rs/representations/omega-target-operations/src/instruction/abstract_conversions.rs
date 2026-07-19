@@ -377,11 +377,13 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 zigzag: *zigzag,
             },
             omega_abstract_operations::AbstractOperationKind::WriteEntryArgumentRegister {
-                argument_index,
+                register,
                 byte_offset,
+                byte_size,
             } => Self::WriteEntryArgumentRegister {
-                argument_index: *argument_index,
+                register: *register,
                 byte_offset: *byte_offset,
+                byte_size: *byte_size,
             },
             omega_abstract_operations::AbstractOperationKind::WriteEntryArgumentsSliceDescriptor {
                 descriptor_offset,

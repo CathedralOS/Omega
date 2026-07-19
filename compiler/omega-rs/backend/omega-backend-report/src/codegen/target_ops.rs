@@ -93,9 +93,10 @@ fn selected_instruction_name(
         } => format!("atomic compare_exchange {target_region:?}[{target_offset}] ({byte_size}B)"),
         TargetOperationKind::EnterFunction => "enter function".to_owned(),
         TargetOperationKind::WriteEntryArgumentRegister {
-            argument_index,
+            register,
             byte_offset,
-        } => format!("entry prologue: arg register #{argument_index} -> Frame[{byte_offset}]"),
+            byte_size,
+        } => format!("entry prologue: {register:?} -> Frame[{byte_offset}] ({byte_size}B)"),
         TargetOperationKind::WriteEntryArgumentsSliceDescriptor {
             descriptor_offset,
             spill_offset,

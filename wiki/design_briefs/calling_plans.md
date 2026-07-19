@@ -182,11 +182,18 @@ by omitting a self-reported class. Contract and evidence fingerprints are
 separate by type.
 
 Existing compatibility bindings select this normalized policy as an independent
-oracle. Remaining order:
+oracle. The process-entry prologue now evaluates the target's normalized native
+policy and carries each register-resident integer argument's exact register and
+width through abstract operations, target operations, layout, and x86-64 or
+AArch64 emission. This removes the former backend convention that interpreted
+an abstract argument index as the Microsoft x64 register sequence. Incoming
+stack arguments, float/vector entry parameters, and source-selected policies
+remain. Remaining order:
 
 1. Evaluate the policy selected by `Calling<C>` against the requirement
    signature and hash the evaluated pair into requirement identity.
-2. Differential-check every supported compatibility encoder against the plan,
+2. Complete plan-driven incoming stack arguments, outbound calls and results;
+   differential-check every supported compatibility encoder against the plan,
    add the concrete firmware/interrupt state policies, and make the plan
    authoritative.
 3. Derive outbound encoders and inbound stubs from the same plan.

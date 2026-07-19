@@ -239,11 +239,12 @@ pub enum TargetOperationKind {
         byte_size: usize,
         zigzag: bool,
     },
-    /// Entry prologue: store the platform's incoming argument register
-    /// (MS-x64: 0=RCX 1=RDX 2=R8 3=R9) into the entry parameter's frame slot.
+    /// Entry prologue: store the normalized plan's incoming argument register
+    /// into the entry parameter's frame slot.
     WriteEntryArgumentRegister {
-        argument_index: u8,
+        register: omega_calling_conventions::MachineRegister,
         byte_offset: usize,
+        byte_size: usize,
     },
     /// Entry prologue: bind `args: &[u8]` as {ptr -> frame+spill, len}.
     WriteEntryArgumentsSliceDescriptor {
