@@ -112,6 +112,24 @@ pub(super) fn select_host_operation_operands(
                 );
             }
 
+            // A checked adapter can forward a String parameter whose caller
+            // supplied a literal. At the host leaf the argument is still the
+            // parameter name, while the read-only data object belongs to the
+            // caller's statement. Resolve through the ordinary alias chain so
+            // literal and field-backed String arguments share the same adapter
+            // surface without requiring a synthetic runtime descriptor.
+            if let Some((data, byte_count)) =
+                aliased_literal_data_object(input, host_call, alias_context, 0)
+            {
+                return console_write_operands(
+                    operands,
+                    operation.operation_key.capability,
+                    operation.operation_key.operation,
+                    InstructionOperandKind::DataAddress { data },
+                    InstructionOperandKind::ByteLength(byte_count),
+                );
+            }
+
             if let Some(data_object) = find_runtime_text_input_buffer_data_object(input, host_call)
                 && let Some(literal) = runtime_text_literal_for_host_call(input, host_call)
             {

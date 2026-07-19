@@ -13568,8 +13568,8 @@ fn runtime_adapter_dispatch_exit_canary_runs() {
 fn runtime_adapter_forwarding_exit_canary_runs() {
     // PRV4 self-forwarding adapter: the receiver forwards as argument 0, so
     // the adapter body reaches Console's remaining primitives through the
-    // capability it adapts. stdout "Hi!\n" PROVES adapter routing (the
-    // built-in row would print "Hi\n"). Both engines.
+    // capability it adapts. The field-backed and literal-backed calls both
+    // print through the adapter; each trailing `!` proves adapter routing.
     let canary = pass_canary("providers/runtime_adapter_forwarding_exit");
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
@@ -13585,7 +13585,7 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
     );
     assert_eq!(
         outcome.stdout,
-        b"Hi!\n".to_vec(),
+        b"Field!\nLiteral!\n".to_vec(),
         "interpreter stdout must come from the ADAPTER body (the ! is the proof)"
     );
 
@@ -13609,7 +13609,7 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
     );
     assert_eq!(
         output.stdout,
-        b"Hi!\n".to_vec(),
+        b"Field!\nLiteral!\n".to_vec(),
         "native stdout must come from the ADAPTER body"
     );
     let _ = fs::remove_dir_all(&build_dir);

@@ -6,8 +6,9 @@
 // routing OBSERVABLE: the built-in write_line row would print "Hi\n"; only
 // the adapter prints "Hi!\n". Runs on BOTH engines (differential row).
 //
-// The text rides a FIELD (not a literal): literal-to-String-param threading
-// into host text calls is a recorded native gap gating the (3c) row flip.
+// Exercise both runtime-place and literal sources. A literal crossing the
+// adapter's String parameter resolves through the same checked forwarding
+// surface even though its read-only data object belongs to the caller.
 use omega::language::std::console;
 
 data Main {
@@ -25,7 +26,8 @@ effects
 }
 
 machine Main::main(&mut self) {
-    self.text = "Hi";
+    self.text = "Field";
     self.console.write_line(self.text);
+    self.console.write_line("Literal");
     self.console.exit_process(70);
 }
