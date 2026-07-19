@@ -338,10 +338,35 @@ scoped artifact-installation authority.
 
 There is no general `ExecutableMemory` capability, arbitrary byte-to-code
 conversion, JIT facility, or self-modifying-code path. Executable eligibility
-is a sealed admission-established fact over an immutable artifact, bound to its
-normalized content, identity, relocation plan, footprint, and placement plan.
-Mutation destroys that eligibility. Runtime installation only realizes an
-already-admitted artifact in executable mappings.
+is the sealed `Artifact::AdmittedExecutable` domain fact over a reusable
+immutable `Artifact` carrier. Admission binds it to normalized content,
+identity, relocation plan, footprint, and placement plan; packages cannot
+self-establish it. Mutation destroys that eligibility. Runtime loading borrows
+the admitted artifact and consumes linear placement authority; it never
+consumes the reusable artifact itself.
+
+The normalized lifecycle is:
+
+```text
+ArtifactCandidate
+    -- canonical decode + PCC/contract admission -->
+Artifact in Artifact::AdmittedExecutable                 reusable
+
+CodePlacement                                            linear, W + NX
+    + borrow admitted artifact
+    -- materialize declared sections/relocations -->
+FrozenPlacement                                          linear, R + NX
+    -- validate exact final bytes/footprint -->
+ValidatedPlacement                                       linear, R + NX
+    -- installer provider + visibility completion -->
+InstalledCode                                            linear, R + X
+```
+
+These are normalized semantic states, not a promise of literal generic source
+types. Content/placement binding prevents transplanting a validation
+certificate to different bytes; linear placement ownership prevents spending
+one destination twice. The certificate may remain reusable/reportable while
+`ValidatedPlacement` is consumed.
 
 This invariant covers every route to execute permission. Correct-by-construction
 page-table APIs require admitted-artifact provenance before deriving an
@@ -352,8 +377,11 @@ GPU/NIC programs are device-provider uploads, not host executable artifacts.
 Installation performs final post-materialization validation, target-specific
 W^X transition, cache maintenance, ordering, and instruction-fetch
 synchronization through one contracted provider operation. Its authority is
-scoped to the admitted artifact identity, destination/slot, placement, and
-audience. AP bringup installs a compiler-produced low-memory trampoline and
+scoped to the admitted artifact identity, `CodePlacement`, and audience.
+`CodePlacement` composes existing physical/virtual `Extent` authority and
+placement constraints; it is not a component dispatch slot or a new parallel
+authority family. Component-slot binding happens later and separately. AP
+bringup installs a compiler-produced low-memory trampoline and
 then invokes a target boot protocol; it does not generate host code at runtime.
 
 Audience state has three cases:
@@ -366,7 +394,36 @@ Visibility gates future entry; quiescence gates retirement of existing code.
 They may share linear-obligation infrastructure but establish different facts
 and are not one token algebra. Template patching of already-live code uses
 admitted fragments at declared patch sites through the replacement path. The
-exact installation evidence/API remains open in `OWNER_QUESTIONS.md`.
+v1 loader completes visibility synchronously (it may itself suspend); a
+non-blocking visibility token waits for a real provider customer. Successful
+installation reports `HardwareEnforced` or `ConventionOnly` W^X; an
+`Unsupported` provider rejects installation.
+
+Installation prevents code injection. It does not by itself establish
+control-flow integrity over already-admitted code. Sealed entry references and
+final indirect-branch/return validation are a separate gate recorded in
+`OWNER_QUESTIONS.md`.
+
+The component container is a minimal canonical Omega-native artifact, decoded
+through checked schema/layout machinery: bounded length-delimited tables,
+checked arithmetic, content identity, a closed relocation vocabulary, and
+explicit PCC/contract/footprint sections. It has no constructors, scripts,
+ambient imports, recursive metadata, or permissive semantic extensions. An
+ignorable section is informational only and contributes no admission authority;
+anything affecting meaning or trust is required. UEFI may require a thin
+PE/COFF boot envelope, but that envelope is not Omega's component format.
+
+The boot base case preserves the same discipline:
+
+```text
+build validates PCC/CFI and signs an admitted artifact identity
+    -> secure boot authenticates and gates entry
+    -> measured boot records the entered identity
+    -> the boot-admitted installer loads later admitted artifacts
+```
+
+Secure boot gates; measured boot records. Measurement alone never establishes
+admission.
 
 ## External roots and interrupt tables
 
@@ -528,10 +585,9 @@ origins and reject ordinary non-atomic writes through two shared projections.
 These are the remaining design questions, not permission to invent local
 syntax while implementing:
 
-- the exact admitted/installed artifact evidence and how target boot protocols
-  consume it;
 - the final artifact-footprint certificate format and validation boundary for
-  static and dynamically loaded admitted artifacts; and
+  static and dynamically loaded admitted artifacts;
+- the protected-return/final CFI contract tracked in `OWNER_QUESTIONS.md`; and
 - the concrete x86 interrupt requirement, stack/preemption classes, and IDT
   materialization records used by the timer slice.
 

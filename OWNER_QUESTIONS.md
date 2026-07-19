@@ -6,39 +6,36 @@ and deliberately deferred research live in `TASKS.md`.
 
 Last pruned: 2026-07-18.
 
-## 1. Admitted executable installation evidence
+## 1. Control-flow integrity and protected returns
 
-Omega has no general byte-to-code conversion, `ExecutableMemory` capability,
-JIT facility, or self-modifying-code path. Executable eligibility is a sealed,
-non-self-assertable fact over an immutable artifact, established by the normal
-validation/admission spine and bound to normalized content, identity,
-relocations, footprint, and placement plan. Installation may realize an
-already-admitted artifact in executable mappings; mutation destroys eligibility.
+Executable installation is settled separately and prevents code injection.
+Control-flow integrity is an independent gate over every executable artifact,
+including the boot-admitted installer itself.
 
-Every executable-mapping route, including page-table construction and checked
-assembly, must require this provenance. Otherwise those routes would recreate
-the deleted conversion as a security bypass. Device firmware remains device
-I/O, and template patching of already-live code remains component
-replacement/quiescence rather than arbitrary code generation.
+The forward edge is substantially shaped: direct branches are fixed and
+final-artifact validated; indirect calls and tail calls use sealed,
+requirement-compatible entry references rather than numeric addresses; dynamic
+descriptors retain satisfier/contract identity; checked assembly cannot add an
+unmodeled control exit; interrupt/exception exits are deriver-owned under
+`CallPlan + StatePlan`.
 
-The remaining owner decision is the normalized evidence/API boundary:
+The remaining owner decision is the backward edge and enforcement contract:
 
-- What exact state/domain records admitted-but-uninstalled and installed
-  artifacts?
-- Where is final validation performed after declared relocation,
-  materialization, and placement?
-- How is installation authority scoped to artifact identity, slot, placement,
-  and audience?
-- What evidence records W^X and local or cross-core instruction-fetch
-  visibility, including targets where enforcement is convention-only?
-- How do static images and dynamically loaded admitted artifacts share this
-  discipline without pretending there is one universal final link step?
+- What normalized fact proves a return corresponds to its legitimate call or
+  continuation state?
+- Which guarantees come from software proof, protected control storage,
+  shadow stacks/CET, PAC, or another target mechanism?
+- How do suspension, cancellation, exceptions, interrupts, tail calls, and
+  component/provider crossings preserve the return discipline?
+- What final-artifact certificate lets an independent validator check every
+  indirect call, return, entry stub, veneer, and thunk after placement?
+- Must admitted foreign providers supply accepted CFI claims, run behind
+  hardware isolation, or both according to policy?
 
-Recommendation: a linear installation transition accepting only an admitted
-artifact, validating the final realization, and producing a scoped installed
-executable plus any visibility-completion obligation. A dormant/local audience,
-a future remote fetcher, and a possible current executor are distinct: the last
-requires replacement/quiescence, never installation.
+Recommendation: one normalized CFI plan/certificate consumed by the final
+validator, with checked Omega producing evidence and opaque leaves either
+receipt-gated or isolated. Keep target mechanisms as realizations of the plan,
+not source attributes or a new `unsafe` escape.
 
-Detailed settled context and engineering residue are in
+Detailed surrounding context and engineering residue are in
 [`wiki/design_briefs/os_memory_and_hardware_foundation.md`](wiki/design_briefs/os_memory_and_hardware_foundation.md).

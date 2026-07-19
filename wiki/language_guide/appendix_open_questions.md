@@ -39,10 +39,14 @@ Last pruned: 2026-07-18.
   address demands join provider behavior plus preemption granularity.
   Unproved behavior is pessimistic unless an admission receipt authorizes
   reliance on a narrower claim.
-- Define installation evidence for immutable admitted executable artifacts
-  across static images and dynamically loaded artifacts. There is no arbitrary
-  byte-to-code conversion or runtime-generated host code. Live replacement
-  remains a separate component-versioning operation.
+- Implement the settled admitted-artifact loader ladder: reusable sealed
+  artifact qualification, linear extent-backed placement, freeze, final
+  validation, synchronous visibility, and installed-code claim. There is no
+  arbitrary byte-to-code conversion or runtime-generated host code.
+- Settle protected returns and final-artifact CFI validation across ordinary
+  calls, suspension/continuations, exceptions, interrupt stubs, veneers/thunks,
+  and admitted foreign providers. Installation provenance prevents injection;
+  it does not replace this separate control-transfer gate.
 - Finish constraint-bearing placement, fragmented symbolic materialization, and
   the concrete x86 interrupt `CallPlan + StatePlan`/root-ledger records.
 

@@ -79,6 +79,11 @@ The instruction catalog records an availability class:
 
 Return-from-interrupt and similar operations are deriver-only because allowing a
 handler to spell them would create an unmodeled exit around its entry contract.
+Direct branches remain final-artifact-validated targets. Indirect calls and tail
+calls must consume sealed, requirement-compatible entry references rather than
+numeric addresses. Protected returns and the complete final-artifact CFI
+certificate remain the separate owner question; admitted-artifact installation
+does not discharge them.
 
 ## Machine-state regimes
 

@@ -149,6 +149,18 @@ Checked provider evidence may prove a narrower record; accepted evidence needs
 an ordinary admission receipt. No second provider/admission representation is
 introduced.
 
+Executable provenance and control-flow integrity must also remain separate.
+`Artifact::AdmittedExecutable` plus linear placement states prove which bytes
+may be installed. A normalized CFI plan/certificate proves which transfers are
+legal within every artifact, including the initial installer. Its forward edge
+contains fixed direct targets and requirement-compatible sealed entry IDs;
+dynamic descriptors retain satisfier/contract identity. Its backward-edge
+return policy and target realization are deliberately open in
+`OWNER_QUESTIONS.md`. After relocation, relaxation, veneers, thunks, and
+generated stubs, final validation checks the placed artifact against the CFI
+evidence. Installation consumes the linear placed realization; a content-bound
+CFI certificate may remain reusable and reportable.
+
 ### Machine semantic contract
 
 Introduce a normalized `MachineSemanticContract` (name provisional) containing
