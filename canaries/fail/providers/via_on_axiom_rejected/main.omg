@@ -4,7 +4,7 @@ boundary trait Process {
     machine exit(code: i32);
 }
 
-boundary machine exit_axiom(code: i32) satisfies Process::exit via Syscall(60);
+boundary machine exit_axiom(code: i32) satisfies Process::exit via Binding::Syscall(60);
 
 data Main { }
 machine Main::main(&mut self) {

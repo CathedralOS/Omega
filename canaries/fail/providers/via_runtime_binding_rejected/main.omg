@@ -1,0 +1,10 @@
+// Binding identity is normalized at compile time. A runtime parameter cannot
+// select the syscall row and thereby make artifact identity value-dependent.
+boundary trait Process {
+    machine exit(code: i32);
+}
+
+machine exit_leaf(code: i32) satisfies Process::exit via Binding::Syscall(code);
+
+data Main { }
+machine Main::main(&mut self) { }

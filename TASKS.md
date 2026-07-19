@@ -89,10 +89,6 @@ slot owner may override by type. The migration order remains load-bearing.
    `call_shape`, `HostOperations`, `Value`, populate tables, `provides` syntax,
    and every compatibility consumer. Keep only the directed retirement
    diagnostic if useful.
-6. **Supply-shape negatives.** Finish coverage for qualified
-   `Binding::DllImport`, runtime-dependent `via` values, missing `satisfies`,
-   repeated `effects`, signature mismatch, and admission/refinement failure.
-
 ### Compile-time machine parameters and generics
 
 The source model is fixed: `<machine M>` requires an authored

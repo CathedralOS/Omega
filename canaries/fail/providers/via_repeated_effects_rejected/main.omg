@@ -1,0 +1,15 @@
+// A via leaf inherits the requirement ceiling and derives its behavior from
+// the admitted binding. Repeating an authored row here would create a second
+// source of effect truth.
+boundary trait Process {
+    machine exit(code: i32)
+        effects process_control;
+}
+
+machine exit_leaf(code: i32)
+    satisfies Process::exit
+    via Binding::Syscall(60)
+    effects process_control;
+
+data Main { }
+machine Main::main(&mut self) { }

@@ -170,6 +170,14 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
                     machine.name,
                 )));
             }
+            if via_count == 1 && !program.machine_effects(machine).is_empty() {
+                diagnostics.push(Diagnostic::error(format!(
+                    "external leaf `{}` repeats an authored `effects` row, but `via` \
+                     derives behavior from the satisfied requirement and admitted binding; \
+                     remove the leaf's `effects` clause",
+                    machine.name,
+                )));
+            }
         }
 
         for (state_index, state) in program.machine_states(machine).iter().enumerate() {

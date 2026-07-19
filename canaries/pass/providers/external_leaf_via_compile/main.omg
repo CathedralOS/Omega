@@ -9,7 +9,7 @@ boundary trait Shutdown {
     machine halt(code: i32);
 }
 
-machine halt_leaf(code: i32) satisfies Shutdown::halt via DllImport("kernel32.dll", "ExitProcess");
+machine halt_leaf(code: i32) satisfies Shutdown::halt via Binding::DllImport("kernel32.dll", "ExitProcess");
 
 data Main { console: Console; }
 machine Main::main(&mut self) {

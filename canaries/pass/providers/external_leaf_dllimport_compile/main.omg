@@ -10,7 +10,7 @@ boundary trait Leaf {
     machine exit(code: i32) -> i32;
 }
 
-machine leaf_exit(code: i32) -> i32 satisfies Leaf::exit via DllImport("libSystem.B.dylib", "_exit");
+machine leaf_exit(code: i32) -> i32 satisfies Leaf::exit via Binding::DllImport("libSystem.B.dylib", "_exit");
 
 data Main { p: Leaf; }
 machine Main::main(&mut self) {

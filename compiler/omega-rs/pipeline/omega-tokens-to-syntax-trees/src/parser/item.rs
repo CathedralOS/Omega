@@ -543,6 +543,28 @@ pub(crate) fn parse_host_provider_binding<'tokens, 'source>(
     }
 }
 
+/// Parse the external-realization spelling used after `via`.
+///
+/// Legacy `provides` arms still use the unqualified compatibility grammar
+/// above until PRV4f deletes that surface. A machine supply is new grammar and
+/// therefore has no reason to inherit the ambiguity: it names the closed sum
+/// explicitly as `Binding::Case(...)`. This also prevents a package-local
+/// declaration named `DllImport` from looking like compiler binding data.
+pub(crate) fn parse_external_provider_binding<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, HostProviderMappingKind> {
+    let start = input;
+    let (root, input) = input.take_identifier()?;
+    if root.as_str() != "Binding" {
+        return Err(start.error_here(
+            "an external realization must construct the compiler-known Binding sum; \
+             write `via Binding::DllImport(...)` or another qualified `Binding::Case`",
+        ));
+    }
+    let input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
+    parse_host_provider_binding(input)
+}
+
 fn parse_module_declaration<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,

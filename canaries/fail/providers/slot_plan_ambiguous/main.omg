@@ -9,7 +9,7 @@ boundary trait Pick {
 cross_platform_cli provides Pick {
     choose -> 7
 }
-machine choose_leaf() -> i32 satisfies Pick::choose via VtableSlot(2);
+machine choose_leaf() -> i32 satisfies Pick::choose via Binding::VtableSlot(2);
 data Main { }
 machine Main::main(&mut self) {
 }
