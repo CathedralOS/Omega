@@ -452,18 +452,16 @@ fn value_machine_type_parameter_is_inferred_through_a_borrowed_place() {
         .machine_specializations
         .iter()
         .find(|specialization| {
-            checked
-                .machines()
-                .iter()
-                .any(|machine| machine.symbol == specialization.template
-                    && machine.name.as_str() == "Main::weigh")
+            checked.machines().iter().any(|machine| {
+                machine.symbol == specialization.template && machine.name.as_str() == "Main::weigh"
+            })
         })
         .expect("weigh specialization");
     assert_eq!(specialization.type_arguments, ["Light"]);
 }
 
 #[test]
-fn conflicting_static_machine_specializations_fail_loudly() {
+fn distinct_static_machine_specializations_clone_the_template() {
     let source = r#"
         data Card {}
         data Main {}
@@ -484,11 +482,31 @@ fn conflicting_static_machine_specializations_fail_loudly() {
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed)
-        .expect_err("unmaterialized multiple specialization tuples must not reach lowering");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("more than one concrete specialization tuple")
-    }));
+    let checked = lower_typed_trees(typed)
+        .expect("each concrete machine tuple should receive its own specialization");
+    let apply_specializations: Vec<_> = checked
+        .machine_specializations
+        .iter()
+        .filter(|specialization| {
+            checked.machines().iter().any(|machine| {
+                machine.symbol == specialization.template && machine.name.as_str() == "apply"
+            })
+        })
+        .collect();
+    assert_eq!(apply_specializations.len(), 2);
+    assert_ne!(
+        apply_specializations[0].machine_arguments,
+        apply_specializations[1].machine_arguments
+    );
+    assert_eq!(
+        checked
+            .machines()
+            .iter()
+            .filter(|machine| {
+                machine.name.as_str() == "apply"
+                    || machine.name.as_str().starts_with("apply$specialized$")
+            })
+            .count(),
+        2
+    );
 }

@@ -19851,6 +19851,51 @@ fn runtime_generic_param_position_inference_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_generic_multiple_specializations_exit_canary_runs() {
+    let canary = pass_canary("generics/runtime_generic_multiple_specializations_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("multiple generic-machine specialization tuples should check");
+    assert_eq!(
+        checked
+            .machine_specializations
+            .iter()
+            .filter(|specialization| {
+                checked.machines().iter().any(|machine| {
+                    machine.symbol == specialization.template
+                        && machine.name.as_str() == "Main::pick"
+                })
+            })
+            .count(),
+        2
+    );
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None);
+    assert_eq!(interpreted.exit_code, 14);
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-gen-multi-spec-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("multiple generic-machine specialization tuples should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("multiple generic-machine specialization canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(14),
+        "expected both concrete clones to materialize results (exit 14), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_generic_enum_payload_exit_canary_runs() {
     // A monomorphized generic ENUM with a T-typed payload (`Maybe<i32 in Wrapping>`), constructed,
     // matched, and destructured natively -- the Option<T> shape. Exit 70 via the payload.
@@ -34254,6 +34299,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/runtime_generic_value_call_exit",
     "generics/runtime_generic_value_call_agreeing_exit",
     "generics/runtime_generic_param_position_inference_exit",
+    "generics/runtime_generic_multiple_specializations_exit",
     "host/runtime_tick_count_monotonic_exit",
     "host/runtime_user32_key_state_exit",
     "host/runtime_tick_paced_marquee_exit",
@@ -34650,7 +34696,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/property_sized_declared",
     "data/property_unknown",
     "generics/colon_bound_rejected",
-    "generics/machine_multiple_specialization_tuples_fenced",
     "generics/machine_bound_value_call_unchecked",
     "generics/machine_bound_violated_at_call",
     "generics/property_bound_missing_on_field",

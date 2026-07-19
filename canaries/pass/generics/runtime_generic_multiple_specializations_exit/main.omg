@@ -1,0 +1,25 @@
+// MP4b: one template called with two concrete type tuples gets one checked
+// body per tuple. Both interpreter and native execution must route each call
+// to its concrete clone and materialize the combined result (exit 14).
+use omega::language::std::console;
+
+data Light [copy] {
+    weight: i32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+    light: Light;
+    number: i32 in Wrapping;
+}
+
+machine Main::pick<T [copy]>(&self, value: &T) -> i32 in Wrapping {
+    7
+}
+
+machine Main::main(&mut self) {
+    let from_light: i32 in Wrapping = self.pick(&self.light);
+    let from_number: i32 in Wrapping = self.pick(&self.number);
+    let result: i32 in Wrapping = from_light + from_number;
+    self.console.exit_process(result);
+}
