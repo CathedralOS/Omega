@@ -156,12 +156,7 @@ fn validate_carry_policy(
 ) {
     let type_parameters = program.data_type_parameters(data_definition);
     for_each_stored_field(program, data_definition, &mut |field, case: Option<&str>| {
-        let actual = derive_type_carry_policy(
-            program,
-            type_parameters,
-            field.type_reference,
-            &mut Vec::new(),
-        );
+        let actual = CarryDerivation::new(program, type_parameters).derive(field.type_reference);
         if actual.permits(required) {
             return;
         }
@@ -185,76 +180,166 @@ fn validate_carry_policy(
     });
 }
 
-fn derive_type_carry_policy(
-    program: &TypedTrees,
-    type_parameters: &[TypeParameter],
-    type_reference: omega_typed_trees::types::TypeReferenceHandle,
-    visiting: &mut Vec<String>,
-) -> omega_core::semantics::CarryPolicy {
-    use omega_core::semantics::CarryPolicy;
-
-    if program
-        .type_reference_table
-        .primitive_type(type_reference)
-        .is_some()
-    {
-        return CarryPolicy::PERMISSIVE;
-    }
-
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { name, .. } => {
-            if let Some(parameter) = type_parameter_named(type_parameters, name.as_str()) {
-                return parameter.bounds.carry.unwrap_or(CarryPolicy::STRICT);
-            }
-            named_type_carry_policy(program, name.as_str(), visiting)
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            derive_type_carry_policy(program, type_parameters, *base_type, visiting)
-        }
-        TypeReferenceNode::FixedArray { element_type, .. } => {
-            derive_type_carry_policy(program, type_parameters, *element_type, visiting)
-        }
-        TypeReferenceNode::Generic { base_name, .. } => {
-            named_type_carry_policy(program, base_name.as_str(), visiting)
-        }
-        TypeReferenceNode::Unit => CarryPolicy::PERMISSIVE,
-        // Borrows, slices, and erased satisfiers need per-value/provenance
-        // evidence. Until that enforcement lands, absence fails closed.
-        TypeReferenceNode::Reference { .. }
-        | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::DynamicTrait { .. } => CarryPolicy::STRICT,
-    }
+struct CarryDerivation<'program> {
+    program: &'program TypedTrees,
+    parameters: Vec<(
+        omega_core::symbols::SymbolHandle,
+        String,
+        omega_core::semantics::CarryPolicy,
+    )>,
+    substitutions: Vec<(
+        omega_core::symbols::SymbolHandle,
+        String,
+        omega_typed_trees::types::TypeReferenceHandle,
+    )>,
+    visiting: Vec<omega_core::symbols::SymbolHandle>,
 }
 
-fn named_type_carry_policy(
-    program: &TypedTrees,
-    name: &str,
-    visiting: &mut Vec<String>,
-) -> omega_core::semantics::CarryPolicy {
-    use omega_core::semantics::CarryPolicy;
-    let Some(definition) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == name)
-    else {
-        return CarryPolicy::STRICT;
-    };
-    if visiting.iter().any(|current| current == name) {
-        return CarryPolicy::STRICT;
-    }
-    visiting.push(name.to_owned());
-    let type_parameters = program.data_type_parameters(definition);
-    let mut derived = CarryPolicy::PERMISSIVE;
-    for_each_stored_field(program, definition, &mut |field, _| {
-        derived = derived.intersect(derive_type_carry_policy(
+impl<'program> CarryDerivation<'program> {
+    fn new(program: &'program TypedTrees, parameters: &[TypeParameter]) -> Self {
+        let parameters = parameters
+            .iter()
+            .map(|parameter| {
+                (
+                    parameter.symbol,
+                    parameter.name.as_str().to_owned(),
+                    parameter
+                        .bounds
+                        .carry
+                        .unwrap_or(omega_core::semantics::CarryPolicy::STRICT),
+                )
+            })
+            .collect();
+        Self {
             program,
-            type_parameters,
-            field.type_reference,
-            visiting,
-        ));
-    });
-    visiting.pop();
-    derived
+            parameters,
+            substitutions: Vec::new(),
+            visiting: Vec::new(),
+        }
+    }
+
+    fn derive(
+        &mut self,
+        type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    ) -> omega_core::semantics::CarryPolicy {
+        use omega_core::semantics::CarryPolicy;
+
+        if self
+            .program
+            .type_reference_table
+            .primitive_type(type_reference)
+            .is_some()
+        {
+            return CarryPolicy::PERMISSIVE;
+        }
+
+        match self
+            .program
+            .type_reference_table
+            .type_reference(type_reference)
+            .clone()
+        {
+            TypeReferenceNode::Named { symbol, name } => {
+                if let Some((_, _, argument)) = self.substitutions.iter().rev().find(
+                    |(candidate, candidate_name, _)| {
+                        (*candidate == symbol && symbol.is_valid())
+                            || (!symbol.is_valid() && candidate_name == name.as_str())
+                    },
+                ) {
+                    let argument = *argument;
+                    return self.derive(argument);
+                }
+                if let Some((_, _, policy)) = self.parameters.iter().rev().find(
+                    |(candidate, candidate_name, _)| {
+                        (*candidate == symbol && symbol.is_valid())
+                            || (!symbol.is_valid() && candidate_name == name.as_str())
+                    },
+                ) {
+                    return *policy;
+                }
+                self.derive_named_data(symbol, name.as_str(), None)
+            }
+            TypeReferenceNode::Constrained { base_type, .. } => self.derive(base_type),
+            TypeReferenceNode::FixedArray { element_type, .. } => self.derive(element_type),
+            TypeReferenceNode::Generic {
+                base_symbol,
+                base_name,
+                arguments,
+            } => {
+                let arguments = self
+                    .program
+                    .type_reference_table
+                    .type_reference_handles(arguments)
+                    .to_vec();
+                self.derive_named_data(base_symbol, base_name.as_str(), Some(&arguments))
+            }
+            TypeReferenceNode::Unit => CarryPolicy::PERMISSIVE,
+            // Borrows, slices, and erased satisfiers need per-value/provenance
+            // evidence. Until that enforcement lands, absence fails closed.
+            TypeReferenceNode::Reference { .. }
+            | TypeReferenceNode::Slice { .. }
+            | TypeReferenceNode::DynamicTrait { .. } => CarryPolicy::STRICT,
+        }
+    }
+
+    fn derive_named_data(
+        &mut self,
+        symbol: omega_core::symbols::SymbolHandle,
+        name: &str,
+        arguments: Option<&[omega_typed_trees::types::TypeReferenceHandle]>,
+    ) -> omega_core::semantics::CarryPolicy {
+        use omega_core::semantics::CarryPolicy;
+
+        let Some(definition) = self.program.data_definitions().iter().find(|definition| {
+            (symbol.is_valid() && definition.symbol == symbol)
+                || (!symbol.is_valid() && definition.name.as_str() == name)
+        }) else {
+            return CarryPolicy::STRICT;
+        };
+        if self.visiting.contains(&definition.symbol) {
+            return CarryPolicy::STRICT;
+        }
+
+        self.visiting.push(definition.symbol);
+        let parameter_len = self.parameters.len();
+        let substitution_len = self.substitutions.len();
+        let definition_parameters = self.program.data_type_parameters(definition);
+        for parameter in definition_parameters {
+            self.parameters.push((
+                parameter.symbol,
+                parameter.name.as_str().to_owned(),
+                parameter.bounds.carry.unwrap_or(CarryPolicy::STRICT),
+            ));
+        }
+        if let Some(arguments) = arguments {
+            self.substitutions.extend(
+                definition_parameters
+                    .iter()
+                    .zip(arguments)
+                    .map(|(parameter, argument)| {
+                        (
+                            parameter.symbol,
+                            parameter.name.as_str().to_owned(),
+                            *argument,
+                        )
+                    }),
+            );
+        }
+
+        let mut field_types = Vec::new();
+        for_each_stored_field(self.program, definition, &mut |field, _| {
+            field_types.push(field.type_reference);
+        });
+        let mut effective = CarryPolicy::PERMISSIVE;
+        for field_type in field_types {
+            effective = effective.intersect(self.derive(field_type));
+        }
+
+        self.substitutions.truncate(substitution_len);
+        self.parameters.truncate(parameter_len);
+        self.visiting.pop();
+        effective
+    }
 }
 
 /// Derive the effective carry policy of a transparent data declaration from
@@ -264,19 +349,11 @@ pub fn effective_data_carry_policy(
     program: &TypedTrees,
     data_definition: &DataDefinition,
 ) -> omega_core::semantics::CarryPolicy {
-    use omega_core::semantics::CarryPolicy;
-
-    let type_parameters = program.data_type_parameters(data_definition);
-    let mut effective = CarryPolicy::PERMISSIVE;
-    for_each_stored_field(program, data_definition, &mut |field, _| {
-        effective = effective.intersect(derive_type_carry_policy(
-            program,
-            type_parameters,
-            field.type_reference,
-            &mut vec![data_definition.name.as_str().to_owned()],
-        ));
-    });
-    effective
+    CarryDerivation::new(program, &[]).derive_named_data(
+        data_definition.symbol,
+        data_definition.name.as_str(),
+        None,
+    )
 }
 
 /// One entry point for "does this type carry the declared property?", shared
@@ -293,12 +370,11 @@ pub fn type_satisfies_declared_property(
         DeclaredPropertyRequirement::ZeroInit => {
             type_is_zero_init(program, symbols, type_parameters, type_reference)
         }
-        DeclaredPropertyRequirement::Carry(required) => derive_type_carry_policy(
+        DeclaredPropertyRequirement::Carry(required) => CarryDerivation::new(
             program,
             type_parameters,
-            type_reference,
-            &mut Vec::new(),
         )
+        .derive(type_reference)
         .permits(required),
         DeclaredPropertyRequirement::Copy => type_satisfies_structural_property(
             program,

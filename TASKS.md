@@ -194,8 +194,10 @@ before the fix.
   minimums from effective derived policies. `[carry(...)]` requires all
   four axes, `[send]` has a directed retirement diagnostic, transparent
   aggregates derive per-axis intersections, and data/machine generic bounds
-  compare the complete policy (including specialization admission). Continue
-  with opaque/admitted and sealed per-mint facts; canonical live-set checks;
+  compare the complete policy (including specialization admission). Concrete
+  generic instantiations derive through symbol-keyed argument substitution,
+  including nested wrappers. Continue with opaque/admitted and sealed per-mint
+  facts; canonical live-set checks;
   activation-demand joins against pessimistic admitted runtime behavior; and
   diagnostic/artifact/model-export facts.
 - **CML4 — finish multiplicity migration.** Remove downstream dependence on
