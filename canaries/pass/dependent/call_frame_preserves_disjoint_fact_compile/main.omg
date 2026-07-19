@@ -1,0 +1,17 @@
+// R5 frame seed: a known internal leaf call preserves arithmetic facts for
+// fields outside its direct may-write set.
+data Main {
+    stable: u32;
+    touched: u32;
+    result: u32;
+}
+
+machine Main::main(&mut self) {
+    self.stable = 5;
+    self.touch();
+    self.result = self.stable + 1;
+}
+
+machine Main::touch(&mut self) {
+    self.touched = 1;
+}

@@ -749,6 +749,20 @@ impl ValueEnv {
         self.non_nan.clear();
     }
 
+    /// Invalidate only facts overlapping a callee's known may-write paths.
+    /// A write to a parent invalidates descendants; a write to a descendant
+    /// also invalidates any fact recorded for the parent value itself.
+    pub(crate) fn invalidate_written_paths(&mut self, written: &[String]) {
+        let overlaps = |path: &str| {
+            written
+                .iter()
+                .any(|written| place_paths_overlap(path, written))
+        };
+        self.intervals.retain(|path, _| !overlaps(path));
+        self.float_intervals.retain(|path, _| !overlaps(path));
+        self.non_nan.retain(|path| !overlaps(path));
+    }
+
     fn get(&self, path: &str) -> Option<Interval> {
         self.intervals.get(path).copied()
     }
@@ -817,6 +831,15 @@ impl ValueEnv {
         );
         joined
     }
+}
+
+fn place_paths_overlap(left: &str, right: &str) -> bool {
+    left == right || place_path_is_descendant(left, right) || place_path_is_descendant(right, left)
+}
+
+fn place_path_is_descendant(path: &str, ancestor: &str) -> bool {
+    path.strip_prefix(ancestor)
+        .is_some_and(|suffix| suffix.starts_with('.') || suffix.starts_with('['))
 }
 
 /// Walk a value expression, apply the domain + overflow rules to every nested

@@ -594,6 +594,195 @@ fn machine_state_by_symbol(
     })
 }
 
+/// Instantiate the direct may-write set of a resolved internal leaf call in
+/// the caller's place namespace. `None` means the summary is not complete and
+/// the caller must invalidate every flow fact. This intentionally stops at
+/// calls and transitions; transitive summaries and authored `stores` clauses
+/// are later R5 rungs.
+pub(crate) fn known_direct_call_written_paths(
+    program: &TypedTrees,
+    call: &TableCall,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+) -> Option<Vec<String>> {
+    // A static machine parameter's selected target is a specialization input,
+    // not an ordinary receiver binding. Until MP summaries instantiate that
+    // binding explicitly, retain the sound all-facts invalidation.
+    if program
+        .machine_parameter_signature_in(current_machine, call.target_symbol)
+        .is_some()
+    {
+        return None;
+    }
+    let receiver_members = program.statement_table.name_path_members(call.receiver);
+    let (callee_machine, callee_state) = if receiver_members.is_empty()
+        || matches!(receiver_members, [receiver] if receiver.as_str() == "self")
+    {
+        machine_state_by_symbol(program, call.target_symbol)
+            .filter(|(machine, _)| machine.symbol != current_machine.symbol)
+            .or_else(|| {
+                machine_symbols
+                    .state(call.target.as_str())
+                    .map(|state| (current_machine, state))
+            })
+            .or_else(|| {
+                current_machine
+                    .attached_data
+                    .as_ref()
+                    .and_then(|attached_data| {
+                        symbols.attached_machine_state(
+                            program,
+                            attached_data.as_str(),
+                            call.target.as_str(),
+                        )
+                    })
+            })
+            .or_else(|| free_machine_entry_state(program, symbols, call.target.as_str()))?
+    } else {
+        let receiver = receiver_members.last()?.as_str();
+        let machine = machine_symbols
+            .contained_type(receiver)
+            .and_then(|type_name| symbols.machine(type_name))
+            .or_else(|| symbols.machine(receiver))?;
+        let state = program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.name == call.target)?;
+        (machine, state)
+    };
+
+    let receiver_base = (!receiver_members.is_empty())
+        .then(|| {
+            receiver_members
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join(".")
+        })
+        .or_else(|| callee_machine.attached_data.as_ref().map(|_| "self".to_owned()));
+    let arguments = program.statement_table.expression_handles(call.arguments);
+    let parameters = program.state_parameters(callee_state);
+    let mut locals = Vec::new();
+    let mut written = Vec::new();
+
+    for statement in program
+        .statement_table
+        .statements(callee_state.statement_nodes)
+    {
+        match statement {
+            StatementNode::AssemblyFact(fact) => {
+                if !expression_is_call_free(program, fact.expression) {
+                    return None;
+                }
+            }
+            StatementNode::Assignment(assignment) => {
+                if !expression_is_call_free(program, assignment.target)
+                    || !expression_is_call_free(program, assignment.value)
+                {
+                    return None;
+                }
+                let relative = coarse_place_path(program, assignment.target)?;
+                let (root, suffix) = split_place_root(&relative);
+                let instantiated = if root == "self" {
+                    append_place_suffix(receiver_base.as_deref()?, suffix)
+                } else if let Some(argument_index) = parameters
+                    .iter()
+                    .filter(|parameter| !parameter.is_self)
+                    .position(|parameter| parameter.name.as_str() == root)
+                {
+                    let argument = *arguments.get(argument_index)?;
+                    let base = coarse_place_path(program, argument)?;
+                    append_place_suffix(&base, suffix)
+                } else if locals.iter().any(|local: &String| local == root) {
+                    continue;
+                } else {
+                    // An assignment whose root is neither local nor a known
+                    // parameter is externally visible in a way this rung
+                    // cannot instantiate safely.
+                    return None;
+                };
+                if !written.contains(&instantiated) {
+                    written.push(instantiated);
+                }
+            }
+            StatementNode::Call(_) | StatementNode::Transition(_) => return None,
+            StatementNode::Expression(expression) => {
+                if !expression_is_call_free(program, *expression) {
+                    return None;
+                }
+            }
+            StatementNode::LocalData(local) => {
+                if !expression_is_call_free(program, local.initial_value) {
+                    return None;
+                }
+                locals.push(local.name.as_str().to_owned());
+            }
+        }
+    }
+
+    Some(written)
+}
+
+fn split_place_root(path: &str) -> (&str, &str) {
+    let boundary = path.find(['.', '[']).unwrap_or(path.len());
+    path.split_at(boundary)
+}
+
+fn append_place_suffix(base: &str, suffix: &str) -> String {
+    format!("{base}{suffix}")
+}
+
+/// Coarsen indexed writes to their collection (`self.cells[i]` writes
+/// `self.cells`). The value environment does not track index-sensitive facts.
+fn coarse_place_path(program: &TypedTrees, expression: ExpressionHandle) -> Option<String> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => coarse_place_path(program, *inner),
+        ExpressionNode::Indexed(indexed) => coarse_place_path(program, indexed.collection),
+        _ => arithmetic_domains::place_path(program, expression),
+    }
+}
+
+fn expression_is_call_free(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    if !expression.is_valid() {
+        return true;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::ArrayLiteral(values) => program
+            .expression_table
+            .expression_handles(*values)
+            .iter()
+            .all(|value| expression_is_call_free(program, *value)),
+        ExpressionNode::Binary(binary) => {
+            expression_is_call_free(program, binary.left)
+                && expression_is_call_free(program, binary.right)
+        }
+        ExpressionNode::Cast(cast) => expression_is_call_free(program, cast.value),
+        ExpressionNode::Call(_) => false,
+        ExpressionNode::Indexed(indexed) => {
+            expression_is_call_free(program, indexed.collection)
+                && expression_is_call_free(program, indexed.index)
+        }
+        ExpressionNode::Member(member) => expression_is_call_free(program, member.receiver),
+        ExpressionNode::Mutable(inner) => expression_is_call_free(program, *inner),
+        ExpressionNode::Range(range) => {
+            expression_is_call_free(program, range.start)
+                && expression_is_call_free(program, range.end)
+        }
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .all(|field| expression_is_call_free(program, field.value)),
+        ExpressionNode::Unary(unary) => expression_is_call_free(program, unary.operand),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_) => true,
+    }
+}
+
 /// FROZEN DECISION 13 residue -- machine-call monomorphization arguments.
 /// A bracket bound on a callee type parameter (`machine copy_it<T [copy]>`)
 /// must hold for the concrete type the call instantiates `T` with. There is

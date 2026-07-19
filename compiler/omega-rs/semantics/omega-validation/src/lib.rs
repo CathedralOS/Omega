@@ -557,10 +557,21 @@ fn validate_state_statement_node(
                 value_env,
                 diagnostics,
             );
-            // A call may mutate fields through `&mut`, so the linear value
-            // environment is no longer trustworthy -- drop it (sound: subsequent
-            // places fall back to their type bounds).
-            value_env.clear();
+            // R5 frame seed: a resolved INTERNAL LEAF call preserves facts for
+            // places outside its direct may-write set. Unknown, transitive,
+            // transitioning, and boundary calls still invalidate everything;
+            // later R5 rungs add transitive summaries and authored `stores`.
+            if let Some(written) = crate::calls::known_direct_call_written_paths(
+                program,
+                call,
+                machine,
+                machine_symbols,
+                symbols,
+            ) {
+                value_env.invalidate_written_paths(&written);
+            } else {
+                value_env.clear();
+            }
             // R4 witness mint: a BOUNDARY callee's `ensures` re-seeds the
             // `&mut` out-arguments' places (the boundary model's citable
             // fact) -- `fw.get_size(&mut self.n)` with `ensures size <= 8`
