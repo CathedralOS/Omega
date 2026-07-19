@@ -1,1 +1,1 @@
-only known-contract instructions compile
+no structured operand provenance/permission contract is modeled

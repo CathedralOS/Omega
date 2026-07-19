@@ -8,7 +8,11 @@ The full catalog and contract surface remain incremental. The implemented pilot
 accepts strict blocks containing known `hlt`, port `in`/`out`, and
 `jmp state(...)` instructions. Multiple instructions use `;` as an explicit
 separator because newlines are not grammar; empty blocks and a control transfer
-followed by another instruction reject.
+followed by another instruction reject. Catalogued entry/exit operations such
+as `iretq` and `eret` already refuse as **deriver only** rather than falling
+through an unknown-mnemonic path. Returns, calls, and indirect branches refuse
+as hidden exits, while recognized load/store spellings refuse until they carry
+structured provenance and permission contracts.
 
 ## Parsed instructions with contracts
 

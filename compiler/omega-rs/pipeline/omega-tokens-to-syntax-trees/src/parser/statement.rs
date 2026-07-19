@@ -1,3 +1,7 @@
+use crate::parser::asm_catalog::{
+    AsmCatalogEntry, AsmInstructionAvailability, AsmInstructionRefusal, AsmInstructionShape,
+    asm_catalog_entry,
+};
 use crate::parser::expression::parse_expression_handle;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::transition::parse_transition_block_target_handle;
@@ -278,8 +282,41 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
     let mnemonic_site = input.clone();
     let (mnemonic, input) = input.take_identifier()?;
 
-    match mnemonic.as_str() {
-        "jmp" => {
+    let Some(entry) = asm_catalog_entry(mnemonic.as_str()) else {
+        return Err(mnemonic_site.error_here(format!(
+            "unknown asm instruction `{}`: only known-contract instructions compile \
+             (`hlt`, `in`, `out`, `jmp`); opaque forms (`db`, raw bytes) are rejected",
+            mnemonic.as_str()
+        )));
+    };
+    let contract = match entry {
+        AsmCatalogEntry::Contract(contract) => contract,
+        AsmCatalogEntry::Refused(AsmInstructionRefusal::HiddenControlExit) => {
+            return Err(mnemonic_site.error_here(format!(
+                "asm instruction `{}` creates a hidden control exit: user assembly may not \
+                 return, call, or branch indirectly; spell control flow as `jmp state(...)`",
+                mnemonic.as_str()
+            )));
+        }
+        AsmCatalogEntry::Refused(AsmInstructionRefusal::UnmodeledMemoryAccess) => {
+            return Err(mnemonic_site.error_here(format!(
+                "asm instruction `{}` may access memory, but no structured operand \
+                 provenance/permission contract is modeled for it yet; use typed Omega \
+                 place/view operations until that instruction contract lands",
+                mnemonic.as_str()
+            )));
+        }
+    };
+    if contract.availability == AsmInstructionAvailability::DeriverOnly {
+        return Err(mnemonic_site.error_here(format!(
+            "asm instruction `{}` is deriver-only: user-authored assembly may not spell \
+             entry/exit protocol operations or manufacture an unmodeled control exit",
+            mnemonic.as_str()
+        )));
+    }
+
+    match contract.shape {
+        AsmInstructionShape::JumpState => {
             let (target, input) = parse_transition_block_target_handle(syntax_trees, input)?;
             Ok((
                 syntax_trees
@@ -292,7 +329,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 input,
             ))
         }
-        "hlt" => Ok((
+        AsmInstructionShape::Halt => Ok((
             syntax_trees
                 .statements
                 .insert(StatementNode::Call(TableCall {
@@ -305,7 +342,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 })),
             input,
         )),
-        "out" => {
+        AsmInstructionShape::PortOut => {
             let (port, input) = parse_expression_handle(syntax_trees, input)?;
             let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
             let (value, input) = parse_expression_handle(syntax_trees, input)?;
@@ -329,7 +366,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 input,
             ))
         }
-        "in" => {
+        AsmInstructionShape::PortIn => {
             let (destination, input) = parse_expression_handle(syntax_trees, input)?;
             let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
             let (port, input) = parse_expression_handle(syntax_trees, input)?;
@@ -355,10 +392,6 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 input,
             ))
         }
-        unknown => Err(mnemonic_site.error_here(format!(
-            "unknown asm instruction `{unknown}`: only known-contract instructions compile \
-             (`hlt`, `in`, `out`, `jmp`); opaque forms (`db`, raw bytes) are rejected"
-        ))),
     }
 }
 
