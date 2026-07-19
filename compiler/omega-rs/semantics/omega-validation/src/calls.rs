@@ -26,6 +26,69 @@ use omega_typed_trees::statement::{
 };
 use omega_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+/// Shared conservative call-frame resolver. A complete result is the set of
+/// caller-visible places the call may write; `None` is deliberately opaque and
+/// requires consumers to invalidate every fact they cannot otherwise prove.
+///
+/// The resolver owns the top-level symbol cache so validation, proof, recast,
+/// and invariant consumers share one resolution law instead of reimplementing
+/// call identity. Per-machine caches are built at the query boundary and fail
+/// closed if the program's symbols are already invalid.
+pub struct CallFrameResolver<'program> {
+    program: &'program TypedTrees,
+    symbols: TopLevelSymbols<'program>,
+}
+
+impl<'program> CallFrameResolver<'program> {
+    pub fn new(program: &'program TypedTrees) -> Option<Self> {
+        let mut diagnostics = Vec::new();
+        let symbols = TopLevelSymbols::build(program, &mut diagnostics);
+        diagnostics
+            .is_empty()
+            .then_some(Self { program, symbols })
+    }
+
+    pub fn may_write_paths(
+        &self,
+        current_machine: &'program Machine,
+        call: &TableCall,
+    ) -> Option<Vec<String>> {
+        let mut diagnostics = Vec::new();
+        let machine_symbols =
+            MachineSymbols::build(self.program, current_machine, &mut diagnostics);
+        if !diagnostics.is_empty() {
+            return None;
+        }
+        known_call_written_paths(
+            self.program,
+            call,
+            current_machine,
+            &machine_symbols,
+            &self.symbols,
+        )
+        .or_else(|| {
+            known_boundary_call_written_paths(
+                self.program,
+                &machine_symbols,
+                &self.symbols,
+                call,
+            )
+        })
+    }
+}
+
+/// Parent/child places overlap in both directions: writing `self.item` kills a
+/// fact about `self.item.len`, and writing the child kills a whole-value fact.
+pub fn frame_paths_overlap(left: &str, right: &str) -> bool {
+    left == right
+        || left
+            .strip_prefix(right)
+            .is_some_and(|suffix| suffix.starts_with('.') || suffix.starts_with('['))
+        || right
+            .strip_prefix(left)
+            .is_some_and(|suffix| suffix.starts_with('.') || suffix.starts_with('['))
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_call_node(
     program: &TypedTrees,

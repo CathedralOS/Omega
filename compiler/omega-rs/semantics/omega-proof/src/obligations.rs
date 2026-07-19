@@ -790,9 +790,9 @@ fn collect_bounded_assignment_obligation(
     proof_plan: &mut ProofPlan<'_>,
 ) {
     // R4 containment intake: the INCLUSIVE upper bounds boundary-call
-    // ensures prove for `&mut` argument places, live at THIS statement
-    // (any later call invalidates everything -- callees hold `&mut self`;
-    // a write to the place drops its bound).
+    // ensures prove for `&mut` argument places, live at THIS statement.
+    // Resolved calls preserve bounds outside their shared R5 may-write frame;
+    // opaque calls invalidate everything and overlapping writes drop a bound.
     let ensures_witness_bounds =
         ensures_witness_bounds_at(program, machine, statements, statement_index);
     let target = assignment.target;
@@ -862,10 +862,11 @@ fn collect_bounded_assignment_obligation(
 }
 
 /// Walk `statements[..upto]` maintaining the live boundary-ensures witness
-/// set: a boundary call replaces the whole set with ITS ensures-bounded
-/// `&mut` argument places (any call may rewrite any field); an assignment
-/// drops its target's bound. (Sibling of the validation recast walk and the
-/// checker ranges walk; the signature chain is the shared
+/// set. Resolved calls invalidate only witnesses overlapping their shared R5
+/// may-write frame; opaque calls invalidate everything. A boundary call then
+/// adds its own ensures-bounded `&mut` argument places. Assignments invalidate
+/// overlapping paths. (Sibling of the validation recast walk and the checker
+/// ranges walk; the signature chain is the shared
 /// `omega_typed_trees::boundary::called_boundary_signature` -- validation's
 /// stays cache-based because it also covers `contains`-clause receivers.)
 fn ensures_witness_bounds_at(
@@ -876,11 +877,23 @@ fn ensures_witness_bounds_at(
 ) -> Vec<(String, i64)> {
     use omega_typed_trees::domain::ProofFact;
     use omega_typed_trees::signature::SignatureContractKind;
+    let call_frames = omega_validation::CallFrameResolver::new(program);
     let mut witnesses: Vec<(String, i64)> = Vec::new();
     for statement in &statements[..upto] {
         match statement {
             StatementNode::Call(call) => {
-                witnesses.clear();
+                if let Some(written) = call_frames
+                    .as_ref()
+                    .and_then(|frames| frames.may_write_paths(machine, call))
+                {
+                    witnesses.retain(|(place, _)| {
+                        written
+                            .iter()
+                            .all(|written| !omega_validation::frame_paths_overlap(place, written))
+                    });
+                } else {
+                    witnesses.clear();
+                }
                 let Some(signature) =
                     omega_typed_trees::boundary::called_boundary_signature(program, machine, call)
                 else {
@@ -915,7 +928,9 @@ fn ensures_witness_bounds_at(
             }
             StatementNode::Assignment(assignment) => {
                 let target = program.expression_table.display_name(assignment.target);
-                witnesses.retain(|(place, _)| place != &target);
+                witnesses.retain(|(place, _)| {
+                    !omega_validation::frame_paths_overlap(place, &target)
+                });
             }
             _ => {}
         }
