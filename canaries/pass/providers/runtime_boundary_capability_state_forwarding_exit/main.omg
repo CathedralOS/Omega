@@ -1,0 +1,23 @@
+// A statically selected boundary capability has no runtime payload, but it is
+// still a valid value to forward through a state parameter. Storage planning
+// must distinguish that intentional zero-byte representation from a missing
+// layout, while host-call lowering continues to use the capability's type and
+// selected provider identity.
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+}
+
+machine forward_console(console: Console) {
+    transition { _ -> emit(console) }
+
+    state emit(console: Console) {
+        console.write_byte(75);
+    }
+}
+
+machine Main::main(&mut self) {
+    forward_console(self.console);
+    self.console.exit_process(70);
+}

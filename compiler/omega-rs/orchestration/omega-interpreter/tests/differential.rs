@@ -77,6 +77,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/float_saturating_overflow_exit", 70),
     ("providers/runtime_adapter_dispatch_exit", 70),
     ("providers/runtime_adapter_forwarding_exit", 70),
+    (
+        "providers/runtime_boundary_capability_state_forwarding_exit",
+        70,
+    ),
     ("host/runtime_console_byte_literal_exit", 70),
     ("proofs/runtime_decreases_u64_measure_exit", 70),
     ("arithmetic/runtime_wrapping_operand_truncation_exit", 70),

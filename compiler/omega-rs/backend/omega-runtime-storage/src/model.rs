@@ -291,6 +291,11 @@ pub struct RuntimeFrameSlot {
     pub byte_offset: usize,
     pub byte_size: usize,
     pub alignment: usize,
+    /// A statically selected boundary capability carries no runtime bytes in
+    /// the current provider model. Its type/selection identity is sufficient
+    /// for host-call lowering, so a zero-sized slot is intentional rather than
+    /// evidence that layout planning failed.
+    pub is_static_boundary_capability: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

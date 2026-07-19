@@ -166,6 +166,7 @@ pub(super) fn build_runtime_storage_body_plan(
                         .cloned(),
                     layout.size,
                     layout.alignment,
+                    is_static_boundary_capability(context, *type_symbol),
                     &mut next_frame_offset,
                 );
             }
@@ -510,6 +511,10 @@ fn append_parameter_slots_for_state(
             byte_offset,
             byte_size: layout.size,
             alignment: layout.alignment,
+            is_static_boundary_capability: is_static_boundary_capability(
+                context,
+                parameter.type_symbol,
+            ),
         });
     }
 }
@@ -528,6 +533,7 @@ fn append_local_slot(
     invariant_names: impl IntoIterator<Item = Identifier>,
     byte_size: usize,
     alignment: usize,
+    is_static_boundary_capability: bool,
     next_frame_offset: &mut usize,
 ) {
     if local_slot_exists(plan, dispatch_index, source_key, statement_index, symbol) {
@@ -553,6 +559,7 @@ fn append_local_slot(
         byte_offset,
         byte_size,
         alignment,
+        is_static_boundary_capability,
     });
 }
 
@@ -766,6 +773,7 @@ fn append_branch_local_slot(
             .cloned(),
         layout.size,
         layout.alignment,
+        is_static_boundary_capability(context, local_storage.type_symbol),
         next_frame_offset,
     );
 }
@@ -1067,7 +1075,19 @@ fn append_state_call_result_slot(
         byte_offset,
         byte_size: layout.size,
         alignment: layout.alignment,
+        is_static_boundary_capability: is_static_boundary_capability(context, type_symbol),
     });
+}
+
+fn is_static_boundary_capability(
+    context: &RuntimeStorageContext,
+    type_symbol: SymbolHandle,
+) -> bool {
+    context
+        .program
+        .traits()
+        .iter()
+        .any(|definition| definition.symbol == type_symbol && definition.is_boundary)
 }
 
 /// The byte offset of an already-allocated transition-guard result slot in the

@@ -211,7 +211,7 @@ fn collect_runtime_body_storage_blockers(
     blockers: &mut Arena<EmissionBlocker>,
 ) {
     for (_, slot) in input.runtime_storage.frame_slots.iter() {
-        if slot.byte_size > 0 {
+        if slot.byte_size > 0 || slot.is_static_boundary_capability {
             continue;
         }
 
