@@ -1,0 +1,24 @@
+// MP4 parameter-position monomorphization inference. `weigh<T [copy]>`
+// returns a concrete i32, so T cannot come from the destination; it is
+// inferred through the authored `&T` parameter from the declared type of
+// `self.light` behind the borrowed-place argument. T := Light satisfies the
+// bound and the specialized value result materializes in both engines.
+use omega::language::std::console;
+
+data Light [copy] {
+    weight: i32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+    light: Light;
+}
+
+machine Main::weigh<T [copy]>(&self, value: &T) -> i32 {
+    70
+}
+
+machine Main::main(&mut self) {
+    let result: i32 in Wrapping = self.weigh(&self.light);
+    self.console.exit_process(result);
+}

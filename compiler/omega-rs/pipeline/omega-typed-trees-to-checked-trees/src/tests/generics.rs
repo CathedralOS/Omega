@@ -425,6 +425,44 @@ fn static_machine_specialization_identity_is_reproducible() {
 }
 
 #[test]
+fn value_machine_type_parameter_is_inferred_through_a_borrowed_place() {
+    let source = r#"
+        data Light [copy] { weight: i32 in Wrapping; }
+        data Main { light: Light; }
+
+        machine Main::weigh<T [copy]>(&self, value: &T) -> i32 {
+            70
+        }
+
+        machine Main::run(&mut self) {
+            let result: i32 in Wrapping = self.weigh(&self.light);
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed)
+        .expect("the borrowed place should select and materialize T := Light");
+
+    let specialization = checked
+        .machine_specializations
+        .iter()
+        .find(|specialization| {
+            checked
+                .machines()
+                .iter()
+                .any(|machine| machine.symbol == specialization.template
+                    && machine.name.as_str() == "Main::weigh")
+        })
+        .expect("weigh specialization");
+    assert_eq!(specialization.type_arguments, ["Light"]);
+}
+
+#[test]
 fn conflicting_static_machine_specializations_fail_loudly() {
     let source = r#"
         data Card {}

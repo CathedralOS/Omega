@@ -128,11 +128,12 @@ The source model is fixed: `<machine M>` requires an authored
 `map<Card::power>(items)` is compile-time symbol metadata, never a runtime
 argument or inferred contract.
 
-1. **MP4b — full template specialization.** Compose typed deep copy, one
-   lexical-symbol remap, and fresh symbols to clone a complete template;
-   group/rewrite calls per selected tuple; remove the single-tuple fence; then
-   restore `pending/generics/runtime_generic_param_position_inference_exit`
-   once specialized value results materialize.
+1. **MP4b — full template specialization.** Single-tuple value calls now infer
+   type parameters through borrowed-place arguments and materialize their
+   specialized result in both engines; the former pending parameter-position
+   canary is active. Compose typed deep copy, one lexical-symbol remap, and
+   fresh symbols to clone a complete template; group/rewrite calls per selected
+   tuple; then remove the remaining multi-tuple fence.
 2. **MP5 — admitted templates.** Grant accepted templates once, preserve their
    contract identity, and validate each instance against argument contract IDs.
 3. **MP6 — consuming slices.** Add `Seq` map/filter, nested proof schemas used
