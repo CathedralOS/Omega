@@ -1684,6 +1684,14 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     });
                 }
 
+                if let RuntimeDispatchBodyOperationKind::MemoryFence(kind) = &operation.kind {
+                    selected_instructions.push(SelectedInstruction {
+                        kind: SelectedInstructionKind::MemoryFence(*kind),
+                        source_key: operation.source_key,
+                        source_statement: operation.statement_index,
+                    });
+                }
+
                 if matches!(operation.kind, RuntimeDispatchBodyOperationKind::PortWrite)
                     && let Some((port_expr, value_expr)) = super::lookups::asm_port_write_operands(
                         input,

@@ -110,6 +110,7 @@ pub(super) fn lower_machine_instruction_kind(
         SelectedInstructionKind::TerminateDispatch => dispatch::dispatch_terminate_kind(),
         SelectedInstructionKind::LeaveDispatchCase => dispatch::dispatch_case_leave_kind(),
         SelectedInstructionKind::MachineHalt => MachineInstructionKind::MachineHalt,
+        SelectedInstructionKind::MemoryFence(kind) => MachineInstructionKind::MemoryFence(*kind),
         SelectedInstructionKind::PortWrite { .. } => MachineInstructionKind::PortWrite,
         SelectedInstructionKind::PortRead { .. } => MachineInstructionKind::PortRead,
         SelectedInstructionKind::LeaveFunction => dispatch::return_kind(),

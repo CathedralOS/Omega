@@ -69,7 +69,10 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::PreparePlatformOutputHandle { .. }
             | Self::WritePlatformNewline { .. } => AbstractOperationDomain::HostBoundary,
 
-            Self::MachineHalt | Self::PortWrite { .. } | Self::PortRead { .. } => {
+            Self::MachineHalt
+            | Self::MemoryFence(_)
+            | Self::PortWrite { .. }
+            | Self::PortRead { .. } => {
                 AbstractOperationDomain::MachineControl
             }
         }

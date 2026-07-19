@@ -655,17 +655,18 @@ fn push_expression_call(
     *call_ordinal = call_ordinal.checked_add(1).expect("call ordinal overflow");
 }
 
-/// The instruction contract of an asm intrinsic call (`asm { hlt }` -->
-/// `machine_control`, `asm { in/out .. }` --> `device_io`), or None for
-/// ordinary calls. Keyed by the unnameable `asm#...` names only the parser's
-/// asm-block desugar can emit; the contract table itself lives on
-/// `BuiltinFunction` so the effect an instruction emits has ONE source of
-/// truth.
+/// The service-reach effect component of an asm intrinsic call (`asm { hlt }`
+/// --> `machine_control`, `asm { in/out .. }` --> `device_io`, fences --> the
+/// empty set), or None for ordinary calls. Keyed by the unnameable `asm#...`
+/// names only the parser's asm-block desugar can emit.
 pub fn asm_intrinsic_effects(target: &str) -> Option<EffectSet> {
     let function = omega_core::symbols::BuiltinFunction::asm_intrinsics()
         .into_iter()
         .find(|function| function.name() == target)?;
-    EffectSet::from_name(function.asm_intrinsic_effect_name()?)
+    if let Some(effect_name) = function.asm_intrinsic_effect_name() {
+        return EffectSet::from_name(effect_name);
+    }
+    function.is_asm_intrinsic().then_some(EffectSet::empty())
 }
 
 fn machine_symbol_for_state(program: &TypedTrees, state_symbol: SymbolHandle) -> SymbolHandle {

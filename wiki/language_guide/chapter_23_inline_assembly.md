@@ -5,14 +5,15 @@ work. It is not an opaque text or byte escape from Omega's control-flow,
 ownership, effects, authority, or machine-state rules.
 
 The full catalog and contract surface remain incremental. The implemented pilot
-accepts strict blocks containing known `hlt`, port `in`/`out`, and
-`jmp state(...)` instructions. Multiple instructions use `;` as an explicit
-separator because newlines are not grammar; empty blocks and a control transfer
-followed by another instruction reject. Catalogued entry/exit operations such
-as `iretq` and `eret` already refuse as **deriver only** rather than falling
-through an unknown-mnemonic path. Returns, calls, and indirect branches refuse
-as hidden exits, while recognized load/store spellings refuse until they carry
-structured provenance and permission contracts.
+accepts strict blocks containing known `hlt`, port `in`/`out`, x86
+`lfence`/`sfence`/`mfence`, and `jmp state(...)` instructions. Multiple
+instructions use `;` as an explicit separator because newlines are not grammar;
+empty blocks and a control transfer followed by another instruction reject.
+Catalogued entry/exit operations such as `iretq` and `eret` already refuse as
+**deriver only** rather than falling through an unknown-mnemonic path. Returns,
+calls, and indirect branches refuse as hidden exits, while recognized
+load/store spellings refuse until they carry structured provenance and
+permission contracts.
 
 The port-I/O pilot already uses structured operand constraints. `out` accepts
 an exact `u16` port place (or a fitting literal) and an exact `u8` value place
@@ -31,6 +32,14 @@ of the compiler-owned instruction contracts: omitting a changed register and
 inventing an unchanged register both reject, while order and duplicates carry
 no meaning. A block with no general-purpose register changes spells
 `clobbers none`.
+
+The three x86 fences are zero-operand instructions with explicit load, store,
+or full memory-ordering metadata and an empty service-reach effect set. They do
+not invent a boundary service reach or a register clobber. Their x86-only
+target gate is enforced at realization, and the backend emits the exact
+`0f ae /5`, `/7`, and `/6`
+encodings; selecting an AArch64 target refuses instead of substituting a
+differently named barrier.
 
 The same `where` surface accepts boolean `requires` and `ensures` facts:
 
@@ -165,7 +174,7 @@ The freestanding x86 vertical slice needs contracts for:
 - `cli`, `sti`, `hlt`, flags save/restore;
 - `in`/`out` port I/O;
 - `lidt`/`lgdt`, control-register and MSR access;
-- atomics and fences;
+- atomics and the completed x86 fence slice;
 - cache/TLB maintenance and invalidation;
 - mode-transition operations; and
 - generated interrupt/syscall entry and return sequences.

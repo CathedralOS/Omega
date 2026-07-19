@@ -63,6 +63,9 @@ pub(crate) fn validate_call_node(
         let (source_mnemonic, expected_arguments) = match call.target.as_str() {
             "asm#hlt" => ("hlt", 0),
             "asm#port_out" => ("out", 2),
+            "asm#lfence" => ("lfence", 0),
+            "asm#sfence" => ("sfence", 0),
+            "asm#mfence" => ("mfence", 0),
             other => {
                 diagnostics.push(Diagnostic::error(format!(
                     "asm intrinsic `{other}` is not a statement form"

@@ -415,6 +415,8 @@ pub enum TargetOperationKind {
     /// `machine_control` effect. Zero operands, no relocation. See the
     /// privileged_effects_and_binary_trust brief.
     MachineHalt,
+    /// An x86 load/store/full memory-ordering fence.
+    MemoryFence(omega_core::inline_assembly::AsmFenceKind),
     /// The x86 `out dx, al` port write (`asm { out <port>, <value> }`),
     /// emitting `device_io`. `port` u16 + `value` u8 operands (immediate or
     /// storage; storage operands relocate).

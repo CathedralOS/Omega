@@ -108,6 +108,8 @@ pub enum MachineInstructionKind {
     /// The x86 `hlt` privileged instruction (`asm { hlt }`). Zero operands,
     /// no relocation. See the privileged_effects_and_binary_trust brief.
     MachineHalt,
+    /// An x86 load/store/full memory-ordering fence.
+    MemoryFence(omega_core::inline_assembly::AsmFenceKind),
     /// The x86 `out dx, al` port write (`asm { out .. }`). Storage operands
     /// relocate like any runtime-value read.
     PortWrite,

@@ -503,7 +503,8 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
     let Some(entry) = asm_catalog_entry(mnemonic.as_str()) else {
         return Err(mnemonic_site.error_here(format!(
             "unknown asm instruction `{}`: only known-contract instructions compile \
-             (`hlt`, `in`, `out`, `jmp`); opaque forms (`db`, raw bytes) are rejected",
+             (`hlt`, `in`, `out`, `jmp`, `lfence`, `sfence`, `mfence`); opaque forms \
+             (`db`, raw bytes) are rejected",
             mnemonic.as_str()
         )));
     };
@@ -622,6 +623,22 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 input,
             ))
         }
+        AsmInstructionShape::MemoryFence(kind) => Ok((
+            ParsedAsmInstruction {
+                statement: syntax_trees
+                    .statements
+                    .insert(StatementNode::Call(TableCall {
+                        receiver: HandleSpan::empty(),
+                        receiver_starts_at_self: false,
+                        target: Identifier::new(kind.intrinsic_name(), mnemonic.source_span()),
+                        machine_arguments: Box::default(),
+                        arguments: HandleSpan::empty(),
+                        discards_result: false,
+                    })),
+                contract,
+            },
+            input,
+        )),
         AsmInstructionShape::DerivedExit => {
             unreachable!("deriver-only instructions refuse before source lowering")
         }

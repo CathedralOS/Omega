@@ -168,6 +168,23 @@ pub(super) fn select_state_body_instructions(
             continue;
         }
 
+        if let OperationKind::Call {
+            target,
+            has_receiver: false,
+            ..
+        } = &operation.kind
+            && let Some(kind) = omega_core::inline_assembly::AsmFenceKind::from_intrinsic_name(
+                target.as_str(),
+            )
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind: omega_abstract_operations::SelectedInstructionKind::MemoryFence(kind),
+                source_key: state.key,
+                source_statement: operation.statement_index,
+            });
+            continue;
+        }
+
         // `asm { out <port>, <value> }` -- a Call to `asm#port_out`: resolve the
         // two operands and emit a raw port write.
         if let OperationKind::Call {

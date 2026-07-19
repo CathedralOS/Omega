@@ -521,6 +521,18 @@ pub(super) fn encode_machine_instruction_bytes(
         SelectedInstructionKind::MachineHalt => Ok(
             omega_instruction_selection::encode_machine_halt_bytes(input.target.architecture),
         ),
+        SelectedInstructionKind::MemoryFence(kind) => {
+            omega_instruction_selection::encode_memory_fence_bytes(
+                input.target.architecture,
+                *kind,
+            )
+            .ok_or_else(|| {
+                omega_core::diagnostics::Diagnostic::error(format!(
+                    "asm instruction `{}` is x86_64-only",
+                    kind.mnemonic(),
+                ))
+            })
+        }
         // Port I/O (`asm { out .. }` / `asm { in .. }`) has no branch distance;
         // its storage operands carry relocations, applied by omega-relocations
         // against the offsets pinned in the ISA encoders.

@@ -1561,10 +1561,16 @@ impl<'program> Evaluator<'program> {
     fn eval_call_statement(&mut self, call: &TableCall, frame: &Frame) -> EvalResult<Value> {
         // Asm intrinsic statement (`asm { hlt }`): the tree-walker cannot model
         // halting the CPU, but `hlt` in an idle loop is observably a no-op step
-        // (the loop simply proceeds), so evaluate it as unit. Port I/O
-        // (`asm#port_out`) has real device effects the interpreter cannot
-        // reproduce and stays unsupported until it is modeled.
-        if call.target.as_str() == "asm#hlt" {
+        // (the loop simply proceeds), so evaluate it as unit. Memory fences
+        // are also no-ops in the single-threaded tree walker: its evaluation
+        // order is already total. Port I/O (`asm#port_out`) has real device
+        // effects the interpreter cannot reproduce and stays unsupported.
+        if call.target.as_str() == "asm#hlt"
+            || omega_core::inline_assembly::AsmFenceKind::from_intrinsic_name(
+                call.target.as_str(),
+            )
+            .is_some()
+        {
             return Ok(Value::Unit);
         }
         // CH10 root grant (GR3): `b.accept_boundary<path>();` desugars to

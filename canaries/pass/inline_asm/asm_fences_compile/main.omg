@@ -1,0 +1,19 @@
+// COMPILE CANARY (linux_x64): checked x86 fences carry explicit memory-ordering
+// contracts, no general-purpose register clobbers, and emit their exact SSE2
+// encodings. The compiler suite also selects linux_arm64 for this same source
+// and pins the target-specific refusal.
+data Main {}
+
+machine Main::main(&mut self) {
+    asm where clobbers none {
+        lfence;
+        sfence;
+        mfence
+    }
+}
+
+target linux_x64 {
+}
+
+target linux_arm64 {
+}

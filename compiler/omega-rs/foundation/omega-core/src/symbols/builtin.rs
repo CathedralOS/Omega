@@ -58,10 +58,15 @@ pub enum BuiltinFunction {
     /// `asm { in <destination>, <port> }`: x86 port read (`in al, dx`).
     /// Emits the `device_io` effect. Unnameable from source (see AsmHlt).
     AsmPortIn,
+    /// x86 memory-ordering fences. They are unnameable zero-operand asm
+    /// intrinsics and carry no service-reach effect.
+    AsmLoadFence,
+    AsmStoreFence,
+    AsmFullFence,
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 6;
+    pub const COUNT: usize = 9;
 
     pub fn name(self) -> &'static str {
         match self {
@@ -71,6 +76,9 @@ impl BuiltinFunction {
             Self::AsmHlt => "asm#hlt",
             Self::AsmPortOut => "asm#port_out",
             Self::AsmPortIn => "asm#port_in",
+            Self::AsmLoadFence => "asm#lfence",
+            Self::AsmStoreFence => "asm#sfence",
+            Self::AsmFullFence => "asm#mfence",
         }
     }
 
@@ -82,26 +90,50 @@ impl BuiltinFunction {
             Self::AsmHlt => 3,
             Self::AsmPortOut => 4,
             Self::AsmPortIn => 5,
+            Self::AsmLoadFence => 6,
+            Self::AsmStoreFence => 7,
+            Self::AsmFullFence => 8,
         }
     }
 
-    /// The effect an asm intrinsic emits (its instruction contract), or None
-    /// for the value builtins. Every asm instruction is a known-contract
-    /// intrinsic or it does not compile -- this map IS the contract table.
+    /// The service-reach effect component of an asm intrinsic contract, or
+    /// None when the intrinsic is effect-free (and for value builtins).
+    /// Operand, clobber, ordering, and availability metadata lives in the
+    /// shared inline-assembly catalog.
     pub fn asm_intrinsic_effect_name(self) -> Option<&'static str> {
         match self {
             Self::AsmHlt => Some("machine_control"),
             Self::AsmPortOut | Self::AsmPortIn => Some("device_io"),
-            Self::Max | Self::Min | Self::Sqrt => None,
+            Self::Max
+            | Self::Min
+            | Self::Sqrt
+            | Self::AsmLoadFence
+            | Self::AsmStoreFence
+            | Self::AsmFullFence => None,
         }
     }
 
     pub fn is_asm_intrinsic(self) -> bool {
-        self.asm_intrinsic_effect_name().is_some()
+        matches!(
+            self,
+            Self::AsmHlt
+                | Self::AsmPortOut
+                | Self::AsmPortIn
+                | Self::AsmLoadFence
+                | Self::AsmStoreFence
+                | Self::AsmFullFence
+        )
     }
 
-    pub fn asm_intrinsics() -> [Self; 3] {
-        [Self::AsmHlt, Self::AsmPortOut, Self::AsmPortIn]
+    pub fn asm_intrinsics() -> [Self; 6] {
+        [
+            Self::AsmHlt,
+            Self::AsmPortOut,
+            Self::AsmPortIn,
+            Self::AsmLoadFence,
+            Self::AsmStoreFence,
+            Self::AsmFullFence,
+        ]
     }
 }
 
@@ -182,6 +214,18 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
             SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::AsmPortIn.name()),
         ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmLoadFence.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmStoreFence.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmFullFence.name()),
+        ),
     ]
 }
 
@@ -253,6 +297,9 @@ mod builtin_ordinal_tests {
             BuiltinFunction::AsmHlt,
             BuiltinFunction::AsmPortOut,
             BuiltinFunction::AsmPortIn,
+            BuiltinFunction::AsmLoadFence,
+            BuiltinFunction::AsmStoreFence,
+            BuiltinFunction::AsmFullFence,
         ] {
             assert_eq!(
                 table[function.ordinal()].1.as_str(),
@@ -267,8 +314,8 @@ mod builtin_ordinal_tests {
     fn asm_intrinsics_are_unnameable_and_contract_bearing() {
         // Every asm intrinsic name contains `#` (not an identifier character),
         // so source code cannot reference it -- only the parser's asm-block
-        // desugar can. And every asm intrinsic carries an instruction
-        // contract: an effect name (only known-contract instructions compile).
+        // desugar can. Every member is recognized as an asm intrinsic even
+        // when its service-reach effect component is empty (as for fences).
         for function in BuiltinFunction::asm_intrinsics() {
             assert!(
                 function.name().contains('#'),
@@ -292,6 +339,10 @@ mod builtin_ordinal_tests {
         assert_eq!(
             BuiltinFunction::AsmPortIn.asm_intrinsic_effect_name(),
             Some("device_io")
+        );
+        assert_eq!(
+            BuiltinFunction::AsmFullFence.asm_intrinsic_effect_name(),
+            None
         );
     }
 }
