@@ -222,7 +222,8 @@ Generic trait-parent composition for `Calling<C>` is implemented. The remaining
 implementation order is:
 
 1. complete the checked-assembly catalog required by the entry provider;
-2. fragmented layouts and symbolic materialization;
+2. finish IDT1 after the implemented name-keyed fragmented-layout validator:
+   add symbolic relocation sources and phase-aware materialization;
 3. `CallPlan + StatePlan` entry-stub derivation and footprint validation;
 4. external-root ledger and IDT/timer slice; and
 5. placed views, external loans, and the wider driver gauntlet.

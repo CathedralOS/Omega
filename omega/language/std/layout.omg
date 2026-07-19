@@ -7,13 +7,10 @@
 // validates the returned `Plan` (a bad plan is a compile error, never
 // unsafety), and derives codecs / projections / value types from it.
 //
-// v0 SHAPES (the pilot slice): the Plan is FLAT -- a parallel offsets array
-// keyed by schema field INDEX -- because array-of-struct element construction
-// at runtime indexes is not writable in today's language. The settled TARGET
-// vocabulary (a `FieldPlan` case per placement: At / Bits / Varint /
-// LengthPrefixed; entries keyed by field name; retired-number list) replaces
-// these shapes when struct-element writes land. Sizes and offsets are plain
-// i64 until the `count` model lands.
+// v1 SHAPES: plan entries carry compiler-issued field keys rather than using
+// array position as identity. Repeating a key permits fragmented placement of
+// one logical source. Keys are opaque handles copied from SchemaField; the
+// compiler normalizes them back to field names before identity/reporting.
 
 // One field of a schema, target-resolved by the compiler: byte size,
 // alignment, and the declared identity number (-1 when unnumbered). Ranges
@@ -22,6 +19,7 @@
 // and passed BY VALUE into plan() -- it is never zero-initialized machine
 // state, so the 0-excluding alignment range is sound.)
 data SchemaField {
+    key: i64;
     size: i64 [0..=4096];
     align: i64 [1..=16];
     number: i64;
@@ -48,24 +46,35 @@ data Schema {
 // One field's PLACEMENT -- the closed vocabulary the compiler knows how to
 // read and lower (programmable_layouts §3). Policies CHOOSE placements from
 // this sum; a new placement KIND is a compiler release, never user-invented.
-// The pilot slice WALKS `At` (byte-aligned fixed offsets); the tagged and bit
-// placements are declared so plans can carry them, and the plan-walking
-// deriver rungs teach the compiler to consume them.
+// The validator walks `At` and `Bits`. Ordinary plan-laid value types require
+// exactly one `At` per field; repeated `Bits` entries are for materializers and
+// other consumers that understand fragmented geometry. Tagged/wire placements
+// remain consumers of the wire-plan path today.
 data FieldPlan {
     case At(offset: i64);
-    case Bits(container: i64, container_width: i64, lsb: i64, width: i64);
+    case Bits(
+        container: i64,
+        container_width: i64,
+        destination_lsb: i64,
+        source_lsb: i64,
+        width: i64
+    );
     case Varint(tag: i64);
     case LengthPrefixed(tag: i64);
 }
 
-// A validated placement plan. `fields[i]` is the PLACEMENT of schema field i
-// (positional in the pilot slice; the brief's name-keyed `[FieldEntry]`
-// arrives with the deriver). Positions past `entry_count` are meaningless;
-// `size_fixed` is the total size when `size_is_dynamic` is false. The
-// compiler checks entry bounds, overlap, and size/alignment consistency
-// before anything trusts the plan.
+data FieldEntry {
+    key: i64;
+    placement: FieldPlan;
+}
+
+// A validated placement plan. Entries may appear in any order; `key` names
+// the schema field and may repeat only for `Bits` fragments. Positions past
+// `entry_count` are meaningless. The compiler checks field coverage, exact
+// source tiling for fragments, destination bounds/overlap, and fixed-plan
+// size/alignment before anything trusts the plan.
 data Plan {
-    fields: [FieldPlan; 32];
+    entries: [FieldEntry; 64];
     entry_count: i64;
     size_fixed: i64;
     size_is_dynamic: bool;

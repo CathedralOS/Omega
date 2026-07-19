@@ -269,12 +269,27 @@ pub(crate) fn compute_plan_laid_layouts(
             ))]);
         };
 
+        let field_count = typed
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == record.schema_data)
+            .map(|data| typed.data_members(data).len())
+            .unwrap_or(0);
+        let Some(offsets) = report.offsets.as_ref() else {
+            return Err(vec![Diagnostic::error(format!(
+                "plan-laid value type `{}`: policy `{}` uses fragmented or non-byte \
+                 placements; an ordinary value type requires exactly one `At` placement \
+                 for each of its {field_count} fields",
+                record.synthetic_name, record.policy_machine
+            ))]);
+        };
+        debug_assert_eq!(offsets.len(), field_count);
+
         // Plan validation already proved offsets non-negative, the size
         // covering every field, and the alignment a positive power of two.
         layouts.push(PlanLaidLayout {
             data_name: record.synthetic_name.clone(),
-            offsets: report
-                .offsets
+            offsets: offsets
                 .iter()
                 .map(|&offset| {
                     usize::try_from(offset).expect("validated plan offsets are non-negative")
