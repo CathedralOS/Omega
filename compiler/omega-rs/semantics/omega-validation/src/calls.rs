@@ -60,9 +60,10 @@ pub(crate) fn validate_call_node(
     // state signature. (`asm { in dest, port }` is an assignment whose value
     // is the `asm#port_in` call; the value-call path owns it.)
     if receiver_members.is_empty() && call.target.as_str().starts_with("asm#") {
-        let control_write = omega_core::inline_assembly::AsmControlRegister::from_write_intrinsic_name(
-            call.target.as_str(),
-        );
+        let control_write =
+            omega_core::inline_assembly::AsmControlRegister::from_write_intrinsic_name(
+                call.target.as_str(),
+            );
         let (source_mnemonic, expected_arguments) = match control_write {
             Some(register) => (
                 register
@@ -71,21 +72,21 @@ pub(crate) fn validate_call_node(
                 1,
             ),
             None => match call.target.as_str() {
-            "asm#hlt" => ("hlt", 0),
-            "asm#port_out" => ("out", 2),
-            "asm#lfence" => ("lfence", 0),
-            "asm#sfence" => ("sfence", 0),
-            "asm#mfence" => ("mfence", 0),
-            "asm#cli" => ("cli", 0),
-            "asm#sti" => ("sti", 0),
-            "asm#popfq" => ("popfq", 1),
-            "asm#wrmsr" => ("wrmsr", 2),
-            other => {
-                diagnostics.push(Diagnostic::error(format!(
-                    "asm intrinsic `{other}` is not a statement form"
-                )));
-                return;
-            }
+                "asm#hlt" => ("hlt", 0),
+                "asm#port_out" => ("out", 2),
+                "asm#lfence" => ("lfence", 0),
+                "asm#sfence" => ("sfence", 0),
+                "asm#mfence" => ("mfence", 0),
+                "asm#cli" => ("cli", 0),
+                "asm#sti" => ("sti", 0),
+                "asm#popfq" => ("popfq", 1),
+                "asm#wrmsr" => ("wrmsr", 2),
+                other => {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "asm intrinsic `{other}` is not a statement form"
+                    )));
+                    return;
+                }
             },
         };
         if arguments.len() != expected_arguments {
@@ -97,7 +98,7 @@ pub(crate) fn validate_call_node(
             )));
             return;
         }
-        if matches!(source_mnemonic, "out" | "popfq" | "wrmsr" | "write_cr0" | "write_cr3" | "write_cr4") {
+        if control_write.is_some() || matches!(source_mnemonic, "out" | "popfq" | "wrmsr") {
             let contract = user_asm_contract(source_mnemonic);
             for (operand, constraint) in arguments.iter().zip(contract.operands.iter()) {
                 validate_asm_operand_constraint(
@@ -509,15 +510,17 @@ pub(crate) fn validate_asm_value_destination(
     let ExpressionNode::Call(call) = program.expression_table.expression(assignment.value) else {
         return;
     };
-    let instruction = match omega_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(
-        call.target.as_str(),
-    ) {
+    let instruction = match
+        omega_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(
+            call.target.as_str(),
+        )
+    {
         Some(register) => register.read_mnemonic(),
         None => match call.target.as_str() {
-        "asm#port_in" => "in",
-        "asm#pushfq" => "pushfq",
-        "asm#rdmsr" => "rdmsr",
-        _ => return,
+            "asm#port_in" => "in",
+            "asm#pushfq" => "pushfq",
+            "asm#rdmsr" => "rdmsr",
+            _ => return,
         },
     };
     let contract = user_asm_contract(instruction);
@@ -3787,7 +3790,10 @@ fn report_unresolved_value_call(
         // value builtins remain. `asm#port_in` is the value-position asm
         // intrinsic (`asm { in dest, port }` desugars to `dest =
         // asm#port_in(port)`); the name is unnameable from source.
-        if matches!(target, "min" | "max" | "sqrt" | "asm#port_in" | "asm#pushfq" | "asm#rdmsr")
+        if matches!(
+            target,
+            "min" | "max" | "sqrt" | "asm#port_in" | "asm#pushfq" | "asm#rdmsr"
+        )
             || omega_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(target)
                 .is_some()
         {
