@@ -36,9 +36,12 @@ their hardcoded encoders remain in service. The inbound process-entry
 argument prologue now consumes the normalized native `CallPlan`'s exact
 register and width on x86-64 and AArch64; incoming stack arguments and scalar
 float register locations are covered as well. Integer process-entry results
-now carry the plan-selected result register through both native encoders.
-Classified aggregates/HFAs, general outbound calls/results, and source-selected
-policies remain below.
+now carry the plan-selected result register through both native encoders. Flat
+one-to-four-member AAPCS64 homogeneous floating-point aggregate entry
+parameters are classified from their normalized record layout and spread
+across the selected vector registers. Nested and general aggregate ABI
+classification, general outbound calls/results, and source-selected policies
+remain below.
 
 1. **ENT2b — source policy evaluation and identity.** Evaluate the policy type
    selected by `Calling<C>` against each requirement signature, validate the

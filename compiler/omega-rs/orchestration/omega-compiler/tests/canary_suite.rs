@@ -30874,7 +30874,37 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/efi_vtable_field_call", "uefi_x64"),
     ("targets/efi_out_param_call", "uefi_x64"),
     ("targets/efi_ref_param_call_arg", "uefi_x64"),
+    ("targets/aarch64_hfa_entry_argument", "linux_arm64"),
 ];
+
+#[test]
+fn aarch64_hfa_entry_argument_spreads_vector_registers() {
+    let canary = pass_canary("targets/aarch64_hfa_entry_argument");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-aarch64-hfa-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_arm64".into()),
+        write_output: true,
+    })
+    .expect("flat f64 pair should cross-compile as an AAPCS64 HFA");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted AArch64 ELF");
+    let store_d0 = 0xfd00_0200u32.to_le_bytes();
+    let store_d1 = 0xfd00_0601u32.to_le_bytes();
+    assert!(
+        image.windows(16).any(|window| {
+            window[..4] == store_d0 && window[12..16] == store_d1
+        }),
+        "expected entry prologue stores from d0 @ +0 and d1 @ +8"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
 
 #[test]
 fn x86_asm_fences_emit_exact_bytes_and_refuse_aarch64() {

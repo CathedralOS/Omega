@@ -37,8 +37,10 @@ use omega_abstract_operations::{
     SelectedInstructionKind,
 };
 use omega_calling_conventions::{
-    CallSignature, CallingPolicy, MachineRegister, ValueLocation, ValueShape, evaluate_call_plan,
+    CallSignature, CallingPolicy, MachineRegister, ValueClass, ValueLocation, ValueShape,
+    evaluate_call_plan,
 };
+use omega_layout::DataShape;
 use operation_aliases::bind_runtime_operation_aliases;
 use writes::select_runtime_storage_write_for_operation;
 pub(crate) use writes::{RuntimeStaticValues, RuntimeStorageWriteScratch};
@@ -1233,7 +1235,7 @@ fn select_entry_argument_register_writes(
                 omega_runtime_storage::RuntimeFrameSlotKind::Parameter
             ) && slot.source_key == input.entry_key)
             .then(|| {
-                entry_slot_value_shape(slot)
+                entry_slot_value_shape(input, slot)
                     .map(|shape| (slot.byte_offset, slot.byte_size, shape))
             })
             .flatten()
@@ -1272,7 +1274,8 @@ fn select_entry_argument_register_writes(
         .find(|machine| machine.symbol == input.entry_key.machine)
         .is_some_and(|machine| machine.boundary);
     if entry_is_boundary
-        && let [(byte_offset, byte_size, _)] = parameter_slots.as_slice()
+        && let [(byte_offset, byte_size, shape)] = parameter_slots.as_slice()
+        && matches!(shape.class, ValueClass::Integer)
         && *byte_size > 8
         && *byte_size % 8 == 0
         && *byte_size <= 32
@@ -1361,17 +1364,93 @@ pub(super) fn normalized_entry_integer_result_register(
     *register
 }
 
-fn entry_slot_value_shape(slot: &omega_runtime_storage::RuntimeFrameSlot) -> Option<ValueShape> {
+fn entry_slot_value_shape(
+    input: &InstructionSelectionInput<'_>,
+    slot: &omega_runtime_storage::RuntimeFrameSlot,
+) -> Option<ValueShape> {
     let byte_size = u16::try_from(slot.byte_size).ok()?;
     let alignment = u16::try_from(slot.alignment).ok()?;
     if slot.type_descriptor.reference_referee().is_some() {
         return Some(ValueShape::integer(byte_size, alignment));
     }
-    match PrimitiveType::from_name(slot.type_name.as_ref())? {
-        PrimitiveType::F32 | PrimitiveType::F64 => Some(ValueShape::float(byte_size)),
-        PrimitiveType::String => None,
-        _ => Some(ValueShape::integer(byte_size, alignment)),
+    if let Some(primitive) = PrimitiveType::from_name(slot.type_name.as_ref()) {
+        return match primitive {
+            PrimitiveType::F32 | PrimitiveType::F64 => Some(ValueShape::float(byte_size)),
+            PrimitiveType::String => None,
+            _ => Some(ValueShape::integer(byte_size, alignment)),
+        };
     }
+
+    let data_layout = input
+        .layouts
+        .data_layouts
+        .iter()
+        .find(|(_, layout)| {
+            layout.symbol == slot.type_symbol || layout.name.as_str() == slot.type_name.as_ref()
+        })
+        .map(|(_, layout)| layout)?;
+    let DataShape::Record { fields } = data_layout.shape else {
+        return None;
+    };
+
+    if CallingPolicy::native_for_target(input.target) == CallingPolicy::Aapcs64
+        && let Some(shape) = flat_homogeneous_float_aggregate_shape(input, fields, data_layout.layout)
+    {
+        return Some(shape);
+    }
+
+    // Small records classify as one integer value. The boundary handoff's
+    // explicitly-shaped, multiword carrier is admitted as an integer aggregate
+    // here so the caller below can split it into platform-arrival words; this
+    // remains distinct from general C aggregate classification.
+    let entry_is_boundary = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == input.entry_key.machine)
+        .is_some_and(|machine| machine.boundary);
+    if byte_size <= 8
+        || (entry_is_boundary && byte_size <= 32 && byte_size.is_multiple_of(8))
+    {
+        return Some(ValueShape::integer(byte_size, alignment));
+    }
+    None
+}
+
+fn flat_homogeneous_float_aggregate_shape(
+    input: &InstructionSelectionInput<'_>,
+    fields: omega_core::arena::HandleSpan<omega_layout::FieldLayout>,
+    layout: omega_layout::TypeLayout,
+) -> Option<ValueShape> {
+    let fields = input.layouts.fields.span(fields)?;
+    let members = u8::try_from(fields.len()).ok()?;
+    if !(1..=4).contains(&members) {
+        return None;
+    }
+    let member_size = fields.first().and_then(|field| {
+        match PrimitiveType::from_name(field.type_name.as_ref())? {
+            PrimitiveType::F32 => Some(4usize),
+            PrimitiveType::F64 => Some(8usize),
+            _ => None,
+        }
+    })?;
+    if fields.iter().enumerate().any(|(index, field)| {
+        field.offset != index * member_size
+            || field.layout.size != member_size
+            || PrimitiveType::from_name(field.type_name.as_ref()).and_then(|primitive| {
+                matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+                    .then(|| primitive.scalar_byte_size())
+                    .flatten()
+            }) != Some(member_size)
+    }) || layout.size != member_size * fields.len()
+        || layout.alignment != member_size
+    {
+        return None;
+    }
+    Some(ValueShape::homogeneous_float_aggregate(
+        u16::try_from(member_size).ok()?,
+        members,
+    ))
 }
 
 pub(super) fn select_runtime_dispatch_loop_instructions(

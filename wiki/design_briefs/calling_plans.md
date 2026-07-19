@@ -192,9 +192,11 @@ Microsoft x64 register sequence and the global four-register entry limit.
 Incoming scalar `f32`/`f64` parameters follow XMM/V locations as well.
 Integer process-entry terminal values likewise carry the normalized plan's
 exact result register through abstract/target operations and x86-64/AArch64
-emission; ISA encoders no longer invent `rax` or `x0`. Classified aggregate/HFA
-entry parameters, general outbound calls/results, and source-selected policies
-remain. Remaining order:
+emission; ISA encoders no longer invent `rax` or `x0`. On AAPCS64, flat records
+of one to four contiguous, same-width `f32` or `f64` members classify as HFAs
+from the normalized data layout and arrive through the plan-selected vector
+register fragments. Nested and general aggregate entry classification, general
+outbound calls/results, and source-selected policies remain. Remaining order:
 
 1. Evaluate the policy selected by `Calling<C>` against the requirement
    signature and hash the evaluated pair into requirement identity.
