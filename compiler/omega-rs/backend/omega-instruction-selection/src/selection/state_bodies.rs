@@ -173,6 +173,40 @@ pub(super) fn select_state_body_instructions(
             has_receiver: false,
             ..
         } = &operation.kind
+            && target.as_str() == "asm#wrmsr"
+        {
+            if let Some((index_expr, value_expr)) =
+                super::lookups::asm_msr_write_operands(input, state.key, operation.statement_index)
+            {
+                let storage_dispatch_index =
+                    storage_dispatch_index_for_state(input, state.key, dispatch_index);
+                let index = crate::selection::runtime_dispatch::writes::mutation::resolve_runtime_value_operand_in_table(
+                    input, storage_dispatch_index, state.key, operation.statement_index,
+                    &input.state_calls.expressions, index_expr, &static_values, runtime_value_operands,
+                );
+                let value = crate::selection::runtime_dispatch::writes::mutation::resolve_runtime_value_operand_in_table(
+                    input, storage_dispatch_index, state.key, operation.statement_index,
+                    &input.state_calls.expressions, value_expr, &static_values, runtime_value_operands,
+                );
+                if let (Some(index), Some(value)) = (index, value) {
+                    selected_instructions.push(SelectedInstruction {
+                        kind: omega_abstract_operations::SelectedInstructionKind::MsrWrite {
+                            index,
+                            value,
+                        },
+                        source_key: state.key,
+                        source_statement: operation.statement_index,
+                    });
+                }
+            }
+            continue;
+        }
+
+        if let OperationKind::Call {
+            target,
+            has_receiver: false,
+            ..
+        } = &operation.kind
             && let Some(kind) =
                 omega_core::inline_assembly::AsmFenceKind::from_intrinsic_name(target.as_str())
         {
@@ -339,6 +373,34 @@ pub(super) fn select_state_body_instructions(
         {
             let storage_dispatch_index =
                 storage_dispatch_index_for_state(input, state.key, dispatch_index);
+
+            if let Some((index_expr, dest_expr)) = super::lookups::asm_msr_read_operands(
+                input,
+                state.key,
+                operation.statement_index,
+            ) {
+                let index = crate::selection::runtime_dispatch::writes::mutation::resolve_runtime_value_operand_in_table(
+                    input, storage_dispatch_index, state.key, operation.statement_index,
+                    &input.state_storage.expressions, index_expr, &static_values, runtime_value_operands,
+                );
+                let dest = crate::selection::storage_places::resolve_runtime_storage_place_in_table(
+                    input, storage_dispatch_index, state.key,
+                    &input.state_storage.expressions, dest_expr,
+                );
+                if let (Some(index), Some(dest)) = (index, dest) {
+                    selected_instructions.push(SelectedInstruction {
+                        kind: omega_abstract_operations::SelectedInstructionKind::MsrRead {
+                            index,
+                            dest_region: dest.region,
+                            dest_byte_offset: dest.byte_offset,
+                        },
+                        source_key: state.key,
+                        source_statement: operation.statement_index,
+                    });
+                    static_values.clear();
+                }
+                continue;
+            }
 
             if let Some(dest_expr) = super::lookups::asm_flags_snapshot_destination(
                 input,

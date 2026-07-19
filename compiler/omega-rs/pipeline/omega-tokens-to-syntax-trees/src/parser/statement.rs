@@ -229,6 +229,8 @@ fn parse_discard_statement_handle<'tokens, 'source>(
 ///   a balanced snapshot sequence
 /// - `popfq <source>`           -> `asm#popfq(source)`; the backend emits a
 ///   balanced restore sequence
+/// - `rdmsr <dest>, <index>`    -> `<dest> = asm#rdmsr(index)`
+/// - `wrmsr <index>, <value>`   -> `asm#wrmsr(index, value)`
 ///
 /// `asm where ... { ... }` additionally authors block proof obligations and/or
 /// an exact clobber contract. `requires` facts become assertions immediately
@@ -512,7 +514,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
         return Err(mnemonic_site.error_here(format!(
             "unknown asm instruction `{}`: only known-contract instructions compile \
              (`hlt`, `in`, `out`, `jmp`, `lfence`, `sfence`, `mfence`, `cli`, `sti`, \
-             `pushfq`, `popfq`); opaque forms \
+             `pushfq`, `popfq`, `rdmsr`, `wrmsr`); opaque forms \
              (`db`, raw bytes) are rejected",
             mnemonic.as_str()
         )));
@@ -701,6 +703,58 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                             receiver: HandleSpan::empty(),
                             receiver_starts_at_self: false,
                             target: Identifier::new("asm#popfq", mnemonic.source_span()),
+                            machine_arguments: Box::default(),
+                            arguments,
+                            discards_result: false,
+                        })),
+                    contract,
+                },
+                input,
+            ))
+        }
+        AsmInstructionShape::MsrRead => {
+            let (destination, input) = parse_expression_handle(syntax_trees, input)?;
+            let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            let (index, input) = parse_expression_handle(syntax_trees, input)?;
+            let arguments = syntax_trees
+                .expressions
+                .insert_expression_handles(vec![index]);
+            let value = syntax_trees
+                .expressions
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    receiver: ExpressionHandle::invalid(),
+                    target: Identifier::new("asm#rdmsr", mnemonic.source_span()),
+                    machine_arguments: Box::default(),
+                    arguments,
+                }));
+            Ok((
+                ParsedAsmInstruction {
+                    statement: syntax_trees.statements.insert(StatementNode::Assignment(
+                        TableAssignment {
+                            target: destination,
+                            value,
+                        },
+                    )),
+                    contract,
+                },
+                input,
+            ))
+        }
+        AsmInstructionShape::MsrWrite => {
+            let (index, input) = parse_expression_handle(syntax_trees, input)?;
+            let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            let (value, input) = parse_expression_handle(syntax_trees, input)?;
+            let arguments = syntax_trees
+                .statements
+                .insert_expression_handles(vec![index, value]);
+            Ok((
+                ParsedAsmInstruction {
+                    statement: syntax_trees
+                        .statements
+                        .insert(StatementNode::Call(TableCall {
+                            receiver: HandleSpan::empty(),
+                            receiver_starts_at_self: false,
+                            target: Identifier::new("asm#wrmsr", mnemonic.source_span()),
                             machine_arguments: Box::default(),
                             arguments,
                             discards_result: false,

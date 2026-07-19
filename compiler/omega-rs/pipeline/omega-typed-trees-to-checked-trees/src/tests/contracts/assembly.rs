@@ -119,6 +119,32 @@ fn rejects_asm_ensures_invalidated_by_flags_snapshot() {
 }
 
 #[test]
+fn rejects_asm_ensures_invalidated_by_msr_read() {
+    let source = r#"
+        data Main { value: u64; }
+
+        machine Main::main(&mut self) effects machine_control
+        requires self.value == 2
+        {
+            asm where
+                requires self.value == 2
+                clobbers rax, rcx, rdx, r10, r11, r15
+                ensures self.value == 2
+            { rdmsr self.value, 3221225600 }
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("MSR read must invalidate facts about its destination");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove asm `ensures` fact at block exit")
+            && diagnostic.message.contains("self.value == 2")
+    }));
+}
+
+#[test]
 fn preserves_asm_ensures_across_unrelated_port_input() {
     let source = r#"
         data Main { port: u16; value: u8; ready: bool; }

@@ -1047,6 +1047,48 @@ fn parses_x86_flags_as_explicit_value_operations() {
 }
 
 #[test]
+fn parses_x86_msr_as_structured_value_operations() {
+    let source = r#"
+        data Main { value: u64; }
+
+        machine Main::main(&mut self) effects machine_control {
+            asm where clobbers rax, rcx, rdx, r10, r11, r15 {
+                rdmsr self.value, 3221225600;
+                wrmsr 3221225600, self.value
+            }
+        }
+        "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+    let state = parsed.items.state(parsed.items.state_handles(machine.states)[0]);
+    let statements = parsed.items.statements(state.statements);
+    assert_eq!(statements.len(), 2);
+
+    let StatementNode::Assignment(read) = parsed.statements.statement(statements[0]) else {
+        panic!("rdmsr should desugar to a destination assignment");
+    };
+    let ExpressionNode::Call(read_call) = parsed.expressions.expression(read.value) else {
+        panic!("rdmsr assignment should contain the read intrinsic");
+    };
+    assert_eq!(read_call.target.as_str(), "asm#rdmsr");
+    assert_eq!(read_call.arguments.count(), 1);
+
+    let StatementNode::Call(write) = parsed.statements.statement(statements[1]) else {
+        panic!("wrmsr should desugar to a call statement");
+    };
+    assert_eq!(write.target.as_str(), "asm#wrmsr");
+    assert_eq!(write.arguments.count(), 2);
+}
+
+#[test]
 fn parses_multi_instruction_asm_in_states_and_trait_defaults() {
     let source = r#"
         trait Idle {
@@ -1263,7 +1305,7 @@ fn rejects_inexact_asm_where_clobber_contracts() {
 /// instructions compile (privileged_effects_and_binary_trust, LOCKED point 2).
 #[test]
 fn rejects_unknown_asm_mnemonics() {
-    for block in ["asm { db 0xF4 }", "asm { wrmsr }", "asm { lidt }"] {
+    for block in ["asm { db 0xF4 }", "asm { swapgs }", "asm { lidt }"] {
         let source = format!(
             r#"
             data Main {{

@@ -1719,6 +1719,83 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     }
                 }
 
+                if matches!(operation.kind, RuntimeDispatchBodyOperationKind::MsrWrite)
+                    && let Some((index_expr, value_expr)) =
+                        super::lookups::asm_msr_write_operands(
+                            input,
+                            operation.source_key,
+                            operation.statement_index,
+                        )
+                {
+                    let scratch = writes::RuntimeStaticValues::with_capacity(0);
+                    let index = writes::mutation::resolve_runtime_value_operand_in_table(
+                        input,
+                        dispatch_case.dispatch_index,
+                        operation.source_key,
+                        operation.statement_index,
+                        &input.state_calls.expressions,
+                        index_expr,
+                        &scratch,
+                        runtime_value_operands,
+                    );
+                    let value = writes::mutation::resolve_runtime_value_operand_in_table(
+                        input,
+                        dispatch_case.dispatch_index,
+                        operation.source_key,
+                        operation.statement_index,
+                        &input.state_calls.expressions,
+                        value_expr,
+                        &scratch,
+                        runtime_value_operands,
+                    );
+                    if let (Some(index), Some(value)) = (index, value) {
+                        selected_instructions.push(SelectedInstruction {
+                            kind: SelectedInstructionKind::MsrWrite { index, value },
+                            source_key: operation.source_key,
+                            source_statement: operation.statement_index,
+                        });
+                    }
+                }
+
+                if matches!(operation.kind, RuntimeDispatchBodyOperationKind::MsrRead)
+                    && let Some((index_expr, dest_expr)) =
+                        super::lookups::asm_msr_read_operands(
+                            input,
+                            operation.source_key,
+                            operation.statement_index,
+                        )
+                {
+                    let scratch = writes::RuntimeStaticValues::with_capacity(0);
+                    let index = writes::mutation::resolve_runtime_value_operand_in_table(
+                        input,
+                        dispatch_case.dispatch_index,
+                        operation.source_key,
+                        operation.statement_index,
+                        &input.state_storage.expressions,
+                        index_expr,
+                        &scratch,
+                        runtime_value_operands,
+                    );
+                    let dest = crate::selection::storage_places::resolve_runtime_storage_place_in_table(
+                        input,
+                        dispatch_case.dispatch_index,
+                        operation.source_key,
+                        &input.state_storage.expressions,
+                        dest_expr,
+                    );
+                    if let (Some(index), Some(dest)) = (index, dest) {
+                        selected_instructions.push(SelectedInstruction {
+                            kind: SelectedInstructionKind::MsrRead {
+                                index,
+                                dest_region: dest.region,
+                                dest_byte_offset: dest.byte_offset,
+                            },
+                            source_key: operation.source_key,
+                            source_statement: operation.statement_index,
+                        });
+                    }
+                }
+
                 if matches!(operation.kind, RuntimeDispatchBodyOperationKind::PortWrite)
                     && let Some((port_expr, value_expr)) = super::lookups::asm_port_write_operands(
                         input,

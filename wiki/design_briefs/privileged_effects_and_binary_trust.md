@@ -94,6 +94,11 @@ RFLAGS.IF transitions (including STI's delayed recognition rule). Structured
 contract. Their higher-level saved-mask/restore protocol remains an ordinary
 provider-minted linear token.
 
+Structured `rdmsr <destination>, <index>` and `wrmsr <index>, <value>` now
+model the implicit ECX and EDX:EAX registers as explicit exact `u32`/`u64`
+value flow. Both carry `MachineControl`, require `MachineOwner`, enumerate the
+realized architectural and scratch clobbers, and refuse non-x86 targets.
+
 ## Still open
 
 - concrete executable/component manifest encoding;

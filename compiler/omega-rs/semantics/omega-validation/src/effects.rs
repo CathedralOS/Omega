@@ -217,6 +217,8 @@ fn statement_asm_intrinsic(
         omega_core::symbols::BuiltinFunction::AsmEnableInterrupts => "sti",
         omega_core::symbols::BuiltinFunction::AsmSnapshotFlags => "pushfq",
         omega_core::symbols::BuiltinFunction::AsmRestoreFlags => "popfq",
+        omega_core::symbols::BuiltinFunction::AsmReadMsr => "rdmsr",
+        omega_core::symbols::BuiltinFunction::AsmWriteMsr => "wrmsr",
         _ => return None,
     };
     let omega_core::inline_assembly::AsmCatalogEntry::Contract(contract) =

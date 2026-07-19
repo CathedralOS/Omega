@@ -1,0 +1,1 @@
+asm instruction `wrmsr` operand `value` requires an exact `u64` for target register `edx:eax`, found `u32`

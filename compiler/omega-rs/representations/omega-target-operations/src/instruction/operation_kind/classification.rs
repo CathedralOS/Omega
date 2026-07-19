@@ -74,6 +74,8 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::InterruptControl(_)
             | Self::FlagsSnapshot { .. }
             | Self::FlagsRestore { .. }
+            | Self::MsrRead { .. }
+            | Self::MsrWrite { .. }
             | Self::PortWrite { .. }
             | Self::PortRead { .. } => TargetOperationDomain::MachineControl,
         }

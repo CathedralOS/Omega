@@ -30808,6 +30808,7 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("inline_asm/asm_fences_compile", "linux_x64"),
     ("inline_asm/asm_interrupt_control_compile", "linux_x64"),
     ("inline_asm/asm_flags_compile", "linux_x64"),
+    ("inline_asm/asm_msr_compile", "linux_x64"),
     ("inline_asm/asm_multi_instruction_block_compile", "uefi_x64"),
     ("inline_asm/asm_where_exact_clobbers_compile", "uefi_x64"),
     ("targets/efi_vtable_call", "uefi_x64"),
@@ -30966,6 +30967,77 @@ fn asm_flags_enforce_authority_and_saved_place_contracts() {
     ] {
         let diagnostics = compile_canary_without_output(&fail_canary(name))
             .expect_err("invalid flags contract should reject");
+        let rendered = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            rendered.contains(expected),
+            "expected `{expected}` for {name}, got:\n{rendered}"
+        );
+    }
+}
+
+#[test]
+fn x86_asm_msr_emits_structured_sequences_and_refuses_aarch64() {
+    let canary = pass_canary("inline_asm/asm_msr_compile");
+    let build_dir = std::env::temp_dir().join(format!("omega-asm-msr-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("x86 MSR operations should compile under boot-root authority");
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86 ELF");
+    assert!(
+        image
+            .windows(5)
+            .any(|window| window == [0x0f, 0x32, 0x41, 0x89, 0xc2]),
+        "expected RDMSR followed by the EDX:EAX combine"
+    );
+    assert!(
+        image
+            .windows(6)
+            .any(|window| window == [0x48, 0xc1, 0xea, 0x20, 0x0f, 0x30]),
+        "expected the high-half split followed by WRMSR"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+
+    let diagnostics = compile_canary_without_output_for_target(&canary, "linux_arm64")
+        .expect_err("x86 MSR mnemonics must refuse an AArch64 target");
+    let rendered = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("asm instruction `rdmsr` is x86_64-only"),
+        "expected an architecture-specific MSR diagnostic, got:\n{rendered}"
+    );
+}
+
+#[test]
+fn asm_msr_enforces_authority_and_value_contracts() {
+    for (name, expected) in [
+        (
+            "inline_asm/asm_wrmsr_requires_machine_authority",
+            "asm instruction `wrmsr`, which requires a FREESTANDING boundary root",
+        ),
+        (
+            "inline_asm/asm_rdmsr_requires_u64_destination",
+            "asm instruction `rdmsr` operand `destination` requires an exact `u64` writable place",
+        ),
+        (
+            "inline_asm/asm_wrmsr_requires_u64_value",
+            "asm instruction `wrmsr` operand `value` requires an exact `u64` for target register `edx:eax`, found `u32`",
+        ),
+    ] {
+        let diagnostics = compile_canary_without_output(&fail_canary(name))
+            .expect_err("invalid MSR contract should reject");
         let rendered = diagnostics
             .iter()
             .map(ToString::to_string)
@@ -34274,6 +34346,9 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "inline_asm/asm_popfq_requires_machine_authority",
     "inline_asm/asm_pushfq_requires_u64_destination",
     "inline_asm/asm_popfq_requires_saved_place",
+    "inline_asm/asm_wrmsr_requires_machine_authority",
+    "inline_asm/asm_rdmsr_requires_u64_destination",
+    "inline_asm/asm_wrmsr_requires_u64_value",
     "inline_asm/asm_port_out_wrong_port_type",
     "inline_asm/asm_port_out_wrong_value_type",
     "inline_asm/asm_port_in_wrong_destination_type",

@@ -69,6 +69,7 @@ pub(crate) fn validate_call_node(
             "asm#cli" => ("cli", 0),
             "asm#sti" => ("sti", 0),
             "asm#popfq" => ("popfq", 1),
+            "asm#wrmsr" => ("wrmsr", 2),
             other => {
                 diagnostics.push(Diagnostic::error(format!(
                     "asm intrinsic `{other}` is not a statement form"
@@ -85,7 +86,7 @@ pub(crate) fn validate_call_node(
             )));
             return;
         }
-        if matches!(source_mnemonic, "out" | "popfq") {
+        if matches!(source_mnemonic, "out" | "popfq" | "wrmsr") {
             let contract = user_asm_contract(source_mnemonic);
             for (operand, constraint) in arguments.iter().zip(contract.operands.iter()) {
                 validate_asm_operand_constraint(
@@ -500,6 +501,7 @@ pub(crate) fn validate_asm_value_destination(
     let instruction = match call.target.as_str() {
         "asm#port_in" => "in",
         "asm#pushfq" => "pushfq",
+        "asm#rdmsr" => "rdmsr",
         _ => return,
     };
     let contract = user_asm_contract(instruction);
@@ -3026,23 +3028,30 @@ fn validate_expression_call_bounds(
         return;
     }
 
-    if call.target.as_str() == "asm#port_in" && !call.receiver.is_valid() {
+    if matches!(call.target.as_str(), "asm#port_in" | "asm#rdmsr")
+        && !call.receiver.is_valid()
+    {
+        let (intrinsic, instruction, operand_index) = if call.target.as_str() == "asm#port_in" {
+            ("asm#port_in", "in", 1)
+        } else {
+            ("asm#rdmsr", "rdmsr", 1)
+        };
         let arguments = program.expression_table.expression_handles(call.arguments);
         if arguments.len() != 1 {
             diagnostics.push(Diagnostic::error(format!(
-                "asm intrinsic `asm#port_in` takes 1 operand, found {}",
+                "asm intrinsic `{intrinsic}` takes 1 operand, found {}",
                 arguments.len()
             )));
             return;
         }
-        let contract = user_asm_contract("in");
+        let contract = user_asm_contract(instruction);
         validate_asm_operand_constraint(
             program,
             current_machine,
             Some(current_state),
-            "in",
+            instruction,
             arguments[0],
-            contract.operands[1],
+            contract.operands[operand_index],
             diagnostics,
         );
         return;
@@ -3757,7 +3766,7 @@ fn report_unresolved_value_call(
         // asm#port_in(port)`); the name is unnameable from source.
         if matches!(
             target,
-            "min" | "max" | "sqrt" | "asm#port_in" | "asm#pushfq"
+            "min" | "max" | "sqrt" | "asm#port_in" | "asm#pushfq" | "asm#rdmsr"
         ) {
             return;
         }

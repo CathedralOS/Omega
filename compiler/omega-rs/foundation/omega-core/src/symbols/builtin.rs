@@ -72,10 +72,15 @@ pub enum BuiltinFunction {
     /// enters the checked tree.
     AsmSnapshotFlags,
     AsmRestoreFlags,
+    /// Structured x86 model-specific-register access. `rdmsr` returns a u64;
+    /// `wrmsr` consumes a u32 index and u64 value. Both are unnameable
+    /// machine-control intrinsics.
+    AsmReadMsr,
+    AsmWriteMsr,
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 13;
+    pub const COUNT: usize = 15;
 
     pub fn name(self) -> &'static str {
         match self {
@@ -92,6 +97,8 @@ impl BuiltinFunction {
             Self::AsmEnableInterrupts => "asm#sti",
             Self::AsmSnapshotFlags => "asm#pushfq",
             Self::AsmRestoreFlags => "asm#popfq",
+            Self::AsmReadMsr => "asm#rdmsr",
+            Self::AsmWriteMsr => "asm#wrmsr",
         }
     }
 
@@ -110,6 +117,8 @@ impl BuiltinFunction {
             Self::AsmEnableInterrupts => 10,
             Self::AsmSnapshotFlags => 11,
             Self::AsmRestoreFlags => 12,
+            Self::AsmReadMsr => 13,
+            Self::AsmWriteMsr => 14,
         }
     }
 
@@ -122,7 +131,9 @@ impl BuiltinFunction {
             Self::AsmHlt
             | Self::AsmDisableInterrupts
             | Self::AsmEnableInterrupts
-            | Self::AsmRestoreFlags => Some("machine_control"),
+            | Self::AsmRestoreFlags
+            | Self::AsmReadMsr
+            | Self::AsmWriteMsr => Some("machine_control"),
             Self::AsmPortOut | Self::AsmPortIn => Some("device_io"),
             Self::Max
             | Self::Min
@@ -147,10 +158,12 @@ impl BuiltinFunction {
                 | Self::AsmEnableInterrupts
                 | Self::AsmSnapshotFlags
                 | Self::AsmRestoreFlags
+                | Self::AsmReadMsr
+                | Self::AsmWriteMsr
         )
     }
 
-    pub fn asm_intrinsics() -> [Self; 10] {
+    pub fn asm_intrinsics() -> [Self; 12] {
         [
             Self::AsmHlt,
             Self::AsmPortOut,
@@ -162,6 +175,8 @@ impl BuiltinFunction {
             Self::AsmEnableInterrupts,
             Self::AsmSnapshotFlags,
             Self::AsmRestoreFlags,
+            Self::AsmReadMsr,
+            Self::AsmWriteMsr,
         ]
     }
 }
@@ -270,6 +285,14 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
         (
             SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::AsmRestoreFlags.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmReadMsr.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmWriteMsr.name()),
         ),
     ]
 }

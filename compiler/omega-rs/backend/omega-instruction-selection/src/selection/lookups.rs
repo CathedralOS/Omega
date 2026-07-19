@@ -387,3 +387,44 @@ pub(super) fn asm_flags_restore_source(
             .expression,
     )
 }
+
+/// `(index, destination)` for `asm { rdmsr <dest>, <index> }`.
+pub(super) fn asm_msr_read_operands(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> Option<(ExpressionHandle, ExpressionHandle)> {
+    let mutation = state_mutation_for_statement(input, source_key, statement_index)?;
+    let ExpressionNode::Call(call) = input.state_storage.expressions.expression(mutation.value)
+    else {
+        return None;
+    };
+    if call.target.as_str() != "asm#rdmsr" {
+        return None;
+    }
+    let index = *input
+        .state_storage
+        .expressions
+        .expression_handles(call.arguments)
+        .first()?;
+    Some((index, mutation.target))
+}
+
+/// `(index, value)` for `asm { wrmsr <index>, <value> }`.
+pub(super) fn asm_msr_write_operands(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> Option<(ExpressionHandle, ExpressionHandle)> {
+    let omega_checked_trees::statement::StatementNode::Call(call) =
+        checked_statement_node(input, source_key, statement_index)?
+    else {
+        return None;
+    };
+    if call.target.as_str() != "asm#wrmsr" {
+        return None;
+    }
+    let state_call = state_call_for_statement(input, source_key, statement_index)?;
+    let arguments = input.state_calls.arguments.span(state_call.arguments)?;
+    Some((arguments.first()?.expression, arguments.get(1)?.expression))
+}
