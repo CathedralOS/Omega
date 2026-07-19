@@ -241,7 +241,7 @@ fn assign_type_reference_handle_symbol_with_context(
     *child_type_references.get_mut(handle) = type_reference;
 }
 
-fn assign_type_reference_argument_symbols(
+pub(in crate::symbols) fn assign_type_reference_argument_symbols(
     symbols: &SymbolTable,
     child_type_references: &mut Arena<omega_symbol_resolved_trees::types::TypeReference>,
     local_type_parameters: &[omega_symbol_resolved_trees::data::TypeParameter],

@@ -3,6 +3,7 @@ use crate::parser::input::{Input, ParseResult};
 use crate::parser::proof_fact::parse_proof_facts_until;
 use crate::parser::state::{parse_optional_return_type, parse_optional_state_parameters};
 use crate::parser::statement::{parse_asm_block_statement_handles, parse_statement_handle};
+use crate::parser::type_reference::parse_type_reference_handle;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
@@ -19,6 +20,8 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
     let input = input.take_contextual("trait")?;
     let (name, mut input) = input.take_identifier()?;
     let (type_parameters, next) = parse_type_parameters(syntax_trees, input)?;
+    input = next;
+    let (parents, next) = parse_trait_parents(syntax_trees, input)?;
     input = next;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut required_trait_start = Handle::invalid();
@@ -107,10 +110,38 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
             is_boundary,
             name,
             type_parameters,
+            parents,
             invariants,
             requires,
             machines,
         },
+        input,
+    ))
+}
+
+fn parse_trait_parents<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    mut input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, HandleSpan<omega_syntax_trees::types::TypeReferenceHandle>> {
+    if !input.at_punctuation(PunctuationKind::Colon) {
+        return Ok((HandleSpan::empty(), input));
+    }
+
+    input = input.take_punctuation(PunctuationKind::Colon, ":")?;
+    let mut parents = Vec::new();
+    loop {
+        let (parent, rest) = parse_type_reference_handle(syntax_trees, input)?;
+        parents.push(parent);
+        input = rest;
+        if !input.at_punctuation(PunctuationKind::Plus) {
+            break;
+        }
+        input = input.take_punctuation(PunctuationKind::Plus, "+")?;
+    }
+    Ok((
+        syntax_trees
+            .type_references
+            .insert_type_reference_handles(parents),
         input,
     ))
 }

@@ -679,6 +679,22 @@ impl TypedTrees {
             .span_or_empty(trait_definition.requires)
     }
 
+    pub fn trait_composition_kind(
+        &self,
+        requirement: &trait_definition::TraitRequirement,
+    ) -> Option<trait_definition::TraitCompositionKind> {
+        self.traits()
+            .iter()
+            .find(|candidate| candidate.symbol == requirement.symbol)
+            .map(|candidate| {
+                if candidate.is_boundary {
+                    trait_definition::TraitCompositionKind::ServiceReach
+                } else {
+                    trait_definition::TraitCompositionKind::Policy
+                }
+            })
+    }
+
     pub fn push_trait_machine_signature(
         &mut self,
         trait_definition: &mut trait_definition::TraitDefinition,

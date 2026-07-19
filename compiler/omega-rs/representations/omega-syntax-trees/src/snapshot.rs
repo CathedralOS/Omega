@@ -135,6 +135,7 @@ pub enum ItemSnapshot {
         name: IdentifierSnapshot,
         is_boundary: bool,
         type_parameters: Vec<TypeParameterSnapshot>,
+        parents: Vec<TypeReferenceSnapshot>,
         invariants: Vec<ProofFactSnapshot>,
         requires: Vec<IdentifierSnapshot>,
         machines: Vec<StateSignatureSnapshot>,
@@ -740,6 +741,12 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .type_parameters(value.type_parameters)
                 .iter()
                 .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
+                .collect(),
+            parents: syntax_trees
+                .type_references
+                .type_reference_handles(value.parents)
+                .iter()
+                .map(|parent| snapshot_type_reference_handle(syntax_trees, *parent))
                 .collect(),
             invariants: snapshot_proof_facts(syntax_trees, value.invariants),
             requires: snapshot_identifier_slice(

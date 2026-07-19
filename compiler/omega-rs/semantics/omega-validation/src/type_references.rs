@@ -39,6 +39,11 @@ pub(crate) enum TypeReferenceOwner<'program> {
         state: &'program str,
         generic_depth: usize,
     },
+    TraitParent {
+        trait_name: &'program str,
+        parent: &'program str,
+        generic_depth: usize,
+    },
 }
 
 impl TypeReferenceOwner<'_> {
@@ -116,6 +121,15 @@ impl TypeReferenceOwner<'_> {
                 state,
                 generic_depth: generic_depth + 1,
             },
+            Self::TraitParent {
+                trait_name,
+                parent,
+                generic_depth,
+            } => Self::TraitParent {
+                trait_name,
+                parent,
+                generic_depth: generic_depth + 1,
+            },
         }
     }
 }
@@ -173,6 +187,17 @@ impl fmt::Display for TypeReferenceOwner<'_> {
                 generic_depth,
             } => {
                 write!(formatter, "{owner} state `{state}` return type")?;
+                *generic_depth
+            }
+            Self::TraitParent {
+                trait_name,
+                parent,
+                generic_depth,
+            } => {
+                write!(
+                    formatter,
+                    "trait `{trait_name}` parent `{parent}` type argument"
+                )?;
                 *generic_depth
             }
         };

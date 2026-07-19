@@ -141,7 +141,7 @@ fn lower_type_reference_child(
         .append(type_reference))
 }
 
-fn lower_child_type_references(
+pub(crate) fn lower_child_type_references(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     arguments: HandleSpan<syntax::types::TypeReferenceHandle>,

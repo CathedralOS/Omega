@@ -1,0 +1,1 @@
+trait `Broken` parent `Policy` type argument references unknown data type `MissingConvention`

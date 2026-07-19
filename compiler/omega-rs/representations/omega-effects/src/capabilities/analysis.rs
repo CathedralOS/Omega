@@ -42,10 +42,8 @@ pub fn build_host_authority_registry(program: &TypedTrees) -> HostAuthorityRegis
             continue;
         }
 
-        let mut effects = EffectSet::empty();
-        for signature in program.trait_machine_signatures(trait_definition) {
-            effects.insert_all(signature_effects(program, signature));
-        }
+        let mut visited = Vec::new();
+        let effects = trait_authority_effects(program, trait_definition, &mut visited);
 
         let implemented_in_package =
             boundary_trait_is_implemented(program, trait_definition.symbol);
@@ -57,6 +55,33 @@ pub fn build_host_authority_registry(program: &TypedTrees) -> HostAuthorityRegis
     }
 
     registry
+}
+
+fn trait_authority_effects(
+    program: &TypedTrees,
+    trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
+    visited: &mut Vec<SymbolHandle>,
+) -> EffectSet {
+    if visited.contains(&trait_definition.symbol) {
+        return EffectSet::empty();
+    }
+    visited.push(trait_definition.symbol);
+
+    let mut effects = EffectSet::empty();
+    for signature in program.trait_machine_signatures(trait_definition) {
+        effects.insert_all(signature_effects(program, signature));
+    }
+    for requirement in program.trait_requirements(trait_definition) {
+        let Some(parent) = program
+            .traits()
+            .iter()
+            .find(|candidate| candidate.symbol == requirement.symbol && candidate.is_boundary)
+        else {
+            continue;
+        };
+        effects.insert_all(trait_authority_effects(program, parent, visited));
+    }
+    effects
 }
 
 /// Audits every boundary call in `effects` against the provider registry,

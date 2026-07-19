@@ -2361,6 +2361,7 @@ mod provider_plan {
     use omega_effects::provider_plan::{
         ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema,
     };
+    use omega_effects::{EffectSet, build_host_authority_registry};
     use omega_source_files_to_tokens::Lexer;
     use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
@@ -2402,6 +2403,68 @@ mod provider_plan {
         assert!(!schema.methods[0].has_result);
         assert_eq!(schema.methods[0].effects, vec!["stdout_io".to_owned()]);
         assert_eq!(schema.methods[1].name, "exit_process");
+    }
+
+    #[test]
+    fn trait_parents_expand_requirements_without_laundering_policy_into_service_reach() {
+        let program = typed(
+            "trait Calling<C> {\n\
+             machine policy_probe()\n\
+             effects\n\
+                 filesystem_io;\n\
+             }\n\
+             data X64Convention {}\n\
+             boundary trait Device {\n\
+             machine read()\n\
+             effects\n\
+                 device_io;\n\
+             }\n\
+             boundary trait Timer: Device + Calling<X64Convention> {\n\
+             machine tick();\n\
+             }\n\
+             data Main {}\n\
+             machine Main::main(&mut self) {}\n",
+        );
+        let timer = program
+            .traits()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Timer")
+            .expect("Timer trait");
+
+        let parents = program.trait_requirements(timer);
+        assert_eq!(parents.len(), 2);
+        assert_eq!(
+            program.trait_composition_kind(&parents[0]),
+            Some(omega_typed_trees::trait_definition::TraitCompositionKind::ServiceReach)
+        );
+        assert_eq!(
+            program.trait_composition_kind(&parents[1]),
+            Some(omega_typed_trees::trait_definition::TraitCompositionKind::Policy)
+        );
+
+        let schema = ServiceSchema::from_typed(&program, timer).expect("boundary schema");
+        assert_eq!(
+            schema
+                .methods
+                .iter()
+                .map(|method| method.name.as_str())
+                .collect::<Vec<_>>(),
+            ["read", "policy_probe", "tick"]
+        );
+
+        let registry = build_host_authority_registry(&program);
+        let timer_provider = registry.provider(timer.symbol).expect("Timer provider");
+        assert!(
+            timer_provider
+                .effects
+                .contains_all(EffectSet::from_name("device_io").expect("known effect"))
+        );
+        assert!(
+            !timer_provider
+                .effects
+                .intersects(EffectSet::from_name("filesystem_io").expect("known effect")),
+            "ordinary policy parents must not contribute boundary service reach"
+        );
     }
 
     #[test]

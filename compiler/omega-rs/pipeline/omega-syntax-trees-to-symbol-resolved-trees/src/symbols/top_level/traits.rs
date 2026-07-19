@@ -3,7 +3,9 @@ use omega_symbol_resolved_trees::SymbolResolvedTrees;
 
 use crate::symbols::lookup::top_level_symbol;
 use crate::symbols::top_level::next_child_of_kind;
-use crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type;
+use crate::symbols::type_references::{
+    assign_type_reference_argument_symbols, assign_type_reference_symbol_with_locals_and_self_type,
+};
 
 pub(super) fn assign_trait_symbols(
     program: &mut SymbolResolvedTrees,
@@ -34,6 +36,13 @@ pub(super) fn assign_trait_symbols(
         for requirement in trait_requirements.span_mut_or_empty(trait_definition.requires) {
             requirement.symbol =
                 top_level_symbol(symbols, SymbolKind::Trait, requirement.name.as_str());
+            assign_type_reference_argument_symbols(
+                symbols,
+                child_type_references,
+                &local_type_parameters,
+                trait_symbol,
+                requirement.arguments,
+            );
         }
 
         for machine in trait_machine_signatures.span_mut_or_empty(trait_definition.machines) {

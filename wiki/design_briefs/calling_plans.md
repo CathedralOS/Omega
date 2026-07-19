@@ -45,7 +45,8 @@ fuse their identities.
 A boundary requirement pins a target policy through ordinary trait composition:
 
 ```omega
-trait Calling<C>;
+trait Calling<C> {
+}
 
 boundary trait TimerInterrupt:
     Calling<X86InterruptConvention>
@@ -164,19 +165,22 @@ is not expressible and may change between releases.
 
 ## Engineering order
 
-1. Implement generic trait-parent composition used by `Calling<C>`.
-2. Normalize existing MS-x64, syscall, and firmware conventions as evaluated
+Generic trait-parent composition used by `Calling<C>` is implemented. Header
+parents and body-level `requires` share one validated graph; boundary parents
+contribute service reach and ordinary policy parents do not.
+
+1. Normalize existing MS-x64, syscall, and firmware conventions as evaluated
    `CallPlan` artifacts and validate them against current hardcoded lowering.
-3. Add `StatePlan` and complete boundary-entry identity.
-4. Derive outbound encoders and inbound stubs from the same plan.
-5. Add state-ceiling-aware instruction selection/register allocation and
+2. Add `StatePlan` and complete boundary-entry identity.
+3. Derive outbound encoders and inbound stubs from the same plan.
+4. Add state-ceiling-aware instruction selection/register allocation and
    contextual specialization.
-6. Emit object-level footprint evidence and validate the final artifact.
-7. Add external-root reporting and the x86 interrupt vertical slice.
+5. Emit object-level footprint evidence and validate the final artifact.
+6. Add external-root reporting and the x86 interrupt vertical slice.
 
 ## Still open
 
-- exact source and core-data spelling for `Calling<C>` and policy evaluation;
+- core-data spelling and evaluation of the policy selected by `Calling<C>`;
 - the normalized register/machine-state vocabulary per architecture;
 - object-certificate composition and final-image validation format;
 - admitted indirect-call footprint contracts;

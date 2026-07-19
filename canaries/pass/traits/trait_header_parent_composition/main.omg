@@ -1,0 +1,34 @@
+trait Policy<C> {
+}
+
+trait Resettable {
+    machine reset(&mut self);
+}
+
+data LocalCalling {
+}
+
+trait ManagedCounter: Resettable + Policy<LocalCalling> {
+    machine increment(&mut self);
+}
+
+data Counter {
+    value: i32;
+}
+
+data Main {
+    counter: Counter;
+}
+
+machine Counter::reset(&mut self) {
+    self.value = 0;
+}
+
+machine Counter::increment(&mut self) satisfies ManagedCounter {
+    self.value = 1;
+}
+
+machine Main::main(&mut self) {
+    self.counter.reset();
+    self.counter.increment();
+}

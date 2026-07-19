@@ -735,6 +735,10 @@ pub struct TraitDefinition {
     pub is_boundary: bool,
     pub name: Identifier,
     pub type_parameters: HandleSpan<TypeParameter>,
+    /// Header composition (`trait X: A + Policy<C>`). These normalize to the
+    /// same requirement graph as body-level `requires A;`, while preserving
+    /// generic arguments for policy identity and later substitution.
+    pub parents: HandleSpan<crate::types::TypeReferenceHandle>,
     pub invariants: HandleSpan<ProofFact>,
     pub requires: HandleSpan<Identifier>,
     pub machines: HandleSpan<StateSignatureHandle>,
@@ -1145,6 +1149,7 @@ impl ItemTable {
         self.state_storage.traits.append(TraitNode {
             is_boundary: trait_definition.is_boundary,
             name: trait_definition.name.clone(),
+            parents: trait_definition.parents,
             requires: trait_definition.requires,
             machines: trait_definition.machines,
         })
@@ -1238,6 +1243,7 @@ pub struct MachineNode {
 pub struct TraitNode {
     pub is_boundary: bool,
     pub name: Identifier,
+    pub parents: HandleSpan<crate::types::TypeReferenceHandle>,
     pub requires: HandleSpan<Identifier>,
     pub machines: HandleSpan<StateSignatureHandle>,
 }

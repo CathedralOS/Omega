@@ -36,11 +36,25 @@ pub(crate) fn lower_trait_definition(
         .source_trees
         .trait_requirements(trait_definition.requires)
     {
+        let mut arguments = omega_core::arena::HandleSpan::empty();
+        let source_arguments = lowerer
+            .source_trees
+            .child_type_references(requirement.arguments)
+            .to_vec();
+        for argument in &source_arguments {
+            let argument =
+                crate::type_reference::lower_type_reference_into_table(lowerer, argument)?;
+            lowerer
+                .typed_trees
+                .type_reference_table
+                .push_type_reference_handle(&mut arguments, argument);
+        }
         lowerer.typed_trees.push_trait_requirement(
             &mut typed_trait,
             typed::trait_definition::TraitRequirement {
                 symbol: requirement.symbol,
                 name: crate::name::lower_name(&requirement.name),
+                arguments,
             },
         );
     }

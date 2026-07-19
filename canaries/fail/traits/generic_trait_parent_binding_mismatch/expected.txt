@@ -1,0 +1,1 @@
+does not satisfy trait `Sink` machine `put` parameter `value`: expected `T`, got `bool`

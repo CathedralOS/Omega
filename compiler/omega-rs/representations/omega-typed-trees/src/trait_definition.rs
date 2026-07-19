@@ -41,6 +41,16 @@ pub struct DataConformance {
 pub struct TraitRequirement {
     pub symbol: SymbolHandle,
     pub name: Identifier,
+    pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
+}
+
+/// The semantic role of a trait-composition edge. It is derived from the
+/// referenced trait, never authored: boundary parents extend service reach;
+/// ordinary parents contribute policy/requirement identity only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TraitCompositionKind {
+    Policy,
+    ServiceReach,
 }
 
 impl Default for TraitRequirement {
@@ -48,6 +58,7 @@ impl Default for TraitRequirement {
         Self {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
+            arguments: HandleSpan::empty(),
         }
     }
 }

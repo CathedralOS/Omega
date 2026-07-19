@@ -1,0 +1,21 @@
+trait Sink<T> {
+    machine put(&mut self, value: T);
+}
+
+trait IntSink: Sink<i32> {
+}
+
+data Counter {
+    value: i32;
+}
+
+data Main {
+    counter: Counter;
+}
+
+machine Counter::put(&mut self, value: bool) satisfies IntSink {
+    self.value = 0;
+}
+
+machine Main::main(&mut self) {
+}

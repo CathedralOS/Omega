@@ -218,14 +218,14 @@ physical-Extent mint (still spelled `Region` in the bootstrap sample), port I/O,
 and `hlt` path. The timer/IDT slice is not yet specified or
 implemented end to end.
 
-The next implementation order is:
+Generic trait-parent composition for `Calling<C>` is implemented. The remaining
+implementation order is:
 
-1. full parsed checked-assembly frontend and initial x86 catalog;
-2. generic trait-parent composition for `Calling<C>`;
-3. fragmented layouts and symbolic materialization;
-4. `CallPlan + StatePlan` entry-stub derivation and footprint validation;
-5. external-root ledger and IDT/timer slice; and
-6. placed views, external loans, and the wider driver gauntlet.
+1. complete the checked-assembly catalog required by the entry provider;
+2. fragmented layouts and symbolic materialization;
+3. `CallPlan + StatePlan` entry-stub derivation and footprint validation;
+4. external-root ledger and IDT/timer slice; and
+5. placed views, external loans, and the wider driver gauntlet.
 
 Open design details live in
 [`os_memory_and_hardware_foundation.md`](os_memory_and_hardware_foundation.md)

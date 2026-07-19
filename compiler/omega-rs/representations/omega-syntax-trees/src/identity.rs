@@ -222,6 +222,18 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 count_identifier(&parameter.name, counts);
                 count_type_parameter_kind(syntax_trees, &parameter.kind, counts);
             }
+            for parent in syntax_trees
+                .type_references
+                .type_reference_handles(trait_definition.parents)
+            {
+                count_type_reference_handle(syntax_trees, *parent, counts);
+            }
+            count_identifier_members(
+                syntax_trees
+                    .items
+                    .identifier_path_members(trait_definition.requires),
+                counts,
+            );
             for fact in syntax_trees.items.proof_facts(trait_definition.invariants) {
                 count_proof_fact(syntax_trees, fact, counts);
             }
