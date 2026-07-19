@@ -1,0 +1,16 @@
+// FAIL CANARY. A direct leaf summary must invalidate the fact for a field the
+// callee may write; the caller cannot reuse the pre-call bound as a witness.
+data Main {
+    stable: u32;
+    result: u32;
+}
+
+machine Main::main(&mut self) {
+    self.stable = 5;
+    self.touch();
+    self.result = self.stable + 1;
+}
+
+machine Main::touch(&mut self) {
+    self.stable = 1;
+}
