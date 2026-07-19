@@ -81,17 +81,12 @@ pub(crate) fn validate_call_node(
         }
         if source_mnemonic == "out" {
             let contract = user_asm_contract(source_mnemonic);
-            for ((operand, constraint), role) in arguments
-                .iter()
-                .zip(contract.operands.iter())
-                .zip(["port", "value"])
-            {
+            for (operand, constraint) in arguments.iter().zip(contract.operands.iter()) {
                 validate_asm_operand_constraint(
                     program,
                     current_machine,
                     machine_symbols.state(state_name),
                     source_mnemonic,
-                    role,
                     *operand,
                     *constraint,
                     diagnostics,
@@ -413,13 +408,10 @@ fn validate_asm_operand_constraint(
     machine: &Machine,
     state: Option<&State>,
     instruction: &str,
-    role: &str,
     operand: ExpressionHandle,
     constraint: omega_core::inline_assembly::AsmOperandConstraint,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    use omega_core::inline_assembly::AsmOperandConstraint;
-
     if let ExpressionNode::Integer(literal) = program.expression_table.expression(operand) {
         if let Some(maximum) = constraint.maximum_literal()
             && literal.value_u64().is_some_and(|value| value <= maximum)
@@ -427,8 +419,10 @@ fn validate_asm_operand_constraint(
             return;
         }
         diagnostics.push(Diagnostic::error(format!(
-            "asm instruction `{instruction}` operand `{role}` requires target register \
+            "asm instruction `{instruction}` operand `{}` requires target register `{}` \
              constraint `{}`{}; integer literal `{}` is outside that operand class",
+            constraint.role,
+            constraint.target_register,
             constraint.expected_type_name(),
             constraint
                 .maximum_literal()
@@ -449,13 +443,16 @@ fn validate_asm_operand_constraint(
     let actual = actual
         .map(|primitive| format!("`{}`", primitive.name()))
         .unwrap_or_else(|| expression_type_name_handle(program, operand).to_owned());
-    let place_requirement = matches!(constraint, AsmOperandConstraint::WritableBytePlace)
+    let place_requirement = constraint
+        .requires_writable_place()
         .then_some(" writable place")
         .unwrap_or("");
     diagnostics.push(Diagnostic::error(format!(
-        "asm instruction `{instruction}` operand `{role}` requires an exact `{}`{place_requirement} \
-         for its target register constraint, found {actual}",
+        "asm instruction `{instruction}` operand `{}` requires an exact `{}`{place_requirement} \
+         for target register `{}`, found {actual}",
+        constraint.role,
         constraint.expected_type_name(),
+        constraint.target_register,
     )));
 }
 
@@ -498,7 +495,6 @@ pub(crate) fn validate_asm_port_read_destination(
         machine,
         state,
         "in",
-        "destination",
         assignment.target,
         contract.operands[0],
         diagnostics,
@@ -3028,7 +3024,6 @@ fn validate_expression_call_bounds(
             current_machine,
             Some(current_state),
             "in",
-            "port",
             arguments[0],
             contract.operands[1],
             diagnostics,

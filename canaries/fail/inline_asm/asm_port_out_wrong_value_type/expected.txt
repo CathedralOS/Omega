@@ -1,1 +1,1 @@
-operand `value` requires an exact `u8`
+operand `value` requires an exact `u8` for target register `al`

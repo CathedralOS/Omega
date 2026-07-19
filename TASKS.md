@@ -21,46 +21,38 @@ the first timer tick. The design is recorded in
 `wiki/design_briefs/os_memory_and_hardware_foundation.md`, chapter 19, and
 chapter 23.
 
-1. **ASM1 — complete the structured operand surface.** `asm where requires` and
-   `ensures` are now flow-sensitive proof obligations at block entry and
-   falling-through exit; they cannot mint facts or override the instruction
-   catalog. Exact `clobbers` declarations check the catalog's realized register
-   union, and the port-I/O pilot pins exact operand classes there. Finish the
-   general structured target-operand/register surface. Availability classes and
-   refusal rails for hidden exits and unmodeled memory access are already in
-   place; expand the accepted catalog only through complete contracts.
-2. **ASM2 — expand the x86 catalog.** Add save/restore flags, `cli`, `sti`,
+1. **ASM2 — expand the x86 catalog.** Add save/restore flags, `cli`, `sti`,
    `lidt`, fences, and the needed MSR/control operations. Direct assembly and
    abstract boundary services must contribute identical normalized
    reach/authority. Mark `iretq` and equivalent exits deriver-only.
-3. **ASM3 — retire the transitional instruction binding.** Replace every
+2. **ASM3 — retire the transitional instruction binding.** Replace every
    `Binding::Instruction` customer with checked assembly, then delete the
    binding variant and its compatibility paths.
-4. **ENT1 — trait-parent composition.** Implement ordinary parent resolution
+3. **ENT1 — trait-parent composition.** Implement ordinary parent resolution
    and validation needed by `Calling<C>` without confusing core policy parents
    with boundary service-reach composition.
-5. **ENT2 — paired entry plans.** Normalize `CallPlan` for ABI placement and
+4. **ENT2 — paired entry plans.** Normalize `CallPlan` for ABI placement and
    `StatePlan` for initial regime, interrupted register classes, save/restore,
    stack/preemption class, and permitted transitive machine-state use. Hash the
    evaluated plan into requirement identity while keeping emitted footprint
    evidence outside public contract identity.
-6. **ENT3 — constrained entry codegen.** Derive entry stubs, specialize/codegen
+5. **ENT3 — constrained entry codegen.** Derive entry stubs, specialize/codegen
    under the state ceiling, emit a checkable final footprint certificate, and
    validate after relaxation, veneers, thunks, and generated stubs.
-7. **IDT1 — fragmented layouts and symbolic materialization.** Move
+6. **IDT1 — fragmented layouts and symbolic materialization.** Move
    `LayoutPlan` to name-keyed fragmented placements, validate exact source and
    destination tiling, add sealed symbolic `Entry(EntryStubId)` relocation
    sources, and generate the post-load split-address writer.
-8. **IDT2 — installed-root ledger.** `lidt` installation consumes scoped IDT
+7. **IDT2 — installed-root ledger.** `lidt` installation consumes scoped IDT
    authority and records every installed entry as an external analysis root
    with effects, receipts, state plan, stack/IST class, nesting/WCSU, and
    component/version pins. The stack/IST policy is one fact consumed by both
    layout materialization and WCSU analysis.
-9. **IDT3 — linear interrupt obligations.** Implement saved-mask guards and EOI
+8. **IDT3 — linear interrupt obligations.** Implement saved-mask guards and EOI
    obligations as provider-minted linear values with explicit consuming
    restore/complete operations. Do not use drop cleanup or interrupt-specific
    linearity rules.
-10. **Cathedral timer acceptance.** Program PIT or LAPIC, install the IDT, post
+9. **Cathedral timer acceptance.** Program PIT or LAPIC, install the IDT, post
     a bounded tick event, report ticks over the owned serial line, and `hlt`
     between ticks under QEMU. Negative rails: direct assembly cannot launder
     reach; user `iretq` rejects; incomplete fragment tiling rejects; forbidden

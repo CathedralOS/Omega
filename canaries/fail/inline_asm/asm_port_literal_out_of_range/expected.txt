@@ -1,1 +1,1 @@
-integer literal `70000` is outside that operand class
+target register `dx` constraint `u16` or a literal in 0..=65535; integer literal `70000` is outside that operand class
