@@ -1,0 +1,13 @@
+boundary trait Pick {
+    machine choose() -> i32;
+}
+
+data RealProvider { }
+machine RealProvider::choose() -> i32 satisfies Pick::choose {
+    transition { _ -> (1) }
+}
+
+data MissingProvider { }
+
+data Main { }
+machine Main::main(&mut self) { }

@@ -53,8 +53,7 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
 
     loop {
         if input.at_punctuation(PunctuationKind::Less)
-            && let Some((machine_arguments, rest)) =
-                try_parse_static_machine_arguments(input)?
+            && let Some((machine_arguments, rest)) = try_parse_static_machine_arguments(input)?
         {
             let after_open = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
             let (arguments, rest) =
@@ -74,12 +73,8 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
             let (arguments, rest) =
                 parse_argument_list_after_open_paren_handle(syntax_trees, input)?;
             input = rest;
-            expression = build_call_expression_handle(
-                syntax_trees,
-                expression,
-                Box::default(),
-                arguments,
-            )?;
+            expression =
+                build_call_expression_handle(syntax_trees, expression, Box::default(), arguments)?;
             continue;
         }
 
@@ -102,18 +97,16 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
             let (member, rest) = after_dot.take_identifier()?;
 
             // CH10 ROOT GRANT (GR3): `b.accept_boundary<pkg::symbol>();` --
-            // the final build's grant spelling. The angle-bracket symbol is
-            // a compile-time parameter (ch13); no general angle-bracket call
-            // surface exists, so this carve recognizes the exact form and
+            // the final build's grant spelling. General angle-bracket call
+            // arguments name static MACHINES; this declaration names a
+            // trust symbol of any kind, so the carve recognizes the exact form and
             // desugars to a MARKER-NAMED zero-argument member call
             // (`accept_boundary#<path>` -- the asm#hlt / __destructure#
             // marker convention; `#` cannot appear in identifiers, so the
             // encoding is unambiguous). The build-config evaluation serves
             // the marker and records the grant; outside a build machine the
             // marker name fails resolution loudly rather than silently.
-            if member.as_str() == "accept_boundary"
-                && rest.at_punctuation(PunctuationKind::Less)
-            {
+            if member.as_str() == "accept_boundary" && rest.at_punctuation(PunctuationKind::Less) {
                 let mut path_input = rest.take_punctuation(PunctuationKind::Less, "<")?;
                 let mut rendered = String::new();
                 loop {
@@ -129,8 +122,7 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                     path_input = next.take_punctuation(PunctuationKind::Greater, ">")?;
                     break;
                 }
-                let after_open =
-                    path_input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+                let after_open = path_input.take_punctuation(PunctuationKind::LeftParen, "(")?;
                 if !after_open.at_punctuation(PunctuationKind::RightParen) {
                     return Err(after_open.error_here(
                         "`accept_boundary` takes its symbol in angle brackets and no \
@@ -143,9 +135,65 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                         .expressions
                         .insert(ExpressionNode::Call(TableCallExpression {
                             receiver: expression,
-                            target: omega_syntax_trees::identifier::Identifier::generated(
-                                format!("accept_boundary#{rendered}"),
-                            ),
+                            target: omega_syntax_trees::identifier::Identifier::generated(format!(
+                                "accept_boundary#{rendered}"
+                            )),
+                            machine_arguments: Box::default(),
+                            arguments: HandleSpan::empty(),
+                        }));
+                continue;
+            }
+
+            // PRV4c PROVIDER SLOT SELECTION:
+            // `b.select_provider<BoundaryTrait, ProviderType>();` is a
+            // build-declaration marker, not a generic machine call. Static
+            // machine arguments deliberately name MACHINES; these two paths
+            // name TYPES, so routing the spelling through that surface would
+            // lie about their kind. The build-config pass harvests the marker
+            // only from the authoritative build machine and validates both
+            // paths against derived provider candidates.
+            if member.as_str() == "select_provider" && rest.at_punctuation(PunctuationKind::Less) {
+                let mut path_input = rest.take_punctuation(PunctuationKind::Less, "<")?;
+                let mut rendered = Vec::new();
+                for argument_index in 0..2 {
+                    let mut path = String::new();
+                    loop {
+                        let (segment, next) = path_input.take_identifier()?;
+                        if !path.is_empty() {
+                            path.push_str("::");
+                        }
+                        path.push_str(segment.as_str());
+                        if next.at_punctuation(PunctuationKind::ColonColon) {
+                            path_input =
+                                next.take_punctuation(PunctuationKind::ColonColon, "::")?;
+                            continue;
+                        }
+                        path_input = next;
+                        break;
+                    }
+                    rendered.push(path);
+                    path_input = if argument_index == 0 {
+                        path_input.take_punctuation(PunctuationKind::Comma, ",")?
+                    } else {
+                        path_input.take_punctuation(PunctuationKind::Greater, ">")?
+                    };
+                }
+                let after_open = path_input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+                if !after_open.at_punctuation(PunctuationKind::RightParen) {
+                    return Err(after_open.error_here(
+                        "`select_provider` takes a boundary-trait type and provider type in angle brackets and no value arguments: `b.select_provider<Console, TestConsole>();`",
+                    ));
+                }
+                input = after_open.take_punctuation(PunctuationKind::RightParen, ")")?;
+                expression =
+                    syntax_trees
+                        .expressions
+                        .insert(ExpressionNode::Call(TableCallExpression {
+                            receiver: expression,
+                            target: omega_syntax_trees::identifier::Identifier::generated(format!(
+                                "select_provider#{}#{}",
+                                rendered[0], rendered[1]
+                            )),
                             machine_arguments: Box::default(),
                             arguments: HandleSpan::empty(),
                         }));

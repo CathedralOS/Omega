@@ -42,6 +42,18 @@ pub fn compile_to_checked(
         &mut syntax.syntax_trees,
         target_name,
     )?;
+    let build_file_machine_names: Vec<String> = syntax
+        .files
+        .iter()
+        .filter(|file| file.path.file_name().and_then(|name| name.to_str()) == Some("build.omg"))
+        .flat_map(|file| file.root_items.iter())
+        .filter_map(|handle| match syntax.syntax_trees.root_item(*handle) {
+            omega_syntax_trees::item::Item::Machine(machine) => {
+                Some(machine.name.as_str().to_owned())
+            }
+            _ => None,
+        })
+        .collect();
     let syntax_trees = syntax.syntax_trees.clone();
     let resolved = syntax_trees_to_symbol_resolved_trees(syntax, &mut timings)?;
     let mut typed = symbol_resolved_trees_to_typed_trees(resolved, &mut timings)?;
@@ -53,6 +65,8 @@ pub fn compile_to_checked(
     // WIRE PLANS (mint arc rung 2a): mirror the full pipeline so tests see
     // the same derived plans the codec selection consumes.
     crate::pipeline::wire_plans::compute_wire_plans(&mut typed)?;
+    let build_config =
+        crate::pipeline::build_config::compute_build_config(&typed, &build_file_machine_names)?;
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
@@ -65,20 +79,16 @@ pub fn compile_to_checked(
     ));
     let selected_native_target = omega_target::NativeTarget::from_omega_target_name(target_name)
         .unwrap_or_else(|_| omega_target::NativeTarget::host());
-    let mut diagnostics = crate::pipeline::provider_plans::validate_slot_selection(
-        &provider_plans,
-        selected_native_target,
-    );
-    diagnostics.extend(
-        crate::pipeline::provider_plans::validate_adapter_refinement(&typed, &provider_plans),
-    );
+    let diagnostics =
+        crate::pipeline::provider_plans::validate_adapter_refinement(&typed, &provider_plans);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    let selected_provider_plans = crate::pipeline::provider_plans::implicitly_selected_plan_names(
+    let selected_provider_plans = crate::pipeline::provider_plans::select_provider_plan_names(
         &provider_plans,
         selected_native_target,
-    );
+        &build_config.provider_selections,
+    )?;
     crate::pipeline::adapter_dispatch::rewrite_adapter_calls(
         &mut typed,
         &selected_provider_plans,

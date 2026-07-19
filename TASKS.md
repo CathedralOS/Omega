@@ -75,10 +75,11 @@ slot owner may override by type. The migration order remains load-bearing.
    routes use them, and remove the built-in Console composite rows.
 2. **PRV4c — target defaults and overrides.** Candidate plans are now keyed by
    provider type, unrelated conformance closures never combine, and only the
-   uniquely covering selected-target candidate reaches adapter or leaf
-   lowering. Add target-package default provider declarations plus explicit
-   type-per-slot `build.omg` selection, including dependency-closure and
-   slot-owner authority validation. Coverage, signature conformance,
+   selected covering candidate reaches adapter or leaf lowering. Explicit
+   type-per-slot `build.omg` selection now validates the provider against the
+   loaded dependency closure and is confined to the build root's slot-owner
+   authority. Add target-package default provider declarations and extend the
+   same contract to test/component slot owners. Coverage, signature conformance,
    transitive effect refinement, normalized identity, and selected-target-only
    ambiguity are already enforced.
 3. **PRV4e — foreign format facts.** Move foreign offsets and bit constants

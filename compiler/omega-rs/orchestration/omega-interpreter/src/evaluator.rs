@@ -1582,7 +1582,9 @@ impl<'program> Evaluator<'program> {
         // the `accept_boundary#<path>` marker call. Grants are DECLARATIONS
         // harvested statically by the build-config pass; evaluation serves
         // the marker as a no-op so the build machine runs through it.
-        if call.target.as_str().starts_with("accept_boundary#") {
+        if call.target.as_str().starts_with("accept_boundary#")
+            || call.target.as_str().starts_with("select_provider#")
+        {
             return Ok(Value::Unit);
         }
 
@@ -4490,7 +4492,7 @@ impl<'program> Evaluator<'program> {
         // Builtins: max / min over two integer/float operands.
         let target = call.target.as_str();
         // CH10 root grant marker (see the statement-call twin): a no-op.
-        if target.starts_with("accept_boundary#") {
+        if target.starts_with("accept_boundary#") || target.starts_with("select_provider#") {
             return Ok(Value::Unit);
         }
         // The tree walker has no architectural flags register. Preserve the

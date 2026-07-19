@@ -1,0 +1,17 @@
+// Slot selection authority belongs to the build root (and later scoped
+// component/test owners). Merely spelling the declaration-shaped member call
+// in ordinary code must not select or grant a provider.
+boundary trait Pick {
+    machine choose() -> i32;
+}
+
+data Provider { }
+machine Provider::choose() -> i32 satisfies Pick::choose {
+    transition { _ -> (1) }
+}
+
+data Main { }
+machine Main::try_select(&mut self) {
+    self.select_provider<Pick, Provider>();
+}
+machine Main::main(&mut self) { }
