@@ -2963,8 +2963,9 @@ fn dependent_maximum_of_type_reference(
 
 /// Conservative whole-state field-preservation scan (twin of omega-proof's
 /// route-c fence). Assignments to the field defeat the entry-fact bridge;
-/// resolved calls use the same R5 may-write summaries as the linear value
-/// environment, while opaque calls remain a fail-closed fence.
+/// resolved statement and value-position calls use the same R5 may-write
+/// summaries as the linear value environment, while opaque calls remain a
+/// fail-closed fence.
 fn validation_state_preserves_field(
     program: &TypedTrees,
     machine: &Machine,
@@ -2973,23 +2974,28 @@ fn validation_state_preserves_field(
 ) -> bool {
     use omega_typed_trees::statement::StatementNode;
     let field_path = format!("self.{}", field.as_str());
-    let mut call_frames = None;
-    let mut call_frames_initialized = false;
+    let call_frames = crate::calls::CallFrameResolver::new(program);
 
     for statement in program.statement_table.statements(state.statement_nodes) {
+        let Some(value_written) = call_frames
+            .as_ref()
+            .and_then(|frames| frames.statement_value_may_write_paths(machine, statement))
+        else {
+            return false;
+        };
+        if value_written
+            .iter()
+            .any(|written| crate::calls::frame_paths_overlap(&field_path, written))
+        {
+            return false;
+        }
         match statement {
             StatementNode::Assignment(assignment) => {
-                if validation_expression_mentions_field(program, assignment.target, field)
-                    || validation_expression_contains_call(program, assignment.value)
-                {
+                if validation_expression_mentions_field(program, assignment.target, field) {
                     return false;
                 }
             }
             StatementNode::Call(call) => {
-                if !call_frames_initialized {
-                    call_frames = crate::calls::CallFrameResolver::new(program);
-                    call_frames_initialized = true;
-                }
                 let Some(call_frames) = call_frames.as_ref() else {
                     return false;
                 };
@@ -3000,18 +3006,6 @@ fn validation_state_preserves_field(
                 if written
                     .iter()
                     .any(|written| crate::calls::frame_paths_overlap(&field_path, written))
-                {
-                    return false;
-                }
-            }
-            StatementNode::Expression(expression) => {
-                if validation_expression_contains_call(program, *expression) {
-                    return false;
-                }
-            }
-            StatementNode::LocalData(local) => {
-                if local.initial_value.is_valid()
-                    && validation_expression_contains_call(program, local.initial_value)
                 {
                     return false;
                 }
@@ -3040,30 +3034,6 @@ fn validation_expression_mentions_field(
         }
         ExpressionNode::Indexed(indexed) => {
             validation_expression_mentions_field(program, indexed.collection, field)
-        }
-        _ => false,
-    }
-}
-
-fn validation_expression_contains_call(program: &TypedTrees, expression: ExpressionHandle) -> bool {
-    if !expression.is_valid() {
-        return false;
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Call(_) => true,
-        ExpressionNode::Binary(binary) => {
-            validation_expression_contains_call(program, binary.left)
-                || validation_expression_contains_call(program, binary.right)
-        }
-        ExpressionNode::Unary(unary) => validation_expression_contains_call(program, unary.operand),
-        ExpressionNode::Mutable(inner) => validation_expression_contains_call(program, *inner),
-        ExpressionNode::Cast(cast) => validation_expression_contains_call(program, cast.value),
-        ExpressionNode::Member(member) => {
-            validation_expression_contains_call(program, member.receiver)
-        }
-        ExpressionNode::Indexed(indexed) => {
-            validation_expression_contains_call(program, indexed.collection)
-                || validation_expression_contains_call(program, indexed.index)
         }
         _ => false,
     }

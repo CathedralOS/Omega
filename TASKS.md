@@ -123,11 +123,13 @@ before the fix.
   boundary calls, now preserve linear arithmetic facts, recast and
   boundary-range witnesses, dependent entry and forwarding facts, and exact
   default-domain valuations outside their conservatively instantiated
-  receiver/exclusive-argument may-write paths (unknown, transitioning,
-  static-machine, cyclic, and value-position calls still invalidate all
-  affected facts). Finish the `stores` clause, expression-call summaries,
-  explicit state-arrival contracts, and broader Houdini-style inference for
-  facts crossing sibling calls.
+  receiver/exclusive-argument may-write paths. Value-position calls use the
+  same summaries recursively; when body analysis is unavailable (unknown,
+  transitioning, static-machine, or cyclic callees), their ownership-bounded
+  fallback invalidates the whole receiver plus explicit mutable arguments but
+  preserves unpassed caller locals. Finish the `stores` clause, explicit
+  state-arrival contracts, and broader Houdini-style inference for facts
+  crossing sibling calls.
 
 ### Domain facets, effects, termination, and trust
 

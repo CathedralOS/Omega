@@ -2360,10 +2360,10 @@ fn dependent_call_field_floor(
 /// Route (c)'s soundness fence: the argument's own dependent atom speaks of
 /// the field AT THIS STATE'S ENTRY, while the new obligation speaks of the
 /// NEXT entry -- valid only if the field cannot have changed in between.
-/// Conservative whole-state scan: assignments to the field and resolved calls
-/// whose shared R5 frame overlaps it defeat the route. Opaque statement calls
-/// and every value-position call remain fail-closed; the other discharge
-/// routes (guard / floor) remain.
+/// Conservative whole-state scan: assignments to the field and resolved
+/// statement/value calls whose shared R5 frame overlaps it defeat the route.
+/// Opaque calls remain fail-closed; the other discharge routes (guard / floor)
+/// remain.
 fn state_preserves_field(
     proof_plan: &ProofPlan,
     machine_name: &str,
@@ -2389,23 +2389,21 @@ fn state_preserves_field(
     let call_frames = omega_validation::CallFrameResolver::new(program);
     let field_path = format!("self.{}", field.as_str());
     for statement in program.statement_table.statements(state.statement_nodes) {
+        let Some(value_written) = call_frames
+            .as_ref()
+            .and_then(|frames| frames.statement_value_may_write_paths(machine, statement))
+        else {
+            return false;
+        };
+        if value_written
+            .iter()
+            .any(|written| omega_validation::frame_paths_overlap(&field_path, written))
+        {
+            return false;
+        }
         match statement {
             StatementNode::Assignment(assignment) => {
-                if expression_mentions_field(proof_plan, assignment.target, field)
-                    || expression_contains_call(proof_plan, assignment.value)
-                {
-                    return false;
-                }
-            }
-            StatementNode::Expression(expression) => {
-                if expression_contains_call(proof_plan, *expression) {
-                    return false;
-                }
-            }
-            StatementNode::LocalData(local) => {
-                if local.initial_value.is_valid()
-                    && expression_contains_call(proof_plan, local.initial_value)
-                {
+                if expression_mentions_field(proof_plan, assignment.target, field) {
                     return false;
                 }
             }
