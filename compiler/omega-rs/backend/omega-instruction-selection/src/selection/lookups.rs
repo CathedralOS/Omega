@@ -189,10 +189,10 @@ fn static_table_receiver_type_name(
     receiver: ExpressionHandle,
 ) -> Option<Identifier> {
     match expressions.expression(receiver) {
-        ExpressionNode::Mutable(inner) => static_table_receiver_type_name(input, expressions, *inner),
-        ExpressionNode::Member(member) => {
-            receiver_symbol_type_name(input, member.member_symbol)
+        ExpressionNode::Mutable(inner) => {
+            static_table_receiver_type_name(input, expressions, *inner)
         }
+        ExpressionNode::Member(member) => receiver_symbol_type_name(input, member.member_symbol),
         ExpressionNode::Name(path) => {
             let symbol = if path.symbol.is_valid() {
                 path.symbol
@@ -318,10 +318,7 @@ pub(super) fn asm_port_write_operands<'plan>(
     }
     let state_call = state_call_for_statement(input, source_key, statement_index)?;
     let arguments = input.state_calls.arguments.span(state_call.arguments)?;
-    Some((
-        arguments.first()?.expression,
-        arguments.get(1)?.expression,
-    ))
+    Some((arguments.first()?.expression, arguments.get(1)?.expression))
 }
 
 /// The `(port_expr, destination_place_expr)` of an `asm { in <dest>, <port> }`
@@ -348,4 +345,45 @@ pub(super) fn asm_port_read_operands<'plan>(
         .expression_handles(call.arguments)
         .first()?;
     Some((port, mutation.target))
+}
+
+/// Destination place of `asm { pushfq <dest> }`, represented as an assignment
+/// whose value is the unnameable zero-argument snapshot intrinsic.
+pub(super) fn asm_flags_snapshot_destination(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> Option<ExpressionHandle> {
+    let mutation = state_mutation_for_statement(input, source_key, statement_index)?;
+    let ExpressionNode::Call(call) = input.state_storage.expressions.expression(mutation.value)
+    else {
+        return None;
+    };
+    (call.target.as_str() == "asm#pushfq").then_some(mutation.target)
+}
+
+/// Source value of `asm { popfq <saved> }`, represented as the sole argument
+/// of the unnameable restore intrinsic.
+pub(super) fn asm_flags_restore_source(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> Option<ExpressionHandle> {
+    let omega_checked_trees::statement::StatementNode::Call(call) =
+        checked_statement_node(input, source_key, statement_index)?
+    else {
+        return None;
+    };
+    if call.target.as_str() != "asm#popfq" {
+        return None;
+    }
+    let state_call = state_call_for_statement(input, source_key, statement_index)?;
+    Some(
+        input
+            .state_calls
+            .arguments
+            .span(state_call.arguments)?
+            .first()?
+            .expression,
+    )
 }

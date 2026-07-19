@@ -67,10 +67,15 @@ pub enum BuiltinFunction {
     /// asm intrinsics with `machine_control` reach.
     AsmDisableInterrupts,
     AsmEnableInterrupts,
+    /// Compiler-balanced RFLAGS snapshot/restore intrinsics. The source
+    /// spelling uses explicit u64 places; raw stack-mutating push/pop never
+    /// enters the checked tree.
+    AsmSnapshotFlags,
+    AsmRestoreFlags,
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 11;
+    pub const COUNT: usize = 13;
 
     pub fn name(self) -> &'static str {
         match self {
@@ -85,6 +90,8 @@ impl BuiltinFunction {
             Self::AsmFullFence => "asm#mfence",
             Self::AsmDisableInterrupts => "asm#cli",
             Self::AsmEnableInterrupts => "asm#sti",
+            Self::AsmSnapshotFlags => "asm#pushfq",
+            Self::AsmRestoreFlags => "asm#popfq",
         }
     }
 
@@ -101,6 +108,8 @@ impl BuiltinFunction {
             Self::AsmFullFence => 8,
             Self::AsmDisableInterrupts => 9,
             Self::AsmEnableInterrupts => 10,
+            Self::AsmSnapshotFlags => 11,
+            Self::AsmRestoreFlags => 12,
         }
     }
 
@@ -110,16 +119,18 @@ impl BuiltinFunction {
     /// shared inline-assembly catalog.
     pub fn asm_intrinsic_effect_name(self) -> Option<&'static str> {
         match self {
-            Self::AsmHlt | Self::AsmDisableInterrupts | Self::AsmEnableInterrupts => {
-                Some("machine_control")
-            }
+            Self::AsmHlt
+            | Self::AsmDisableInterrupts
+            | Self::AsmEnableInterrupts
+            | Self::AsmRestoreFlags => Some("machine_control"),
             Self::AsmPortOut | Self::AsmPortIn => Some("device_io"),
             Self::Max
             | Self::Min
             | Self::Sqrt
             | Self::AsmLoadFence
             | Self::AsmStoreFence
-            | Self::AsmFullFence => None,
+            | Self::AsmFullFence
+            | Self::AsmSnapshotFlags => None,
         }
     }
 
@@ -134,10 +145,12 @@ impl BuiltinFunction {
                 | Self::AsmFullFence
                 | Self::AsmDisableInterrupts
                 | Self::AsmEnableInterrupts
+                | Self::AsmSnapshotFlags
+                | Self::AsmRestoreFlags
         )
     }
 
-    pub fn asm_intrinsics() -> [Self; 8] {
+    pub fn asm_intrinsics() -> [Self; 10] {
         [
             Self::AsmHlt,
             Self::AsmPortOut,
@@ -147,6 +160,8 @@ impl BuiltinFunction {
             Self::AsmFullFence,
             Self::AsmDisableInterrupts,
             Self::AsmEnableInterrupts,
+            Self::AsmSnapshotFlags,
+            Self::AsmRestoreFlags,
         ]
     }
 }
@@ -248,6 +263,14 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
             SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::AsmEnableInterrupts.name()),
         ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmSnapshotFlags.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmRestoreFlags.name()),
+        ),
     ]
 }
 
@@ -324,6 +347,8 @@ mod builtin_ordinal_tests {
             BuiltinFunction::AsmFullFence,
             BuiltinFunction::AsmDisableInterrupts,
             BuiltinFunction::AsmEnableInterrupts,
+            BuiltinFunction::AsmSnapshotFlags,
+            BuiltinFunction::AsmRestoreFlags,
         ] {
             assert_eq!(
                 table[function.ordinal()].1.as_str(),

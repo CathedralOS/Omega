@@ -3,6 +3,7 @@ mod call_cycles;
 mod calls;
 mod contract_entailment;
 mod data;
+mod default_domains;
 mod destructure;
 mod domains;
 mod effects;
@@ -16,11 +17,10 @@ mod machine_parameters;
 mod operators;
 mod places;
 mod proof_facts;
-mod recasts;
 mod proof_only_faces;
 mod properties;
+mod recasts;
 mod state_signatures;
-mod default_domains;
 mod struct_literals;
 mod symbols;
 #[cfg(test)]
@@ -57,14 +57,14 @@ use crate::traits::{
 use crate::transitions::validate_transition_target_node;
 use crate::type_references::{TypeReferenceOwner, validate_type_reference_handle};
 pub use effects::{validate_asm_discharge, validate_effect_plan};
-use omega_core::diagnostics::Diagnostic;
-use omega_typed_trees::TypedTrees;
-use omega_typed_trees::statement::{StatementNode, TransitionTargetNode};
 /// The declared type of a simple place argument (bare name / `self.field`,
 /// through the `&mut` marker), WITH its Constrained shells -- exposed for the
 /// typed-trees machine-monomorphization pass's param-position inference.
 pub use literals::land_float_literal_destinations;
 pub use machine_parameters::validate_static_machine_selections;
+use omega_core::diagnostics::Diagnostic;
+use omega_typed_trees::TypedTrees;
+use omega_typed_trees::statement::{StatementNode, TransitionTargetNode};
 pub use places::declared_place_type_raw;
 pub use places::unwrapped_type_reference;
 pub use properties::{declared_property_names, type_satisfies_declared_property};
@@ -319,9 +319,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
 /// passes (the Decision-12 relaxation: uniform compilation, deadness
 /// outside proofs warns). stderr is the v1 warning channel -- report
 /// integration is recorded in TASKS.md.
-pub(crate) fn finish_diagnostics(
-    diagnostics: Vec<Diagnostic>,
-) -> Result<(), Vec<Diagnostic>> {
+pub(crate) fn finish_diagnostics(diagnostics: Vec<Diagnostic>) -> Result<(), Vec<Diagnostic>> {
     if diagnostics.iter().any(Diagnostic::is_error) {
         return Err(diagnostics);
     }
@@ -373,7 +371,7 @@ fn validate_state_statement_node(
                 machine_symbols.state(state_name),
                 state_name,
             );
-            calls::validate_asm_port_read_destination(
+            calls::validate_asm_value_destination(
                 program,
                 machine,
                 machine_symbols.state(state_name),
@@ -544,9 +542,7 @@ fn validate_state_statement_node(
                     machine_symbols.state(state_name),
                     assignment.target,
                 )
-                .and_then(|handle| {
-                    arithmetic_domains::enforced_declared_range(program, handle)
-                }),
+                .and_then(|handle| arithmetic_domains::enforced_declared_range(program, handle)),
             );
         }
         StatementNode::Call(call) => {
@@ -569,12 +565,9 @@ fn validate_state_statement_node(
             // `&mut` out-arguments' places (the boundary model's citable
             // fact) -- `fw.get_size(&mut self.n)` with `ensures size <= 8`
             // leaves `self.n` in [type_low, 8].
-            if let Some(signature) = crate::calls::boundary_trait_signature(
-                program,
-                machine_symbols,
-                symbols,
-                call,
-            ) {
+            if let Some(signature) =
+                crate::calls::boundary_trait_signature(program, machine_symbols, symbols, call)
+            {
                 arithmetic_domains::seed_out_param_ensures(
                     program,
                     machine,

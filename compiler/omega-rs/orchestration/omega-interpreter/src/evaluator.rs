@@ -1568,10 +1568,9 @@ impl<'program> Evaluator<'program> {
         // Port I/O (`asm#port_out`) has real device effects the interpreter
         // cannot reproduce and stays unsupported.
         if call.target.as_str() == "asm#hlt"
-            || omega_core::inline_assembly::AsmFenceKind::from_intrinsic_name(
-                call.target.as_str(),
-            )
-            .is_some()
+            || call.target.as_str() == "asm#popfq"
+            || omega_core::inline_assembly::AsmFenceKind::from_intrinsic_name(call.target.as_str())
+                .is_some()
             || omega_core::inline_assembly::AsmInterruptControlKind::from_intrinsic_name(
                 call.target.as_str(),
             )
@@ -3794,10 +3793,7 @@ impl<'program> Evaluator<'program> {
     /// The find-enumeration twin of `build_dirent_records` (fs rung 3a): the
     /// same entry set (".", "..", then the immediate children of `dir_path`)
     /// as (name, is_dir) pairs for a `find_first` cursor snapshot.
-    fn build_find_entries(
-        &self,
-        dir_path: &[u8],
-    ) -> std::collections::VecDeque<(Vec<u8>, bool)> {
+    fn build_find_entries(&self, dir_path: &[u8]) -> std::collections::VecDeque<(Vec<u8>, bool)> {
         let mut entries: std::collections::VecDeque<(Vec<u8>, bool)> =
             std::collections::VecDeque::from([(b".".to_vec(), true), (b"..".to_vec(), true)]);
         let mut prefix = dir_path.to_vec();
@@ -4496,6 +4492,12 @@ impl<'program> Evaluator<'program> {
         // CH10 root grant marker (see the statement-call twin): a no-op.
         if target.starts_with("accept_boundary#") {
             return Ok(Value::Unit);
+        }
+        // The tree walker has no architectural flags register. Preserve the
+        // value-flow shape with the architecturally fixed RFLAGS bit 1 set;
+        // the matching restore statement is a no-op above.
+        if target == "asm#pushfq" && !call.receiver.is_valid() {
+            return Ok(Value::Int(2));
         }
         if matches!(target, "max" | "min") {
             let args = self
@@ -5690,22 +5692,20 @@ impl<'program> Evaluator<'program> {
             PrimitiveType::F32 => {
                 let bits = match value {
                     Value::Float(f) => (f as f32).to_bits(),
-                    other => {
-                        other.as_int().ok_or_else(|| {
-                            Halt::Trap("recast to f32 of non-scalar".to_owned())
-                        })? as u32
-                    }
+                    other => other
+                        .as_int()
+                        .ok_or_else(|| Halt::Trap("recast to f32 of non-scalar".to_owned()))?
+                        as u32,
                 };
                 Ok(Value::Float(f32::from_bits(bits) as f64))
             }
             PrimitiveType::F64 => {
                 let bits = match value {
                     Value::Float(f) => f.to_bits(),
-                    other => {
-                        other.as_int().ok_or_else(|| {
-                            Halt::Trap("recast to f64 of non-scalar".to_owned())
-                        })? as u64
-                    }
+                    other => other
+                        .as_int()
+                        .ok_or_else(|| Halt::Trap("recast to f64 of non-scalar".to_owned()))?
+                        as u64,
                 };
                 Ok(Value::Float(f64::from_bits(bits)))
             }
@@ -5718,9 +5718,9 @@ impl<'program> Evaluator<'program> {
                         Some(4) => (f as f32).to_bits() as i64,
                         _ => f.to_bits() as i64,
                     },
-                    other => other.as_int().ok_or_else(|| {
-                        Halt::Trap("recast to integer of non-scalar".to_owned())
-                    })?,
+                    other => other
+                        .as_int()
+                        .ok_or_else(|| Halt::Trap("recast to integer of non-scalar".to_owned()))?,
                 };
                 // Equal-width int<->int reinterpretation is exactly the
                 // width-wrap (`u32` 0xFFFF_FFFF re-viewed as `i32` = -1).
@@ -5780,10 +5780,9 @@ impl<'program> Evaluator<'program> {
             // (`(a as u8 in Saturating) + b` in a GUARD has no landing seam);
             // hardcoding Exact here let the wide 300 through while native's
             // witness read the retag and clamped.
-            ExpressionNode::Cast(cast) => Some((
-                self.cast_target_primitive(cast.target_type)?,
-                cast.domain,
-            )),
+            ExpressionNode::Cast(cast) => {
+                Some((self.cast_target_primitive(cast.target_type)?, cast.domain))
+            }
             ExpressionNode::Mutable(inner) => self.expression_scalar_type(*inner, frame),
             ExpressionNode::Unary(unary) => self.expression_scalar_type(unary.operand, frame),
             // A LANDED float literal witnesses its format (the F2a suffix /
@@ -6153,14 +6152,10 @@ impl<'program> Evaluator<'program> {
                 };
                 if let Some((min, max, wide)) = bounds_and_wide {
                     return match domain {
-                        ArithmeticDomain::Saturating => {
-                            Ok(Value::Int(wide.clamp(min, max) as i64))
-                        }
-                        ArithmeticDomain::Trapping if wide < min || wide > max => {
-                            trap(format!(
-                                "arithmetic overflow in Trapping domain: {wide} is out of range for {ty:?}"
-                            ))
-                        }
+                        ArithmeticDomain::Saturating => Ok(Value::Int(wide.clamp(min, max) as i64)),
+                        ArithmeticDomain::Trapping if wide < min || wide > max => trap(format!(
+                            "arithmetic overflow in Trapping domain: {wide} is out of range for {ty:?}"
+                        )),
                         _ => Ok(Value::Int(wide as i64)),
                     };
                 }
@@ -6297,9 +6292,7 @@ impl<'program> Evaluator<'program> {
                 Some(ArithmeticDomain::Trapping)
                     if landed.is_infinite() && l.is_finite() && r.is_finite() =>
                 {
-                    trap(
-                        "float overflow (or division by zero) in Trapping domain".to_owned(),
-                    )
+                    trap("float overflow (or division by zero) in Trapping domain".to_owned())
                 }
                 _ => Ok(Value::Float(landed)),
             }

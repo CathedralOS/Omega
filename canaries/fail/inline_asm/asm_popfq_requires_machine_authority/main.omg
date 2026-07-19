@@ -1,0 +1,9 @@
+// Restoring RFLAGS can change IF and other privileged machine state. Merely
+// declaring machine_control on a hosted root does not mint machine ownership.
+data Main {
+    saved_flags: u64;
+}
+
+machine Main::main(&mut self) effects machine_control {
+    asm { popfq self.saved_flags }
+}

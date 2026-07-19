@@ -112,6 +112,10 @@ pub enum MachineInstructionKind {
     MemoryFence(omega_core::inline_assembly::AsmFenceKind),
     /// x86 CLI/STI interrupt-flag control.
     InterruptControl(omega_core::inline_assembly::AsmInterruptControlKind),
+    /// Compiler-balanced RFLAGS snapshot.
+    FlagsSnapshot,
+    /// Compiler-balanced RFLAGS restore.
+    FlagsRestore,
     /// The x86 `out dx, al` port write (`asm { out .. }`). Storage operands
     /// relocate like any runtime-value read.
     PortWrite,

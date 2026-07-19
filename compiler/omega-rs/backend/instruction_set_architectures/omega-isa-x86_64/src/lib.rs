@@ -53,9 +53,7 @@ pub const fn memory_fence_width() -> usize {
 
 /// Exact x86 SSE2 fence encodings: `0f ae /5`, `/7`, and `/6` for load,
 /// store, and full ordering respectively.
-pub const fn encode_memory_fence_bytes(
-    kind: omega_core::inline_assembly::AsmFenceKind,
-) -> [u8; 3] {
+pub const fn encode_memory_fence_bytes(kind: omega_core::inline_assembly::AsmFenceKind) -> [u8; 3] {
     use omega_core::inline_assembly::AsmFenceKind;
     match kind {
         AsmFenceKind::Load => [0x0f, 0xae, 0xe8],
@@ -79,6 +77,50 @@ pub const fn encode_interrupt_control_bytes(
         AsmInterruptControlKind::Disable => [0xfa],
         AsmInterruptControlKind::Enable => [0xfb],
     }
+}
+
+// --- RFLAGS snapshot/restore -------------------------------------------------
+
+/// Byte offset of the destination-region `mov r15, imm64` inside a flags
+/// snapshot sequence. The relocation targets its immediate at offset +2.
+pub const FLAGS_SNAPSHOT_DESTINATION_BASE_OFFSET: usize = 3;
+const FLAGS_SNAPSHOT_DESTINATION_STORE_WIDTH: usize = 10 + 7;
+
+pub const fn flags_snapshot_width() -> usize {
+    1 + 2 + FLAGS_SNAPSHOT_DESTINATION_STORE_WIDTH
+}
+
+/// `asm { pushfq <dest> }` as a stack-balanced value operation:
+/// `pushfq; pop r10; mov r15,<dest-base>; mov [r15+disp32],r10`.
+pub fn encode_flags_snapshot(dest_byte_offset: usize) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(flags_snapshot_width());
+    bytes.push(0x9c); // pushfq
+    bytes.extend([0x41, 0x5a]); // pop r10
+    append_mov_r15_imm64(&mut bytes, 0); // destination region base (relocated)
+    append_store_r10_to_r15(&mut bytes, dest_byte_offset)?;
+    debug_assert_eq!(bytes.len(), flags_snapshot_width());
+    Ok(bytes)
+}
+
+pub fn flags_restore_width(
+    source: &impl RuntimeValueOperandSource,
+    operand: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_value_operand_width(source, operand) + 3
+}
+
+/// `asm { popfq <source> }` as a stack-balanced value operation:
+/// `load r10,<source>; push r10; popfq`.
+pub fn encode_flags_restore(
+    source: &impl RuntimeValueOperandSource,
+    operand: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(flags_restore_width(source, operand));
+    append_runtime_value_operand(source, &mut bytes, Reg64::R10, operand)?;
+    bytes.extend([0x41, 0x52]); // push r10
+    bytes.push(0x9d); // popfq
+    debug_assert_eq!(bytes.len(), flags_restore_width(source, operand));
+    Ok(bytes)
 }
 
 // --- port I/O (`asm { out .. }` / `asm { in .. }`) --------------------------
@@ -9437,6 +9479,15 @@ fn append_store_rax_to_r15(
     Ok(())
 }
 
+fn append_store_r10_to_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = i32::try_from(byte_offset)
+        .map_err(|_| Diagnostic::error("RFLAGS snapshot destination offset exceeds i32"))?;
+    // mov qword ptr [r15+disp32], r10
+    bytes.extend([0x4d, 0x89, 0x97]);
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
 fn append_store_r14_to_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
     bytes.extend([0x4d, 0x89, 0xb7]);
@@ -10183,6 +10234,18 @@ mod machine_control_tests {
         assert_eq!(interrupt_control_width(), 1);
     }
 
+    #[test]
+    fn flags_snapshot_is_stack_balanced_and_stores_the_full_register() {
+        let bytes = encode_flags_snapshot(24).expect("encode RFLAGS snapshot");
+        assert_eq!(bytes.len(), flags_snapshot_width());
+        assert_eq!(&bytes[0..3], &[0x9c, 0x41, 0x5a]); // pushfq; pop r10
+        assert_eq!(&bytes[3..5], &[0x49, 0xbf]); // mov r15, imm64
+        assert_eq!(&bytes[5..13], &0u64.to_le_bytes());
+        assert_eq!(&bytes[13..16], &[0x4d, 0x89, 0x97]); // [r15+disp32] = r10
+        assert_eq!(&bytes[16..20], &24u32.to_le_bytes());
+        assert_eq!(FLAGS_SNAPSHOT_DESTINATION_BASE_OFFSET, 3);
+    }
+
     /// A RuntimeValueOperandSource where every handle is an immediate integer
     /// (handle arena index -> value). Immediates emit no relocation, so the
     /// port-encoder byte layout is fully deterministic.
@@ -10274,6 +10337,17 @@ mod machine_control_tests {
         ) -> Option<(RuntimeValueOperandHandle, String, bool)> {
             None
         }
+    }
+
+    #[test]
+    fn flags_restore_is_stack_balanced_after_operand_load() {
+        let source = ImmediateOperands(vec![0x202]);
+        let operand = RuntimeValueOperandHandle::from_parts(0, 1);
+        let bytes = encode_flags_restore(&source, operand).expect("encode RFLAGS restore");
+        assert_eq!(bytes.len(), flags_restore_width(&source, operand));
+        assert_eq!(&bytes[0..2], &[0x49, 0xba]); // mov r10, imm64
+        assert_eq!(&bytes[2..10], &0x202u64.to_le_bytes());
+        assert_eq!(&bytes[10..13], &[0x41, 0x52, 0x9d]); // push r10; popfq
     }
 
     #[test]

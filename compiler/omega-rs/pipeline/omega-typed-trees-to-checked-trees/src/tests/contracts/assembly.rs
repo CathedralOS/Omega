@@ -10,7 +10,7 @@ fn accepts_proven_asm_entry_and_exit_facts() {
         {
             asm where
                 requires self.ready
-                clobbers rax, rdx, r10, r11
+                clobbers rax, rdx, r10, r11, r15
                 ensures self.ready
             { out self.port, self.value }
         }
@@ -28,7 +28,7 @@ fn rejects_unproven_asm_requires_at_block_entry() {
         machine Main::main(&mut self) effects device_io {
             asm where
                 requires self.ready
-                clobbers rax, rdx, r10, r11
+                clobbers rax, rdx, r10, r11, r15
             { out self.port, self.value }
         }
     "#;
@@ -50,7 +50,7 @@ fn rejects_unproven_asm_ensures_at_block_exit() {
 
         machine Main::main(&mut self) effects device_io {
             asm where
-                clobbers rax, rdx, r10, r11
+                clobbers rax, rdx, r10, r11, r15
                 ensures self.ready
             { out self.port, self.value }
         }
@@ -93,6 +93,32 @@ fn rejects_asm_ensures_invalidated_by_port_input() {
 }
 
 #[test]
+fn rejects_asm_ensures_invalidated_by_flags_snapshot() {
+    let source = r#"
+        data Main { saved: u64; }
+
+        machine Main::main(&mut self)
+        requires self.saved == 2
+        {
+            asm where
+                requires self.saved == 2
+                clobbers r10, r15
+                ensures self.saved == 2
+            { pushfq self.saved }
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("flags snapshot must invalidate facts about its destination");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove asm `ensures` fact at block exit")
+            && diagnostic.message.contains("self.saved == 2")
+    }));
+}
+
+#[test]
 fn preserves_asm_ensures_across_unrelated_port_input() {
     let source = r#"
         data Main { port: u16; value: u8; ready: bool; }
@@ -120,7 +146,7 @@ fn rejects_non_boolean_asm_fact_place() {
         machine Main::main(&mut self) effects device_io {
             asm where
                 requires self.value
-                clobbers rax, rdx, r10, r11
+                clobbers rax, rdx, r10, r11, r15
             { out self.port, self.value }
         }
     "#;

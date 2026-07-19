@@ -21,6 +21,8 @@ pub enum AsmInstructionShape {
     PortIn,
     MemoryFence(AsmFenceKind),
     InterruptControl(AsmInterruptControlKind),
+    FlagsSnapshot,
+    FlagsRestore,
     DerivedExit,
 }
 
@@ -111,11 +113,24 @@ pub enum AsmInterruptFlagEffect {
     /// Set RFLAGS.IF, with maskable interrupts recognized only after the
     /// instruction following STI has executed.
     EnableAfterNextInstruction,
+    /// Restore IF from the explicit saved-flags operand.
+    RestoreFromOperand,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AsmFlagsDataFlow {
+    None,
+    /// Snapshot RFLAGS into the instruction's explicit destination operand.
+    SnapshotToOperand,
+    /// Restore the architecturally writable RFLAGS fields from an explicit
+    /// source operand. The realized sequence keeps RSP balanced.
+    RestoreFromOperand,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AsmOperandAccess {
     Read,
+    ReadPlace,
     Write,
 }
 
@@ -162,6 +177,20 @@ impl AsmOperandConstraint {
         }
     }
 
+    pub const fn read_place(
+        role: &'static str,
+        target_register: &'static str,
+        expected_type_name: &'static str,
+    ) -> Self {
+        Self {
+            role,
+            target_register,
+            access: AsmOperandAccess::ReadPlace,
+            expected_type_name,
+            maximum_literal: None,
+        }
+    }
+
     pub const fn expected_type_name(self) -> &'static str {
         self.expected_type_name
     }
@@ -172,6 +201,13 @@ impl AsmOperandConstraint {
 
     pub const fn requires_writable_place(self) -> bool {
         matches!(self.access, AsmOperandAccess::Write)
+    }
+
+    pub const fn requires_place(self) -> bool {
+        matches!(
+            self.access,
+            AsmOperandAccess::ReadPlace | AsmOperandAccess::Write
+        )
     }
 }
 
@@ -190,6 +226,9 @@ pub struct AsmInstructionContract {
     /// Architectural interrupt-flag transition. STI's one-instruction delay
     /// is part of the contract rather than being flattened into "enabled".
     pub interrupt_flag_effect: AsmInterruptFlagEffect,
+    /// Explicit RFLAGS value flow. This distinguishes a compiler-balanced
+    /// snapshot/restore from exposing raw stack-mutating push/pop operations.
+    pub flags_data_flow: AsmFlagsDataFlow,
     /// Registers changed by the realized instruction sequence. This includes
     /// compiler scratch registers used to materialize structured operands.
     pub clobbers: &'static [&'static str],
@@ -218,22 +257,39 @@ const PORT_IN_OPERANDS: &[AsmOperandConstraint] = &[
     AsmOperandConstraint::write_place("destination", "al", "u8"),
     AsmOperandConstraint::read("port", "dx", "u16", u16::MAX as u64),
 ];
+const FLAGS_SNAPSHOT_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
+    "destination",
+    "rflags",
+    "u64",
+)];
+const FLAGS_RESTORE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read_place(
+    "saved flags",
+    "rflags",
+    "u64",
+)];
 const NO_CLOBBERS: &[&str] = &[];
-const PORT_OUT_CLOBBERS: &[&str] = &["rax", "rdx", "r10", "r11"];
+const PORT_OUT_CLOBBERS: &[&str] = &["rax", "rdx", "r10", "r11", "r15"];
 const PORT_IN_CLOBBERS: &[&str] = &["rax", "rdx", "r10", "r15"];
+const FLAGS_OPERAND_CLOBBERS: &[&str] = &["r10", "r15"];
 
 pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
-    use AsmCatalogEntry::{Contract, Refused};
     use AsmAuthorityRequirement::{MachineOwner, None as NoAuthority, PortIo as PortIoAuthority};
+    use AsmCatalogEntry::{Contract, Refused};
+    use AsmFenceKind::{Full, Load, Store};
+    use AsmFlagsDataFlow::{
+        None as NoFlagsDataFlow, RestoreFromOperand as RestoreFlags,
+        SnapshotToOperand as SnapshotFlags,
+    };
     use AsmInstructionAvailability::{DeriverOnly, UserChecked};
     use AsmInstructionRefusal::{HiddenControlExit, UnmodeledMemoryAccess};
-    use AsmFenceKind::{Full, Load, Store};
     use AsmInstructionShape::{
-        DerivedExit, Halt, InterruptControl, JumpState, MemoryFence, PortIn, PortOut,
+        DerivedExit, FlagsRestore, FlagsSnapshot, Halt, InterruptControl, JumpState, MemoryFence,
+        PortIn, PortOut,
     };
     use AsmInterruptControlKind::{Disable, Enable};
     use AsmInterruptFlagEffect::{
         Disable as DisablesInterrupts, EnableAfterNextInstruction, None as NoInterruptChange,
+        RestoreFromOperand as RestoreInterruptFlag,
     };
     use AsmMemoryOrdering::{Fence, None as NoOrdering};
     use AsmTargetApplicability::{Aarch64, Any, X86_64};
@@ -247,6 +303,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             operands: NO_OPERANDS,
             memory_ordering: NoOrdering,
             interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
             clobbers: NO_CLOBBERS,
         }),
         "hlt" => Contract(AsmInstructionContract {
@@ -257,6 +314,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             operands: NO_OPERANDS,
             memory_ordering: NoOrdering,
             interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
             clobbers: NO_CLOBBERS,
         }),
         "out" => Contract(AsmInstructionContract {
@@ -267,6 +325,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             operands: PORT_OUT_OPERANDS,
             memory_ordering: NoOrdering,
             interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
             clobbers: PORT_OUT_CLOBBERS,
         }),
         "in" => Contract(AsmInstructionContract {
@@ -277,6 +336,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             operands: PORT_IN_OPERANDS,
             memory_ordering: NoOrdering,
             interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
             clobbers: PORT_IN_CLOBBERS,
         }),
         "lfence" => Contract(AsmInstructionContract {
@@ -287,6 +347,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             operands: NO_OPERANDS,
             memory_ordering: Fence(Load),
             interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
             clobbers: NO_CLOBBERS,
         }),
         "sfence" => Contract(AsmInstructionContract {
@@ -297,6 +358,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             operands: NO_OPERANDS,
             memory_ordering: Fence(Store),
             interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
             clobbers: NO_CLOBBERS,
         }),
         "mfence" => Contract(AsmInstructionContract {
@@ -307,6 +369,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             operands: NO_OPERANDS,
             memory_ordering: Fence(Full),
             interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
             clobbers: NO_CLOBBERS,
         }),
         "cli" => Contract(AsmInstructionContract {
@@ -317,6 +380,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             operands: NO_OPERANDS,
             memory_ordering: NoOrdering,
             interrupt_flag_effect: DisablesInterrupts,
+            flags_data_flow: NoFlagsDataFlow,
             clobbers: NO_CLOBBERS,
         }),
         "sti" => Contract(AsmInstructionContract {
@@ -327,7 +391,30 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             operands: NO_OPERANDS,
             memory_ordering: NoOrdering,
             interrupt_flag_effect: EnableAfterNextInstruction,
+            flags_data_flow: NoFlagsDataFlow,
             clobbers: NO_CLOBBERS,
+        }),
+        "pushfq" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: FlagsSnapshot,
+            target: X86_64,
+            required_authority: NoAuthority,
+            operands: FLAGS_SNAPSHOT_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: SnapshotFlags,
+            clobbers: FLAGS_OPERAND_CLOBBERS,
+        }),
+        "popfq" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: FlagsRestore,
+            target: X86_64,
+            required_authority: MachineOwner,
+            operands: FLAGS_RESTORE_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: RestoreInterruptFlag,
+            flags_data_flow: RestoreFlags,
+            clobbers: FLAGS_OPERAND_CLOBBERS,
         }),
 
         // These are real catalog operations, but only derived entry/exit
@@ -340,6 +427,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             operands: NO_OPERANDS,
             memory_ordering: NoOrdering,
             interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
             clobbers: NO_CLOBBERS,
         }),
         "eret" => Contract(AsmInstructionContract {
@@ -350,6 +438,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             operands: NO_OPERANDS,
             memory_ordering: NoOrdering,
             interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
             clobbers: NO_CLOBBERS,
         }),
 
@@ -374,9 +463,9 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
 #[cfg(test)]
 mod tests {
     use super::{
-        AsmAuthorityRequirement, AsmCatalogEntry, AsmFenceKind, AsmInstructionAvailability,
-        AsmInstructionRefusal, AsmInterruptFlagEffect, AsmMemoryOrdering, AsmOperandAccess,
-        AsmTargetApplicability, asm_catalog_entry,
+        AsmAuthorityRequirement, AsmCatalogEntry, AsmFenceKind, AsmFlagsDataFlow,
+        AsmInstructionAvailability, AsmInstructionRefusal, AsmInterruptFlagEffect,
+        AsmMemoryOrdering, AsmOperandAccess, AsmTargetApplicability, asm_catalog_entry,
     };
 
     #[test]
@@ -419,7 +508,7 @@ mod tests {
                 ("value", "al", AsmOperandAccess::Read, "u8"),
             ]
         );
-        assert_eq!(out.clobbers, &["rax", "rdx", "r10", "r11"]);
+        assert_eq!(out.clobbers, &["rax", "rdx", "r10", "r11", "r15"]);
 
         let AsmCatalogEntry::Contract(input) = asm_catalog_entry("in").expect("in contract") else {
             panic!("in must be a contracted instruction");
@@ -441,6 +530,43 @@ mod tests {
             ]
         );
         assert_eq!(input.clobbers, &["rax", "rdx", "r10", "r15"]);
+    }
+
+    #[test]
+    fn flags_contracts_are_explicit_and_stack_balanced_by_lowering() {
+        let AsmCatalogEntry::Contract(snapshot) =
+            asm_catalog_entry("pushfq").expect("pushfq contract")
+        else {
+            panic!("pushfq must be contracted");
+        };
+        assert_eq!(snapshot.required_authority, AsmAuthorityRequirement::None);
+        assert_eq!(
+            snapshot.flags_data_flow,
+            AsmFlagsDataFlow::SnapshotToOperand
+        );
+        assert_eq!(snapshot.operands[0].access, AsmOperandAccess::Write);
+        assert_eq!(snapshot.operands[0].expected_type_name, "u64");
+        assert_eq!(snapshot.clobbers, &["r10", "r15"]);
+
+        let AsmCatalogEntry::Contract(restore) =
+            asm_catalog_entry("popfq").expect("popfq contract")
+        else {
+            panic!("popfq must be contracted");
+        };
+        assert_eq!(
+            restore.required_authority,
+            AsmAuthorityRequirement::MachineOwner
+        );
+        assert_eq!(
+            restore.flags_data_flow,
+            AsmFlagsDataFlow::RestoreFromOperand
+        );
+        assert_eq!(
+            restore.interrupt_flag_effect,
+            AsmInterruptFlagEffect::RestoreFromOperand
+        );
+        assert_eq!(restore.operands[0].access, AsmOperandAccess::ReadPlace);
+        assert_eq!(restore.clobbers, &["r10", "r15"]);
     }
 
     #[test]

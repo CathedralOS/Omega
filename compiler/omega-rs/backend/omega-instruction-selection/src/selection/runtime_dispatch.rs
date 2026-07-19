@@ -72,18 +72,18 @@ pub(crate) fn copy_places_direct(
 /// A pointee place: deref the frame-resident pointer slot at
 /// `pointer_byte_offset`, then walk to `field_byte_offset`. Three steps,
 /// always within `PLACE_MAX_STEPS`.
-fn pointee_place(pointer_byte_offset: usize, field_byte_offset: usize) -> omega_abstract_operations::Place {
-    omega_abstract_operations::Place::at(
-        RuntimeStorageRegion::RuntimeFrame,
-        pointer_byte_offset,
-    )
-    .with_step(omega_abstract_operations::PlaceStep::Deref)
-    .and_then(|place| {
-        place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
-            field_byte_offset,
-        ))
-    })
-    .expect("a pointee place is three steps, within PLACE_MAX_STEPS")
+fn pointee_place(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+) -> omega_abstract_operations::Place {
+    omega_abstract_operations::Place::at(RuntimeStorageRegion::RuntimeFrame, pointer_byte_offset)
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a pointee place is three steps, within PLACE_MAX_STEPS")
 }
 
 /// Rung 2c-ii: the retired to-pointee copy -- a direct source into
@@ -650,17 +650,14 @@ pub(crate) fn text_place_pointee(
     pointer_byte_offset: usize,
     field_byte_offset: usize,
 ) -> omega_abstract_operations::Place {
-    omega_abstract_operations::Place::at(
-        RuntimeStorageRegion::RuntimeFrame,
-        pointer_byte_offset,
-    )
-    .with_step(omega_abstract_operations::PlaceStep::Deref)
-    .and_then(|place| {
-        place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
-            field_byte_offset,
-        ))
-    })
-    .expect("a pointee place is three steps, within PLACE_MAX_STEPS")
+    omega_abstract_operations::Place::at(RuntimeStorageRegion::RuntimeFrame, pointer_byte_offset)
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a pointee place is three steps, within PLACE_MAX_STEPS")
 }
 
 pub(crate) fn text_place_frame_indexed(
@@ -669,24 +666,21 @@ pub(crate) fn text_place_frame_indexed(
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> omega_abstract_operations::Place {
-    omega_abstract_operations::Place::at(
-        RuntimeStorageRegion::RuntimeFrame,
-        descriptor_offset,
-    )
-    .with_step(omega_abstract_operations::PlaceStep::Deref)
-    .and_then(|place| {
-        place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
-            index_region: RuntimeStorageRegion::RuntimeFrame,
-            index_offset,
-            element_byte_size,
+    omega_abstract_operations::Place::at(RuntimeStorageRegion::RuntimeFrame, descriptor_offset)
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset,
+                element_byte_size,
+            })
         })
-    })
-    .and_then(|place| {
-        place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
-            field_byte_offset,
-        ))
-    })
-    .expect("a frame-indexed place is four steps, within PLACE_MAX_STEPS")
+        .and_then(|place| {
+            place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                field_byte_offset,
+            ))
+        })
+        .expect("a frame-indexed place is four steps, within PLACE_MAX_STEPS")
 }
 
 /// Task #131 (guards consume Places): the direct-place compare
@@ -1486,8 +1480,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                             RuntimeAliasResolutionContext {
                                 aliases: alias_bindings,
                                 alias_expressions: &runtime_alias_expressions,
-                            },
-                        );
+                            });
                         select_host_call(
                             input,
                             host_call,
@@ -1640,8 +1633,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                                             | RuntimeDispatchBodyOperationKind::Mutation { .. }
                                     ) && later.source_key == target_key
                                 })
-                        },
-                    );
+                        });
                     has_caller_local || has_callee_local
                 };
                 if defers_to_local_initializer {
@@ -1698,6 +1690,33 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                         source_key: operation.source_key,
                         source_statement: operation.statement_index,
                     });
+                }
+
+                if matches!(
+                    operation.kind,
+                    RuntimeDispatchBodyOperationKind::FlagsRestore
+                ) && let Some(source_expression) = super::lookups::asm_flags_restore_source(
+                    input,
+                    operation.source_key,
+                    operation.statement_index,
+                ) {
+                    let scratch = writes::RuntimeStaticValues::with_capacity(0);
+                    if let Some(source) = writes::mutation::resolve_runtime_value_operand_in_table(
+                        input,
+                        dispatch_case.dispatch_index,
+                        operation.source_key,
+                        operation.statement_index,
+                        &input.state_calls.expressions,
+                        source_expression,
+                        &scratch,
+                        runtime_value_operands,
+                    ) {
+                        selected_instructions.push(SelectedInstruction {
+                            kind: SelectedInstructionKind::FlagsRestore { source },
+                            source_key: operation.source_key,
+                            source_statement: operation.statement_index,
+                        });
+                    }
                 }
 
                 if matches!(operation.kind, RuntimeDispatchBodyOperationKind::PortWrite)
@@ -1766,6 +1785,34 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                         selected_instructions.push(SelectedInstruction {
                             kind: SelectedInstructionKind::PortRead {
                                 port,
+                                dest_region: dest.region,
+                                dest_byte_offset: dest.byte_offset,
+                            },
+                            source_key: operation.source_key,
+                            source_statement: operation.statement_index,
+                        });
+                    }
+                }
+
+                if matches!(
+                    operation.kind,
+                    RuntimeDispatchBodyOperationKind::FlagsSnapshot
+                ) && let Some(dest_expression) = super::lookups::asm_flags_snapshot_destination(
+                    input,
+                    operation.source_key,
+                    operation.statement_index,
+                ) {
+                    let dest =
+                        crate::selection::storage_places::resolve_runtime_storage_place_in_table(
+                            input,
+                            dispatch_case.dispatch_index,
+                            operation.source_key,
+                            &input.state_storage.expressions,
+                            dest_expression,
+                        );
+                    if let Some(dest) = dest {
+                        selected_instructions.push(SelectedInstruction {
+                            kind: SelectedInstructionKind::FlagsSnapshot {
                                 dest_region: dest.region,
                                 dest_byte_offset: dest.byte_offset,
                             },
@@ -2050,7 +2097,16 @@ fn select_runtime_dispatch_local_initializer_write(
                     slot.byte_offset,
                 )
             } else {
-                crate::selection::runtime_dispatch::copy_places_from_machine_indexed(indexed.base_byte_offset, indexed.index_region, indexed.index_offset, indexed.element_byte_size, indexed.field_byte_offset, omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame, slot.byte_offset, size)
+                crate::selection::runtime_dispatch::copy_places_from_machine_indexed(
+                    indexed.base_byte_offset,
+                    indexed.index_region,
+                    indexed.index_offset,
+                    indexed.element_byte_size,
+                    indexed.field_byte_offset,
+                    omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                    slot.byte_offset,
+                    size,
+                )
             };
             selected_instructions.push(SelectedInstruction {
                 kind,
@@ -2160,7 +2216,13 @@ fn copy_assignment_value_call_result_into_local(
     }
 
     selected_instructions.push(SelectedInstruction {
-        kind: crate::selection::runtime_dispatch::copy_places_direct(omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame, call_result_slot.byte_offset, omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame, local_slot.byte_offset, local_slot.byte_size),
+        kind: crate::selection::runtime_dispatch::copy_places_direct(
+            omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            call_result_slot.byte_offset,
+            omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            local_slot.byte_offset,
+            local_slot.byte_size,
+        ),
         source_key: local_source_key,
         source_statement: statement_index,
     });
@@ -2324,9 +2386,7 @@ fn fire_ready_deferred_leaf_expansions(
     }
 }
 
-fn state_call_target_key(
-    operation: &RuntimeDispatchBodyOperation,
-) -> Option<StateKey> {
+fn state_call_target_key(operation: &RuntimeDispatchBodyOperation) -> Option<StateKey> {
     match operation.kind {
         RuntimeDispatchBodyOperationKind::StateCall { target_key, .. }
         | RuntimeDispatchBodyOperationKind::InlineStateCall { target_key, .. }

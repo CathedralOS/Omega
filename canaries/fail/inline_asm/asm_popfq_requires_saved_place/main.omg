@@ -1,0 +1,7 @@
+// POPFQ consumes an explicit saved-flags place. A literal is not a saved
+// snapshot and cannot participate in the later linear mask-token protocol.
+data Main {}
+
+machine Main::main(&mut self) effects machine_control {
+    asm { popfq 2 }
+}

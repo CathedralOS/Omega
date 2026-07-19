@@ -706,6 +706,10 @@ fn selected_instruction_name(
         SelectedInstructionKind::InterruptControl(kind) => {
             format!("interrupt control ({})", kind.mnemonic())
         }
+        SelectedInstructionKind::FlagsSnapshot {
+            dest_byte_offset, ..
+        } => format!("RFLAGS snapshot -> +{dest_byte_offset}"),
+        SelectedInstructionKind::FlagsRestore { .. } => "RFLAGS restore".to_owned(),
         SelectedInstructionKind::PortWrite { .. } => "port write (out)".to_owned(),
         SelectedInstructionKind::PortRead { dest_byte_offset, .. } => {
             format!("port read (in) -> [{dest_byte_offset}]")

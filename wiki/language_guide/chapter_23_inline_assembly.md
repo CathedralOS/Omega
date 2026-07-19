@@ -6,7 +6,8 @@ ownership, effects, authority, or machine-state rules.
 
 The full catalog and contract surface remain incremental. The implemented pilot
 accepts strict blocks containing known `hlt`, port `in`/`out`, x86
-`lfence`/`sfence`/`mfence`, x86 `cli`/`sti`, and `jmp state(...)`
+`lfence`/`sfence`/`mfence`, x86 `cli`/`sti`, structured x86
+`pushfq`/`popfq`, and `jmp state(...)`
 instructions. Multiple instructions use `;` as an explicit separator because
 newlines are not grammar; empty blocks and a control transfer followed by
 another instruction reject.
@@ -24,8 +25,8 @@ wider integer place never narrows implicitly. Each catalog operand records its
 source role, read/write access, exact primitive class, literal policy, and
 architectural register: port values bind to `dx`, byte values and destinations
 to `al`. The shared catalog also records the registers clobbered by each
-realized sequence: the current `out` lowering uses `rax`, `rdx`, `r10`, and
-`r11`, while `in` uses `rax`, `rdx`, `r10`, and `r15`.
+realized sequence: the current `out` lowering uses `rax`, `rdx`, `r10`, `r11`,
+and `r15`, while `in` uses `rax`, `rdx`, `r10`, and `r15`.
 
 An author may restate a block's exact realized register footprint with
 `asm where clobbers ... { ... }`. The declaration is checked against the union
@@ -52,12 +53,23 @@ code does not mint authority. Higher-level interrupt-control providers must
 still expose save/restore as the ordinary linear token described below rather
 than leaking a bare unmask operation into application code.
 
+`pushfq <destination>` and `popfq <source>` are structured x86 value
+operations over exact `u64` places. They do not expose the architectural
+stack effect directly: snapshot lowers to `pushfq; pop scratch; store`, and
+restore lowers to `load; push scratch; popfq`, leaving RSP unchanged in both
+cases. Snapshot has no service reach or authority requirement. Restore carries
+`MachineControl`, requires `MachineOwner`, and records that RFLAGS.IF is
+restored from the operand. A literal cannot stand in for a saved-flags place.
+The higher-level provider will wrap this value flow in the ordinary linear
+`InterruptMask` protocol; the instruction contract itself does not invent
+special-purpose linearity.
+
 The same `where` surface accepts boolean `requires` and `ensures` facts:
 
 ```omega
 asm where
     requires self.ready
-    clobbers rax, rdx, r10, r11
+    clobbers rax, rdx, r10, r11, r15
     ensures self.ready
 {
     out self.port, self.value
@@ -93,17 +105,21 @@ machine Interrupts::save_and_mask(
     authority: &mut InterruptControl,
 ) -> InterruptMask
 {
+    let mut saved: u64 = 0;
     asm {
-        pushfq;
+        pushfq saved;
         cli
     }
+    transition { _ -> InterruptMask::from_saved(saved, authority) }
 }
 ```
 
 This sketch does not make `cli` safe by spelling it. Its contract requires the
 appropriate authority, contributes the normalized interrupt-control reach,
 records flag/state changes, and participates in construction of the linear
-restore token.
+restore token. The provider-minted `InterruptMask` constructor/consumer is
+the IDT3 obligation; copying or directly restoring its private saved value is
+not the public protocol.
 
 ## No quiet spelling
 
@@ -182,7 +198,7 @@ the page-table/provider path.
 
 The freestanding x86 vertical slice needs contracts for:
 
-- completed `cli`/`sti`, `hlt`, and flags save/restore;
+- completed `cli`/`sti`, `hlt`, and structured flags save/restore;
 - `in`/`out` port I/O;
 - `lidt`/`lgdt`, control-register and MSR access;
 - atomics and the completed x86 fence slice;

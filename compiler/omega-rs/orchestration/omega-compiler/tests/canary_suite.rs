@@ -30807,6 +30807,7 @@ const WINDOWS_HOST_PASS_CANARIES: &[&str] = &[
 const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("inline_asm/asm_fences_compile", "linux_x64"),
     ("inline_asm/asm_interrupt_control_compile", "linux_x64"),
+    ("inline_asm/asm_flags_compile", "linux_x64"),
     ("inline_asm/asm_multi_instruction_block_compile", "uefi_x64"),
     ("inline_asm/asm_where_exact_clobbers_compile", "uefi_x64"),
     ("targets/efi_vtable_call", "uefi_x64"),
@@ -30906,6 +30907,75 @@ fn hosted_cli_cannot_claim_machine_owner_authority_with_an_effect_row() {
         rendered.contains("asm instruction `cli`, which requires a FREESTANDING boundary root"),
         "expected the boot-root authority diagnostic, got:\n{rendered}"
     );
+}
+
+#[test]
+fn x86_asm_flags_emit_balanced_sequences_and_refuse_aarch64() {
+    let canary = pass_canary("inline_asm/asm_flags_compile");
+    let build_dir = std::env::temp_dir().join(format!("omega-asm-flags-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("x86 RFLAGS operations should compile under boot-root authority");
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86 ELF");
+    assert!(
+        image
+            .windows(5)
+            .any(|window| window == [0x9c, 0x41, 0x5a, 0x49, 0xbf]),
+        "expected pushfq; pop r10; destination-base load"
+    );
+    assert!(
+        image.windows(3).any(|window| window == [0x41, 0x52, 0x9d]),
+        "expected push r10; popfq balanced restore tail"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+
+    let diagnostics = compile_canary_without_output_for_target(&canary, "linux_arm64")
+        .expect_err("x86 RFLAGS mnemonics must refuse an AArch64 target");
+    let rendered = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("asm instruction `pushfq` is x86_64-only"),
+        "expected an architecture-specific flags diagnostic, got:\n{rendered}"
+    );
+}
+
+#[test]
+fn asm_flags_enforce_authority_and_saved_place_contracts() {
+    for (name, expected) in [
+        (
+            "inline_asm/asm_popfq_requires_machine_authority",
+            "asm instruction `popfq`, which requires a FREESTANDING boundary root",
+        ),
+        (
+            "inline_asm/asm_pushfq_requires_u64_destination",
+            "asm instruction `pushfq` operand `destination` requires an exact `u64` writable place",
+        ),
+        (
+            "inline_asm/asm_popfq_requires_saved_place",
+            "asm instruction `popfq` operand `saved flags` requires target register `rflags` constraint `u64`",
+        ),
+    ] {
+        let diagnostics = compile_canary_without_output(&fail_canary(name))
+            .expect_err("invalid flags contract should reject");
+        let rendered = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            rendered.contains(expected),
+            "expected `{expected}` for {name}, got:\n{rendered}"
+        );
+    }
 }
 
 #[test]
@@ -34201,6 +34271,9 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "inline_asm/asm_deriver_only_exit",
     "inline_asm/asm_hidden_return",
     "inline_asm/asm_cli_requires_machine_authority",
+    "inline_asm/asm_popfq_requires_machine_authority",
+    "inline_asm/asm_pushfq_requires_u64_destination",
+    "inline_asm/asm_popfq_requires_saved_place",
     "inline_asm/asm_port_out_wrong_port_type",
     "inline_asm/asm_port_out_wrong_value_type",
     "inline_asm/asm_port_in_wrong_destination_type",

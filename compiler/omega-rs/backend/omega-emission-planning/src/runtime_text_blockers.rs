@@ -54,7 +54,7 @@ fn runtime_body_has_statement(
         .any(|(_, operation)| {
             state_key_matches_statement_source(operation.source_key, source_key)
                 && operation.statement_index == statement_index
-        })
+            })
 }
 
 fn state_value_has_planned_text_builder(
@@ -134,6 +134,7 @@ fn state_value_has_planned_storage_write(
                         // value (a local-dest port read; a field dest never
                         // creates a runtime-value record).
                         | SelectedInstructionKind::PortRead { .. }
+                        | SelectedInstructionKind::FlagsSnapshot { .. }
                 )
             })
 }
@@ -327,8 +328,9 @@ fn runtime_text_write_has_selected_instruction(
                         // value (a local-dest port read; a field dest never
                         // creates a runtime-value record).
                         | SelectedInstructionKind::PortRead { .. }
+                        | SelectedInstructionKind::FlagsSnapshot { .. }
                 )
-            })
+        })
 }
 
 fn state_key_matches_statement_source(actual: StateKey, expected: StateKey) -> bool {
