@@ -13,6 +13,7 @@ use omega::language::std::console;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {
+    key: i64;
     size: i64 [0..=4096];
     align: i64 [1..=16];
     number: i64;
@@ -24,12 +25,13 @@ data Schema {
 }
 data FieldPlan {
     case At(offset: i64);
-    case Bits(container: i64, container_width: i64, lsb: i64, width: i64);
+    case Bits(container: i64, container_width: i64, destination_lsb: i64, source_lsb: i64, width: i64);
     case Varint(tag: i64);
     case LengthPrefixed(tag: i64);
 }
+data FieldEntry { key: i64; placement: FieldPlan; }
 data Plan {
-    fields: [FieldPlan; 32];
+    entries: [FieldEntry; 64];
     entry_count: i64;
     size_fixed: i64;
     size_is_dynamic: bool;
@@ -41,7 +43,7 @@ data Plan {
 // offset goes through a field temp because a computed VALUE in a
 // runtime-indexed write is a known gap.
 data Spread16 {
-    plans: [FieldPlan; 32];
+    entries: [FieldEntry; 64];
     index: i64 in Wrapping;
     slot: i64 in Wrapping;
 }
@@ -63,13 +65,16 @@ machine Spread16::plan(&mut self, schema: Schema) -> Plan {
         }
     }
     state write_field(&mut self, schema: Schema) {
-        self.plans[self.index] = FieldPlan::At { offset: self.slot as i64 };
+        self.entries[self.index] = FieldEntry {
+            key: schema.fields[self.index].key,
+            placement: FieldPlan::At { offset: self.slot as i64 },
+        };
         self.index = self.index + 1;
         transition { _ -> fill_loop(schema) }
     }
     state done(&mut self, schema: Schema) -> Plan {
         Plan {
-            fields: self.plans,
+            entries: self.entries,
             entry_count: schema.field_count as i64,
             size_fixed: (schema.field_count * 16) as i64,
             size_is_dynamic: false,

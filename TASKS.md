@@ -65,10 +65,12 @@ results and source-selected policies remain below.
 3. **ENT3 — constrained entry codegen.** Derive entry stubs, specialize/codegen
    under the state ceiling, emit a checkable final footprint certificate, and
    validate after relaxation, veneers, thunks, and generated stubs.
-4. **IDT1 — fragmented layouts and symbolic materialization.** Move
-   `LayoutPlan` to name-keyed fragmented placements, validate exact source and
-   destination tiling, add sealed symbolic `Entry(EntryStubId)` relocation
-   sources, and generate the post-load split-address writer.
+4. **IDT1 — symbolic materialization (fragment foundation complete).**
+   `LayoutPlan` now uses compiler-issued field keys normalized back to names;
+   repeated `Bits` entries validate exact logical-source tiling plus
+   destination bounds/overlap, while ordinary plan-laid values require one
+   `At` per field. Add sealed symbolic `Entry(EntryStubId)` relocation sources
+   and generate the phase-aware post-load split-address writer.
 5. **IDT2 — installed-root ledger.** Add `lidt` only as an installation path
    that consumes scoped IDT
    authority and records every installed entry as an external analysis root

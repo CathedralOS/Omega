@@ -551,8 +551,9 @@ and the concrete interrupt state policy remain. Remaining order:
 
 1. Complete the checked-assembly instruction-contract catalog needed by the
    entry provider. No raw-byte shortcut.
-2. Extend programmable layouts to name-keyed fragmented placements and exact
-   tiling validation.
+2. Build on the implemented name-keyed fragmented placements and exact
+   source/destination validation to add symbolic relocation sources and the
+   phase-aware materializer.
 3. Implement the settled `Extent` carrier, conservation rules, source-loan /
    destination-authority mapping, and authority-origin validation.
 4. Implement `AccessPlan`, validation against `LayoutPlan`, sealed field-access

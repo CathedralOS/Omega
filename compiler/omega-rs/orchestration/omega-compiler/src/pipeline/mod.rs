@@ -29,4 +29,6 @@ pub use checked_entry::compile_to_checked;
 pub use compile_options::CompileOptions;
 pub use compile_report::CompileReport;
 pub use compiler::compile;
-pub use layout_plans::{LayoutPlanReport, compute_layout_plan};
+pub use layout_plans::{
+    LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, compute_layout_plan,
+};
