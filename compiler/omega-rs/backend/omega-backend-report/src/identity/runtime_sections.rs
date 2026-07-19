@@ -29,6 +29,8 @@ pub(in crate::identity) fn count_runtime_body_strings(
             | RuntimeDispatchBodyOperationKind::FlagsRestore
             | RuntimeDispatchBodyOperationKind::MsrRead
             | RuntimeDispatchBodyOperationKind::MsrWrite
+            | RuntimeDispatchBodyOperationKind::ControlRegisterRead(_)
+            | RuntimeDispatchBodyOperationKind::ControlRegisterWrite(_)
             | RuntimeDispatchBodyOperationKind::PortWrite
             | RuntimeDispatchBodyOperationKind::PortRead => {}
             RuntimeDispatchBodyOperationKind::InlineLeafStateCall { .. }

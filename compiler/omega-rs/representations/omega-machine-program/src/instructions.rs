@@ -120,6 +120,8 @@ pub enum MachineInstructionKind {
     MsrRead,
     /// Structured x86 WRMSR.
     MsrWrite,
+    ControlRegisterRead(omega_core::inline_assembly::AsmControlRegister),
+    ControlRegisterWrite(omega_core::inline_assembly::AsmControlRegister),
     /// The x86 `out dx, al` port write (`asm { out .. }`). Storage operands
     /// relocate like any runtime-value read.
     PortWrite,

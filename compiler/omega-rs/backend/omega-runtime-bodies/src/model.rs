@@ -71,6 +71,8 @@ pub enum RuntimeDispatchBodyOperationKind {
     MsrRead,
     /// Structured x86 WRMSR from a u32 index and u64 value.
     MsrWrite,
+    ControlRegisterRead(omega_core::inline_assembly::AsmControlRegister),
+    ControlRegisterWrite(omega_core::inline_assembly::AsmControlRegister),
     /// An `asm { out <port>, <value> }` statement (a Call to `asm#port_out`):
     /// a raw port write, operands resolved at selection.
     PortWrite,

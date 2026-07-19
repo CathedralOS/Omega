@@ -634,6 +634,22 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                     value: remap_runtime_value_handle(*value),
                 }
             }
+            omega_abstract_operations::AbstractOperationKind::ControlRegisterRead {
+                register,
+                dest_region,
+                dest_byte_offset,
+            } => Self::ControlRegisterRead {
+                register: *register,
+                dest_region: *dest_region,
+                dest_byte_offset: *dest_byte_offset,
+            },
+            omega_abstract_operations::AbstractOperationKind::ControlRegisterWrite {
+                register,
+                source,
+            } => Self::ControlRegisterWrite {
+                register: *register,
+                source: remap_runtime_value_handle(*source),
+            },
             omega_abstract_operations::AbstractOperationKind::PortWrite { port, value } => {
                 Self::PortWrite {
                     port: remap_runtime_value_handle(*port),

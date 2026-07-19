@@ -76,6 +76,8 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::FlagsRestore { .. }
             | Self::MsrRead { .. }
             | Self::MsrWrite { .. }
+            | Self::ControlRegisterRead { .. }
+            | Self::ControlRegisterWrite { .. }
             | Self::PortWrite { .. }
             | Self::PortRead { .. } => AbstractOperationDomain::MachineControl,
         }

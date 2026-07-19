@@ -7,7 +7,7 @@ use omega_assigned_target_operations::{
 use omega_calling_conventions::HostBindingMechanism;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection::{
-    dispatch_case_enter_width, dispatch_case_leave_width, dispatch_guard_compare_static_width,
+    control_register_read_width, control_register_write_width, dispatch_case_enter_width, dispatch_case_leave_width, dispatch_guard_compare_static_width,
     dispatch_loop_enter_width, dispatch_state_write_width, entry_argument_register_write_width,
     entry_arguments_slice_descriptor_write_width, flags_restore_width, flags_snapshot_width,
     function_enter_width, host_call_sequence_width, interrupt_control_width, machine_halt_width,
@@ -762,6 +762,24 @@ fn machine_instruction_width(
                 ));
             }
             msr_write_width(input.assigned_target_operations, *index, *value)
+        }
+        SelectedInstructionKind::ControlRegisterRead { register, .. } => {
+            if input.target.architecture != omega_target::Architecture::X86_64 {
+                return Err(Diagnostic::error(format!(
+                    "asm instruction `{}` is x86_64-only",
+                    register.read_mnemonic()
+                )));
+            }
+            control_register_read_width()
+        }
+        SelectedInstructionKind::ControlRegisterWrite { register, source } => {
+            if input.target.architecture != omega_target::Architecture::X86_64 {
+                return Err(Diagnostic::error(format!(
+                    "asm instruction `{}` is x86_64-only",
+                    register.write_mnemonic().expect("writable control register")
+                )));
+            }
+            control_register_write_width(input.assigned_target_operations, *source)
         }
         SelectedInstructionKind::PortWrite { port, value } => {
             if input.target.architecture != omega_target::Architecture::X86_64 {

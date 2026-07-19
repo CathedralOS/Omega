@@ -21,8 +21,9 @@ the first timer tick. The design is recorded in
 `wiki/design_briefs/os_memory_and_hardware_foundation.md`, chapter 19, and
 chapter 23.
 
-1. **ASM2 — expand the x86 catalog.** Add `lidt` and the needed control-register
-   operations. Structured `rdmsr`/`wrmsr` value flow, stack-balanced
+1. **ASM2 — expand the x86 catalog.** Add `lidt`. Structured control-register
+   value flow (`read_cr0`/`read_cr2`/`read_cr3`/`read_cr4` and
+   `write_cr0`/`write_cr3`/`write_cr4`), `rdmsr`/`wrmsr` value flow, stack-balanced
    `pushfq`/`popfq` flags value flow,
    `lfence`/`sfence`/`mfence` ordering, and `cli`/`sti` interrupt control
    are complete. Direct assembly and

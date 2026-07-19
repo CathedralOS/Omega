@@ -586,6 +586,35 @@ pub(super) fn encode_machine_instruction_bytes(
                 *value,
             )
         }
+        SelectedInstructionKind::ControlRegisterRead {
+            register,
+            dest_byte_offset,
+            ..
+        } => {
+            if input.target.architecture != omega_target::Architecture::X86_64 {
+                return Err(omega_core::diagnostics::Diagnostic::error(format!(
+                    "asm instruction `{}` is x86_64-only",
+                    register.read_mnemonic()
+                )));
+            }
+            omega_instruction_selection::encode_control_register_read_bytes(
+                *register,
+                *dest_byte_offset,
+            )
+        }
+        SelectedInstructionKind::ControlRegisterWrite { register, source } => {
+            if input.target.architecture != omega_target::Architecture::X86_64 {
+                return Err(omega_core::diagnostics::Diagnostic::error(format!(
+                    "asm instruction `{}` is x86_64-only",
+                    register.write_mnemonic().expect("writable control register")
+                )));
+            }
+            omega_instruction_selection::encode_control_register_write_bytes(
+                input.assigned_target_operations,
+                *register,
+                *source,
+            )
+        }
         // Port I/O (`asm { out .. }` / `asm { in .. }`) has no branch distance;
         // its storage operands carry relocations, applied by omega-relocations
         // against the offsets pinned in the ISA encoders.

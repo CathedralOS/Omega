@@ -578,6 +578,15 @@ pub enum AbstractOperationKind {
         index: AbstractValueOperandHandle,
         value: AbstractValueOperandHandle,
     },
+    ControlRegisterRead {
+        register: omega_core::inline_assembly::AsmControlRegister,
+        dest_region: RuntimeStorageRegion,
+        dest_byte_offset: usize,
+    },
+    ControlRegisterWrite {
+        register: omega_core::inline_assembly::AsmControlRegister,
+        source: AbstractValueOperandHandle,
+    },
     /// The x86 `out dx, al` port write (`asm { out <port>, <value> }`),
     /// emitting the `device_io` effect. `port` is a u16 operand, `value` a u8
     /// operand (each an immediate or a storage read; storage operands relocate

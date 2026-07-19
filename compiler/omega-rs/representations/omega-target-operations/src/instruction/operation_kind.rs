@@ -439,6 +439,15 @@ pub enum TargetOperationKind {
         index: TargetValueOperandHandle,
         value: TargetValueOperandHandle,
     },
+    ControlRegisterRead {
+        register: omega_core::inline_assembly::AsmControlRegister,
+        dest_region: RuntimeStorageRegion,
+        dest_byte_offset: usize,
+    },
+    ControlRegisterWrite {
+        register: omega_core::inline_assembly::AsmControlRegister,
+        source: TargetValueOperandHandle,
+    },
     /// The x86 `out dx, al` port write (`asm { out <port>, <value> }`),
     /// emitting `device_io`. `port` u16 + `value` u8 operands (immediate or
     /// storage; storage operands relocate).

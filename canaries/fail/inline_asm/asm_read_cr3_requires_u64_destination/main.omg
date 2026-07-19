@@ -1,0 +1,7 @@
+data Main {
+    value: u32;
+}
+
+machine Main::main(&mut self) effects machine_control {
+    asm { read_cr3 self.value }
+}
