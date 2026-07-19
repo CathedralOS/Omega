@@ -249,6 +249,32 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_copy_in_table(
         expressions,
         target,
     )?;
+
+    // Keep the table path semantically identical to `runtime_storage_copy`:
+    // a member of an address-bearing reference parameter is read through the
+    // pointer. Resolving it as a flat place first turns `r.value` into
+    // `frame_slot + field_offset`, which reads bytes beyond the pointer slot.
+    if matches!(
+        target_place.region,
+        RuntimeStorageRegion::RuntimeFrame | RuntimeStorageRegion::Machine
+    ) && let Some(pointee) = resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value,
+    ) && pointee.pointee_byte_size == target_place.byte_count
+        && pointee.pointee_byte_size > 0
+    {
+        return Some(crate::selection::runtime_dispatch::copy_places_from_pointee(
+            pointee.pointer_byte_offset,
+            pointee.field_byte_offset,
+            target_place.region,
+            target_place.byte_offset,
+            target_place.byte_count,
+        ));
+    }
+
     let source_place = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index,

@@ -560,83 +560,105 @@ fn select_runtime_frame_slot_address_write_in_table(
         );
     }
 
-    let ExpressionNode::Call(call) = expressions.expression(value) else {
-        return None;
-    };
-    if !call.receiver.is_valid()
-        || !call.arguments.is_empty()
-        || (call.target.as_str() != "as_slice" && call.target.as_str() != "as_mut_slice")
+    if let ExpressionNode::Call(call) = expressions.expression(value)
+        && call.receiver.is_valid()
+        && call.arguments.is_empty()
+        && (call.target.as_str() == "as_slice" || call.target.as_str() == "as_mut_slice")
     {
-        return None;
-    }
+        if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            call.receiver,
+        ) {
+            return Some(
+                crate::selection::runtime_dispatch::write_place_address_pointee(
+                    pointer_target.pointer_byte_offset,
+                    pointer_target.field_byte_offset,
+                    slot.byte_offset,
+                ),
+            );
+        }
 
-    if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
-        input,
-        dispatch_index,
-        value_source_key,
-        expressions,
-        call.receiver,
-    ) {
+        if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            call.receiver,
+        ) {
+            return Some(
+                crate::selection::runtime_dispatch::write_place_address_frame_indexed_deref(
+                    indexed_target.descriptor_offset,
+                    RuntimeStorageRegion::RuntimeFrame,
+                    indexed_target.index_offset,
+                    indexed_target.element_byte_size,
+                    indexed_target.field_byte_offset,
+                    slot.byte_offset,
+                ),
+            );
+        }
+
+        if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            call.receiver,
+        ) {
+            return Some(
+                crate::selection::runtime_dispatch::write_place_address_base_indexed(
+                    indexed_target.base_byte_offset,
+                    indexed_target.index_offset,
+                    indexed_target.element_byte_size,
+                    indexed_target.field_byte_offset,
+                    slot.byte_offset,
+                ),
+            );
+        }
+
+        let source_place = resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            call.receiver,
+        )?;
         return Some(
-            crate::selection::runtime_dispatch::write_place_address_pointee(
-                pointer_target.pointer_byte_offset,
-                pointer_target.field_byte_offset,
+            crate::selection::runtime_dispatch::write_place_address_direct(
+                source_place.region,
+                source_place.byte_offset,
                 slot.byte_offset,
             ),
         );
     }
 
-    if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
-        input,
-        dispatch_index,
-        value_source_key,
-        expressions,
-        call.receiver,
-    ) {
+    // Shared borrows are represented by their place expression. If the
+    // referent cannot fit in the pointer-sized reference slot, the only sound
+    // representation is its address. This is the large-record twin of the
+    // explicit `Mutable` path above; same-sized small referees have already
+    // taken the deliberate content-spill path in argument materialization.
+    if slot.type_descriptor.reference_referee().is_some()
+        && let Some(source_place) = resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            value,
+        )
+        && source_place.byte_count != slot.byte_size
+    {
         return Some(
-            crate::selection::runtime_dispatch::write_place_address_frame_indexed_deref(
-                indexed_target.descriptor_offset,
-                RuntimeStorageRegion::RuntimeFrame,
-                indexed_target.index_offset,
-                indexed_target.element_byte_size,
-                indexed_target.field_byte_offset,
+            crate::selection::runtime_dispatch::write_place_address_direct(
+                source_place.region,
+                source_place.byte_offset,
                 slot.byte_offset,
             ),
         );
     }
 
-    if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target_in_table(
-        input,
-        dispatch_index,
-        value_source_key,
-        expressions,
-        call.receiver,
-    ) {
-        return Some(
-            crate::selection::runtime_dispatch::write_place_address_base_indexed(
-                indexed_target.base_byte_offset,
-                indexed_target.index_offset,
-                indexed_target.element_byte_size,
-                indexed_target.field_byte_offset,
-                slot.byte_offset,
-            ),
-        );
-    }
-
-    let source_place = resolve_runtime_storage_place_in_table(
-        input,
-        dispatch_index,
-        value_source_key,
-        expressions,
-        call.receiver,
-    )?;
-    Some(
-        crate::selection::runtime_dispatch::write_place_address_direct(
-            source_place.region,
-            source_place.byte_offset,
-            slot.byte_offset,
-        ),
-    )
+    None
 }
 
 /// Writes the address of the referenced place `referent` (the target of a `&` /
