@@ -131,9 +131,6 @@ before the fix.
   state call inside a proof-bearing guarded state still reports that a
   `CallArgument` binary expression needs runtime lowering. Make the state-value
   fold copy the local's slot.
-- **Large-referee expression lowering.** Assignment RHS
-  `self.x = ref.field` and `&self.field` call arguments must not resolve inline
-  when the referee requires an address-bearing place.
 - **Terminal value-machine call on boot paths.** Triage the remaining red
   `value_call_terminal` shape before Cathedral scheduler code relies on
   machine calls.

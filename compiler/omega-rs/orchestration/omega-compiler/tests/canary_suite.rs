@@ -31561,6 +31561,36 @@ stderr:
 }
 
 #[test]
+fn runtime_large_shared_ref_direct_assignment_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_large_shared_ref_direct_assignment_exit");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-large-shared-ref-direct-assignment-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("large shared-ref direct-assignment canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("large shared-ref direct-assignment canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "large shared-ref argument/assignment lost address identity; stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_same_type_contained_direct_fields_exit_canary_runs() {
     // The SOUND pattern for two same-type contained machines: DIRECT field access
     // (not method calls, which alias to the first field of the type). a -> 13,
@@ -32703,6 +32733,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_same_type_contained_direct_fields_exit",
     "calls/runtime_shared_ref_param_member_exit",
     "calls/runtime_shared_ref_param_large_deref_exit",
+    "calls/runtime_large_shared_ref_direct_assignment_exit",
     "calls/runtime_value_call_dispatch_results_exit",
     "calls/runtime_value_call_entry_field_write_exit",
     "calls/runtime_value_call_guard_subject_exit",

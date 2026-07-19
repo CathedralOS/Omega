@@ -1,0 +1,26 @@
+// RUN CANARY (exit 70) + interpreter differential. A large shared referee is
+// address-bearing: `&self.big` must pass its address, and a direct assignment
+// from `r.value` must dereference that address rather than read the parameter
+// slot inline. Big is wider than a pointer and value lives at offset 16.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Big { pad0: u64; pad1: u64; value: i32 in Wrapping; }
+data Main { console: Console; big: Big; got: i32 in Wrapping; }
+
+machine Main::main(&mut self) {
+    self.big.pad0 = 111;
+    self.big.pad1 = 222;
+    self.big.value = 42;
+    self.read(&self.big);
+    transition self.got == 42 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+
+machine Main::read(&mut self, r: &Big) {
+    self.got = r.value;
+    transition { _ -> done() }
+    state done(&mut self) { }
+}
