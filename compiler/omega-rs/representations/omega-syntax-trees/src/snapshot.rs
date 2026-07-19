@@ -63,6 +63,7 @@ pub enum ItemSnapshot {
     Data {
         name: IdentifierSnapshot,
         type_parameters: Vec<TypeParameterSnapshot>,
+        properties: DataPropertiesSnapshot,
         members: Vec<DataMemberSnapshot>,
     },
     Domain {
@@ -159,6 +160,23 @@ pub struct TypeParameterSnapshot {
     pub const_type: Option<TypeReferenceSnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub machine_contract: Option<StateSignatureSnapshot>,
+    pub bounds: DataPropertiesSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DataPropertiesSnapshot {
+    pub multiplicity: &'static str,
+    pub zero_init: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub carry: Option<CarryPolicySnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CarryPolicySnapshot {
+    pub suspension: &'static str,
+    pub cpu: &'static str,
+    pub thread: &'static str,
+    pub address: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -580,6 +598,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .iter()
                 .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
                 .collect(),
+            properties: snapshot_data_properties(value.properties),
             members: syntax_trees
                 .items
                 .data_members(value.members)
@@ -876,30 +895,59 @@ fn snapshot_type_parameter(
     syntax_trees: &SyntaxTrees,
     parameter: &crate::item::TypeParameter,
 ) -> TypeParameterSnapshot {
-    match &parameter.kind {
-        crate::item::TypeParameterKind::Type => TypeParameterSnapshot {
-            name: snapshot_identifier(&parameter.name),
-            kind: "type",
-            const_type: None,
-            machine_contract: None,
-        },
-        crate::item::TypeParameterKind::Const { type_reference } => TypeParameterSnapshot {
-            name: snapshot_identifier(&parameter.name),
-            kind: "const",
-            const_type: Some(snapshot_type_reference_handle(
-                syntax_trees,
-                *type_reference,
-            )),
-            machine_contract: None,
-        },
-        crate::item::TypeParameterKind::Machine { contract } => TypeParameterSnapshot {
-            name: snapshot_identifier(&parameter.name),
-            kind: "machine",
-            const_type: None,
-            machine_contract: contract
+    let (kind, const_type, machine_contract) = match &parameter.kind {
+        crate::item::TypeParameterKind::Type => ("type", None, None),
+        crate::item::TypeParameterKind::Const { type_reference } => (
+            "const",
+            Some(snapshot_type_reference_handle(syntax_trees, *type_reference)),
+            None,
+        ),
+        crate::item::TypeParameterKind::Machine { contract } => (
+            "machine",
+            None,
+            contract
                 .as_ref()
                 .map(|contract| snapshot_state_signature(syntax_trees, contract)),
+        ),
+    };
+    TypeParameterSnapshot {
+        name: snapshot_identifier(&parameter.name),
+        kind,
+        const_type,
+        machine_contract,
+        bounds: snapshot_data_properties(parameter.bounds),
+    }
+}
+
+fn snapshot_data_properties(properties: crate::item::DataProperties) -> DataPropertiesSnapshot {
+    use omega_core::semantics::{
+        CarryAddress, CarryCpu, CarryHostThread, CarrySuspension, Multiplicity,
+    };
+    DataPropertiesSnapshot {
+        multiplicity: match properties.multiplicity {
+            Multiplicity::Unrestricted => "unrestricted",
+            Multiplicity::Affine => "affine",
+            Multiplicity::Linear => "linear",
         },
+        zero_init: properties.zero_init,
+        carry: properties.carry.map(|carry| CarryPolicySnapshot {
+            suspension: match carry.suspension {
+                CarrySuspension::Forbidden => "forbidden",
+                CarrySuspension::Allowed => "allowed",
+            },
+            cpu: match carry.cpu {
+                CarryCpu::Origin => "same",
+                CarryCpu::Any => "any",
+            },
+            thread: match carry.host_thread {
+                CarryHostThread::Origin => "same",
+                CarryHostThread::Any => "any",
+            },
+            address: match carry.address {
+                CarryAddress::Stable => "stable",
+                CarryAddress::Movable => "movable",
+            },
+        }),
     }
 }
 

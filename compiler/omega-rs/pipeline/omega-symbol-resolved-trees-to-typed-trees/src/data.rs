@@ -15,7 +15,7 @@ pub(crate) fn lower_data_definition(
         properties: typed::data::DataProperties {
             copy: data_definition.properties.copy,
             zero_init: data_definition.properties.zero_init,
-            send: data_definition.properties.send,
+            carry: data_definition.properties.carry,
             multiplicity: data_definition.properties.multiplicity,
         },
         // R2 rung 2 slice 2: copied (re-lowered) from the resolved record;
@@ -56,7 +56,7 @@ pub(crate) fn lower_type_parameter(
         bounds: typed::data::DataProperties {
             copy: parameter.bounds.copy,
             zero_init: parameter.bounds.zero_init,
-            send: parameter.bounds.send,
+            carry: parameter.bounds.carry,
             multiplicity: parameter.bounds.multiplicity,
         },
     })

@@ -25,7 +25,7 @@ struct Candidate {
     template_name: String,
     state_symbols: Vec<SymbolHandle>,
     type_parameters: Vec<(SymbolHandle, String)>,
-    parameter_bounds: Vec<Vec<String>>,
+    parameter_bounds: Vec<Vec<omega_validation::DeclaredPropertyRequirement>>,
     type_bindings: Vec<Option<TypeReferenceHandle>>,
     machine_parameters: Vec<(SymbolHandle, String, StateSignature)>,
     machine_bindings: Vec<Option<StaticMachineArgument>>,
@@ -60,12 +60,9 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             match &parameter.kind {
                 TypeParameterKind::Type => {
                     type_parameters.push((parameter.symbol, parameter.name.as_str().to_owned()));
-                    parameter_bounds.push(
-                        omega_validation::declared_property_names(&parameter.bounds)
-                            .into_iter()
-                            .map(str::to_owned)
-                            .collect(),
-                    );
+                    parameter_bounds.push(omega_validation::declared_property_requirements(
+                        &parameter.bounds,
+                    ));
                 }
                 TypeParameterKind::Machine { contract } => machine_parameters.push((
                     parameter.symbol,
@@ -587,7 +584,7 @@ fn approved_type_bounds(program: &TypedTrees, candidates: &[Candidate]) -> Vec<b
                             &symbols,
                             &[],
                             unwrapped,
-                            property,
+                            *property,
                         )
                     })
                 })

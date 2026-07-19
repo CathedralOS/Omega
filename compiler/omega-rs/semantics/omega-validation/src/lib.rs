@@ -68,7 +68,10 @@ use omega_typed_trees::TypedTrees;
 use omega_typed_trees::statement::{StatementNode, TransitionTargetNode};
 pub use places::declared_place_type_raw;
 pub use places::unwrapped_type_reference;
-pub use properties::{declared_property_names, type_satisfies_declared_property};
+pub use properties::{
+    DeclaredPropertyRequirement, declared_property_requirements, effective_data_carry_policy,
+    type_satisfies_declared_property,
+};
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();

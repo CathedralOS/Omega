@@ -271,6 +271,20 @@ with four independent axes:
 | host-thread affinity | `same` (the mint/provenance thread) | `any` |
 | address stability | `stable` | `movable` |
 
+All four axes are mandatory when the property is authored; order is not
+semantic:
+
+```omega
+data WorkItem [carry(
+    suspension: allowed,
+    cpu: any,
+    thread: any,
+    address: movable,
+)] {
+    id: u64;
+}
+```
+
 The axis vocabulary is closed because every member changes compiler liveness,
 relocation, or runtime-admission behavior. A new axis is a language/compiler
 release with composition and validation rules; packages cannot add one by

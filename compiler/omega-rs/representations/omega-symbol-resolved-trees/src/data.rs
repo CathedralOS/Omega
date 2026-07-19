@@ -37,7 +37,7 @@ pub struct DataDefinitionStorage {
 pub struct DataProperties {
     pub copy: bool,
     pub zero_init: bool,
-    pub send: bool,
+    pub carry: Option<omega_core::semantics::CarryPolicy>,
     pub multiplicity: omega_core::semantics::Multiplicity,
 }
 

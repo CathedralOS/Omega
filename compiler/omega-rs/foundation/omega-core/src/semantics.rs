@@ -13,7 +13,8 @@
 /// First-class usage multiplicity (record §Multiplicity). Replaces `copy`
 /// as the whole usage model: `[copy]` maps to `Unrestricted`, ordinary data
 /// defaults to `Affine`, `[linear]` maps to `Linear`. `zero_init` and
-/// `send` remain orthogonal properties, never folded in.
+/// zero-initialization and carry policy remain orthogonal properties, never
+/// folded in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Multiplicity {
     /// Freely duplicable and discardable (`[copy]`).
@@ -23,6 +24,135 @@ pub enum Multiplicity {
     Affine,
     /// Use exactly once; discard is an error (`[linear]`).
     Linear,
+}
+
+/// Whether a live value may cross a suspension point. This is checked locally
+/// against `Suspend` reach; it is intentionally independent from migration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum CarrySuspension {
+    #[default]
+    Forbidden,
+    Allowed,
+}
+
+/// CPU affinity of a live value relative to the CPU recorded at mint.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum CarryCpu {
+    #[default]
+    Origin,
+    Any,
+}
+
+/// Host-thread affinity of a live value relative to the thread recorded at mint.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum CarryHostThread {
+    #[default]
+    Origin,
+    Any,
+}
+
+/// Whether a live value may move to a different storage address.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum CarryAddress {
+    #[default]
+    Stable,
+    Movable,
+}
+
+/// Normalized four-axis carry policy. The default is deliberately strict so
+/// missing evidence fails closed. Transparent values may derive a more
+/// permissive policy; opaque declarations require proof/admission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct CarryPolicy {
+    pub suspension: CarrySuspension,
+    pub cpu: CarryCpu,
+    pub host_thread: CarryHostThread,
+    pub address: CarryAddress,
+}
+
+impl CarryPolicy {
+    pub const STRICT: Self = Self {
+        suspension: CarrySuspension::Forbidden,
+        cpu: CarryCpu::Origin,
+        host_thread: CarryHostThread::Origin,
+        address: CarryAddress::Stable,
+    };
+
+    pub const PERMISSIVE: Self = Self {
+        suspension: CarrySuspension::Allowed,
+        cpu: CarryCpu::Any,
+        host_thread: CarryHostThread::Any,
+        address: CarryAddress::Movable,
+    };
+
+    /// True when `self` permits every transition promised by `required`.
+    pub const fn permits(self, required: Self) -> bool {
+        (matches!(required.suspension, CarrySuspension::Forbidden)
+            || matches!(self.suspension, CarrySuspension::Allowed))
+            && (matches!(required.cpu, CarryCpu::Origin) || matches!(self.cpu, CarryCpu::Any))
+            && (matches!(required.host_thread, CarryHostThread::Origin)
+                || matches!(self.host_thread, CarryHostThread::Any))
+            && (matches!(required.address, CarryAddress::Stable)
+                || matches!(self.address, CarryAddress::Movable))
+    }
+
+    /// Structural composition for aggregate fields: each axis takes the most
+    /// restrictive demand contributed by either live field.
+    pub const fn intersect(self, other: Self) -> Self {
+        Self {
+            suspension: if matches!(self.suspension, CarrySuspension::Allowed)
+                && matches!(other.suspension, CarrySuspension::Allowed)
+            {
+                CarrySuspension::Allowed
+            } else {
+                CarrySuspension::Forbidden
+            },
+            cpu: if matches!(self.cpu, CarryCpu::Any) && matches!(other.cpu, CarryCpu::Any) {
+                CarryCpu::Any
+            } else {
+                CarryCpu::Origin
+            },
+            host_thread: if matches!(self.host_thread, CarryHostThread::Any)
+                && matches!(other.host_thread, CarryHostThread::Any)
+            {
+                CarryHostThread::Any
+            } else {
+                CarryHostThread::Origin
+            },
+            address: if matches!(self.address, CarryAddress::Movable)
+                && matches!(other.address, CarryAddress::Movable)
+            {
+                CarryAddress::Movable
+            } else {
+                CarryAddress::Stable
+            },
+        }
+    }
+}
+
+impl std::fmt::Display for CarryPolicy {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let suspension = match self.suspension {
+            CarrySuspension::Forbidden => "forbidden",
+            CarrySuspension::Allowed => "allowed",
+        };
+        let cpu = match self.cpu {
+            CarryCpu::Origin => "same",
+            CarryCpu::Any => "any",
+        };
+        let thread = match self.host_thread {
+            CarryHostThread::Origin => "same",
+            CarryHostThread::Any => "any",
+        };
+        let address = match self.address {
+            CarryAddress::Stable => "stable",
+            CarryAddress::Movable => "movable",
+        };
+        write!(
+            formatter,
+            "carry(suspension: {suspension}, cpu: {cpu}, thread: {thread}, address: {address})"
+        )
+    }
 }
 
 /// Semantic ownership-event roles. Shared by checked flow and every lowered
@@ -593,5 +723,34 @@ mod tests {
         // Declared measures are NOT canonical builtins.
         assert_eq!(RankingViewId::canonical("Card::PowerOrder"), None);
         assert_eq!(RankingViewId::NULL.canonical_path(), None);
+    }
+
+    #[test]
+    fn carry_axes_compose_independently_and_fail_closed() {
+        let cpu_local = CarryPolicy {
+            suspension: CarrySuspension::Allowed,
+            cpu: CarryCpu::Origin,
+            host_thread: CarryHostThread::Any,
+            address: CarryAddress::Movable,
+        };
+        let pinned = CarryPolicy {
+            suspension: CarrySuspension::Allowed,
+            cpu: CarryCpu::Any,
+            host_thread: CarryHostThread::Any,
+            address: CarryAddress::Stable,
+        };
+
+        assert_eq!(
+            cpu_local.intersect(pinned),
+            CarryPolicy {
+                suspension: CarrySuspension::Allowed,
+                cpu: CarryCpu::Origin,
+                host_thread: CarryHostThread::Any,
+                address: CarryAddress::Stable,
+            }
+        );
+        assert!(CarryPolicy::PERMISSIVE.permits(cpu_local));
+        assert!(!CarryPolicy::STRICT.permits(cpu_local));
+        assert_eq!(CarryPolicy::default(), CarryPolicy::STRICT);
     }
 }

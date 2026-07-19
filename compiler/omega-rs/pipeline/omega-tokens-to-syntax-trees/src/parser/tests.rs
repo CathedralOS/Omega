@@ -162,6 +162,58 @@ fn copy_and_linear_properties_are_mutually_exclusive() {
 }
 
 #[test]
+fn carry_property_parses_all_four_axes_on_data_and_bounds() {
+    use omega_core::semantics::{
+        CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension,
+    };
+    let source = r#"
+        data Lease [
+            carry(suspension: forbidden, cpu: same, thread: any, address: stable,),
+        ] {}
+        data Envelope<T [carry(
+            suspension: allowed,
+            cpu: any,
+            thread: any,
+            address: movable,
+        )]> { value: T; }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let parsed = parse_syntax_trees(&tokens).expect("four-axis carry properties should parse");
+    let data = parsed
+        .root_items()
+        .filter_map(|item| match item {
+            omega_syntax_trees::item::Item::Data(data) => Some(data),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        data[0].properties.carry,
+        Some(CarryPolicy {
+            suspension: CarrySuspension::Forbidden,
+            cpu: CarryCpu::Origin,
+            host_thread: CarryHostThread::Any,
+            address: CarryAddress::Stable,
+        })
+    );
+    let parameter = &parsed.items.type_parameters(data[1].type_parameters)[0];
+    assert_eq!(parameter.bounds.carry, Some(CarryPolicy::PERMISSIVE));
+}
+
+#[test]
+fn carry_property_requires_every_axis_and_retires_send() {
+    let missing = "data Bad [carry(suspension: allowed, cpu: any, thread: any)] {}";
+    let tokens = Lexer::new(missing).tokenize().expect("tokenize");
+    let error = parse_syntax_trees(&tokens).expect_err("partial carry policy must reject");
+    assert!(error.message.contains("missing address"));
+
+    let retired = "data Bad [send] {}";
+    let tokens = Lexer::new(retired).tokenize().expect("tokenize");
+    let error = parse_syntax_trees(&tokens).expect_err("send must remain retired");
+    assert!(error.message.contains("`[send]` is retired"));
+}
+
+#[test]
 fn parses_plain_and_boundary_traits() {
     let source = r#"
         trait Drawable {

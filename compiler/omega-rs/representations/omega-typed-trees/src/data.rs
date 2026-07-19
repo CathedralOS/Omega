@@ -35,12 +35,12 @@ impl Default for DataDefinition {
 
 /// Declared type properties (`data Point [copy, zero_init]`). The spelling
 /// set is closed at parse time; validation verifies the declared facts
-/// (`copy`/`send` structurally, `zero_init` via the zero-means-empty rules).
+/// (`copy` and carry structurally, `zero_init` via the zero-means-empty rules).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DataProperties {
     pub copy: bool,
     pub zero_init: bool,
-    pub send: bool,
+    pub carry: Option<omega_core::semantics::CarryPolicy>,
     /// STR3: the first-class usage model (`[copy]` -> Unrestricted,
     /// ordinary data -> Affine, `[linear]` -> Linear). `copy` survives as the
     /// compatibility bool until STR7 retires it.
@@ -94,7 +94,7 @@ pub struct TypeParameter {
     pub name: Identifier,
     pub kind: TypeParameterKind,
     /// Property bounds (`data Box<T [copy]>`, frozen decision 13). A bounded
-    /// parameter satisfies the structural copy/send/zero_init walk inside its
+    /// parameter satisfies the structural copy/carry/zero_init walk inside its
     /// owner, and every instantiation argument must carry the bound.
     pub bounds: DataProperties,
 }
