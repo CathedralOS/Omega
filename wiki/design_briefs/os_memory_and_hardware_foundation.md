@@ -671,8 +671,11 @@ and the concrete interrupt state policy remain. Remaining order:
    came from an instruction. Canonical executable-container v2 now requires a
    validated entry-set section, binds that set's identity into admission, and
    lets only an admitted artifact select sealed `EntryStubId` targets present
-   in the set. Numeric entry resolution still awaits the linear state that
-   binds that artifact to one exact placement.
+   in the set. The exact installed-code state now privately resolves those
+   entries against its placement while executing an atomic post-handoff writer;
+   foreign entries and data symbols reject before publication, without a
+   source-visible numeric-address operation. Target-machine writer emission
+   remains.
 3. Connect the implemented normalized `Extent` conservation/mapping model to
    the Omega linear carrier and sealed facts, then implement provider execution
    and source APIs. Root admission, split/merge/attenuation, borrow polarity,

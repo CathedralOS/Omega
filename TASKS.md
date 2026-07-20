@@ -159,9 +159,11 @@ ceiling derived exactly from the ABI volatile-register classes.
    set: unique compiler-issued `EntryStubId` values and in-code offsets are
    validated, the entry-set identity is bound into admission, and only an
    admitted artifact can yield a sealed entry materialization target from that
-   set. Bind numeric resolution to the future artifact-plus-placement
-   materialization state and lower the now-derived atomic post-handoff writer
-   programs to generated machine code.
+   set. The exact installed-code state now supplies the private resolver for
+   atomic post-handoff entry writers: it resolves only entries in that admitted
+   set against the installed placement, rejects foreign/data targets before
+   publication, and never exposes the numeric address API. Lower these
+   normalized writer programs to generated machine code.
 5. **IDT2 — installed-root ledger.** Add `lidt` only as an installation path
    that consumes scoped IDT
    authority and records every installed entry as an external analysis root
@@ -402,8 +404,8 @@ before the fix.
   bound through decoded artifact construction, admission evidence, placement,
   and materialization without permitting constraint substitution. Entry-source
   integration now reaches canonical executable entry-set decoding and
-  admission-bound sealed entry targets. Bind numeric entry resolution to an
-  exact artifact-plus-placement materialization state and lower the
+  admission-bound sealed entry targets. Exact installed code now resolves those
+  targets privately while executing the atomic writer. Lower the normalized
   provider-resolved post-handoff writer programs to generated machine code.
   Writer programs already validate their
   concrete site, resolve each sealed target once, stage all writes, and publish

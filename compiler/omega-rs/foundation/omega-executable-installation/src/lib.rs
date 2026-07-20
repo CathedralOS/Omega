@@ -7,7 +7,10 @@
 use std::sync::Arc;
 
 use omega_extents::{AddressSpaceId, Extent, ExtentProvenanceId, ExtentRights};
-use omega_layout_plans::{EntryStubId, PlacementConstraints, PlacementSite, RelocationTarget};
+use omega_layout_plans::{
+    EntryStubId, MaterializationDiagnostic, PlacementConstraints, PlacementSite,
+    PostHandoffWriterPlan, RelocationTarget,
+};
 
 macro_rules! normalized_id {
     ($name:ident, $label:literal) => {
@@ -766,6 +769,34 @@ impl InstalledCode {
     pub const fn wx(&self) -> WxEnforcement {
         self.wx
     }
+
+    /// Returns a sealed target only for an entry admitted with this installed
+    /// artifact. The numeric address stays private to writer execution.
+    pub fn selected_entry_target(
+        &self,
+        identity: EntryStubId,
+    ) -> Result<RelocationTarget, InstallationDiagnostic> {
+        self.artifact.selected_entry_target(identity)
+    }
+
+    /// Executes an atomic post-handoff writer using this installed code as the
+    /// resolver authority for entry targets. Data symbols and entries from any
+    /// other artifact fail before the destination is published.
+    pub fn execute_post_handoff_entry_writer(
+        &self,
+        plan: &PostHandoffWriterPlan,
+        destination: &mut [u8],
+        destination_site: PlacementSite,
+    ) -> Result<(), MaterializationDiagnostic> {
+        plan.execute(destination, destination_site, |target| match target {
+            RelocationTarget::Entry(identity) => self
+                .artifact
+                .artifact
+                .entry(identity)
+                .and_then(|entry| self.placement.extent.base().checked_add(entry.code_offset)),
+            RelocationTarget::Data(_) => None,
+        })
+    }
 }
 
 /// One-shot authority to retire one exact installed realization. Required
@@ -937,7 +968,10 @@ mod tests {
     use omega_extents::{
         ExtentDiagnostic, ExtentLineageId, ExtentRightId, ExtentRootGrant, MappingEraId,
     };
-    use omega_layout_plans::{ArtifactInstallationScopeId, PlacementAddressRange, PlacementPhase};
+    use omega_layout_plans::{
+        ArtifactInstallationScopeId, ByteOrder, MaterializationWrite, PlacementAddressRange,
+        PlacementPhase, PostHandoffWriterSource, PostHandoffWriterStep,
+    };
 
     fn id<T>(identity: u64, constructor: fn(u64) -> Result<T, InstallationDiagnostic>) -> T {
         constructor(identity).expect("normalized installation identity")
@@ -1232,6 +1266,53 @@ mod tests {
         );
         let foreign = entry_id(1002);
         assert!(admitted.selected_entry_target(foreign).is_err());
+    }
+
+    #[test]
+    fn installed_code_resolves_only_its_entries_for_atomic_post_handoff_writers() {
+        let admitted = admit(&artifact(1));
+        let installed = installed_code(&admitted, 110, 0x8000);
+        let selected = entry_id(1001);
+        let target = installed
+            .selected_entry_target(selected)
+            .expect("installed selected entry");
+        let writer = |target| PostHandoffWriterPlan {
+            byte_len: 8,
+            byte_order: ByteOrder::LittleEndian,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+            steps: vec![PostHandoffWriterStep {
+                write: MaterializationWrite {
+                    field: "address".into(),
+                    target,
+                    container_byte_offset: 0,
+                    container_width_bits: 64,
+                    destination_lsb: 0,
+                    source_lsb: 0,
+                    width: 64,
+                },
+                source: PostHandoffWriterSource::Resolve(target),
+            }],
+        };
+        let destination_site = PlacementSite {
+            base_address: 0x9000,
+            phase: PlacementPhase::PostHandoff,
+            machine_regime: None,
+            installation_scope: None,
+        };
+
+        let mut destination = [0u8; 8];
+        installed
+            .execute_post_handoff_entry_writer(&writer(target), &mut destination, destination_site)
+            .expect("installed entry writer");
+        assert_eq!(u64::from_le_bytes(destination), 0x8010);
+
+        let foreign = RelocationTarget::Entry(entry_id(1002));
+        let mut unchanged = [0xa5u8; 8];
+        let error = installed
+            .execute_post_handoff_entry_writer(&writer(foreign), &mut unchanged, destination_site)
+            .expect_err("foreign artifact entry must not resolve");
+        assert!(error.0.contains("could not resolve symbolic target"));
+        assert_eq!(unchanged, [0xa5; 8]);
     }
 
     #[test]
