@@ -35,8 +35,9 @@ pub struct RuntimeFlowPlan {
     /// per-instance dispatch (TASKS_FS "Stolen work #2"): downstream
     /// consumers look up the minting StateCall's receiver path and resolve
     /// the callee's TRUE storage base -- composed through the parent chain
-    /// for non-entry callers -- instead of the first-type-match walk.
-    pub context_call_sites: Vec<(StateKey, usize, CallContext)>,
+    /// for non-entry callers -- instead of the first-type-match walk. Each
+    /// tuple is `(source, statement, call ordinal, parent context)`.
+    pub context_call_sites: Vec<(StateKey, usize, usize, CallContext)>,
 }
 
 impl RuntimeFlowPlan {
@@ -52,7 +53,12 @@ impl RuntimeFlowPlan {
             cycles: Arena::with_capacity(cycle_capacity),
             cycle_states: Arena::with_capacity(cycle_state_capacity),
             // Index 0 == ROOT: no minting call (self-parented placeholder).
-            context_call_sites: vec![(StateKey::default(), usize::MAX, CallContext::ROOT)],
+            context_call_sites: vec![(
+                StateKey::default(),
+                usize::MAX,
+                usize::MAX,
+                CallContext::ROOT,
+            )],
         }
     }
 }
@@ -71,11 +77,12 @@ pub struct RuntimeCycle {
 /// Identifies the caller's call-result slot a dispatched value call returns into.
 /// Carried on a callee clone's TERMINAL edge so that, when the clone returns, the
 /// terminal's value (`-> acc` / `-> 99`) is written back to the caller's `let n`
-/// slot keyed by `(call_source_key, statement_index)`.
+/// slot keyed by `(call_source_key, statement_index, call_ordinal)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CallResultReturn {
     pub call_source_key: StateKey,
     pub statement_index: usize,
+    pub call_ordinal: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -113,6 +120,7 @@ impl Default for RuntimeEdge {
 pub struct RuntimeStateCallEdge {
     pub source_key: StateKey,
     pub statement_index: usize,
+    pub call_ordinal: usize,
     pub target_key: StateKey,
     /// Whether the call is VALUE-position (role != Statement in the state-call
     /// plan: AssignmentValue / CallArgument / TransitionArgument /

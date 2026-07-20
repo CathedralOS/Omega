@@ -199,9 +199,9 @@ impl RuntimeStoragePlan {
     /// role-tagged slots the AssignmentValue-only lookup misses -- a
     /// dispatched callee's terminal return-write must still find them).
     /// AssignmentValue slots are preferred for determinism when a statement
-    /// somehow carries both. NOTE: `CallResultReturn` carries no call
-    /// ORDINAL, so a statement with TWO dispatched calls cannot be
-    /// disambiguated here yet (plan-shape gap, recorded in TASKS_FS #7).
+    /// somehow carries both. New return-write paths use the ordinal-aware
+    /// siblings below; this lookup remains for a bare single-call initializer
+    /// whose result is represented by its LocalStorage slot.
     /// Dispatch-keyed sibling of `state_call_result_slot_any_role`: call-result
     /// slots are duplicated per dispatch context (a segmented caller has one
     /// per segment case), and a clone terminal's return-write must hit the
@@ -225,6 +225,28 @@ impl RuntimeStoragePlan {
         })
     }
 
+    pub fn state_call_result_slot_for_dispatch_by_ordinal(
+        &self,
+        dispatch_index: u32,
+        source_key: StateKey,
+        statement_index: usize,
+        call_ordinal: usize,
+    ) -> Option<&RuntimeFrameSlot> {
+        self.frame_slots.iter().find_map(|(_, slot)| {
+            (slot.dispatch_index == dispatch_index
+                && Self::source_matches(slot.source_key, source_key)
+                && slot.statement_index == statement_index
+                && matches!(
+                    slot.kind,
+                    RuntimeFrameSlotKind::StateCallResult {
+                        call_ordinal: slot_ordinal,
+                        ..
+                    } if slot_ordinal == call_ordinal
+                ))
+            .then_some(slot)
+        })
+    }
+
     pub fn state_call_result_slot_any_role(
         &self,
         source_key: StateKey,
@@ -239,6 +261,26 @@ impl RuntimeStoragePlan {
                     .then_some(slot)
                 })
             })
+    }
+
+    pub fn state_call_result_slot_any_role_by_ordinal(
+        &self,
+        source_key: StateKey,
+        statement_index: usize,
+        call_ordinal: usize,
+    ) -> Option<&RuntimeFrameSlot> {
+        self.frame_slots.iter().find_map(|(_, slot)| {
+            (Self::source_matches(slot.source_key, source_key)
+                && slot.statement_index == statement_index
+                && matches!(
+                    slot.kind,
+                    RuntimeFrameSlotKind::StateCallResult {
+                        call_ordinal: slot_ordinal,
+                        ..
+                    } if slot_ordinal == call_ordinal
+                ))
+            .then_some(slot)
+        })
     }
 
     pub fn call_result_slot_by_ordinal(

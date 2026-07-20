@@ -151,6 +151,10 @@ struct SegmentSlice {
     /// Inclusive lower and upper statement-index bounds for this segment's ops.
     low: usize,
     high: usize,
+    /// Two dispatched calls can occupy the same statement. The segment between
+    /// them has no caller-owned operation to run; it exists only to dispatch
+    /// the next call after the first returns.
+    is_empty: bool,
     is_tail: bool,
 }
 
@@ -166,37 +170,44 @@ fn segment_filter(
         segment_index: 0,
         ..segment_key
     };
-    let mut boundaries: Vec<usize> = context
+    let mut boundaries: Vec<(usize, usize)> = context
         .state_calls
         .calls
         .iter()
         .map(|(_, state_call)| state_call)
         .filter(|state_call| state_call.source_key == control_key)
         .filter(|state_call| state_call_splits_runtime_body(context, state_call))
-        .map(|state_call| state_call.statement_index)
+        .map(|state_call| (state_call.statement_index, state_call.call_ordinal))
         .collect();
     if boundaries.is_empty() {
         return None;
     }
     boundaries.sort_unstable();
-    boundaries.dedup();
 
     let count = boundaries.len();
     let segment = segment_key.segment_index;
     if segment >= count {
         Some(SegmentSlice {
-            low: boundaries[count - 1] + 1,
+            // The statement containing the final call executes only after that
+            // call returns, in the tail segment.
+            low: boundaries[count - 1].0,
             high: usize::MAX,
+            is_empty: false,
             is_tail: true,
         })
     } else {
+        let high_exclusive = boundaries[segment].0;
+        let low = if segment == 0 {
+            0
+        } else {
+            // The previous call's containing statement may now finish, unless
+            // this is another call in that same statement.
+            boundaries[segment - 1].0
+        };
         Some(SegmentSlice {
-            low: if segment == 0 {
-                0
-            } else {
-                boundaries[segment - 1] + 1
-            },
-            high: boundaries[segment],
+            low,
+            high: high_exclusive.saturating_sub(1),
+            is_empty: high_exclusive == 0 || low >= high_exclusive,
             is_tail: false,
         })
     }
@@ -225,7 +236,9 @@ fn append_state_body_operations(
     for operation in state_operations {
         // Skip operations outside this segment's statement-index window.
         if let Some(slice) = segment
-            && (operation.statement_index < slice.low || operation.statement_index > slice.high)
+            && (slice.is_empty
+                || operation.statement_index < slice.low
+                || operation.statement_index > slice.high)
         {
             continue;
         }

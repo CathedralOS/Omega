@@ -291,13 +291,53 @@ fn resolve_runtime_call_result_place(
     call_ordinal: Option<usize>,
 ) -> Option<RuntimeStoragePlace> {
     let slot = if let Some(call_ordinal) = call_ordinal {
-        input.runtime_storage.call_result_slot_by_ordinal(
-            dispatch_index,
-            source_key,
-            statement_index,
-            role,
-            call_ordinal,
-        )
+        input
+            .runtime_storage
+            .call_result_slot_by_ordinal(
+                dispatch_index,
+                source_key,
+                statement_index,
+                role,
+                call_ordinal,
+            )
+            .or_else(|| {
+                // A statement with multiple dispatched calls is split into one
+                // continuation segment per call. Earlier results live in an
+                // earlier segment's slot but the final expression reads them in
+                // the tail segment. All those segments share the caller's call
+                // context and physical frame; recover the exact ordinal only from
+                // that same context, never from another clone of the source state.
+                let context = input
+                    .runtime_flow
+                    .states
+                    .iter()
+                    .find(|(handle, _)| handle.arena_index() == dispatch_index)
+                    .map(|(_, state)| state.context)?;
+                input
+                    .runtime_storage
+                    .frame_slots
+                    .iter()
+                    .find_map(|(_, slot)| {
+                        let slot_context = input
+                            .runtime_flow
+                            .states
+                            .iter()
+                            .find(|(handle, _)| handle.arena_index() == slot.dispatch_index)
+                            .map(|(_, state)| state.context);
+                        (slot_context == Some(context)
+                            && state_key_matches_statement_source(slot.source_key, source_key)
+                            && slot.statement_index == statement_index
+                            && matches!(
+                                slot.kind,
+                                omega_runtime_storage::RuntimeFrameSlotKind::StateCallResult {
+                                    role: slot_role,
+                                    call_ordinal: slot_ordinal,
+                                    ..
+                                } if slot_role == role && slot_ordinal == call_ordinal
+                            ))
+                        .then_some(slot)
+                    })
+            })
     } else {
         input
             .runtime_storage

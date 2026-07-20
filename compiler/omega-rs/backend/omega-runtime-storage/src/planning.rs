@@ -169,7 +169,11 @@ fn append_unserved_recursive_call_result_slots(
         // A slot anywhere means the call is served; a FIELD-bound result is
         // served slotless via the machine-place fallback.
         if plan
-            .state_call_result_slot_any_role(state_call.source_key, state_call.statement_index)
+            .state_call_result_slot_any_role_by_ordinal(
+                state_call.source_key,
+                state_call.statement_index,
+                state_call.call_ordinal,
+            )
             .is_some()
         {
             continue;
@@ -184,20 +188,37 @@ fn append_unserved_recursive_call_result_slots(
         // face). A FIELD-bound result (`self.x = self.f(..)`, multi_arm) is an
         // Assignment statement and still returns None here, preserving the
         // machine-place-fallback serve this filter exists to protect.
+        let named_result = super::body::call_result_slot_symbol_and_name(
+            context,
+            state_call.source_key,
+            state_call.statement_index,
+            state_call.role,
+        );
+        let binds_local =
+            statement_binds_local(context, state_call.source_key, state_call.statement_index);
         if state_call.role == StateCallRole::AssignmentValue
-            && super::body::call_result_slot_symbol_and_name(
-                context,
-                state_call.source_key,
-                state_call.statement_index,
-                state_call.role,
-            )
-            .is_none()
+            && named_result.is_none()
+            && !binds_local
         {
             continue;
         }
         // The continuation segment's dispatch namespace: find the body whose
         // key is the caller's state at segment_index + 1 (fall back to the
         // call segment's own body when the caller has no continuation).
+        let continuation_segment = context
+            .state_calls
+            .calls
+            .iter()
+            .map(|(_, call)| call)
+            .filter(|call| {
+                call.source_key.machine == state_call.source_key.machine
+                    && call.source_key.state == state_call.source_key.state
+                    && call.required
+                    && callee_reenters_its_entry(call.target_key)
+                    && (call.statement_index, call.call_ordinal)
+                        <= (state_call.statement_index, state_call.call_ordinal)
+            })
+            .count();
         let continuation_dispatch = context
             .runtime_bodies
             .bodies
@@ -205,7 +226,7 @@ fn append_unserved_recursive_call_result_slots(
             .find(|(_, body)| {
                 body.key.machine == state_call.source_key.machine
                     && body.key.state == state_call.source_key.state
-                    && body.key.segment_index == state_call.source_key.segment_index + 1
+                    && body.key.segment_index == continuation_segment
             })
             .or_else(|| {
                 context.runtime_bodies.bodies.iter().find(|(_, body)| {
@@ -249,6 +270,38 @@ fn append_unserved_recursive_call_result_slots(
             target_key,
         );
     }
+}
+
+fn statement_binds_local(
+    context: &RuntimeStorageContext,
+    source_key: omega_control_flow::StateKey,
+    statement_index: usize,
+) -> bool {
+    context
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)
+        .and_then(|machine| {
+            context
+                .program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == source_key.state)
+        })
+        .and_then(|state| {
+            context
+                .program
+                .statement_table
+                .statements(state.statement_nodes)
+                .get(statement_index)
+        })
+        .is_some_and(|statement| {
+            matches!(
+                statement,
+                omega_checked_trees::statement::StatementNode::LocalData(_)
+            )
+        })
 }
 
 fn reserve_frame_scratch_region(plan: &mut RuntimeStoragePlan) {

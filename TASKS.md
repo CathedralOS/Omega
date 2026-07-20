@@ -490,15 +490,17 @@ remain contract-invisible.
 These are unblocked and should gain a focused pass/fail or differential canary
 before the fix.
 
-- **Sibling dispatched value-call context identity.** Inline value calls in one
-  expression now retain every ordinal through runtime-body lowering, allocate
-  distinct result slots, defer every sibling return write, and select those
-  slots by target + receiver (`small.first() + large.first()` is pinned native
-  and interpreted). The dispatched/looping path still records a minting
-  `(state, statement)` without the state-call ordinal. Thread `call_ordinal`
-  through `RuntimeStateCallEdge`, context call sites, continuation result
-  identity, and receiver-base lookup; exact repeated calls on the same receiver
-  also need occurrence identity rather than target + receiver matching.
+- **Repeated inline value calls on one receiver.** Sibling calls now retain
+  every ordinal through both inline and dispatched runtime-body lowering,
+  allocate distinct result slots, defer every sibling return write, and carry
+  occurrence identity through dispatched clone contexts, continuation returns,
+  receiver-base lookup, and final operand selection. Distinct inline receivers
+  (`small.first() + large.first()`) and distinct dispatched looping receivers
+  are pinned native and interpreted. The remaining ambiguity is two INLINE
+  calls with the same target and receiver in one expression: its operand lookup
+  still matches target + receiver rather than expression occurrence. Thread an
+  occurrence identity into inline result operand resolution and add that exact
+  repeated-call canary.
 
 ## Type, proof, and semantic-model work
 

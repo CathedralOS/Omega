@@ -1,0 +1,27 @@
+// Two LOOPING value calls in one initializer are both dispatch-routed. Their
+// call ordinals must distinguish clone contexts, receiver bases, continuations,
+// and result slots: first contributes 2 * 10, second contributes 2 * 25.
+use omega::language::std::console;
+
+data Tally { count: i32 in Wrapping; }
+
+machine Tally::drain(&mut self, n: i32, acc: i32 in Wrapping)
+terminates by n -> Nat::Descending;
+-> i32 in Wrapping
+{
+    transition n > 0 {
+        true -> drain(n - 1, acc + self.count)
+        false -> leaf(acc)
+    }
+
+    state leaf(&mut self, acc: i32 in Wrapping) -> i32 in Wrapping { acc }
+}
+
+data Main { console: Console; first: Tally; second: Tally; }
+
+machine Main::main(&mut self) {
+    self.first.count = 10;
+    self.second.count = 25;
+    let total: i32 in Wrapping = self.first.drain(2, 0) + self.second.drain(2, 0);
+    self.console.exit_process(total);
+}
