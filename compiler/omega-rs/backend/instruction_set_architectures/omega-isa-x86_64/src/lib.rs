@@ -9,8 +9,8 @@ pub use place_copy::{
 
 use omega_calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, EntryControl, HostCapability, HostOperation,
-    HostOperationKey, MachineRegister, ValueClass, ValueLocation, ValuePlacement, ValueShape,
-    evaluate_call_plan,
+    HostOperationKey, MachineRegister, SystemVEightbyteClass, ValueClass, ValueLocation,
+    ValuePlacement, ValueShape, evaluate_call_plan,
 };
 use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::diagnostics::Diagnostic;
@@ -2413,6 +2413,63 @@ fn append_sysv_parameter<T: InstructionOperandLike>(
     operand_index: usize,
     placement: &ValuePlacement,
 ) -> Result<(), Diagnostic> {
+    if let Some((_, byte_offset, byte_count, _, sse_eightbytes)) =
+        operand.runtime_system_v_aggregate()
+    {
+        if byte_count != usize::from(placement.shape.byte_size)
+            || !matches!(sse_eightbytes, 0b01 | 0b10)
+        {
+            return Err(Diagnostic::error(format!(
+                "SysV AMD64 mixed aggregate operand {operand_index} disagrees with its plan"
+            )));
+        }
+        append_sysv_runtime_base(bytes, relocation_sites, operand_index);
+        for location in &placement.locations {
+            match *location {
+                ValueLocation::Register {
+                    register,
+                    value_byte_offset,
+                    byte_size,
+                } => {
+                    let source_offset = byte_offset + usize::from(value_byte_offset);
+                    if matches!(register, MachineRegister::X86Xmm(_)) {
+                        append_sysv_load_float_from_r11(
+                            bytes,
+                            register,
+                            source_offset,
+                            usize::from(byte_size),
+                        )?;
+                    } else {
+                        append_sysv_load_register_from_r11(
+                            bytes,
+                            register,
+                            source_offset,
+                            byte_size,
+                        )?;
+                    }
+                }
+                ValueLocation::Stack {
+                    stack_byte_offset,
+                    value_byte_offset,
+                    byte_size,
+                    ..
+                } => {
+                    append_sysv_load_rax_from_r11(
+                        bytes,
+                        byte_offset + usize::from(value_byte_offset),
+                        byte_size,
+                    )?;
+                    append_sysv_store_rax_to_rsp(bytes, stack_byte_offset)?;
+                }
+                ValueLocation::Indirect { .. } => {
+                    return Err(Diagnostic::error(
+                        "SysV AMD64 mixed aggregate received an indirect placement",
+                    ));
+                }
+            }
+        }
+        return Ok(());
+    }
     if let Some((_, byte_offset, member_byte_count, members)) =
         operand.runtime_homogeneous_float_aggregate()
     {
@@ -2660,6 +2717,47 @@ fn append_sysv_result<T: InstructionOperandLike>(
     operand: &T,
     placement: &ValuePlacement,
 ) -> Result<(), Diagnostic> {
+    if let Some((_, byte_offset, byte_count, _, sse_eightbytes)) =
+        operand.runtime_system_v_aggregate()
+    {
+        if byte_count != usize::from(placement.shape.byte_size)
+            || !matches!(sse_eightbytes, 0b01 | 0b10)
+        {
+            return Err(Diagnostic::error(
+                "SysV AMD64 mixed aggregate result disagrees with its plan",
+            ));
+        }
+        append_sysv_runtime_base(bytes, relocation_sites, 0);
+        for location in &placement.locations {
+            let ValueLocation::Register {
+                register,
+                value_byte_offset,
+                byte_size,
+            } = *location
+            else {
+                return Err(Diagnostic::error(
+                    "SysV AMD64 mixed aggregate result is not register-resident",
+                ));
+            };
+            let destination_offset = byte_offset + usize::from(value_byte_offset);
+            if matches!(register, MachineRegister::X86Xmm(_)) {
+                append_sysv_store_float_to_r11(
+                    bytes,
+                    register,
+                    destination_offset,
+                    usize::from(byte_size),
+                )?;
+            } else {
+                append_sysv_store_result_register_to_r11(
+                    bytes,
+                    register,
+                    destination_offset,
+                    byte_size,
+                )?;
+            }
+        }
+        return Ok(());
+    }
     if let Some((_, byte_offset, member_byte_count, members)) =
         operand.runtime_homogeneous_float_aggregate()
     {
@@ -2861,6 +2959,31 @@ fn normalized_sysv_import_plan<T: InstructionOperandLike>(
 }
 
 fn sysv_operand_shape<T: InstructionOperandLike>(operand: &T) -> Result<ValueShape, Diagnostic> {
+    if let Some((_, _, byte_count, alignment, sse_eightbytes)) =
+        operand.runtime_system_v_aggregate()
+    {
+        if !matches!(byte_count, 9..=16) || !matches!(sse_eightbytes, 0b01 | 0b10) {
+            return Err(Diagnostic::error(
+                "SysV AMD64 mixed aggregates require 9-16 bytes and exactly one SSE eightbyte",
+            ));
+        }
+        let class = |index: u8| {
+            if sse_eightbytes & (1u8 << index) == 0 {
+                SystemVEightbyteClass::Integer
+            } else {
+                SystemVEightbyteClass::Sse
+            }
+        };
+        return Ok(ValueShape::system_v_aggregate(
+            u16::try_from(byte_count)
+                .map_err(|_| Diagnostic::error("SysV AMD64 mixed aggregate width exceeds u16"))?,
+            u16::try_from(alignment).map_err(|_| {
+                Diagnostic::error("SysV AMD64 mixed aggregate alignment exceeds u16")
+            })?,
+            class(0),
+            class(1),
+        ));
+    }
     if let Some((_, _, member_byte_count, members)) = operand.runtime_homogeneous_float_aggregate()
     {
         if !matches!(member_byte_count, 4 | 8)
@@ -2939,6 +3062,7 @@ fn validate_sysv_import_plan(plan: &CallPlan) -> Result<(), Diagnostic> {
             ValueClass::Integer
                 | ValueClass::Float
                 | ValueClass::HomogeneousFloatAggregate { members: 2..=4 }
+                | ValueClass::SystemVAggregate { .. }
         ) || (placement.shape.byte_size > 16
             && placement
                 .locations
@@ -2955,6 +3079,7 @@ fn validate_sysv_import_plan(plan: &CallPlan) -> Result<(), Diagnostic> {
             ValueClass::Integer
                 | ValueClass::Float
                 | ValueClass::HomogeneousFloatAggregate { members: 2..=4 }
+                | ValueClass::SystemVAggregate { .. }
         ) || (placement.shape.byte_size > 16
             && !matches!(
                 placement.locations.as_slice(),
@@ -3875,6 +4000,58 @@ mod x86_import_plan_tests {
                 .bytes
                 .windows(9)
                 .any(|window| window == [0xf3, 0x41, 0x0f, 0x11, 0x8b, 24, 0, 0, 0])
+        );
+    }
+
+    #[test]
+    fn authored_sysv_mixed_record_uses_rax_and_xmm0_result() {
+        let aggregate = |byte_offset| {
+            operand(TargetInstructionOperandKind::RuntimeSystemVAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset,
+                byte_count: 16,
+                alignment: 8,
+                sse_eightbytes: 0b10,
+            })
+        };
+        let operands = [aggregate(0), aggregate(16)];
+        let layout = sysv_import_layout(&operands, true).expect("SysV mixed aggregate import");
+
+        assert!(
+            layout
+                .bytes
+                .windows(7)
+                .any(|window| window == [0x49, 0x8b, 0xbb, 16, 0, 0, 0]),
+            "INTEGER argument eightbyte must load into rdi"
+        );
+        assert!(
+            layout
+                .bytes
+                .windows(9)
+                .any(|window| window == [0xf2, 0x41, 0x0f, 0x10, 0x83, 24, 0, 0, 0]),
+            "SSE argument eightbyte must load into xmm0"
+        );
+        assert!(
+            layout
+                .bytes
+                .windows(7)
+                .any(|window| window == [0x49, 0x89, 0x83, 0, 0, 0, 0]),
+            "INTEGER result eightbyte must store from rax"
+        );
+        assert!(
+            layout
+                .bytes
+                .windows(9)
+                .any(|window| window == [0xf2, 0x41, 0x0f, 0x11, 0x83, 8, 0, 0, 0]),
+            "SSE result eightbyte must store from xmm0"
+        );
+        assert_eq!(
+            layout
+                .relocation_sites
+                .iter()
+                .map(|site| site.operand_index)
+                .collect::<Vec<_>>(),
+            [Some(1), None, Some(0)]
         );
     }
 

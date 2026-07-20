@@ -35930,6 +35930,13 @@ fn sysv_vtable_field_call_emits_indirect_dispatch() {
             .any(|window| window == packed_sse_needle),
         "expected layout-resolved +32 dispatch for the packed three-f32 record call"
     );
+    let mixed_needle = [0x48u8, 0x8b, 0x87, 0x28, 0x00, 0x00, 0x00, 0xff, 0xd0];
+    assert!(
+        bytes
+            .windows(mixed_needle.len())
+            .any(|window| window == mixed_needle),
+        "expected layout-resolved +40 dispatch for the mixed INTEGER/SSE record call"
+    );
     let _ = fs::remove_dir_all(&build_dir);
 }
 

@@ -78,6 +78,19 @@ fn translate_operand_kind(
             member_byte_count: *member_byte_count,
             members: *members,
         },
+        omega_abstract_operations::InstructionOperandKind::RuntimeSystemVAggregate {
+            region,
+            byte_offset,
+            byte_count,
+            alignment,
+            sse_eightbytes,
+        } => InstructionOperandKind::RuntimeSystemVAggregate {
+            region: *region,
+            byte_offset: *byte_offset,
+            byte_count: *byte_count,
+            alignment: *alignment,
+            sse_eightbytes: *sse_eightbytes,
+        },
         omega_abstract_operations::InstructionOperandKind::RuntimeSmallAggregate {
             region,
             byte_offset,
