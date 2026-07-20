@@ -707,11 +707,14 @@ remain contract-invisible.
   by the container now specialize const-sized signatures and bare const values
   in executable bodies for each instance. Symbolic fixed-array lengths now
   reject undeclared names, ordinary type parameters, and non-integer const
-  parameters instead of degrading to an unknown/default layout. Closed
-  non-negative integer expressions in const generic arguments now fold with
-  ordinary arithmetic precedence, grouping, shifts, bitwise operations, and
-  checked `u64` failure before instance synthesis; native and interpreter
-  canaries pin distinct expression-derived layouts. Arithmetic expressions may
+  parameters instead of degrading to an unknown/default layout. Closed integer
+  expressions in const generic arguments now fold across the signed/unsigned
+  64-bit envelope with ordinary arithmetic precedence and grouping; non-negative
+  values also support shifts and bitwise operations. Signed arguments retain
+  their negative values through instance naming, fact discharge, attached
+  methods, and both runtimes, while each const parameter's declared integer
+  width rejects out-of-range values. Native and interpreter canaries pin
+  distinct expression-derived layouts and signed specialization. Arithmetic expressions may
   now also use scoped literal integer const operands; the transient expression
   representation is eliminated before symbol resolution, and unknown symbolic
   operands reject loudly. Expressions over forwarded const parameters now
@@ -729,8 +732,11 @@ remain contract-invisible.
   classifier also discharges per instance; false membership rejects. Direct
   effect-free `machine(self)` classifiers now evaluate after typing with
   inferred transitive-effect checks; true results ungate the concrete record,
-  while false or effectful classifiers reject. Continue with signed/domain
-  arithmetic semantics and richer build-time proof operands.
+  while false or effectful classifiers reject. Their boolean/arithmetic facts
+  over `self` compose in the same build-time proof, including checked integer
+  operands and logical negation. Continue with declared-width signed
+  shift/bitwise and arithmetic-domain semantics, plus richer build-time proof
+  operands such as nested memberships.
 - **Trait defaults (authored bodies complete).** Standalone data conformances synthesize a
   missing attached machine from the trait's authored body before resolution,
   including defaults inherited through `requires` and header parents. Ordinary

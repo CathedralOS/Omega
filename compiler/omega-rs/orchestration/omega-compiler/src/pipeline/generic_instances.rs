@@ -214,7 +214,7 @@ pub(crate) fn desugar_generic_data_instances(
     // integer values here so `Buffer<Limits::WIDTH>` follows the same path as
     // `Buffer<4>` while leaving non-integer and negative consts to the normal
     // declaration/use diagnostics.
-    let const_values: HashMap<String, u64> = syntax
+    let const_values: HashMap<String, i128> = syntax
         .root_items()
         .filter_map(|item| {
             let Item::Const(definition) = item else {
@@ -224,7 +224,7 @@ pub(crate) fn desugar_generic_data_instances(
             else {
                 return None;
             };
-            let value = value.value_u64()?;
+            let value = integer_literal_value(value)?;
             let qualified_name = if definition.scope.as_str().is_empty() {
                 definition.name.as_str().to_string()
             } else {
@@ -278,7 +278,7 @@ pub(crate) fn desugar_generic_data_instances(
                 .cloned()
                 .zip(instance.argument_handles.iter().copied())
                 .collect();
-            let const_parameter_values: HashMap<String, u64> = base_info
+            let const_parameter_values: HashMap<String, i128> = base_info
                 .parameter_names
                 .iter()
                 .zip(&base_info.const_parameter_types)
@@ -313,9 +313,9 @@ pub(crate) fn desugar_generic_data_instances(
                 .iter()
                 .map(|(name, value)| {
                     let literal = IntegerLiteral::from_parts(
-                        false,
+                        *value < 0,
                         IntegerRadix::Decimal,
-                        value.to_string().as_str(),
+                        value.unsigned_abs().to_string().as_str(),
                     )
                     .expect("a concrete const argument is a valid decimal integer literal");
                     (name.clone(), literal)
@@ -499,7 +499,7 @@ pub(crate) fn desugar_generic_data_instances(
 
 #[derive(Clone, Copy)]
 enum ConstFactValue {
-    Integer(u64),
+    Integer(i128),
     Boolean(bool),
 }
 
@@ -509,16 +509,17 @@ enum ConstFactValue {
 fn evaluate_const_fact_expression(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
-    const_values: &HashMap<String, u64>,
-    parameter_values: &HashMap<String, u64>,
-    self_value: Option<u64>,
+    const_values: &HashMap<String, i128>,
+    parameter_values: &HashMap<String, i128>,
+    self_value: Option<i128>,
 ) -> Result<Option<ConstFactValue>, String> {
     match syntax.expressions.expression(expression) {
-        ExpressionNode::Integer(value) => value
-            .value_u64()
+        ExpressionNode::Integer(value) => integer_literal_value(value)
             .map(ConstFactValue::Integer)
             .map(Some)
-            .ok_or_else(|| "integer operand must be non-negative and fit `u64`".to_string()),
+            .ok_or_else(|| {
+                "integer operand must fit the signed/unsigned 64-bit envelope".to_string()
+            }),
         ExpressionNode::Boolean(value) => Ok(Some(ConstFactValue::Boolean(*value))),
         ExpressionNode::Name(path) => {
             let name = syntax
@@ -569,8 +570,8 @@ fn evaluate_const_fact_expression(
 fn evaluate_const_membership_fact(
     syntax: &SyntaxTrees,
     membership: &omega_syntax_trees::item::ProofMembershipFact,
-    const_values: &HashMap<String, u64>,
-    parameter_values: &HashMap<String, u64>,
+    const_values: &HashMap<String, i128>,
+    parameter_values: &HashMap<String, i128>,
     parameter_type_names: &HashMap<String, String>,
 ) -> Result<Option<bool>, String> {
     let ExpressionNode::Name(value_path) = syntax.expressions.expression(membership.value) else {
@@ -611,8 +612,8 @@ fn evaluate_named_const_domain(
     syntax: &SyntaxTrees,
     domain_name: &str,
     carrier: &str,
-    value: u64,
-    const_values: &HashMap<String, u64>,
+    value: i128,
+    const_values: &HashMap<String, i128>,
     visiting: &mut Vec<String>,
 ) -> Result<Option<bool>, String> {
     if visiting.iter().any(|name| name == domain_name) {
@@ -683,8 +684,8 @@ fn evaluate_named_const_domain(
 fn evaluate_const_classifier_expression(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
-    const_values: &HashMap<String, u64>,
-    self_value: u64,
+    const_values: &HashMap<String, i128>,
+    self_value: i128,
     carrier: &str,
     visiting: &mut Vec<String>,
 ) -> Result<Option<ConstFactValue>, String> {
@@ -765,18 +766,9 @@ fn evaluate_const_fact_binary(
     use BinaryOperator::*;
     match (left, right) {
         (ConstFactValue::Integer(left), ConstFactValue::Integer(right)) => match operator {
-            Add => left
-                .checked_add(right)
-                .map(ConstFactValue::Integer)
-                .ok_or_else(|| "addition overflows `u64`".to_string()),
-            Subtract => left
-                .checked_sub(right)
-                .map(ConstFactValue::Integer)
-                .ok_or_else(|| "subtraction produces a negative value".to_string()),
-            Multiply => left
-                .checked_mul(right)
-                .map(ConstFactValue::Integer)
-                .ok_or_else(|| "multiplication overflows `u64`".to_string()),
+            Add => checked_fact_integer(left.checked_add(right), "addition"),
+            Subtract => checked_fact_integer(left.checked_sub(right), "subtraction"),
+            Multiply => checked_fact_integer(left.checked_mul(right), "multiplication"),
             Divide => left
                 .checked_div(right)
                 .map(ConstFactValue::Integer)
@@ -785,19 +777,22 @@ fn evaluate_const_fact_binary(
                 .checked_rem(right)
                 .map(ConstFactValue::Integer)
                 .ok_or_else(|| "remainder by zero is invalid".to_string()),
-            ShiftLeft => u32::try_from(right)
+            ShiftLeft if left >= 0 => u32::try_from(right)
                 .ok()
+                .filter(|amount| *amount < u64::BITS)
                 .and_then(|amount| left.checked_shl(amount))
+                .and_then(const_integer_in_envelope)
                 .map(ConstFactValue::Integer)
                 .ok_or_else(|| "left shift exceeds the `u64` width".to_string()),
-            ShiftRight => u32::try_from(right)
+            ShiftRight if left >= 0 => u32::try_from(right)
                 .ok()
+                .filter(|amount| *amount < u64::BITS)
                 .and_then(|amount| left.checked_shr(amount))
                 .map(ConstFactValue::Integer)
                 .ok_or_else(|| "right shift exceeds the `u64` width".to_string()),
-            BitwiseAnd => Ok(ConstFactValue::Integer(left & right)),
-            BitwiseOr => Ok(ConstFactValue::Integer(left | right)),
-            BitwiseXor => Ok(ConstFactValue::Integer(left ^ right)),
+            BitwiseAnd if left >= 0 && right >= 0 => Ok(ConstFactValue::Integer(left & right)),
+            BitwiseOr if left >= 0 && right >= 0 => Ok(ConstFactValue::Integer(left | right)),
+            BitwiseXor if left >= 0 && right >= 0 => Ok(ConstFactValue::Integer(left ^ right)),
             Equal => Ok(ConstFactValue::Boolean(left == right)),
             NotEqual => Ok(ConstFactValue::Boolean(left != right)),
             Greater => Ok(ConstFactValue::Boolean(left > right)),
@@ -805,6 +800,9 @@ fn evaluate_const_fact_binary(
             Less => Ok(ConstFactValue::Boolean(left < right)),
             LessOrEqual => Ok(ConstFactValue::Boolean(left <= right)),
             And | Or => Err("logical operators require boolean operands".to_string()),
+            ShiftLeft | ShiftRight | BitwiseAnd | BitwiseOr | BitwiseXor => Err(
+                "signed shifts and bitwise operators require declared-width semantics".to_string(),
+            ),
         },
         (ConstFactValue::Boolean(left), ConstFactValue::Boolean(right)) => match operator {
             And => Ok(ConstFactValue::Boolean(left && right)),
@@ -815,6 +813,24 @@ fn evaluate_const_fact_binary(
         },
         _ => Err("const fact operands have incompatible types".to_string()),
     }
+}
+
+fn integer_literal_value(value: &IntegerLiteral) -> Option<i128> {
+    value
+        .value_i64()
+        .map(i128::from)
+        .or_else(|| value.value_u64().map(i128::from))
+}
+
+fn const_integer_in_envelope(value: i128) -> Option<i128> {
+    (value >= i128::from(i64::MIN) && value <= i128::from(u64::MAX)).then_some(value)
+}
+
+fn checked_fact_integer(value: Option<i128>, operation: &str) -> Result<ConstFactValue, String> {
+    value
+        .and_then(const_integer_in_envelope)
+        .map(ConstFactValue::Integer)
+        .ok_or_else(|| format!("{operation} exceeds the signed/unsigned 64-bit envelope"))
 }
 
 fn replace_const_expression_names_from(
@@ -855,7 +871,7 @@ fn replace_const_expression_names_from(
 /// checks on the source template.
 fn normalize_generic_template_const_expressions(
     syntax: &mut SyntaxTrees,
-    const_values: &HashMap<String, u64>,
+    const_values: &HashMap<String, i128>,
 ) -> Result<(), Diagnostic> {
     let templates: Vec<(String, HashSet<String>, Vec<TypeReferenceHandle>)> = syntax
         .root_items()
@@ -915,7 +931,7 @@ fn normalize_generic_template_const_expressions(
 fn normalize_template_type_reference(
     syntax: &mut SyntaxTrees,
     type_reference: TypeReferenceHandle,
-    const_values: &HashMap<String, u64>,
+    const_values: &HashMap<String, i128>,
     symbolic_parameters: &HashSet<String>,
 ) -> Result<(), String> {
     let node = syntax
@@ -1058,7 +1074,7 @@ fn collect_type_reference_positions(syntax: &SyntaxTrees) -> Vec<TypeReferenceHa
 fn consider_generic_spelling(
     syntax: &mut SyntaxTrees,
     generic_data: &HashMap<String, GenericData>,
-    const_values: &HashMap<String, u64>,
+    const_values: &HashMap<String, i128>,
     type_reference: TypeReferenceHandle,
     rewrites: &mut Vec<PendingRewrite>,
     instantiations: &mut Vec<Instantiation>,
@@ -1179,7 +1195,7 @@ fn const_arguments_fit_declarations(
             else {
                 return false;
             };
-            let Ok(value) = value.as_str().parse::<u64>() else {
+            let Ok(value) = value.as_str().parse::<i128>() else {
                 return false;
             };
             let TypeReferenceNode::Named(type_name) = syntax
@@ -1189,38 +1205,40 @@ fn const_arguments_fit_declarations(
             else {
                 return false;
             };
-            let maximum = match type_name.as_str() {
-                "i8" => i8::MAX as u64,
-                "i16" => i16::MAX as u64,
-                "i32" => i32::MAX as u64,
-                "i64" => i64::MAX as u64,
-                "u8" => u8::MAX as u64,
-                "u16" => u16::MAX as u64,
-                "u32" => u32::MAX as u64,
-                "u64" | "addr" => u64::MAX,
+            let (minimum, maximum) = match type_name.as_str() {
+                "i8" => (i128::from(i8::MIN), i128::from(i8::MAX)),
+                "i16" => (i128::from(i16::MIN), i128::from(i16::MAX)),
+                "i32" => (i128::from(i32::MIN), i128::from(i32::MAX)),
+                "i64" => (i128::from(i64::MIN), i128::from(i64::MAX)),
+                "u8" => (0, i128::from(u8::MAX)),
+                "u16" => (0, i128::from(u16::MAX)),
+                "u32" => (0, i128::from(u32::MAX)),
+                "u64" | "addr" => (0, i128::from(u64::MAX)),
                 _ => return false,
             };
-            value <= maximum
+            value >= minimum && value <= maximum
         })
 }
 
 /// Evaluate the symbolic integer subset retained in a const-generic argument.
 /// Names resolve to literal scoped const declarations collected above.
-/// Arithmetic deliberately matches the closed-expression parser fold:
-/// non-negative checked `u64` only;
-/// signed/domain semantics remain a separate language decision.
+/// Arithmetic deliberately matches the closed-expression parser fold over the
+/// current signed/unsigned 64-bit envelope. Signed shifts and bitwise
+/// operations stay fenced until the declaration's width/domain is threaded
+/// into this evaluator.
 fn evaluate_const_argument_expression(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
-    const_values: &HashMap<String, u64>,
-    parameter_values: &HashMap<String, u64>,
+    const_values: &HashMap<String, i128>,
+    parameter_values: &HashMap<String, i128>,
     symbolic_parameters: &HashSet<String>,
 ) -> Result<EvaluatedConst, String> {
     match syntax.expressions.expression(expression) {
-        ExpressionNode::Integer(value) => value
-            .value_u64()
+        ExpressionNode::Integer(value) => integer_literal_value(value)
             .map(EvaluatedConst::Concrete)
-            .ok_or_else(|| "integer operand must be non-negative and fit `u64`".to_string()),
+            .ok_or_else(|| {
+                "integer operand must fit the signed/unsigned 64-bit envelope".to_string()
+            }),
         ExpressionNode::Name(path) => {
             let name = syntax
                 .expressions
@@ -1265,7 +1283,7 @@ fn evaluate_const_argument_expression(
                 (
                     BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight,
                     EvaluatedConst::Concrete(amount),
-                ) if *amount >= u64::BITS as u64 => {
+                ) if *amount < 0 || *amount >= i128::from(u64::BITS) => {
                     return Err(match binary.operator {
                         BinaryOperator::ShiftLeft => {
                             "left shift exceeds the `u64` width".to_string()
@@ -1299,18 +1317,13 @@ fn evaluate_const_argument_expression(
             };
             let (left, right) = (*left, *right);
             match binary.operator {
-                BinaryOperator::Add => left
-                    .checked_add(right)
-                    .map(EvaluatedConst::Concrete)
-                    .ok_or_else(|| "addition overflows `u64`".to_string()),
-                BinaryOperator::Subtract => left
-                    .checked_sub(right)
-                    .map(EvaluatedConst::Concrete)
-                    .ok_or_else(|| "subtraction produces a negative value".to_string()),
-                BinaryOperator::Multiply => left
-                    .checked_mul(right)
-                    .map(EvaluatedConst::Concrete)
-                    .ok_or_else(|| "multiplication overflows `u64`".to_string()),
+                BinaryOperator::Add => checked_evaluated_const(left.checked_add(right), "addition"),
+                BinaryOperator::Subtract => {
+                    checked_evaluated_const(left.checked_sub(right), "subtraction")
+                }
+                BinaryOperator::Multiply => {
+                    checked_evaluated_const(left.checked_mul(right), "multiplication")
+                }
                 BinaryOperator::Divide => left
                     .checked_div(right)
                     .map(EvaluatedConst::Concrete)
@@ -1319,21 +1332,28 @@ fn evaluate_const_argument_expression(
                     .checked_rem(right)
                     .map(EvaluatedConst::Concrete)
                     .ok_or_else(|| "remainder by zero is invalid".to_string()),
-                BinaryOperator::ShiftLeft => u32::try_from(right)
+                BinaryOperator::ShiftLeft if left >= 0 => u32::try_from(right)
                     .ok()
                     .and_then(|amount| left.checked_shl(amount))
+                    .and_then(const_integer_in_envelope)
                     .map(EvaluatedConst::Concrete)
                     .ok_or_else(|| "left shift exceeds the `u64` width".to_string()),
-                BinaryOperator::ShiftRight => u32::try_from(right)
+                BinaryOperator::ShiftRight if left >= 0 => u32::try_from(right)
                     .ok()
                     .and_then(|amount| left.checked_shr(amount))
                     .map(EvaluatedConst::Concrete)
                     .ok_or_else(|| "right shift exceeds the `u64` width".to_string()),
-                BinaryOperator::BitwiseAnd => Ok(EvaluatedConst::Concrete(left & right)),
-                BinaryOperator::BitwiseOr => Ok(EvaluatedConst::Concrete(left | right)),
-                BinaryOperator::BitwiseXor => Ok(EvaluatedConst::Concrete(left ^ right)),
+                BinaryOperator::BitwiseAnd if left >= 0 && right >= 0 => {
+                    Ok(EvaluatedConst::Concrete(left & right))
+                }
+                BinaryOperator::BitwiseOr if left >= 0 && right >= 0 => {
+                    Ok(EvaluatedConst::Concrete(left | right))
+                }
+                BinaryOperator::BitwiseXor if left >= 0 && right >= 0 => {
+                    Ok(EvaluatedConst::Concrete(left ^ right))
+                }
                 _ => Err(
-                    "only integer arithmetic, shifts, and bitwise operators are supported"
+                    "signed shifts and bitwise operators require declared-width semantics"
                         .to_string(),
                 ),
             }
@@ -1344,12 +1364,19 @@ fn evaluate_const_argument_expression(
 
 #[derive(Debug)]
 enum EvaluatedConst {
-    Concrete(u64),
+    Concrete(i128),
     Symbolic(String),
 }
 
+fn checked_evaluated_const(value: Option<i128>, operation: &str) -> Result<EvaluatedConst, String> {
+    value
+        .and_then(const_integer_in_envelope)
+        .map(EvaluatedConst::Concrete)
+        .ok_or_else(|| format!("{operation} exceeds the signed/unsigned 64-bit envelope"))
+}
+
 impl EvaluatedConst {
-    fn into_concrete(self) -> Result<u64, String> {
+    fn into_concrete(self) -> Result<i128, String> {
         match self {
             Self::Concrete(value) => Ok(value),
             Self::Symbolic(name) => Err(format!(
@@ -1513,7 +1540,7 @@ fn substitute_member(
     syntax: &mut SyntaxTrees,
     member: DataMember,
     substitution: &HashMap<String, TypeReferenceHandle>,
-    const_values: &HashMap<String, u64>,
+    const_values: &HashMap<String, i128>,
 ) -> DataMember {
     let DataMember::Field(mut field) = member else {
         return member;
@@ -1540,7 +1567,7 @@ fn substitute_member(
                 .type_references
                 .type_reference_handles(arguments)
                 .to_vec();
-            let const_bindings: HashMap<String, u64> = substitution
+            let const_bindings: HashMap<String, i128> = substitution
                 .iter()
                 .filter_map(|(name, argument)| {
                     let TypeReferenceNode::Named(value) =
@@ -1548,7 +1575,7 @@ fn substitute_member(
                     else {
                         return None;
                     };
-                    Some((name.clone(), value.as_str().parse::<u64>().ok()?))
+                    Some((name.clone(), value.as_str().parse::<i128>().ok()?))
                 })
                 .collect();
             let mut substituted_arguments = Vec::with_capacity(argument_handles.len());

@@ -1,0 +1,27 @@
+// Signed const expressions retain their negative value through instance
+// naming, domain-membership discharge, attached-machine specialization, and
+// both runtimes.
+use omega::language::std::console;
+
+domain i64::Negative when self < 0 {}
+
+data SignedValue<const N: i64>
+where
+    N in Negative,
+{
+    marker: i64;
+}
+
+machine SignedValue::value<const N: i64>(&self) -> i64 in Wrapping {
+    N
+}
+
+data Main {
+    console: Console;
+    signed: SignedValue<-2 - 2>;
+}
+
+machine Main::main(&mut self) {
+    let value: i64 in Wrapping = self.signed.value();
+    self.console.exit_process((value + 74) as i32);
+}

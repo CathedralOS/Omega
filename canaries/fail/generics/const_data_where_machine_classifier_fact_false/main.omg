@@ -1,0 +1,22 @@
+// A true machine-backed classifier still composes with the domain's authored
+// proof facts. A false authored fact rejects the concrete generic instance.
+machine is_positive(value: u64) -> bool {
+    value > 0
+}
+
+domain u64::BufferSize when is_positive(self) {
+    self <= 8
+}
+
+data FixedBuffer<const N: u64>
+where
+    N in BufferSize,
+{
+    values: [u8; N];
+}
+
+data Main {
+    buffer: FixedBuffer<9>;
+}
+
+machine Main::main(&mut self) {}

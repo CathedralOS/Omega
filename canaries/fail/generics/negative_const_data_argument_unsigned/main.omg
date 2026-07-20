@@ -1,0 +1,11 @@
+// Negative const arguments are values, but cannot inhabit an unsigned const
+// parameter declaration.
+data UnsignedValue<const N: u8> {
+    marker: u8;
+}
+
+data Main {
+    value: UnsignedValue<-1>;
+}
+
+machine Main::main(&mut self) {}
