@@ -23,7 +23,9 @@ use super::host_operations::{
 };
 use super::instruction_sink::SelectedInstructionSink;
 use super::lookups::host_call_for_statement;
-use super::storage_places::resolve_runtime_frame_indexed_target_in_table;
+use super::storage_places::{
+    classify_scalar_value_type_in_table, resolve_runtime_frame_indexed_target_in_table,
+};
 use crate::selection::bindings::{RuntimeAliasBuffer, RuntimeAliasResolutionContext};
 pub(super) use branches::{
     BranchPreludeSelectionScratch, select_runtime_branch_preludes_for_operation,
@@ -471,6 +473,61 @@ pub(in crate::selection) fn computed_host_argument_byte_size(
         )
         .map(|indexed| indexed.byte_count),
         _ => None,
+    }
+}
+
+pub(in crate::selection) fn computed_host_argument_is_float(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    value: ExpressionHandle,
+) -> bool {
+    match expressions.expression(value) {
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                omega_checked_trees::expression::BinaryOperator::Equal
+                    | omega_checked_trees::expression::BinaryOperator::NotEqual
+                    | omega_checked_trees::expression::BinaryOperator::Less
+                    | omega_checked_trees::expression::BinaryOperator::LessOrEqual
+                    | omega_checked_trees::expression::BinaryOperator::Greater
+                    | omega_checked_trees::expression::BinaryOperator::GreaterOrEqual
+            ) =>
+        {
+            false
+        }
+        ExpressionNode::Binary(_) | ExpressionNode::Indexed(_) => matches!(
+            classify_scalar_value_type_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                value,
+            ),
+            Some(PrimitiveType::F32 | PrimitiveType::F64)
+        ),
+        ExpressionNode::Cast(cast) if !cast.form.is_recast() => expressions
+            .name_path_members(cast.target_type)
+            .last()
+            .and_then(|name| PrimitiveType::from_name(name.as_str()))
+            .is_some_and(|primitive| matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)),
+        ExpressionNode::Call(call) => computed_host_builtin_operands(input, expressions, call)
+            .is_some_and(|(left, right)| {
+                [left, right].into_iter().any(|operand| {
+                    matches!(
+                        classify_scalar_value_type_in_table(
+                            input,
+                            dispatch_index,
+                            source_key,
+                            expressions,
+                            operand,
+                        ),
+                        Some(PrimitiveType::F32 | PrimitiveType::F64)
+                    )
+                })
+            }),
+        _ => false,
     }
 }
 

@@ -1,8 +1,8 @@
 // PROVES the arm64 float-ARGUMENT calling convention (render fire 5). A boundary
 // method with an f64 argument, bound to libm `lround`: the double must be
 // marshalled into v0 (not a GPR) and the long return read from x0. round_nearest
-// of 3.7 is 4 -> exit 4; a miscompiled float arg (garbage in v0) rounds to
-// something else -> exit 1.
+// of the direct computation 3.0 + 0.7 is 4 -> exit 4; a miscompiled float arg
+// (garbage in v0) rounds to something else -> exit 1.
 
 use omega::language::std::console;
 
@@ -14,12 +14,14 @@ data Main {
     console: Console;
     math: Math;
     x: f64;
+    y: f64;
     n: i64;
 }
 
 machine Main::main(&mut self) {
-    self.x = 3.7;
-    self.n = self.math.round_nearest(self.x);
+    self.x = 3.0;
+    self.y = 0.7;
+    self.n = self.math.round_nearest(self.x + self.y);
     transition self.n == 4 { true -> good() _ -> bad() }
     state good(&mut self) { self.console.exit_process(4); }
     state bad(&mut self)  { self.console.exit_process(1); }

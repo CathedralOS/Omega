@@ -5,7 +5,9 @@
 // canary, the f64 result is round-tripped through the proven `round_nearest`
 // float-ARG path to check the stored bits without a float `==` guard:
 // hypot(3.0, 4.0) -> 5.0 -> round 5 -> exit 5. A misplaced second arg (both in
-// v0, or one in a GPR) yields the wrong hypotenuse -> exit 1.
+// v0, or one in a GPR) yields the wrong hypotenuse -> exit 1. Both arguments
+// are direct computations so their independent scratch slots must retain the
+// FLOAT class before marshalling.
 
 use omega::language::std::console;
 
@@ -26,7 +28,7 @@ data Main {
 machine Main::main(&mut self) {
     self.a = 3.0;
     self.b = 4.0;
-    self.hyp = self.math.hypotenuse(self.a, self.b);
+    self.hyp = self.math.hypotenuse(self.a + 0.0, self.b + 0.0);
     self.n = self.math.round_nearest(self.hyp);
     transition self.n == 5 { true -> good() _ -> bad() }
     state good(&mut self) { self.console.exit_process(5); }
