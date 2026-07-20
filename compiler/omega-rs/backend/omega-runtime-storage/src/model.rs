@@ -39,9 +39,10 @@ pub struct RuntimeStoragePlan {
     pub entry_argument_spill_base: usize,
     /// Size of the reserved entry-argument spill (0 if none; 32 when present).
     pub entry_argument_spill_size: usize,
-    /// Byte offset of the saved SysV MEMORY-result destination pointer. The
-    /// entry prologue captures incoming `rdi` here before volatile work; a
-    /// large terminal copies through it. Zero size means no pointer reserved.
+    /// Byte offset of the saved native indirect-result destination pointer.
+    /// The entry prologue captures the ABI-selected register here before
+    /// volatile work; a large terminal copies through it. Zero size means no
+    /// pointer reserved.
     pub entry_indirect_result_pointer_base: usize,
     pub entry_indirect_result_pointer_size: usize,
 }

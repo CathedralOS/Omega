@@ -1,7 +1,8 @@
-// A two-member AAPCS64 HFA result returns from runtime storage in d0/d1.
-data FloatPair { first: f64; second: f64; }
-data Main { output: FloatPair; }
-boundary machine Main::run(&self) -> FloatPair {
+// A three-member (24-byte) AAPCS64 HFA still returns in d0/d1/d2 rather than
+// switching to the x8 indirect-result convention used by non-HFA records.
+data FloatTriple { first: f64; second: f64; third: f64; }
+data Main { output: FloatTriple; }
+boundary machine Main::run(&self) -> FloatTriple {
     transition { _ -> (self.output) }
 }
 target linux_arm64 {

@@ -352,7 +352,7 @@ pub fn reserve_entry_argument_spill(
     plan.entry_argument_spill_size = 32;
 }
 
-/// Reserve one frame word for an incoming SysV MEMORY-result destination.
+/// Reserve one frame word for an incoming native indirect-result destination.
 /// The caller decides whether the entry signature has that ABI shape; keeping
 /// the reservation mechanism policy-neutral avoids teaching storage layout
 /// how to classify calling conventions.

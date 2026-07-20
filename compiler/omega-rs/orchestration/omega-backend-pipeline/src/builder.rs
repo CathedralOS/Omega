@@ -307,7 +307,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     reserve_entry_argument_spill(&mut backend_plan.runtime_storage, backend_plan.entry_key);
     reserve_entry_indirect_result_pointer(
         &mut backend_plan.runtime_storage,
-        entry_has_sysv_indirect_result(
+        entry_may_need_native_indirect_result_pointer(
             &program,
             &backend_plan.layouts,
             backend_plan.entry_key,
@@ -480,15 +480,21 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     Ok(backend_plan)
 }
 
-fn entry_has_sysv_indirect_result(
+/// Conservatively reserve a word for native aggregate results above the normal
+/// two-register ceiling. AAPCS64 HFAs may still use vector registers above 16
+/// bytes; normalized instruction selection recognizes those and simply leaves
+/// this reservation unused.
+fn entry_may_need_native_indirect_result_pointer(
     program: &CheckedTrees,
     layouts: &omega_layout::LayoutPlan,
     entry_key: omega_control_flow::StateKey,
     target: NativeTarget,
 ) -> bool {
-    if omega_calling_conventions::CallingPolicy::native_for_target(target)
-        != omega_calling_conventions::CallingPolicy::SystemVAMD64
-    {
+    if !matches!(
+        omega_calling_conventions::CallingPolicy::native_for_target(target),
+        omega_calling_conventions::CallingPolicy::Aapcs64
+            | omega_calling_conventions::CallingPolicy::SystemVAMD64
+    ) {
         return false;
     }
     let Some(machine) = program
