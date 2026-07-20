@@ -943,11 +943,10 @@ impl<'program> Evaluator<'program> {
                 .program
                 .type_reference_table
                 .type_reference(type_reference)
-                && let Some((_, _, argument)) = bindings.iter().find(|(parameter, spelling, _)| {
-                    (*symbol).is_valid() && parameter == symbol || spelling == name.as_str()
-                })
+                && let Some(argument) =
+                    self.generic_binding_argument(*symbol, name.as_str(), bindings)
             {
-                return self.default_value_for_type_with_bindings(*argument, bindings);
+                return self.default_value_for_type_with_bindings(argument, bindings);
             }
 
             // See THROUGH a domain constraint (`[i32; N] in Wrapping`, `i32 in Saturating`):
@@ -977,23 +976,9 @@ impl<'program> Evaluator<'program> {
                 let count = match length {
                     omega_typed_trees::types::FixedArrayLength::Literal(count) => Some(*count),
                     omega_typed_trees::types::FixedArrayLength::ConstParameter { symbol, name } => {
-                        bindings
-                            .iter()
-                            .find(|(parameter, spelling, _)| {
-                                ((*symbol).is_valid() && parameter == symbol)
-                                    || spelling == name.as_str()
-                            })
-                            .and_then(|(_, _, argument)| {
-                                let omega_typed_trees::types::TypeReferenceNode::Named {
-                                    symbol,
-                                    name,
-                                } = self.program.type_reference_table.type_reference(*argument)
-                                else {
-                                    return None;
-                                };
-                                (!symbol.is_valid())
-                                    .then(|| name.as_str().parse::<usize>().ok())
-                                    .flatten()
+                        self.generic_binding_argument(*symbol, name.as_str(), bindings)
+                            .and_then(|argument| {
+                                self.const_argument_value_with_bindings(argument, bindings, 0)
                             })
                     }
                     omega_typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
@@ -1099,6 +1084,55 @@ impl<'program> Evaluator<'program> {
             }
         }
         Ok(self.default_for_type(type_reference))
+    }
+
+    fn generic_binding_argument(
+        &self,
+        symbol: SymbolHandle,
+        name: &str,
+        bindings: &[(
+            SymbolHandle,
+            String,
+            omega_typed_trees::types::TypeReferenceHandle,
+        )],
+    ) -> Option<omega_typed_trees::types::TypeReferenceHandle> {
+        bindings
+            .iter()
+            .find(|(parameter, spelling, _)| {
+                if symbol.is_valid() {
+                    *parameter == symbol
+                } else {
+                    spelling == name
+                }
+            })
+            .map(|(_, _, argument)| *argument)
+    }
+
+    fn const_argument_value_with_bindings(
+        &self,
+        argument: omega_typed_trees::types::TypeReferenceHandle,
+        bindings: &[(
+            SymbolHandle,
+            String,
+            omega_typed_trees::types::TypeReferenceHandle,
+        )],
+        depth: usize,
+    ) -> Option<usize> {
+        if depth >= 16 {
+            return None;
+        }
+        let omega_typed_trees::types::TypeReferenceNode::Named { symbol, name } =
+            self.program.type_reference_table.type_reference(argument)
+        else {
+            return None;
+        };
+        if !symbol.is_valid() {
+            if let Ok(value) = name.as_str().parse::<usize>() {
+                return Some(value);
+            }
+        }
+        let argument = self.generic_binding_argument(*symbol, name.as_str(), bindings)?;
+        self.const_argument_value_with_bindings(argument, bindings, depth + 1)
     }
 
     /// The first case of a case-bearing declared type (the ZII zero case),

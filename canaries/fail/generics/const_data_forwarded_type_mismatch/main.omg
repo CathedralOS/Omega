@@ -1,0 +1,14 @@
+data TinyBuffer<const N: u8> {
+    items: [u8; N];
+}
+
+data ForwardedBuffer<const N: u64> {
+    buffer: TinyBuffer<N>;
+}
+
+data Main {
+    buffer: ForwardedBuffer<4>;
+}
+
+machine Main::main(&mut self) {
+}

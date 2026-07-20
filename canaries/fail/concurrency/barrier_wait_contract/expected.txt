@@ -1,1 +1,1 @@
-expected identifier, found numeric literal `4`
+references unknown generic type `Barrier`
