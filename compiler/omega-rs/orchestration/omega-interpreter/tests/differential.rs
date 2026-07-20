@@ -406,6 +406,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_let_mut_reassign_exit", 2),
     ("control_flow/runtime_tuple_matrix_exhaustive_exit", 70),
     ("control_flow/runtime_sum_tuple_matrix_exhaustive_exit", 70),
+    ("control_flow/runtime_tuple_case_destructure_exit", 70),
     ("dependent/runtime_dependent_param_range_exit", 70),
     ("dependent/runtime_dependent_product_index_exit", 70),
     ("dependent/runtime_dependent_subtract_exit", 2),

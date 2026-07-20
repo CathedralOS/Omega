@@ -24,16 +24,17 @@ pub(in crate::parser) fn parse_transition_block_target_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TransitionTargetHandle> {
-    parse_transition_block_target_with_bindings(syntax_trees, input, None)
+    parse_transition_block_target_with_bindings(syntax_trees, input, &[])
 }
 
-/// Parse a transition-block target, rewriting any destructure-pattern bindings
-/// into the target expression first: `Command::Say { text } -> done(text)`
-/// passes the subject's `text` payload field (`subject.text`) to `done`.
+/// Parse a transition-block target, rewriting every destructure-pattern
+/// binding into the target expression first: `Command::Say { text } ->
+/// done(text)` passes `subject.text`, while tuple arms can project fields from
+/// several subjects into the same target call.
 pub(super) fn parse_transition_block_target_with_bindings<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-    bindings: Option<&DestructureBindings>,
+    bindings: &[DestructureBindings],
 ) -> ParseResult<'tokens, 'source, TransitionTargetHandle> {
     // A target-shaped arm body (a bare path or `self`, optionally called) can
     // name a transition target; anything else -- including an arm body the
@@ -65,15 +66,18 @@ pub(super) fn parse_transition_block_target_with_bindings<'tokens, 'source>(
         parse_expression_handle(syntax_trees, input)?
     };
 
-    let expression = match bindings {
-        Some(bindings) if !bindings.fields.is_empty() => rewrite_destructure_guard_expression(
-            syntax_trees,
-            expression,
-            bindings.subject,
-            &bindings.fields,
-        ),
-        _ => expression,
-    };
+    let expression = bindings.iter().fold(expression, |expression, bindings| {
+        if bindings.fields.is_empty() {
+            expression
+        } else {
+            rewrite_destructure_guard_expression(
+                syntax_trees,
+                expression,
+                bindings.subject,
+                &bindings.fields,
+            )
+        }
+    });
 
     Ok((
         classify_transition_target_handle(syntax_trees, expression, target_shaped)?,

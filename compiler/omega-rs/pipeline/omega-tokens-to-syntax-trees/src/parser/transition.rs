@@ -95,7 +95,7 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
                 input,
             )
         } else {
-            parse_transition_block_target_with_bindings(syntax_trees, input, bindings.as_ref())?
+            parse_transition_block_target_with_bindings(syntax_trees, input, &bindings)?
         };
         input = rest;
 
@@ -105,10 +105,13 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
         // `#`/`=` cannot appear in identifiers, so the split is unambiguous)
         // whose initializer is the subject place -- the typed-stage
         // validation resolves it against the data definition.
-        if let Some(bindings) = bindings.as_ref()
-            && let Some(spelling) = bindings.spelling.as_ref()
-            && expression_is_place(syntax_trees, bindings.subject)
-        {
+        for arm_binding in &bindings {
+            let Some(spelling) = arm_binding.spelling.as_ref() else {
+                continue;
+            };
+            if !expression_is_place(syntax_trees, arm_binding.subject) {
+                continue;
+            }
             let mut marker_name = String::from("__arm_destructure#V=");
             if let Some(variant) = spelling.variant.as_ref() {
                 marker_name.push_str(variant.as_str());
@@ -117,6 +120,11 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
                 marker_name.push('#');
                 marker_name.push_str(member.as_str());
             }
+            // Two tuple axes may spell the same pattern. Keep validation
+            // carriers keyed by subject without exposing the generated id as
+            // an authored field name; validation strips this sentinel.
+            marker_name.push_str("#~subject=");
+            marker_name.push_str(&arm_binding.subject.arena_index().to_string());
             // `..` opts out of the MISSING-field law but spelled fields must
             // still EXIST -- the trailing `#~rest` sentinel tells validation
             // to skip only the exhaustiveness half (`~` cannot appear in an
@@ -124,8 +132,11 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
             if spelling.has_rest {
                 marker_name.push_str("#~rest");
             }
-            if !pattern_markers.iter().any(|(name, _)| *name == marker_name) {
-                pattern_markers.push((marker_name, bindings.subject));
+            if !pattern_markers
+                .iter()
+                .any(|(name, subject)| *name == marker_name && *subject == arm_binding.subject)
+            {
+                pattern_markers.push((marker_name, arm_binding.subject));
             }
         }
 
@@ -318,6 +329,37 @@ fn transition_contains_destructure_pattern(input: Input<'_, '_>) -> bool {
         {
             return true;
         }
+        // Tuple destructures have `, ... )` between a component's closing
+        // brace and the arm arrow. Seeing the tuple close before that arrow
+        // distinguishes the pattern side from a struct-literal target.
+        if tokens.get(cursor).is_some_and(|token| {
+            matches!(
+                token.punctuation(),
+                Some(PunctuationKind::Comma | PunctuationKind::RightParen)
+            )
+        }) {
+            let mut nested_braces = 0usize;
+            while cursor < tokens.len() {
+                match tokens[cursor].punctuation() {
+                    Some(PunctuationKind::LeftBrace) => nested_braces += 1,
+                    Some(PunctuationKind::RightBrace) if nested_braces > 0 => nested_braces -= 1,
+                    Some(PunctuationKind::RightParen) if nested_braces == 0 => {
+                        let next = tokens[cursor + 1..]
+                            .iter()
+                            .find(|token| !token.is_non_semantic());
+                        if next.is_some_and(|token| {
+                            token.punctuation() == Some(PunctuationKind::Arrow)
+                                || token.keyword() == Some(KeywordKind::If)
+                        }) {
+                            return true;
+                        }
+                    }
+                    _ => {}
+                }
+                cursor += 1;
+            }
+            continue;
+        }
         if !tokens
             .get(cursor)
             .is_some_and(|token| token.keyword() == Some(KeywordKind::If))
@@ -378,6 +420,20 @@ mod tests {
             .tokenize()
             .expect("tokenize transition arms")
             .into_tokens();
+        assert!(transition_contains_destructure_pattern(Input::new(
+            SourceId::default(),
+            &tokens
+        )));
+    }
+
+    #[test]
+    fn destructure_lookahead_finds_tuple_record_components() {
+        let tokens = Lexer::new(
+            "(Pair { left as a, right as _ }, Pair { left as b, right as _ }) -> done(a, b) }",
+        )
+        .tokenize()
+        .expect("tokenize tuple destructure arm")
+        .into_tokens();
         assert!(transition_contains_destructure_pattern(Input::new(
             SourceId::default(),
             &tokens

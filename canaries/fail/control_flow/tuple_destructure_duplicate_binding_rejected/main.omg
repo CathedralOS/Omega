@@ -1,0 +1,11 @@
+// FAIL CANARY: bindings introduced by different tuple subjects share one arm
+// scope, so duplicate names are ambiguous and require an explicit rename.
+data Pair { left: i32; right: i32; }
+data Main { a: Pair; b: Pair; }
+machine Main::main(&mut self) {
+    transition (self.a, self.b) {
+        (Pair { left as value, right as _ }, Pair { left as value, right as _ }) -> done(value)
+        _ -> done(0)
+    }
+    state done(&mut self, value: i32) {}
+}
