@@ -427,7 +427,7 @@ pub fn runtime_storage_copy_to_return_register_width(
             aarch64::runtime_storage_copy_to_return_register_width(byte_offset, byte_size)
         }
         Architecture::X86_64 => {
-            x86_64::runtime_storage_copy_to_return_register_width(byte_offset, byte_size)
+            x86_64::runtime_storage_copy_to_return_register_width(register, byte_offset, byte_size)
         }
     }
 }

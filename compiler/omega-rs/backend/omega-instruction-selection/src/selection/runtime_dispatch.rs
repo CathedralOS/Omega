@@ -41,7 +41,7 @@ use omega_calling_conventions::{
     CallSignature, CallingPolicy, MachineRegister, SystemVEightbyteClass, ValueClass,
     ValueLocation, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
-use omega_layout::DataShape;
+use omega_layout::{DataShape, TypeLayoutDescriptor};
 use operation_aliases::bind_runtime_operation_aliases;
 use writes::select_runtime_storage_write_for_operation;
 pub(crate) use writes::{RuntimeStaticValues, RuntimeStorageWriteScratch};
@@ -1400,6 +1400,29 @@ fn select_normalized_entry_argument_writes(
 pub(super) fn normalized_entry_indirect_result_shape(
     input: &InstructionSelectionInput<'_>,
 ) -> Option<ValueShape> {
+    normalized_entry_record_result_shape(input)
+        .filter(|shape| matches!(shape.class, ValueClass::Integer) && shape.byte_size > 16)
+}
+
+pub(super) fn normalized_entry_record_result_placement(
+    input: &InstructionSelectionInput<'_>,
+) -> Option<(ValueShape, Vec<ValueLocation>)> {
+    let shape = normalized_entry_record_result_shape(input)?;
+    let boundary = evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::native_for_target(input.target),
+        &CallSignature {
+            parameters: Vec::new(),
+            result: Some(shape),
+        },
+    )
+    .ok()?;
+    let locations = boundary.plan().call.result.as_ref()?.locations.clone();
+    Some((shape, locations))
+}
+
+fn normalized_entry_record_result_shape(
+    input: &InstructionSelectionInput<'_>,
+) -> Option<ValueShape> {
     if CallingPolicy::native_for_target(input.target) != CallingPolicy::SystemVAMD64 {
         return None;
     }
@@ -1414,18 +1437,49 @@ pub(super) fn normalized_entry_indirect_result_shape(
         .iter()
         .find(|state| state.symbol == input.entry_key.state)?;
     let result_symbol = input.program.type_reference_symbol(state.return_type);
-    let layout = input
+    let data_layout = input
         .layouts
         .data_layouts
         .iter()
         .find(|(_, layout)| layout.symbol == result_symbol)
-        .map(|(_, layout)| layout.layout)?;
-    (layout.size > 16).then(|| {
-        ValueShape::integer(
-            u16::try_from(layout.size).expect("entry result width must fit u16"),
-            u16::try_from(layout.alignment).expect("entry result alignment must fit u16"),
-        )
-    })
+        .map(|(_, layout)| layout)?;
+    let DataShape::Record { fields } = data_layout.shape else {
+        return None;
+    };
+    let byte_size = u16::try_from(data_layout.layout.size).ok()?;
+    let alignment = u16::try_from(data_layout.layout.alignment).ok()?;
+
+    if byte_size > 16 {
+        return Some(ValueShape::integer(byte_size, alignment));
+    }
+
+    if let Some(shape) = flat_homogeneous_float_aggregate_shape(input, fields, data_layout.layout) {
+        return Some(shape);
+    }
+
+    let descriptor = TypeLayoutDescriptor::Named {
+        symbol: data_layout.symbol,
+        name: data_layout.name.clone(),
+    };
+    if let Some((_, _, sse_eightbytes)) = system_v_record_descriptor_shape(input, &descriptor)
+        && sse_eightbytes != 0
+    {
+        let class = |mask| {
+            if sse_eightbytes & mask == 0 {
+                SystemVEightbyteClass::Integer
+            } else {
+                SystemVEightbyteClass::Sse
+            }
+        };
+        return Some(ValueShape::system_v_aggregate(
+            byte_size,
+            alignment,
+            class(0b01),
+            class(0b10),
+        ));
+    }
+
+    Some(ValueShape::integer(byte_size, alignment))
 }
 
 /// Select the process-entry integer result register through the same
@@ -1491,7 +1545,8 @@ fn entry_slot_value_shape(
     };
 
     let policy = CallingPolicy::native_for_target(input.target);
-    if matches!(policy, CallingPolicy::Aapcs64 | CallingPolicy::SystemVAMD64)
+    if (policy == CallingPolicy::Aapcs64
+        || (policy == CallingPolicy::SystemVAMD64 && data_layout.layout.size <= 16))
         && let Some(shape) =
             flat_homogeneous_float_aggregate_shape(input, fields, data_layout.layout)
     {

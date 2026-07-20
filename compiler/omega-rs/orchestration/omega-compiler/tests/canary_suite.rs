@@ -31292,6 +31292,10 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/sysv_mixed_aggregate_stack_entry", "linux_x64"),
     ("targets/sysv_small_aggregate_stack_entry", "linux_x64"),
     ("targets/sysv_large_aggregate_entry", "linux_x64"),
+    ("targets/sysv_large_hfa_result_entry", "linux_x64"),
+    ("targets/sysv_small_result_entry", "linux_x64"),
+    ("targets/sysv_hfa_result_entry", "linux_x64"),
+    ("targets/sysv_mixed_result_entry", "linux_x64"),
 ];
 
 #[test]
@@ -31731,6 +31735,121 @@ fn sysv_large_result_entry_saves_and_uses_the_hidden_pointer() {
     assert!(
         image.windows(3).any(|window| window == [0x49, 0x8b, 0x87]),
         "expected the saved result pointer returned in rax"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn sysv_large_hfa_result_entry_remains_memory_class() {
+    let canary = pass_canary("targets/sysv_large_hfa_result_entry");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-sysv-large-hfa-result-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("SysV HFA above 16 bytes should remain a MEMORY-class entry result");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86-64 ELF");
+    assert!(
+        image.windows(3).any(|window| window == [0x49, 0x89, 0xbf]),
+        "expected incoming rdi hidden-result pointer capture"
+    );
+    assert!(
+        image.windows(3).any(|window| window == [0x4d, 0x8b, 0xbf]),
+        "expected the 24-byte terminal copied through the saved pointer"
+    );
+    assert!(
+        image.windows(3).any(|window| window == [0x49, 0x8b, 0x87]),
+        "expected the saved result pointer returned in rax"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn sysv_small_result_entry_loads_rax_and_rdx() {
+    let canary = pass_canary("targets/sysv_small_result_entry");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-sysv-small-result-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("SysV INTEGER/INTEGER entry result should load rax/rdx");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86-64 ELF");
+    assert!(
+        image.windows(34).any(|window| {
+            window[10..13] == [0x49, 0x8b, 0x87] && window[27..30] == [0x49, 0x8b, 0x97]
+        }),
+        "expected terminal record fragments loaded into rax and rdx"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn sysv_hfa_result_entry_loads_xmm0_and_xmm1() {
+    let canary = pass_canary("targets/sysv_hfa_result_entry");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-sysv-hfa-result-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("SysV SSE/SSE entry result should load xmm0/xmm1");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86-64 ELF");
+    assert!(
+        image.windows(38).any(|window| {
+            window[10..15] == [0xf2, 0x41, 0x0f, 0x10, 0x87]
+                && window[29..34] == [0xf2, 0x41, 0x0f, 0x10, 0x8f]
+        }),
+        "expected terminal record fragments loaded into xmm0 and xmm1"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn sysv_mixed_result_entry_loads_rax_and_xmm0() {
+    let canary = pass_canary("targets/sysv_mixed_result_entry");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-sysv-mixed-result-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("SysV INTEGER/SSE entry result should load rax/xmm0");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86-64 ELF");
+    assert!(
+        image.windows(36).any(|window| {
+            window[10..13] == [0x49, 0x8b, 0x87] && window[27..32] == [0xf2, 0x41, 0x0f, 0x10, 0x87]
+        }),
+        "expected terminal record fragments loaded into rax and xmm0"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }

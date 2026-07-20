@@ -235,8 +235,9 @@ pub(super) fn select_runtime_dispatch_edge(
 ///    were culled from storage precisely because nothing mutates them, so the
 ///    initializer IS the terminal value.
 ///
-/// 4. a SysV MEMORY-class record copies through the entry's saved hidden
-///    destination pointer and returns that pointer in `rax`.
+/// 4. a SysV record follows its normalized result fragments: small records
+///    load `rax`/`rdx` and/or `xmm0`/`xmm1`; MEMORY-class records copy through
+///    the saved hidden destination pointer and return that pointer in `rax`.
 ///
 /// Anything else still emits no return-value write (the silent pre-existing
 /// fallthrough, now reduced to runtime ARITHMETIC terminals like `self.n + 1`).
@@ -284,31 +285,68 @@ fn select_runtime_dispatch_return_value(
             });
             return true;
         }
-        if let Some(result_shape) = super::normalized_entry_indirect_result_shape(input)
+        if let Some((result_shape, locations)) =
+            super::normalized_entry_record_result_placement(input)
             && place.byte_count == usize::from(result_shape.byte_size)
-            && input.runtime_storage.entry_indirect_result_pointer_size == 8
         {
-            let pointer_offset = input.runtime_storage.entry_indirect_result_pointer_base;
-            selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::CopyPlaces {
-                    source: omega_abstract_operations::Place::at(place.region, place.byte_offset),
-                    target: super::pointee_place(pointer_offset, 0),
-                    byte_count: place.byte_count,
-                },
-                source_key,
-                source_statement: edge.statement_index,
-            });
-            selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
-                    register: omega_calling_conventions::MachineRegister::X86Rax,
-                    region: RuntimeStorageRegion::RuntimeFrame,
-                    byte_offset: pointer_offset,
-                    byte_size: 8,
-                },
-                source_key,
-                source_statement: edge.statement_index,
-            });
-            return true;
+            if locations.iter().all(|location| {
+                matches!(
+                    location,
+                    omega_calling_conventions::ValueLocation::Register { .. }
+                )
+            }) {
+                for location in locations {
+                    let omega_calling_conventions::ValueLocation::Register {
+                        register,
+                        value_byte_offset,
+                        byte_size,
+                    } = location
+                    else {
+                        unreachable!("result locations were checked as registers")
+                    };
+                    selected_instructions.push(SelectedInstruction {
+                        kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+                            register,
+                            region: place.region,
+                            byte_offset: place.byte_offset + usize::from(value_byte_offset),
+                            byte_size: usize::from(byte_size),
+                        },
+                        source_key,
+                        source_statement: edge.statement_index,
+                    });
+                }
+                return true;
+            }
+            if matches!(
+                locations.as_slice(),
+                [omega_calling_conventions::ValueLocation::Indirect { .. }]
+            ) && input.runtime_storage.entry_indirect_result_pointer_size == 8
+            {
+                let pointer_offset = input.runtime_storage.entry_indirect_result_pointer_base;
+                selected_instructions.push(SelectedInstruction {
+                    kind: SelectedInstructionKind::CopyPlaces {
+                        source: omega_abstract_operations::Place::at(
+                            place.region,
+                            place.byte_offset,
+                        ),
+                        target: super::pointee_place(pointer_offset, 0),
+                        byte_count: place.byte_count,
+                    },
+                    source_key,
+                    source_statement: edge.statement_index,
+                });
+                selected_instructions.push(SelectedInstruction {
+                    kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+                        register: omega_calling_conventions::MachineRegister::X86Rax,
+                        region: RuntimeStorageRegion::RuntimeFrame,
+                        byte_offset: pointer_offset,
+                        byte_size: 8,
+                    },
+                    source_key,
+                    source_statement: edge.statement_index,
+                });
+                return true;
+            }
         }
     }
 
