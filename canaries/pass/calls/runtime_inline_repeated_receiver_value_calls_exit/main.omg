@@ -1,0 +1,18 @@
+// Two inline value calls with the SAME target and receiver must read their own
+// ordinal result slots. If operand lookup aliases both to the first occurrence,
+// this exits 60 instead of 70.
+use omega::language::std::console;
+
+data Gauge { value: i32 in Wrapping; }
+
+machine Gauge::with_delta(&self, delta: i32 in Wrapping) -> i32 in Wrapping {
+    transition { _ -> (self.value + delta) }
+}
+
+data Main { console: Console; gauge: Gauge; }
+
+machine Main::main(&mut self) {
+    self.gauge.value = 20;
+    let total: i32 in Wrapping = self.gauge.with_delta(10) + self.gauge.with_delta(20);
+    self.console.exit_process(total);
+}

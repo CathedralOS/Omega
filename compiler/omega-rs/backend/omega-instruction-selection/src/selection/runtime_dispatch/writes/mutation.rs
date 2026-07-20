@@ -16,7 +16,9 @@ use crate::selection::lookups::state_parameters;
 use omega_abstract_operations::{
     RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind, StateGuardOperator,
 };
-use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTable};
+use omega_checked_trees::expression::{
+    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_state_calls::{StateCallLowering, StateCallRole};
@@ -157,6 +159,7 @@ fn resolve_matching_runtime_call_result_source_place(
     statement_index: usize,
     target: &str,
     receiver_path: &[&str],
+    occurrence_rank: usize,
 ) -> Option<super::super::super::storage_places::RuntimeStoragePlace> {
     input
         .state_calls
@@ -172,9 +175,130 @@ fn resolve_matching_runtime_call_result_source_place(
                 && state_call_matches_expression(input, state_call, target, receiver_path))
             .then_some(state_call)
         })
-        .find_map(|state_call| {
+        .nth(occurrence_rank)
+        .and_then(|state_call| {
             resolve_runtime_call_result_source_place_by_ordinal(input, dispatch_index, state_call)
         })
+}
+
+/// Rank `target_call` among calls with the same target and receiver by walking
+/// the complete value expression in source order. State-call collection uses
+/// this same pre-order, so the rank selects the corresponding ordinal slot.
+fn runtime_tree_call_occurrence_rank(
+    input: &InstructionSelectionInput<'_>,
+    root: &Expression,
+    target_call: &omega_checked_trees::expression::CallExpression,
+) -> Option<usize> {
+    fn visit(
+        input: &InstructionSelectionInput<'_>,
+        expression: &Expression,
+        target_call: &omega_checked_trees::expression::CallExpression,
+        target_receiver_path: &[&str],
+        rank: &mut usize,
+    ) -> bool {
+        match expression {
+            Expression::ArrayLiteral(values) => values
+                .iter()
+                .any(|value| visit(input, value, target_call, target_receiver_path, rank)),
+            Expression::Binary(binary) => {
+                visit(input, &binary.left, target_call, target_receiver_path, rank)
+                    || visit(
+                        input,
+                        &binary.right,
+                        target_call,
+                        target_receiver_path,
+                        rank,
+                    )
+            }
+            Expression::Call(call) => {
+                if std::ptr::eq(call.as_ref(), target_call) {
+                    return true;
+                }
+                let mut receiver_path = Vec::new();
+                if let Some(receiver) = call.receiver.as_deref() {
+                    append_tree_expression_path(receiver, &mut receiver_path);
+                }
+                if call.target == target_call.target
+                    && receiver_path == target_receiver_path
+                    && input.state_calls.calls.iter().any(|(_, state_call)| {
+                        state_call_matches_expression(
+                            input,
+                            state_call,
+                            call.target.as_str(),
+                            &receiver_path,
+                        )
+                    })
+                {
+                    *rank += 1;
+                }
+                call.receiver.as_deref().is_some_and(|receiver| {
+                    visit(input, receiver, target_call, target_receiver_path, rank)
+                }) || call
+                    .arguments
+                    .iter()
+                    .any(|argument| visit(input, argument, target_call, target_receiver_path, rank))
+            }
+            Expression::Cast(cast) => {
+                visit(input, &cast.value, target_call, target_receiver_path, rank)
+            }
+            Expression::Indexed(indexed) => {
+                visit(
+                    input,
+                    &indexed.collection,
+                    target_call,
+                    target_receiver_path,
+                    rank,
+                ) || visit(
+                    input,
+                    &indexed.index,
+                    target_call,
+                    target_receiver_path,
+                    rank,
+                )
+            }
+            Expression::Member(member) => visit(
+                input,
+                &member.receiver,
+                target_call,
+                target_receiver_path,
+                rank,
+            ),
+            Expression::Mutable(inner) => {
+                visit(input, inner, target_call, target_receiver_path, rank)
+            }
+            Expression::Range(range) => {
+                range.start.as_deref().is_some_and(|start| {
+                    visit(input, start, target_call, target_receiver_path, rank)
+                }) || range
+                    .end
+                    .as_deref()
+                    .is_some_and(|end| visit(input, end, target_call, target_receiver_path, rank))
+            }
+            Expression::StructLiteral(struct_literal) => struct_literal
+                .fields
+                .iter()
+                .any(|field| visit(input, &field.value, target_call, target_receiver_path, rank)),
+            Expression::Unary(unary) => visit(
+                input,
+                &unary.operand,
+                target_call,
+                target_receiver_path,
+                rank,
+            ),
+            Expression::Boolean(_)
+            | Expression::Float(_)
+            | Expression::Integer(_)
+            | Expression::Name(_)
+            | Expression::String(_) => false,
+        }
+    }
+
+    let mut receiver_path = Vec::new();
+    if let Some(receiver) = target_call.receiver.as_deref() {
+        append_tree_expression_path(receiver, &mut receiver_path);
+    }
+    let mut rank = 0;
+    visit(input, root, target_call, &receiver_path, &mut rank).then_some(rank)
 }
 
 fn resolve_runtime_tree_call_result_source_place(
@@ -184,10 +308,31 @@ fn resolve_runtime_tree_call_result_source_place(
     statement_index: usize,
     call: &omega_checked_trees::expression::CallExpression,
 ) -> Option<super::super::super::storage_places::RuntimeStoragePlace> {
+    resolve_runtime_tree_call_result_source_place_in_expression(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        None,
+        call,
+    )
+}
+
+fn resolve_runtime_tree_call_result_source_place_in_expression(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    root: Option<&Expression>,
+    call: &omega_checked_trees::expression::CallExpression,
+) -> Option<super::super::super::storage_places::RuntimeStoragePlace> {
     let mut receiver_path = Vec::new();
     if let Some(receiver) = call.receiver.as_deref() {
         append_tree_expression_path(receiver, &mut receiver_path);
     }
+    let occurrence_rank = root
+        .and_then(|root| runtime_tree_call_occurrence_rank(input, root, call))
+        .unwrap_or(0);
     resolve_matching_runtime_call_result_source_place(
         input,
         dispatch_index,
@@ -195,7 +340,256 @@ fn resolve_runtime_tree_call_result_source_place(
         statement_index,
         call.target.as_str(),
         &receiver_path,
+        occurrence_rank,
     )
+}
+
+/// Table-shaped counterpart of `runtime_tree_call_occurrence_rank`. Handles
+/// cannot encode occurrence identity themselves after expression copying, so
+/// walk from the owning value root and stop at the exact call handle.
+#[allow(clippy::too_many_arguments)]
+fn runtime_table_call_occurrence_rank(
+    input: &InstructionSelectionInput<'_>,
+    expressions: &ExpressionTable,
+    source_key: StateKey,
+    statement_index: usize,
+    root: ExpressionHandle,
+    target_call: ExpressionHandle,
+    target: &str,
+    target_receiver_path: &[&str],
+) -> Option<usize> {
+    #[allow(clippy::too_many_arguments)]
+    fn visit(
+        input: &InstructionSelectionInput<'_>,
+        expressions: &ExpressionTable,
+        source_key: StateKey,
+        statement_index: usize,
+        expression: ExpressionHandle,
+        target_call: ExpressionHandle,
+        target: &str,
+        target_receiver_path: &[&str],
+        rank: &mut usize,
+    ) -> bool {
+        match expressions.expression(expression) {
+            ExpressionNode::ArrayLiteral(values) => {
+                expressions.expression_handles(*values).iter().any(|value| {
+                    visit(
+                        input,
+                        expressions,
+                        source_key,
+                        statement_index,
+                        *value,
+                        target_call,
+                        target,
+                        target_receiver_path,
+                        rank,
+                    )
+                })
+            }
+            ExpressionNode::Binary(binary) => {
+                visit(
+                    input,
+                    expressions,
+                    source_key,
+                    statement_index,
+                    binary.left,
+                    target_call,
+                    target,
+                    target_receiver_path,
+                    rank,
+                ) || visit(
+                    input,
+                    expressions,
+                    source_key,
+                    statement_index,
+                    binary.right,
+                    target_call,
+                    target,
+                    target_receiver_path,
+                    rank,
+                )
+            }
+            ExpressionNode::Call(call) => {
+                if expression == target_call {
+                    return true;
+                }
+                let receiver_path = append_table_expression_path(expressions, call.receiver);
+                if call.target.as_str() == target
+                    && receiver_path == target_receiver_path
+                    && input
+                        .state_calls
+                        .calls_for_statement(source_key, statement_index)
+                        .any(|state_call| {
+                            state_call_has_runtime_value_result(state_call.role)
+                                && state_call_matches_expression(
+                                    input,
+                                    state_call,
+                                    call.target.as_str(),
+                                    &receiver_path,
+                                )
+                        })
+                {
+                    *rank += 1;
+                }
+                (call.receiver.is_valid()
+                    && visit(
+                        input,
+                        expressions,
+                        source_key,
+                        statement_index,
+                        call.receiver,
+                        target_call,
+                        target,
+                        target_receiver_path,
+                        rank,
+                    ))
+                    || expressions
+                        .expression_handles(call.arguments)
+                        .iter()
+                        .any(|argument| {
+                            visit(
+                                input,
+                                expressions,
+                                source_key,
+                                statement_index,
+                                *argument,
+                                target_call,
+                                target,
+                                target_receiver_path,
+                                rank,
+                            )
+                        })
+            }
+            ExpressionNode::Cast(cast) => visit(
+                input,
+                expressions,
+                source_key,
+                statement_index,
+                cast.value,
+                target_call,
+                target,
+                target_receiver_path,
+                rank,
+            ),
+            ExpressionNode::Indexed(indexed) => {
+                visit(
+                    input,
+                    expressions,
+                    source_key,
+                    statement_index,
+                    indexed.collection,
+                    target_call,
+                    target,
+                    target_receiver_path,
+                    rank,
+                ) || visit(
+                    input,
+                    expressions,
+                    source_key,
+                    statement_index,
+                    indexed.index,
+                    target_call,
+                    target,
+                    target_receiver_path,
+                    rank,
+                )
+            }
+            ExpressionNode::Member(member) => visit(
+                input,
+                expressions,
+                source_key,
+                statement_index,
+                member.receiver,
+                target_call,
+                target,
+                target_receiver_path,
+                rank,
+            ),
+            ExpressionNode::Mutable(inner) => visit(
+                input,
+                expressions,
+                source_key,
+                statement_index,
+                *inner,
+                target_call,
+                target,
+                target_receiver_path,
+                rank,
+            ),
+            ExpressionNode::Range(range) => {
+                (range.start.is_valid()
+                    && visit(
+                        input,
+                        expressions,
+                        source_key,
+                        statement_index,
+                        range.start,
+                        target_call,
+                        target,
+                        target_receiver_path,
+                        rank,
+                    ))
+                    || (range.end.is_valid()
+                        && visit(
+                            input,
+                            expressions,
+                            source_key,
+                            statement_index,
+                            range.end,
+                            target_call,
+                            target,
+                            target_receiver_path,
+                            rank,
+                        ))
+            }
+            ExpressionNode::StructLiteral(struct_literal) => expressions
+                .struct_fields(struct_literal.fields)
+                .iter()
+                .any(|field| {
+                    visit(
+                        input,
+                        expressions,
+                        source_key,
+                        statement_index,
+                        field.value,
+                        target_call,
+                        target,
+                        target_receiver_path,
+                        rank,
+                    )
+                }),
+            ExpressionNode::Unary(unary) => visit(
+                input,
+                expressions,
+                source_key,
+                statement_index,
+                unary.operand,
+                target_call,
+                target,
+                target_receiver_path,
+                rank,
+            ),
+            ExpressionNode::Boolean(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::Name(_)
+            | ExpressionNode::String(_) => false,
+        }
+    }
+
+    let mut rank = 0;
+    visit(
+        input,
+        expressions,
+        source_key,
+        statement_index,
+        root,
+        target_call,
+        target,
+        target_receiver_path,
+        &mut rank,
+    )
+    .then_some(rank)
 }
 
 fn resolve_runtime_table_call_result_source_place(
@@ -204,9 +598,21 @@ fn resolve_runtime_table_call_result_source_place(
     source_key: StateKey,
     statement_index: usize,
     expressions: &ExpressionTable,
+    root: ExpressionHandle,
+    call_expression: ExpressionHandle,
     call: &omega_checked_trees::expression::TableCallExpression,
 ) -> Option<super::super::super::storage_places::RuntimeStoragePlace> {
     let receiver_path = append_table_expression_path(expressions, call.receiver);
+    let occurrence_rank = runtime_table_call_occurrence_rank(
+        input,
+        expressions,
+        source_key,
+        statement_index,
+        root,
+        call_expression,
+        call.target.as_str(),
+        &receiver_path,
+    )?;
     resolve_matching_runtime_call_result_source_place(
         input,
         dispatch_index,
@@ -214,6 +620,7 @@ fn resolve_runtime_table_call_result_source_place(
         statement_index,
         call.target.as_str(),
         &receiver_path,
+        occurrence_rank,
     )
 }
 
