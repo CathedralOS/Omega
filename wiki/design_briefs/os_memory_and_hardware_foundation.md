@@ -610,6 +610,13 @@ Admission joins demand and behavior. The effect row stays static: a live mask
 or affinity token may make a particular call locally inadmissible without
 editing or masking the machine's published effects.
 
+The normalized join is live in `omega-task-plans`: suspension is rejected
+locally against possible park crossings, while provider admission selects a
+safe-point or all-instruction migration envelope and checks CPU/thread
+affinity, continuation stability, frame provisioning, cancellation, and inline
+behavior. Missing opaque-runtime evidence is pessimistic. Compiler liveness
+derivation and provider-plan integration remain.
+
 The enforcement sites are deliberately asymmetric. A value that forbids
 suspension is checked locally against possible `Suspend` reach; provider
 selection cannot erase that ceiling. CPU affinity, host-thread affinity, and
