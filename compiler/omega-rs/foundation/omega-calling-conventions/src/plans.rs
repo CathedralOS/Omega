@@ -529,7 +529,7 @@ fn validate_signature_shapes(
             ValueClass::Integer
                 if shape.byte_size > 8
                     && policy != CallingPolicy::Aapcs64
-                    && !(policy == CallingPolicy::SystemVAMD64 && shape.byte_size <= 16) =>
+                    && policy != CallingPolicy::SystemVAMD64 =>
             {
                 return Err(PlanDiagnostic(
                     "aggregate integer classification is not normalized for this calling policy"
@@ -901,11 +901,20 @@ fn evaluate_system_v_amd64(signature: &CallSignature) -> Result<CallPlan, PlanDi
         && matches!(result.shape.class, ValueClass::Integer)
         && result.shape.byte_size > 8
     {
-        result.locations = integer_register_fragment_locations(
-            result.shape,
-            &[MachineRegister::X86Rax, MachineRegister::X86Rdx],
-            0,
-        );
+        result.locations = if result.shape.byte_size > 16 {
+            vec![ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Register(MachineRegister::X86Rdi),
+                copy_stack_byte_offset: None,
+                byte_size: result.shape.byte_size,
+                alignment: result.shape.alignment,
+            }]
+        } else {
+            integer_register_fragment_locations(
+                result.shape,
+                &[MachineRegister::X86Rax, MachineRegister::X86Rdx],
+                0,
+            )
+        };
     }
     Ok(plan)
 }
@@ -954,7 +963,14 @@ fn evaluate_split_bank_call(
     stack_alignment: u16,
     ordinary_clobbers: RegisterSet,
 ) -> Result<CallPlan, PlanDiagnostic> {
-    let mut integer_index = 0usize;
+    // SysV MEMORY-class results use the hidden first integer argument (`rdi`)
+    // as their caller-owned destination, shifting declared integer arguments.
+    let mut integer_index = usize::from(
+        policy == CallingPolicy::SystemVAMD64
+            && signature.result.is_some_and(|shape| {
+                matches!(shape.class, ValueClass::Integer) && shape.byte_size > 16
+            }),
+    );
     let mut float_index = 0u8;
     let mut stack_offset = 0u32;
     let mut parameters = Vec::with_capacity(signature.parameters.len());
@@ -978,26 +994,32 @@ fn evaluate_split_bank_call(
             }
             float_index += members;
         } else if float_members.is_none() && shape.byte_size > 16 {
-            debug_assert_eq!(policy, CallingPolicy::Aapcs64);
-            let pointer = if integer_index < integer_registers.len() {
-                let register = integer_registers[integer_index];
-                integer_index += 1;
-                IndirectPointerLocation::Register(register)
-            } else {
-                stack_offset = align_up(stack_offset, 8);
-                let pointer = IndirectPointerLocation::Stack {
-                    stack_byte_offset: stack_offset,
-                    alignment: 8,
+            if policy == CallingPolicy::Aapcs64 {
+                let pointer = if integer_index < integer_registers.len() {
+                    let register = integer_registers[integer_index];
+                    integer_index += 1;
+                    IndirectPointerLocation::Register(register)
+                } else {
+                    stack_offset = align_up(stack_offset, 8);
+                    let pointer = IndirectPointerLocation::Stack {
+                        stack_byte_offset: stack_offset,
+                        alignment: 8,
+                    };
+                    stack_offset += 8;
+                    pointer
                 };
-                stack_offset += 8;
-                pointer
-            };
-            locations.push(ValueLocation::Indirect {
-                pointer,
-                copy_stack_byte_offset: None,
-                byte_size: shape.byte_size,
-                alignment: shape.alignment,
-            });
+                locations.push(ValueLocation::Indirect {
+                    pointer,
+                    copy_stack_byte_offset: None,
+                    byte_size: shape.byte_size,
+                    alignment: shape.alignment,
+                });
+            } else {
+                debug_assert_eq!(policy, CallingPolicy::SystemVAMD64);
+                stack_offset = align_up(stack_offset, u32::from(shape.alignment.clamp(8, 16)));
+                locations.extend(integer_stack_fragment_locations(shape, stack_offset));
+                stack_offset += u32::from(shape.byte_size).next_multiple_of(8);
+            }
         } else if float_members.is_none() && shape.byte_size > 8 {
             // Integer-class aggregates up to two eightbytes stay whole: use
             // consecutive integer registers only when the complete value
@@ -1946,13 +1968,52 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_aggregate_shapes_fail_closed() {
+    fn system_v_memory_class_uses_stack_values_and_a_hidden_result_pointer() {
         let signature = CallSignature {
-            parameters: vec![ValueShape::integer(24, 8)],
-            result: None,
+            parameters: vec![ValueShape::integer(24, 8), ValueShape::integer(8, 8)],
+            result: Some(ValueShape::integer(24, 8)),
         };
-        let error = evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature)
-            .expect_err("unclassified aggregate must reject");
-        assert!(error.0.contains("not normalized"));
+        let plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature)
+            .expect("SysV MEMORY-class plan");
+
+        assert_eq!(
+            plan.parameters[0].locations,
+            vec![
+                ValueLocation::Stack {
+                    stack_byte_offset: 0,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                    alignment: 8,
+                },
+                ValueLocation::Stack {
+                    stack_byte_offset: 8,
+                    value_byte_offset: 8,
+                    byte_size: 8,
+                    alignment: 8,
+                },
+                ValueLocation::Stack {
+                    stack_byte_offset: 16,
+                    value_byte_offset: 16,
+                    byte_size: 8,
+                    alignment: 8,
+                },
+            ]
+        );
+        assert!(matches!(
+            plan.parameters[1].locations.as_slice(),
+            [ValueLocation::Register {
+                register: MachineRegister::X86Rsi,
+                ..
+            }]
+        ));
+        assert!(matches!(
+            plan.result.expect("indirect result").locations.as_slice(),
+            [ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Register(MachineRegister::X86Rdi),
+                copy_stack_byte_offset: None,
+                byte_size: 24,
+                alignment: 8,
+            }]
+        ));
     }
 }

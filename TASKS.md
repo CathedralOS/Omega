@@ -200,8 +200,13 @@ ceiling derived exactly from the ABI volatile-register classes.
    receiver is required in planned `rdi`, service-table pointers stay outside
    the wire signature, and width plus data-relocation walkers consume the same
    layout. A freestanding source-to-ELF canary pins layout-resolved vtable
-   dispatch. SysV vector/mixed-class and large/indirect aggregates remain to
-   migrate.
+   dispatch. Pure-integer records above 16 bytes now take the SysV MEMORY path
+   on outbound imports and indirect field calls: parameters copy by value into
+   aligned outgoing stack fragments, results materialize their caller-owned
+   destination through hidden `rdi`, and declared GPR arguments (including a
+   vtable receiver) shift accordingly. The source-to-ELF canary pins the
+   resulting `rsi` receiver dispatch. SysV vector/mixed-class aggregates and
+   entry-side MEMORY-class materialization remain to migrate.
    Ordinary AArch64 `VtableSlot` and `VtableField` calls now evaluate AAPCS64
    from their selected operands, require the full-width receiver in planned
    `x0`, marshal every argument/stack slot through the shared plan consumer,
