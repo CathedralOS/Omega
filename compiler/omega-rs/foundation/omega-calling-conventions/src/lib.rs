@@ -1314,6 +1314,14 @@ impl HostAbiPlan {
         mechanism: &HostBindingMechanism,
         signature: &CallSignature,
     ) -> Result<CallPlan, PlanDiagnostic> {
+        if matches!(mechanism, HostBindingMechanism::Syscall { .. })
+            && self.target.object_format != ObjectFormat::Elf
+        {
+            return Err(PlanDiagnostic(format!(
+                "Linux syscall compatibility binding is not valid for target {:?}/{:?}",
+                self.target.architecture, self.target.object_format
+            )));
+        }
         let policy = match mechanism {
             HostBindingMechanism::Syscall { .. } => match self.target.architecture {
                 omega_target::Architecture::X86_64 => CallingPolicy::LinuxSyscallX86_64,
@@ -1473,6 +1481,75 @@ mod call_shape_tests {
             .evaluate_binding_call_plan(&linux_binding.mechanism, &signature)
             .expect("Linux syscall plan");
         assert_eq!(linux_plan.policy, CallingPolicy::LinuxSyscallAarch64);
+    }
+
+    #[test]
+    fn compatibility_c_mechanisms_follow_the_complete_native_policy_matrix() {
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: Some(ValueShape::integer(8, 8)),
+        };
+        let mechanisms = [
+            HostBindingMechanism::Import {
+                library: "probe".into(),
+                symbol: "call".into(),
+            },
+            HostBindingMechanism::VtableSlot { index: 0 },
+            HostBindingMechanism::VtableField {
+                table: "Probe".into(),
+                field: "call".into(),
+                byte_offset: 0,
+                parameter_count: 1,
+            },
+            HostBindingMechanism::TableFunction {
+                table: "Probe".into(),
+                field: "call".into(),
+                byte_offset: 0,
+                parameter_count: 1,
+            },
+        ];
+
+        for (target, expected) in [
+            (NativeTarget::windows_x64(), CallingPolicy::MicrosoftX64),
+            (NativeTarget::uefi_x64(), CallingPolicy::MicrosoftX64),
+            (NativeTarget::linux_x64(), CallingPolicy::SystemVAMD64),
+            (NativeTarget::linux_arm64(), CallingPolicy::Aapcs64),
+            (NativeTarget::macos_arm64(), CallingPolicy::Aapcs64),
+        ] {
+            let abi = build_host_abi_plan(target);
+            for mechanism in &mechanisms {
+                let plan = abi
+                    .evaluate_binding_call_plan(mechanism, &signature)
+                    .expect("C/firmware compatibility mechanism must select the native plan");
+                assert_eq!(plan.policy, expected, "target={target:?} {mechanism:?}");
+                assert_eq!(plan.entry_control, super::EntryControl::CallReturn);
+            }
+        }
+    }
+
+    #[test]
+    fn linux_syscall_compatibility_mechanisms_reject_non_elf_targets() {
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: None,
+        };
+        let mechanism = HostBindingMechanism::Syscall {
+            name: "probe".into(),
+            number: 1,
+            number_register: 8,
+            supervisor_call: 0,
+        };
+
+        for target in [
+            NativeTarget::windows_x64(),
+            NativeTarget::uefi_x64(),
+            NativeTarget::macos_arm64(),
+        ] {
+            let error = build_host_abi_plan(target)
+                .evaluate_binding_call_plan(&mechanism, &signature)
+                .expect_err("Linux syscall mechanisms must not cross a non-ELF target");
+            assert!(error.to_string().contains("not valid for target"));
+        }
     }
 
     #[test]

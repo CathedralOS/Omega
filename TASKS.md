@@ -135,6 +135,10 @@ ceiling derived exactly from the ABI volatile-register classes.
    result-store scratch inside the normalized ordinary-clobber ceiling.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
+   complete import/vtable/service-table compatibility mechanism matrix is
+   checked against the target-derived native policy across Windows, UEFI,
+   Linux, and macOS, while Linux-syscall mechanisms now reject non-ELF targets
+   instead of choosing a policy from CPU architecture alone. The
    generic encoders additionally reject incompatible policy/control/stack/
    shadow/clobber contracts and keep all marshalling scratch inside the
    normalized ordinary-clobber ceiling.
