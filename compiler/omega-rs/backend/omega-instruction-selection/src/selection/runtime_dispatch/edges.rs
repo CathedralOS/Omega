@@ -221,9 +221,9 @@ pub(super) fn select_runtime_dispatch_edge(
     }
 }
 
-/// Deliver a terminating state's terminal value as the process exit code.
+/// Deliver a terminating state's terminal value through the entry ABI.
 ///
-/// Three shapes lower, in order:
+/// Four shapes lower, in order:
 /// 1. a CONSTANT terminal (`70`, `state shutdown { 0 }`) writes the immediate
 ///    into the return register (the original literal-only path);
 /// 2. a RUNTIME PLACE terminal (`self.count` read-back, a local with a frame
@@ -234,6 +234,9 @@ pub(super) fn select_runtime_dispatch_edge(
 ///    substitutes simple local initializers and constant-folds; such locals
 ///    were culled from storage precisely because nothing mutates them, so the
 ///    initializer IS the terminal value.
+///
+/// 4. a SysV MEMORY-class record copies through the entry's saved hidden
+///    destination pointer and returns that pointer in `rax`.
 ///
 /// Anything else still emits no return-value write (the silent pre-existing
 /// fallthrough, now reduced to runtime ARITHMETIC terminals like `self.n + 1`).
@@ -267,19 +270,46 @@ fn select_runtime_dispatch_return_value(
         source_key,
         &input.control_flow.expressions,
         value_expr,
-    ) && matches!(place.byte_count, 1 | 2 | 4 | 8)
-    {
-        selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
-                register: super::normalized_entry_integer_result_register(input),
-                region: place.region,
-                byte_offset: place.byte_offset,
-                byte_size: place.byte_count,
-            },
-            source_key,
-            source_statement: edge.statement_index,
-        });
-        return true;
+    ) {
+        if matches!(place.byte_count, 1 | 2 | 4 | 8) {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+                    register: super::normalized_entry_integer_result_register(input),
+                    region: place.region,
+                    byte_offset: place.byte_offset,
+                    byte_size: place.byte_count,
+                },
+                source_key,
+                source_statement: edge.statement_index,
+            });
+            return true;
+        }
+        if let Some(result_shape) = super::normalized_entry_indirect_result_shape(input)
+            && place.byte_count == usize::from(result_shape.byte_size)
+            && input.runtime_storage.entry_indirect_result_pointer_size == 8
+        {
+            let pointer_offset = input.runtime_storage.entry_indirect_result_pointer_base;
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyPlaces {
+                    source: omega_abstract_operations::Place::at(place.region, place.byte_offset),
+                    target: super::pointee_place(pointer_offset, 0),
+                    byte_count: place.byte_count,
+                },
+                source_key,
+                source_statement: edge.statement_index,
+            });
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+                    register: omega_calling_conventions::MachineRegister::X86Rax,
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: pointer_offset,
+                    byte_size: 8,
+                },
+                source_key,
+                source_statement: edge.statement_index,
+            });
+            return true;
+        }
     }
 
     if let Some(value) =

@@ -1316,9 +1316,10 @@ fn select_normalized_entry_argument_writes(
     destinations: &[(usize, ValueShape)],
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    let result = normalized_entry_indirect_result_shape(input);
     let signature = CallSignature {
         parameters: destinations.iter().map(|(_, shape)| *shape).collect(),
-        result: None,
+        result,
     };
     let boundary = evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::native_for_target(input.target),
@@ -1326,6 +1327,35 @@ fn select_normalized_entry_argument_writes(
     )
     .expect("runtime entry signature must have a normalized boundary entry plan");
     let plan = &boundary.plan().call;
+
+    if result.is_some() {
+        let placement = plan
+            .result
+            .as_ref()
+            .expect("indirect entry result must have a normalized placement");
+        let [
+            ValueLocation::Indirect {
+                pointer: omega_calling_conventions::IndirectPointerLocation::Register(register),
+                ..
+            },
+        ] = placement.locations.as_slice()
+        else {
+            panic!("large SysV entry result must arrive through one register pointer");
+        };
+        assert_eq!(
+            input.runtime_storage.entry_indirect_result_pointer_size, 8,
+            "large SysV entry result must reserve its destination pointer"
+        );
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteEntryArgumentRegister {
+                register: *register,
+                byte_offset: input.runtime_storage.entry_indirect_result_pointer_base,
+                byte_size: 8,
+            },
+            source_key: input.entry_key,
+            source_statement: 0,
+        });
+    }
 
     for ((destination_offset, _), placement) in destinations.iter().zip(&plan.parameters) {
         for location in &placement.locations {
@@ -1364,6 +1394,37 @@ fn select_normalized_entry_argument_writes(
             });
         }
     }
+}
+
+pub(super) fn normalized_entry_indirect_result_shape(
+    input: &InstructionSelectionInput<'_>,
+) -> Option<ValueShape> {
+    if CallingPolicy::native_for_target(input.target) != CallingPolicy::SystemVAMD64 {
+        return None;
+    }
+    let machine = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == input.entry_key.machine)?;
+    let state = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == input.entry_key.state)?;
+    let result_symbol = input.program.type_reference_symbol(state.return_type);
+    let layout = input
+        .layouts
+        .data_layouts
+        .iter()
+        .find(|(_, layout)| layout.symbol == result_symbol)
+        .map(|(_, layout)| layout.layout)?;
+    (layout.size > 16).then(|| {
+        ValueShape::integer(
+            u16::try_from(layout.size).expect("entry result width must fit u16"),
+            u16::try_from(layout.alignment).expect("entry result alignment must fit u16"),
+        )
+    })
 }
 
 /// Select the process-entry integer result register through the same

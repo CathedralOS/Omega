@@ -31608,6 +31608,41 @@ fn sysv_large_aggregate_entry_copies_the_memory_class_stack_value() {
 }
 
 #[test]
+fn sysv_large_result_entry_saves_and_uses_the_hidden_pointer() {
+    let canary = pass_canary("targets/sysv_large_result_entry");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-sysv-large-result-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("SysV MEMORY-result entry should preserve and populate its hidden pointer");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86-64 ELF");
+    assert!(
+        image.windows(34).any(|window| {
+            window[10..13] == [0x49, 0x89, 0xbf] && window[27..30] == [0x49, 0x89, 0xb7]
+        }),
+        "expected hidden rdi capture before the declared rsi parameter store"
+    );
+    assert!(
+        image.windows(3).any(|window| window == [0x4d, 0x8b, 0xbf]),
+        "expected terminal record copy through the saved result pointer"
+    );
+    assert!(
+        image.windows(3).any(|window| window == [0x49, 0x8b, 0x87]),
+        "expected the saved result pointer returned in rax"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn x86_asm_fences_emit_exact_bytes_and_refuse_aarch64() {
     let canary = pass_canary("inline_asm/asm_fences_compile");
     let build_dir = std::env::temp_dir().join(format!("omega-asm-fences-{}", std::process::id()));

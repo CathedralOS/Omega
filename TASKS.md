@@ -218,8 +218,11 @@ ceiling derived exactly from the ABI volatile-register classes.
    both register banks atomically (with whole-record stack rollback) and return
    through `rax` plus `xmm0`, while non-homogeneous SSE/SSE records such as
    `{ f64, f32 }` use `xmm0`/`xmm1`. Both survive the same source-to-ELF field
-   dispatch path. Nested aggregate classification and entry-side hidden-result
-   handling remain to migrate.
+   dispatch path. MEMORY-result entries now save incoming hidden `rdi` before
+   volatile work, shift declared parameters, copy a large terminal through the
+   saved destination, and return that pointer in `rax`; a source-to-ELF canary
+   pins the complete handoff. Nested aggregate classification remains to
+   migrate.
    Ordinary AArch64 `VtableSlot` and `VtableField` calls now evaluate AAPCS64
    from their selected operands, require the full-width receiver in planned
    `x0`, marshal every argument/stack slot through the shared plan consumer,
