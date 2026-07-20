@@ -110,6 +110,10 @@ Current ownership is:
   `checks/borrows/overlap/segments.rs` owns place-segment overlap policy,
   `checks/borrows/overlap/indexes.rs` owns index and range overlap policy, and
   `checks/borrows/details.rs` owns diagnostic lifetime explanations.
+- `checks/carry.rs` joins canonical place liveness with direct/transitive
+  `Suspend` reach. Lexical roots are statement-bound; attached-data and
+  compatibility machine-owned field paths additionally follow reachable state
+  transitions. CPU/thread/address demands remain provider-admission work.
 - `omega-checked-trees/src/flow.rs` owns the published checked-flow fact model
   export surface. The model is split by semantic noun under
   `omega-checked-trees/src/flow/`: `contexts.rs` owns semantic/borrow

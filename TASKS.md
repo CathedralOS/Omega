@@ -209,12 +209,14 @@ before the fix.
   the strict effective carry policy, and reject permissive property claims
   until admission can provide receipts. Statement-bound canonical liveness now
   rejects parameters and locals whose effective policy forbids suspension when
-  they remain live across a direct or transitive `Suspend` call; effect,
-  borrow, flow, and contract analyses now join calls by the shared
-  `(state, statement, ordinal)` identity. Continue with intra-statement and
-  place-segment liveness, persistent machine-owned values, admitted and sealed
-  per-mint facts, activation-demand joins against pessimistic admitted runtime
-  behavior, and
+  they remain live across a direct or transitive `Suspend` call. Field-segment
+  liveness also tracks attached-data fields and compatibility machine-owned
+  cells through reachable state transitions without collapsing them into
+  whole-`self`; effect, borrow, flow, and contract analyses join calls by the
+  shared `(state, statement, ordinal)` identity. Continue with intra-statement
+  call ordering, contained-machine subtrees, admitted and sealed per-mint
+  facts, activation-demand joins against pessimistic admitted runtime behavior,
+  and
   diagnostic and model-export consumers. Checked builds now emit
   `05_carry_manifest.json`, keeping authored minimums separate from effective
   derived policies with all four axes structured.

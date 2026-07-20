@@ -8,7 +8,10 @@ mod state;
 mod tracker;
 pub(crate) mod view_link;
 
-pub(crate) use last_uses::place_is_used_after_statement;
+pub(crate) use last_uses::{
+    place_is_used_after_statement, place_symbol_is_used_after_statement,
+    place_symbol_is_used_in_state,
+};
 
 use crate::lookup::machine_state_count;
 use roots::estimated_borrow_root_capacity;

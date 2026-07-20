@@ -171,3 +171,85 @@ fn rejects_transitive_suspension_reach_with_live_restrictive_value() {
         "expected transitive carry diagnostic, got {diagnostics:#?}"
     );
 }
+
+#[test]
+fn rejects_suspension_while_restrictive_self_field_remains_live() {
+    let diagnostics = lower(
+        r#"
+        data Cell { value: i32; }
+        data Message { body: &Cell; }
+        data Sleeper { }
+        machine Sleeper::park(&mut self) effects Suspend { }
+        data Main { sleeper: Sleeper; cell: Cell; message: Message; }
+        machine Main::read(&mut self, cell: &Cell) -> i32 {
+            transition { _ -> cell.value }
+        }
+        machine Main::run(&mut self) {
+            self.sleeper.park();
+            let value: i32 = self.read(self.message.body);
+        }
+        "#,
+    )
+    .expect_err("a live restrictive self field must not cross suspension");
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("may reach `Suspend`")
+                && diagnostic.message.contains("`self.message` remains live")
+        }),
+        "expected self-field carry diagnostic, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn accepts_suspension_after_restrictive_self_field_last_use() {
+    lower(
+        r#"
+        data Cell { value: i32; }
+        data Message { body: &Cell; }
+        data Sleeper { }
+        machine Sleeper::park(&mut self) effects Suspend { }
+        data Main { sleeper: Sleeper; cell: Cell; message: Message; }
+        machine Main::read(&mut self, cell: &Cell) -> i32 {
+            transition { _ -> cell.value }
+        }
+        machine Main::run(&mut self) {
+            let value: i32 = self.read(self.message.body);
+            self.sleeper.park();
+        }
+        "#,
+    )
+    .expect("the restrictive self field is dead before suspension");
+}
+
+#[test]
+fn rejects_suspension_when_self_field_is_used_in_reachable_state() {
+    let diagnostics = lower(
+        r#"
+        data Cell { value: i32; }
+        data Message { body: &Cell; }
+        data Sleeper { }
+        machine Sleeper::park(&mut self) effects Suspend { }
+        data Main { sleeper: Sleeper; cell: Cell; message: Message; }
+        machine Main::read(&mut self, cell: &Cell) -> i32 {
+            transition { _ -> cell.value }
+        }
+        machine Main::run(&mut self) {
+            self.sleeper.park();
+            transition { _ -> resumed() }
+            state resumed(&mut self) {
+                let value: i32 = self.read(self.message.body);
+            }
+        }
+        "#,
+    )
+    .expect_err("reachable-state use keeps a persistent field live");
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("may reach `Suspend`")
+                && diagnostic.message.contains("`self.message` remains live")
+        }),
+        "expected cross-state self-field carry diagnostic, got {diagnostics:#?}"
+    );
+}
