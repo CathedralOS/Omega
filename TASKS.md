@@ -235,8 +235,11 @@ ceiling derived exactly from the ABI volatile-register classes.
    slice-element expressions in host-call argument position now materialize
    into bounded per-argument frame scratch before marshalling, preserving the
    scalar integer-versus-float register class; a
-   native canary pins `exit_process(self.a + self.b)` as exit 70, while nested
-   value-call arguments remain fail-closed until call sequencing reaches them.
+   native canary pins `exit_process(self.a + self.b)` as exit 70. Direct nested
+   authored value calls now participate in call-argument sequencing, execute
+   their callee body before the host operation, and marshal from the resulting
+   scalar slot; `exit_process(self.dbl(35))` is pinned natively and in the
+   interpreter as exit 70.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
    complete import/vtable/service-table compatibility mechanism matrix is

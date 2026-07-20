@@ -403,15 +403,6 @@ fn append_state_body_operations(
             ));
             continue;
         }
-        if host_call_for_statement(context, state_key, operation.statement_index).is_some() {
-            operations.insert(body_operation(
-                state_key,
-                operation.statement_index,
-                RuntimeDispatchBodyOperationKind::HostCall,
-            ));
-            continue;
-        }
-
         for state_call in context
             .state_calls
             .calls_for_statement(state_key, operation.statement_index)
@@ -427,6 +418,18 @@ fn append_state_body_operations(
                     visiting,
                 );
             }
+        }
+
+        // A host call owns the statement-position operation, but machine value
+        // calls nested in its arguments must execute first and leave their
+        // results in the call-argument slots appended above.
+        if host_call_for_statement(context, state_key, operation.statement_index).is_some() {
+            operations.insert(body_operation(
+                state_key,
+                operation.statement_index,
+                RuntimeDispatchBodyOperationKind::HostCall,
+            ));
+            continue;
         }
 
         if let Some(state_call) =

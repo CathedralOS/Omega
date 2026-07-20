@@ -2282,54 +2282,76 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                 // LocalStorage for this statement, OR the callee's spliced
                 // LocalStorage ops from an inlined callee that has internal
                 // `let` bindings), defer the selection to after those ops.
-                let defers_to_local_initializer = leaf_expansions_defer_to_local_initializer(
+                let is_host_call_argument =
+                    matches!(
+                        operation.kind,
+                        RuntimeDispatchBodyOperationKind::InlineLeafStateCall {
+                            role: StateCallRole::CallArgument,
+                            ..
+                        } | RuntimeDispatchBodyOperationKind::InlineStateCall {
+                            role: StateCallRole::CallArgument,
+                            ..
+                        } | RuntimeDispatchBodyOperationKind::StateCall {
+                            role: StateCallRole::CallArgument,
+                            ..
+                        }
+                    ) && operations.iter().skip(operation_index + 1).any(|later| {
+                        matches!(later.kind, RuntimeDispatchBodyOperationKind::HostCall)
+                            && state_key_matches_statement_source(
+                                later.source_key,
+                                operation.source_key,
+                            )
+                            && later.statement_index == operation.statement_index
+                    });
+                let defers_to_local_initializer = (leaf_expansions_defer_to_local_initializer(
                     input,
                     dispatch_case.dispatch_index,
                     operation,
-                ) && {
-                    // Case A: the caller's own LocalStorage for this statement.
-                    let has_caller_local =
-                        operations.iter().skip(operation_index + 1).any(|later| {
-                            matches!(
-                                later.kind,
-                                RuntimeDispatchBodyOperationKind::LocalStorage { .. }
-                            ) && later.source_key == operation.source_key
-                                && later.statement_index == operation.statement_index
-                        });
-                    // Case B: callee-body ops spliced in from the inlined callee
-                    // (source_key == target_key of this StateCall): a LocalStorage
-                    // (`let` binding), a HostCall (`let rc = self.host.close(..)`
-                    // -- a host-call `let` emits a HostCall op, never LocalStorage),
-                    // OR a MUTATION (`self.flag = alive`, the callee entry's field
-                    // write). In each case the callee's store must precede this
-                    // StateCall's inline guard, which otherwise reads the ZII zero
-                    // (deep-fix bug #1 / the field-write face, TASKS_FS.md).
-                    // Scoped to the CONTIGUOUS spliced run: a SECOND call to the
-                    // same callee splices indistinguishable ops later in the
-                    // body, and counting those made call 1's leaf fire after
-                    // call 2's stores (call 1's guard then read call 2's state).
-                    // The run ends at the CALLER's next own op -- NOT at the
-                    // first foreign source_key, because a callee containing its
-                    // OWN value call splices the nested callee's ops (a third
-                    // key) BETWEEN the callee's entry ops and its store (face
-                    // #5: `self.flag = self.helper.check(1)` in the callee).
-                    let has_callee_local =
-                        state_call_target_key(operation).is_some_and(|target_key| {
-                            operations
-                                .iter()
-                                .skip(operation_index + 1)
-                                .take_while(|later| later.source_key != operation.source_key)
-                                .any(|later| {
-                                    matches!(
-                                        later.kind,
-                                        RuntimeDispatchBodyOperationKind::LocalStorage { .. }
-                                            | RuntimeDispatchBodyOperationKind::HostCall
-                                            | RuntimeDispatchBodyOperationKind::Mutation { .. }
-                                    ) && later.source_key == target_key
-                                })
-                        });
-                    has_caller_local || has_callee_local
-                };
+                ) || is_host_call_argument)
+                    && {
+                        // Case A: the caller's own LocalStorage for this statement.
+                        let has_caller_local =
+                            operations.iter().skip(operation_index + 1).any(|later| {
+                                matches!(
+                                    later.kind,
+                                    RuntimeDispatchBodyOperationKind::LocalStorage { .. }
+                                ) && later.source_key == operation.source_key
+                                    && later.statement_index == operation.statement_index
+                            });
+                        // Case B: callee-body ops spliced in from the inlined callee
+                        // (source_key == target_key of this StateCall): a LocalStorage
+                        // (`let` binding), a HostCall (`let rc = self.host.close(..)`
+                        // -- a host-call `let` emits a HostCall op, never LocalStorage),
+                        // OR a MUTATION (`self.flag = alive`, the callee entry's field
+                        // write). In each case the callee's store must precede this
+                        // StateCall's inline guard, which otherwise reads the ZII zero
+                        // (deep-fix bug #1 / the field-write face, TASKS_FS.md).
+                        // Scoped to the CONTIGUOUS spliced run: a SECOND call to the
+                        // same callee splices indistinguishable ops later in the
+                        // body, and counting those made call 1's leaf fire after
+                        // call 2's stores (call 1's guard then read call 2's state).
+                        // The run ends at the CALLER's next own op -- NOT at the
+                        // first foreign source_key, because a callee containing its
+                        // OWN value call splices the nested callee's ops (a third
+                        // key) BETWEEN the callee's entry ops and its store (face
+                        // #5: `self.flag = self.helper.check(1)` in the callee).
+                        let has_callee_local =
+                            state_call_target_key(operation).is_some_and(|target_key| {
+                                operations
+                                    .iter()
+                                    .skip(operation_index + 1)
+                                    .take_while(|later| later.source_key != operation.source_key)
+                                    .any(|later| {
+                                        matches!(
+                                            later.kind,
+                                            RuntimeDispatchBodyOperationKind::LocalStorage { .. }
+                                                | RuntimeDispatchBodyOperationKind::HostCall
+                                                | RuntimeDispatchBodyOperationKind::Mutation { .. }
+                                        ) && later.source_key == target_key
+                                    })
+                            });
+                        has_caller_local || has_callee_local
+                    };
                 if defers_to_local_initializer {
                     // The callee's ARM statements (its straight-line expansion:
                     // the guarded state's `let` locals + nested-call statements)

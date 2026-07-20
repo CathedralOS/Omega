@@ -147,6 +147,14 @@ fn collect_computed_scalar_argument_blockers(
             if has_materialization {
                 continue;
             }
+            if matches!(
+                input.host_calls.expressions.expression(expression),
+                omega_checked_trees::expression::ExpressionNode::Call(_)
+            ) && host_call_argument_has_selected_call_result_operand(
+                input, host_call, expression,
+            ) {
+                continue;
+            }
             let source_name = state_name(input, host_call.source_key);
             blockers.insert(blocker(
                 "host arguments",
@@ -160,6 +168,95 @@ fn collect_computed_scalar_argument_blockers(
             ));
         }
     }
+}
+
+fn host_call_argument_has_selected_call_result_operand(
+    input: &EmissionPlanningInput<'_>,
+    host_call: &HostCall,
+    expression: omega_checked_trees::expression::ExpressionHandle,
+) -> bool {
+    let omega_checked_trees::expression::ExpressionNode::Call(call) =
+        input.host_calls.expressions.expression(expression)
+    else {
+        return false;
+    };
+    let result_slots = input
+        .state_calls
+        .calls_for_statement(host_call.source_key, host_call.statement_index)
+        .filter(|state_call| {
+            if state_call.role != omega_state_calls::StateCallRole::CallArgument {
+                return false;
+            }
+            let target_name = input
+                .control_flow
+                .state_by_key(state_call.target_key)
+                .map(|state| state.name.as_str());
+            state_call.target_key.state == call.target_symbol
+                || target_name == Some(call.target.as_str())
+        })
+        .flat_map(|state_call| {
+            input
+                .runtime_storage
+                .frame_slots
+                .iter()
+                .filter_map(move |(_, slot)| {
+                    (state_key_matches_statement_source(slot.source_key, state_call.source_key)
+                        && slot.statement_index == state_call.statement_index
+                        && matches!(
+                            slot.kind,
+                            omega_runtime_storage::RuntimeFrameSlotKind::StateCallResult {
+                                role: omega_state_calls::StateCallRole::CallArgument,
+                                call_ordinal,
+                                ..
+                            } if call_ordinal == state_call.call_ordinal
+                        ))
+                    .then_some((slot.byte_offset, slot.byte_size))
+                })
+        })
+        .collect::<Vec<_>>();
+    if result_slots.is_empty() {
+        return false;
+    }
+
+    input
+        .instructions
+        .code
+        .instructions
+        .iter()
+        .any(|(_, instruction)| {
+            if !state_key_matches_statement_source(instruction.source_key, host_call.source_key)
+                || instruction.source_statement != host_call.statement_index
+            {
+                return false;
+            }
+            let Some(operands) = host_operation_operands(&instruction.kind) else {
+                return false;
+            };
+            input
+                .instructions
+                .code
+                .operands
+                .span(operands)
+                .is_some_and(|operands| {
+                    operands.iter().any(|operand| {
+                        let (region, byte_offset, byte_count) = match operand.kind {
+                            InstructionOperandKind::RuntimeScalarInteger {
+                                region,
+                                byte_offset,
+                                byte_count,
+                            }
+                            | InstructionOperandKind::RuntimeScalarFloat {
+                                region,
+                                byte_offset,
+                                byte_count,
+                            } => (region, byte_offset, byte_count),
+                            _ => return false,
+                        };
+                        region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                            && result_slots.contains(&(byte_offset, byte_count))
+                    })
+                })
+        })
 }
 
 /// Console byte ops select into their composite instructions ONLY (selection

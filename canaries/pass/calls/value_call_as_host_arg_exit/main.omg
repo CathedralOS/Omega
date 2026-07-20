@@ -1,0 +1,16 @@
+// A nested authored value call in host-call argument position executes before
+// the boundary operation and marshals directly from its call-result slot.
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+}
+
+machine Main::dbl(&self, x: i32 in Wrapping) -> i32 {
+    let r: i32 in Wrapping = x * 2;
+    transition { _ -> r }
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(self.dbl(35));
+}

@@ -206,6 +206,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/computed_host_builtin_arg_exit", 70),
     ("calls/computed_host_cast_arg_exit", 70),
     ("calls/computed_host_indexed_arg_exit", 70),
+    ("calls/value_call_as_host_arg_exit", 70),
     ("calls/free_standing_machine_helper_compile", 7),
     ("calls/runtime_computed_transition_args_exit", 70),
     ("calls/runtime_value_call_to_array_element_exit", 70),
