@@ -6365,6 +6365,34 @@ fn runtime_entry_cast_result_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_entry_nested_binary_result_exit_canary_runs() {
+    // Recursive runtime value operands preserve nested arithmetic instead of
+    // requiring each immediate child of the terminal binary to be a place.
+    let canary = pass_canary("control_flow/runtime_entry_nested_binary_result_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-entry-nested-binary-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested binary entry return canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested binary entry return canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected nested arithmetic entry result to exit 70; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_loop_patterns_exit_canary_runs() {
     // Loop patterns via self-transition: a LARGE counting loop (1..10000) stays
     // iterative (no stack growth) and nested loops re-initialize the inner counter.
