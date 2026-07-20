@@ -1,4 +1,4 @@
-// Parameter-free mutating methods clone onto each const-specialized record,
+// Parameter-free attached methods clone onto each const-specialized record,
 // preserving receiver identity and the instance's concrete fixed-array layout.
 use omega::language::std::console;
 
@@ -10,6 +10,10 @@ machine FixedBuffer::set_first(&mut self, value: i32 in Wrapping) {
     self.items[0] = value;
 }
 
+machine FixedBuffer::first(&self) -> i32 in Wrapping {
+    transition { _ -> (self.items[0]) }
+}
+
 data Main {
     console: Console;
     small: FixedBuffer<2>;
@@ -19,6 +23,8 @@ data Main {
 machine Main::main(&mut self) {
     self.small.set_first(30);
     self.large.set_first(40);
-    let result: i32 in Wrapping = self.small.items[0] + self.large.items[0];
+    let small_value: i32 in Wrapping = self.small.first();
+    let large_value: i32 in Wrapping = self.large.first();
+    let result: i32 in Wrapping = small_value + large_value;
     self.console.exit_process(result);
 }

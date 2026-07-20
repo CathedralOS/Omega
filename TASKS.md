@@ -490,6 +490,13 @@ remain contract-invisible.
 These are unblocked and should gain a focused pass/fail or differential canary
 before the fix.
 
+- **Sibling value-call context identity.** Runtime call contexts still record a
+  minting `(state, statement)` without the state-call ordinal. Two value calls
+  in one expression such as `small.first() + large.first()` can therefore reuse
+  the first receiver base/result route; separate `let` statements are the
+  current sound lowering. Thread `call_ordinal` through `RuntimeStateCallEdge`,
+  context call sites, continuation result identity, and receiver-base lookup.
+
 ## Type, proof, and semantic-model work
 
 ### Dependent facts and frames
@@ -704,10 +711,9 @@ before the fix.
   defaults; differential canaries pin direct and same-name, symbol-resolved
   forwarded const arguments through indexed storage. Const-specialized plain
   records now give distinct literal instances independent layout identity, and
-  parameter-free mutating attached methods clone onto those specializations.
-  Continue with richer const expressions, layout diagnostics, same-signature
-  value-method receiver materialization across const specializations, const-
-  parameterized method signatures/bodies, and const-fact proof integration.
+  parameter-free attached mutating/value methods clone and dispatch by exact
+  specialization. Continue with richer const expressions, layout diagnostics,
+  const-parameterized method signatures/bodies, and const-fact proof integration.
 - **Trait defaults.** Implement conformance, reuse, override, and dispatch for
   trait machines whose body supplies the default. Do not restore a `default`
   keyword.
