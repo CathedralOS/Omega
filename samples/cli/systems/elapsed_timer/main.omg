@@ -20,9 +20,12 @@ use omega::language::std::time;
 
 // Text carriers are byte arrays in the Utf8 domain (declared per storage
 // type; encodings are library, not intrinsics).
-domain [u8; 27]::Utf8 when valid_utf8(self) {}
-domain [u8; 10]::Utf8 when valid_utf8(self) {}
-
+domain [u8; 27]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 10]::Utf8 {
+    valid_utf8(self);
+}
 data Main {
     console: Console;
     time: Time;

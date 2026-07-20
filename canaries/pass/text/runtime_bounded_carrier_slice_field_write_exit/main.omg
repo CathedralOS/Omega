@@ -3,12 +3,12 @@
 // `&mut [Room]` slice pointer (a pointee write, not a `{ptr, len}` descriptor),
 // and the guard `rooms[0].label == "Gate"` reads it back through the same pointer.
 // Exits 70 (the interpreter agrees).
-domain [u8]::Utf8 when valid_utf8(self) {
+domain [u8]::Utf8 {
+    valid_utf8(self);
 }
-
-domain [u8; 8]::Utf8 when valid_utf8(self) {
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
 }
-
 use omega::language::std::console;
 
 data Room {

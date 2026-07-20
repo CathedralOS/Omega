@@ -425,7 +425,7 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
   clauses, exact construction gates, range-as-domain sugar, recursive gating,
   standing scalar bounds, direct/nested/indexed consumption-point windows, and
   loan-on-witness pinning and flow-proven local construction are live.
-  Classifier-backed byte-domain membership now participates in zero validity,
+  Byte-predicate domain facts now participate in zero validity,
   literal construction, standing facts, and window restoration; versioned
   expression provenance proves identical and affine correlations across
   construction and adjacent writes, while invalidating them on overwrite.
@@ -434,7 +434,7 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
   provenance also canonicalizes commutative binary operators without assuming
   associativity, so equivalent operand order restores a coupling while
   subtraction order remains distinct. Remaining implementation is other
-  non-classifier operator/measure facts, broader relational evaluation beyond
+  other operator/measure facts, broader relational evaluation beyond
   this normalization, and finer read-consumption precision.
 - **R3 — Bounded-product rule** in the polynomial engine. Drivers: `y*W+x`
   (unblocks the TASKS.md nonlinear-index entry), `i*stride`.

@@ -1,6 +1,6 @@
-domain [u8]::Utf8 when valid_utf8(self) {
+domain [u8]::Utf8 {
+    valid_utf8(self);
 }
-
 // ARRAY-literal struct-element initialization lowers natively, &[u8] in Utf8 fields
 // included. Before the fix, `let rooms: [Room; 2] = [Room { .. }, Room { .. }]`
 // selected NO writes at all: the local-initializer mutation path had a

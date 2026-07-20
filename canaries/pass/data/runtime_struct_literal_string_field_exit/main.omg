@@ -1,6 +1,6 @@
-domain [u8]::Utf8 when valid_utf8(self) {
+domain [u8]::Utf8 {
+    valid_utf8(self);
 }
-
 // Struct-LITERAL &[u8] in Utf8 field initialization lowers natively. Before the fix,
 // `let msg: LabelSample = LabelSample { count: 7, label: "hi" };` silently
 // emitted no descriptor write for `label`: data planning collected string

@@ -312,7 +312,7 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
    - `HostCapability::ObjectiveC` + `HostOperation::GetClass` (→ `_objc_getClass`,
      `returns_value`); darwin import+lowering; operand arm `[result u64, name path-pointer]`
      reusing `path_pointer_operand`. Canary declares its own NUL-free byte-domain
-     (`domain [u8]::ClassName when no_nul`).
+     (`domain [u8]::ClassName { no_nul(self) }`).
    - PROVEN: `canaries/pass/objc/objc_get_class` — `objc_getClass("NSObject") != 0` exits 7;
      `otool -l` shows BOTH `LC_LOAD_DYLIB` (libSystem + libobjc). Regression
      `objc_get_class_exits_7` (native harness 60/60); macho unit 2/2; canary_suite **zero

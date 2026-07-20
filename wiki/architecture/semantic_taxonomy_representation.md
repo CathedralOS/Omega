@@ -20,7 +20,7 @@ rather than extending old booleans and bitsets by convention.
 
 `omega-symbol-resolved-trees/src/domain.rs` and
 `omega-typed-trees/src/domain.rs` represent every domain as one
-`DomainDefinition` containing `classifier`, `facts`, and `operators`. They do
+`DomainDefinition` containing invariant `facts` and `operators`. They do
 not represent:
 
 - predicate versus semantic facets, including hybrids;

@@ -15,15 +15,6 @@ pub(crate) fn lower_domain_definition(
 ) -> Result<DomainDefinition, Diagnostic> {
     let facts = lower_proof_facts(lowerer, syntax_trees, domain.facts)?;
     let operators = lower_domain_operators(lowerer, syntax_trees, domain.operators)?;
-    let classifier = if domain.classifier.is_valid() {
-        lower_expression_into_table(
-            syntax_trees,
-            &mut lowerer.symbol_resolved_trees.tables.bodies.expressions,
-            domain.classifier,
-        )?
-    } else {
-        omega_symbol_resolved_trees::expression::ExpressionHandle::invalid()
-    };
 
     // STR4 checked plans, slice 1: mint the normalized semantic identity
     // ONCE here (declaration order); every downstream layer copies it.
@@ -36,7 +27,6 @@ pub(crate) fn lower_domain_definition(
         symbol: SymbolHandle::invalid(),
         name: lower_name(&domain.name),
         target_type: lower_type_reference_handle(lowerer, syntax_trees, domain.target_type)?,
-        classifier,
         facts,
         operators,
         body_token_count: domain.body_token_count,

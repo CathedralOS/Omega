@@ -1,6 +1,6 @@
-domain [u8]::Utf8 when valid_utf8(self) {
+domain [u8]::Utf8 {
+    valid_utf8(self);
 }
-
 // `!=` over an Equatable record with a &[u8] in Utf8 field in VALUE position:
 // `self.left != self.right` must see the differing `name` fields ("gold" vs
 // "iron"; the scalar `id` fields are equal) and exit 70. The state-values

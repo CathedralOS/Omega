@@ -1,7 +1,6 @@
-//! Compiler-recognized BYTE-SEQUENCE classifier predicates -- the reusable
-//! building blocks a domain selects by spelling one as its
-//! `when <predicate>(self)` classifier (`domain [u8]::Utf8 when
-//! valid_utf8(self)`). Moved here from the checker's `field_domain.rs`
+//! Compiler-recognized BYTE-SEQUENCE predicate facts -- the reusable
+//! building blocks a domain selects by spelling one as an ordinary fact
+//! (`domain [u8]::Utf8 { valid_utf8(self); }`). Moved here from the checker's `field_domain.rs`
 //! (2026-07-16) so the RUNTIME decode boundary shares ONE vocabulary with
 //! the compile-time proof machinery: wire decode brings UNTRUSTED bytes
 //! where no compile-time proof exists, and the decoder must evaluate the
@@ -17,12 +16,11 @@ use omega_core::symbols::SymbolHandle;
 
 pub use omega_core::byte_predicates::ByteSequencePredicate;
 
-/// If `domain_symbol`'s declared classifier is a recognized comptime
-/// byte-predicate call applied to `self` (e.g. `when valid_utf8(self)`), return
-/// that primitive. Any other classifier shape (a `self.field` comparison, a
-/// `self in Type::Case` subset, an unknown call, or no classifier at all) is
-/// not recognized.
-pub fn domain_classifier_byte_predicate(
+/// If `domain_symbol`'s sole fact is a recognized comptime byte-predicate call
+/// applied to `self` (e.g. `valid_utf8(self);`), return that primitive. Domains
+/// with additional facts require general proof evaluation and are not reduced
+/// to a single byte predicate.
+pub fn domain_byte_predicate(
     program: &TypedTrees,
     domain_symbol: SymbolHandle,
 ) -> Option<ByteSequencePredicate> {
@@ -30,15 +28,17 @@ pub fn domain_classifier_byte_predicate(
         .domain_definitions()
         .iter()
         .find(|domain| domain.symbol == domain_symbol)?;
-    if !domain.classifier.is_valid() {
+    let [crate::domain::ProofFact::Expression(expression)] =
+        program.proof_facts.span_or_empty(domain.facts)
+    else {
         return None;
-    }
+    };
 
-    let ExpressionNode::Call(call) = program.expression_table.expression(domain.classifier) else {
+    let ExpressionNode::Call(call) = program.expression_table.expression(*expression) else {
         return None;
     };
     // A free-function predicate over `self`: no receiver, exactly one argument,
-    // and that argument is the bare `self` subject the classifier scrutinizes.
+    // and that argument is the bare `self` subject the fact scrutinizes.
     if call.receiver.is_valid() {
         return None;
     }
@@ -56,9 +56,8 @@ pub fn domain_classifier_byte_predicate(
 /// The DOMAIN constraints declared on a type reference (walking Reference and
 /// Constrained wrappers), resolved by NAME against the program's domain
 /// definitions: `(domain name, recognized predicate)` per constraint. An inner
-/// `None` predicate = a declared domain whose classifier is NOT a recognized
-/// byte predicate -- the decode boundary must refuse LOUDLY rather than skip
-/// validation silently.
+/// `None` predicate means the domain is not exactly one recognized byte fact --
+/// the decode boundary must refuse LOUDLY rather than skip validation silently.
 pub fn type_reference_domain_predicates(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
@@ -90,9 +89,7 @@ pub fn type_reference_domain_predicates(
                             let full = domain.name.as_str();
                             full.rsplit("::").next().unwrap_or(full) == name.as_str()
                         })
-                        .and_then(|domain| {
-                            domain_classifier_byte_predicate(program, domain.symbol)
-                        });
+                        .and_then(|domain| domain_byte_predicate(program, domain.symbol));
                     predicates.push((name.as_str().to_owned(), predicate));
                 }
                 handle = *base_type;
@@ -102,9 +99,9 @@ pub fn type_reference_domain_predicates(
     }
 }
 
-/// Whether `expression` is the bare classifier subject `self` -- a single-member
-/// name path spelled `self`. The classifier predicate must apply to `self` (the
-/// value being classified), not to some unrelated place.
+/// Whether `expression` is the bare domain subject `self` -- a single-member
+/// name path spelled `self`. The predicate must apply to the domain value, not
+/// to some unrelated place.
 fn expression_is_self_reference(program: &TypedTrees, expression: ExpressionHandle) -> bool {
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return false;

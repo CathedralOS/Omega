@@ -1,4 +1,4 @@
-// Build-time domain classifiers use the inferred transitive-effect gate. An
+// Build-time domain facts use the inferred transitive-effect gate. An
 // effectful machine may not decide const-generic membership.
 machine is_buffer_size(value: u64) -> bool
 effects
@@ -7,8 +7,9 @@ effects
     value > 0 && value <= 8
 }
 
-domain u64::BufferSize when is_buffer_size(self) {}
-
+domain u64::BufferSize {
+    is_buffer_size(self);
+}
 data FixedBuffer<const N: u64>
 where
     N in BufferSize,

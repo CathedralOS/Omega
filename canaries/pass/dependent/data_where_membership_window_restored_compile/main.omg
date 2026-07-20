@@ -1,8 +1,8 @@
-// COMPILE CANARY. A classifier-accepted literal re-establishes a membership
+// COMPILE CANARY. A byte-predicate-accepted literal re-establishes a membership
 // default-domain window on machine-owned, initially gated storage.
-domain [u8]::NonEmpty when non_empty(self) {
+domain [u8]::NonEmpty {
+    non_empty(self);
 }
-
 data Message
 where
     text in NonEmpty,

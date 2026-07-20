@@ -5,15 +5,15 @@
 // the inline bytes) rather than as a `{ptr, len}` descriptor. Prints "Room A1"
 // then exits 70. The interpreter agrees on both the output and the exit code
 // (differential).
-domain [u8]::Utf8 when valid_utf8(self) {
+domain [u8]::Utf8 {
+    valid_utf8(self);
 }
-
-domain [u8; 4]::Utf8 when valid_utf8(self) {
+domain [u8; 4]::Utf8 {
+    valid_utf8(self);
 }
-
-domain [u8; 16]::Utf8 when valid_utf8(self) {
+domain [u8; 16]::Utf8 {
+    valid_utf8(self);
 }
-
 boundary trait Console {
     machine write_line(text: &[u8] in Utf8);
     machine exit_process(return_code: i32);

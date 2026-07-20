@@ -165,13 +165,15 @@ sees them as one thing. Mixed shapes are LIVE with these rules:
 
 Declaring a case implicitly declares the same-named domain: `case Move(...)`
 on `Command` declares `Command::Move`, the set of values whose tag is `Move`,
-with a free constant-time classifier (a tag compare). `case` therefore never
+with a free constant-time membership test (a tag compare). `case` therefore never
 appears at a USE site. Checks, patterns, and compositions all use the one
 `Type::Name` spelling and the ordinary domain algebra
 ([Domains](chapter_8_domains.md)):
 
 ```omega
-domain Command::Interactive when self in Command::Move | Command::Say;
+domain Command::Interactive {
+    self in Command::Move | Command::Say
+}
 ```
 
 A case-subset domain replaces the shadow-enum pattern (`Direction` vs
@@ -257,10 +259,9 @@ case-bearing subject must cover every case through decidable arms (case arms
 and pure case-union domain arms) or close with `_`; counted gaps name the
 missing cases, and uncountable arms (predicate domains, `if`-guarded
 patterns, value compares) make the error suggest `_`. The case-subset
-spelling `domain Command::Interactive when self in Command::Move |
-Command::Say;` parses (membership unions in `when` classifiers, body-less
-`;` form) and the classifier participates in executable membership, so a
-subset domain works as a runtime arm.
+spelling `domain Command::Interactive { self in Command::Move |
+Command::Say }` parses, and the body fact participates in executable
+membership, so a subset domain works as a runtime arm.
 Mixed shapes are live (see the rules above). Still pending:
 `match`-statement arms, and `String`-bearing / recursive Equatable types
 (both rejected loudly at the conformance item).[^case-members]
@@ -271,9 +272,9 @@ statement must reuse that spelling rather than inventing another pattern
 language. Open details remain generic payloads (`Option<T>`-style) and the layout rule for payload storage
 (tag-prefixed overlay with the zero case payload-free). A domain declared as a
 pure case union is recognized for exhaustiveness
-SYNTACTICALLY -- the `when` classifier must be literally `self in Type::A |
-Type::B` over the target type's own cases with no other facts; recognition by
-classifier analysis remains a possible later widening.
+SYNTACTICALLY -- the domain body must contain exactly the fact
+`self in Type::A | Type::B` over the target type's own cases; recognition by
+general fact analysis remains a possible later widening.
 
 ## Locals
 

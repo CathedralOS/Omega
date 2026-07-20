@@ -82,9 +82,9 @@ pub(super) fn check_call_requires(
                 ),
             };
             // ch8 construction-grant: a string literal whose compile-time bytes
-            // satisfy a domain's declared classifier predicate grants that
+            // satisfy a domain's declared byte-predicate fact grants that
             // domain without a validating boundary call -- this is how a literal
-            // flows into a `&[u8] in Utf8` (or any classifier-backed) target.
+            // flows into a `&[u8] in Utf8` target.
             let satisfied = satisfied
                 || string_literal_grants_domain(program, &facts.semantic, fact.payload, fact.place)
                 || value_call_return_domain_grants(
@@ -138,13 +138,13 @@ pub(super) fn check_call_requires(
 
 /// ch8 construction-grant: a string literal grants a domain `D` -- satisfying a
 /// `requires <arg> in D` membership without a validating boundary call -- iff
-/// `D`'s declared classifier is a recognized comptime byte-predicate over `self`
+/// `D`'s sole fact is a recognized comptime byte-predicate over `self`
 /// (`valid_utf8`/`no_nul`/`ascii_only`) AND that predicate holds for the
 /// literal's compile-time bytes. Reuses the shared comptime byte-predicate
 /// primitives (`super::grants`); the subject must be the literal itself (an
 /// expression-rooted place with no field/index segments), not a derived place.
 /// A subslice `base[a..b]` satisfies a `requires <arg> in D` domain obligation
-/// when D's classifier is SUBSLICE-PRESERVING (a per-byte predicate such as
+/// when D's byte-predicate fact is SUBSLICE-PRESERVING (such as
 /// `no_nul`/`ascii_only`) and the `base` is itself provably in a domain implying
 /// D. Sound because a contiguous subslice's bytes are a subset of the whole's, so
 /// any per-byte character class the whole satisfies, the subslice does too. This

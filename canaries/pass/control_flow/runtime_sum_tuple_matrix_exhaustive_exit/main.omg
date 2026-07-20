@@ -11,8 +11,9 @@ data Direction {
     case Up;
 }
 
-domain Direction::Horizontal when self in Direction::Left | Direction::Right;
-
+domain Direction::Horizontal {
+    self in Direction::Left | Direction::Right;
+}
 data Outcome {
     case Miss;
     case Hit;

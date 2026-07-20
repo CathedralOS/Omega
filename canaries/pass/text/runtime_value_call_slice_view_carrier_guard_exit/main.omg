@@ -13,9 +13,9 @@
 //
 // Expected exit: 70.
 
-domain [u8; 8]::Utf8 when valid_utf8(self) {
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
 }
-
 use omega::language::std::console;
 
 data Room { label: [u8; 8] in Utf8; }

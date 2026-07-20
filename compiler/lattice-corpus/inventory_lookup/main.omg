@@ -6,9 +6,12 @@
 // `self.items[k].id`). A guard chain searches for "Shield" and returns its id (20).
 // Expected exit: 20.
 
-domain [u8]::Utf8 when valid_utf8(self) {}
-domain [u8; 8]::Utf8 when valid_utf8(self) {}
-
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
 boundary trait Console {
     machine exit_process(return_code: i32);
 }

@@ -1,8 +1,8 @@
 // FAIL CANARY. Membership gates are per-value proofs: an empty byte literal
-// does not satisfy the domain's declared non_empty classifier.
-domain [u8]::NonEmpty when non_empty(self) {
+// does not satisfy the domain's declared `non_empty(self)` fact.
+domain [u8]::NonEmpty {
+    non_empty(self);
 }
-
 data Message
 where
     text in NonEmpty,

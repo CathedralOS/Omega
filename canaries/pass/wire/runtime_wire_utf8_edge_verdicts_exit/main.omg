@@ -7,7 +7,8 @@
 // interp's std::str::from_utf8 -- the two must agree on every class.
 // exits: 71 = euro wrongly refused; 72/73/74/75 = the respective
 // adversarial class wrongly accepted.
-domain [u8]::Utf8 when valid_utf8(self) {
+domain [u8]::Utf8 {
+    valid_utf8(self);
 }
 use omega::language::std::console;
 data LabelMessage {

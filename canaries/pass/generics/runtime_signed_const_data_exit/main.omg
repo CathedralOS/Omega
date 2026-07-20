@@ -3,8 +3,9 @@
 // both runtimes.
 use omega::language::std::console;
 
-domain i8::Negative when self < 0 {}
-
+domain i8::Negative {
+    self < 0;
+}
 data SignedValue<const N: i8>
 where
     N in Negative,

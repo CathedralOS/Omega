@@ -9,10 +9,10 @@
 //! - a case arm covers its one tag (`Command::Quit ->`, braced or bare --
 //!   both desugar to membership at parse time);
 //! - a PURE CASE-UNION domain arm covers its declared tag set. Recognition is
-//!   SYNTACTIC (the chapter-1 footnote ruling): the domain's `when` classifier
-//!   must be literally `self in Type::A | Type::B` -- an or-union of implicit
-//!   case-domain memberships over bare `self`, all cases of the domain's own
-//!   target type -- and the domain body must carry no further facts. Anything
+//!   SYNTACTIC (the chapter-1 footnote ruling): the domain's sole fact must be
+//!   literally `self in Type::A | Type::B` -- an or-union of implicit case-domain
+//!   memberships over bare `self`, all cases of the domain's own target type.
+//!   Anything
 //!   else (predicates, intersections, nested domains, extra body facts) is a
 //!   predicate domain.
 //! - `_` (an Always guard) satisfies coverage outright.
@@ -27,7 +27,7 @@
 //! This pass runs on the RESOLVED trees, like `crate::equality`, and for the
 //! same reason: `in` is still a distinct `Membership` node here (typed
 //! lowering expands case membership into tag compares and declared-domain
-//! membership into classifier/fact expansions, after which case arms and
+//! membership into fact expansions, after which case arms and
 //! arbitrary boolean guards are indistinguishable). A transition block
 //! desugars at parse time into consecutive `Transition` statements, so a
 //! maximal run of consecutive transitions in a state body IS the dispatch:
@@ -691,10 +691,9 @@ fn classify_membership_leaf(
 }
 
 /// A declared domain contributes a tag set only when it is a PURE CASE-UNION
-/// (syntactic recognition, chapter-1 footnote ruling): its `when` classifier
-/// is exactly `self in Type::A | Type::B | ...` over cases of its own target
-/// type, and its body declares no further facts. Anything else over a
-/// case-bearing target is a predicate domain.
+/// (syntactic recognition, chapter-1 footnote ruling): its sole fact is exactly
+/// `self in Type::A | Type::B | ...` over cases of its own target type.
+/// Anything else over a case-bearing target is a predicate domain.
 fn classify_declared_domain(
     program: &SymbolResolvedTrees,
     domain_symbol: omega_core::symbols::SymbolHandle,
@@ -723,12 +722,13 @@ fn classify_declared_domain(
         return LeafContribution::NotCase;
     }
 
-    if !domain.classifier.is_valid() || !domain.facts.is_empty() {
+    let [resolved::domain::ProofFact::Expression(case_union)] = program.proof_facts(domain.facts)
+    else {
         return LeafContribution::Predicate { data_index };
-    }
+    };
 
     let mut leaves = Vec::new();
-    flatten_binary(program, domain.classifier, BinaryOperator::Or, &mut leaves);
+    flatten_binary(program, *case_union, BinaryOperator::Or, &mut leaves);
 
     let expressions = &program.tables.bodies.expressions;
     let mut variants = Vec::new();

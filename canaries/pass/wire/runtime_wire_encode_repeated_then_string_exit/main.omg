@@ -1,6 +1,6 @@
-domain [u8]::Utf8 when valid_utf8(self) {
+domain [u8]::Utf8 {
+    valid_utf8(self);
 }
-
 // Wire REPEATED + STRING-LAST in ONE message: a packed repeated field
 // (runtime-sized payload via the count companion) followed by the &[u8] in Utf8
 // field carrying the highest field number (the &[u8] in Utf8 must encode last --

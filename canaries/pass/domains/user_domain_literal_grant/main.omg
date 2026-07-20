@@ -1,7 +1,7 @@
 // RUN CANARY (exit 70). #66: the literal-grant mechanism is GENERAL -- it is NOT
 // hardcoded to the `Utf8` domain name. A USER domain `[u8]::Ascii` declares a
-// DIFFERENT comptime byte-predicate classifier (`ascii_only(self)`); an ASCII
-// string literal satisfies that classifier on its compile-time bytes and so is
+// DIFFERENT comptime byte-predicate fact (`ascii_only(self)`); an ASCII
+// string literal satisfies that fact on its compile-time bytes and so is
 // granted the `Ascii` domain WITHOUT a validating boundary call. Under the old
 // `name == "Utf8"` hardcode this would have FAILED to discharge the param's
 // `in Ascii` requirement. The literal also flows as a real `&[u8]` view, so
@@ -9,9 +9,9 @@
 
 use omega::language::std::console;
 
-domain [u8]::Ascii when ascii_only(self) {
+domain [u8]::Ascii {
+    ascii_only(self);
 }
-
 data Main {
     console: Console;
 }

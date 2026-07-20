@@ -116,7 +116,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             // side's data type (a classifier's first path segment, or a value's
             // declared type) and reject when both are data definitions that differ.
             // A same-type match-arm desugar (`subject == Player::Alive` for a
-            // `Player`) has equal names and is untouched; domain classifiers (not
+            // `Player`) has equal names and is untouched; domain references (not
             // data definitions) are skipped.
             let left_type = self
                 .classifier_reference_type(binary.left)

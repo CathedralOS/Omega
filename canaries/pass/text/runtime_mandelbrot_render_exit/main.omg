@@ -8,10 +8,15 @@ boundary trait Console {
     machine write_line(text: [u8] in Utf8);
 }
 
-domain [u8]::Utf8 when valid_utf8(self) {}
-domain [u8; 40]::Utf8 when valid_utf8(self) {}
-domain [u8; 8]::Utf8 when valid_utf8(self) {}
-
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 40]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
 data Main {
     console: Console;
     row: [u8; 40] in Utf8;

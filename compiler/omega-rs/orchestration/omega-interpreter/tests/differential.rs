@@ -1634,12 +1634,11 @@ fn interpreter_runs_const_data_where_facts() {
 }
 
 #[test]
-fn interpreter_runs_const_data_machine_classifier() {
-    let main_path =
-        pass_canary("generics/runtime_const_data_machine_classifier_exit").join("main.omg");
+fn interpreter_runs_const_data_machine_fact() {
+    let main_path = pass_canary("generics/runtime_const_data_machine_fact_exit").join("main.omg");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
-            "machine-backed const domain classifier failed frontend checking:\n{}",
+            "machine-backed const domain fact failed frontend checking:\n{}",
             join_diagnostics(&diagnostics)
         )
     });

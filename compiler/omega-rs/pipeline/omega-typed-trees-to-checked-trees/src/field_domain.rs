@@ -5,19 +5,17 @@
 //! (`flow::transfers`). #66.
 //!
 //! This neutral crate-root module also owns the comptime byte-predicate
-//! machinery (`ByteSequencePredicate`, `domain_classifier_byte_predicate`,
+//! machinery (`ByteSequencePredicate`, `domain_byte_predicate`,
 //! `string_literal_expression_grants_domain`) so it is reachable from BOTH the
 //! checker (`checks/`, construction-grant discharge) and the fact-producer
 //! (`semantic/`). The policy of which bytes are in a domain lives in the DOMAIN
-//! declaration's `when` clause; this module only provides the reusable comptime
-//! byte-predicate primitives and evaluates them per-literal. A domain with no
-//! classifier (or an unrecognized/non-comptime one) grants nothing. There is NO
+//! declaration's body facts; this module only provides the reusable comptime
+//! byte-predicate primitives and evaluates them per-literal. A domain without
+//! exactly one recognized comptime byte-predicate fact grants nothing. There is NO
 //! hardcoded domain name here.
 
 use omega_core::symbols::SymbolHandle;
-pub(crate) use omega_typed_trees::byte_predicates::{
-    ByteSequencePredicate, domain_classifier_byte_predicate,
-};
+pub(crate) use omega_typed_trees::byte_predicates::{ByteSequencePredicate, domain_byte_predicate};
 use omega_typed_trees::expression::ExpressionNode;
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::types::{
@@ -196,9 +194,9 @@ pub(crate) fn resolve_domain_symbol(
 // `checks::contracts::grants` so the `semantic` fact-producer can reuse it) ---
 
 /// Whether the string literal `expression`'s compile-time bytes satisfy
-/// `domain_symbol`'s declared comptime byte-predicate classifier. `false` when
+/// `domain_symbol`'s declared comptime byte-predicate fact. `false` when
 /// `expression` is not a string literal, or the domain has no recognized
-/// comptime classifier.
+/// comptime byte-predicate fact.
 pub(crate) fn string_literal_expression_grants_domain(
     program: &omega_typed_trees::TypedTrees,
     expression: omega_typed_trees::expression::ExpressionHandle,
@@ -209,16 +207,16 @@ pub(crate) fn string_literal_expression_grants_domain(
     else {
         return false;
     };
-    let Some(predicate) = domain_classifier_byte_predicate(program, domain_symbol) else {
+    let Some(predicate) = domain_byte_predicate(program, domain_symbol) else {
         return false;
     };
     predicate.holds_for(literal.as_bytes())
 }
 
 /// Whether the domain's ZERO/ZII value -- for a slice carrier, the EMPTY byte
-/// sequence -- provably satisfies `domain_symbol`'s declared classifier. True
-/// only when the classifier is a recognized comptime byte-predicate AND it holds
-/// for `&[]`. An unrecognized/absent classifier returns `false` (we cannot prove
+/// sequence -- provably satisfies `domain_symbol`'s declared facts. True only
+/// when its sole fact is a recognized comptime byte predicate that holds for
+/// `&[]`. An unrecognized fact set returns `false` (we cannot prove
 /// the zero value is in-domain -> conservative).
 ///
 /// This underwrites the machine-field entry-invariant in
@@ -231,11 +229,10 @@ pub(crate) fn domain_admits_empty_byte_sequence(
     program: &omega_typed_trees::TypedTrees,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    domain_classifier_byte_predicate(program, domain_symbol)
-        .is_some_and(|predicate| predicate.holds_for(&[]))
+    domain_byte_predicate(program, domain_symbol).is_some_and(|predicate| predicate.holds_for(&[]))
 }
 
-/// Whether `domain_symbol`'s classifier is a recognized comptime byte-predicate
+/// Whether `domain_symbol`'s sole fact is a recognized comptime byte predicate
 /// that is preserved under concatenation, so a `left + right` whose two operands
 /// are each in the domain is itself in the domain. Underwrites the concat-domain
 /// law in `checks::contracts::writes::value_proves_domain`.
@@ -243,20 +240,20 @@ pub(crate) fn domain_is_concat_preserving(
     program: &omega_typed_trees::TypedTrees,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    domain_classifier_byte_predicate(program, domain_symbol)
+    domain_byte_predicate(program, domain_symbol)
         .is_some_and(ByteSequencePredicate::is_concat_preserving)
 }
 
-/// Whether `domain_symbol`'s classifier is a recognized comptime byte-predicate
+/// Whether `domain_symbol`'s sole fact is a recognized comptime byte predicate
 /// preserved under SUBSLICING, so a `base[a..b]` whose `base` is in the domain is
 /// itself in the domain. Underwrites the subslice-domain grant in
 /// `checks::contracts::calls::subslice_grants_domain`. True only for per-byte
-/// classifiers (`no_nul`, `ascii_only`); `false` for `valid_utf8`/`non_empty`.
+/// facts (`no_nul`, `ascii_only`); `false` for `valid_utf8`/`non_empty`.
 pub(crate) fn domain_is_subslice_preserving(
     program: &omega_typed_trees::TypedTrees,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    domain_classifier_byte_predicate(program, domain_symbol)
+    domain_byte_predicate(program, domain_symbol)
         .is_some_and(ByteSequencePredicate::is_subslice_preserving)
 }
 

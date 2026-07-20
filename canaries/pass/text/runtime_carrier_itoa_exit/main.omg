@@ -4,11 +4,12 @@
 // '1'(49) '5'(53) '0'(48) and verifies each. This is the write half of
 // number<->text round-tripping (the read half is parse_int). Exits 70.
 
-domain [u8]::Utf8 when valid_utf8(self) {
+domain [u8]::Utf8 {
+    valid_utf8(self);
 }
-domain [u8; 4]::Utf8 when valid_utf8(self) {
+domain [u8; 4]::Utf8 {
+    valid_utf8(self);
 }
-
 use omega::language::std::console;
 
 data Main {

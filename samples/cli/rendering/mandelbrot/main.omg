@@ -9,10 +9,15 @@
 // Expected output contains: #
 use omega::language::std::console;
 
-domain [u8]::Utf8 when valid_utf8(self) {}
-domain [u8; 64]::Utf8 when valid_utf8(self) {}
-domain [u8; 8]::Utf8 when valid_utf8(self) {}
-
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 64]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
 data Main {
     console: Console;
     row: [u8; 64] in Utf8;

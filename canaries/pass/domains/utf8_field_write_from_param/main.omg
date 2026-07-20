@@ -4,9 +4,9 @@
 // sizing a `Reference { Constrained { Slice } }` field as the fat `{ptr, len}`
 // descriptor (16 bytes) so the param's descriptor copies whole; before the layout
 // fix the field was a thin 8-byte pointer and the copy silently dropped.
-domain [u8]::Utf8 when valid_utf8(self) {
+domain [u8]::Utf8 {
+    valid_utf8(self);
 }
-
 data Main {
     out: &[u8] in Utf8;
 }

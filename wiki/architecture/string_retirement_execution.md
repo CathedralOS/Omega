@@ -11,7 +11,7 @@
 > cannot prove requires contract for call bad: text in [u8]::Utf8
 > ```
 >
-> `domain [u8]::Utf8 when valid_utf8(self) {}` puts a `requires valid_utf8(self)`
+> `domain [u8]::Utf8 { valid_utf8(self); }` puts a `requires valid_utf8(self)`
 > obligation on every `&[u8] in Utf8` value crossing a call boundary. The split is
 > now principled:
 > - **A string literal directly establishes the `Utf8` fact** — so the 34 migrated

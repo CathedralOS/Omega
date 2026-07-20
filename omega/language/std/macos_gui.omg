@@ -27,9 +27,9 @@
 // (CGContext/CGImage/NSImage) are released each blit and the event pump cycles
 // a rolling autorelease pool, so a long-running app's memory stays flat.
 
-domain [u8]::CString when no_nul(self) {
+domain [u8]::CString {
+    no_nul(self);
 }
-
 // The Objective-C runtime seam (libobjc). Human method names; the `_objc_*`/`_sel_*`
 // symbols live only in the darwin binding table.
 boundary trait ObjectiveC {

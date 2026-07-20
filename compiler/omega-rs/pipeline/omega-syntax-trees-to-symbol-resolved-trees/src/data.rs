@@ -49,10 +49,10 @@ pub(crate) fn lower_data_definition(
                     }
                 }
             }
-            // Membership symbols and classifiers are assigned after every
+            // Membership symbols and domain facts are assigned after every
             // top-level declaration exists. Start conservative; the symbol
             // pass below clears the gate only when it can prove that the
-            // referenced classifier admits the carrier's zero value.
+            // referenced domain admits the carrier's zero value.
             omega_symbol_resolved_trees::domain::ProofFact::Membership(_) => {
                 zero_gated = true;
             }

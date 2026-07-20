@@ -564,9 +564,8 @@ fn evaluate_const_fact_expression(
 }
 
 /// Discharge `N in Domain` when `N` is a concrete const parameter and the
-/// domain is defined by an evaluable boolean classifier and/or ordinary
-/// boolean facts over `self`. Machine-call classifiers and nested-membership
-/// domains stay on the concrete record for richer build-time evaluation.
+/// domain is defined by evaluable boolean facts over `self`. Machine-call facts
+/// stay on the concrete record for typed build-time evaluation.
 fn evaluate_const_membership_fact(
     syntax: &SyntaxTrees,
     membership: &omega_syntax_trees::item::ProofMembershipFact,
@@ -639,36 +638,52 @@ fn evaluate_named_const_domain(
         ));
     }
     visiting.push(domain_name.to_owned());
-    if domain.classifier.is_valid() {
-        let Some(ConstFactValue::Boolean(holds)) = evaluate_const_classifier_expression(
-            syntax,
-            domain.classifier,
-            const_values,
-            value,
-            carrier,
-            visiting,
-        )?
-        else {
-            visiting.pop();
-            return Ok(None);
-        };
-        if !holds {
-            visiting.pop();
-            return Ok(Some(false));
-        }
-    }
     for fact in syntax.items.proof_facts(domain.facts) {
-        let ProofFact::Expression(expression) = fact else {
-            return Ok(None);
+        let holds = match fact {
+            ProofFact::Expression(expression) => evaluate_const_domain_expression(
+                syntax,
+                *expression,
+                const_values,
+                value,
+                carrier,
+                visiting,
+            )?,
+            ProofFact::Membership(membership) => {
+                let Some(ConstFactValue::Integer(nested_value)) = evaluate_const_fact_expression(
+                    syntax,
+                    membership.value,
+                    const_values,
+                    &HashMap::new(),
+                    Some(value),
+                )?
+                else {
+                    visiting.pop();
+                    return Ok(None);
+                };
+                let path = syntax
+                    .items
+                    .identifier_path_members(membership.domain)
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::");
+                let nested_domain = if path.contains("::") {
+                    path
+                } else {
+                    format!("{carrier}::{path}")
+                };
+                evaluate_named_const_domain(
+                    syntax,
+                    &nested_domain,
+                    carrier,
+                    nested_value,
+                    const_values,
+                    visiting,
+                )?
+                .map(ConstFactValue::Boolean)
+            }
         };
-        let Some(ConstFactValue::Boolean(holds)) = evaluate_const_fact_expression(
-            syntax,
-            *expression,
-            const_values,
-            &HashMap::new(),
-            Some(value),
-        )?
-        else {
+        let Some(ConstFactValue::Boolean(holds)) = holds else {
             visiting.pop();
             return Ok(None);
         };
@@ -681,7 +696,7 @@ fn evaluate_named_const_domain(
     Ok(Some(true))
 }
 
-fn evaluate_const_classifier_expression(
+fn evaluate_const_domain_expression(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
     const_values: &HashMap<String, i128>,
@@ -724,7 +739,7 @@ fn evaluate_const_classifier_expression(
             .map(|result| result.map(ConstFactValue::Boolean))
         }
         ExpressionNode::Binary(binary) => {
-            let Some(left) = evaluate_const_classifier_expression(
+            let Some(left) = evaluate_const_domain_expression(
                 syntax,
                 binary.left,
                 const_values,
@@ -735,7 +750,7 @@ fn evaluate_const_classifier_expression(
             else {
                 return Ok(None);
             };
-            let Some(right) = evaluate_const_classifier_expression(
+            let Some(right) = evaluate_const_domain_expression(
                 syntax,
                 binary.right,
                 const_values,

@@ -6,15 +6,15 @@
 // resolver -- enforced at the write and trusted at the host-call read -- so this
 // owns its bytes end to end with no `String` and no `{ptr, len}` descriptor.
 // Prints "Room A1", exits 0 (the interpreter agrees on both).
-domain [u8]::Utf8 when valid_utf8(self) {
+domain [u8]::Utf8 {
+    valid_utf8(self);
 }
-
-domain [u8; 4]::Utf8 when valid_utf8(self) {
+domain [u8; 4]::Utf8 {
+    valid_utf8(self);
 }
-
-domain [u8; 16]::Utf8 when valid_utf8(self) {
+domain [u8; 16]::Utf8 {
+    valid_utf8(self);
 }
-
 data Room {
     label: [u8; 4] in Utf8;
 }

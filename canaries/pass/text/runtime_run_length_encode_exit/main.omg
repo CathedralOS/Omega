@@ -8,9 +8,12 @@
 // the inline write source). Six output bytes checked -> exit 70.
 use omega::language::std::console;
 
-domain [u8]::Utf8 when valid_utf8(self) {}
-domain [u8; 16]::Utf8 when valid_utf8(self) {}
-
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 16]::Utf8 {
+    valid_utf8(self);
+}
 data Main {
     console: Console;
     input: [u8; 16] in Utf8;

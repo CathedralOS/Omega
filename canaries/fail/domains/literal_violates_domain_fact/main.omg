@@ -1,15 +1,15 @@
 // FAIL CANARY. Per-literal soundness of the construction-grant: a string literal
 // grants a domain ONLY when its compile-time bytes actually satisfy the domain's
-// classifier predicate. Here `[u8]::NoNul` is `no_nul(self)` (no `0x00` byte),
+// byte-predicate fact. Here `[u8]::NoNul` is `no_nul(self)` (no `0x00` byte),
 // but the literal `"a\0b"` contains an interior NUL, so the predicate is FALSE
 // for these bytes and the `in NoNul` requirement is NOT discharged. The grant is
 // per-literal (it evaluates the bytes), not an unconditional name-based pass.
 
 use omega::language::std::console;
 
-domain [u8]::NoNul when no_nul(self) {
+domain [u8]::NoNul {
+    no_nul(self);
 }
-
 data Main {
     console: Console;
 }

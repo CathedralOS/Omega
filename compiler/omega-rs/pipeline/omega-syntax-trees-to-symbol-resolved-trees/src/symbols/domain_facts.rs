@@ -8,11 +8,6 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
         .iter()
         .map(|domain| (domain.name.as_str().to_owned(), domain.symbol))
         .collect::<Vec<_>>();
-    let domain_classifiers = program
-        .domain_definitions
-        .iter()
-        .map(|domain| domain.classifier)
-        .collect::<Vec<_>>();
     let mut domain_fact_spans = program
         .domain_definitions
         .iter()
@@ -40,17 +35,6 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
     );
     let domain_path_members = &program.tables.declarations.domain_path_members;
     let proof_facts = &mut program.tables.declarations.proof_facts;
-
-    for classifier in domain_classifiers {
-        if classifier.is_valid() {
-            assign_proof_expression_membership_symbols(
-                symbols,
-                &domain_symbols,
-                &mut program.tables.bodies.expressions,
-                classifier,
-            );
-        }
-    }
 
     for facts in domain_fact_spans {
         for fact in proof_facts.span_mut_or_empty(facts) {
@@ -83,7 +67,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
 /// Membership facts begin conservatively zero-gated during declaration
 /// lowering because their domain symbols do not exist yet. Once all symbols
 /// are assigned, clear that conservative contribution exactly when every
-/// membership names a recognized classifier that accepts the empty byte
+/// membership names a recognized byte-predicate fact that accepts the empty byte
 /// sequence. Expression facts have already contributed their independent
 /// zero result, so this pass only ever preserves or clears membership gating.
 fn update_data_membership_zero_gates(program: &mut SymbolResolvedTrees) {
@@ -146,11 +130,13 @@ fn resolved_domain_byte_predicate(
         .domain_definitions
         .iter()
         .find(|domain| domain.symbol == domain_symbol)?;
-    let omega_symbol_resolved_trees::expression::ExpressionNode::Call(call) = program
-        .tables
-        .bodies
-        .expressions
-        .expression(domain.classifier)
+    let [omega_symbol_resolved_trees::domain::ProofFact::Expression(expression)] =
+        program.proof_facts(domain.facts)
+    else {
+        return None;
+    };
+    let omega_symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+        program.tables.bodies.expressions.expression(*expression)
     else {
         return None;
     };

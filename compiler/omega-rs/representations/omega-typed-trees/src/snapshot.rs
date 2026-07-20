@@ -232,7 +232,6 @@ pub struct DataPayloadFieldSnapshot {
 pub struct DomainDefinitionSnapshot {
     pub name: String,
     pub target_type: TypeReferenceSnapshot,
-    pub classifier: Option<ExpressionSnapshot>,
     pub facts: Vec<ProofFactSnapshot>,
     pub operators: Vec<OperatorDefinitionSnapshot>,
     pub body_token_count: usize,
@@ -559,10 +558,6 @@ fn domain_definition_snapshot(
     DomainDefinitionSnapshot {
         name: domain.name.to_string(),
         target_type: type_reference_snapshot(program, domain.target_type),
-        classifier: domain
-            .classifier
-            .is_valid()
-            .then(|| expression_snapshot(program, domain.classifier)),
         facts: domain_fact_snapshots(program, domain),
         operators: program
             .domain_operators(domain)

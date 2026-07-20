@@ -3,12 +3,12 @@
 // pointer_size) -- no `{ptr, len}` descriptor and no separate buffer -- then
 // echoed back with `write_line`. Replaces the `String` round-trip with the owned
 // carrier end to end.
-domain [u8]::Utf8 when valid_utf8(self) {
+domain [u8]::Utf8 {
+    valid_utf8(self);
 }
-
-domain [u8; 64]::Utf8 when valid_utf8(self) {
+domain [u8; 64]::Utf8 {
+    valid_utf8(self);
 }
-
 boundary trait Console {
     machine write(text: &[u8] in Utf8);
     machine write_line(text: &[u8] in Utf8);

@@ -2414,8 +2414,8 @@ impl<'program> Evaluator<'program> {
             // obligation: the wire carries UNTRUSTED bytes no compile-time
             // proof covers, so the decoder evaluates the domain's recognized
             // byte predicate and fails the verdict when it does not hold. A
-            // declared domain whose classifier is NOT a recognized byte
-            // predicate refuses LOUDLY -- silently skipping validation would
+            // declared domain not reducible to one recognized byte-predicate
+            // fact refuses LOUDLY -- silently skipping validation would
             // deliver a domain-tagged slice with unchecked bytes (the pinned
             // utf8_decode_accepts_invalid_bytes soundness hole).
             if self.program.is_borrowed_byte_slice(field.type_reference) {
@@ -2428,7 +2428,7 @@ impl<'program> Evaluator<'program> {
                 {
                     let Some(predicate) = predicate else {
                         return Err(Halt::Unsupported(format!(
-                            "`{schema_name}::decode` field `{}` carries domain `{domain_name}`, whose classifier is not a recognized byte predicate -- the decode boundary cannot validate it yet",
+                            "`{schema_name}::decode` field `{}` carries domain `{domain_name}`, which is not exactly one recognized byte-predicate fact -- the decode boundary cannot validate it yet",
                             field.name
                         )));
                     };

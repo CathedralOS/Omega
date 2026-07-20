@@ -14,12 +14,12 @@
 // through the same slice index (`r[0].id`) always worked; only the carrier did not.
 //
 // Returns 70 (the `== "Gate"` true arm) into `code`; the interpreter agrees.
-domain [u8]::Utf8 when valid_utf8(self) {
+domain [u8]::Utf8 {
+    valid_utf8(self);
 }
-
-domain [u8; 8]::Utf8 when valid_utf8(self) {
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
 }
-
 use omega::language::std::console;
 
 data Room {

@@ -6,11 +6,12 @@
 // per-byte value lookup (comparison chain), and the look-back subtraction rule -- all on the working
 // surface. Expected exit: 70 (checks the parse equals 1994).
 
-domain [u8]::Utf8 when valid_utf8(self) {
+domain [u8]::Utf8 {
+    valid_utf8(self);
 }
-domain [u8; 16]::Utf8 when valid_utf8(self) {
+domain [u8; 16]::Utf8 {
+    valid_utf8(self);
 }
-
 use omega::language::std::console;
 
 data Main {

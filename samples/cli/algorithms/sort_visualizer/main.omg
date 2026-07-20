@@ -11,10 +11,15 @@
 // Expected output contains: #
 use omega::language::std::console;
 
-domain [u8]::Utf8 when valid_utf8(self) {}
-domain [u8; 8]::Utf8 when valid_utf8(self) {}
-domain [u8; 3]::Utf8 when valid_utf8(self) {}
-
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 3]::Utf8 {
+    valid_utf8(self);
+}
 boundary trait Clock { machine sleep(milliseconds: u32); }
 
 // FULLY EXACT -- no overflow domain anywhere: every counter carries a range and

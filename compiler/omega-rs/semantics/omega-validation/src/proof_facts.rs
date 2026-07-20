@@ -61,7 +61,9 @@ pub(crate) fn validate_domain_fact_payloads(
     }
 
     for membership in fact_plan.domain_memberships_for_symbol(symbol) {
-        if membership.domain_symbol.is_valid() {
+        if membership.domain_symbol.is_valid()
+            || is_implicit_case_domain(program, membership.domain)
+        {
             continue;
         }
 
@@ -89,7 +91,9 @@ pub(crate) fn validate_proof_facts(
                 }
             }
             ProofFact::Membership(membership) => {
-                if membership.domain_symbol.is_valid() {
+                if membership.domain_symbol.is_valid()
+                    || is_implicit_case_domain(program, membership.domain)
+                {
                     continue;
                 }
 
@@ -100,6 +104,25 @@ pub(crate) fn validate_proof_facts(
             }
         }
     }
+}
+
+fn is_implicit_case_domain(
+    program: &TypedTrees,
+    domain: omega_core::arena::HandleSpan<Identifier>,
+) -> bool {
+    let [type_name, case_name] = program.domain_path_members(domain) else {
+        return false;
+    };
+    program.data_definitions().iter().any(|definition| {
+        definition.name.as_str() == type_name.as_str()
+            && program.data_members(definition).iter().any(|member| {
+                matches!(
+                    member,
+                    omega_typed_trees::data::DataMember::Variant(variant)
+                        if variant.name.as_str() == case_name.as_str()
+                )
+            })
+    })
 }
 
 fn is_boolean_fact_expression(program: &TypedTrees, expression: ExpressionHandle) -> bool {
@@ -187,11 +210,11 @@ pub(crate) fn string_literal_grants_domain(
     let ExpressionNode::String(literal) = program.expression_table.expression(expression) else {
         return false;
     };
-    omega_typed_trees::byte_predicates::domain_classifier_byte_predicate(program, domain_symbol)
+    omega_typed_trees::byte_predicates::domain_byte_predicate(program, domain_symbol)
         .is_some_and(|predicate| predicate.holds_for(literal.as_bytes()))
 }
 
 pub(crate) fn domain_admits_empty_bytes(program: &TypedTrees, domain_symbol: SymbolHandle) -> bool {
-    omega_typed_trees::byte_predicates::domain_classifier_byte_predicate(program, domain_symbol)
+    omega_typed_trees::byte_predicates::domain_byte_predicate(program, domain_symbol)
         .is_some_and(|predicate| predicate.holds_for(&[]))
 }
