@@ -78,8 +78,11 @@ results and source-selected policies remain below.
    `Absolute64` relocations patch initialized data on both native families,
    and PE rebasing records data sites correctly. Native symbolic actions now
    lower with an explicit materialization origin rather than fake instruction
-   metadata. Wire entry identities from selected artifacts, connect that
-   lowering to artifact construction, and emit generated post-handoff code for
+   metadata. Normalized placement constraints now join layout alignment with
+   permitted address range, build/load/post-handoff phase, machine-regime
+   identity, and artifact-installation scope, and validate concrete sites. Wire
+   entry identities from selected artifacts, propagate placement constraints
+   through artifact construction, and emit generated post-handoff code for
    fragmented writer actions.
 5. **IDT2 — installed-root ledger.** Add `lidt` only as an installation path
    that consumes scoped IDT
@@ -294,10 +297,12 @@ before the fix.
   reach. Never expose arbitrary-offset volatile access or per-access revocation
   probes.
 - **L6c — symbolic materializer.** The normalized source/action plan and
-  loader-versus-post-handoff validation are live. Add richer placement
-  constraints, source identity derivation/integration, and generated writer
-  code. Native whole-pointer actions already lower into section-qualified
-  object relocations with materialization provenance.
+  loader-versus-post-handoff validation are live. Range/alignment/phase/regime/
+  installation-scope constraints are normalized and concrete-site validated.
+  Add source identity derivation/integration, propagate those constraints into
+  artifact construction, and generate writer code. Native whole-pointer
+  actions already lower into section-qualified object relocations with
+  materialization provenance.
 - **External loans.** Represent DMA/device borrowing with linear proxy tokens,
   completion/fence/cache obligations, and CPU-access exclusion through the
   ordinary permission context.

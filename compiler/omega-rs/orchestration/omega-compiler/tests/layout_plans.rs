@@ -318,6 +318,9 @@ machine Main::main(&mut self) { }
             consumption: ConsumptionInstant::AfterOmegaHandoff,
             byte_order: ByteOrder::LittleEndian,
             native_pointer_relocation_bits: Some(64),
+            placement: omega_layout_plans::PlacementConstraints::unconstrained(
+                omega_layout_plans::PlacementPhase::PostHandoff,
+            ),
         },
         |_| None,
     )

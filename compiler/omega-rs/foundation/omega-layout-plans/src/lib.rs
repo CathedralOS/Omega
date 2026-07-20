@@ -126,6 +126,242 @@ pub enum ConsumptionInstant {
     AfterOmegaHandoff,
 }
 
+/// Phase in which a materialized object is placed at its final address.
+/// Consumption and placement are independent: a build-placed object may be
+/// consumed only after handoff, while a loader-placed table may be consumed
+/// before the first Omega instruction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PlacementPhase {
+    Build,
+    Load,
+    PostHandoff,
+}
+
+/// Closed permitted range for the complete placed object.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PlacementAddressRange {
+    start_inclusive: u64,
+    end_exclusive: u64,
+}
+
+impl PlacementAddressRange {
+    pub fn new(
+        start_inclusive: u64,
+        end_exclusive: u64,
+    ) -> Result<Self, MaterializationDiagnostic> {
+        if start_inclusive >= end_exclusive {
+            return Err(MaterializationDiagnostic(format!(
+                "placement address range {start_inclusive:#x}..{end_exclusive:#x} is empty or reversed"
+            )));
+        }
+        Ok(Self {
+            start_inclusive,
+            end_exclusive,
+        })
+    }
+
+    pub const fn start_inclusive(self) -> u64 {
+        self.start_inclusive
+    }
+
+    pub const fn end_exclusive(self) -> u64 {
+        self.end_exclusive
+    }
+
+    fn contains(self, base_address: u64, byte_len: usize) -> bool {
+        let Ok(byte_len) = u64::try_from(byte_len) else {
+            return false;
+        };
+        base_address >= self.start_inclusive
+            && base_address
+                .checked_add(byte_len)
+                .is_some_and(|end| end <= self.end_exclusive)
+    }
+}
+
+/// Compiler-issued identity of a machine-state regime (for example, x86
+/// long mode). It is a normalized policy identity, not a user-selected name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MachineRegimeId(u64);
+
+impl MachineRegimeId {
+    pub fn from_normalized_identity(identity: u64) -> Result<Self, MaterializationDiagnostic> {
+        nonzero_identity("machine regime", identity).map(Self)
+    }
+
+    pub const fn normalized_identity(self) -> u64 {
+        self.0
+    }
+}
+
+/// Compiler-issued identity of the attenuated artifact-installation authority
+/// required by a placement. This cites scope; it is not the capability value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ArtifactInstallationScopeId(u64);
+
+impl ArtifactInstallationScopeId {
+    pub fn from_normalized_identity(identity: u64) -> Result<Self, MaterializationDiagnostic> {
+        nonzero_identity("artifact installation scope", identity).map(Self)
+    }
+
+    pub const fn normalized_identity(self) -> u64 {
+        self.0
+    }
+}
+
+/// Normalized requirements a concrete placement must satisfy. The layout's
+/// own alignment is joined into this record during materialization derivation;
+/// policy constraints can strengthen it but never weaken it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PlacementConstraints {
+    permitted_range: Option<PlacementAddressRange>,
+    alignment: u64,
+    phase: PlacementPhase,
+    machine_regime: Option<MachineRegimeId>,
+    installation_scope: Option<ArtifactInstallationScopeId>,
+}
+
+impl PlacementConstraints {
+    pub fn new(
+        permitted_range: Option<PlacementAddressRange>,
+        alignment: u64,
+        phase: PlacementPhase,
+        machine_regime: Option<MachineRegimeId>,
+        installation_scope: Option<ArtifactInstallationScopeId>,
+    ) -> Result<Self, MaterializationDiagnostic> {
+        if alignment == 0 {
+            return Err(MaterializationDiagnostic(
+                "placement alignment must be nonzero".into(),
+            ));
+        }
+        Ok(Self {
+            permitted_range,
+            alignment,
+            phase,
+            machine_regime,
+            installation_scope,
+        })
+    }
+
+    pub const fn unconstrained(phase: PlacementPhase) -> Self {
+        Self {
+            permitted_range: None,
+            alignment: 1,
+            phase,
+            machine_regime: None,
+            installation_scope: None,
+        }
+    }
+
+    pub const fn permitted_range(self) -> Option<PlacementAddressRange> {
+        self.permitted_range
+    }
+
+    pub const fn alignment(self) -> u64 {
+        self.alignment
+    }
+
+    pub const fn phase(self) -> PlacementPhase {
+        self.phase
+    }
+
+    pub const fn machine_regime(self) -> Option<MachineRegimeId> {
+        self.machine_regime
+    }
+
+    pub const fn installation_scope(self) -> Option<ArtifactInstallationScopeId> {
+        self.installation_scope
+    }
+
+    fn joined_with_layout(
+        mut self,
+        layout_alignment: i64,
+        byte_len: usize,
+    ) -> Result<Self, MaterializationDiagnostic> {
+        let layout_alignment = u64::try_from(layout_alignment).map_err(|_| {
+            MaterializationDiagnostic(format!(
+                "layout alignment {layout_alignment} is not positive"
+            ))
+        })?;
+        if layout_alignment == 0 {
+            return Err(MaterializationDiagnostic(
+                "layout alignment must be nonzero".into(),
+            ));
+        }
+        self.alignment = checked_lcm(self.alignment, layout_alignment).ok_or_else(|| {
+            MaterializationDiagnostic(format!(
+                "placement alignment {} and layout alignment {layout_alignment} have no representable common multiple",
+                self.alignment
+            ))
+        })?;
+        if let Some(range) = self.permitted_range {
+            let range_len = range.end_exclusive - range.start_inclusive;
+            let byte_len = u64::try_from(byte_len).map_err(|_| {
+                MaterializationDiagnostic(
+                    "materialization length cannot be represented as an address range".into(),
+                )
+            })?;
+            if byte_len > range_len {
+                return Err(MaterializationDiagnostic(format!(
+                    "{}-byte materialization cannot fit in permitted range {:#x}..{:#x}",
+                    byte_len, range.start_inclusive, range.end_exclusive
+                )));
+            }
+        }
+        Ok(self)
+    }
+
+    pub fn validate_site(
+        self,
+        byte_len: usize,
+        site: PlacementSite,
+    ) -> Result<(), MaterializationDiagnostic> {
+        if site.phase != self.phase {
+            return Err(MaterializationDiagnostic(format!(
+                "placement phase {:?} does not satisfy required phase {:?}",
+                site.phase, self.phase
+            )));
+        }
+        if site.base_address % self.alignment != 0 {
+            return Err(MaterializationDiagnostic(format!(
+                "placement address {:#x} is not aligned to {} bytes",
+                site.base_address, self.alignment
+            )));
+        }
+        if let Some(range) = self.permitted_range
+            && !range.contains(site.base_address, byte_len)
+        {
+            return Err(MaterializationDiagnostic(format!(
+                "{}-byte placement at {:#x} lies outside permitted range {:#x}..{:#x}",
+                byte_len, site.base_address, range.start_inclusive, range.end_exclusive
+            )));
+        }
+        if self.machine_regime.is_some() && site.machine_regime != self.machine_regime {
+            return Err(MaterializationDiagnostic(format!(
+                "placement machine regime {:?} does not satisfy required regime {:?}",
+                site.machine_regime, self.machine_regime
+            )));
+        }
+        if self.installation_scope.is_some() && site.installation_scope != self.installation_scope {
+            return Err(MaterializationDiagnostic(format!(
+                "placement installation scope {:?} does not satisfy required scope {:?}",
+                site.installation_scope, self.installation_scope
+            )));
+        }
+        Ok(())
+    }
+}
+
+/// Concrete facts known when a linker, loader, or provider chooses a final
+/// address. Validation compares these facts to the normalized constraints.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PlacementSite {
+    pub base_address: u64,
+    pub phase: PlacementPhase,
+    pub machine_regime: Option<MachineRegimeId>,
+    pub installation_scope: Option<ArtifactInstallationScopeId>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MaterializationContext {
     pub consumption: ConsumptionInstant,
@@ -133,6 +369,7 @@ pub struct MaterializationContext {
     /// Width accepted by the target container's native absolute relocation.
     /// `None` means no such relocation is available.
     pub native_pointer_relocation_bits: Option<u16>,
+    pub placement: PlacementConstraints,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -171,6 +408,7 @@ pub enum MaterializationAction {
 pub struct SymbolicMaterializationPlan {
     pub byte_len: usize,
     pub byte_order: ByteOrder,
+    pub placement: PlacementConstraints,
     pub actions: Vec<MaterializationAction>,
 }
 
@@ -247,6 +485,9 @@ pub fn derive_symbolic_materialization(
                 ))
             })
         })?;
+    let placement = context
+        .placement
+        .joined_with_layout(layout.align, byte_len)?;
 
     let mut names = std::collections::BTreeSet::new();
     let mut actions = Vec::new();
@@ -312,6 +553,7 @@ pub fn derive_symbolic_materialization(
     Ok(SymbolicMaterializationPlan {
         byte_len,
         byte_order: context.byte_order,
+        placement,
         actions,
     })
 }
@@ -452,6 +694,20 @@ const fn low_mask(width: u16) -> u64 {
     }
 }
 
+const fn checked_lcm(left: u64, right: u64) -> Option<u64> {
+    let divisor = gcd(left, right);
+    (left / divisor).checked_mul(right)
+}
+
+const fn gcd(mut left: u64, mut right: u64) -> u64 {
+    while right != 0 {
+        let remainder = left % right;
+        left = right;
+        right = remainder;
+    }
+    left
+}
+
 fn nonzero_identity(kind: &str, identity: u64) -> Result<u64, MaterializationDiagnostic> {
     if identity == 0 {
         Err(MaterializationDiagnostic(format!(
@@ -522,6 +778,7 @@ mod tests {
                 consumption: ConsumptionInstant::AfterOmegaHandoff,
                 byte_order: ByteOrder::LittleEndian,
                 native_pointer_relocation_bits: Some(64),
+                placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
             },
             |_| None,
         )
@@ -545,6 +802,7 @@ mod tests {
                 consumption: ConsumptionInstant::BeforeOmegaEntry,
                 byte_order: ByteOrder::LittleEndian,
                 native_pointer_relocation_bits: Some(64),
+                placement: PlacementConstraints::unconstrained(PlacementPhase::Load),
             },
             |_| Some(0x1122_3344_5566_7788),
         )
@@ -567,6 +825,7 @@ mod tests {
                 consumption: ConsumptionInstant::BeforeOmegaEntry,
                 byte_order: ByteOrder::LittleEndian,
                 native_pointer_relocation_bits: Some(64),
+                placement: PlacementConstraints::unconstrained(PlacementPhase::Load),
             },
             |_| None,
         )
@@ -594,6 +853,7 @@ mod tests {
                 consumption: ConsumptionInstant::BeforeOmegaEntry,
                 byte_order: ByteOrder::LittleEndian,
                 native_pointer_relocation_bits: Some(64),
+                placement: PlacementConstraints::unconstrained(PlacementPhase::Load),
             },
             |_| None,
         )
@@ -619,6 +879,7 @@ mod tests {
                 consumption: ConsumptionInstant::AfterOmegaHandoff,
                 byte_order: ByteOrder::LittleEndian,
                 native_pointer_relocation_bits: None,
+                placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
             },
             |_| None,
         )
@@ -626,5 +887,141 @@ mod tests {
         let mut bytes = [0xa5_u8; 16];
         assert!(plan.materialize_resolved_into(&mut bytes).is_err());
         assert_eq!(bytes, [0xa5; 16]);
+    }
+
+    #[test]
+    fn placement_constraints_join_layout_alignment_and_validate_all_axes() {
+        let regime = MachineRegimeId::from_normalized_identity(11).expect("machine regime");
+        let scope =
+            ArtifactInstallationScopeId::from_normalized_identity(12).expect("installation scope");
+        let constraints = PlacementConstraints::new(
+            Some(PlacementAddressRange::new(0x1000, 0x10_0000).expect("low-memory range")),
+            4096,
+            PlacementPhase::PostHandoff,
+            Some(regime),
+            Some(scope),
+        )
+        .expect("placement constraints");
+        let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
+        let mut layout = split_layout();
+        layout.align = 16;
+        let plan = derive_symbolic_materialization(
+            &layout,
+            &[symbolic],
+            MaterializationContext {
+                consumption: ConsumptionInstant::AfterOmegaHandoff,
+                byte_order: ByteOrder::LittleEndian,
+                native_pointer_relocation_bits: None,
+                placement: constraints,
+            },
+            |_| None,
+        )
+        .expect("constrained post-handoff plan");
+
+        assert_eq!(plan.placement.alignment(), 4096);
+        plan.placement
+            .validate_site(
+                plan.byte_len,
+                PlacementSite {
+                    base_address: 0x8000,
+                    phase: PlacementPhase::PostHandoff,
+                    machine_regime: Some(regime),
+                    installation_scope: Some(scope),
+                },
+            )
+            .expect("all concrete placement facts match");
+
+        let wrong_phase = PlacementSite {
+            base_address: 0x8000,
+            phase: PlacementPhase::Load,
+            machine_regime: Some(regime),
+            installation_scope: Some(scope),
+        };
+        assert!(
+            plan.placement
+                .validate_site(plan.byte_len, wrong_phase)
+                .expect_err("phase is part of the normalized constraint")
+                .0
+                .contains("phase")
+        );
+
+        let misaligned = PlacementSite {
+            base_address: 0x8001,
+            phase: PlacementPhase::PostHandoff,
+            ..wrong_phase
+        };
+        assert!(
+            plan.placement
+                .validate_site(plan.byte_len, misaligned)
+                .expect_err("layout and policy alignment are mandatory")
+                .0
+                .contains("aligned")
+        );
+
+        let wrong_regime = PlacementSite {
+            phase: PlacementPhase::PostHandoff,
+            machine_regime: None,
+            ..wrong_phase
+        };
+        assert!(
+            plan.placement
+                .validate_site(plan.byte_len, wrong_regime)
+                .expect_err("machine regime is required")
+                .0
+                .contains("regime")
+        );
+
+        let wrong_scope = PlacementSite {
+            machine_regime: Some(regime),
+            installation_scope: None,
+            ..wrong_regime
+        };
+        assert!(
+            plan.placement
+                .validate_site(plan.byte_len, wrong_scope)
+                .expect_err("installation scope is required")
+                .0
+                .contains("scope")
+        );
+
+        let outside_range = PlacementSite {
+            base_address: 0x10_0000,
+            installation_scope: Some(scope),
+            ..wrong_scope
+        };
+        assert!(
+            plan.placement
+                .validate_site(plan.byte_len, outside_range)
+                .expect_err("complete placement must fit the range")
+                .0
+                .contains("outside")
+        );
+    }
+
+    #[test]
+    fn placement_range_must_fit_the_materialization() {
+        let constraints = PlacementConstraints::new(
+            Some(PlacementAddressRange::new(0x1000, 0x1008).expect("eight-byte range")),
+            1,
+            PlacementPhase::PostHandoff,
+            None,
+            None,
+        )
+        .expect("placement constraints");
+        let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
+        let error = derive_symbolic_materialization(
+            &split_layout(),
+            &[symbolic],
+            MaterializationContext {
+                consumption: ConsumptionInstant::AfterOmegaHandoff,
+                byte_order: ByteOrder::LittleEndian,
+                native_pointer_relocation_bits: None,
+                placement: constraints,
+            },
+            |_| None,
+        )
+        .expect_err("sixteen bytes cannot fit an eight-byte range");
+
+        assert!(error.0.contains("cannot fit"));
     }
 }

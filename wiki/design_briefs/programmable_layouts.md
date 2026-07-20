@@ -195,8 +195,11 @@ normalized foundation: sealed `Data(DataSymbolId) | Entry(EntryStubId)` source
 identities derive resolved writes, native whole-pointer relocations, or
 post-handoff writer records from the same validated plan. Loader-consumed
 unresolved fragments reject, while fixed addresses may constant-fold through
-the identical write path. Source-level symbolic-value derivation, placement
-constraints beyond consumption phase, and symbolic-action lowering remain.
+the identical write path. The plan now also carries normalized permitted-range,
+effective-alignment, build/load/post-handoff phase, machine-regime identity,
+and artifact-installation-scope constraints; the concrete-site validator checks
+all five and joins policy alignment with layout alignment. Source-level
+symbolic-value derivation and final artifact propagation remain.
 The object/image substrate no longer assumes relocation sites are text:
 section-qualified generic `Absolute64` relocations can patch initialized data,
 including PE base-rebase records. Materialized-data origin/provenance must get
@@ -210,8 +213,8 @@ post-handoff writer code remain.
 - final `Schema` reflection and `Plan` source types;
 - exact source types for unions and runtime strides (the fixed-layout fragment
   slice uses compiler-issued field keys and `FieldEntry`);
-- source-level symbolic relocation derivation and richer phase/placement
-  constraints;
+- source-level symbolic relocation derivation and propagation of normalized
+  placement constraints through linker/loader/provider artifacts;
 - concrete `AccessPlan` record/source spelling and placed-view validator
   diagnostics (its semantics and public access discipline are settled in the
   OS-foundation brief);
