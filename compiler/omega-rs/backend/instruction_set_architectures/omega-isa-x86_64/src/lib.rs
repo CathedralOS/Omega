@@ -2863,9 +2863,12 @@ fn normalized_sysv_import_plan<T: InstructionOperandLike>(
 fn sysv_operand_shape<T: InstructionOperandLike>(operand: &T) -> Result<ValueShape, Diagnostic> {
     if let Some((_, _, member_byte_count, members)) = operand.runtime_homogeneous_float_aggregate()
     {
-        if member_byte_count != 8 || members != 2 {
+        if !matches!(member_byte_count, 4 | 8)
+            || !(2..=4).contains(&members)
+            || member_byte_count * usize::from(members) > 16
+        {
             return Err(Diagnostic::error(
-                "SysV AMD64 float aggregates currently require exactly two f64 members",
+                "SysV AMD64 float aggregates require two to four f32/f64 members totaling at most 16 bytes",
             ));
         }
         return Ok(ValueShape::homogeneous_float_aggregate(
@@ -2935,7 +2938,7 @@ fn validate_sysv_import_plan(plan: &CallPlan) -> Result<(), Diagnostic> {
             placement.shape.class,
             ValueClass::Integer
                 | ValueClass::Float
-                | ValueClass::HomogeneousFloatAggregate { members: 2 }
+                | ValueClass::HomogeneousFloatAggregate { members: 2..=4 }
         ) || (placement.shape.byte_size > 16
             && placement
                 .locations
@@ -2951,7 +2954,7 @@ fn validate_sysv_import_plan(plan: &CallPlan) -> Result<(), Diagnostic> {
             placement.shape.class,
             ValueClass::Integer
                 | ValueClass::Float
-                | ValueClass::HomogeneousFloatAggregate { members: 2 }
+                | ValueClass::HomogeneousFloatAggregate { members: 2..=4 }
         ) || (placement.shape.byte_size > 16
             && !matches!(
                 placement.locations.as_slice(),
@@ -3838,6 +3841,40 @@ mod x86_import_plan_tests {
                 .map(|site| site.operand_index)
                 .collect::<Vec<_>>(),
             [Some(1), None, Some(0)]
+        );
+    }
+
+    #[test]
+    fn authored_sysv_three_f32_record_packs_by_eightbyte() {
+        let aggregate = || {
+            operand(
+                TargetInstructionOperandKind::RuntimeHomogeneousFloatAggregate {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 16,
+                    member_byte_count: 4,
+                    members: 3,
+                },
+            )
+        };
+        let operands = [aggregate(), aggregate()];
+        let layout = sysv_import_layout(&operands, true).expect("SysV three-f32 record import");
+
+        assert!(layout.bytes.windows(18).any(|window| window
+            == [
+                0xf2, 0x41, 0x0f, 0x10, 0x83, 16, 0, 0, 0, 0xf3, 0x41, 0x0f, 0x10, 0x8b, 24, 0, 0,
+                0,
+            ]));
+        assert!(
+            layout
+                .bytes
+                .windows(9)
+                .any(|window| window == [0xf2, 0x41, 0x0f, 0x11, 0x83, 16, 0, 0, 0])
+        );
+        assert!(
+            layout
+                .bytes
+                .windows(9)
+                .any(|window| window == [0xf3, 0x41, 0x0f, 0x11, 0x8b, 24, 0, 0, 0])
         );
     }
 

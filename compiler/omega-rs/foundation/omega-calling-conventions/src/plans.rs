@@ -553,10 +553,13 @@ fn validate_signature_shapes(
             }
             ValueClass::HomogeneousFloatAggregate { members }
                 if policy == CallingPolicy::SystemVAMD64
-                    && !(members == 2 && shape.byte_size == 16 && shape.alignment == 8) =>
+                    && !(matches!(members, 2..=4)
+                        && shape.byte_size <= 16
+                        && matches!(shape.alignment, 4 | 8)
+                        && shape.byte_size == u16::from(members) * u16::from(shape.alignment)) =>
             {
                 return Err(PlanDiagnostic(
-                    "SysV AMD64 homogeneous-float normalization currently admits exactly two f64 members"
+                    "SysV AMD64 homogeneous-float normalization requires two to four f32/f64 members totaling at most two eightbytes"
                         .into(),
                 ));
             }
@@ -925,6 +928,14 @@ fn evaluate_system_v_amd64(signature: &CallSignature) -> Result<CallPlan, PlanDi
             )
         };
     }
+    if let Some(result) = plan.result.as_mut()
+        && matches!(
+            result.shape.class,
+            ValueClass::HomogeneousFloatAggregate { .. }
+        )
+    {
+        result.locations = sysv_sse_fragment_locations(result.shape, 0);
+    }
     Ok(plan)
 }
 
@@ -990,18 +1001,34 @@ fn evaluate_split_bank_call(
             ValueClass::HomogeneousFloatAggregate { members } => Some(members),
             ValueClass::Integer => None,
         };
-        if let Some(members) = float_members
-            && float_index.saturating_add(members) <= float_register_count
-        {
-            let member_size = shape.byte_size / u16::from(members);
-            for member in 0..members {
-                locations.push(ValueLocation::Register {
-                    register: float_register(float_index + member),
-                    value_byte_offset: u16::from(member) * member_size,
-                    byte_size: member_size,
-                });
+        let float_registers_needed = float_members.map(|members| {
+            if policy == CallingPolicy::SystemVAMD64
+                && matches!(shape.class, ValueClass::HomogeneousFloatAggregate { .. })
+            {
+                shape.byte_size.div_ceil(8) as u8
+            } else {
+                members
             }
-            float_index += members;
+        });
+        if let Some(registers_needed) = float_registers_needed
+            && float_index.saturating_add(registers_needed) <= float_register_count
+        {
+            if policy == CallingPolicy::SystemVAMD64
+                && matches!(shape.class, ValueClass::HomogeneousFloatAggregate { .. })
+            {
+                locations.extend(sysv_sse_fragment_locations(shape, float_index));
+            } else {
+                let members = float_members.expect("float register count came from members");
+                let member_size = shape.byte_size / u16::from(members);
+                for member in 0..members {
+                    locations.push(ValueLocation::Register {
+                        register: float_register(float_index + member),
+                        value_byte_offset: u16::from(member) * member_size,
+                        byte_size: member_size,
+                    });
+                }
+            }
+            float_index += registers_needed;
         } else if float_members.is_none() && shape.byte_size > 16 {
             if policy == CallingPolicy::Aapcs64 {
                 let pointer = if integer_index < integer_registers.len() {
@@ -1124,6 +1151,19 @@ fn integer_stack_fragment_locations(
                 value_byte_offset: value_byte_offset as u16,
                 byte_size: (usize::from(shape.byte_size) - value_byte_offset).min(8) as u16,
                 alignment: 8,
+            }
+        })
+        .collect()
+}
+
+fn sysv_sse_fragment_locations(shape: ValueShape, first_register: u8) -> Vec<ValueLocation> {
+    (0..shape.byte_size.div_ceil(8))
+        .map(|fragment| {
+            let value_byte_offset = fragment * 8;
+            ValueLocation::Register {
+                register: MachineRegister::X86Xmm(first_register + fragment as u8),
+                value_byte_offset,
+                byte_size: (shape.byte_size - value_byte_offset).min(8),
             }
         })
         .collect()
@@ -2073,5 +2113,33 @@ mod tests {
                 }
             ]
         ));
+    }
+
+    #[test]
+    fn system_v_three_f32_record_packs_into_two_sse_eightbytes() {
+        let triple = ValueShape::homogeneous_float_aggregate(4, 3);
+        let plan = evaluate_call_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: vec![triple],
+                result: Some(triple),
+            },
+        )
+        .expect("SysV three-f32 record plan");
+
+        let expected = vec![
+            ValueLocation::Register {
+                register: MachineRegister::X86Xmm(0),
+                value_byte_offset: 0,
+                byte_size: 8,
+            },
+            ValueLocation::Register {
+                register: MachineRegister::X86Xmm(1),
+                value_byte_offset: 8,
+                byte_size: 4,
+            },
+        ];
+        assert_eq!(plan.parameters[0].locations, expected);
+        assert_eq!(plan.result.expect("packed SSE result").locations, expected);
     }
 }

@@ -2407,8 +2407,8 @@ fn scalar_float_descriptor_byte_count(descriptor: &TypeLayoutDescriptor) -> Opti
 }
 
 /// Preserve one supported flat by-value HFA as one selected operand. AAPCS64
-/// accepts its one-to-four-member family; the current SysV slice accepts the
-/// unambiguous two-f64 SSE/SSE case.
+/// accepts its one-to-four-member family; SysV accepts flat f32/f64 records
+/// totaling at most two eightbytes and groups their bytes into SSE fragments.
 fn native_hfa_argument_operand_at(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
@@ -2446,7 +2446,7 @@ fn native_hfa_argument_operand_at(
         *expression,
     )?;
     let (member_byte_count, members) = hfa_descriptor_shape(input, &descriptor)?;
-    if policy == CallingPolicy::SystemVAMD64 && !(member_byte_count == 8 && members == 2) {
+    if policy == CallingPolicy::SystemVAMD64 && member_byte_count * usize::from(members) > 16 {
         return None;
     }
     (place.byte_count == member_byte_count * usize::from(members)).then_some(
