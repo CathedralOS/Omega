@@ -232,8 +232,7 @@ shadow-relative fifth argument, and scratch-slot reservation consume that plan;
 the scratch slot itself remains an encoder materialization detail. Dedicated
 runtime line/byte Windows sequences now reuse the same file layout and validate
 the actual one-DWORD/RAX `GetStdHandle` plan without changing their fixed bytes
-or relocation sites. AArch64 fragmented calls and concrete firmware
-machine-state policy remain.
+or relocation sites. AArch64 fragmented calls remain.
 
 Scalar AAPCS64 outbound stack arguments now consume normalized stack offsets:
 the encoder reserves a 16-byte-aligned outgoing area, materializes integer,
@@ -241,6 +240,14 @@ pointer, and float values through caller-saved X/V scratch registers, stores
 them at the planned offset, and restores SP after `BL`. Width calculation plus
 call/data relocation walkers consume the same stack-prefix/store/restore
 accounting. Fragmented outbound placements still fail closed.
+
+Ordinary process and firmware entries now evaluate a complete validated
+`BoundaryEntryPlan`, not a detached call layout. Their concrete `StatePlan`
+records that no activation was interrupted, requires no save/restore, uses the
+provider-selected entry stack, marks preemption inapplicable, and limits
+transitive machine-state use to the general/vector classes named by the ABI's
+volatile register set. The current ordinary AArch64 hosted projection records
+EL0; that reversible target default can be refined when higher-EL roots land.
 
 Remaining order:
 

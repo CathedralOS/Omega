@@ -369,6 +369,37 @@ pub fn evaluate_call_plan(
     Ok(plan)
 }
 
+/// Concrete state policy for ordinary call/return entries, including hosted
+/// process roots and firmware handoffs. No interrupted activation exists, so
+/// the entry stub owes no save/restore; its transitive state ceiling is exactly
+/// the machine-state classes touched by the ABI's ordinary volatile registers.
+pub fn evaluate_ordinary_boundary_entry_plan(
+    policy: CallingPolicy,
+    signature: &CallSignature,
+) -> Result<ValidatedBoundaryEntryPlan, PlanDiagnostic> {
+    let call = evaluate_call_plan(policy, signature)?;
+    let permitted_transitive_use = machine_state_for_registers(&call.ordinary_clobbers);
+    let initial_regime = match policy.architecture() {
+        Architecture::X86_64 => MachineRegime::X86Long64,
+        Architecture::Aarch64 => MachineRegime::Aarch64A64 { exception_level: 0 },
+    };
+    validate_boundary_entry_plan(
+        BoundaryEntryPlan {
+            call,
+            state: StatePlan {
+                initial_regime,
+                interrupted_state: MachineStateSet::default(),
+                saved_state: MachineStateSet::default(),
+                restored_state: MachineStateSet::default(),
+                permitted_transitive_use,
+                stack: EntryStack::ProviderSelected,
+                preemption: Preemption::NotApplicable,
+            },
+        },
+        signature,
+    )
+}
+
 pub fn validate_boundary_entry_plan(
     plan: BoundaryEntryPlan,
     signature: &CallSignature,
@@ -1292,6 +1323,32 @@ mod tests {
                 preemption: Preemption::Masked,
             },
         }
+    }
+
+    #[test]
+    fn ordinary_firmware_entry_has_no_interrupted_state_obligation() {
+        let signature = integer_signature(2);
+        let validated =
+            evaluate_ordinary_boundary_entry_plan(CallingPolicy::MicrosoftX64, &signature)
+                .expect("ordinary Microsoft x64 boundary entry");
+        let plan = validated.plan();
+
+        assert_eq!(plan.state.initial_regime, MachineRegime::X86Long64);
+        assert!(plan.state.interrupted_state.is_empty());
+        assert!(plan.state.saved_state.is_empty());
+        assert!(plan.state.restored_state.is_empty());
+        assert_eq!(plan.state.stack, EntryStack::ProviderSelected);
+        assert_eq!(plan.state.preemption, Preemption::NotApplicable);
+        assert!(
+            plan.state
+                .permitted_transitive_use
+                .contains_all(MachineStateSet::new([MachineState::GeneralRegisters]))
+        );
+        assert!(
+            plan.state
+                .permitted_transitive_use
+                .contains_all(MachineStateSet::new([MachineState::VectorRegisters]))
+        );
     }
 
     #[test]
