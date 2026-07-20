@@ -224,27 +224,23 @@ pub(super) fn select_runtime_dispatch_edge(
 
 /// Deliver a terminating state's terminal value through the entry ABI.
 ///
-/// Four shapes lower, in order:
-/// 1. a CONSTANT terminal (`70`, `state shutdown { 0 }`) writes the immediate
+/// Five shapes lower, in order:
+/// 1. an INTEGER CONSTANT terminal (`70`, `state shutdown { 0 }`) writes the immediate
 ///    into the return register (the original literal-only path);
-/// 2. a RUNTIME PLACE terminal (`self.count` read-back, a local with a frame
+/// 2. a FLOAT CONSTANT terminal stages its raw bits through exact-width result
+///    scratch and loads the plan-selected vector result register;
+/// 3. a RUNTIME PLACE terminal (`self.count` read-back, a local with a frame
 ///    slot) loads the place into the return register at runtime — locals that
 ///    are reassigned always have storage, so the stale-initializer fold below
-///    can never apply to them;
-/// 3. a STORAGE-LESS local / constant arithmetic terminal (`let x = 1 + 69; x`)
+///    can never apply to them. Native records follow all normalized result
+///    fragments, including hidden destinations;
+/// 4. a STORAGE-LESS local / constant arithmetic terminal (`let x = 1 + 69; x`)
 ///    substitutes simple local initializers and constant-folds; such locals
 ///    were culled from storage precisely because nothing mutates them, so the
-///    initializer IS the terminal value.
-///
-/// 4. a native record follows its normalized result fragments: small records
-///    load ABI-selected integer/vector registers; indirect records copy
-///    through the saved hidden destination pointer. Microsoft x64 and SysV
-///    also return that pointer in `rax`, while AAPCS64 has no corresponding
-///    `x0` result.
-///
-/// Flat runtime scalar binary terminals compute into the reserved entry-result
-/// scratch place through the ordinary binary writer, then load the normalized
-/// integer or vector result register.
+///    initializer IS the terminal value;
+/// 5. a flat runtime scalar BINARY terminal computes through the ordinary
+///    domain-aware writer into result scratch, then loads the normalized
+///    integer or vector result register.
 fn select_runtime_dispatch_return_value(
     input: &InstructionSelectionInput<'_>,
     edge: &RuntimeDispatchLoopEdge,
@@ -271,6 +267,38 @@ fn select_runtime_dispatch_return_value(
     let Some(value_expr) = terminal_target_value_expression(input, source_key, edge.order) else {
         return false;
     };
+
+    if let ExpressionNode::Float(literal) = input.control_flow.expressions.expression(value_expr)
+        && let Some((scratch_offset, scratch_size, register)) =
+            normalized_entry_scalar_result_scratch(input)
+    {
+        let value = if scratch_size == 4 {
+            i64::from(literal.f32_bits())
+        } else {
+            literal.value().to_bits() as i64
+        };
+        selected_instructions.push(SelectedInstruction {
+            kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                RuntimeStorageRegion::RuntimeFrame,
+                scratch_offset,
+                value,
+                scratch_size,
+            ),
+            source_key,
+            source_statement: edge.statement_index,
+        });
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+                register,
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: scratch_offset,
+                byte_size: scratch_size,
+            },
+            source_key,
+            source_statement: edge.statement_index,
+        });
+        return true;
+    }
 
     if let Some(place) = resolve_runtime_storage_place_in_table(
         input,
@@ -384,10 +412,8 @@ fn select_runtime_dispatch_return_value(
         return true;
     }
 
-    let scratch_size = input.runtime_storage.entry_scalar_result_scratch_size;
-    let scratch_offset = input.runtime_storage.entry_scalar_result_scratch_base;
-    if matches!(scratch_size, 1 | 2 | 4 | 8)
-        && super::normalized_entry_record_result_placement(input).is_none()
+    if let Some((scratch_offset, scratch_size, register)) =
+        normalized_entry_scalar_result_scratch(input)
         && select_dispatch_binary_terminal_return(
             input,
             edge,
@@ -401,8 +427,6 @@ fn select_runtime_dispatch_return_value(
             selected_instructions,
         )
     {
-        let register = super::normalized_entry_scalar_result_register(input, scratch_size)
-            .unwrap_or_else(|| super::normalized_entry_integer_result_register(input));
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
                 register,
@@ -416,6 +440,23 @@ fn select_runtime_dispatch_return_value(
         return true;
     }
     false
+}
+
+fn normalized_entry_scalar_result_scratch(
+    input: &InstructionSelectionInput<'_>,
+) -> Option<(usize, usize, omega_calling_conventions::MachineRegister)> {
+    let byte_size = input.runtime_storage.entry_scalar_result_scratch_size;
+    if !matches!(byte_size, 1 | 2 | 4 | 8)
+        || super::normalized_entry_record_result_placement(input).is_some()
+    {
+        return None;
+    }
+    let register = super::normalized_entry_scalar_result_register(input, byte_size)?;
+    Some((
+        input.runtime_storage.entry_scalar_result_scratch_base,
+        byte_size,
+        register,
+    ))
 }
 
 /// Constant-fold a terminal value through SIMPLE local initializers

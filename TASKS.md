@@ -195,7 +195,9 @@ ceiling derived exactly from the ABI volatile-register classes.
    place, then load the plan-selected integer or vector result register. A
    native execution canary removes the former field-assignment workaround for
    `self.a + 100`, while the existing PE and cross-target ELF float canaries
-   now compute before returning through `xmm0`/`d0`.
+   now compute before returning through `xmm0`/`d0`. Literal float terminals
+   stage their exact IEEE bits through the same scratch-to-vector path; PE and
+   Linux ARM64 source canaries pin both the bits and normalized register load.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
    complete import/vtable/service-table compatibility mechanism matrix is
