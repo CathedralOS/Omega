@@ -1,9 +1,9 @@
-// A scalar f64 entry value arrives in XMM0 and a runtime-backed f64 terminal
-// returns through XMM0. This pins the primitive result's float class through
-// normalized entry selection rather than a same-width integer fallback.
+// A scalar f64 entry value arrives in XMM0 and a runtime arithmetic terminal
+// returns through XMM0. This pins both the entry-result scratch path and the
+// primitive result's float class through normalized entry selection.
 data Main { observed: f64; }
 
 boundary machine Main::main(&mut self, value: f64) -> f64 {
     self.observed = value;
-    transition { _ -> (self.observed) }
+    transition { _ -> (self.observed + 1.0) }
 }

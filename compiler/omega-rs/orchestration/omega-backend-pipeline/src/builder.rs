@@ -30,8 +30,8 @@ use omega_runtime_dispatch_loop::{
 };
 use omega_runtime_storage::{
     RuntimeStorageContext, build_runtime_storage_plan_with_workers, reserve_entry_argument_spill,
-    reserve_entry_indirect_result_pointer, reserve_wire_nested_scratch,
-    runtime_frame_storage_alignment, runtime_frame_storage_size,
+    reserve_entry_indirect_result_pointer, reserve_entry_scalar_result_scratch,
+    reserve_wire_nested_scratch, runtime_frame_storage_alignment, runtime_frame_storage_size,
 };
 use omega_runtime_text::build_runtime_text_plan;
 use omega_state_calls::{
@@ -314,6 +314,10 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             backend_plan.target,
         ),
     );
+    reserve_entry_scalar_result_scratch(
+        &mut backend_plan.runtime_storage,
+        entry_native_scalar_binary_result_size(&program, &control_flow, backend_plan.entry_key),
+    );
     // Observability: dump the absolute frame-slot layout (which logical slot lives
     // at which runtime byte offset) to stderr when OMEGA_DUMP_SLOTS is set. Inert
     // by default -- env unset is zero output and zero behavior change. Mirrors the
@@ -522,6 +526,40 @@ fn entry_may_need_native_indirect_result_pointer(
                 layout.layout.size > 16
             }
     })
+}
+
+fn entry_native_scalar_binary_result_size(
+    program: &CheckedTrees,
+    control_flow: &ControlFlowPlan,
+    entry_key: omega_control_flow::StateKey,
+) -> Option<usize> {
+    let has_binary_terminal = control_flow.transitions.iter().any(|(_, transition)| {
+        transition.expressions.target_value.is_valid()
+            && matches!(
+                transition.target,
+                omega_control_flow::PlannedTransitionTarget::Terminal
+            )
+            && matches!(
+                control_flow
+                    .expressions
+                    .expression(transition.expressions.target_value),
+                omega_checked_trees::expression::ExpressionNode::Binary(_)
+            )
+    });
+    if !has_binary_terminal {
+        return None;
+    }
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == entry_key.machine)?;
+    let state = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == entry_key.state)?;
+    program
+        .primitive_type_reference(state.return_type)?
+        .scalar_byte_size()
 }
 
 /// Give each call-context (specialized clone) -- and each STATE within a context
