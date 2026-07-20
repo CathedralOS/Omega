@@ -20255,6 +20255,34 @@ fn runtime_const_data_expression_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_const_data_symbolic_expression_exit_canary_runs() {
+    let canary = pass_canary("generics/runtime_const_data_symbolic_expression_exit");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-const-data-symbolic-expression-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("symbolic integer const expressions should specialize generic data");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("symbolic const data expression canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected symbolic-expression buffers to sum to 70, got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_const_container_methods_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_const_container_methods_exit");
     let build_dir =
@@ -36567,6 +36595,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/property_bound_type_parameter",
     "generics/runtime_const_data_array_length_exit",
     "generics/runtime_const_data_expression_exit",
+    "generics/runtime_const_data_symbolic_expression_exit",
     "generics/runtime_const_data_forwarded_length_exit",
     "generics/runtime_const_data_multiple_instances_exit",
     "generics/runtime_const_data_named_value_exit",
@@ -36980,6 +37009,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "generics/colon_bound_rejected",
     "generics/const_data_argument_out_of_range",
     "generics/const_data_expression_division_by_zero",
+    "generics/const_data_symbolic_expression_unknown",
     "generics/const_data_named_value_out_of_range",
     "generics/const_data_forwarded_type_mismatch",
     "generics/const_data_argument_requires_value",

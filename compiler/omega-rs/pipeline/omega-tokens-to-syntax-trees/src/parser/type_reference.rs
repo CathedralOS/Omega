@@ -147,19 +147,43 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                 .first()
                 .is_some_and(crate::parser::input::is_identifier_token_for_parser)
             {
-                let (scope, after_scope) = input.take_identifier()?;
-                if after_scope.at_punctuation(PunctuationKind::ColonColon) {
-                    let after_separator =
-                        after_scope.take_punctuation(PunctuationKind::ColonColon, "::")?;
-                    let (name, rest) = after_separator.take_identifier()?;
+                // An identifier-starting argument is ambiguous until the base
+                // declaration supplies its parameter kinds: `Box<T>` is a type
+                // argument, `Buffer<N>` is a const argument, and
+                // `Buffer<N + 1>` is an unmistakable symbolic const expression.
+                // Parse the delimiter-safe integer operator subset first. A
+                // binary result is retained through the pre-resolution generic
+                // instance pass; a lone name keeps the established type/scoped-
+                // const leaf representation.
+                let (expression, expression_rest) =
+                    parse_const_integer_expression_handle(syntax_trees, input)?;
+                if matches!(
+                    syntax_trees.expressions.expression(expression),
+                    ExpressionNode::Binary(_)
+                ) && (expression_rest.at_punctuation(PunctuationKind::Comma)
+                    || expression_rest.at_punctuation(PunctuationKind::Greater))
+                {
                     (
                         syntax_trees
                             .type_references
-                            .insert_named(Identifier::generated(format!("{scope}::{name}"))),
-                        rest,
+                            .insert(TypeReferenceNode::ConstExpression(expression)),
+                        expression_rest,
                     )
                 } else {
-                    parse_type_reference_handle(syntax_trees, input)?
+                    let (scope, after_scope) = input.take_identifier()?;
+                    if after_scope.at_punctuation(PunctuationKind::ColonColon) {
+                        let after_separator =
+                            after_scope.take_punctuation(PunctuationKind::ColonColon, "::")?;
+                        let (name, rest) = after_separator.take_identifier()?;
+                        (
+                            syntax_trees
+                                .type_references
+                                .insert_named(Identifier::generated(format!("{scope}::{name}"))),
+                            rest,
+                        )
+                    } else {
+                        parse_type_reference_handle(syntax_trees, input)?
+                    }
                 }
             } else {
                 parse_type_reference_handle(syntax_trees, input)?

@@ -919,6 +919,11 @@ impl SyntaxTrees {
                 self.type_references
                     .insert_generic(base_name.clone(), arguments)
             }
+            TypeReferenceNode::ConstExpression(expression) => {
+                let expression = self.copy_expression_handle(other, *expression);
+                self.type_references
+                    .insert(TypeReferenceNode::ConstExpression(expression))
+            }
             TypeReferenceNode::DynamicTrait(name) => self
                 .type_references
                 .insert(TypeReferenceNode::DynamicTrait(name.clone())),

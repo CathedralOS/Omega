@@ -711,9 +711,12 @@ remain contract-invisible.
   non-negative integer expressions in const generic arguments now fold with
   ordinary arithmetic precedence, grouping, shifts, bitwise operations, and
   checked `u64` failure before instance synthesis; native and interpreter
-  canaries pin distinct expression-derived layouts. Continue with symbolic
-  const expressions, const-evaluated machine-call arguments, signed/domain
-  semantics, and const-fact proof integration.
+  canaries pin distinct expression-derived layouts. Arithmetic expressions may
+  now also use scoped literal integer const operands; the transient expression
+  representation is eliminated before symbol resolution, and unknown symbolic
+  operands reject loudly. Continue with expressions over forwarded const
+  parameters, const-evaluated machine-call arguments, signed/domain semantics,
+  and const-fact proof integration.
 - **Trait defaults.** Implement conformance, reuse, override, and dispatch for
   trait machines whose body supplies the default. Do not restore a `default`
   keyword.

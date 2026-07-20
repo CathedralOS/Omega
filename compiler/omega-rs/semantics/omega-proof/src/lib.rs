@@ -370,7 +370,7 @@ fn collect_bounded_type_site(
                 collect_bounded_type_site(report, syntax_trees, *argument, owner);
             }
         }
-        TypeReferenceNode::DynamicTrait(_) => {}
+        TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::DynamicTrait(_) => {}
         TypeReferenceNode::Named(_) | TypeReferenceNode::SelfType | TypeReferenceNode::Unit => {}
     }
 }
@@ -410,7 +410,7 @@ fn collect_bounded_type_site_tree(
                 collect_bounded_type_site_tree(report, syntax_trees, *argument, owner);
             }
         }
-        TypeReferenceNode::DynamicTrait(_) => {}
+        TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::DynamicTrait(_) => {}
         TypeReferenceNode::Named(_) | TypeReferenceNode::SelfType | TypeReferenceNode::Unit => {}
     }
 }
@@ -455,6 +455,12 @@ fn type_reference_name(syntax_trees: &SyntaxTrees, type_reference: TypeReference
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("{base_name}<{arguments}>")
+        }
+        TypeReferenceNode::ConstExpression(expression) => {
+            format!(
+                "const {}",
+                syntax_trees.expressions.display_name(*expression)
+            )
         }
         TypeReferenceNode::DynamicTrait(name) => format!("dyn {name}"),
         TypeReferenceNode::Named(name) => name.to_string(),

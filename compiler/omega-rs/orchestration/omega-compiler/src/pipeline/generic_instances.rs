@@ -38,7 +38,7 @@ use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::literals::{IntegerLiteral, IntegerRadix};
 use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::expression::ExpressionNode;
+use omega_syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{DataDefinition, DataMember, Item, TypeParameterKind};
 use omega_syntax_trees::statement::StatementNode;
@@ -212,7 +212,7 @@ pub(crate) fn desugar_generic_data_instances(
     // integer values here so `Buffer<Limits::WIDTH>` follows the same path as
     // `Buffer<4>` while leaving non-integer and negative consts to the normal
     // declaration/use diagnostics.
-    let const_values: HashMap<String, String> = syntax
+    let const_values: HashMap<String, u64> = syntax
         .root_items()
         .filter_map(|item| {
             let Item::Const(definition) = item else {
@@ -232,7 +232,7 @@ pub(crate) fn desugar_generic_data_instances(
                     definition.name.as_str()
                 )
             };
-            Some((qualified_name, value.to_string()))
+            Some((qualified_name, value))
         })
         .collect();
 
@@ -257,7 +257,8 @@ pub(crate) fn desugar_generic_data_instances(
                 position,
                 &mut rewrites,
                 &mut instantiations,
-            );
+            )
+            .map_err(|diagnostic| vec![diagnostic])?;
         }
         if rewrites.is_empty() {
             break; // no more monomorphizable generic spellings
@@ -492,21 +493,21 @@ fn collect_type_reference_positions(syntax: &SyntaxTrees) -> Vec<TypeReferenceHa
 fn consider_generic_spelling(
     syntax: &mut SyntaxTrees,
     generic_data: &HashMap<String, GenericData>,
-    const_values: &HashMap<String, String>,
+    const_values: &HashMap<String, u64>,
     type_reference: TypeReferenceHandle,
     rewrites: &mut Vec<PendingRewrite>,
     instantiations: &mut Vec<Instantiation>,
-) {
+) -> Result<(), Diagnostic> {
     let TypeReferenceNode::Generic {
         base_name,
         arguments,
     } = syntax.tables.type_references.type_reference(type_reference)
     else {
-        return;
+        return Ok(());
     };
     let base = base_name.as_str().to_string();
     let Some(base_info) = generic_data.get(&base) else {
-        return; // non-generic base: plan-laid / existing error paths
+        return Ok(()); // non-generic base: plan-laid / existing error paths
     };
 
     let argument_handles: Vec<TypeReferenceHandle> = syntax
@@ -515,7 +516,7 @@ fn consider_generic_spelling(
         .type_reference_handles(*arguments)
         .to_vec();
     if argument_handles.len() != base_info.parameter_names.len() {
-        return;
+        return Ok(());
     }
     for (parameter_type, argument) in base_info
         .const_parameter_types
@@ -523,31 +524,51 @@ fn consider_generic_spelling(
         .zip(&argument_handles)
     {
         if parameter_type.is_none() {
+            if matches!(
+                syntax.tables.type_references.type_reference(*argument),
+                TypeReferenceNode::ConstExpression(_)
+            ) {
+                return Err(Diagnostic::error(format!(
+                    "generic argument expression for `{base}` is only valid for a const parameter"
+                )));
+            }
             continue;
         }
-        let TypeReferenceNode::Named(name) =
-            syntax.tables.type_references.type_reference(*argument)
-        else {
-            continue;
-        };
-        let Some(value) = const_values.get(name.as_str()) else {
-            continue;
-        };
-        syntax.tables.type_references.replace_type_reference(
-            *argument,
-            TypeReferenceNode::Named(Identifier::generated(value.as_str())),
-        );
+        match syntax.tables.type_references.type_reference(*argument) {
+            TypeReferenceNode::Named(name) => {
+                let Some(value) = const_values.get(name.as_str()) else {
+                    continue;
+                };
+                syntax.tables.type_references.replace_type_reference(
+                    *argument,
+                    TypeReferenceNode::Named(Identifier::generated(value.to_string())),
+                );
+            }
+            TypeReferenceNode::ConstExpression(expression) => {
+                let value = evaluate_const_argument_expression(syntax, *expression, const_values)
+                    .map_err(|reason| {
+                    Diagnostic::error(format!(
+                        "const argument expression for `{base}` is invalid: {reason}"
+                    ))
+                })?;
+                syntax.tables.type_references.replace_type_reference(
+                    *argument,
+                    TypeReferenceNode::Named(Identifier::generated(value.to_string())),
+                );
+            }
+            _ => continue,
+        }
     }
     let Some(argument_names) = monomorphizable_argument_slugs(syntax, &argument_handles) else {
-        return;
+        return Ok(());
     };
     if !const_arguments_fit_declarations(syntax, base_info, &argument_handles) {
         // Leave malformed/out-of-range const applications intact so the normal
         // declaration-aware validator emits its precise diagnostic.
-        return;
+        return Ok(());
     }
     if !base_is_fully_monomorphizable(syntax, generic_data, base_info) {
-        return;
+        return Ok(());
     }
 
     let synthetic_name = format!("{base}<{}>", argument_names.join(", "));
@@ -565,6 +586,7 @@ fn consider_generic_spelling(
             argument_handles,
         });
     }
+    Ok(())
 }
 
 fn const_arguments_fit_declarations(
@@ -608,6 +630,73 @@ fn const_arguments_fit_declarations(
             };
             value <= maximum
         })
+}
+
+/// Evaluate the symbolic integer subset retained in a const-generic argument.
+/// Names resolve to literal scoped const declarations collected above.
+/// Arithmetic deliberately matches the closed-expression parser fold:
+/// non-negative checked `u64` only;
+/// signed/domain semantics remain a separate language decision.
+fn evaluate_const_argument_expression(
+    syntax: &SyntaxTrees,
+    expression: ExpressionHandle,
+    const_values: &HashMap<String, u64>,
+) -> Result<u64, String> {
+    match syntax.expressions.expression(expression) {
+        ExpressionNode::Integer(value) => value
+            .value_u64()
+            .ok_or_else(|| "integer operand must be non-negative and fit `u64`".to_string()),
+        ExpressionNode::Name(path) => {
+            let name = syntax
+                .expressions
+                .identifier_path_members(*path)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            const_values
+                .get(&name)
+                .copied()
+                .ok_or_else(|| format!("`{name}` is not a scoped integer const"))
+        }
+        ExpressionNode::Binary(binary) => {
+            let left = evaluate_const_argument_expression(syntax, binary.left, const_values)?;
+            let right = evaluate_const_argument_expression(syntax, binary.right, const_values)?;
+            match binary.operator {
+                BinaryOperator::Add => left
+                    .checked_add(right)
+                    .ok_or_else(|| "addition overflows `u64`".to_string()),
+                BinaryOperator::Subtract => left
+                    .checked_sub(right)
+                    .ok_or_else(|| "subtraction produces a negative value".to_string()),
+                BinaryOperator::Multiply => left
+                    .checked_mul(right)
+                    .ok_or_else(|| "multiplication overflows `u64`".to_string()),
+                BinaryOperator::Divide => left
+                    .checked_div(right)
+                    .ok_or_else(|| "division by zero is invalid".to_string()),
+                BinaryOperator::Modulo => left
+                    .checked_rem(right)
+                    .ok_or_else(|| "remainder by zero is invalid".to_string()),
+                BinaryOperator::ShiftLeft => u32::try_from(right)
+                    .ok()
+                    .and_then(|amount| left.checked_shl(amount))
+                    .ok_or_else(|| "left shift exceeds the `u64` width".to_string()),
+                BinaryOperator::ShiftRight => u32::try_from(right)
+                    .ok()
+                    .and_then(|amount| left.checked_shr(amount))
+                    .ok_or_else(|| "right shift exceeds the `u64` width".to_string()),
+                BinaryOperator::BitwiseAnd => Ok(left & right),
+                BinaryOperator::BitwiseOr => Ok(left | right),
+                BinaryOperator::BitwiseXor => Ok(left ^ right),
+                _ => Err(
+                    "only integer arithmetic, shifts, and bitwise operators are supported"
+                        .to_string(),
+                ),
+            }
+        }
+        _ => Err("expression is not a symbolic integer const expression".to_string()),
+    }
 }
 
 /// A distinguishing slug for each argument -- the Phase-1 gate. `Some` when

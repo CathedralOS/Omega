@@ -428,6 +428,9 @@ pub enum TypeReferenceSnapshot {
         base_name: IdentifierSnapshot,
         arguments: Vec<TypeReferenceSnapshot>,
     },
+    ConstExpression {
+        expression: ExpressionSnapshot,
+    },
     DynamicTrait {
         name: IdentifierSnapshot,
     },
@@ -1296,6 +1299,9 @@ fn snapshot_type_reference_handle(
                 .iter()
                 .map(|handle| snapshot_type_reference_handle(syntax_trees, *handle))
                 .collect(),
+        },
+        TypeReferenceNode::ConstExpression(expression) => TypeReferenceSnapshot::ConstExpression {
+            expression: snapshot_expression_handle(syntax_trees, *expression),
         },
         TypeReferenceNode::DynamicTrait(name) => TypeReferenceSnapshot::DynamicTrait {
             name: snapshot_identifier(name),
