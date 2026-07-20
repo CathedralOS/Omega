@@ -277,9 +277,11 @@ fn select_runtime_dispatch_return_value(
         if matches!(place.byte_count, 1 | 2 | 4 | 8)
             && super::normalized_entry_record_result_placement(input).is_none()
         {
+            let register = super::normalized_entry_scalar_result_register(input, place.byte_count)
+                .unwrap_or_else(|| super::normalized_entry_integer_result_register(input));
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
-                    register: super::normalized_entry_integer_result_register(input),
+                    register,
                     region: place.region,
                     byte_offset: place.byte_offset,
                     byte_size: place.byte_count,

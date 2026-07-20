@@ -32763,6 +32763,93 @@ fn efi_float_entry_argument_unmarshals_xmm0() {
 }
 
 #[test]
+fn efi_float_entry_result_round_trips_through_xmm0() {
+    let canary = pass_canary("targets/efi_float_result_entry");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-efi-float-result-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("uefi_x64".into()),
+        write_output: true,
+    })
+    .expect("EFI float entry-result canary should compile");
+
+    let image = fs::read(build_dir.join("omega-program.exe")).expect("emitted image should exist");
+    assert!(
+        image
+            .windows(5)
+            .any(|window| window == [0xf2, 0x41, 0x0f, 0x11, 0x87]),
+        "expected incoming f64 stored from XMM0"
+    );
+    assert!(
+        image
+            .windows(5)
+            .any(|window| window == [0xf2, 0x41, 0x0f, 0x10, 0x87]),
+        "expected terminal f64 loaded into XMM0"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn scalar_float_entry_result_uses_native_vector_registers_on_linux() {
+    let canary = pass_canary("targets/efi_float_result_entry");
+    for target in ["linux_x64", "linux_arm64"] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-{target}-float-entry-result-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let src_dir = scratch.join("src");
+        let out_dir = scratch.join("out");
+        fs::create_dir_all(&src_dir).expect("scratch source directory");
+        fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
+        fs::write(
+            src_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write target manifest");
+
+        compile(CompileOptions {
+            root_path: src_dir.join("main.omg"),
+            build_dir: Some(out_dir.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .expect("scalar-float entry result should cross-compile");
+
+        let image = fs::read(out_dir.join("omega-program")).expect("read emitted ELF");
+        if target == "linux_x64" {
+            for (name, opcode) in [
+                ("incoming XMM0 store", [0xf2, 0x41, 0x0f, 0x11, 0x87]),
+                ("terminal XMM0 load", [0xf2, 0x41, 0x0f, 0x10, 0x87]),
+            ] {
+                assert!(
+                    image.windows(opcode.len()).any(|window| window == opcode),
+                    "Linux x64 scalar-float entry missing {name}"
+                );
+            }
+        } else {
+            for (name, instruction) in [
+                ("incoming d0 store", 0xfd00_0200u32),
+                ("terminal d0 load", 0xfd40_0200u32),
+            ] {
+                assert!(
+                    image
+                        .windows(4)
+                        .any(|window| window == instruction.to_le_bytes()),
+                    "Linux ARM64 scalar-float entry missing {name}"
+                );
+            }
+        }
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
 fn efi_small_aggregate_entry_uses_rcx_and_rax() {
     let canary = pass_canary("targets/efi_small_aggregate_entry");
     let build_dir =
