@@ -30,7 +30,7 @@ use omega_runtime_dispatch_loop::{
 };
 use omega_runtime_storage::{
     RuntimeStorageContext, build_runtime_storage_plan_with_workers, reserve_entry_argument_spill,
-    reserve_entry_indirect_result_pointer, reserve_entry_scalar_result_scratch,
+    reserve_entry_indirect_result_pointer, reserve_entry_result_scratch,
     reserve_wire_nested_scratch, runtime_frame_storage_alignment, runtime_frame_storage_size,
 };
 use omega_runtime_text::build_runtime_text_plan;
@@ -314,9 +314,14 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             backend_plan.target,
         ),
     );
-    reserve_entry_scalar_result_scratch(
+    reserve_entry_result_scratch(
         &mut backend_plan.runtime_storage,
-        entry_native_scalar_expression_result_size(&program, &control_flow, backend_plan.entry_key),
+        entry_native_expression_result_layout(
+            &program,
+            &backend_plan.layouts,
+            &control_flow,
+            backend_plan.entry_key,
+        ),
     );
     // Observability: dump the absolute frame-slot layout (which logical slot lives
     // at which runtime byte offset) to stderr when OMEGA_DUMP_SLOTS is set. Inert
@@ -528,28 +533,12 @@ fn entry_may_need_native_indirect_result_pointer(
     })
 }
 
-fn entry_native_scalar_expression_result_size(
+fn entry_native_expression_result_layout(
     program: &CheckedTrees,
+    layouts: &omega_layout::LayoutPlan,
     control_flow: &ControlFlowPlan,
     entry_key: omega_control_flow::StateKey,
-) -> Option<usize> {
-    let has_scratch_terminal = control_flow.transitions.iter().any(|(_, transition)| {
-        transition.expressions.target_value.is_valid()
-            && matches!(
-                transition.target,
-                omega_control_flow::PlannedTransitionTarget::Terminal
-            )
-            && matches!(
-                control_flow
-                    .expressions
-                    .expression(transition.expressions.target_value),
-                omega_checked_trees::expression::ExpressionNode::Binary(_)
-                    | omega_checked_trees::expression::ExpressionNode::Float(_)
-            )
-    });
-    if !has_scratch_terminal {
-        return None;
-    }
+) -> Option<(usize, usize)> {
     let machine = program
         .machines()
         .iter()
@@ -558,9 +547,50 @@ fn entry_native_scalar_expression_result_size(
         .machine_states(machine)
         .iter()
         .find(|state| state.symbol == entry_key.state)?;
-    program
-        .primitive_type_reference(state.return_type)?
-        .scalar_byte_size()
+    let result_symbol = program.type_reference_symbol(state.return_type);
+    let has_scratch_terminal = control_flow.transitions.iter().any(|(_, transition)| {
+        if !transition.expressions.target_value.is_valid()
+            || !matches!(
+                transition.target,
+                omega_control_flow::PlannedTransitionTarget::Terminal
+            )
+        {
+            return false;
+        }
+        match control_flow
+            .expressions
+            .expression(transition.expressions.target_value)
+        {
+            omega_checked_trees::expression::ExpressionNode::Binary(_)
+            | omega_checked_trees::expression::ExpressionNode::Float(_)
+            | omega_checked_trees::expression::ExpressionNode::StructLiteral(_) => true,
+            omega_checked_trees::expression::ExpressionNode::Name(path) => {
+                path.head_symbol == result_symbol
+            }
+            omega_checked_trees::expression::ExpressionNode::Member(member) => {
+                matches!(
+                    control_flow.expressions.expression(member.receiver),
+                    omega_checked_trees::expression::ExpressionNode::Name(path)
+                        if path.symbol == result_symbol
+                )
+            }
+            _ => false,
+        }
+    });
+    if !has_scratch_terminal {
+        return None;
+    }
+    if let Some(byte_size) = program
+        .primitive_type_reference(state.return_type)
+        .and_then(|primitive| primitive.scalar_byte_size())
+    {
+        return Some((byte_size, byte_size));
+    }
+    layouts
+        .data_layouts
+        .iter()
+        .find(|(_, layout)| layout.symbol == result_symbol)
+        .map(|(_, layout)| (layout.layout.size, layout.layout.alignment))
 }
 
 /// Give each call-context (specialized clone) -- and each STATE within a context

@@ -75,8 +75,8 @@ pub fn build_runtime_storage_plan_with_workers(
             entry_argument_spill_size: _,
             entry_indirect_result_pointer_base: _,
             entry_indirect_result_pointer_size: _,
-            entry_scalar_result_scratch_base: _,
-            entry_scalar_result_scratch_size: _,
+            entry_result_scratch_base: _,
+            entry_result_scratch_size: _,
         } = body_plan;
         plan.frame_slots.insert_many(frame_slots.into_items());
         for write in writes.into_items() {
@@ -376,14 +376,13 @@ pub fn reserve_entry_indirect_result_pointer(plan: &mut RuntimeStoragePlan, enab
     plan.entry_indirect_result_pointer_size = 8;
 }
 
-/// Reserve a scalar-sized frame place where entry-terminal expressions can
-/// reuse the ordinary place-writing arithmetic lowering before the value is
-/// copied into its normalized ABI result register.
-pub fn reserve_entry_scalar_result_scratch(
-    plan: &mut RuntimeStoragePlan,
-    byte_size: Option<usize>,
-) {
-    let Some(byte_size @ (1 | 2 | 4 | 8)) = byte_size else {
+/// Reserve a layout-sized frame place where entry-terminal expressions can
+/// reuse ordinary place-writing lowering before the value is copied into its
+/// normalized ABI result placement.
+pub fn reserve_entry_result_scratch(plan: &mut RuntimeStoragePlan, layout: Option<(usize, usize)>) {
+    let Some((byte_size, alignment)) =
+        layout.filter(|(size, alignment)| *size > 0 && *alignment > 0)
+    else {
         return;
     };
     let occupied_extent = (plan.entry_indirect_result_pointer_base
@@ -398,8 +397,8 @@ pub fn reserve_entry_scalar_result_scratch(
                 .max()
                 .unwrap_or(0),
         );
-    plan.entry_scalar_result_scratch_base = align_to(occupied_extent, byte_size);
-    plan.entry_scalar_result_scratch_size = byte_size;
+    plan.entry_result_scratch_base = align_to(occupied_extent, alignment);
+    plan.entry_result_scratch_size = byte_size;
 }
 
 pub fn runtime_frame_storage_size(plan: &RuntimeStoragePlan) -> usize {
@@ -416,7 +415,7 @@ pub fn runtime_frame_storage_size(plan: &RuntimeStoragePlan) -> usize {
         .max(plan.wire_scratch_base + plan.wire_scratch_size)
         .max(plan.entry_argument_spill_base + plan.entry_argument_spill_size)
         .max(plan.entry_indirect_result_pointer_base + plan.entry_indirect_result_pointer_size)
-        .max(plan.entry_scalar_result_scratch_base + plan.entry_scalar_result_scratch_size)
+        .max(plan.entry_result_scratch_base + plan.entry_result_scratch_size)
 }
 
 pub fn runtime_frame_storage_alignment(plan: &RuntimeStoragePlan) -> usize {
@@ -428,7 +427,7 @@ pub fn runtime_frame_storage_alignment(plan: &RuntimeStoragePlan) -> usize {
         .unwrap_or(1);
     let reserved_alignment = if plan.entry_argument_spill_size > 0
         || plan.entry_indirect_result_pointer_size > 0
-        || plan.entry_scalar_result_scratch_size > 0
+        || plan.entry_result_scratch_size > 0
         || plan.wire_scratch_size > 0
     {
         8
@@ -459,18 +458,18 @@ mod tests {
     }
 
     #[test]
-    fn scalar_result_scratch_is_reserved_above_indirect_result_pointer() {
+    fn entry_result_scratch_is_reserved_above_indirect_result_pointer() {
         let mut plan = RuntimeStoragePlan {
             entry_indirect_result_pointer_base: 56,
             entry_indirect_result_pointer_size: 8,
             ..RuntimeStoragePlan::default()
         };
 
-        reserve_entry_scalar_result_scratch(&mut plan, Some(8));
+        reserve_entry_result_scratch(&mut plan, Some((24, 8)));
 
-        assert_eq!(plan.entry_scalar_result_scratch_base, 64);
-        assert_eq!(plan.entry_scalar_result_scratch_size, 8);
-        assert_eq!(runtime_frame_storage_size(&plan), 72);
+        assert_eq!(plan.entry_result_scratch_base, 64);
+        assert_eq!(plan.entry_result_scratch_size, 24);
+        assert_eq!(runtime_frame_storage_size(&plan), 88);
         assert_eq!(runtime_frame_storage_alignment(&plan), 8);
     }
 }
