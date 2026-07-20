@@ -1254,7 +1254,7 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
         (
             HostCapability::Stdin | HostCapability::Stdout | HostCapability::Stderr,
             HostOperation::GetStdHandle,
-        ) => encode_get_std_handle(operands),
+        ) => encode_win64_import_call(operands, false, false),
         (
             HostCapability::Stdout | HostCapability::Stderr,
             HostOperation::Write | HostOperation::WriteFile,
@@ -1263,7 +1263,9 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
             encode_file_operation(operation_key, operands)
         }
         (HostCapability::Process, HostOperation::ExitProcess)
-        | (HostCapability::Clock, HostOperation::Sleep) => encode_scalar_arg_call(operands),
+        | (HostCapability::Clock, HostOperation::Sleep) => {
+            encode_win64_import_call(operands, false, false)
+        }
         // A 0-arg value-returning import through the GENERAL import-call encoder
         // (byte-identical to the original bespoke tick_count sequence for an
         // 8-byte result, and width-correct for a 4-byte one).
@@ -1349,17 +1351,6 @@ fn encode_key_state_call<T: InstructionOperandLike>(operands: &[T]) -> Result<Ve
         .try_into()
         .map_err(|_| Diagnostic::error("key_state result offset exceeds i32"))?;
     bytes.extend(displacement.to_le_bytes());
-    Ok(bytes)
-}
-
-fn encode_get_std_handle<T: InstructionOperandLike>(operands: &[T]) -> Result<Vec<u8>, Diagnostic> {
-    let handle_kind = immediate_i32(operands, 0, "GetStdHandle handle kind")?;
-    let mut bytes = Vec::with_capacity(18);
-    bytes.extend([0x48, 0x83, 0xec, 0x28]); // sub rsp, 40
-    bytes.push(0xb9); // mov ecx, imm32
-    bytes.extend(handle_kind.to_le_bytes());
-    bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32
-    bytes.extend([0x48, 0x83, 0xc4, 0x28]); // add rsp, 40
     Ok(bytes)
 }
 
@@ -1475,112 +1466,6 @@ const WIN64_ARG_REGISTERS: [(&[u8], &[u8]); 4] = [
     (&[0x41, 0xb9], &[0x4d, 0x8b, 0x8f]), // mov r9d, imm32 / mov r9,  [r15+d]
 ];
 
-/// Marshalling width of Win64 scalar argument `index` (0..=3): a constant is a
-/// `mov r32, imm32` (5 bytes; 6 with the REX prefix for r8d/r9d), a
-/// runtime-storage scalar is `mov r15, imm64=0` (10, relocated to the region
-/// base) + `mov r64, [r15+disp32]` (7).
-fn win64_scalar_arg_width<T: InstructionOperandLike>(operands: &[T], index: usize) -> usize {
-    let (imm_opcode, load_opcode) = WIN64_ARG_REGISTERS[index];
-    if operands
-        .get(index)
-        .is_some_and(|operand| operand.runtime_scalar_integer().is_some())
-    {
-        10 + load_opcode.len() + 4
-    } else {
-        imm_opcode.len() + 4
-    }
-}
-
-/// Total marshalling width of the first `count` Win64 scalar arguments.
-fn win64_scalar_args_width<T: InstructionOperandLike>(operands: &[T], count: usize) -> usize {
-    (0..count)
-        .map(|index| win64_scalar_arg_width(operands, index))
-        .sum()
-}
-
-/// The GENERAL Win64 scalar-argument call: shadow space, the first `count`
-/// operands marshalled into rcx/rdx/r8/r9 (each a constant immediate or a
-/// runtime-storage scalar load through a relocated r15 region base), the
-/// relocated `call rel32`, then the shadow restore. This is extern-ladder rung
-/// 1: every new import mapping with scalar arguments encodes through here, and
-/// the pre-existing single-arg kernel32 ops (ExitProcess, Sleep) delegate to it
-/// byte-identically.
-fn encode_win64_scalar_args_call<T: InstructionOperandLike>(
-    operands: &[T],
-    count: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(13 + win64_scalar_args_width(operands, count));
-    bytes.extend([0x48, 0x83, 0xec, 0x28]); // sub rsp, 40
-    for index in 0..count {
-        let (imm_opcode, load_opcode) = WIN64_ARG_REGISTERS[index];
-        match operands.get(index) {
-            Some(operand) if operand.runtime_scalar_integer().is_some() => {
-                let (_, byte_offset, _) = operand.runtime_scalar_integer().unwrap();
-                // mov r15, imm64=0 (relocated to the argument's storage-region
-                // base), then mov <reg64>, [r15 + byte_offset].
-                append_mov_r15_imm64(&mut bytes, 0);
-                bytes.extend_from_slice(load_opcode);
-                let displacement: i32 = byte_offset.try_into().map_err(|_| {
-                    Diagnostic::error("host call scalar argument offset exceeds i32")
-                })?;
-                bytes.extend(displacement.to_le_bytes());
-            }
-            _ => {
-                let argument = immediate_i32(operands, index, "host call u32 argument")?;
-                bytes.extend_from_slice(imm_opcode);
-                bytes.extend(argument.to_le_bytes());
-            }
-        }
-    }
-    bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32
-    bytes.extend([0x48, 0x83, 0xc4, 0x28]); // add rsp, 40
-    debug_assert_eq!(bytes.len(), 13 + win64_scalar_args_width(operands, count));
-    Ok(bytes)
-}
-
-/// Relocation sites for a `encode_win64_scalar_args_call` sequence: one
-/// Absolute64 region-base site per runtime-scalar argument (inside its
-/// `mov r15, imm64`) plus the Relative32 `call rel32` site after all
-/// marshalling.
-fn win64_scalar_args_relocation_sites<T: InstructionOperandLike>(
-    operands: &[T],
-    count: usize,
-) -> Vec<X86_64RelocationSite> {
-    let mut sites = Vec::new();
-    let mut cursor = 4usize; // past sub rsp, 40
-    for index in 0..count {
-        if operands
-            .get(index)
-            .is_some_and(|operand| operand.runtime_scalar_integer().is_some())
-        {
-            sites.push(X86_64RelocationSite {
-                operand_index: Some(index),
-                byte_offset: cursor + 2, // inside mov r15, imm64
-                byte_width: 8,
-                kind: X86_64RelocationSiteKind::Absolute64,
-            });
-        }
-        cursor += win64_scalar_arg_width(operands, index);
-    }
-    sites.push(X86_64RelocationSite {
-        operand_index: None,
-        byte_offset: cursor + 1, // past the call opcode
-        byte_width: 4,
-        kind: X86_64RelocationSiteKind::Relative32,
-    });
-    sites
-}
-
-/// A kernel32 call taking a single u32 first argument in ecx and no return:
-/// `ExitProcess(code)` and `Sleep(ms)` are the same shape. Shadow space, the arg
-/// marshalled from a constant or a runtime-storage scalar, the relocated call, then
-/// the shadow restore (no-op for ExitProcess, which never returns).
-fn encode_scalar_arg_call<T: InstructionOperandLike>(
-    operands: &[T],
-) -> Result<Vec<u8>, Diagnostic> {
-    encode_win64_scalar_args_call(operands, 1)
-}
-
 /// `lea <reg64>, [r15+disp32]` opcode bytes for the Win64 integer argument
 /// registers rcx/rdx/r8/r9 -- `WIN64_ARG_REGISTERS`' load opcodes with the mov
 /// (8B) swapped for lea (8D), byte-for-byte the same width.
@@ -1683,9 +1568,9 @@ fn win64_import_arg_is_data_address<T: InstructionOperandLike>(operand: Option<&
 }
 
 /// Marshalling width of general-import argument `index` (0-based ABI order,
-/// stored at `operands[arg_start + index]`). Register args mirror
-/// `win64_scalar_arg_width` (an address lea is the same width as a scalar
-/// load); a data-object address is one `mov <reg64>, imm64` (10); stack args
+/// stored at `operands[arg_start + index]`). For register args, an address lea
+/// is the same width as a scalar load; a data-object address is one
+/// `mov <reg64>, imm64` (10). Stack args
 /// stage through r15/rax (10 + 7 + a 5-byte `mov [rsp+disp8], rax`; a data
 /// address is 10 + 5), or store a constant directly (9-byte
 /// `mov qword [rsp+disp8], imm32`).
@@ -2223,6 +2108,45 @@ mod win64_import_plan_tests {
         encode_host_call_sequence(CallingPolicy::SystemVAMD64, key, &operands)
             .expect("constant materialization does not apply a calling policy");
     }
+
+    #[test]
+    fn simple_kernel32_calls_keep_their_exact_bytes_and_relocations() {
+        let get_std = HostOperationKey::new(HostCapability::Stdout, HostOperation::GetStdHandle);
+        let get_std_operands = [operand(TargetInstructionOperandKind::ImmediateInteger(-11))];
+        let bytes =
+            encode_host_call_sequence(CallingPolicy::MicrosoftX64, get_std, &get_std_operands)
+                .expect("plan-driven GetStdHandle");
+        assert_eq!(
+            bytes,
+            [
+                0x48, 0x83, 0xec, 0x28, 0xb9, 0xf5, 0xff, 0xff, 0xff, 0xe8, 0, 0, 0, 0, 0x48, 0x83,
+                0xc4, 0x28,
+            ]
+        );
+        assert_eq!(
+            host_call_relocation_sites(get_std, &get_std_operands),
+            [X86_64RelocationSite {
+                operand_index: None,
+                byte_offset: 10,
+                byte_width: 4,
+                kind: X86_64RelocationSiteKind::Relative32,
+            }]
+        );
+
+        let exit = HostOperationKey::new(HostCapability::Process, HostOperation::ExitProcess);
+        let exit_operands = [operand(
+            TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 24,
+                byte_count: 4,
+            },
+        )];
+        encode_host_call_sequence(CallingPolicy::MicrosoftX64, exit, &exit_operands)
+            .expect("plan-driven ExitProcess");
+        let sites = host_call_relocation_sites(exit, &exit_operands);
+        assert_eq!(sites[0].byte_offset, 6, "runtime region-base imm64");
+        assert_eq!(sites[1].byte_offset, 22, "call rel32");
+    }
 }
 
 /// Relocation sites for a `encode_win64_import_call` sequence: one Absolute64
@@ -2734,19 +2658,12 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
         (
             HostCapability::Stdin | HostCapability::Stdout | HostCapability::Stderr,
             HostOperation::GetStdHandle,
-        ) => {
-            vec![X86_64RelocationSite {
-                operand_index: None,
-                byte_offset: 10,
-                byte_width: 4,
-                kind: X86_64RelocationSiteKind::Relative32,
-            }]
-        }
+        ) => win64_import_call_relocation_sites(operands, false, false),
         (HostCapability::Process, HostOperation::ExitProcess)
         | (HostCapability::Clock, HostOperation::Sleep) => {
-            // Single-u32-arg kernel32 call (ExitProcess/Sleep), re-expressed
-            // through the general Win64 scalar-args helper (extern rung 1).
-            win64_scalar_args_relocation_sites(operands, 1)
+            // Single-u32-arg kernel32 calls now share the plan-driven general
+            // import marshaller and therefore its relocation walker.
+            win64_import_call_relocation_sites(operands, false, false)
         }
         (HostCapability::Input, HostOperation::KeyState) => {
             // Layout: sub(4) + vk marshalling (17 runtime / 5 const) + call(5)
