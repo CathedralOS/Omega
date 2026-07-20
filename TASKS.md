@@ -107,9 +107,10 @@ ceiling derived exactly from the ABI volatile-register classes.
    feed the same overhead into layout and both relocation walkers. Flat
    two-to-four-member HFA arguments now remain one by-value operand through
    selection and consume every plan-selected vector-register fragment; grouped
-   placements also drive layout and relocation accounting. Continue through
-   aggregate stack arguments and fragmented aggregate results, then make the
-   plan authoritative. Add the
+   placements also drive layout and relocation accounting. When the vector bank
+   is exhausted, the same operand copies each member into its contiguous planned
+   stack area. Continue through fragmented aggregate results, then make the plan
+   authoritative. Add the
    concrete x86 interrupt `StatePlan`, stack/IST, nesting, and acknowledgement
    policy used by Cathedral.
 3. **ENT3 — constrained entry codegen.** Derive entry stubs, specialize/codegen

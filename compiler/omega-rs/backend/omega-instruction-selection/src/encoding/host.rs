@@ -325,8 +325,8 @@ pub fn aarch64_host_call_stack_total_width_for_placements(placements: &[ValuePla
 /// The encoder receives exact register/stack locations and may no longer
 /// reconstruct x0../v0.. or outgoing offsets independently. Scalar integer,
 /// pointer, and float stack placements plus register-resident flat HFA
-/// fragments are supported. Aggregate stack placements and fragmented results
-/// fail closed.
+/// fragments and contiguous HFA stack placements are supported. Fragmented
+/// results fail closed.
 ///
 /// `trailing_variadic_stack` is the compatibility seam for Darwin `open`:
 /// its anonymous `mode` argument is intentionally stack-passed by Apple's
