@@ -1,0 +1,26 @@
+// Five scalars leave only r9. The following two-eightbyte INTEGER record cannot
+// be split, so SysV AMD64 rolls it back wholly to the stack; the trailing scalar
+// then still consumes r9.
+data Pair {
+    first: u64;
+    second: u64;
+}
+
+data Main { observed: u64; }
+
+boundary machine Main::main(
+    &mut self,
+    a0: u64,
+    a1: u64,
+    a2: u64,
+    a3: u64,
+    a4: u64,
+    pair: Pair,
+    tail: u64
+) -> i32 {
+    self.observed = a0 + a1 + a2 + a3 + a4 + pair.first + pair.second + tail;
+    transition { _ -> (0) }
+}
+
+target linux_x64 {
+}

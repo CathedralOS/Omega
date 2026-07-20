@@ -31219,6 +31219,8 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/aarch64_large_aggregate_entry", "linux_arm64"),
     ("targets/aarch64_large_aggregate_stack_entry", "linux_arm64"),
     ("targets/aarch64_wide_aggregate_entry", "linux_arm64"),
+    ("targets/sysv_small_aggregate_entry", "linux_x64"),
+    ("targets/sysv_small_aggregate_stack_entry", "linux_x64"),
 ];
 
 #[test]
@@ -31445,6 +31447,66 @@ fn aarch64_wide_aggregate_entry_uses_general_indirect_classification() {
             })
         }),
         "expected all five x0-pointee words copied into runtime-frame storage"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn sysv_small_aggregate_entry_spreads_consecutive_gprs() {
+    let canary = pass_canary("targets/sysv_small_aggregate_entry");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-sysv-small-aggregate-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("SysV two-eightbyte record should cross-compile through rsi/rdx");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86-64 ELF");
+    assert!(
+        image.windows(30).any(|window| {
+            window[10..13] == [0x49, 0x89, 0xb7] && window[27..30] == [0x49, 0x89, 0x97]
+        }),
+        "expected consecutive runtime-frame stores from rsi and rdx"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn sysv_small_aggregate_entry_rolls_wholly_to_stack() {
+    let canary = pass_canary("targets/sysv_small_aggregate_stack_entry");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-sysv-small-aggregate-stack-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("register-exhausted SysV record should cross-compile wholly from the stack");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86-64 ELF");
+    let first_load = [0x4c, 0x8b, 0x94, 0x24, 8, 0, 0, 0];
+    let second_load = [0x4c, 0x8b, 0x94, 0x24, 16, 0, 0, 0];
+    assert!(
+        image
+            .windows(43)
+            .any(|window| { window[10..18] == first_load && window[35..43] == second_load }),
+        "expected both aggregate fragments loaded from the incoming stack"
+    );
+    assert!(
+        image.windows(3).any(|window| window == [0x4d, 0x89, 0x8f]),
+        "expected the trailing scalar to retain the rolled-back r9 slot"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }

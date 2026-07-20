@@ -1301,7 +1301,10 @@ fn select_entry_argument_register_writes(
     if destinations
         .iter()
         .any(|(_, shape)| matches!(shape.class, ValueClass::Integer) && shape.byte_size > 8)
-        && CallingPolicy::native_for_target(input.target) != CallingPolicy::Aapcs64
+        && !matches!(
+            CallingPolicy::native_for_target(input.target),
+            CallingPolicy::Aapcs64 | CallingPolicy::SystemVAMD64
+        )
     {
         return;
     }
@@ -1442,8 +1445,10 @@ fn entry_slot_value_shape(
         .iter()
         .find(|machine| machine.symbol == input.entry_key.machine)
         .is_some_and(|machine| machine.boundary);
+    let policy = CallingPolicy::native_for_target(input.target);
     if byte_size <= 8
-        || CallingPolicy::native_for_target(input.target) == CallingPolicy::Aapcs64
+        || policy == CallingPolicy::Aapcs64
+        || (policy == CallingPolicy::SystemVAMD64 && byte_size <= 16)
         || (entry_is_boundary && byte_size <= 32 && byte_size.is_multiple_of(8))
     {
         return Some(ValueShape::integer(byte_size, alignment));
