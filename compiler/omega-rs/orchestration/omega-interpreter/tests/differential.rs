@@ -456,6 +456,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("collections/runtime_array_max_and_sum_exit", 70),
     ("generics/runtime_generic_record_instance_exit", 70),
     ("generics/runtime_const_data_array_length_exit", 70),
+    ("generics/runtime_const_data_expression_exit", 70),
     ("generics/runtime_const_data_forwarded_length_exit", 70),
     ("generics/runtime_const_data_multiple_instances_exit", 70),
     ("generics/runtime_const_container_methods_exit", 70),
@@ -1563,6 +1564,23 @@ fn interpreter_runs_named_const_data_arguments() {
     assert_eq!(
         outcome.error, None,
         "interpreter should support named const data arguments"
+    );
+    assert_eq!(outcome.exit_code, 70);
+}
+
+#[test]
+fn interpreter_runs_const_data_argument_expressions() {
+    let main_path = pass_canary("generics/runtime_const_data_expression_exit").join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "const data argument expressions failed frontend checking:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+    let outcome = interpret(&checked, b"");
+    assert_eq!(
+        outcome.error, None,
+        "interpreter should support expression-specialized const data"
     );
     assert_eq!(outcome.exit_code, 70);
 }
