@@ -413,6 +413,18 @@ pub fn effective_data_carry_policy(
     )
 }
 
+/// Derive the effective carry policy of an arbitrary type at one generic
+/// declaration site. Live-set checking consumes this entry point so it uses
+/// the same structural derivation and concrete-argument substitution as
+/// property validation; carry policy is never re-inferred from a type name.
+pub fn effective_type_carry_policy(
+    program: &TypedTrees,
+    type_parameters: &[TypeParameter],
+    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+) -> omega_core::semantics::CarryPolicy {
+    CarryDerivation::new(program, type_parameters).derive(type_reference)
+}
+
 /// One entry point for "does this type carry the declared property?", shared
 /// with the instantiation-time bound check: `zero_init` has its own walk and
 /// carry requirements use the normalized four-axis comparison.

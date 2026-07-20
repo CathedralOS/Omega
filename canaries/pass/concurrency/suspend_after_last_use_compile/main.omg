@@ -1,0 +1,26 @@
+data Cell {
+    value: i32;
+}
+
+data Message {
+    body: &Cell;
+}
+
+data Sleeper { }
+
+machine Sleeper::park(&mut self) effects Suspend { }
+
+data Main {
+    sleeper: Sleeper;
+    cell: Cell;
+}
+
+machine Main::read(&mut self, cell: &Cell) -> i32 {
+    transition { _ -> cell.value }
+}
+
+machine Main::main(&mut self) {
+    let message: Message = Message { body: &self.cell };
+    let value: i32 = self.read(message.body);
+    self.sleeper.park();
+}

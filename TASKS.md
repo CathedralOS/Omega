@@ -207,9 +207,14 @@ before the fix.
   including nested wrappers. Opaque `boundary data` carriers now parse without
   a public shape or layout, cannot be constructed by ordinary code, default to
   the strict effective carry policy, and reject permissive property claims
-  until admission can provide receipts. Continue with admitted and sealed
-  per-mint facts; canonical live-set checks;
-  activation-demand joins against pessimistic admitted runtime behavior; and
+  until admission can provide receipts. Statement-bound canonical liveness now
+  rejects parameters and locals whose effective policy forbids suspension when
+  they remain live across a direct or transitive `Suspend` call; effect,
+  borrow, flow, and contract analyses now join calls by the shared
+  `(state, statement, ordinal)` identity. Continue with intra-statement and
+  place-segment liveness, persistent machine-owned values, admitted and sealed
+  per-mint facts, activation-demand joins against pessimistic admitted runtime
+  behavior, and
   diagnostic and model-export consumers. Checked builds now emit
   `05_carry_manifest.json`, keeping authored minimums separate from effective
   derived policies with all four axes structured.

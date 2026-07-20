@@ -467,6 +467,13 @@ pub const EFFECT_MEMBER_CATALOG: &[(&str, EffectMemberKind)] = &[
     ("dynamic_link", EffectMemberKind::ServiceReach),
     ("host_boundary", EffectMemberKind::ServiceReach),
     ("machine_control", EffectMemberKind::ServiceReach),
+    // Decision 22's core operational possibilities. These are semantic row
+    // members rather than boundary services: they describe what an operation
+    // may do to its caller. Keep the older lowercase host-effect entries above
+    // during the EFX migration, but new concurrency contracts use these exact
+    // identities.
+    ("Suspend", EffectMemberKind::OperationalMay),
+    ("Block", EffectMemberKind::OperationalMay),
 ];
 
 /// The canonical member identity for a standard effect name.

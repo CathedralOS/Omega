@@ -58,6 +58,12 @@ pub const STANDARD_EFFECT_NAMES: &[&str] = &[
     // drivers); machine_control is ring-0-only and never grant-mediated
     // (privileged_effects_and_binary_trust brief, LOCKED point 1).
     "machine_control",
+    // Core operational possibilities (decision 22). These remain distinct
+    // from the legacy host-oriented `thread_block` / `sync_wait` entries:
+    // `Suspend` means the activation may park, while `Block` means it may
+    // occupy its worker while waiting.
+    "Suspend",
+    "Block",
 ];
 
 pub fn is_standard_effect_name(name: &str) -> bool {
@@ -452,7 +458,6 @@ fn declared_machine_effects(program: &TypedTrees, machine: &Machine) -> EffectSe
 
 fn collect_state_calls(program: &TypedTrees, state: &State) -> Vec<CallWork> {
     let mut calls = Vec::new();
-    let mut call_ordinal = 0usize;
 
     for (statement_index, statement) in program
         .statement_table
@@ -460,6 +465,11 @@ fn collect_state_calls(program: &TypedTrees, state: &State) -> Vec<CallWork> {
         .iter()
         .enumerate()
     {
+        // Call-site identity is (state, statement, ordinal-within-statement),
+        // shared with borrow, flow, contracts, and diagnostics. Reset here so
+        // independently built plans can join the same nested call without a
+        // state-global numbering accident.
+        let mut call_ordinal = 0usize;
         collect_statement_calls(
             program,
             statement,
