@@ -220,7 +220,10 @@ x86 imports and AArch64 stack/fragmented calls remain to migrate. Microsoft x64
 vtable and firmware service-table calls now reuse the same plan-driven
 marshaller; receiver arguments remain on the wire, dispatch-only table pointers
 do not, and result-bearing field calls validate the plan-selected RAX placement
-before storage. Concrete firmware machine-state policy remains.
+before storage. `GetStdHandle`, `ExitProcess`, and `Sleep` now route through the
+same plan-driven general marshaller without changing bytes or relocation sites.
+The composite file-I/O, key-state, and time out-parameter import sequences and
+concrete firmware machine-state policy remain.
 
 Remaining order:
 
