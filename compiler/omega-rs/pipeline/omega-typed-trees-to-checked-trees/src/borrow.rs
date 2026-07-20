@@ -8,6 +8,8 @@ mod state;
 mod tracker;
 pub(crate) mod view_link;
 
+pub(crate) use last_uses::place_is_used_after_statement;
+
 use crate::lookup::machine_state_count;
 use roots::estimated_borrow_root_capacity;
 use state::{BorrowFactArenas, append_state_borrow_facts};

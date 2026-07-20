@@ -31803,6 +31803,37 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
 }
 
 #[test]
+fn suspension_carry_canaries_pin_statement_bound_liveness() {
+    let pass = pass_canary("concurrency/suspend_after_last_use_compile");
+    compile_canary_without_output(&pass).unwrap_or_else(|diagnostics| {
+        panic!(
+            "{} should compile after the restrictive value's last use:\n{}",
+            pass.display(),
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+
+    let fail = fail_canary("concurrency/suspend_live_value_rejected");
+    let diagnostics = compile_canary_without_output(&fail)
+        .expect_err("a restrictive live value must reject possible suspension");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("may reach `Suspend` while `message` remains live"),
+        "{} emitted the wrong diagnostic:\n{}",
+        fail.display(),
+        combined
+    );
+}
+
+#[test]
 fn range_gated_establishment_canaries_compile() {
     for name in [
         "dependent/range_sugar_gated_construction_compile",
@@ -34193,6 +34224,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "traits/runtime_equatable_scalar_not_equals_guard_exit",
     "borrow/runtime_view_of_view_chain_exit",
     "borrow/runtime_method_view_write_after_last_use_exit",
+    "concurrency/suspend_after_last_use_compile",
     // --- ch17 atomics (concurrency stage 1) ---
     "atomics/atomic_field_declared",
     "atomics/runtime_atomic_load_store_exit",
@@ -34231,6 +34263,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/construction_field_shape_mismatch_rejected",
     "data/boundary_data_construction_rejected",
     "data/boundary_data_relaxed_carry_unadmitted",
+    "concurrency/suspend_live_value_rejected",
     "expressions/match_duplicate_pattern_rejected",
     "expressions/primitive_member_access_rejected",
     "expressions/cross_class_binary_operands_rejected",

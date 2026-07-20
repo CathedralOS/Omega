@@ -30,11 +30,11 @@ mod transitions;
 mod type_references;
 mod wire;
 
-use crate::calls::{
-    validate_call_node, validate_proof_machine_recursion,
-    validate_self_recursive_call_positions, validate_value_position_calls,
-};
 pub use crate::calls::{CallFrameResolver, frame_paths_overlap};
+use crate::calls::{
+    validate_call_node, validate_proof_machine_recursion, validate_self_recursive_call_positions,
+    validate_value_position_calls,
+};
 use crate::contract_entailment::validate_machine_contract_entailment;
 use crate::data::validate_data_field_types;
 use crate::domains::validate_domain_definitions;
@@ -68,7 +68,7 @@ pub use places::declared_place_type_raw;
 pub use places::unwrapped_type_reference;
 pub use properties::{
     DeclaredPropertyRequirement, declared_property_requirements, effective_data_carry_policy,
-    type_satisfies_declared_property,
+    effective_type_carry_policy, type_satisfies_declared_property,
 };
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
@@ -545,7 +545,11 @@ fn validate_state_statement_node(
                 // the proof plan).
                 if let Some(handle) = assignment_target_type {
                     arithmetic_domains::check_range_containment(
-                        program, handle, interval, &owner, diagnostics,
+                        program,
+                        handle,
+                        interval,
+                        &owner,
+                        diagnostics,
                     );
                 }
             }

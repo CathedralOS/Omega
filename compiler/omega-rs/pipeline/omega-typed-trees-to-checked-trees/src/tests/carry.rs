@@ -74,3 +74,100 @@ fn checked_facts_store_declared_and_effective_carry_separately() {
         omega_core::semantics::CarryPolicy::STRICT
     );
 }
+
+fn lower(
+    source: &str,
+) -> Result<omega_checked_trees::CheckedTrees, Vec<omega_core::diagnostics::Diagnostic>> {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    lower_typed_trees(typed)
+}
+
+#[test]
+fn rejects_suspension_while_borrow_carrying_local_remains_live() {
+    let diagnostics = lower(
+        r#"
+        data Cell { value: i32; }
+        data Message { body: &Cell; }
+        boundary trait Scheduler {
+            machine park() effects Suspend;
+        }
+        data Main { scheduler: Scheduler; cell: Cell; }
+        machine Main::read(&mut self, cell: &Cell) -> i32 {
+            transition { _ -> cell.value }
+        }
+        machine Main::run(&mut self) {
+            let message: Message = Message { body: &self.cell };
+            self.scheduler.park();
+            let value: i32 = self.read(message.body);
+        }
+        "#,
+    )
+    .expect_err("a borrow-carrying local must not cross possible suspension");
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("may reach `Suspend`")
+                && diagnostic.message.contains("`message` remains live")
+                && diagnostic.message.contains("suspension: forbidden")
+        }),
+        "expected directed carry diagnostic, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn accepts_suspension_after_restrictive_locals_last_use() {
+    lower(
+        r#"
+        data Cell { value: i32; }
+        data Message { body: &Cell; }
+        boundary trait Scheduler {
+            machine park() effects Suspend;
+        }
+        data Main { scheduler: Scheduler; cell: Cell; }
+        machine Main::read(&mut self, cell: &Cell) -> i32 {
+            transition { _ -> cell.value }
+        }
+        machine Main::run(&mut self) {
+            let message: Message = Message { body: &self.cell };
+            let value: i32 = self.read(message.body);
+            self.scheduler.park();
+        }
+        "#,
+    )
+    .expect("the restrictive local is dead before suspension");
+}
+
+#[test]
+fn rejects_transitive_suspension_reach_with_live_restrictive_value() {
+    let diagnostics = lower(
+        r#"
+        data Cell { value: i32; }
+        data Message { body: &Cell; }
+        boundary trait Scheduler {
+            machine park() effects Suspend;
+        }
+        data Main { scheduler: Scheduler; cell: Cell; }
+        machine Main::wait(&mut self) { self.scheduler.park(); }
+        machine Main::read(&mut self, cell: &Cell) -> i32 {
+            transition { _ -> cell.value }
+        }
+        machine Main::run(&mut self) {
+            let message: Message = Message { body: &self.cell };
+            self.wait();
+            let value: i32 = self.read(message.body);
+        }
+        "#,
+    )
+    .expect_err("transitive suspension reach must be checked at the caller");
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("may reach `Suspend`")
+                && diagnostic.message.contains("`message` remains live")
+        }),
+        "expected transitive carry diagnostic, got {diagnostics:#?}"
+    );
+}
