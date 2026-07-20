@@ -78,6 +78,14 @@ pub enum InstructionOperandKind {
         byte_count: usize,
         alignment: usize,
     },
+    /// A fixed non-HFA AAPCS64 aggregate above 16 bytes. The caller copies the
+    /// value to temporary stack storage and passes that copy indirectly.
+    RuntimeLargeAggregate {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+        byte_count: usize,
+        alignment: usize,
+    },
     /// The ADDRESS of a statically allocated runtime-storage place (`region` base
     /// + `byte_offset`), marshalled as a pointer-sized host-call argument. This is
     /// the pointer-argument shape of the extern boundary: a `[u32; N]` framebuffer

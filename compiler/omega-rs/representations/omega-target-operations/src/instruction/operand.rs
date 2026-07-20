@@ -41,6 +41,9 @@ pub trait InstructionOperandLike {
     fn runtime_small_aggregate(&self) -> Option<(RuntimeStorageRegion, usize, usize, usize)> {
         None
     }
+    fn runtime_large_aggregate(&self) -> Option<(RuntimeStorageRegion, usize, usize, usize)> {
+        None
+    }
     /// The ADDRESS of a runtime-storage place, `(region, byte_offset)`, marshalled
     /// as a pointer-sized host-call argument (`lea` through the relocated region
     /// base) -- the extern boundary's pointer-argument shape.
@@ -160,6 +163,18 @@ impl InstructionOperandLike for TargetInstructionOperand {
         }
     }
 
+    fn runtime_large_aggregate(&self) -> Option<(RuntimeStorageRegion, usize, usize, usize)> {
+        match self.kind {
+            InstructionOperandKind::RuntimeLargeAggregate {
+                region,
+                byte_offset,
+                byte_count,
+                alignment,
+            } => Some((region, byte_offset, byte_count, alignment)),
+            _ => None,
+        }
+    }
+
     fn runtime_storage_address(&self) -> Option<(RuntimeStorageRegion, usize)> {
         match self.kind {
             InstructionOperandKind::RuntimeStorageAddress {
@@ -233,6 +248,12 @@ pub enum TargetInstructionOperandKind {
         members: u8,
     },
     RuntimeSmallAggregate {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+        byte_count: usize,
+        alignment: usize,
+    },
+    RuntimeLargeAggregate {
         region: RuntimeStorageRegion,
         byte_offset: usize,
         byte_count: usize,

@@ -9,6 +9,12 @@ pub fn operand_width(architecture: Architecture, operand: &impl InstructionOpera
     }
 }
 
+pub fn aarch64_indirect_result_address_width(
+    operand: &impl InstructionOperandLike,
+) -> Option<usize> {
+    aarch64::indirect_result_address_width(aarch64_call_operand(operand))
+}
+
 pub(crate) fn aarch64_call_operand(operand: &impl InstructionOperandLike) -> Aarch64CallOperand {
     if operand.data_address().is_some() {
         Aarch64CallOperand::DataAddress
@@ -47,6 +53,13 @@ pub(crate) fn aarch64_call_operand(operand: &impl InstructionOperandLike) -> Aar
     } else if let Some((_, byte_offset, byte_count, alignment)) = operand.runtime_small_aggregate()
     {
         Aarch64CallOperand::RuntimeSmallAggregate {
+            byte_offset,
+            byte_count,
+            alignment,
+        }
+    } else if let Some((_, byte_offset, byte_count, alignment)) = operand.runtime_large_aggregate()
+    {
+        Aarch64CallOperand::RuntimeLargeAggregate {
             byte_offset,
             byte_count,
             alignment,
