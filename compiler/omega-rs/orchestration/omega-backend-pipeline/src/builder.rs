@@ -555,6 +555,7 @@ fn host_computed_scalar_argument_slot_count(
                             if matches!(
                                 host_calls.expressions.expression(expression),
                                 omega_checked_trees::expression::ExpressionNode::Binary(_)
+                                    | omega_checked_trees::expression::ExpressionNode::Cast(_)
                             )
                     )
                 })

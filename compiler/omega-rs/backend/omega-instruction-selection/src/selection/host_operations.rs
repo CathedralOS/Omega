@@ -44,7 +44,7 @@ pub(super) fn select_host_call(
             };
             let target_offset = input.runtime_storage.host_argument_scratch_base + index * 8;
             if let Some((kind, _)) =
-                crate::selection::runtime_dispatch::select_computed_host_argument_binary_write(
+                crate::selection::runtime_dispatch::select_computed_host_argument_write(
                     input,
                     dispatch_index.unwrap_or(0),
                     host_call.source_key,

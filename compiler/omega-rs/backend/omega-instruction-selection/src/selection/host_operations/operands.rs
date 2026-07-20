@@ -2341,7 +2341,7 @@ fn computed_scalar_argument_operand(
         return None;
     }
     let expression = host_call_argument_expression(input, host_call, index)?;
-    let byte_count = crate::selection::runtime_dispatch::computed_host_argument_binary_byte_size(
+    let byte_count = crate::selection::runtime_dispatch::computed_host_argument_byte_size(
         input,
         dispatch_index.unwrap_or(0),
         host_call.source_key,
