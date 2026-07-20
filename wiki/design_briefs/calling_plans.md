@@ -224,8 +224,11 @@ before storage. `GetStdHandle`, `ExitProcess`, and `Sleep` now route through the
 same plan-driven general marshaller without changing bytes or relocation sites.
 `GetAsyncKeyState` likewise consumes planned RCX/RAX placements while retaining
 its compatibility-specific 16-bit zero-extension transform. The composite
-file-I/O and time out-parameter import sequences and concrete firmware
-machine-state policy remain.
+Windows time calls now plan their actual native one-pointer signatures: QPC/QPF
+also carry an ignored RAX `BOOL` result, while `GetSystemTimePreciseAsFileTime`
+is void. Their temporary out slot remains an encoder materialization detail.
+Composite file-I/O import sequences and concrete firmware machine-state policy
+remain.
 
 Remaining order:
 
