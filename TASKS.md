@@ -161,8 +161,15 @@ ceiling derived exactly from the ABI volatile-register classes.
    place the pointer in the normalized positional GPR or stack slot. General
    imports, vtable calls, and firmware service-table calls share the same
    reservation, width, and relocation accounting; a second source-to-PE canary
-   pins a 24-byte record between scalar arguments. Aggregate call results
-   remain fail-closed.
+   pins a 24-byte record between scalar arguments. Outbound aggregate results
+   now consume the same normalized Microsoft plan: 1-, 2-, 4-, and 8-byte
+   records spill from `rax`, while every other width supplies the caller-owned
+   destination in hidden `rcx`, shifts declared arguments (and vtable
+   receivers), and leaves the callee to write in place. General imports,
+   vtable calls, and service-table calls keep their encoders, widths, and
+   relocation walkers in lockstep. Source-to-PE canaries pin both an eight-byte
+   direct result and a 24-byte hidden-destination result with the first declared
+   argument shifted to `rdx`.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
    complete import/vtable/service-table compatibility mechanism matrix is

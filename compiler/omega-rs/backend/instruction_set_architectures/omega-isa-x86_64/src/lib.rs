@@ -2079,6 +2079,7 @@ fn win64_import_call_width<T: InstructionOperandLike>(
         .map(win64_import_reserve_for_plan)
         .unwrap_or_else(|| win64_import_reserve(arg_count));
     let mut width = 2 * rsp_adjust_width(reserve) + 5;
+    width += plan.as_ref().map(win64_result_pre_call_width).unwrap_or(0);
     for index in 0..arg_count {
         width += win64_import_arg_width(
             operands,
@@ -2090,9 +2091,10 @@ fn win64_import_call_width<T: InstructionOperandLike>(
     if dereferences_result {
         width += 2; // mov eax, [rax]
     }
-    if returns_value {
-        width += 17; // mov r11, imm64 (10) + mov [r11+disp32], eax/rax (7)
-    }
+    width += plan
+        .as_ref()
+        .map(win64_result_post_call_width)
+        .unwrap_or_else(|| usize::from(returns_value) * 17);
     width
 }
 
@@ -2594,7 +2596,12 @@ fn encode_win64_import_call<T: InstructionOperandLike>(
     }
     let arg_start = usize::from(returns_value);
     let plan = normalized_win64_import_plan(operands, returns_value)?;
-    let result_register = normalized_win64_result_register(&plan, returns_value)?;
+    let indirect_result = plan.result.as_ref().is_some_and(win64_result_is_indirect);
+    let result_register = if indirect_result {
+        None
+    } else {
+        normalized_win64_result_register(&plan, returns_value)?
+    };
     let reserve = win64_import_reserve_for_plan(&plan);
     let mut bytes = Vec::with_capacity(win64_import_call_width(
         operands,
@@ -2602,6 +2609,13 @@ fn encode_win64_import_call<T: InstructionOperandLike>(
         dereferences_result,
     ));
     append_sub_rsp(&mut bytes, reserve);
+    if indirect_result {
+        append_win64_indirect_result_address(
+            &mut bytes,
+            &operands[0],
+            plan.result.as_ref().expect("indirect result placement"),
+        )?;
+    }
     append_win64_call_arguments(&mut bytes, operands, arg_start, Some(&plan.parameters))?;
     bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32 (relocated)
     append_add_rsp(&mut bytes, reserve);
@@ -2615,29 +2629,13 @@ fn encode_win64_import_call<T: InstructionOperandLike>(
         // `&errno`); deref once so the store tail writes the integer.
         bytes.extend([0x8b, 0x00]); // mov eax, [rax]
     }
-    if returns_value {
-        if result_register != Some(MachineRegister::X86Rax) {
-            return Err(Diagnostic::error(format!(
-                "Microsoft x64 result store requires rax, got {result_register:?}"
-            )));
-        }
-        let Some((_, byte_offset, byte_count)) = operands[0].runtime_scalar_integer() else {
-            return Err(Diagnostic::error(
-                "cannot encode X86_64 import call: the result storage place did not lower to a \
-                 runtime scalar operand",
-            ));
-        };
-        append_mov_r11_imm64(&mut bytes, 0); // relocated to the result region base
-        match byte_count {
-            4 => bytes.extend([0x41, 0x89, 0x83]), // mov [r11+disp32], eax
-            8 => bytes.extend([0x49, 0x89, 0x83]), // mov [r11+disp32], rax
-            other => {
-                return Err(Diagnostic::error(format!(
-                    "X86_64 import call cannot store a {other}-byte result (expected 4 or 8)"
-                )));
-            }
-        }
-        bytes.extend(disp32(byte_offset)?.to_le_bytes());
+    if returns_value && !indirect_result {
+        append_win64_result_store(
+            &mut bytes,
+            &operands[0],
+            "import call",
+            plan.result.as_ref().expect("direct result placement"),
+        )?;
     }
     debug_assert_eq!(
         bytes.len(),
@@ -3878,15 +3876,11 @@ fn normalized_win64_call_plan<T: InstructionOperandLike>(
     arg_start: usize,
 ) -> Result<CallPlan, Diagnostic> {
     let result = if let Some(result_index) = result_index {
-        let Some((_, _, byte_count)) = operands
-            .get(result_index)
-            .and_then(InstructionOperandLike::runtime_scalar_integer)
-        else {
-            return Err(Diagnostic::error(
-                "Microsoft x64 call result place did not lower to scalar storage",
-            ));
-        };
-        Some(win64_integer_shape(byte_count, "result")?)
+        Some(win64_operand_shape(
+            operands.get(result_index).ok_or_else(|| {
+                Diagnostic::error("Microsoft x64 call result index is out of range")
+            })?,
+        )?)
     } else {
         None
     };
@@ -3992,6 +3986,67 @@ fn normalized_win64_result_register(
             "Microsoft x64 import plan/result shape is internally inconsistent",
         )),
     }
+}
+
+fn win64_result_is_indirect(placement: &ValuePlacement) -> bool {
+    matches!(
+        placement.locations.as_slice(),
+        [ValueLocation::Indirect {
+            pointer: IndirectPointerLocation::Register(MachineRegister::X86Rcx),
+            copy_stack_byte_offset: None,
+            ..
+        }]
+    )
+}
+
+fn win64_result_pre_call_width(plan: &CallPlan) -> usize {
+    usize::from(plan.result.as_ref().is_some_and(win64_result_is_indirect)) * 17
+}
+
+fn win64_result_post_call_width(plan: &CallPlan) -> usize {
+    match plan.result.as_ref() {
+        Some(placement) if !win64_result_is_indirect(placement) => {
+            17 + usize::from(placement.shape.byte_size == 2)
+        }
+        _ => 0,
+    }
+}
+
+fn append_win64_indirect_result_address<T: InstructionOperandLike>(
+    bytes: &mut Vec<u8>,
+    operand: &T,
+    placement: &ValuePlacement,
+) -> Result<(), Diagnostic> {
+    let [
+        ValueLocation::Indirect {
+            pointer: IndirectPointerLocation::Register(MachineRegister::X86Rcx),
+            copy_stack_byte_offset: None,
+            byte_size,
+            alignment,
+        },
+    ] = placement.locations.as_slice()
+    else {
+        return Err(Diagnostic::error(
+            "Microsoft x64 indirect result does not use the hidden RCX destination",
+        ));
+    };
+    let Some((_, byte_offset, operand_byte_size, operand_alignment)) =
+        win64_aggregate_operand(operand)
+    else {
+        return Err(Diagnostic::error(
+            "Microsoft x64 indirect result did not lower to aggregate storage",
+        ));
+    };
+    if operand_byte_size != usize::from(*byte_size) || operand_alignment != usize::from(*alignment)
+    {
+        return Err(Diagnostic::error(
+            "Microsoft x64 indirect result storage disagrees with its normalized shape",
+        ));
+    }
+    append_mov_r11_imm64(bytes, 0); // relocated to the result region base
+    bytes.extend([0x49, 0x8d, 0x8b]); // lea rcx, [r11+disp32]
+    bytes.extend(disp32(byte_offset)?.to_le_bytes());
+    Ok(())
 }
 
 #[cfg(test)]
@@ -4231,6 +4286,95 @@ mod x86_import_plan_tests {
                 .map(|site| site.operand_index)
                 .collect::<Vec<_>>(),
             [Some(0), Some(1), Some(2), Some(3), Some(4), None]
+        );
+    }
+
+    #[test]
+    fn win64_direct_aggregate_results_spill_rax_at_the_record_width() {
+        for (byte_count, store) in [
+            (1, &[0x41, 0x88, 0x83][..]),
+            (2, &[0x66, 0x41, 0x89, 0x83][..]),
+            (4, &[0x41, 0x89, 0x83][..]),
+            (8, &[0x49, 0x89, 0x83][..]),
+        ] {
+            let operands = [operand(
+                TargetInstructionOperandKind::RuntimeSmallAggregate {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 24,
+                    byte_count,
+                    alignment: byte_count,
+                },
+            )];
+            let plan = normalized_win64_import_plan(&operands, true)
+                .expect("direct Microsoft x64 aggregate result plan");
+            assert_eq!(
+                normalized_win64_result_register(&plan, true).expect("result register"),
+                Some(MachineRegister::X86Rax)
+            );
+
+            let bytes = encode_win64_import_call(&operands, true, false)
+                .expect("direct Microsoft x64 aggregate result call");
+            assert_eq!(bytes.len(), win64_import_call_width(&operands, true, false));
+            let store_start = bytes.len() - store.len() - 4;
+            assert_eq!(&bytes[store_start..store_start + store.len()], store);
+            assert_eq!(&bytes[bytes.len() - 4..], &24u32.to_le_bytes());
+            assert_eq!(
+                win64_import_call_relocation_sites(&operands, true, false)
+                    .iter()
+                    .map(|site| site.operand_index)
+                    .collect::<Vec<_>>(),
+                [None, Some(0)]
+            );
+        }
+    }
+
+    #[test]
+    fn win64_indirect_aggregate_result_uses_hidden_rcx_and_shifts_arguments() {
+        let operands = [
+            operand(TargetInstructionOperandKind::RuntimeLargeAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 64,
+                byte_count: 24,
+                alignment: 8,
+            }),
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 8,
+                byte_count: 8,
+            }),
+        ];
+        let plan = normalized_win64_import_plan(&operands, true)
+            .expect("indirect Microsoft x64 aggregate result plan");
+        assert!(plan.result.as_ref().is_some_and(win64_result_is_indirect));
+        assert!(matches!(
+            plan.parameters[0].locations.as_slice(),
+            [ValueLocation::Register {
+                register: MachineRegister::X86Rdx,
+                ..
+            }]
+        ));
+
+        let bytes = encode_win64_import_call(&operands, true, false)
+            .expect("indirect Microsoft x64 aggregate result call");
+        assert_eq!(bytes.len(), win64_import_call_width(&operands, true, false));
+        assert_eq!(&bytes[..4], &[0x48, 0x83, 0xec, 40]);
+        assert_eq!(&bytes[4..6], &[0x49, 0xbb]);
+        assert_eq!(
+            &bytes[14..21],
+            &[0x49, 0x8d, 0x8b, 64, 0, 0, 0],
+            "RCX must address the caller-owned result record"
+        );
+        assert_eq!(
+            &bytes[31..38],
+            &[0x49, 0x8b, 0x93, 8, 0, 0, 0],
+            "the first declared argument must shift to RDX"
+        );
+        assert_eq!(
+            win64_import_call_relocation_sites(&operands, true, false)
+                .iter()
+                .map(|site| site.operand_index)
+                .collect::<Vec<_>>(),
+            [Some(0), Some(1), None]
         );
     }
 
@@ -5204,6 +5348,19 @@ fn win64_import_call_relocation_sites<T: InstructionOperandLike>(
         .unwrap_or_else(|| win64_import_reserve(arg_count));
     let mut sites = Vec::new();
     let mut cursor = rsp_adjust_width(reserve);
+    if plan
+        .as_ref()
+        .and_then(|plan| plan.result.as_ref())
+        .is_some_and(win64_result_is_indirect)
+    {
+        sites.push(X86_64RelocationSite {
+            operand_index: Some(0),
+            byte_offset: cursor + 2,
+            byte_width: 8,
+            kind: X86_64RelocationSiteKind::Absolute64,
+        });
+        cursor += 17;
+    }
     for index in 0..arg_count {
         if win64_import_arg_is_staged(operands.get(arg_start + index)) {
             sites.push(X86_64RelocationSite {
@@ -5231,9 +5388,13 @@ fn win64_import_call_relocation_sites<T: InstructionOperandLike>(
         cursor += 2; // mov eax, [rax]
     }
     if returns_value
-        && operands
-            .first()
-            .is_some_and(|operand| operand.runtime_scalar_integer().is_some())
+        && plan
+            .as_ref()
+            .and_then(|plan| plan.result.as_ref())
+            .is_some_and(|placement| !win64_result_is_indirect(placement))
+        && operands.first().is_some_and(|operand| {
+            operand.runtime_scalar_integer().is_some() || win64_aggregate_operand(operand).is_some()
+        })
     {
         sites.push(X86_64RelocationSite {
             operand_index: Some(0),
@@ -5267,35 +5428,89 @@ pub fn encode_win64_vtable_call<T: InstructionOperandLike>(
 /// region base, then store rax/eax at the result's declared width.
 fn append_win64_result_store<T: InstructionOperandLike>(
     bytes: &mut Vec<u8>,
-    operands: &[T],
+    operand: &T,
     label: &str,
-    result_register: MachineRegister,
+    placement: &ValuePlacement,
 ) -> Result<(), Diagnostic> {
+    let result_register = match placement.locations.as_slice() {
+        [
+            ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                byte_size,
+            },
+        ] if *byte_size == placement.shape.byte_size => *register,
+        locations => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 {label} has unsupported direct result placement {locations:?}"
+            )));
+        }
+    };
     if result_register != MachineRegister::X86Rax {
         return Err(Diagnostic::error(format!(
             "X86_64 {label} result store cannot realize planned register {result_register:?}"
         )));
     }
-    let Some((_, byte_offset, byte_count)) = operands
-        .first()
-        .and_then(InstructionOperandLike::runtime_scalar_integer)
-    else {
+    let result_storage = operand
+        .runtime_scalar_integer()
+        .map(|(region, offset, size)| (region, offset, size))
+        .or_else(|| {
+            win64_aggregate_operand(operand).map(|(region, offset, size, _)| (region, offset, size))
+        });
+    let Some((_, byte_offset, byte_count)) = result_storage else {
         return Err(Diagnostic::error(format!(
             "cannot encode X86_64 {label}: the result storage place did not lower to a \
-             runtime scalar operand"
+             runtime scalar or aggregate operand"
         )));
     };
+    if usize::from(placement.shape.byte_size) != byte_count {
+        return Err(Diagnostic::error(format!(
+            "X86_64 {label} result storage disagrees with its normalized shape"
+        )));
+    }
     append_mov_r11_imm64(bytes, 0); // relocated to the result region base
     match byte_count {
+        1 => bytes.extend([0x41, 0x88, 0x83]), // mov [r11+disp32], al
+        2 => bytes.extend([0x66, 0x41, 0x89, 0x83]), // mov [r11+disp32], ax
         4 => bytes.extend([0x41, 0x89, 0x83]), // mov [r11+disp32], eax
         8 => bytes.extend([0x49, 0x89, 0x83]), // mov [r11+disp32], rax
         other => {
             return Err(Diagnostic::error(format!(
-                "X86_64 {label} cannot store a {other}-byte result (expected 4 or 8)"
+                "X86_64 {label} cannot store a direct {other}-byte result (expected 1, 2, 4, or 8)"
             )));
         }
     }
     bytes.extend(disp32(byte_offset)?.to_le_bytes());
+    Ok(())
+}
+
+fn append_win64_vtable_dispatch_load(
+    bytes: &mut Vec<u8>,
+    receiver: &ValuePlacement,
+    byte_offset: i64,
+) -> Result<(), Diagnostic> {
+    let register = match win64_argument_location(receiver, 0)? {
+        Win64ArgumentLocation::Register(register) => register,
+        Win64ArgumentLocation::Stack(_) => {
+            return Err(Diagnostic::error(
+                "Microsoft x64 vtable receiver unexpectedly lowered to the stack",
+            ));
+        }
+    };
+    let slot_disp = i32::try_from(byte_offset)
+        .map_err(|_| Diagnostic::error("vtable field offset exceeds an imm32"))?;
+    match register {
+        MachineRegister::X86Rcx => bytes.extend([0x48, 0x8b, 0x81]),
+        MachineRegister::X86Rdx => bytes.extend([0x48, 0x8b, 0x82]),
+        MachineRegister::X86R8 => bytes.extend([0x49, 0x8b, 0x80]),
+        MachineRegister::X86R9 => bytes.extend([0x49, 0x8b, 0x81]),
+        other => {
+            return Err(Diagnostic::error(format!(
+                "Microsoft x64 vtable receiver uses unsupported register {other:?}"
+            )));
+        }
+    }
+    bytes.extend(slot_disp.to_le_bytes());
     Ok(())
 }
 
@@ -5318,7 +5533,10 @@ pub fn encode_win64_vtable_call_at_offset<T: InstructionOperandLike>(
         ));
     }
     let plan = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start)?;
-    let result_register = normalized_win64_result_register(&plan, result_present)?;
+    let indirect_result = plan.result.as_ref().is_some_and(win64_result_is_indirect);
+    if !indirect_result {
+        normalized_win64_result_register(&plan, result_present)?;
+    }
     let reserve = win64_import_reserve_for_plan(&plan);
     let mut bytes = Vec::with_capacity(win64_vtable_call_width(
         operands,
@@ -5326,19 +5544,26 @@ pub fn encode_win64_vtable_call_at_offset<T: InstructionOperandLike>(
         result_present,
     ));
     append_sub_rsp(&mut bytes, reserve);
+    if indirect_result {
+        append_win64_indirect_result_address(
+            &mut bytes,
+            &operands[0],
+            plan.result.as_ref().expect("indirect result placement"),
+        )?;
+    }
     append_win64_call_arguments(&mut bytes, operands, arg_start, Some(&plan.parameters))?;
-    // Read the callee from the receiver (still in RCX) and call it.
-    let slot_disp = i32::try_from(byte_offset)
-        .map_err(|_| Diagnostic::error("vtable field offset exceeds an imm32"))?;
-    bytes.extend([0x48, 0x8b, 0x81]); // mov rax, [rcx + disp32]
-    bytes.extend(slot_disp.to_le_bytes());
+    // A hidden indirect-result destination occupies RCX, shifting the
+    // receiver to RDX. Read the dispatch pointer from its planned register.
+    append_win64_vtable_dispatch_load(&mut bytes, &plan.parameters[0], byte_offset)?;
     append_call_register(&mut bytes, 0); // call rax
     append_add_rsp(&mut bytes, reserve);
-    if result_present {
-        let result_register = result_register.ok_or_else(|| {
-            Diagnostic::error("Microsoft x64 vtable plan omitted its required result")
-        })?;
-        append_win64_result_store(&mut bytes, operands, "vtable call", result_register)?;
+    if result_present && !indirect_result {
+        append_win64_result_store(
+            &mut bytes,
+            &operands[0],
+            "vtable call",
+            plan.result.as_ref().expect("direct result placement"),
+        )?;
     }
     debug_assert_eq!(
         bytes.len(),
@@ -5360,6 +5585,7 @@ pub fn win64_vtable_call_width<T: InstructionOperandLike>(
         .map(win64_import_reserve_for_plan)
         .unwrap_or_else(|| win64_import_reserve(arg_count));
     let mut width = rsp_adjust_width(reserve);
+    width += plan.as_ref().map(win64_result_pre_call_width).unwrap_or(0);
     for index in 0..arg_count {
         width += win64_import_arg_width(
             operands,
@@ -5371,9 +5597,10 @@ pub fn win64_vtable_call_width<T: InstructionOperandLike>(
     width += 7; // mov rax, [rcx + disp32]
     width += 2; // call rax (no REX.B for rax)
     width += rsp_adjust_width(reserve);
-    if result_present {
-        width += 17; // mov r11, imm64 (10) + mov [r11+disp32], eax/rax (7)
-    }
+    width += plan
+        .as_ref()
+        .map(win64_result_post_call_width)
+        .unwrap_or_else(|| usize::from(result_present) * 17);
     width
 }
 
@@ -5403,7 +5630,10 @@ pub fn encode_win64_table_function_call<T: InstructionOperandLike>(
     };
     let arg_start = table_index + 1;
     let plan = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start)?;
-    let result_register = normalized_win64_result_register(&plan, result_present)?;
+    let indirect_result = plan.result.as_ref().is_some_and(win64_result_is_indirect);
+    if !indirect_result {
+        normalized_win64_result_register(&plan, result_present)?;
+    }
     let reserve = win64_import_reserve_for_plan(&plan);
     let mut bytes = Vec::with_capacity(win64_table_function_call_width(
         operands,
@@ -5411,6 +5641,13 @@ pub fn encode_win64_table_function_call<T: InstructionOperandLike>(
         result_present,
     ));
     append_sub_rsp(&mut bytes, reserve);
+    if indirect_result {
+        append_win64_indirect_result_address(
+            &mut bytes,
+            &operands[0],
+            plan.result.as_ref().expect("indirect result placement"),
+        )?;
+    }
     append_win64_call_arguments(&mut bytes, operands, arg_start, Some(&plan.parameters))?;
     // Load the table pointer (dispatch-only, never a wire argument), read the
     // fn-ptr field, call it.
@@ -5423,11 +5660,13 @@ pub fn encode_win64_table_function_call<T: InstructionOperandLike>(
     bytes.extend(field_disp.to_le_bytes());
     append_call_register(&mut bytes, 0); // call rax
     append_add_rsp(&mut bytes, reserve);
-    if result_present {
-        let result_register = result_register.ok_or_else(|| {
-            Diagnostic::error("Microsoft x64 table-function plan omitted its required result")
-        })?;
-        append_win64_result_store(&mut bytes, operands, "table-function call", result_register)?;
+    if result_present && !indirect_result {
+        append_win64_result_store(
+            &mut bytes,
+            &operands[0],
+            "table-function call",
+            plan.result.as_ref().expect("direct result placement"),
+        )?;
     }
     debug_assert_eq!(
         bytes.len(),
@@ -5449,6 +5688,7 @@ pub fn win64_table_function_call_width<T: InstructionOperandLike>(
         .map(win64_import_reserve_for_plan)
         .unwrap_or_else(|| win64_import_reserve(arg_count));
     let mut width = rsp_adjust_width(reserve);
+    width += plan.as_ref().map(win64_result_pre_call_width).unwrap_or(0);
     for index in 0..arg_count {
         width += win64_import_arg_width(
             operands,
@@ -5462,9 +5702,10 @@ pub fn win64_table_function_call_width<T: InstructionOperandLike>(
     width += 7; // mov rax, [rax + disp32]
     width += 2; // call rax
     width += rsp_adjust_width(reserve);
-    if result_present {
-        width += 17; // mov r11, imm64 (10) + mov [r11+disp32], eax/rax (7)
-    }
+    width += plan
+        .as_ref()
+        .map(win64_result_post_call_width)
+        .unwrap_or_else(|| usize::from(result_present) * 17);
     width
 }
 
@@ -5513,6 +5754,19 @@ pub fn win64_vtable_call_relocation_sites<T: InstructionOperandLike>(
         .unwrap_or_else(|| win64_import_reserve(arg_count));
     let mut sites = Vec::new();
     let mut cursor = rsp_adjust_width(reserve);
+    if plan
+        .as_ref()
+        .and_then(|plan| plan.result.as_ref())
+        .is_some_and(win64_result_is_indirect)
+    {
+        sites.push(X86_64RelocationSite {
+            operand_index: Some(0),
+            byte_offset: cursor + 2,
+            byte_width: 8,
+            kind: X86_64RelocationSiteKind::Absolute64,
+        });
+        cursor += 17;
+    }
     for index in 0..arg_count {
         if win64_import_arg_is_staged(operands.get(arg_start + index)) {
             sites.push(X86_64RelocationSite {
@@ -5531,9 +5785,13 @@ pub fn win64_vtable_call_relocation_sites<T: InstructionOperandLike>(
     }
     cursor += 7 + 2 + rsp_adjust_width(reserve); // fn-ptr read + call rax + add rsp
     if result_present
-        && operands
-            .first()
-            .is_some_and(|operand| operand.runtime_scalar_integer().is_some())
+        && plan
+            .as_ref()
+            .and_then(|plan| plan.result.as_ref())
+            .is_some_and(|placement| !win64_result_is_indirect(placement))
+        && operands.first().is_some_and(|operand| {
+            operand.runtime_scalar_integer().is_some() || win64_aggregate_operand(operand).is_some()
+        })
     {
         sites.push(X86_64RelocationSite {
             operand_index: Some(0),
@@ -5562,6 +5820,19 @@ pub fn win64_table_function_call_relocation_sites<T: InstructionOperandLike>(
         .unwrap_or_else(|| win64_import_reserve(arg_count));
     let mut sites = Vec::new();
     let mut cursor = rsp_adjust_width(reserve);
+    if plan
+        .as_ref()
+        .and_then(|plan| plan.result.as_ref())
+        .is_some_and(win64_result_is_indirect)
+    {
+        sites.push(X86_64RelocationSite {
+            operand_index: Some(0),
+            byte_offset: cursor + 2,
+            byte_width: 8,
+            kind: X86_64RelocationSiteKind::Absolute64,
+        });
+        cursor += 17;
+    }
     for index in 0..arg_count {
         if win64_import_arg_is_staged(operands.get(arg_start + index)) {
             sites.push(X86_64RelocationSite {
@@ -5589,9 +5860,13 @@ pub fn win64_table_function_call_relocation_sites<T: InstructionOperandLike>(
     cursor += 10 + 7; // table load: mov r11, imm64 + mov rax, [r11+disp32]
     cursor += 7 + 2 + rsp_adjust_width(reserve); // fn-ptr read + call rax + add rsp
     if result_present
-        && operands
-            .first()
-            .is_some_and(|operand| operand.runtime_scalar_integer().is_some())
+        && plan
+            .as_ref()
+            .and_then(|plan| plan.result.as_ref())
+            .is_some_and(|placement| !win64_result_is_indirect(placement))
+        && operands.first().is_some_and(|operand| {
+            operand.runtime_scalar_integer().is_some() || win64_aggregate_operand(operand).is_some()
+        })
     {
         sites.push(X86_64RelocationSite {
             operand_index: Some(0),
@@ -13892,6 +14167,102 @@ mod vtable_call_encoding_tests {
                 .map(|site| site.operand_index)
                 .collect::<Vec<_>>(),
             [Some(1), Some(0)]
+        );
+    }
+
+    #[test]
+    fn indirect_vtable_result_shifts_the_receiver_and_has_no_store_tail() {
+        let operands = vec![
+            Op::Aggregate {
+                region: RuntimeStorageRegion::Machine,
+                offset: 32,
+                size: 24,
+                alignment: 8,
+            },
+            Op::Scalar {
+                region: RuntimeStorageRegion::Machine,
+                offset: 0,
+                size: 8,
+            },
+        ];
+        let bytes = encode_win64_vtable_call_at_offset(&operands, 8, true)
+            .expect("Win64 vtable indirect result call");
+        assert_eq!(bytes.len(), win64_vtable_call_width(&operands, 8, true));
+        assert_eq!(&bytes[..4], &[0x48, 0x83, 0xec, 40]);
+        assert_eq!(
+            &bytes[14..21],
+            &[0x49, 0x8d, 0x8b, 32, 0, 0, 0],
+            "hidden RCX must address the result record"
+        );
+        assert_eq!(
+            &bytes[31..38],
+            &[0x49, 0x8b, 0x93, 0, 0, 0, 0],
+            "the receiver must shift to RDX"
+        );
+        assert_eq!(
+            &bytes[38..45],
+            &[0x48, 0x8b, 0x82, 8, 0, 0, 0],
+            "dispatch must read through the shifted receiver"
+        );
+        assert_eq!(&bytes[45..47], &[0xff, 0xd0]);
+        assert_eq!(&bytes[47..51], &[0x48, 0x83, 0xc4, 40]);
+        assert_eq!(bytes.len(), 51, "the callee writes the result in place");
+        assert_eq!(
+            win64_vtable_call_relocation_sites(&operands, true)
+                .iter()
+                .map(|site| (site.operand_index, site.byte_offset))
+                .collect::<Vec<_>>(),
+            [(Some(0), 6), (Some(1), 23)]
+        );
+    }
+
+    #[test]
+    fn indirect_table_function_result_shifts_declared_arguments_only() {
+        let operands = vec![
+            Op::Aggregate {
+                region: RuntimeStorageRegion::Machine,
+                offset: 32,
+                size: 24,
+                alignment: 8,
+            },
+            Op::Scalar {
+                region: RuntimeStorageRegion::Machine,
+                offset: 0,
+                size: 8,
+            },
+            Op::Scalar {
+                region: RuntimeStorageRegion::Machine,
+                offset: 8,
+                size: 8,
+            },
+        ];
+        let bytes = encode_win64_table_function_call(&operands, 56, true)
+            .expect("Win64 service-table indirect result call");
+        assert_eq!(
+            bytes.len(),
+            win64_table_function_call_width(&operands, 56, true)
+        );
+        assert_eq!(
+            &bytes[14..21],
+            &[0x49, 0x8d, 0x8b, 32, 0, 0, 0],
+            "hidden RCX must address the result record"
+        );
+        assert_eq!(
+            &bytes[31..38],
+            &[0x49, 0x8b, 0x93, 8, 0, 0, 0],
+            "the first declared service argument must shift to RDX"
+        );
+        assert_eq!(
+            &bytes[48..55],
+            &[0x49, 0x8b, 0x83, 0, 0, 0, 0],
+            "the table remains dispatch-only"
+        );
+        assert_eq!(
+            win64_table_function_call_relocation_sites(&operands, true)
+                .iter()
+                .map(|site| (site.operand_index, site.byte_offset))
+                .collect::<Vec<_>>(),
+            [(Some(0), 6), (Some(2), 23), (Some(1), 40)]
         );
     }
 }
