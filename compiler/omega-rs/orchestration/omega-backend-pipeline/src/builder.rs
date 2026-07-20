@@ -303,7 +303,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     reserve_wire_nested_scratch(&mut backend_plan.runtime_storage, &program);
     reserve_host_argument_scratch(
         &mut backend_plan.runtime_storage,
-        host_computed_scalar_argument_slot_count(&backend_plan.host_calls),
+        host_computed_scalar_argument_slot_count(&program, &backend_plan.host_calls),
     );
     // Reserve the entry-argument spill (the bytes handoff `run(&self, args:
     // &[u8])`) ABOVE every other reservation -- args's slice descriptor points
@@ -539,6 +539,7 @@ fn entry_may_need_native_indirect_result_pointer(
 }
 
 fn host_computed_scalar_argument_slot_count(
+    program: &CheckedTrees,
     host_calls: &omega_platform_interface::HostCallPlan,
 ) -> usize {
     host_calls
@@ -552,11 +553,21 @@ fn host_computed_scalar_argument_slot_count(
                     matches!(
                         argument.kind,
                         omega_platform_interface::HostCallArgumentKind::Expression(expression)
-                            if matches!(
-                                host_calls.expressions.expression(expression),
+                            if match host_calls.expressions.expression(expression) {
                                 omega_checked_trees::expression::ExpressionNode::Binary(_)
-                                    | omega_checked_trees::expression::ExpressionNode::Cast(_)
-                            )
+                                | omega_checked_trees::expression::ExpressionNode::Cast(_) => true,
+                                omega_checked_trees::expression::ExpressionNode::Call(call) => [
+                                    omega_core::symbols::BuiltinFunction::Max,
+                                    omega_core::symbols::BuiltinFunction::Min,
+                                    omega_core::symbols::BuiltinFunction::Sqrt,
+                                ]
+                                .into_iter()
+                                .any(|builtin| {
+                                    program.symbols.builtin_function_symbol(builtin)
+                                        == Some(call.target_symbol)
+                                }),
+                                _ => false,
+                            }
                     )
                 })
                 .then_some(arguments.len())

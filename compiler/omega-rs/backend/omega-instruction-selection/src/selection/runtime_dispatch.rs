@@ -355,7 +355,7 @@ pub(in crate::selection) fn select_computed_host_argument_write(
         computed_host_argument_byte_size(input, dispatch_index, source_key, expressions, value)?;
     let static_values = writes::RuntimeStaticValues::default();
     let instruction = match expressions.expression(value) {
-        ExpressionNode::Binary(_) => {
+        ExpressionNode::Binary(_) | ExpressionNode::Call(_) => {
             writes::mutation::select_runtime_storage_binary_write_in_table(
                 input,
                 dispatch_index,
@@ -429,8 +429,49 @@ pub(in crate::selection) fn computed_host_argument_byte_size(
             .last()
             .and_then(|name| PrimitiveType::from_name(name.as_str()))
             .and_then(|primitive| primitive.scalar_byte_size()),
+        ExpressionNode::Call(call) => {
+            let (left, right) = computed_host_builtin_operands(input, expressions, call)?;
+            Some(writes::mutation::binary_value_operand_byte_width(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                left,
+                right,
+            ))
+        }
         _ => None,
     }
+}
+
+fn computed_host_builtin_operands(
+    input: &InstructionSelectionInput<'_>,
+    expressions: &ExpressionTable,
+    call: &omega_checked_trees::expression::TableCallExpression,
+) -> Option<(ExpressionHandle, ExpressionHandle)> {
+    if call.receiver.is_valid() {
+        return None;
+    }
+    let symbols = &input.program.symbols;
+    let is_binary = [
+        omega_core::symbols::BuiltinFunction::Max,
+        omega_core::symbols::BuiltinFunction::Min,
+    ]
+    .into_iter()
+    .any(|builtin| symbols.builtin_function_symbol(builtin) == Some(call.target_symbol));
+    if is_binary && call.arguments.count() == 2 {
+        return Some((
+            expressions.expression_handle_at_offset(call.arguments, 0),
+            expressions.expression_handle_at_offset(call.arguments, 1),
+        ));
+    }
+    let is_sqrt = symbols.builtin_function_symbol(omega_core::symbols::BuiltinFunction::Sqrt)
+        == Some(call.target_symbol);
+    if is_sqrt && call.arguments.count() == 1 {
+        let operand = expressions.expression_handle_at_offset(call.arguments, 0);
+        return Some((operand, operand));
+    }
+    None
 }
 
 #[allow(clippy::too_many_arguments)]
