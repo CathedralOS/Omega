@@ -1,7 +1,6 @@
 // A conformance item is checked against WRITTEN members: `Point satisfies
-// Shape;` with no written `Point::code` is an error (trait default
-// instantiation / core synthesis is the compile-time-execution direction and
-// is not implemented yet).
+// Shape;` with no written `Point::code` is an error because the requirement
+// has no default body.
 
 trait Shape {
     machine code(&mut self) -> i32;

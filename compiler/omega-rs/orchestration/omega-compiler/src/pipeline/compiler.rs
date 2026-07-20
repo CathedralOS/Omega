@@ -274,6 +274,7 @@ impl Compiler {
         crate::pipeline::const_generic_calls::evaluate_const_generic_calls(
             &mut syntax.syntax_trees,
         )?;
+        crate::pipeline::trait_defaults::synthesize_trait_defaults(&mut syntax.syntax_trees)?;
         // PLAN-LAID VALUE TYPES (layouts L4), desugar half: synthesize the
         // `Policy<Schema>` instance definitions before resolution so every
         // later stage sees ordinary records.

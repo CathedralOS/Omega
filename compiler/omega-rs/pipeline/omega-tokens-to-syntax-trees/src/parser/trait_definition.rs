@@ -79,6 +79,15 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         signature.effects = effects;
         signature.contracts = contracts;
         signature.terminates_guarantee = terminates_guarantee;
+        let (default_body, next) = if is_default {
+            parse_trait_default_machine_body(syntax_trees, rest)?
+        } else {
+            (
+                HandleSpan::empty(),
+                rest.take_punctuation(PunctuationKind::Semicolon, ";")?,
+            )
+        };
+        signature.default_body = default_body;
         let handle = syntax_trees.items.insert_state_signature(&signature);
         let handle = syntax_trees.items.append_state_signature_handle(handle);
         if machine_count == 0 {
@@ -87,11 +96,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         machine_count = machine_count
             .checked_add(1)
             .expect("trait machine signature span count overflow");
-        input = if is_default {
-            parse_trait_default_machine_body(syntax_trees, rest)?
-        } else {
-            rest.take_punctuation(PunctuationKind::Semicolon, ";")?
-        };
+        input = next;
     }
 
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
@@ -162,6 +167,7 @@ fn parse_trait_machine_signature<'tokens, 'source>(
             return_type,
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
+            default_body: HandleSpan::empty(),
             terminates_guarantee: false,
         },
         input,
@@ -191,19 +197,39 @@ fn parse_trait_machine_name<'tokens, 'source>(
 fn parse_trait_default_machine_body<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> Result<Input<'tokens, 'source>, crate::parse_error::ParseError> {
+) -> Result<
+    (
+        HandleSpan<omega_syntax_trees::statement::StatementHandle>,
+        Input<'tokens, 'source>,
+    ),
+    crate::parse_error::ParseError,
+> {
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+    let mut start = Handle::invalid();
+    let mut count = 0u32;
     while !input.at_punctuation(PunctuationKind::RightBrace) {
-        if input.at_contextual("asm") {
-            let (_, rest) = parse_asm_block_statement_handles(syntax_trees, input)?;
-            input = rest;
+        let (statements, rest) = if input.at_contextual("asm") {
+            parse_asm_block_statement_handles(syntax_trees, input)?
         } else {
             let (statement, rest) = parse_statement_handle(syntax_trees, input)?;
-            let _ = syntax_trees.items.append_statement_handle(statement);
-            input = rest;
+            let handle = syntax_trees.items.append_statement_handle(statement);
+            (HandleSpan::from_parts(handle, 1), rest)
+        };
+        if count == 0 {
+            start = statements.start();
         }
+        count = count
+            .checked_add(statements.count())
+            .expect("trait default statement span count overflow");
+        input = rest;
     }
-    input.take_punctuation(PunctuationKind::RightBrace, "}")
+    let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    let body = if count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(start, count)
+    };
+    Ok((body, input))
 }
 
 fn parse_trait_requirement<'tokens, 'source>(
