@@ -1,0 +1,1 @@
+uses unresolved fixed-array length `N`; a symbolic array length must name an in-scope `const` parameter

@@ -1,0 +1,1 @@
+uses const parameter `N` of non-integer type `bool` as a fixed-array length

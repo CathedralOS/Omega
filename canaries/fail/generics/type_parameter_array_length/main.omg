@@ -1,0 +1,9 @@
+data Wrong<T> {
+    slots: [u8; T];
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

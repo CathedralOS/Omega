@@ -24,9 +24,7 @@ use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{
     StatementNode, TableCall, TransitionGuardNode, TransitionTargetNode,
 };
-use omega_typed_trees::types::{
-    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
-};
+use omega_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 /// Shared conservative call-frame resolver. A complete result is the set of
 /// caller-visible places the call may write; `None` is deliberately opaque and
@@ -1597,15 +1595,6 @@ pub(crate) fn validate_call_arguments_handles(
         // that differ (every non-data form is skipped, so no false positive on
         // trait/generic parameters or computed arguments).
         let slot_context = format!("argument `{}` for state `{target_name}`", parameter.name);
-        report_fixed_array_length_argument_mismatch(
-            program,
-            current_machine,
-            current_state,
-            *argument,
-            parameter,
-            target_name,
-            diagnostics,
-        );
         report_data_type_conflict(
             program,
             current_machine,
@@ -1784,15 +1773,6 @@ fn validate_value_call_argument_classes(
             parameter.name,
             callee_state.name.as_str()
         );
-        report_fixed_array_length_argument_mismatch(
-            program,
-            current_machine,
-            Some(current_state),
-            *argument,
-            parameter,
-            callee_state.name.as_str(),
-            diagnostics,
-        );
         report_data_type_conflict(
             program,
             current_machine,
@@ -1819,58 +1799,6 @@ fn validate_value_call_argument_classes(
         // (No array/scalar shape check here -- see the note in
         // `validate_call_arguments_handles`: `&buffer`-into-`addr` and text/byte args
         // make the argument position a false-positive minefield.)
-    }
-}
-
-fn fixed_array_literal_length(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> Option<usize> {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            fixed_array_literal_length(program, *referee)
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            fixed_array_literal_length(program, *base_type)
-        }
-        TypeReferenceNode::FixedArray {
-            length: FixedArrayLength::Literal(length),
-            ..
-        } => Some(*length),
-        _ => None,
-    }
-}
-
-/// A place argument carries an exact fixed-array extent. Enforce it at machine
-/// call boundaries so a `[T; 4]` cannot silently satisfy `&[T; 2]` and expose a
-/// callee to a layout different from its specialized signature.
-fn report_fixed_array_length_argument_mismatch(
-    program: &TypedTrees,
-    current_machine: &Machine,
-    current_state: Option<&State>,
-    argument: ExpressionHandle,
-    parameter: &StateParameter,
-    target_name: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let Some(expected_length) = fixed_array_literal_length(program, parameter.type_reference)
-    else {
-        return;
-    };
-    let Some(argument_type) =
-        declared_place_type(program, current_machine, current_state, argument)
-    else {
-        return;
-    };
-    let Some(actual_length) = fixed_array_literal_length(program, argument_type) else {
-        return;
-    };
-    if expected_length != actual_length {
-        diagnostics.push(Diagnostic::error(format!(
-            "argument `{}` for state `{target_name}` expects fixed-array length \
-             {expected_length}, got {actual_length}",
-            parameter.name,
-        )));
     }
 }
 

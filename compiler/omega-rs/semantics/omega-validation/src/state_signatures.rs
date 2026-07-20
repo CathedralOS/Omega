@@ -17,6 +17,22 @@ pub(crate) fn validate_callable_state_signatures(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for machine in program.machines() {
+        let mut type_parameters = program.machine_type_parameters(machine).to_vec();
+        if let Some(attached_data) = &machine.attached_data
+            && let Some(definition) = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.name == *attached_data)
+        {
+            for parameter in program.data_type_parameters(definition) {
+                if !type_parameters
+                    .iter()
+                    .any(|existing| existing.name == parameter.name)
+                {
+                    type_parameters.push(parameter.clone());
+                }
+            }
+        }
         validate_state_signature_types(
             program
                 .machine_states(machine)
@@ -32,7 +48,7 @@ pub(crate) fn validate_callable_state_signatures(
             symbols,
             diagnostics,
             StateSignatureOwner::Machine(machine.name.as_str()),
-            program.machine_type_parameters(machine),
+            &type_parameters,
         );
     }
 
