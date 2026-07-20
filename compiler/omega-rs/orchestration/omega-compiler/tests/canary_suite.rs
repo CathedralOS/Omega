@@ -28542,6 +28542,43 @@ fn cross_win64_large_aggregate_result_uses_hidden_rcx_destination() {
     let _ = fs::remove_dir_all(&scratch);
 }
 
+#[test]
+fn cross_win64_scalar_float_import_uses_positional_xmm_and_stack_locations() {
+    let canary = pass_canary("capabilities/win64_scalar_float_import_compile");
+    let scratch =
+        std::env::temp_dir().join(format!("omega-win64-scalar-float-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&scratch);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(scratch.clone()),
+        target_name: Some("windows_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("scalar-float import should compile for windows_x64");
+
+    let image = fs::read(scratch.join("omega-program.exe")).expect("read emitted Win64 PE");
+    for (name, opcode) in [
+        ("second-position XMM1 load", [0xf2, 0x41, 0x0f, 0x10, 0x8b]),
+        ("fourth-position XMM3 load", [0xf2, 0x41, 0x0f, 0x10, 0x9b]),
+        ("XMM0 result store", [0xf2, 0x41, 0x0f, 0x11, 0x83]),
+    ] {
+        assert!(
+            image.windows(opcode.len()).any(|window| window == opcode),
+            "Win64 scalar-float image missing {name}"
+        );
+    }
+    assert!(
+        image.windows(15).any(|window| {
+            window[0..3] == [0x49, 0x8b, 0x83]
+                && window[7..11] == [0x48, 0x89, 0x84, 0x24]
+                && window[11..15] == 32u32.to_le_bytes()
+        }),
+        "the fifth-position f64 must occupy outgoing stack slot 32"
+    );
+    let _ = fs::remove_dir_all(&scratch);
+}
+
 // An AUTHORED provides import end to end (hosted-consumption rung 2): the
 // program's own `windows_x64 provides Beeper { beep -> DllImport("msvcrt.dll",
 // "abs") }` row binds, the import table names msvcrt.dll (the binding, not

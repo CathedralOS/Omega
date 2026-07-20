@@ -1,0 +1,23 @@
+// Microsoft x64 uses one positional register bank: these f64 arguments occupy
+// XMM1 and XMM3 around integer RCX/R8 arguments, then the fifth argument uses
+// stack slot 32. The f64 result returns in XMM0.
+boundary trait ScalarFloatImport {
+    machine call(before: u64, value: f64, after: u64, fourth: f64, fifth: f64) -> f64;
+}
+
+windows_x64 provides ScalarFloatImport {
+    call -> DllImport("omega_abi_probe.dll", "omega_win64_scalar_float_probe")
+}
+
+data Main {
+    foreign: ScalarFloatImport;
+    before: u64;
+    value: f64;
+    after: u64;
+    fourth: f64;
+    fifth: f64;
+    result: f64;
+}
+machine Main::main(&mut self) {
+    self.result = self.foreign.call(self.before, self.value, self.after, self.fourth, self.fifth);
+}

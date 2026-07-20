@@ -170,6 +170,13 @@ ceiling derived exactly from the ABI volatile-register classes.
    relocation walkers in lockstep. Source-to-PE canaries pin both an eight-byte
    direct result and a 24-byte hidden-destination result with the first declared
    argument shifted to `rdx`.
+   Authored Microsoft scalar `f32`/`f64` calls now retain their float class
+   through the same path: arguments use the positional `xmm0`-`xmm3` register
+   selected by the plan or the low bytes of its outgoing stack slot, and
+   results spill from `xmm0`. General imports, vtable calls, and service-table
+   calls share the float marshaller, width, and relocation accounting. A
+   source-to-PE canary pins interleaved integer/float arguments in `rcx`/`xmm1`/
+   `r8`/`xmm3`, a fifth-position stack float, and the `xmm0` result.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
    complete import/vtable/service-table compatibility mechanism matrix is
