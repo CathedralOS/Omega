@@ -223,8 +223,12 @@ plan. The general Microsoft
 x64 import encoder now receives its policy from the concrete target,
 evaluates selected scalar/pointer operand shapes, and consumes the plan's exact
 RCX/RDX/R8/R9, shadow-relative stack, and RAX-result placements. A non-Microsoft
-x86 target fails closed at this Win64 compatibility encoder. Microsoft x64
-vtable and firmware service-table calls now reuse the same plan-driven
+x86 target fails closed at this Win64 compatibility encoder. The normalization
+seam also validates call/return control, 16-byte stack alignment, 32-byte shadow
+space, and the required volatile `rax`/`r10`/`r11` scratch ceiling. General
+argument staging, vtable and service-table dispatch, and result stores use those
+plan-clobbered registers rather than leaking into callee-saved `r15`.
+Microsoft x64 vtable and firmware service-table calls now reuse the same plan-driven
 marshaller; receiver arguments remain on the wire, dispatch-only table pointers
 do not, and result-bearing field calls validate the plan-selected RAX placement
 before storage. `GetStdHandle`, `ExitProcess`, and `Sleep` now route through the
