@@ -200,8 +200,10 @@ constraints beyond consumption phase, and symbolic-action lowering remain.
 The object/image substrate no longer assumes relocation sites are text:
 section-qualified generic `Absolute64` relocations can patch initialized data,
 including PE base-rebase records. Materialized-data origin/provenance must get
-an honest record before the symbolic consumer emits those relocations; it must
-not borrow instruction-index sentinels.
+an honest record rather than borrowing instruction-index sentinels; that
+tagged `Instruction | Materialization` origin and native-action lowering are
+now implemented. Selected-artifact identity integration and generated
+post-handoff writer code remain.
 
 ## Still open
 

@@ -57,8 +57,7 @@ impl RelocationPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RelocationRecord {
-    pub function_symbol_handle: ObjectSymbolHandle,
-    pub selected_instruction_index: u32,
+    pub origin: RelocationOrigin,
     pub section: SectionKind,
     pub offset: usize,
     pub byte_width: usize,
@@ -69,13 +68,50 @@ pub struct RelocationRecord {
 impl Default for RelocationRecord {
     fn default() -> Self {
         Self {
-            function_symbol_handle: Handle::invalid(),
-            selected_instruction_index: 0,
+            origin: RelocationOrigin::Instruction {
+                function_symbol_handle: Handle::invalid(),
+                selected_instruction_index: 0,
+            },
             section: SectionKind::Text,
             offset: 0,
             byte_width: 0,
             symbol_handle: Handle::invalid(),
             kind: RelocationKind::Aarch64Branch26,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RelocationOrigin {
+    Instruction {
+        function_symbol_handle: ObjectSymbolHandle,
+        selected_instruction_index: u32,
+    },
+    Materialization {
+        object_symbol_handle: ObjectSymbolHandle,
+    },
+}
+
+impl RelocationOrigin {
+    pub const fn symbol_handle(self) -> ObjectSymbolHandle {
+        match self {
+            Self::Instruction {
+                function_symbol_handle,
+                ..
+            } => function_symbol_handle,
+            Self::Materialization {
+                object_symbol_handle,
+            } => object_symbol_handle,
+        }
+    }
+
+    pub const fn selected_instruction_index(self) -> Option<u32> {
+        match self {
+            Self::Instruction {
+                selected_instruction_index,
+                ..
+            } => Some(selected_instruction_index),
+            Self::Materialization { .. } => None,
         }
     }
 }

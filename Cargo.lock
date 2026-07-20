@@ -677,6 +677,7 @@ dependencies = [
  "omega-core",
  "omega-instruction-selection",
  "omega-isa-x86_64",
+ "omega-layout-plans",
  "omega-machine-bytes",
  "omega-object-file",
  "omega-target",
