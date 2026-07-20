@@ -1147,9 +1147,9 @@ pub fn encode_entry_indirect_argument_write_bytes(
         Architecture::Aarch64 => {
             aarch64::encode_entry_indirect_argument_write_bytes(pointer, byte_offset, byte_size)
         }
-        Architecture::X86_64 => Err(Diagnostic::error(
-            "indirect aggregate entry lowering is currently AAPCS64-only",
-        )),
+        Architecture::X86_64 => {
+            x86_64::encode_entry_indirect_argument_write_bytes(pointer, byte_offset, byte_size)
+        }
     }
 }
 

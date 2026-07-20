@@ -1295,16 +1295,16 @@ fn select_entry_argument_register_writes(
         .into_iter()
         .map(|(byte_offset, _, shape)| (byte_offset, shape))
         .collect::<Vec<_>>();
-    // AAPCS64 fixed aggregates consume the evaluator's consecutive-register,
-    // whole-stack, or indirect placement. Other policies retain the previous
-    // fail-closed no-prologue behavior for general aggregates; the explicit
-    // boundary handoff special case above remains separate.
+    // Native aggregate policies consume the evaluator's direct, whole-stack,
+    // or indirect placement. Other policies retain the previous fail-closed
+    // no-prologue behavior; the explicit Microsoft boundary-handoff special
+    // case above remains separate.
     if destinations
         .iter()
         .any(|(_, shape)| matches!(shape.class, ValueClass::Integer) && shape.byte_size > 8)
         && !matches!(
             CallingPolicy::native_for_target(input.target),
-            CallingPolicy::Aapcs64 | CallingPolicy::SystemVAMD64
+            CallingPolicy::Aapcs64 | CallingPolicy::MicrosoftX64 | CallingPolicy::SystemVAMD64
         )
     {
         return;
@@ -1611,6 +1611,7 @@ fn entry_slot_value_shape(
         .is_some_and(|machine| machine.boundary);
     if byte_size <= 8
         || policy == CallingPolicy::Aapcs64
+        || policy == CallingPolicy::MicrosoftX64
         || policy == CallingPolicy::SystemVAMD64
         || (entry_is_boundary && byte_size <= 32 && byte_size.is_multiple_of(8))
     {

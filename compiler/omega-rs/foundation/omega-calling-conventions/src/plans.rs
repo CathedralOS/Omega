@@ -544,12 +544,7 @@ fn validate_signature_shapes(
     policy: CallingPolicy,
     signature: &CallSignature,
 ) -> Result<(), PlanDiagnostic> {
-    for (shape, is_result) in signature
-        .parameters
-        .iter()
-        .map(|shape| (shape, false))
-        .chain(signature.result.iter().map(|shape| (shape, true)))
-    {
+    for shape in signature.parameters.iter().chain(signature.result.iter()) {
         if shape.byte_size == 0 || shape.alignment == 0 || !shape.alignment.is_power_of_two() {
             return Err(PlanDiagnostic(
                 "call-signature values need nonzero size and power-of-two alignment".into(),
@@ -560,7 +555,7 @@ fn validate_signature_shapes(
                 if shape.byte_size > 8
                     && policy != CallingPolicy::Aapcs64
                     && policy != CallingPolicy::SystemVAMD64
-                    && !(policy == CallingPolicy::MicrosoftX64 && is_result) =>
+                    && policy != CallingPolicy::MicrosoftX64 =>
             {
                 return Err(PlanDiagnostic(
                     "aggregate integer classification is not normalized for this calling policy"
@@ -892,7 +887,24 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
             ));
         }
         let slot = parameter_slot_base + index;
-        let location = if slot < 4 {
+        let location = if matches!(shape.class, ValueClass::Integer)
+            && !matches!(shape.byte_size, 1 | 2 | 4 | 8)
+        {
+            let pointer = if slot < 4 {
+                IndirectPointerLocation::Register(integer[slot])
+            } else {
+                IndirectPointerLocation::Stack {
+                    stack_byte_offset: 32 + ((slot - 4) * 8) as u32,
+                    alignment: 8,
+                }
+            };
+            ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset: None,
+                byte_size: shape.byte_size,
+                alignment: shape.alignment,
+            }
+        } else if slot < 4 {
             let register = if matches!(shape.class, ValueClass::Float) {
                 MachineRegister::X86Xmm(slot as u8)
             } else {
@@ -906,6 +918,26 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
             shape,
             locations: vec![location],
         });
+    }
+    let stack_parameter_slots = (parameter_slot_base + parameters.len()).saturating_sub(4);
+    let mut copy_stack_offset = 32 + (stack_parameter_slots * 8) as u32;
+    for placement in &mut parameters {
+        if let [
+            ValueLocation::Indirect {
+                copy_stack_byte_offset,
+                byte_size,
+                alignment: _,
+                ..
+            },
+        ] = placement.locations.as_mut_slice()
+        {
+            // Microsoft requires caller-owned temporaries for indirectly
+            // passed aggregates to be 16-byte aligned, even when the source
+            // type itself has a smaller natural alignment.
+            copy_stack_offset = align_up(copy_stack_offset, 16);
+            *copy_stack_byte_offset = Some(copy_stack_offset);
+            copy_stack_offset += u32::from(*byte_size).next_multiple_of(8);
+        }
     }
     Ok(CallPlan {
         policy: CallingPolicy::MicrosoftX64,
@@ -1761,6 +1793,42 @@ mod tests {
             plan.parameters[3].locations.as_slice(),
             [ValueLocation::Stack {
                 stack_byte_offset: 32,
+                ..
+            }]
+        ));
+    }
+
+    #[test]
+    fn microsoft_x64_indirect_parameters_use_positional_pointer_slots() {
+        let signature = CallSignature {
+            parameters: vec![
+                ValueShape::integer(16, 8),
+                ValueShape::integer(8, 8),
+                ValueShape::integer(8, 8),
+                ValueShape::integer(8, 8),
+                ValueShape::integer(16, 8),
+            ],
+            result: None,
+        };
+        let plan = evaluate_call_plan(CallingPolicy::MicrosoftX64, &signature)
+            .expect("MS x64 indirect-parameter plan");
+
+        assert!(matches!(
+            plan.parameters[0].locations.as_slice(),
+            [ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Register(MachineRegister::X86Rcx),
+                copy_stack_byte_offset: Some(48),
+                ..
+            }]
+        ));
+        assert!(matches!(
+            plan.parameters[4].locations.as_slice(),
+            [ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Stack {
+                    stack_byte_offset: 32,
+                    alignment: 8,
+                },
+                copy_stack_byte_offset: Some(64),
                 ..
             }]
         ));

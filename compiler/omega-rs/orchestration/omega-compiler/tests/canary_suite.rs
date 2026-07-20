@@ -31282,6 +31282,8 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/efi_ref_param_call_arg", "uefi_x64"),
     ("targets/efi_small_aggregate_entry", "uefi_x64"),
     ("targets/efi_large_result_entry", "uefi_x64"),
+    ("targets/efi_large_aggregate_entry", "uefi_x64"),
+    ("targets/efi_large_aggregate_stack_entry", "uefi_x64"),
     ("targets/aarch64_hfa_entry_argument", "linux_arm64"),
     ("targets/aarch64_small_aggregate_entry", "linux_arm64"),
     ("targets/aarch64_small_aggregate_stack_entry", "linux_arm64"),
@@ -32646,6 +32648,68 @@ fn efi_large_result_entry_saves_rcx_shifts_argument_and_returns_pointer() {
     assert!(
         image.windows(3).any(|window| window == [0x49, 0x8b, 0x87]),
         "expected the saved result pointer returned in rax"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn efi_large_aggregate_entry_copies_from_rdx_pointer() {
+    let canary = pass_canary("targets/efi_large_aggregate_entry");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-efi-large-arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("uefi_x64".into()),
+        write_output: true,
+    })
+    .expect("Microsoft x64 register-indirect entry record should compile");
+
+    let image = fs::read(build_dir.join("omega-program.exe")).expect("emitted image should exist");
+    assert!(
+        image
+            .windows(5)
+            .any(|window| window == [0x4c, 0x8b, 0xda, 0x49, 0xbf]),
+        "expected the RDX record pointer preserved in r11 before frame materialization"
+    );
+    for source_offset in [0u32, 8, 16] {
+        let mut load = vec![0x4d, 0x8b, 0x93];
+        load.extend(source_offset.to_le_bytes());
+        assert!(
+            image.windows(load.len()).any(|window| window == load),
+            "expected record fragment load through r11+{source_offset}"
+        );
+    }
+    assert!(
+        image.windows(3).any(|window| window == [0x4d, 0x89, 0x87]),
+        "expected the following scalar stored from positional R8"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn efi_large_aggregate_stack_entry_loads_pointer_after_shadow_space() {
+    let canary = pass_canary("targets/efi_large_aggregate_stack_entry");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-efi-large-stack-arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("uefi_x64".into()),
+        write_output: true,
+    })
+    .expect("Microsoft x64 stack-indirect entry record should compile");
+
+    let image = fs::read(build_dir.join("omega-program.exe")).expect("emitted image should exist");
+    assert!(
+        image
+            .windows(10)
+            .any(|window| { window == [0x4c, 0x8b, 0x9c, 0x24, 40, 0, 0, 0, 0x49, 0xbf] }),
+        "expected fifth-slot pointer loaded after return address and shadow space"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
