@@ -183,7 +183,7 @@ pub(super) fn select_host_operation_operands(
                 .span(host_call.arguments)
                 .map_or(0, |arguments| arguments.len());
             let result = if host_call.has_result {
-                aapcs_hfa_argument_operand_at(input, host_call, dispatch_index, alias_context, 0)
+                native_hfa_argument_operand_at(input, host_call, dispatch_index, alias_context, 0)
                     .or_else(|| {
                         native_large_aggregate_argument_operand_at(
                             input,
@@ -247,7 +247,7 @@ pub(super) fn select_host_operation_operands(
                             )
                         })
                     } else {
-                        aapcs_hfa_argument_operand_at(
+                        native_hfa_argument_operand_at(
                             input,
                             host_call,
                             dispatch_index,
@@ -2406,17 +2406,18 @@ fn scalar_float_descriptor_byte_count(descriptor: &TypeLayoutDescriptor) -> Opti
     }
 }
 
-/// Preserve one flat by-value HFA as one selected operand. The AAPCS64 call
-/// plan later splits it into exact member locations; other targets retain the
-/// compatibility address fallback.
-fn aapcs_hfa_argument_operand_at(
+/// Preserve one supported flat by-value HFA as one selected operand. AAPCS64
+/// accepts its one-to-four-member family; the current SysV slice accepts the
+/// unambiguous two-f64 SSE/SSE case.
+fn native_hfa_argument_operand_at(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
     dispatch_index: Option<u32>,
     alias_context: Option<RuntimeAliasResolutionContext<'_, '_>>,
     index: usize,
 ) -> Option<InstructionOperandKind> {
-    if input.target.architecture != omega_target::Architecture::Aarch64 {
+    let policy = CallingPolicy::native_for_target(input.target);
+    if !matches!(policy, CallingPolicy::Aapcs64 | CallingPolicy::SystemVAMD64) {
         return None;
     }
     let argument = input
@@ -2445,6 +2446,9 @@ fn aapcs_hfa_argument_operand_at(
         *expression,
     )?;
     let (member_byte_count, members) = hfa_descriptor_shape(input, &descriptor)?;
+    if policy == CallingPolicy::SystemVAMD64 && !(member_byte_count == 8 && members == 2) {
+        return None;
+    }
     (place.byte_count == member_byte_count * usize::from(members)).then_some(
         InstructionOperandKind::RuntimeHomogeneousFloatAggregate {
             region: place.region,

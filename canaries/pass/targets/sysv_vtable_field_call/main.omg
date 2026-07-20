@@ -3,22 +3,31 @@
 // result takes hidden rdi and shifts the receiver to rsi. Layout resolves the
 // two functions to +8 and +16 behind the leading field.
 data Triple { first: u64; second: u64; third: u64; }
+data FloatPair { first: f64; second: f64; }
 boundary trait FieldDispatch {
     machine invoke(this: addr, value: u64);
     machine transform(this: addr, value: Triple) -> Triple;
+    machine blend(this: addr, value: FloatPair) -> FloatPair;
 }
 data NativeVtable {
     header: addr;
     invoke: addr;
     transform: addr;
+    blend: addr;
 }
 linux_x64 provides FieldDispatch over NativeVtable {
     invoke -> invoke;
     transform -> transform;
+    blend -> blend;
 }
-data Main { dispatch: FieldDispatch; receiver: addr; input: Triple; output: Triple; }
+data Main {
+    dispatch: FieldDispatch; receiver: addr;
+    input: Triple; output: Triple;
+    float_input: FloatPair; float_output: FloatPair;
+}
 boundary machine Main::run(&self) -> i32 {
     self.dispatch.invoke(self.receiver, 7);
     self.output = self.dispatch.transform(self.receiver, self.input);
+    self.float_output = self.dispatch.blend(self.receiver, self.float_input);
     transition { _ -> (0) }
 }

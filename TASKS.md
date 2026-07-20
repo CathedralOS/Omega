@@ -208,8 +208,12 @@ ceiling derived exactly from the ABI volatile-register classes.
    resulting `rsi` receiver dispatch. Entry prologues now copy MEMORY-class
    parameters from every normalized incoming stack fragment into runtime-frame
    storage, with a source-to-ELF canary pinning all three words of a 24-byte
-   record. SysV vector/mixed-class aggregates and entry-side hidden-result
-   handling remain to migrate.
+   record. The first SysV SSE aggregate slice is also normalized: a flat
+   two-`f64` record consumes `xmm0`/`xmm1` (or rolls wholly to two stack
+   eightbytes), returns through `xmm0`/`xmm1`, and survives source selection,
+   indirect field dispatch, result storage, width, and relocation accounting.
+   Other packed-vector and mixed INTEGER/SSE aggregates, plus entry-side
+   hidden-result handling, remain to migrate.
    Ordinary AArch64 `VtableSlot` and `VtableField` calls now evaluate AAPCS64
    from their selected operands, require the full-width receiver in planned
    `x0`, marshal every argument/stack slot through the shared plan consumer,

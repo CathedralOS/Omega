@@ -2413,6 +2413,49 @@ fn append_sysv_parameter<T: InstructionOperandLike>(
     operand_index: usize,
     placement: &ValuePlacement,
 ) -> Result<(), Diagnostic> {
+    if let Some((_, byte_offset, member_byte_count, members)) =
+        operand.runtime_homogeneous_float_aggregate()
+    {
+        if member_byte_count * usize::from(members) != usize::from(placement.shape.byte_size) {
+            return Err(Diagnostic::error(format!(
+                "SysV AMD64 float aggregate operand {operand_index} disagrees with its plan width"
+            )));
+        }
+        append_sysv_runtime_base(bytes, relocation_sites, operand_index);
+        for location in &placement.locations {
+            match *location {
+                ValueLocation::Register {
+                    register,
+                    value_byte_offset,
+                    byte_size,
+                } => append_sysv_load_float_from_r11(
+                    bytes,
+                    register,
+                    byte_offset + usize::from(value_byte_offset),
+                    usize::from(byte_size),
+                )?,
+                ValueLocation::Stack {
+                    stack_byte_offset,
+                    value_byte_offset,
+                    byte_size,
+                    ..
+                } => {
+                    append_sysv_load_rax_from_r11(
+                        bytes,
+                        byte_offset + usize::from(value_byte_offset),
+                        byte_size,
+                    )?;
+                    append_sysv_store_rax_to_rsp(bytes, stack_byte_offset)?;
+                }
+                ValueLocation::Indirect { .. } => {
+                    return Err(Diagnostic::error(
+                        "SysV AMD64 float aggregate received an indirect placement",
+                    ));
+                }
+            }
+        }
+        return Ok(());
+    }
     if let Some((_, byte_offset, byte_count)) = operand.runtime_scalar_float() {
         let [location] = placement.locations.as_slice() else {
             return Err(Diagnostic::error(format!(
@@ -2617,6 +2660,35 @@ fn append_sysv_result<T: InstructionOperandLike>(
     operand: &T,
     placement: &ValuePlacement,
 ) -> Result<(), Diagnostic> {
+    if let Some((_, byte_offset, member_byte_count, members)) =
+        operand.runtime_homogeneous_float_aggregate()
+    {
+        if member_byte_count * usize::from(members) != usize::from(placement.shape.byte_size) {
+            return Err(Diagnostic::error(
+                "SysV AMD64 float aggregate result disagrees with its plan width",
+            ));
+        }
+        append_sysv_runtime_base(bytes, relocation_sites, 0);
+        for location in &placement.locations {
+            let ValueLocation::Register {
+                register,
+                value_byte_offset,
+                byte_size,
+            } = *location
+            else {
+                return Err(Diagnostic::error(
+                    "SysV AMD64 float aggregate result is not register-resident",
+                ));
+            };
+            append_sysv_store_float_to_r11(
+                bytes,
+                register,
+                byte_offset + usize::from(value_byte_offset),
+                usize::from(byte_size),
+            )?;
+        }
+        return Ok(());
+    }
     if let Some((_, byte_offset, byte_count)) = operand.runtime_scalar_float() {
         if byte_count != usize::from(placement.shape.byte_size) {
             return Err(Diagnostic::error(
@@ -2789,6 +2861,19 @@ fn normalized_sysv_import_plan<T: InstructionOperandLike>(
 }
 
 fn sysv_operand_shape<T: InstructionOperandLike>(operand: &T) -> Result<ValueShape, Diagnostic> {
+    if let Some((_, _, member_byte_count, members)) = operand.runtime_homogeneous_float_aggregate()
+    {
+        if member_byte_count != 8 || members != 2 {
+            return Err(Diagnostic::error(
+                "SysV AMD64 float aggregates currently require exactly two f64 members",
+            ));
+        }
+        return Ok(ValueShape::homogeneous_float_aggregate(
+            u16::try_from(member_byte_count)
+                .map_err(|_| Diagnostic::error("SysV AMD64 float member width exceeds u16"))?,
+            members,
+        ));
+    }
     if let Some((_, _, byte_count)) = operand.runtime_scalar_float() {
         let byte_count = u16::try_from(byte_count)
             .map_err(|_| Diagnostic::error("SysV AMD64 float width exceeds u16"))?;
@@ -2848,7 +2933,9 @@ fn validate_sysv_import_plan(plan: &CallPlan) -> Result<(), Diagnostic> {
     let unsupported_parameter = plan.parameters.iter().any(|placement| {
         !matches!(
             placement.shape.class,
-            ValueClass::Integer | ValueClass::Float
+            ValueClass::Integer
+                | ValueClass::Float
+                | ValueClass::HomogeneousFloatAggregate { members: 2 }
         ) || (placement.shape.byte_size > 16
             && placement
                 .locations
@@ -2862,7 +2949,9 @@ fn validate_sysv_import_plan(plan: &CallPlan) -> Result<(), Diagnostic> {
     let unsupported_result = plan.result.as_ref().is_some_and(|placement| {
         !matches!(
             placement.shape.class,
-            ValueClass::Integer | ValueClass::Float
+            ValueClass::Integer
+                | ValueClass::Float
+                | ValueClass::HomogeneousFloatAggregate { members: 2 }
         ) || (placement.shape.byte_size > 16
             && !matches!(
                 placement.locations.as_slice(),
@@ -3697,6 +3786,58 @@ mod x86_import_plan_tests {
                 .map(|site| site.operand_index)
                 .collect::<Vec<_>>(),
             [Some(0), Some(1), Some(2), None]
+        );
+    }
+
+    #[test]
+    fn authored_sysv_two_f64_record_uses_xmm_fragments_and_result() {
+        let operands = [
+            operand(
+                TargetInstructionOperandKind::RuntimeHomogeneousFloatAggregate {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 0,
+                    member_byte_count: 8,
+                    members: 2,
+                },
+            ),
+            operand(
+                TargetInstructionOperandKind::RuntimeHomogeneousFloatAggregate {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 16,
+                    member_byte_count: 8,
+                    members: 2,
+                },
+            ),
+        ];
+        let layout = sysv_import_layout(&operands, true).expect("SysV two-f64 record import");
+
+        assert!(
+            layout.bytes.windows(18).any(|window| window
+                == [
+                    0xf2, 0x41, 0x0f, 0x10, 0x83, 16, 0, 0, 0, 0xf2, 0x41, 0x0f, 0x10, 0x8b, 24, 0,
+                    0, 0,
+                ]),
+            "argument members must load into xmm0/xmm1"
+        );
+        assert!(
+            layout
+                .bytes
+                .windows(9)
+                .any(|window| window == [0xf2, 0x41, 0x0f, 0x11, 0x83, 0, 0, 0, 0])
+        );
+        assert!(
+            layout
+                .bytes
+                .windows(9)
+                .any(|window| window == [0xf2, 0x41, 0x0f, 0x11, 0x8b, 8, 0, 0, 0])
+        );
+        assert_eq!(
+            layout
+                .relocation_sites
+                .iter()
+                .map(|site| site.operand_index)
+                .collect::<Vec<_>>(),
+            [Some(1), None, Some(0)]
         );
     }
 
