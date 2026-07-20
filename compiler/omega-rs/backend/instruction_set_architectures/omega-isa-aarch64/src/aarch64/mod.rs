@@ -147,7 +147,7 @@ pub fn encode_vtable_call_sequence_at_offset_float_returning_from_operands(
         append_call_operands(&mut bytes, arguments.iter().copied(), argument_placements)?;
     append_vtable_dispatch(&mut bytes, byte_offset)?;
     append_call_stack_restore(&mut bytes, stack_bytes)?;
-    append_indirect_float_result_store(&mut bytes, *result, result_register, "vtable")?;
+    append_compatibility_float_result_store(&mut bytes, *result, result_register, "vtable")?;
     Ok(bytes)
 }
 
@@ -173,7 +173,7 @@ pub fn encode_vtable_call_sequence_at_offset_hfa_returning_from_operands(
         append_call_operands(&mut bytes, arguments.iter().copied(), argument_placements)?;
     append_vtable_dispatch(&mut bytes, byte_offset)?;
     append_call_stack_restore(&mut bytes, stack_bytes)?;
-    append_indirect_hfa_result_store(&mut bytes, *result, result_placement, "vtable")?;
+    append_compatibility_hfa_result_store(&mut bytes, *result, result_placement, "vtable")?;
     Ok(bytes)
 }
 
@@ -195,7 +195,7 @@ pub fn encode_table_function_call_sequence_from_operands(
         byte_offset,
     )?;
     if let Some(result_register) = result_register {
-        append_indirect_integer_result_store(
+        append_compatibility_integer_result_store(
             &mut bytes,
             all[0],
             result_register,
@@ -214,7 +214,7 @@ pub fn encode_table_function_call_sequence_float_returning_from_operands(
     let all = operands.collect::<Vec<_>>();
     let mut bytes =
         encode_table_function_call_prefix(&all, argument_placements, true, byte_offset)?;
-    append_indirect_float_result_store(&mut bytes, all[0], result_register, "table-function")?;
+    append_compatibility_float_result_store(&mut bytes, all[0], result_register, "table-function")?;
     Ok(bytes)
 }
 
@@ -227,7 +227,7 @@ pub fn encode_table_function_call_sequence_hfa_returning_from_operands(
     let all = operands.collect::<Vec<_>>();
     let mut bytes =
         encode_table_function_call_prefix(&all, argument_placements, true, byte_offset)?;
-    append_indirect_hfa_result_store(&mut bytes, all[0], result_placement, "table-function")?;
+    append_compatibility_hfa_result_store(&mut bytes, all[0], result_placement, "table-function")?;
     Ok(bytes)
 }
 
@@ -272,7 +272,7 @@ fn encode_table_function_call_prefix(
     Ok(bytes)
 }
 
-fn append_indirect_integer_result_store(
+fn append_compatibility_integer_result_store(
     bytes: &mut Vec<u8>,
     result: Aarch64CallOperand,
     result_register: MachineRegister,
@@ -297,7 +297,7 @@ fn append_indirect_integer_result_store(
     append_store_data_to_x_offset(bytes, result_register, 16, byte_offset, byte_count, 17)
 }
 
-fn append_indirect_float_result_store(
+fn append_compatibility_float_result_store(
     bytes: &mut Vec<u8>,
     result: Aarch64CallOperand,
     result_register: MachineRegister,
@@ -328,7 +328,7 @@ fn append_indirect_float_result_store(
     append_store_data_to_x_offset(bytes, 0, 16, byte_offset, byte_count, 17)
 }
 
-fn append_indirect_hfa_result_store(
+fn append_compatibility_hfa_result_store(
     bytes: &mut Vec<u8>,
     result: Aarch64CallOperand,
     result_placement: &ValuePlacement,
@@ -579,6 +579,38 @@ pub fn encode_host_call_sequence_hfa_returning_from_operands(
             9,
         )?;
     }
+    Ok(bytes)
+}
+
+/// A provides-authored import whose declared scalar result is floating-point.
+/// Unlike catalog float operations, the selected result operand retains its
+/// float storage shape, so its ordinary operand width already includes the
+/// post-call `fmov` needed by the relocated scalar store.
+pub fn encode_host_call_sequence_authored_float_returning_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    argument_placements: &[ValuePlacement],
+    result_register: MachineRegister,
+) -> Result<Vec<u8>, Diagnostic> {
+    let all = operands.collect::<Vec<_>>();
+    let Some((result, arguments)) = all.split_first() else {
+        return Err(Diagnostic::error(
+            "AArch64 authored float import has no result storage operand",
+        ));
+    };
+    let mut bytes = Vec::with_capacity(
+        host_call_sequence_width_from_operands(all.iter().copied())
+            + host_call_stack_total_width_for_placements(argument_placements),
+    );
+    let stack_bytes =
+        append_call_operands(&mut bytes, arguments.iter().copied(), argument_placements)?;
+    bytes.extend(encode_branch_link_placeholder());
+    append_call_stack_restore(&mut bytes, stack_bytes)?;
+    append_compatibility_float_result_store(
+        &mut bytes,
+        *result,
+        result_register,
+        "authored import",
+    )?;
     Ok(bytes)
 }
 
@@ -1317,6 +1349,36 @@ mod host_call_plan_register_tests {
             &encode_float_move_to_gpr(8, 17, 1).unwrap()
         );
         assert_eq!(hfa_bytes.len(), 48);
+    }
+
+    #[test]
+    fn authored_float_import_spills_its_planned_vector_result() {
+        let arguments = [placement(
+            omega_calling_conventions::ValueShape::integer(8, 8),
+            ValueLocation::Register {
+                register: MachineRegister::Aarch64X(0),
+                value_byte_offset: 0,
+                byte_size: 8,
+            },
+        )];
+        let bytes = encode_host_call_sequence_authored_float_returning_from_operands(
+            [
+                Aarch64CallOperand::RuntimeScalarFloat {
+                    byte_offset: 32,
+                    byte_count: 8,
+                },
+                Aarch64CallOperand::ImmediateInteger(7),
+            ]
+            .into_iter(),
+            &arguments,
+            MachineRegister::Aarch64V(0),
+        )
+        .expect("authored float import");
+
+        assert_eq!(&bytes[4..8], &encode_branch_link_placeholder());
+        assert_eq!(&bytes[8..12], &encode_float_move_to_gpr(8, 0, 0).unwrap());
+        assert_eq!(&bytes[12..16], &encode_adrp_placeholder(16));
+        assert_eq!(bytes.len(), 24);
     }
 
     #[test]

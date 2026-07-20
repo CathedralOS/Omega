@@ -389,21 +389,28 @@ pub fn encode_authored_import_call_sequence<T: InstructionOperandLike>(
             let result = result.as_ref().ok_or_else(|| {
                 Diagnostic::error("AArch64 authored import has no normalized result placement")
             })?;
-            if matches!(
-                result.shape.class,
-                omega_calling_conventions::ValueClass::HomogeneousFloatAggregate { .. }
-            ) {
-                aarch64::encode_host_call_sequence_hfa_returning_from_operands(
-                    operands.iter().map(aarch64_call_operand),
-                    &arguments,
-                    result,
-                )
-            } else {
-                aarch64::encode_host_call_sequence_value_returning_from_operands(
-                    operands.iter().map(aarch64_call_operand),
-                    &arguments,
-                    scalar_result_register(Some(result), "authored")?,
-                )
+            match result.shape.class {
+                omega_calling_conventions::ValueClass::HomogeneousFloatAggregate { .. } => {
+                    aarch64::encode_host_call_sequence_hfa_returning_from_operands(
+                        operands.iter().map(aarch64_call_operand),
+                        &arguments,
+                        result,
+                    )
+                }
+                omega_calling_conventions::ValueClass::Float => {
+                    aarch64::encode_host_call_sequence_authored_float_returning_from_operands(
+                        operands.iter().map(aarch64_call_operand),
+                        &arguments,
+                        scalar_result_register(Some(result), "authored float")?,
+                    )
+                }
+                omega_calling_conventions::ValueClass::Integer => {
+                    aarch64::encode_host_call_sequence_value_returning_from_operands(
+                        operands.iter().map(aarch64_call_operand),
+                        &arguments,
+                        scalar_result_register(Some(result), "authored")?,
+                    )
+                }
             }
         }
         Architecture::X86_64 => x86_64::encode_host_call_sequence(
@@ -1479,6 +1486,34 @@ mod aarch64_import_plan_tests {
                 byte_size: 8,
             }
         ));
+    }
+
+    #[test]
+    fn authored_scalar_float_result_routes_through_the_vector_store() {
+        let operands = [
+            operand(TargetInstructionOperandKind::RuntimeScalarFloat {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 32,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::ImmediateInteger(7)),
+        ];
+        let bytes = encode_authored_import_call_sequence(
+            omega_target::NativeTarget::linux_arm64(),
+            HostOperationKey::default(),
+            &operands,
+        )
+        .expect("authored scalar-float import");
+
+        assert_eq!(bytes.len(), 24);
+        assert_eq!(
+            bytes.len(),
+            crate::host_call_sequence_width(
+                omega_target::NativeTarget::linux_arm64(),
+                HostOperationKey::default(),
+                &operands,
+            )
+        );
     }
 
     #[test]

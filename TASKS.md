@@ -130,9 +130,11 @@ ceiling derived exactly from the ABI volatile-register classes.
    selection and consume every plan-selected vector-register fragment; grouped
    placements also drive layout and relocation accounting. When the vector bank
    is exhausted, the same operand copies each member into its contiguous planned
-   stack area. Authored flat HFA results now preserve one aggregate result place
-   and spill every plan-selected vector-register fragment through one relocated
-   base. The AArch64 import normalization seam now also rejects plans whose
+   stack area. Authored scalar-float imports now spill the plan-selected vector
+   result through a matching relocated scalar store; authored flat HFA results
+   preserve one aggregate result place and spill every plan-selected
+   vector-register fragment through one relocated base. The AArch64 import
+   normalization seam now also rejects plans whose
    policy, call/return control, 16-byte stack alignment, zero-shadow-space
    contract, or ordinary-clobber ceiling cannot cover the encoder's fixed
    caller-saved scratch set; placement is no longer the only enforced plan
