@@ -82,6 +82,14 @@ representation-identical, while activation planning creates a distinct
 compiler artifact. The concise `start(M, args)` form may be transparent future
 sugar, but v1 can use the already-honest `start<M>(args)` spelling.
 
+The provider-independent normalized descriptor is live in `omega-task-plans`.
+It records contract/entry/calling-plan identities, argument and terminal
+layouts, continuation size/alignment, cancellation and distinct-activation
+requirements, the local suspension-safety result, and separate migration
+demand envelopes for safe-point versus asynchronous crossings. The validator
+rejects unsafe possible suspension locally before any runtime is considered.
+Compiler elaboration and canonical-liveness derivation remain.
+
 ## Start is transactional
 
 There are two ordinary operations:
@@ -244,6 +252,14 @@ joins those three carry demands with behavior. Missing external evidence means
 pessimistic behavior; a receipt may authorize reliance on a narrower opaque
 claim but never changes the actual runtime. The contract rides the existing
 provider-plan/admission spine for static and dynamically admitted runtimes.
+
+The normalized runtime join is live in `omega-task-plans`. It selects the
+correct migration-demand envelope from provider preemption granularity, rejects
+missing all-instruction analysis for asynchronous providers, and checks frame
+size/alignment, cancellation, inline completion, CPU/thread affinity, and
+continuation address stability. Its pessimistic opaque-runtime contract admits
+nothing accidentally. `TaskRuntime` boundary/provider-plan wiring and
+transactional start remain.
 
 ## Acceptance register
 

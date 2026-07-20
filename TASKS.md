@@ -243,11 +243,18 @@ before the fix.
 - **TR2b — transactional outcomes.** Preserve substituted linear debt through
   `Returned(T)` and `Rejected(Arguments)` rather than laundering it through an
   unconstrained generic payload.
-- **TR3 — activation plans.** Elaborate `runtime.start<M>(args)` into contract
-  and entry IDs, argument/result layouts, continuation/alignment/pinning, carry
-  demands, cancellation, and effect metadata.
-- **TR4 — runtime requirement and admission.** Add the `TaskRuntime` boundary
-  requirement and ensure rejected start returns every moved argument and lease.
+- **TR3 — activation plans.** The normalized `omega-task-plans` candidate and
+  validator are live for contract/entry/calling-plan IDs, argument/outcome
+  layouts, continuation size/alignment, cancellation, distinct-versus-inline
+  execution, local suspension safety, and separate safe-point/asynchronous
+  migration-demand envelopes. Connect `runtime.start<M>(args)` elaboration,
+  canonical liveness/carry derivation, and effect metadata.
+- **TR4 — runtime requirement and admission.** The normalized demand/behavior
+  join is live: provider storage/capacity, cancellation, inline behavior,
+  preemption granularity, CPU/thread migration, and continuation movement fail
+  closed against the activation plan; unknown runtimes are pessimistic. Add the
+  `TaskRuntime` boundary requirement/provider-plan integration and ensure a
+  rejected transactional start returns every moved argument and lease.
 - **TR5 — custody and storage leases.** Track provider provenance and dependent
   child storage so close/reclaim rejects while claims remain live.
 - **TR6 — continuations and first provider.** Lower continuations; admit inline
