@@ -1,5 +1,5 @@
 use super::bytes::{write_string, write_u32, write_u64};
-use super::ids::relocation_kind_id;
+use super::ids::{relocation_kind_id, section_kind_id};
 use crate::{ObjectPlan, RelocationPlan, object_symbol_name};
 
 pub(super) fn write_relocations(
@@ -18,9 +18,10 @@ pub(super) fn write_relocations(
             object_symbol_name(object, relocation.function_symbol_handle),
         );
         write_u32(bytes, relocation.selected_instruction_index);
+        write_u32(bytes, section_kind_id(relocation.section));
         write_u64(
             bytes,
-            u64::try_from(relocation.text_offset).expect("relocation text offset overflow"),
+            u64::try_from(relocation.offset).expect("relocation section offset overflow"),
         );
         write_u32(
             bytes,

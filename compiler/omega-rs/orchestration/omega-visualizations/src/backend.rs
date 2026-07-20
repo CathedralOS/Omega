@@ -1481,7 +1481,11 @@ fn relocations_in_range(relocations: &RelocationPlan, start: usize, end: usize) 
         .record_set
         .records
         .iter()
-        .filter(|(_, relocation)| relocation.text_offset >= start && relocation.text_offset < end)
+        .filter(|(_, relocation)| {
+            relocation.section == SectionKind::Text
+                && relocation.offset >= start
+                && relocation.offset < end
+        })
         .count()
 }
 

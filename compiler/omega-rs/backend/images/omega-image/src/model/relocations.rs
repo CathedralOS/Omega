@@ -1,7 +1,7 @@
 use omega_core::arena::{Arena, Handle};
 use omega_object_file::RelocationKind;
 
-use crate::model::FinalImageSymbolHandle;
+use crate::model::{FinalImageSection, FinalImageSymbolHandle};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinalImageRelocationTable {
@@ -26,7 +26,8 @@ impl Default for FinalImageRelocationTable {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinalImageRelocation {
-    pub text_offset: usize,
+    pub section: FinalImageSection,
+    pub offset: usize,
     pub byte_width: usize,
     pub symbol_handle: FinalImageSymbolHandle,
     pub kind: RelocationKind,
@@ -35,7 +36,8 @@ pub struct FinalImageRelocation {
 impl Default for FinalImageRelocation {
     fn default() -> Self {
         Self {
-            text_offset: 0,
+            section: FinalImageSection::Text,
+            offset: 0,
             byte_width: 0,
             symbol_handle: Handle::invalid(),
             kind: RelocationKind::Aarch64Branch26,

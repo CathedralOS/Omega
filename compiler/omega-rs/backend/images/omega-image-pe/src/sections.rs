@@ -40,20 +40,20 @@ impl PeSections {
 }
 
 pub(crate) fn plan_pe_sections(image: &FinalImage, rdata_virtual_size: usize) -> PeSections {
-    // The `.reloc` bytes are determined purely by the relocation table (each
-    // Absolute64 site's RVA), so their size is known independent of layout.
-    let reloc_virtual_size = crate::relocations::build_base_relocations(image).bytes.len();
-    let has_reloc = reloc_virtual_size > 0;
-
     let text_virtual_size = image.memory.text.len();
     let rdata_rva = align_to_u32(TEXT_RVA + text_virtual_size as u32, SECTION_ALIGNMENT);
     let data_rva = align_to_u32(rdata_rva + rdata_virtual_size as u32, SECTION_ALIGNMENT);
+    // Relocation sites may live in text or data. Both RVAs are known before
+    // the relocation section itself is placed.
+    let reloc_virtual_size = crate::relocations::build_base_relocations(image, TEXT_RVA, data_rva)
+        .bytes
+        .len();
+    let has_reloc = reloc_virtual_size > 0;
     let reloc_rva = align_to_u32(data_rva + image.memory.data.len() as u32, SECTION_ALIGNMENT);
     let bss_rva = align_to_u32(reloc_rva + reloc_virtual_size as u32, SECTION_ALIGNMENT);
     let has_data = !image.memory.data.is_empty();
     let has_bss = image.memory.bss_size > 0;
-    let section_count =
-        2 + usize::from(has_data) + usize::from(has_reloc) + usize::from(has_bss);
+    let section_count = 2 + usize::from(has_data) + usize::from(has_reloc) + usize::from(has_bss);
     let headers_size = align_to(
         DOS_HEADER_SIZE
             + 4

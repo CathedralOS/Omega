@@ -1,4 +1,4 @@
-use crate::{RelocationKind, SymbolKind};
+use crate::{RelocationKind, SectionKind, SymbolKind};
 use omega_target::{Architecture, ObjectFormat};
 
 pub(super) fn architecture_id(architecture: Architecture) -> u32 {
@@ -24,20 +24,30 @@ pub(super) fn symbol_kind_id(symbol_kind: SymbolKind) -> u32 {
     }
 }
 
+pub(super) fn section_kind_id(section_kind: SectionKind) -> u32 {
+    match section_kind {
+        SectionKind::Text => 1,
+        SectionKind::Data => 2,
+        SectionKind::Bss => 3,
+    }
+}
+
 pub(super) fn relocation_kind_id(relocation_kind: RelocationKind) -> u32 {
     match relocation_kind {
         RelocationKind::Aarch64Page21 => 1,
         RelocationKind::Aarch64PageOffset12 => 2,
         RelocationKind::Aarch64Branch26 => 3,
-        RelocationKind::X86_64Absolute64 => 4,
+        RelocationKind::Absolute64 => 4,
         RelocationKind::X86_64Relative32 => 5,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{architecture_id, object_format_id, relocation_kind_id, symbol_kind_id};
-    use crate::{RelocationKind, SymbolKind};
+    use super::{
+        architecture_id, object_format_id, relocation_kind_id, section_kind_id, symbol_kind_id,
+    };
+    use crate::{RelocationKind, SectionKind, SymbolKind};
     use omega_target::{Architecture, ObjectFormat};
 
     #[test]
@@ -50,10 +60,13 @@ mod tests {
         assert_eq!(symbol_kind_id(SymbolKind::Function), 1);
         assert_eq!(symbol_kind_id(SymbolKind::Import), 2);
         assert_eq!(symbol_kind_id(SymbolKind::Object), 3);
+        assert_eq!(section_kind_id(SectionKind::Text), 1);
+        assert_eq!(section_kind_id(SectionKind::Data), 2);
+        assert_eq!(section_kind_id(SectionKind::Bss), 3);
         assert_eq!(relocation_kind_id(RelocationKind::Aarch64Page21), 1);
         assert_eq!(relocation_kind_id(RelocationKind::Aarch64PageOffset12), 2);
         assert_eq!(relocation_kind_id(RelocationKind::Aarch64Branch26), 3);
-        assert_eq!(relocation_kind_id(RelocationKind::X86_64Absolute64), 4);
+        assert_eq!(relocation_kind_id(RelocationKind::Absolute64), 4);
         assert_eq!(relocation_kind_id(RelocationKind::X86_64Relative32), 5);
     }
 }

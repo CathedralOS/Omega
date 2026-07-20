@@ -1,6 +1,6 @@
 use crate::{
-    FinalImage, FinalImageLayout, final_image_imports_symbol, final_image_symbol_address,
-    final_image_symbol_name, patch_bytes,
+    FinalImage, FinalImageLayout, FinalImageSection, final_image_imports_symbol,
+    final_image_symbol_address, final_image_symbol_name, patch_bytes,
 };
 use omega_core::diagnostics::Diagnostic;
 use omega_object_file::RelocationKind;
@@ -29,30 +29,47 @@ pub fn apply_aarch64_relocations(
         };
 
         match relocation.kind {
+            RelocationKind::Absolute64 => {
+                let section = relocation.section;
+                let section_bytes = image.memory.initialized_section_mut(section).ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "{output_name} AArch64 absolute relocation targets non-materialized section {section:?}"
+                    ))
+                })?;
+                patch_bytes::write_u64(
+                    section_bytes,
+                    relocation.offset,
+                    symbol_address,
+                    "AArch64",
+                )?;
+            }
             RelocationKind::Aarch64Page21 => {
+                require_text_relocation(output_name, relocation.section)?;
                 patch_aarch64_adrp(
                     &mut image.memory.text,
-                    relocation.text_offset,
-                    layout.text_address + relocation.text_offset as u64,
+                    relocation.offset,
+                    layout.text_address + relocation.offset as u64,
                     symbol_address,
                 )?;
             }
             RelocationKind::Aarch64PageOffset12 => {
+                require_text_relocation(output_name, relocation.section)?;
                 patch_aarch64_add_page_offset(
                     &mut image.memory.text,
-                    relocation.text_offset,
+                    relocation.offset,
                     symbol_address,
                 )?;
             }
             RelocationKind::Aarch64Branch26 => {
+                require_text_relocation(output_name, relocation.section)?;
                 patch_aarch64_branch26(
                     &mut image.memory.text,
-                    relocation.text_offset,
-                    layout.text_address + relocation.text_offset as u64,
+                    relocation.offset,
+                    layout.text_address + relocation.offset as u64,
                     symbol_address,
                 )?;
             }
-            RelocationKind::X86_64Absolute64 | RelocationKind::X86_64Relative32 => {
+            RelocationKind::X86_64Relative32 => {
                 return Err(Diagnostic::error(format!(
                     "{output_name} AArch64 image received x86_64 relocation"
                 )));
@@ -61,6 +78,19 @@ pub fn apply_aarch64_relocations(
     }
 
     Ok(())
+}
+
+fn require_text_relocation(
+    output_name: &str,
+    section: FinalImageSection,
+) -> Result<(), Diagnostic> {
+    if section == FinalImageSection::Text {
+        Ok(())
+    } else {
+        Err(Diagnostic::error(format!(
+            "{output_name} AArch64 instruction relocation targets non-text section {section:?}"
+        )))
+    }
 }
 
 fn patch_aarch64_adrp(

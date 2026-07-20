@@ -44,7 +44,10 @@ pub(super) fn copy_object_relocations(image: &mut FinalImage, relocations: &Relo
         .insert_many(relocations.records().map(|(_, relocation)| {
             let symbol_handle = final_image_symbol_handle(relocation.symbol_handle);
             FinalImageRelocation {
-                text_offset: relocation.text_offset,
+                section: final_image_section(omega_object_file::SymbolSection::Section(
+                    relocation.section,
+                )),
+                offset: relocation.offset,
                 byte_width: relocation.byte_width,
                 symbol_handle: symbol_handle
                     .is_valid()
