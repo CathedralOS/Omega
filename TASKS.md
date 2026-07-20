@@ -205,8 +205,11 @@ ceiling derived exactly from the ABI volatile-register classes.
    aligned outgoing stack fragments, results materialize their caller-owned
    destination through hidden `rdi`, and declared GPR arguments (including a
    vtable receiver) shift accordingly. The source-to-ELF canary pins the
-   resulting `rsi` receiver dispatch. SysV vector/mixed-class aggregates and
-   entry-side MEMORY-class materialization remain to migrate.
+   resulting `rsi` receiver dispatch. Entry prologues now copy MEMORY-class
+   parameters from every normalized incoming stack fragment into runtime-frame
+   storage, with a source-to-ELF canary pinning all three words of a 24-byte
+   record. SysV vector/mixed-class aggregates and entry-side hidden-result
+   handling remain to migrate.
    Ordinary AArch64 `VtableSlot` and `VtableField` calls now evaluate AAPCS64
    from their selected operands, require the full-width receiver in planned
    `x0`, marshal every argument/stack slot through the shared plan consumer,
