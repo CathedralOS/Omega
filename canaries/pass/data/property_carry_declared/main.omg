@@ -1,0 +1,31 @@
+// Carry is one closed compiler property with four mandatory axes. Transparent
+// aggregates derive it structurally; these explicit declarations pin the
+// authored spelling and the nested/case-payload structural validation path.
+
+data Packet [carry(
+    suspension: allowed,
+    cpu: any,
+    thread: any,
+    address: movable,
+)] {
+    id: i32;
+    case Empty;
+    case Burst(count: i32, priority: u8);
+}
+
+data Envelope [carry(
+    suspension: allowed,
+    cpu: any,
+    thread: any,
+    address: movable,
+)] {
+    inner: Packet;
+    stamp: i64;
+}
+
+data Main {
+    value: i32;
+}
+
+machine Main::main(&mut self) {
+}

@@ -34366,7 +34366,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "wire/runtime_wire_roundtrip_nested_and_repeated_exit",
     "comptime/runtime_const_array_length_transitive_exit",
     "comptime/runtime_const_array_length_bare_call_arm_exit",
-    "data/property_send_declared",
+    "data/property_carry_declared",
     "data/property_zero_init_nested_array",
     "data/runtime_case_membership_mixed_shape_exit",
     "traits/runtime_equatable_scalar_not_equals_guard_exit",
