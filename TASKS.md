@@ -14,6 +14,46 @@ is already changing the same subsystem.
 
 ## Immediate queue
 
+### Purge the retired domain `when` classifier surface
+
+This is a corrective migration, not an owner question. Chapter 8 is
+authoritative: a domain is only its invariant facts; there is no separate
+classifier clause and no `when` keyword in domain grammar. The compiler and
+corpus currently contradict that ruling across parser/IR fields, const-generic
+evaluation, exhaustiveness, text/domain canaries, chapter 1, and architecture
+notes. Do not extend the classifier-shaped implementation further.
+
+Preserve the useful semantics by moving them onto ordinary domain-body facts:
+pure finite boolean facts, membership facts, and effect-free machine calls may
+be evaluated through the normal fact/proof machinery. Delete the independent
+classifier axis rather than merely hiding its spelling.
+
+Required migration:
+
+1. Remove `domain ... when ...` parsing, the optional classifier field from
+   syntax/symbol-resolved/typed representations and identity/snapshot paths,
+   and classifier-specific compiler passes or rename/refactor them into
+   ordinary domain-fact evaluation where their proof work remains useful.
+2. Rewrite every domain declaration in docs, canaries, examples, interpreter
+   probes, and compiler fixtures so the condition is an ordinary body fact.
+   Purge prose that presents classifiers as a separate domain feature,
+   especially chapter 1 and the string-retirement notes; align everything with
+   chapter 8.
+3. Delete/replace the positive `when_classifier_clause` canary. Add a focused
+   fail canary proving the retired keyword is rejected, plus positive canaries
+   proving the same arithmetic, case-union, byte-predicate, machine-call, and
+   nested-membership behavior through body facts.
+4. Keep the recent const-data proof coverage (signed values, nested domain
+   membership, effect-free machine evaluation, false-instance rejection), but
+   make it consume the same body facts as every other domain use. No second
+   normalized identity or execution path may survive for a "classifier."
+5. Add a corpus gate: outside the single deliberate rejection canary and
+   historical explanation of the retirement, `rg` must find no authored
+   `domain ... when ...`, no prose presenting `when` as a classifier, no
+   classifier-clause field, and no classifier-specific syntax/IR vocabulary.
+
+This purge blocks further const-domain and classifier-shaped feature work.
+
 ### Checked assembly, inbound entry plans, and the Cathedral timer
 
 This is the critical path from the current serial-only Cathedral milestone to
@@ -728,17 +768,15 @@ remain contract-invisible.
   const-bound now discharge once per synthesized instance (false instances
   reject); mixed field/const facts remain standing default-domain facts with
   their const operands specialized. Const-parameter membership in an integer
-  domain defined by boolean `self` facts and/or an evaluable boolean `when`
-  classifier also discharges per instance; false membership rejects. Direct
-  effect-free `machine(self)` classifiers now evaluate after typing with
-  inferred transitive-effect checks; true results ungate the concrete record,
-  while false or effectful classifiers reject. Their boolean/arithmetic facts
-  over `self` compose in the same build-time proof, including checked integer
-  operands and logical negation; nested membership facts recursively compose
-  with ordinary integer-domain facts and conservatively stand down on cycles;
-  nested direct machine classifiers reuse the same typed transitive-effect and
-  signature gates before build-time execution. Continue with declared-width
-  signed shift/bitwise and arithmetic-domain semantics, plus richer build-time
+  domain defined by boolean `self` facts and/or evaluable machine-backed facts
+  also discharges per instance; false membership rejects. The current
+  implementation incorrectly routes part of this through the retired `when`
+  classifier surface. Migrate it through the ordinary domain-body fact list as
+  required by the immediate purge above, retaining inferred transitive-effect
+  and signature checks, checked integer operands, logical negation, nested
+  memberships, nested direct machine-backed facts, and conservative cycle
+  handling. Only after that migration, continue with declared-width signed
+  shift/bitwise and arithmetic-domain semantics plus richer build-time fact
   operands.
 - **Trait defaults (authored bodies complete).** Standalone data conformances synthesize a
   missing attached machine from the trait's authored body before resolution,
