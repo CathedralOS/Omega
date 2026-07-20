@@ -342,6 +342,14 @@ pub enum AbstractOperationKind {
         byte_offset: usize,
         byte_size: usize,
     },
+    /// Entry prologue: copy a complete indirectly passed aggregate from the
+    /// pointer location selected by the normalized calling plan into its
+    /// runtime-frame parameter slot.
+    WriteEntryIndirectArgument {
+        pointer: omega_calling_conventions::IndirectPointerLocation,
+        byte_offset: usize,
+        byte_size: usize,
+    },
     /// The bytes-handoff half of the entry prologue: bind the entry's
     /// `args: &[u8]` parameter as a view over the ENTRY-ARGUMENT SPILL (where
     /// the prologue stored the platform's argument registers). Writes the

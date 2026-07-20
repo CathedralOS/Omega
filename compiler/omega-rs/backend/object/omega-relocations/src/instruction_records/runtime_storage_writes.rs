@@ -24,6 +24,15 @@ pub(super) fn collect_runtime_storage_write_relocations(
             context.insert_data_address_at_instruction_start(symbol);
             true
         }
+        SelectedInstructionKind::WriteEntryIndirectArgument { pointer, .. } => {
+            let symbol = context.runtime_frame_symbol_handle();
+            let offset = omega_instruction_selection::entry_indirect_argument_frame_base_offset(
+                context.input.target.architecture,
+                *pointer,
+            );
+            context.insert_data_address_at_relative_offset(offset, symbol);
+            true
+        }
         SelectedInstructionKind::WritePlaceBinary {
             target,
             left,

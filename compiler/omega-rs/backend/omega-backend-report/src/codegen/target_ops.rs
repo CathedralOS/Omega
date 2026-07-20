@@ -104,6 +104,11 @@ fn selected_instruction_name(
         } => format!(
             "entry prologue: Stack[{stack_byte_offset}] -> Frame[{byte_offset}] ({byte_size}B)"
         ),
+        TargetOperationKind::WriteEntryIndirectArgument {
+            pointer,
+            byte_offset,
+            byte_size,
+        } => format!("entry prologue: *{pointer:?} -> Frame[{byte_offset}] ({byte_size}B)"),
         TargetOperationKind::WriteEntryArgumentsSliceDescriptor {
             descriptor_offset,
             spill_offset,

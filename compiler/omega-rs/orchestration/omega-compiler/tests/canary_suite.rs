@@ -31216,6 +31216,7 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/aarch64_hfa_entry_argument", "linux_arm64"),
     ("targets/aarch64_small_aggregate_entry", "linux_arm64"),
     ("targets/aarch64_small_aggregate_stack_entry", "linux_arm64"),
+    ("targets/aarch64_large_aggregate_entry", "linux_arm64"),
 ];
 
 #[test]
@@ -31302,6 +31303,49 @@ fn aarch64_small_aggregate_entry_falls_wholly_to_the_stack() {
             .windows(32)
             .any(|window| { window[8..12] == load_first && window[24..28] == load_second }),
         "expected consecutive incoming-stack loads for both aggregate fragments"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn aarch64_large_aggregate_entry_copies_from_the_indirect_pointer() {
+    let canary = pass_canary("targets/aarch64_large_aggregate_entry");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-aarch64-large-aggregate-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_arm64".into()),
+        write_output: true,
+    })
+    .expect("large fixed aggregate should cross-compile through an x1 pointer");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted AArch64 ELF");
+    let loads = [0xf940_0031u32, 0xf940_0431, 0xf940_0831];
+    let store_mask = 0xffc0_03ffu32;
+    assert!(
+        image.windows(32).any(|window| {
+            loads.iter().enumerate().all(|(fragment, expected)| {
+                let load_offset = 8 + fragment * 8;
+                let store_offset = load_offset + 4;
+                let load = u32::from_le_bytes(
+                    window[load_offset..load_offset + 4]
+                        .try_into()
+                        .expect("load instruction"),
+                );
+                let store = u32::from_le_bytes(
+                    window[store_offset..store_offset + 4]
+                        .try_into()
+                        .expect("store instruction"),
+                );
+                load == *expected && store & store_mask == 0xf900_0211
+            })
+        }),
+        "expected three x1-pointee loads copied into runtime-frame storage"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }

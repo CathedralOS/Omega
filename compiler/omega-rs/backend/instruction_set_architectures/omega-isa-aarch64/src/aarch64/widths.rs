@@ -1168,6 +1168,42 @@ pub fn entry_stack_argument_write_width() -> usize {
     16
 }
 
+pub fn entry_indirect_argument_write_width(
+    pointer: IndirectPointerLocation,
+    byte_offset: usize,
+    byte_size: usize,
+) -> usize {
+    let pointer_load = match pointer {
+        IndirectPointerLocation::Register(_) => 0,
+        IndirectPointerLocation::Stack {
+            stack_byte_offset, ..
+        } => load_data_offset_width(stack_byte_offset as usize + super::FUNCTION_FRAME_BYTES, 8),
+    };
+    let mut width = pointer_load + 8;
+    let mut copied = 0usize;
+    while copied < byte_size {
+        let fragment = [8, 4, 2, 1]
+            .into_iter()
+            .find(|fragment| byte_size - copied >= *fragment)
+            .expect("indirect entry copy has bytes remaining");
+        width += load_data_offset_width(copied, fragment)
+            + store_data_offset_width(byte_offset + copied, fragment);
+        copied += fragment;
+    }
+    width
+}
+
+/// Byte offset of the runtime-frame `adrp` within an indirect entry copy.
+/// A stack-passed pointer must first be loaded from the caller's argument area.
+pub fn entry_indirect_argument_frame_base_offset(pointer: IndirectPointerLocation) -> usize {
+    match pointer {
+        IndirectPointerLocation::Register(_) => 0,
+        IndirectPointerLocation::Stack {
+            stack_byte_offset, ..
+        } => load_data_offset_width(stack_byte_offset as usize + super::FUNCTION_FRAME_BYTES, 8),
+    }
+}
+
 fn double_indexed_any_frame(
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,

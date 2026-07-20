@@ -1,0 +1,18 @@
+// A leading scalar consumes x0. A fixed aggregate above 16 bytes then arrives
+// indirectly under AAPCS64: x1 points at caller-owned storage, which the entry
+// prologue copies into the machine's runtime frame before dispatch begins.
+data Triple {
+    first: u64;
+    second: u64;
+    third: u64;
+}
+
+data Main { observed: u64; }
+
+boundary machine Main::main(&mut self, tag: u64, value: Triple) -> i32 {
+    self.observed = tag + value.first + value.second + value.third;
+    transition { _ -> (0) }
+}
+
+target linux_arm64 {
+}

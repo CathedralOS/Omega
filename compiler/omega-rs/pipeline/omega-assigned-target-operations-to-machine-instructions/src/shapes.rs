@@ -107,6 +107,9 @@ pub(super) fn lower_machine_instruction_kind(
         SelectedInstructionKind::WriteEntryStackArgument { .. } => {
             MachineInstructionKind::EntryStackArgumentWrite
         }
+        SelectedInstructionKind::WriteEntryIndirectArgument { .. } => {
+            MachineInstructionKind::EntryIndirectArgumentWrite
+        }
         SelectedInstructionKind::WriteEntryArgumentsSliceDescriptor { .. } => {
             MachineInstructionKind::EntryArgumentsSliceDescriptorWrite
         }
