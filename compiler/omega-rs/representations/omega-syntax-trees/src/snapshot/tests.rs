@@ -12,6 +12,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
         .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
     let data = Item::Data(DataDefinition {
         name: Identifier::generated("Example"),
+        supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
         type_parameters: omega_core::arena::HandleSpan::empty(),
         properties: crate::item::DataProperties::default(),
         where_facts: omega_core::arena::HandleSpan::empty(),
@@ -41,6 +42,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
                     end: 0,
                     source_backed: false,
                 },
+                supply: "checked_shape",
                 type_parameters: Vec::new(),
                 properties: super::DataPropertiesSnapshot {
                     multiplicity: "affine",
