@@ -66,6 +66,7 @@ pub(super) fn check_suspension_carry(
                 continue;
             }
 
+            append_live_persistent_diagnostics(program, machine, state, call, &mut diagnostics);
             append_live_parameter_diagnostics(program, machine, state, call, &mut diagnostics);
             append_live_local_diagnostics(program, machine, state, call, &mut diagnostics);
         }
@@ -75,6 +76,209 @@ pub(super) fn check_suspension_carry(
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+fn append_live_persistent_diagnostics(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    call: &omega_checked_trees::BorrowCallFact,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let Some(attached_name) = machine.attached_data.as_ref()
+        && let Some(attached) = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name == *attached_name)
+    {
+        for member in program.data_members(attached) {
+            match member {
+                omega_typed_trees::data::DataMember::Field(field) => {
+                    append_persistent_field_if_live(
+                        program,
+                        machine,
+                        state,
+                        call,
+                        field.symbol,
+                        field.type_reference,
+                        field.name.as_str(),
+                        diagnostics,
+                    );
+                }
+                omega_typed_trees::data::DataMember::Variant(variant) => {
+                    for field in program.data_payload_fields(variant) {
+                        append_persistent_field_if_live(
+                            program,
+                            machine,
+                            state,
+                            call,
+                            field.symbol,
+                            field.type_reference,
+                            field.name.as_str(),
+                            diagnostics,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    for owned in program.machine_owned_data(machine) {
+        append_persistent_field_if_live(
+            program,
+            machine,
+            state,
+            call,
+            owned.symbol,
+            owned.type_reference,
+            owned.name.as_str(),
+            diagnostics,
+        );
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_persistent_field_if_live(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    call: &omega_checked_trees::BorrowCallFact,
+    field_symbol: omega_core::symbols::SymbolHandle,
+    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    field_name: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !persistent_symbol_is_live_after_call(program, machine, state, call, field_symbol) {
+        return;
+    }
+    let display_name = format!("self.{field_name}");
+    append_if_suspension_forbidden(
+        program,
+        machine,
+        type_reference,
+        &display_name,
+        call,
+        diagnostics,
+    );
+}
+
+fn persistent_symbol_is_live_after_call(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    call: &omega_checked_trees::BorrowCallFact,
+    field_symbol: omega_core::symbols::SymbolHandle,
+) -> bool {
+    if crate::borrow::place_symbol_is_used_after_statement(
+        program,
+        state.symbol,
+        state.statement_nodes,
+        call.statement_index,
+        field_symbol,
+    ) {
+        return true;
+    }
+
+    let mut pending = Vec::new();
+    append_state_successors_after_statement(
+        program,
+        machine,
+        state,
+        call.statement_index,
+        &mut pending,
+    );
+    let mut visited = Vec::new();
+    while let Some(state_symbol) = pending.pop() {
+        if visited.contains(&state_symbol) {
+            continue;
+        }
+        visited.push(state_symbol);
+        let Some(reachable) = program
+            .machine_states(machine)
+            .iter()
+            .find(|candidate| candidate.symbol == state_symbol)
+        else {
+            continue;
+        };
+        if crate::borrow::place_symbol_is_used_in_state(program, reachable, field_symbol) {
+            return true;
+        }
+        append_all_state_successors(program, machine, reachable, &mut pending);
+    }
+    false
+}
+
+fn append_state_successors_after_statement(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    statement_index: usize,
+    successors: &mut Vec<omega_core::symbols::SymbolHandle>,
+) {
+    for statement in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .skip(statement_index)
+    {
+        append_statement_successors(program, machine, state, statement, successors);
+    }
+}
+
+fn append_all_state_successors(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    successors: &mut Vec<omega_core::symbols::SymbolHandle>,
+) {
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        append_statement_successors(program, machine, state, statement, successors);
+    }
+}
+
+fn append_statement_successors(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    statement: &omega_typed_trees::statement::StatementNode,
+    successors: &mut Vec<omega_core::symbols::SymbolHandle>,
+) {
+    let omega_typed_trees::statement::StatementNode::Transition(transition) = statement else {
+        return;
+    };
+    append_transition_target_successor(program, machine, state, transition.target, successors);
+    if transition.continuation.is_valid() {
+        append_transition_target_successor(
+            program,
+            machine,
+            state,
+            transition.continuation,
+            successors,
+        );
+    }
+}
+
+fn append_transition_target_successor(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    target: omega_typed_trees::statement::TransitionTargetHandle,
+    successors: &mut Vec<omega_core::symbols::SymbolHandle>,
+) {
+    let symbol = match program.statement_table.transition_target(target) {
+        omega_typed_trees::statement::TransitionTargetNode::Named { path, .. } => path.symbol,
+        omega_typed_trees::statement::TransitionTargetNode::SelfTarget => state.symbol,
+        omega_typed_trees::statement::TransitionTargetNode::Value(_)
+        | omega_typed_trees::statement::TransitionTargetNode::Terminal => return,
+    };
+    if symbol.is_valid()
+        && program
+            .machine_states(machine)
+            .iter()
+            .any(|candidate| candidate.symbol == symbol)
+    {
+        successors.push(symbol);
     }
 }
 
