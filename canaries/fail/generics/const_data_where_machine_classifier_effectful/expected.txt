@@ -1,0 +1,1 @@
+const domain classifier for generic instance `FixedBuffer<4>` failed: machine `is_buffer_size` is not effect-free: it reaches effects `process_exit`; only effect-free machines may be evaluated at compile time

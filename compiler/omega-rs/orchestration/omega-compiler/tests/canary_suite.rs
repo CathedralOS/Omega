@@ -20327,6 +20327,28 @@ fn runtime_const_data_where_fact_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_const_data_machine_classifier_exit_canary_runs() {
+    let canary = pass_canary("generics/runtime_const_data_machine_classifier_exit");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-const-data-machine-classifier-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("machine-backed const domain classifiers should discharge");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("machine-backed const domain classifier canary should run");
+    assert_eq!(output.status.code(), Some(70));
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_trait_default_dispatch_exit_canary_runs() {
     let canary = pass_canary("traits/runtime_trait_default_dispatch_exit");
     let build_dir = std::env::temp_dir().join(format!(
@@ -36709,6 +36731,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/runtime_const_data_array_length_exit",
     "generics/runtime_const_data_expression_exit",
     "generics/runtime_const_data_machine_call_exit",
+    "generics/runtime_const_data_machine_classifier_exit",
     "generics/runtime_const_data_where_fact_exit",
     "generics/runtime_const_data_symbolic_expression_exit",
     "generics/runtime_const_data_forwarded_length_exit",
@@ -36797,6 +36820,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "generics/const_data_where_machine_classifier_effectful",
+    "generics/const_data_where_machine_classifier_false",
     "core/task_core_scope_loss",
     "ownership/copy_linear_conflict",
     "ownership/linear_field_erased_by_affine_container",
