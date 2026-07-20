@@ -23,6 +23,26 @@ fn parses_dungeon_machine_surface() {
 }
 
 #[test]
+fn parses_consecutive_bodyless_boundary_machines() {
+    let source = r#"
+        boundary data Carrier;
+
+        boundary machine add(a: Carrier, b: Carrier) -> Carrier
+        ensures add(a, b) == add(b, a);
+
+        boundary machine multiply(a: Carrier, b: Carrier) -> Carrier
+        ensures multiply(a, b) == multiply(b, a);
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens)
+        .expect("a boundary-prefixed item must terminate the preceding accepted declaration");
+    assert_eq!(parsed.root_item_count(), 3);
+}
+
+#[test]
 fn parses_dungeon_state_flow() {
     let source = r#"
         data Main {
