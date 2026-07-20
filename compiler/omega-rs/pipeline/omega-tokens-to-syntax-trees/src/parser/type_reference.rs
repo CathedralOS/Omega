@@ -123,7 +123,24 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
         let mut first_argument = TypeReferenceHandle::invalid();
 
         loop {
-            let (argument, rest) = parse_type_reference_handle(syntax_trees, input)?;
+            // Const data arguments share the generic argument list with type
+            // arguments. Keep literal values as symbol-free named leaves until
+            // the declaration's parameter kinds are available during
+            // validation/layout; their decimal spelling is canonical.
+            let (argument, rest) = if input.at_integer() {
+                let (value, rest) = input.take_integer()?;
+                if value < 0 {
+                    return Err(input.error_here("const data arguments must be non-negative"));
+                }
+                (
+                    syntax_trees
+                        .type_references
+                        .insert_named(Identifier::generated(value.to_string())),
+                    rest,
+                )
+            } else {
+                parse_type_reference_handle(syntax_trees, input)?
+            };
             if argument_count == 0 {
                 first_argument = argument;
             }

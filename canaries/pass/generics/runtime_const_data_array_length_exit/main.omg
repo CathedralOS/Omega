@@ -1,0 +1,18 @@
+// A literal const data argument substitutes into the instance's fixed-array
+// extent before validation, layout, storage planning, and indexed lowering.
+use omega::language::std::console;
+
+data FixedBuffer<T, const N: u64> {
+    items: [T; N];
+}
+
+data Main {
+    console: Console;
+    buffer: FixedBuffer<i32 in Wrapping, 4>;
+}
+
+machine Main::main(&mut self) {
+    self.buffer.items[3] = 70;
+    let result: i32 in Wrapping = self.buffer.items[3];
+    self.console.exit_process(result);
+}

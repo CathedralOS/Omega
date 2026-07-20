@@ -1,0 +1,10 @@
+data TinyBuffer<const N: u8> {
+    items: [u8; N];
+}
+
+data Main {
+    buffer: TinyBuffer<300>;
+}
+
+machine Main::main(&mut self) {
+}

@@ -892,13 +892,28 @@ impl<'program> Evaluator<'program> {
         data: &DataDefinition,
         fields: &mut BTreeMap<String, Cell>,
     ) -> EvalResult<()> {
-        for member in self.program.data_members(data) {
+        self.populate_data_fields_with_bindings(data, fields, &[])
+    }
+
+    fn populate_data_fields_with_bindings(
+        &mut self,
+        data: &DataDefinition,
+        fields: &mut BTreeMap<String, Cell>,
+        bindings: &[(
+            SymbolHandle,
+            String,
+            omega_typed_trees::types::TypeReferenceHandle,
+        )],
+    ) -> EvalResult<()> {
+        let members = self.program.data_members(data).to_vec();
+        for member in &members {
             let DataMember::Field(field) = member else {
                 continue;
             };
             let name = field.name.as_str().to_owned();
             // Field defaults are retired: every field ZII zero-initializes.
-            let value = self.default_value_for_type(field.type_reference)?;
+            let value =
+                self.default_value_for_type_with_bindings(field.type_reference, bindings)?;
             fields.insert(name, value.cell());
         }
         Ok(())
@@ -911,7 +926,30 @@ impl<'program> Evaluator<'program> {
         &mut self,
         type_reference: omega_typed_trees::types::TypeReferenceHandle,
     ) -> EvalResult<Value> {
+        self.default_value_for_type_with_bindings(type_reference, &[])
+    }
+
+    fn default_value_for_type_with_bindings(
+        &mut self,
+        type_reference: omega_typed_trees::types::TypeReferenceHandle,
+        bindings: &[(
+            SymbolHandle,
+            String,
+            omega_typed_trees::types::TypeReferenceHandle,
+        )],
+    ) -> EvalResult<Value> {
         if type_reference.is_valid() {
+            if let omega_typed_trees::types::TypeReferenceNode::Named { symbol, name } = self
+                .program
+                .type_reference_table
+                .type_reference(type_reference)
+                && let Some((_, _, argument)) = bindings.iter().find(|(parameter, spelling, _)| {
+                    (*symbol).is_valid() && parameter == symbol || spelling == name.as_str()
+                })
+            {
+                return self.default_value_for_type_with_bindings(*argument, bindings);
+            }
+
             // See THROUGH a domain constraint (`[i32; N] in Wrapping`, `i32 in Saturating`):
             // the default of a constrained type is the default of its base type (zero in every
             // arithmetic domain). Without this, a domain-constrained ARRAY field falls past the
@@ -923,7 +961,7 @@ impl<'program> Evaluator<'program> {
                 .type_reference(type_reference)
             {
                 let base_type = *base_type;
-                return self.default_value_for_type(base_type);
+                return self.default_value_for_type_with_bindings(base_type, bindings);
             }
 
             // Fixed array `[T; N]` -> N default-initialized element cells.
@@ -936,13 +974,95 @@ impl<'program> Evaluator<'program> {
                 .type_reference(type_reference)
             {
                 let element_type = *element_type;
-                if let omega_typed_trees::types::FixedArrayLength::Literal(count) = length {
-                    let count = *count;
+                let count = match length {
+                    omega_typed_trees::types::FixedArrayLength::Literal(count) => Some(*count),
+                    omega_typed_trees::types::FixedArrayLength::ConstParameter { symbol, name } => {
+                        bindings
+                            .iter()
+                            .find(|(parameter, spelling, _)| {
+                                ((*symbol).is_valid() && parameter == symbol)
+                                    || spelling == name.as_str()
+                            })
+                            .and_then(|(_, _, argument)| {
+                                let omega_typed_trees::types::TypeReferenceNode::Named {
+                                    symbol,
+                                    name,
+                                } = self.program.type_reference_table.type_reference(*argument)
+                                else {
+                                    return None;
+                                };
+                                (!symbol.is_valid())
+                                    .then(|| name.as_str().parse::<usize>().ok())
+                                    .flatten()
+                            })
+                    }
+                    omega_typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
+                };
+                if let Some(count) = count {
                     let mut elements = Vec::with_capacity(count);
                     for _ in 0..count {
-                        elements.push(self.default_value_for_type(element_type)?.cell());
+                        elements.push(
+                            self.default_value_for_type_with_bindings(element_type, bindings)?
+                                .cell(),
+                        );
                     }
                     return Ok(Value::Array(elements));
+                }
+            }
+
+            if let omega_typed_trees::types::TypeReferenceNode::Generic {
+                base_symbol,
+                base_name,
+                arguments,
+            } = self
+                .program
+                .type_reference_table
+                .type_reference(type_reference)
+            {
+                let definition = self
+                    .program
+                    .data_definitions()
+                    .iter()
+                    .find(|data| {
+                        (base_symbol.is_valid() && data.symbol == *base_symbol)
+                            || data.name.as_str() == base_name.as_str()
+                    })
+                    .cloned();
+                if let Some(definition) = definition
+                    && matches!(
+                        DataDefinition::shape_kind_from_members(
+                            self.program.data_members(&definition)
+                        ),
+                        omega_typed_trees::data::DataShapeKind::Record
+                    )
+                {
+                    let parameters = self.program.data_type_parameters(&definition).to_vec();
+                    let arguments = self
+                        .program
+                        .type_reference_table
+                        .type_reference_handles(*arguments)
+                        .to_vec();
+                    let mut nested_bindings = bindings.to_vec();
+                    nested_bindings.extend(parameters.iter().zip(arguments).map(
+                        |(parameter, argument)| {
+                            (
+                                parameter.symbol,
+                                parameter.name.as_str().to_owned(),
+                                argument,
+                            )
+                        },
+                    ));
+                    let mut nested_fields = BTreeMap::new();
+                    self.populate_data_fields_with_bindings(
+                        &definition,
+                        &mut nested_fields,
+                        &nested_bindings,
+                    )?;
+                    return Ok(Value::Struct {
+                        type_symbol: definition.symbol,
+                        type_name: definition.name.as_str().to_owned(),
+                        fields: nested_fields,
+                    });
                 }
             }
 
@@ -967,7 +1087,8 @@ impl<'program> Evaluator<'program> {
             {
                 let mut payload = Vec::with_capacity(payload_fields.len());
                 for field in payload_fields {
-                    let value = self.default_value_for_type(field.type_reference)?;
+                    let value =
+                        self.default_value_for_type_with_bindings(field.type_reference, bindings)?;
                     payload.push((field.name.as_str().to_owned(), value.cell()));
                 }
                 return Ok(Value::Enum {
