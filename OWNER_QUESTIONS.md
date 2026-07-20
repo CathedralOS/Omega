@@ -4,7 +4,7 @@ Only unresolved owner-level language or architecture decisions belong here.
 Settled decisions live in the language guide and design briefs; implementation
 and deliberately deferred research live in `TASKS.md`.
 
-Last pruned: 2026-07-19.
+Last pruned: 2026-07-20.
 
 ## 1. Control-flow integrity and protected returns
 
@@ -66,3 +66,29 @@ closed policy value selected explicitly by `C`, but it needs an honest source
 relationship rather than friendly-name recognition. Decide the source/core
 spelling and whether user packages may define new policies subject to the same
 validator, or only platform packages may do so.
+
+## 3. What is Cathedral's first x86 interrupt state policy?
+
+The normalized `CallPlan + StatePlan` vocabulary and validator are ready, but
+the first timer profile cannot be derived until Cathedral chooses the hardware
+entry policy that both the stub and installed-root/WCSU analysis must enforce.
+Cathedral's own open-question ledger still leaves its initial x86 stack classes,
+masking/preemption graph, and WCSU composition unresolved.
+
+Decide, for the first timer root:
+
+- whether it uses the interrupted stack or a dedicated IST stack, and which
+  exception/root classes may share or preempt that stack;
+- whether the gate masks interrupts for the whole handler, where nesting may be
+  re-enabled, and whether the timer root may re-enter itself;
+- the exact interrupted machine-state set the stub saves/restores and the
+  transitive state ceiling exposed to checked handler code; and
+- whether the first acknowledgement token represents legacy PIC EOI, LAPIC EOI,
+  or a target-selected protocol with distinct concrete providers.
+
+Recommendation: start with a non-reentrant interrupt gate on a dedicated IST
+stack, interrupts masked until deriver-owned exit, a full integer/control-state
+save with no SIMD use permitted transitively, and a protocol-neutral linear
+acknowledgement requirement refined by PIC/LAPIC providers. This is deliberately
+conservative and can later admit nesting or a broader state ceiling, but it is
+still an OS policy choice because it fixes stack demand and preemption edges.
