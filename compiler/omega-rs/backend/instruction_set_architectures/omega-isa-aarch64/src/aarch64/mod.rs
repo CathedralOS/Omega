@@ -177,6 +177,37 @@ pub fn encode_vtable_call_sequence_at_offset_hfa_returning_from_operands(
     Ok(bytes)
 }
 
+pub fn encode_vtable_call_sequence_at_offset_small_aggregate_returning_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    argument_placements: &[ValuePlacement],
+    result_placement: &ValuePlacement,
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    validate_vtable_receiver(argument_placements)?;
+    let all = operands.collect::<Vec<_>>();
+    let Some((result, arguments)) = all.split_first() else {
+        return Err(Diagnostic::error(
+            "AArch64 aggregate-returning vtable call has no result storage operand",
+        ));
+    };
+    let mut bytes = Vec::with_capacity(
+        host_call_sequence_width_from_operands(all.iter().copied())
+            + host_call_stack_total_width_for_placements(argument_placements)
+            + 4,
+    );
+    let stack_bytes =
+        append_call_operands(&mut bytes, arguments.iter().copied(), argument_placements)?;
+    append_vtable_dispatch(&mut bytes, byte_offset)?;
+    append_call_stack_restore(&mut bytes, stack_bytes)?;
+    append_compatibility_small_aggregate_result_store(
+        &mut bytes,
+        *result,
+        result_placement,
+        "vtable",
+    )?;
+    Ok(bytes)
+}
+
 /// AAPCS64 service-table dispatch. The table pointer is a storage operand used
 /// only to find the callee; it is excluded from `argument_placements`, so the
 /// first declared function argument still consumes x0/v0. Operand roles are
@@ -228,6 +259,24 @@ pub fn encode_table_function_call_sequence_hfa_returning_from_operands(
     let mut bytes =
         encode_table_function_call_prefix(&all, argument_placements, true, byte_offset)?;
     append_compatibility_hfa_result_store(&mut bytes, all[0], result_placement, "table-function")?;
+    Ok(bytes)
+}
+
+pub fn encode_table_function_call_sequence_small_aggregate_returning_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    argument_placements: &[ValuePlacement],
+    result_placement: &ValuePlacement,
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let all = operands.collect::<Vec<_>>();
+    let mut bytes =
+        encode_table_function_call_prefix(&all, argument_placements, true, byte_offset)?;
+    append_compatibility_small_aggregate_result_store(
+        &mut bytes,
+        all[0],
+        result_placement,
+        "table-function",
+    )?;
     Ok(bytes)
 }
 
@@ -295,6 +344,74 @@ fn append_compatibility_integer_result_store(
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     append_store_data_to_x_offset(bytes, result_register, 16, byte_offset, byte_count, 17)
+}
+
+fn append_compatibility_small_aggregate_result_store(
+    bytes: &mut Vec<u8>,
+    result: Aarch64CallOperand,
+    result_placement: &ValuePlacement,
+    label: &str,
+) -> Result<(), Diagnostic> {
+    let RuntimeSmallAggregate {
+        byte_offset,
+        byte_count,
+        alignment,
+    } = result
+    else {
+        return Err(Diagnostic::error(format!(
+            "AArch64 aggregate-returning {label} result place is not a small aggregate"
+        )));
+    };
+    if !(9..=16).contains(&byte_count)
+        || !alignment.is_power_of_two()
+        || !matches!(
+            result_placement.shape.class,
+            omega_calling_conventions::ValueClass::Integer
+        )
+        || usize::from(result_placement.shape.byte_size) != byte_count
+        || result_placement.locations.len() != byte_count.div_ceil(8)
+    {
+        return Err(Diagnostic::error(format!(
+            "AAPCS64 {label} small aggregate result placement disagrees with its storage shape"
+        )));
+    }
+
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    for (fragment, location) in result_placement.locations.iter().copied().enumerate() {
+        let fragment_offset = fragment * 8;
+        let fragment_byte_count = (byte_count - fragment_offset).min(8);
+        let ValueLocation::Register {
+            register: MachineRegister::Aarch64X(register),
+            value_byte_offset,
+            byte_size,
+        } = location
+        else {
+            return Err(Diagnostic::error(format!(
+                "AAPCS64 {label} aggregate result fragment {fragment} is not in an X register"
+            )));
+        };
+        if usize::from(value_byte_offset) != fragment_offset
+            || usize::from(byte_size) != fragment_byte_count
+        {
+            return Err(Diagnostic::error(format!(
+                "AAPCS64 {label} aggregate result fragment {fragment} has the wrong byte range"
+            )));
+        }
+        append_store_data_to_x_offset(
+            bytes,
+            register,
+            16,
+            byte_offset.checked_add(fragment_offset).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "AAPCS64 {label} aggregate result storage offset overflows usize"
+                ))
+            })?,
+            fragment_byte_count,
+            17,
+        )?;
+    }
+    Ok(())
 }
 
 fn append_compatibility_float_result_store(
@@ -497,6 +614,37 @@ pub fn encode_host_call_sequence_value_returning_from_operands(
     // Kept in lockstep
     // with operand_width's store_data_offset_width accounting + the relocation planner.
     append_store_data_to_x_offset(&mut bytes, result_register, 16, byte_offset, byte_count, 17)?;
+    Ok(bytes)
+}
+
+/// An authored import returning a fixed non-HFA aggregate that AAPCS64
+/// classifies into consecutive general-purpose registers. Spill each planned
+/// x-register fragment into the single aggregate result place after the call.
+pub fn encode_host_call_sequence_small_aggregate_returning_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    argument_placements: &[ValuePlacement],
+    result_placement: &ValuePlacement,
+) -> Result<Vec<u8>, Diagnostic> {
+    let all = operands.collect::<Vec<_>>();
+    let Some((result, arguments)) = all.split_first() else {
+        return Err(Diagnostic::error(
+            "AArch64 aggregate-returning host call has no result storage operand",
+        ));
+    };
+    let mut bytes = Vec::with_capacity(
+        host_call_sequence_width_from_operands(all.iter().copied())
+            + host_call_stack_total_width_for_placements(argument_placements),
+    );
+    let stack_bytes =
+        append_call_operands(&mut bytes, arguments.iter().copied(), argument_placements)?;
+    bytes.extend(encode_branch_link_placeholder());
+    append_call_stack_restore(&mut bytes, stack_bytes)?;
+    append_compatibility_small_aggregate_result_store(
+        &mut bytes,
+        *result,
+        result_placement,
+        "authored import",
+    )?;
     Ok(bytes)
 }
 
@@ -1452,6 +1600,51 @@ mod host_call_plan_register_tests {
         assert_eq!(&bytes[20..24], &encode_float_move_to_gpr(8, 17, 4).unwrap());
         assert_eq!(&bytes[24..28], &encode_store_x_to_x(17, 16, 40).unwrap());
         assert_eq!(bytes.len(), crate::aarch64::operand_width(&result) + 4);
+    }
+
+    #[test]
+    fn small_aggregate_results_spill_each_plan_selected_gpr() {
+        let result = Aarch64CallOperand::RuntimeSmallAggregate {
+            byte_offset: 64,
+            byte_count: 16,
+            alignment: 8,
+        };
+        let result_placement = ValuePlacement {
+            shape: omega_calling_conventions::ValueShape::integer(16, 8),
+            locations: vec![
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(0),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(1),
+                    value_byte_offset: 8,
+                    byte_size: 8,
+                },
+            ],
+        };
+
+        let bytes = encode_host_call_sequence_small_aggregate_returning_from_operands(
+            [result, Aarch64CallOperand::ImmediateInteger(7)].into_iter(),
+            &[placement(
+                omega_calling_conventions::ValueShape::integer(8, 8),
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(0),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+            )],
+            &result_placement,
+        )
+        .expect("fragmented small aggregate result should encode");
+
+        assert_eq!(&bytes[0..4], &encode_movz(0, 7));
+        assert_eq!(&bytes[4..8], &encode_branch_link_placeholder());
+        assert_eq!(&bytes[8..12], &encode_adrp_placeholder(16));
+        assert_eq!(&bytes[16..20], &encode_store_x_to_x(0, 16, 64).unwrap());
+        assert_eq!(&bytes[20..24], &encode_store_x_to_x(1, 16, 72).unwrap());
+        assert_eq!(bytes.len(), crate::aarch64::operand_width(&result) + 8);
     }
 
     #[test]

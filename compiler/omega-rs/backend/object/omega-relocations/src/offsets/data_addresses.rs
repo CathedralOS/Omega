@@ -362,6 +362,37 @@ mod tests {
     }
 
     #[test]
+    fn authored_aarch64_small_aggregate_result_relocation_follows_the_call() {
+        let operands = [
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeSmallAggregate {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 64,
+                    byte_count: 16,
+                    alignment: 8,
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::ImmediateInteger(7),
+            },
+        ];
+
+        assert_eq!(
+            data_address_relocation_offset(
+                Architecture::Aarch64,
+                Some(omega_calling_conventions::HostOperationKey::default()),
+                &operands,
+                20,
+                0,
+                false,
+                None,
+                true,
+            ),
+            28
+        );
+    }
+
+    #[test]
     fn aarch64_vtable_result_relocation_follows_arguments_and_indirect_dispatch() {
         let operands = [
             InstructionOperand {

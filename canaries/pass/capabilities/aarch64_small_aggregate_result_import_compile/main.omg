@@ -1,0 +1,20 @@
+// A fixed 16-byte non-HFA record is returned by value in x0/x1. The compiler
+// test verifies that both fragments spill into one aggregate result place.
+data Pair {
+    first: u64;
+    second: u64;
+}
+
+boundary trait AggregateResultImport {
+    machine call(seed: i64) -> Pair;
+}
+
+macos_arm64 provides AggregateResultImport {
+    call -> DllImport("libSystem.B.dylib", "omega_small_aggregate_result_probe")
+}
+
+data Main { foreign: AggregateResultImport; seed: i64; pair: Pair; }
+machine Main::main(&mut self) {
+    self.seed = 7;
+    self.pair = self.foreign.call(self.seed);
+}

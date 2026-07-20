@@ -180,6 +180,16 @@ pub fn encode_vtable_call_sequence_at_offset<T: InstructionOperandLike>(
                     Diagnostic::error("AAPCS64 vtable plan omitted its required result")
                 })?;
                 match result.shape.class {
+                    omega_calling_conventions::ValueClass::Integer
+                        if result.shape.byte_size > 8 =>
+                    {
+                        aarch64::encode_vtable_call_sequence_at_offset_small_aggregate_returning_from_operands(
+                            operands.iter().map(aarch64_call_operand),
+                            &arguments,
+                            result,
+                            byte_offset,
+                        )
+                    }
                     omega_calling_conventions::ValueClass::Integer => {
                         aarch64::encode_vtable_call_sequence_at_offset_value_returning_from_operands(
                             operands.iter().map(aarch64_call_operand),
@@ -250,6 +260,18 @@ pub fn encode_table_function_call_sequence<T: InstructionOperandLike>(
                     None,
                     byte_offset,
                 ),
+                Some(omega_calling_conventions::ValueClass::Integer)
+                    if result
+                        .as_ref()
+                        .is_some_and(|result| result.shape.byte_size > 8) =>
+                {
+                    aarch64::encode_table_function_call_sequence_small_aggregate_returning_from_operands(
+                        operands.iter().map(aarch64_call_operand),
+                        &arguments,
+                        result.as_ref().expect("matched present result"),
+                        byte_offset,
+                    )
+                }
                 Some(omega_calling_conventions::ValueClass::Integer) => {
                     aarch64::encode_table_function_call_sequence_from_operands(
                         operands.iter().map(aarch64_call_operand),
@@ -404,6 +426,13 @@ pub fn encode_authored_import_call_sequence<T: InstructionOperandLike>(
                         scalar_result_register(Some(result), "authored float")?,
                     )
                 }
+                omega_calling_conventions::ValueClass::Integer if result.shape.byte_size > 8 => {
+                    aarch64::encode_host_call_sequence_small_aggregate_returning_from_operands(
+                        operands.iter().map(aarch64_call_operand),
+                        &arguments,
+                        result,
+                    )
+                }
                 omega_calling_conventions::ValueClass::Integer => {
                     aarch64::encode_host_call_sequence_value_returning_from_operands(
                         operands.iter().map(aarch64_call_operand),
@@ -539,14 +568,35 @@ pub fn normalized_aarch64_table_function_plan<T: InstructionOperandLike>(
 
 fn validate_aarch64_field_result(result: &ValuePlacement, label: &str) -> Result<(), Diagnostic> {
     let locations_match = match result.shape.class {
-        omega_calling_conventions::ValueClass::Integer => matches!(
-            result.locations.as_slice(),
-            [ValueLocation::Register {
-                register: MachineRegister::Aarch64X(_),
-                value_byte_offset: 0,
-                ..
-            }]
-        ),
+        omega_calling_conventions::ValueClass::Integer if result.shape.byte_size <= 8 => {
+            matches!(
+                result.locations.as_slice(),
+                [ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(_),
+                    value_byte_offset: 0,
+                    ..
+                }]
+            )
+        }
+        omega_calling_conventions::ValueClass::Integer => {
+            result.locations.len() == usize::from(result.shape.byte_size.div_ceil(8))
+                && result
+                    .locations
+                    .iter()
+                    .enumerate()
+                    .all(|(fragment, location)| {
+                        matches!(
+                            location,
+                            ValueLocation::Register {
+                                register: MachineRegister::Aarch64X(_),
+                                value_byte_offset,
+                                byte_size,
+                            } if usize::from(*value_byte_offset) == fragment * 8
+                                && usize::from(*byte_size)
+                                    == (usize::from(result.shape.byte_size) - fragment * 8).min(8)
+                        )
+                    })
+        }
         omega_calling_conventions::ValueClass::Float => matches!(
             result.locations.as_slice(),
             [ValueLocation::Register {
@@ -695,6 +745,10 @@ fn normalized_aarch64_import_plan_from_call_operands(
             result.shape.class,
             omega_calling_conventions::ValueClass::HomogeneousFloatAggregate { .. }
         )
+        && !(matches!(
+            result.shape.class,
+            omega_calling_conventions::ValueClass::Integer
+        ) && (9..=16).contains(&result.shape.byte_size))
     {
         return Err(Diagnostic::error(format!(
             "AAPCS64 import result has unsupported fragmented placement {:?}",
@@ -1401,6 +1455,61 @@ mod aarch64_import_plan_tests {
         )
         .expect("encode HFA-returning AAPCS64 table function");
         assert_eq!(table_bytes.len(), 48);
+        assert_eq!(
+            table_bytes.len(),
+            crate::table_function_call_sequence_width(
+                omega_target::NativeTarget::linux_arm64(),
+                &table_operands,
+                24,
+                true,
+            )
+        );
+    }
+
+    #[test]
+    fn field_model_small_aggregate_results_match_layout_widths() {
+        let aggregate_result = || {
+            operand(TargetInstructionOperandKind::RuntimeSmallAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 64,
+                byte_count: 16,
+                alignment: 8,
+            })
+        };
+        let receiver = || {
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 8,
+            })
+        };
+
+        let vtable_operands = [aggregate_result(), receiver()];
+        let vtable_bytes = encode_vtable_call_sequence_at_offset(
+            omega_target::NativeTarget::linux_arm64(),
+            &vtable_operands,
+            24,
+            true,
+        )
+        .expect("encode small-aggregate-returning AAPCS64 vtable field");
+        assert_eq!(
+            vtable_bytes.len(),
+            crate::vtable_call_sequence_width_at_offset(
+                omega_target::NativeTarget::linux_arm64(),
+                &vtable_operands,
+                24,
+                true,
+            )
+        );
+
+        let table_operands = [aggregate_result(), receiver()];
+        let table_bytes = encode_table_function_call_sequence(
+            omega_target::NativeTarget::linux_arm64(),
+            &table_operands,
+            24,
+            true,
+        )
+        .expect("encode small-aggregate-returning AAPCS64 table function");
         assert_eq!(
             table_bytes.len(),
             crate::table_function_call_sequence_width(
