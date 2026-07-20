@@ -2122,18 +2122,12 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     // the last such op for this call.  The deferred op fires
                     // AFTER the local initializer write so the callee-frame slot
                     // (e.g. `rr`) is written before the expansion reads it.
-                    let is_case_a = deferred_leaf_operations.iter().any(|deferred| {
-                        deferred.source_key == operation.source_key
-                            && deferred.statement_index == operation.statement_index
-                    });
-                    if is_case_a {
-                        let deferred_index = deferred_leaf_operations
-                            .iter()
-                            .position(|deferred| {
-                                deferred.source_key == operation.source_key
-                                    && deferred.statement_index == operation.statement_index
-                            })
-                            .unwrap();
+                    while let Some(deferred_index) =
+                        deferred_leaf_operations.iter().position(|deferred| {
+                            deferred.source_key == operation.source_key
+                                && deferred.statement_index == operation.statement_index
+                        })
+                    {
                         let deferred = deferred_leaf_operations.remove(deferred_index);
                         select_runtime_straight_line_branch_expansions_for_operation(
                             input,

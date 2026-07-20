@@ -32,14 +32,11 @@ use super::super::super::storage_places::{
     runtime_storage_target_is_atomic,
 };
 use super::super::super::storage_places::{
-    resolve_runtime_assignment_value_call_result_place,
     resolve_runtime_assignment_value_call_result_place_by_ordinal,
-    resolve_runtime_call_argument_call_result_place,
     resolve_runtime_call_argument_call_result_place_by_ordinal,
     resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_fixed_indexed_target,
     resolve_runtime_frame_indexed_target, resolve_runtime_machine_double_indexed_source,
     resolve_runtime_machine_indexed_target, resolve_runtime_pointee_slot_offset,
-    resolve_runtime_transition_argument_call_result_place,
 };
 use super::super::guards::static_guard_conjunct_summary_in_table;
 use super::super::text_writes::{
@@ -79,34 +76,145 @@ pub(super) use static_writes::select_runtime_static_mutation_write_in_table;
 pub(in crate::selection::runtime_dispatch) use value_operands::resolve_runtime_text_equals_operand_in_table;
 use value_operands::resolve_runtime_value_operand;
 
-fn resolve_runtime_call_result_source_place(
+fn append_tree_expression_path<'a>(expression: &'a Expression, path: &mut Vec<&'a str>) {
+    match expression {
+        Expression::Mutable(inner) => append_tree_expression_path(inner, path),
+        Expression::Name(name_path) => {
+            if let Some(name) = name_path.last() {
+                path.push(name.as_str());
+            }
+        }
+        Expression::Member(member) => {
+            append_tree_expression_path(&member.receiver, path);
+            path.push(member.member.as_str());
+        }
+        _ => {}
+    }
+}
+
+fn append_table_expression_path<'a>(
+    expressions: &'a ExpressionTable,
+    expression: ExpressionHandle,
+) -> Vec<&'a str> {
+    fn append<'a>(
+        expressions: &'a ExpressionTable,
+        expression: ExpressionHandle,
+        path: &mut Vec<&'a str>,
+    ) {
+        if !expression.is_valid() {
+            return;
+        }
+        match expressions.expression(expression) {
+            omega_checked_trees::expression::ExpressionNode::Mutable(inner) => {
+                append(expressions, *inner, path);
+            }
+            omega_checked_trees::expression::ExpressionNode::Name(name_path) => {
+                if let Some(name) = expressions.name_path_members(name_path.members).last() {
+                    path.push(name.as_str());
+                }
+            }
+            omega_checked_trees::expression::ExpressionNode::Member(member) => {
+                append(expressions, member.receiver, path);
+                path.push(member.member.as_str());
+            }
+            _ => {}
+        }
+    }
+
+    let mut path = Vec::new();
+    if !expression.is_valid() {
+        return path;
+    }
+    append(expressions, expression, &mut path);
+    path
+}
+
+fn state_call_matches_expression(
+    input: &InstructionSelectionInput<'_>,
+    state_call: &omega_state_calls::StateCall,
+    target: &str,
+    receiver_path: &[&str],
+) -> bool {
+    let (_, target_state) = input
+        .control_flow
+        .state_names_by_key_cloned(state_call.target_key);
+    let planned_receiver_path = input
+        .state_calls
+        .receiver_path_segments
+        .span_or_empty(state_call.receiver_path);
+    target_state.as_str() == target
+        && receiver_path.len() == planned_receiver_path.len()
+        && receiver_path
+            .iter()
+            .zip(planned_receiver_path)
+            .all(|(actual, planned)| *actual == planned.as_str())
+}
+
+fn resolve_matching_runtime_call_result_source_place(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
     statement_index: usize,
+    target: &str,
+    receiver_path: &[&str],
 ) -> Option<super::super::super::storage_places::RuntimeStoragePlace> {
-    resolve_runtime_assignment_value_call_result_place(
+    input
+        .state_calls
+        .calls
+        .iter()
+        .filter_map(|(_, state_call)| {
+            (state_call_has_runtime_value_result(state_call.role)
+                && super::super::state_key_matches_statement_source(
+                    state_call.source_key,
+                    source_key,
+                )
+                && state_call.statement_index == statement_index
+                && state_call_matches_expression(input, state_call, target, receiver_path))
+            .then_some(state_call)
+        })
+        .find_map(|state_call| {
+            resolve_runtime_call_result_source_place_by_ordinal(input, dispatch_index, state_call)
+        })
+}
+
+fn resolve_runtime_tree_call_result_source_place(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    call: &omega_checked_trees::expression::CallExpression,
+) -> Option<super::super::super::storage_places::RuntimeStoragePlace> {
+    let mut receiver_path = Vec::new();
+    if let Some(receiver) = call.receiver.as_deref() {
+        append_tree_expression_path(receiver, &mut receiver_path);
+    }
+    resolve_matching_runtime_call_result_source_place(
         input,
         dispatch_index,
         source_key,
         statement_index,
+        call.target.as_str(),
+        &receiver_path,
     )
-    .or_else(|| {
-        resolve_runtime_call_argument_call_result_place(
-            input,
-            dispatch_index,
-            source_key,
-            statement_index,
-        )
-    })
-    .or_else(|| {
-        resolve_runtime_transition_argument_call_result_place(
-            input,
-            dispatch_index,
-            source_key,
-            statement_index,
-        )
-    })
+}
+
+fn resolve_runtime_table_call_result_source_place(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    call: &omega_checked_trees::expression::TableCallExpression,
+) -> Option<super::super::super::storage_places::RuntimeStoragePlace> {
+    let receiver_path = append_table_expression_path(expressions, call.receiver);
+    resolve_matching_runtime_call_result_source_place(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        call.target.as_str(),
+        &receiver_path,
+    )
 }
 
 fn resolve_runtime_call_expression_result_source_place(
@@ -117,26 +225,14 @@ fn resolve_runtime_call_expression_result_source_place(
     call: &omega_checked_trees::expression::CallExpression,
     byte_count: usize,
 ) -> Option<super::super::super::storage_places::RuntimeStoragePlace> {
-    input
-        .state_calls
-        .calls
-        .iter()
-        .filter(|(_, state_call)| {
-            let (_, target_state) = input
-                .control_flow
-                .state_names_by_key_cloned(state_call.target_key);
-            state_call_has_runtime_value_result(state_call.role)
-                && super::super::state_key_matches_statement_source(
-                    state_call.source_key,
-                    source_key,
-                )
-                && state_call.statement_index == statement_index
-                && target_state.as_str() == &*call.target
-        })
-        .find_map(|(_, state_call)| {
-            resolve_runtime_call_result_source_place_by_ordinal(input, dispatch_index, state_call)
-                .filter(|place| place.byte_count == byte_count)
-        })
+    resolve_runtime_tree_call_result_source_place(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        call,
+    )
+    .filter(|place| place.byte_count == byte_count)
 }
 
 fn state_call_has_runtime_value_result(role: StateCallRole) -> bool {
@@ -180,16 +276,22 @@ fn inline_branching_call_result_for_expression<'a>(
     statement_index: usize,
     call: &omega_checked_trees::expression::CallExpression,
 ) -> Option<&'a omega_state_calls::StateCall> {
+    let mut receiver_path = Vec::new();
+    if let Some(receiver) = call.receiver.as_deref() {
+        append_tree_expression_path(receiver, &mut receiver_path);
+    }
     input.state_calls.calls.iter().find_map(|(_, state_call)| {
-        let (_, target_state) = input
-            .control_flow
-            .state_names_by_key_cloned(state_call.target_key);
         (state_call_has_runtime_value_result(state_call.role)
             && state_call.lowering == StateCallLowering::InlineBranching
             && super::super::state_key_matches_statement_source(state_call.source_key, source_key)
             && state_call.statement_index == statement_index
-            && target_state.as_str() == &*call.target)
-            .then_some(state_call)
+            && state_call_matches_expression(
+                input,
+                state_call,
+                call.target.as_str(),
+                &receiver_path,
+            ))
+        .then_some(state_call)
     })
 }
 
@@ -1277,13 +1379,14 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
     // below, which resolves the call operand to its result slot AND applies the
     // operator. A builtin operator call (`max`/`min`) is itself an operator, not a
     // result-producing state call, so it must also fall through.
-    if matches!(&resolved_value.expression, Expression::Call(call)
-            if builtin_runtime_call_operator(input, call).is_none())
-        && let Some(source_place) = resolve_runtime_call_result_source_place(
+    if let Expression::Call(call) = &resolved_value.expression
+        && builtin_runtime_call_operator(input, call).is_none()
+        && let Some(source_place) = resolve_runtime_tree_call_result_source_place(
             input,
             dispatch_index,
             value_source_key,
             statement_index,
+            call,
         )
     {
         materialize_static_inline_branching_call_argument_results_for_statement(

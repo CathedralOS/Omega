@@ -490,12 +490,15 @@ remain contract-invisible.
 These are unblocked and should gain a focused pass/fail or differential canary
 before the fix.
 
-- **Sibling value-call context identity.** Runtime call contexts still record a
-  minting `(state, statement)` without the state-call ordinal. Two value calls
-  in one expression such as `small.first() + large.first()` can therefore reuse
-  the first receiver base/result route; separate `let` statements are the
-  current sound lowering. Thread `call_ordinal` through `RuntimeStateCallEdge`,
-  context call sites, continuation result identity, and receiver-base lookup.
+- **Sibling dispatched value-call context identity.** Inline value calls in one
+  expression now retain every ordinal through runtime-body lowering, allocate
+  distinct result slots, defer every sibling return write, and select those
+  slots by target + receiver (`small.first() + large.first()` is pinned native
+  and interpreted). The dispatched/looping path still records a minting
+  `(state, statement)` without the state-call ordinal. Thread `call_ordinal`
+  through `RuntimeStateCallEdge`, context call sites, continuation result
+  identity, and receiver-base lookup; exact repeated calls on the same receiver
+  also need occurrence identity rather than target + receiver matching.
 
 ## Type, proof, and semantic-model work
 

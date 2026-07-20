@@ -23,8 +23,6 @@ data Main {
 machine Main::main(&mut self) {
     self.small.set_first(30);
     self.large.set_first(40);
-    let small_value: i32 in Wrapping = self.small.first();
-    let large_value: i32 in Wrapping = self.large.first();
-    let result: i32 in Wrapping = small_value + large_value;
+    let result: i32 in Wrapping = self.small.first() + self.large.first();
     self.console.exit_process(result);
 }

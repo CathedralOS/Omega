@@ -163,22 +163,6 @@ pub(super) fn resolve_runtime_storage_place(
     )
 }
 
-pub(super) fn resolve_runtime_assignment_value_call_result_place(
-    input: &InstructionSelectionInput<'_>,
-    dispatch_index: u32,
-    source_key: StateKey,
-    statement_index: usize,
-) -> Option<RuntimeStoragePlace> {
-    resolve_runtime_call_result_place(
-        input,
-        dispatch_index,
-        source_key,
-        statement_index,
-        StateCallRole::AssignmentValue,
-        None,
-    )
-}
-
 pub(super) fn resolve_runtime_assignment_value_call_result_place_by_ordinal(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
