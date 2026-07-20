@@ -24,6 +24,7 @@ pub fn compile_to_checked(
     // darwin `MacosGui` provider (task #57).
     let (_source_file_count, mut syntax) =
         source_files_to_syntax_trees_for_engine(root_path, target_name, false, &mut timings)?;
+    crate::pipeline::const_generic_calls::evaluate_const_generic_calls(&mut syntax.syntax_trees)?;
     // PLAN-LAID VALUE TYPES (layouts L4), desugar half -- exactly as the full
     // `compile` pipeline does.
     crate::pipeline::generic_instances::desugar_generic_data_instances(&mut syntax.syntax_trees)?;

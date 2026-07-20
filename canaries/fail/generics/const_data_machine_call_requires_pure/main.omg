@@ -1,0 +1,17 @@
+machine loud_size() -> u64
+effects
+    process_exit
+{
+    transition { _ -> 4 }
+}
+
+data FixedBuffer<const N: u64> {
+    items: [u8; N];
+}
+
+data Main {
+    buffer: FixedBuffer<loud_size()>;
+}
+
+machine Main::main(&mut self) {
+}
