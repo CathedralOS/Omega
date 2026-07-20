@@ -209,7 +209,16 @@ pub(crate) fn data_address_relocation_offset(
             } else {
                 0
             };
-            let float_return_bytes = if operation_key.returns_float() { 4 } else { 0 };
+            let float_return_bytes = if operation_key.returns_float()
+                || (authored_import
+                    && operands
+                        .first()
+                        .is_some_and(|operand| operand.runtime_scalar_float().is_some()))
+            {
+                4
+            } else {
+                0
+            };
             let stack_mode_bytes = if operation_key.passes_trailing_mode_on_stack() {
                 12
             } else {
@@ -317,6 +326,36 @@ mod tests {
                 true,
                 None,
                 false
+            ),
+            32
+        );
+    }
+
+    #[test]
+    fn authored_aarch64_float_result_relocation_follows_the_vector_move() {
+        let operands = [
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeScalarFloat {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 32,
+                    byte_count: 8,
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::ImmediateInteger(7),
+            },
+        ];
+
+        assert_eq!(
+            data_address_relocation_offset(
+                Architecture::Aarch64,
+                Some(omega_calling_conventions::HostOperationKey::default()),
+                &operands,
+                20,
+                0,
+                false,
+                None,
+                true,
             ),
             32
         );

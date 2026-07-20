@@ -284,6 +284,12 @@ ceiling containing every fixed caller-saved X/V scratch register used by the
 encoder family. A future policy or evaluator change therefore fails before
 emission instead of silently preserving only the placement projection.
 
+Provides-authored scalar-float imports retain their float result shape,
+consume the plan-selected `v` result register, and move its raw bits through a
+relocated scalar store. The float result operand's ordinary width already
+equals that store tail, while the result page fixup explicitly accounts for
+the intervening `fmov`.
+
 Ordinary process and firmware entries now evaluate a complete validated
 `BoundaryEntryPlan`, not a detached call layout. Their concrete `StatePlan`
 records that no activation was interrupted, requires no save/restore, uses the
