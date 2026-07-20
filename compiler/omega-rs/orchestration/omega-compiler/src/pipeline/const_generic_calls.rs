@@ -7,8 +7,9 @@
 //! authoritative syntax tree before monomorphization.
 
 use omega_core::diagnostics::Diagnostic;
+use omega_core::literals::{IntegerLiteral, IntegerRadix};
 use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::expression::ExpressionNode;
+use omega_syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::types::TypeReferenceNode;
 use std::collections::BTreeMap;
@@ -17,29 +18,24 @@ pub(super) fn evaluate_const_generic_calls(
     syntax: &mut SyntaxTrees,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut pending = Vec::new();
+    let mut pending_type_references = Vec::new();
     for (type_reference, expression) in syntax.type_references.const_expression_nodes() {
-        let ExpressionNode::Call(call) = syntax.expressions.expression(expression) else {
-            continue;
-        };
-        if !call.arguments.is_empty() || !call.machine_arguments.is_empty() {
-            return Err(vec![Diagnostic::error(format!(
-                "const-generic call `{}` must take no value or machine arguments",
-                call.target.as_str()
-            ))]);
+        let before = pending.len();
+        collect_call_leaves(syntax, expression, &mut pending)?;
+        if pending.len() > before {
+            pending_type_references.push(type_reference);
         }
-        let machine_name = call_machine_name(syntax, call)?;
-        pending.push((type_reference, machine_name));
     }
     if pending.is_empty() {
         return Ok(());
     }
 
     // The probe needs the same generic-template normalization as the real
-    // program, but the call result is not known yet. A temporary zero leaf lets
-    // the frontend type/effect-check the machine definitions themselves; no
-    // probe layout escapes this function.
+    // program, but the call results are not known yet. A temporary zero leaf
+    // for each owning const argument lets the frontend type/effect-check the
+    // machine definitions themselves; no probe layout escapes this function.
     let mut probe = syntax.clone();
-    for (type_reference, _) in &pending {
+    for type_reference in &pending_type_references {
         probe.type_references.replace_type_reference(
             *type_reference,
             TypeReferenceNode::Named(Identifier::generated("0")),
@@ -76,14 +72,41 @@ pub(super) fn evaluate_const_generic_calls(
         values.insert(machine_name.clone(), value);
     }
 
-    for (type_reference, machine_name) in pending {
+    for (expression, machine_name) in pending {
         let value = values[&machine_name];
-        syntax.type_references.replace_type_reference(
-            type_reference,
-            TypeReferenceNode::Named(Identifier::generated(value.to_string())),
-        );
+        let literal =
+            IntegerLiteral::from_parts(false, IntegerRadix::Decimal, value.to_string().as_str())
+                .expect("a decimal u64 const-machine result is a valid integer literal");
+        syntax
+            .expressions
+            .replace_expression(expression, ExpressionNode::Integer(literal));
     }
     Ok(())
+}
+
+fn collect_call_leaves(
+    syntax: &SyntaxTrees,
+    expression: ExpressionHandle,
+    pending: &mut Vec<(ExpressionHandle, String)>,
+) -> Result<(), Vec<Diagnostic>> {
+    match syntax.expressions.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            collect_call_leaves(syntax, binary.left, pending)?;
+            collect_call_leaves(syntax, binary.right, pending)
+        }
+        ExpressionNode::Call(call) => {
+            if !call.arguments.is_empty() || !call.machine_arguments.is_empty() {
+                return Err(vec![Diagnostic::error(format!(
+                    "const-generic call `{}` must take no value or machine arguments",
+                    call.target.as_str()
+                ))]);
+            }
+            let machine_name = call_machine_name(syntax, call)?;
+            pending.push((expression, machine_name));
+            Ok(())
+        }
+        _ => Ok(()),
+    }
 }
 
 fn call_machine_name(
