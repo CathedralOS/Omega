@@ -320,8 +320,8 @@ pub fn aarch64_host_call_stack_total_width(locations: &[ValueLocation]) -> usize
 
 /// ENT2c: evaluate the AAPCS64 call surface from the actual selected operands.
 /// The encoder receives exact register/stack locations and may no longer
-/// reconstruct x0../v0.. or outgoing offsets independently. Scalar stack
-/// placements are supported; float-stack and fragmented placements fail closed.
+/// reconstruct x0../v0.. or outgoing offsets independently. Scalar integer,
+/// pointer, and float stack placements are supported; fragments fail closed.
 ///
 /// `trailing_variadic_stack` is the compatibility seam for Darwin `open`:
 /// its anonymous `mode` argument is intentionally stack-passed by Apple's
@@ -767,6 +767,32 @@ mod aarch64_import_plan_tests {
                 .expect("ninth AAPCS integer argument has a scalar stack placement");
 
         assert_eq!(result, None);
+        assert_eq!(
+            locations[8],
+            ValueLocation::Stack {
+                stack_byte_offset: 0,
+                value_byte_offset: 0,
+                byte_size: 8,
+                alignment: 8,
+            }
+        );
+    }
+
+    #[test]
+    fn ninth_float_argument_has_an_aapcs_stack_slot() {
+        let operands = (0..9)
+            .map(|index| {
+                operand(TargetInstructionOperandKind::RuntimeScalarFloat {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: index * 8,
+                    byte_count: 8,
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let (locations, _) =
+            normalized_aarch64_import_registers(&operands, Aarch64ImportResult::None, false)
+                .expect("ninth AAPCS float argument has a stack placement");
         assert_eq!(
             locations[8],
             ValueLocation::Stack {

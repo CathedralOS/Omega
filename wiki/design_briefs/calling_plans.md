@@ -232,15 +232,15 @@ shadow-relative fifth argument, and scratch-slot reservation consume that plan;
 the scratch slot itself remains an encoder materialization detail. Dedicated
 runtime line/byte Windows sequences now reuse the same file layout and validate
 the actual one-DWORD/RAX `GetStdHandle` plan without changing their fixed bytes
-or relocation sites. AArch64 float-stack/fragmented calls and concrete
-firmware machine-state policy remain.
+or relocation sites. AArch64 fragmented calls and concrete firmware
+machine-state policy remain.
 
 Scalar AAPCS64 outbound stack arguments now consume normalized stack offsets:
-the encoder reserves a 16-byte-aligned outgoing area, materializes each scalar
-through caller-saved scratch registers, stores it at the planned offset, and
-restores SP after `BL`. Width calculation plus call/data relocation walkers
-consume the same stack-prefix/store/restore accounting. Float-stack and
-fragmented outbound placements still fail closed.
+the encoder reserves a 16-byte-aligned outgoing area, materializes integer,
+pointer, and float values through caller-saved X/V scratch registers, stores
+them at the planned offset, and restores SP after `BL`. Width calculation plus
+call/data relocation walkers consume the same stack-prefix/store/restore
+accounting. Fragmented outbound placements still fail closed.
 
 Remaining order:
 

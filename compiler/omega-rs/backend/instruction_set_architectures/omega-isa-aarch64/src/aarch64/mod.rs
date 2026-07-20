@@ -634,6 +634,28 @@ mod host_call_plan_register_tests {
         assert_eq!(&bytes[12..16], &encode_branch_link_placeholder());
         assert_eq!(&bytes[16..20], &0x9100_43ffu32.to_le_bytes());
     }
+
+    #[test]
+    fn float_stack_argument_uses_the_planned_d_slot() {
+        let bytes = encode_host_call_sequence(
+            &[Aarch64CallOperand::RuntimeScalarFloat {
+                byte_offset: 0,
+                byte_count: 8,
+            }],
+            &[ValueLocation::Stack {
+                stack_byte_offset: 0,
+                value_byte_offset: 0,
+                byte_size: 8,
+                alignment: 8,
+            }],
+        )
+        .expect("f64 AAPCS64 stack argument");
+
+        assert_eq!(&bytes[0..4], &0xd100_43ffu32.to_le_bytes());
+        assert_eq!(&bytes[20..24], &0xfd00_03ffu32.to_le_bytes());
+        assert_eq!(&bytes[24..28], &encode_branch_link_placeholder());
+        assert_eq!(&bytes[28..32], &0x9100_43ffu32.to_le_bytes());
+    }
 }
 
 fn append_call_operands(
@@ -682,24 +704,24 @@ fn append_call_operands(
                 byte_size,
                 ..
             } => {
-                if matches!(operand, RuntimeScalarFloat { .. }) {
-                    return Err(Diagnostic::error(format!(
-                        "AAPCS64 outbound float stack parameter {index} is not implemented yet"
-                    )));
-                }
-                append_register_call_operand(bytes, operand, MachineRegister::Aarch64X(10))?;
                 let offset = usize::try_from(stack_byte_offset).map_err(|_| {
                     Diagnostic::error("AAPCS64 outbound stack offset exceeds usize")
                 })?;
-                match byte_size {
-                    1 | 2 | 4 => {
-                        bytes.extend(encode_store_w_to_x(10, 31, offset, byte_size.into())?)
-                    }
-                    8 => bytes.extend(encode_store_x_to_x(10, 31, offset)?),
-                    _ => {
-                        return Err(Diagnostic::error(format!(
-                            "AAPCS64 outbound stack parameter {index} has unsupported width {byte_size}"
-                        )));
+                if matches!(operand, RuntimeScalarFloat { .. }) {
+                    append_register_call_operand(bytes, operand, MachineRegister::Aarch64V(31))?;
+                    bytes.extend(encode_store_float_to_sp(31, offset, byte_size)?);
+                } else {
+                    append_register_call_operand(bytes, operand, MachineRegister::Aarch64X(10))?;
+                    match byte_size {
+                        1 | 2 | 4 => {
+                            bytes.extend(encode_store_w_to_x(10, 31, offset, byte_size.into())?)
+                        }
+                        8 => bytes.extend(encode_store_x_to_x(10, 31, offset)?),
+                        _ => {
+                            return Err(Diagnostic::error(format!(
+                                "AAPCS64 outbound stack parameter {index} has unsupported width {byte_size}"
+                            )));
+                        }
                     }
                 }
             }
@@ -712,6 +734,30 @@ fn append_call_operands(
     }
 
     Ok(stack_bytes)
+}
+
+fn encode_store_float_to_sp(
+    source_register: u8,
+    byte_offset: usize,
+    byte_size: u16,
+) -> Result<[u8; 4], Diagnostic> {
+    let (opcode, scale) = match byte_size {
+        4 => (0xbd00_0000, 4usize),
+        8 => (0xfd00_0000, 8usize),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "AAPCS64 outbound float stack width {byte_size} is unsupported"
+            )));
+        }
+    };
+    if !byte_offset.is_multiple_of(scale) || byte_offset / scale > 4095 {
+        return Err(Diagnostic::error(format!(
+            "AAPCS64 outbound float stack offset {byte_offset} is not encodable"
+        )));
+    }
+    Ok(encode_instruction(
+        opcode | (((byte_offset / scale) as u32) << 10) | (31 << 5) | u32::from(source_register),
+    ))
 }
 
 fn append_call_stack_reserve(bytes: &mut Vec<u8>, stack_bytes: usize) -> Result<(), Diagnostic> {
