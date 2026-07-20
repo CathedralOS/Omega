@@ -211,6 +211,10 @@ ceiling derived exactly from the ABI volatile-register classes.
    operand with zero into result scratch before loading the normalized boolean
    result register. A native execution canary pins `!false` as process exit 1
    instead of the former silent natural-termination zero.
+   Runtime numeric-cast entry terminals now reuse the ordinary scalar
+   conversion writer in result scratch, deriving the destination primitive
+   from the declared entry return type before its normalized register load. A
+   native canary pins runtime `u8`-to-`i32` widening as process exit 70.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
    complete import/vtable/service-table compatibility mechanism matrix is

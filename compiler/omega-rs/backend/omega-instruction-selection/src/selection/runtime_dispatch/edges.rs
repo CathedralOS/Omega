@@ -224,7 +224,7 @@ pub(super) fn select_runtime_dispatch_edge(
 
 /// Deliver a terminating state's terminal value through the entry ABI.
 ///
-/// Eight shapes lower, in order:
+/// Nine shapes lower, in order:
 /// 1. an INTEGER CONSTANT terminal (`70`, `state shutdown { 0 }`) writes the immediate
 ///    into the return register (the original literal-only path);
 /// 2. a FLOAT CONSTANT terminal stages its raw bits through exact-width result
@@ -242,9 +242,11 @@ pub(super) fn select_runtime_dispatch_edge(
 ///    substitutes simple local initializers and constant-folds; such locals
 ///    were culled from storage precisely because nothing mutates them, so the
 ///    initializer IS the terminal value;
-/// 7. a runtime logical-NOT terminal compares its byte-sized operand with zero
+/// 7. a runtime numeric CAST terminal converts into result scratch using the
+///    declared entry result type before the normalized scalar-register load;
+/// 8. a runtime logical-NOT terminal compares its byte-sized operand with zero
 ///    into result scratch, then loads the normalized integer result register;
-/// 8. a flat runtime scalar BINARY terminal computes through the ordinary
+/// 9. a flat runtime scalar BINARY terminal computes through the ordinary
 ///    domain-aware writer into result scratch, then loads the normalized
 ///    integer or vector result register.
 fn select_runtime_dispatch_return_value(
@@ -398,6 +400,33 @@ fn select_runtime_dispatch_return_value(
                 register,
                 byte_size,
                 value,
+            },
+            source_key,
+            source_statement: edge.statement_index,
+        });
+        return true;
+    }
+
+    if let Some((scratch_offset, scratch_size, register)) =
+        normalized_entry_scalar_result_scratch(input)
+        && select_dispatch_cast_terminal_return(
+            input,
+            edge,
+            source_key,
+            source_dispatch_index,
+            scratch_offset,
+            scratch_size,
+            value_expr,
+            runtime_value_operands,
+            selected_instructions,
+        )
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+                register,
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: scratch_offset,
+                byte_size: scratch_size,
             },
             source_key,
             source_statement: edge.statement_index,
@@ -1202,6 +1231,53 @@ fn dispatch_terminal_binary_operator(operator: BinaryOperator) -> Option<StateGu
         BinaryOperator::ShiftRight => Some(StateGuardOperator::ShiftRight),
         _ => None,
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_dispatch_cast_terminal_return(
+    input: &InstructionSelectionInput<'_>,
+    edge: &RuntimeDispatchLoopEdge,
+    source_key: StateKey,
+    source_dispatch_index: u32,
+    target_offset: usize,
+    byte_size: usize,
+    value_expr: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    let expressions = &input.control_flow.expressions;
+    let ExpressionNode::Cast(cast) = expressions.expression(value_expr) else {
+        return false;
+    };
+    let Some(target_primitive) = super::normalized_entry_scalar_result_primitive(input) else {
+        return false;
+    };
+    if target_primitive.scalar_byte_size() != Some(byte_size) {
+        return false;
+    }
+    let static_values = super::writes::RuntimeStaticValues::new();
+    let Some(kind) = super::writes::mutation::build_runtime_convert_write(
+        input,
+        source_dispatch_index,
+        source_key,
+        edge.statement_index,
+        expressions,
+        RuntimeStorageRegion::RuntimeFrame,
+        target_offset,
+        target_primitive,
+        cast.value,
+        cast.domain,
+        &static_values,
+        runtime_value_operands,
+    ) else {
+        return false;
+    };
+    selected_instructions.push(SelectedInstruction {
+        kind,
+        source_key,
+        source_statement: edge.statement_index,
+    });
+    true
 }
 
 #[allow(clippy::too_many_arguments)]

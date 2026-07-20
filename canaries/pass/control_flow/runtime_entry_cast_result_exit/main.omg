@@ -1,0 +1,8 @@
+// A runtime cast terminal converts into entry-result scratch and returns the
+// widened value through the native result register.
+data Main { value: u8; }
+
+machine Main::main(&mut self) -> i32 {
+    self.value = 70;
+    transition { _ -> (self.value as i32) }
+}

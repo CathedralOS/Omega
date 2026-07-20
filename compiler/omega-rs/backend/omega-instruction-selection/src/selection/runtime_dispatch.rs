@@ -1546,17 +1546,7 @@ pub(super) fn normalized_entry_scalar_result_register(
     input: &InstructionSelectionInput<'_>,
     byte_size: usize,
 ) -> Option<MachineRegister> {
-    let machine = input
-        .program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == input.entry_key.machine)?;
-    let state = input
-        .program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == input.entry_key.state)?;
-    let primitive = input.program.primitive_type_reference(state.return_type)?;
+    let primitive = normalized_entry_scalar_result_primitive(input)?;
     let byte_size = u16::try_from(byte_size).ok()?;
     let shape = match primitive {
         PrimitiveType::F32 | PrimitiveType::F64 => ValueShape::float(byte_size),
@@ -1582,6 +1572,22 @@ pub(super) fn normalized_entry_scalar_result_register(
         return None;
     };
     (*placed_byte_size == byte_size).then_some(*register)
+}
+
+pub(super) fn normalized_entry_scalar_result_primitive(
+    input: &InstructionSelectionInput<'_>,
+) -> Option<PrimitiveType> {
+    let machine = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == input.entry_key.machine)?;
+    let state = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == input.entry_key.state)?;
+    input.program.primitive_type_reference(state.return_type)
 }
 
 /// Return the normalized register and declared width for an integer primitive

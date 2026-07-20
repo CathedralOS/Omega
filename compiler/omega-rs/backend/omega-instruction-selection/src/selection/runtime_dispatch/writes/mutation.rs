@@ -58,12 +58,12 @@ use super::subslice_copy::{
     runtime_fixed_array_subslice_descriptor_write, runtime_fixed_array_subslice_indexed_source_copy,
 };
 pub(in crate::selection::runtime_dispatch) use binary_table_writes::select_runtime_storage_binary_write_in_table;
+pub(in crate::selection::runtime_dispatch) use binary_table_writes::{
+    build_runtime_convert_write, select_runtime_convert_mutation_write_in_table,
+    signedness_adjusted_operator, signedness_adjusted_operator_for_operands,
+};
 pub(super) use binary_table_writes::{
     select_runtime_binary_mutation_write_in_table, select_runtime_frame_slot_convert_write_in_table,
-};
-pub(in crate::selection::runtime_dispatch) use binary_table_writes::{
-    select_runtime_convert_mutation_write_in_table, signedness_adjusted_operator,
-    signedness_adjusted_operator_for_operands,
 };
 pub(in crate::selection) use frame_slots::{
     runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,
