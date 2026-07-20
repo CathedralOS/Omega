@@ -290,11 +290,6 @@ before the fix.
   firmware envelope. No arbitrary byte-to-code path exists.
 - **Wire runtime.** Implement runtime layout for wire values, additional
   encoding families, compatibility reports, and version negotiation.
-- **Historical-format cleanup.** Delete the implemented `Versioned<T>` parser,
-  IR, checker, and lowering paths; migrate every sample/canary to immutable era
-  data, ordinary sum envelopes, provenance domains, codecs, and conversion
-  machines. Remove the obsolete reconciliation record after references reach
-  zero.
 
 ## Remaining language surfaces
 

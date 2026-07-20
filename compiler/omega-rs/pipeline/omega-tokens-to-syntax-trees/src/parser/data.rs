@@ -55,10 +55,10 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     // An IDENTITY-NUMBERED data (ch20): the first member starting with an
     // integer (`1: seed: u64;`) or `retired` decides the form; numbers are
     // all-or-nothing within one declaration (guided error otherwise, inside
-    // the member parser). A leading `version vN { ... }` block appears in BOTH
-    // forms (ch21 version blocks on plain data; era history on numbered data),
-    // so peek INSIDE it: a numbered/`retired` first inner member decides
-    // numbered. (Input is a Copy cursor -- the peek consumes nothing.)
+    // the member parser). A numbered schema may start with a historical
+    // `version vN { N: field: Type; }` block, so peek inside that first block;
+    // an identity-numbered or retired inner member selects the schema parser.
+    // The input cursor is Copy, so this lookahead consumes nothing.
     let leading_version_is_numbered = input.at_contextual("version")
         && input
             .take_contextual("version")
@@ -369,14 +369,8 @@ fn parse_data_member<'tokens, 'source>(
     mut input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DataMember> {
     if input.at_contextual("version") {
-        input = input.take_contextual("version")?;
-        let (name, next) = input.take_identifier()?;
-        input = next.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-        let (members, next) = parse_data_members(syntax_trees, input)?;
-        let input = next.take_punctuation(PunctuationKind::RightBrace, "}")?;
-        return Ok((
-            DataMember::Version(omega_syntax_trees::item::DataVersion { name, members }),
-            input,
+        return Err(input.error_here(
+            "data `version` blocks are retired; declare immutable era data types and an ordinary sum envelope",
         ));
     }
 

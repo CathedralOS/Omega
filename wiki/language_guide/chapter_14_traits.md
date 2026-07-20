@@ -265,11 +265,12 @@ surface.
 
 ```omega
 trait CounterUpgrade {
-    machine Counter::from_v1(old: Counter::v1, out: &mut Counter);
+    machine Counter::from_v1(old: CounterV1, out: &mut Counter);
 }
 ```
 
-Or, if the language later supports direct version-generic spelling:
+The historical shape is an ordinary immutable data declaration. A reusable
+generic upgrade requirement uses the same ordinary type parameters:
 
 ```omega
 trait Upgrade<Old, New> {
@@ -278,7 +279,8 @@ trait Upgrade<Old, New> {
 ```
 
 The migration machine remains ordinary Omega behavior. The trait only lets a
-replacement checker say, "this upgrade surface exists."
+format or replacement package say, "this upgrade surface exists." There are no
+era-qualified type paths or builtin version containers.
 
 ## Wire Protocols
 

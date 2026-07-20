@@ -114,30 +114,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
         ));
     }
 
-    let (mut base_name, mut input) = input.take_identifier()?;
-
-    // A historical-version shape (`Counter::v1`) is a nameable type: consume a
-    // single `::vN` selector segment and fold it into the type name, matching
-    // the names that `data ... { version vN { ... } }` blocks introduce. Other
-    // `::` segments are left untouched (and keep failing to parse here).
-    if input.at_punctuation(PunctuationKind::ColonColon) {
-        let after_separator = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
-        if after_separator
-            .tokens
-            .first()
-            .is_some_and(crate::parser::input::is_identifier_token_for_parser)
-        {
-            let (segment, rest) = after_separator.take_identifier()?;
-            if omega_syntax_trees::item::is_version_selector(segment.as_str()) {
-                base_name = omega_syntax_trees::identifier::Identifier::generated(format!(
-                    "{}::{}",
-                    base_name.as_str(),
-                    segment.as_str()
-                ));
-                input = rest;
-            }
-        }
-    }
+    let (base_name, mut input) = input.take_identifier()?;
 
     let mut type_reference = if input.at_punctuation(PunctuationKind::Less) {
         input = input.take_punctuation(PunctuationKind::Less, "<")?;

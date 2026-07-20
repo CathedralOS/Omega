@@ -14,15 +14,6 @@ pub(crate) fn lower_data_definition(
     syntax_trees: &SyntaxTrees,
     data_definition: &syntax::item::DataDefinition,
 ) -> Result<DataDefinition, Diagnostic> {
-    // `Versioned` is the permanent builtin era-tagged container (frozen
-    // decision 14): every `Versioned<T>` reference folds to the synthesized
-    // container of a versioned data type, so a user definition of the same
-    // name could never be referenced -- reject it instead of shadowing.
-    if data_definition.name.as_str() == "Versioned" {
-        return Err(Diagnostic::error(
-            "`Versioned` is the builtin era-tagged container type (chapter 21) and cannot be redeclared",
-        ));
-    }
     let type_parameters =
         lower_type_parameters(lowerer, syntax_trees, data_definition.type_parameters)?;
     let members = lower_data_members(lowerer, syntax_trees, data_definition.members)?;
@@ -126,168 +117,6 @@ pub(crate) fn zero_fold(
     }
 }
 
-/// Lower each `version vN { ... }` block of a data declaration into its own
-/// historical-shape data definition named `Data::vN`. The synthesized
-/// definitions must be pushed immediately after their parent (in member
-/// order): the positional symbol-assignment pass pairs them with the root
-/// symbols seeded at the same relative positions.
-///
-/// Declared-history contradictions caught here:
-/// - a version name that is not a `v<number>` selector,
-/// - duplicate version names on one data declaration,
-/// - a version block nested inside another version block.
-pub(crate) fn lower_data_version_definitions(
-    lowerer: &mut Lowerer,
-    syntax_trees: &SyntaxTrees,
-    data_definition: &syntax::item::DataDefinition,
-) -> Result<Vec<DataDefinition>, Diagnostic> {
-    let mut versions = Vec::new();
-    let mut seen_names: Vec<&str> = Vec::new();
-
-    for member in syntax_trees.items.data_members(data_definition.members) {
-        let syntax::item::DataMember::Version(version) = member else {
-            continue;
-        };
-
-        let version_name = version.name.as_str();
-        if !syntax::item::is_version_selector(version_name) {
-            return Err(Diagnostic::error(format!(
-                "data `{}` declares version `{version_name}`, but version names must be `v` followed by digits (`v1`, `v2`, ...)",
-                data_definition.name
-            )));
-        }
-        if seen_names.contains(&version_name) {
-            return Err(Diagnostic::error(format!(
-                "data `{}` declares duplicate version `{version_name}`",
-                data_definition.name
-            )));
-        }
-        seen_names.push(version_name);
-
-        for nested in syntax_trees.items.data_members(version.members) {
-            if matches!(nested, syntax::item::DataMember::Version(_)) {
-                return Err(Diagnostic::error(format!(
-                    "data `{}` version `{version_name}` cannot declare a nested version block",
-                    data_definition.name
-                )));
-            }
-        }
-
-        let members = lower_data_members(lowerer, syntax_trees, version.members)?;
-        versions.push(DataDefinition {
-            symbol: SymbolHandle::invalid(),
-            name: crate::name::lower_name(&omega_syntax_trees::identifier::Identifier::generated(
-                version.shape_name(data_definition.name.as_str()),
-            )),
-            storage: DataDefinitionStorage {
-                supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
-                type_parameters: HandleSpan::empty(),
-                where_facts: omega_core::arena::HandleSpan::empty(),
-                zero_gated: false,
-                // Historical shapes carry no declared properties; a property
-                // describes the CURRENT shape only.
-                properties: DataProperties::default(),
-                members,
-            },
-        });
-    }
-
-    Ok(versions)
-}
-
-/// Synthesize the builtin `Versioned<Counter>` container definition for a data
-/// declaration with `version vN { ... }` blocks (frozen decision 14): an
-/// ordinary data definition `{ era: u32, __payload_vN: Counter::vN ...,
-/// __payload_current: Counter }`. Era numbering follows decision 10 (declared
-/// blocks count up from 0 in declaration order; the current shape's era is the
-/// block count) -- see `omega_core::versioning`.
-///
-/// The container has NO source constructor (chapter 21: it is minted only by
-/// boundary machinery), so the payload fields are unreachable except through
-/// version match arm bindings, and `era` is kept read-only by validation.
-///
-/// INTERIM: the payload fields are laid out as a plain struct rather than the
-/// frozen union-of-eras (static max size). Nothing can construct a container
-/// yet, so the overlap is unobservable; the union layout lands with the first
-/// boundary decoder.
-pub(crate) fn lower_versioned_container_definition(
-    lowerer: &mut Lowerer,
-    data_definition: &syntax::item::DataDefinition,
-    version_names: &[String],
-) -> DataDefinition {
-    use omega_core::versioning;
-    use omega_symbol_resolved_trees::types::TypeReference;
-    use omega_syntax_trees::identifier::Identifier;
-
-    let data_name = data_definition.name.as_str();
-    let mut members = Vec::new();
-
-    members.push(DataMember::Field(DataField {
-        symbol: SymbolHandle::invalid(),
-        name: crate::name::lower_name(&Identifier::generated(
-            versioning::VERSIONED_ERA_FIELD.to_owned(),
-        )),
-        type_reference: TypeReference::Named {
-            symbol: SymbolHandle::invalid(),
-            name: crate::name::lower_name(&Identifier::generated("u32".to_owned())),
-        },
-    }));
-
-    for version_name in version_names {
-        members.push(DataMember::Field(DataField {
-            symbol: SymbolHandle::invalid(),
-            name: crate::name::lower_name(&Identifier::generated(
-                versioning::versioned_payload_field_name(version_name),
-            )),
-            type_reference: TypeReference::Named {
-                symbol: SymbolHandle::invalid(),
-                name: crate::name::lower_name(&Identifier::generated(format!(
-                    "{data_name}::{version_name}"
-                ))),
-            },
-        }));
-    }
-
-    members.push(DataMember::Field(DataField {
-        symbol: SymbolHandle::invalid(),
-        name: crate::name::lower_name(&Identifier::generated(
-            versioning::VERSIONED_CURRENT_PAYLOAD_FIELD.to_owned(),
-        )),
-        type_reference: TypeReference::Named {
-            symbol: SymbolHandle::invalid(),
-            name: crate::name::lower_name(&Identifier::generated(data_name.to_owned())),
-        },
-    }));
-
-    let mut span = HandleSpan::empty();
-    for member in members {
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .data_members
-            .append_to_span(&mut span, member);
-    }
-
-    DataDefinition {
-        symbol: SymbolHandle::invalid(),
-        name: crate::name::lower_name(&Identifier::generated(
-            versioning::versioned_container_name(data_name),
-        )),
-        storage: DataDefinitionStorage {
-            supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
-            type_parameters: HandleSpan::empty(),
-            where_facts: omega_core::arena::HandleSpan::empty(),
-            zero_gated: false,
-            // The container itself is plain runtime state: zero-initialized
-            // like any other field-bearing data (a zeroed container reads as
-            // the oldest declared era with a zeroed payload).
-            properties: DataProperties::default(),
-            members: span,
-        },
-    }
-}
-
 pub(crate) fn lower_type_parameters(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
@@ -356,9 +185,6 @@ fn lower_data_members(
     let mut span = HandleSpan::empty();
 
     for member in syntax_trees.items.data_members(members) {
-        if matches!(member, syntax::item::DataMember::Version(_)) {
-            continue;
-        }
         let member = lower_data_member(lowerer, syntax_trees, member)?;
         lowerer
             .symbol_resolved_trees
@@ -411,6 +237,5 @@ fn lower_data_member(
                 payload,
             }))
         }
-        syntax::item::DataMember::Version(_) => unreachable!("data versions are metadata"),
     }
 }

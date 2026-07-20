@@ -1,7 +1,7 @@
 //! Struct-literal field validation: every named field of a brace construction
 //! must be a declared member of the constructed shape. Covers current-shape
 //! record literals (`Counter { count: 0 }`), historical-shape literals
-//! (`Counter::v1 { counter: 3 }` -- lowered upstream to record literals of the
+//! (for example, an ordinary historical shape `CounterV1 { counter: 3 }`),
 //! version's root-level shape definition), and case-payload literals
 //! (`Command::Say { text: ... }`). Literals whose head type is not a data
 //! definition in this program (or is generic, where member types depend on

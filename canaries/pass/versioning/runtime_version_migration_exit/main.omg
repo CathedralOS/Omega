@@ -1,18 +1,13 @@
-// Chapter 21 (Versioned Data): the first end-to-end runtime migration. A
-// historical-shape value is CONSTRUCTED (`Counter::v1 { counter: 3 }` -- the
-// brace literal resolves to the version block's shape, not a case), the
-// chapter's migration machine `Counter::from_v1(old: Counter::v1, out: &mut
-// Counter)` is called through the data type name, and the migrated CURRENT
-// value drives the exit: count becomes old.counter + 4 = 7 and timestamp 7,
-// so the guard `count * 10 + timestamp == 77` selects exit 70.
+// End-to-end migration between ordinary immutable era data. The migrated
+// current value drives the exit: count becomes 7 and timestamp becomes 7.
 
 use omega::language::std::console;
 
-data Counter {
-    version v1 {
-        counter: i32 in Wrapping;
-    }
+data CounterV1 {
+    counter: i32 in Wrapping;
+}
 
+data Counter {
     count: i32;
     timestamp: i32;
 }
@@ -21,13 +16,13 @@ data Main {
     console: Console;
 }
 
-machine Counter::from_v1(old: Counter::v1, out: &mut Counter) {
+machine Counter::from_v1(old: CounterV1, out: &mut Counter) {
     out.count = old.counter + 4;
     out.timestamp = 7;
 }
 
 machine Main::main(&mut self) {
-    let old: Counter::v1 = Counter::v1 { counter: 3 };
+    let old: CounterV1 = CounterV1 { counter: 3 };
     let current: Counter = Counter { count: 0, timestamp: 0 };
     Counter::from_v1(old, &mut current);
     transition current.count * 10 + current.timestamp == 77 {

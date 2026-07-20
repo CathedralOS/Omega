@@ -1,16 +1,19 @@
-// Chapter 21 (Versioned Data): a `data` declaration may carry historical runtime
-// shapes in `version v1 { ... }` blocks alongside the current body. The current
-// shape is the body outside the version block; the version block becomes the
-// nameable historical type `Counter::v1`. The current fields must keep resolving
-// (and stay mutable) with a version block declared before them.
+// Historical formats are ordinary immutable era shapes plus an ordinary sum.
+// There is no first-class data-version block or builtin container.
+
+data CounterV1 {
+    counter: i32 in Wrapping;
+}
 
 data Counter {
-    version v1 {
-        counter: i32 in Wrapping;
-    }
-
     counter: i32 in Wrapping;
     timestamp: i32 in Wrapping;
+}
+
+data CounterHistory {
+    case Invalid;
+    case V1(v1: CounterV1);
+    case Current(current: Counter);
 }
 
 data Main {
@@ -19,6 +22,10 @@ data Main {
 machine Counter::tick(&mut self) {
     self.counter = self.counter + 1;
     self.timestamp = self.timestamp + 1;
+}
+
+machine CounterV1::tick(&mut self) {
+    self.counter = self.counter + 1;
 }
 
 machine Main::main(&mut self) {

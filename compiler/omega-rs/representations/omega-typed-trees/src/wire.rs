@@ -101,7 +101,7 @@ pub const WIRE_ENCODE_MACHINE_NAME: &str = "encode";
 /// `Schema::decode(&mut value, &buffer, &mut read, &mut ok)`.
 /// `read` receives the byte count consumed, `ok` the success flag; decoding
 /// only accepts the schema's CURRENT era (historical eras await the stage 3
-/// `Versioned<T>` container).
+/// ordinary data selected by the boundary package).
 pub const WIRE_DECODE_MACHINE_NAME: &str = "decode";
 
 /// How one primitive scalar rides compact_binary v0 (wire stage 2a): the

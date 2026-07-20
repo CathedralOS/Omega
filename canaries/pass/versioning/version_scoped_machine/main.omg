@@ -1,13 +1,11 @@
-// Chapter 21 (Versioned Data): a version-scoped machine `Counter::increment::v1`
-// type-checks `self` against the historical `Counter::v1` shape declared by the
-// data's `version v1 { ... }` block, while the unqualified machine targets the
-// current shape. Both bodies mutate fields that only exist in their own era.
+// Machines attach normally to separately declared historical and current era
+// shapes. There is no version segment in the machine path.
+
+data CounterV1 {
+    counter: i32 in Wrapping;
+}
 
 data Counter {
-    version v1 {
-        counter: i32 in Wrapping;
-    }
-
     count: i32 in Wrapping;
     timestamp: i32 in Wrapping;
 }
@@ -15,7 +13,7 @@ data Counter {
 data Main {
 }
 
-machine Counter::increment::v1(&mut self) {
+machine CounterV1::increment(&mut self) {
     self.counter = self.counter + 1;
 }
 

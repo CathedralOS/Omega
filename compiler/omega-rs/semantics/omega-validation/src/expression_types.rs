@@ -311,7 +311,7 @@ pub(crate) fn report_cross_class_store(
 /// The name of the CONCRETE DATA type a `handle` denotes, looking through
 /// `Reference`/`Constrained` shells -- or `None` for anything that is not a plain
 /// data type (a primitive, a trait / boundary / platform, a generic type
-/// parameter, an array, a versioned selector). The `None` cases are exactly the
+/// parameter, or an array). The `None` cases are exactly the
 /// ones a nominal argument check must NOT flag, so a data value passed to a trait
 /// or generic parameter is never a "wrong type".
 fn concrete_data_type_name(program: &TypedTrees, handle: TypeReferenceHandle) -> Option<&str> {
@@ -325,15 +325,6 @@ fn concrete_data_type_name(program: &TypedTrees, handle: TypeReferenceHandle) ->
         }
         TypeReferenceNode::Named { name, .. } => {
             let name = name.as_str();
-            // Versioned selectors (`Foo::v1`) are excluded -- conservative, avoids
-            // treating `Foo::v1` and `Foo` as different concrete data types.
-            if name
-                .rsplit("::")
-                .next()
-                .is_some_and(omega_core::versioning::is_version_selector)
-            {
-                return None;
-            }
             program
                 .data_definitions()
                 .iter()
@@ -373,7 +364,7 @@ fn struct_literal_type_name(program: &TypedTrees, value: ExpressionHandle) -> Op
 
 /// The concrete data type NAME a `value` expression denotes: a struct LITERAL's own
 /// type name (`B { .. }` -> `"B"`), or failing that a PLACE's declared concrete data
-/// type (`self.bar` -> `"Bar"`). `None` for a primitive, array, generic, versioned,
+/// type (`self.bar` -> `"Bar"`). `None` for a primitive, array, generic,
 /// or unresolvable computed value. The shared resolver behind the nominal checks
 /// (`report_data_type_conflict` value-vs-target, `report_cross_type_equality`
 /// operand-vs-operand) and the cast-source non-scalar detection.
@@ -392,7 +383,7 @@ fn value_concrete_data_name<'program>(
 /// If `value`'s CONCRETE DATA type differs from the `expected_type`'s concrete
 /// data type, push a diagnostic and return `true`. BOTH sides must resolve to a
 /// concrete data type name; every other form (a primitive, a trait / boundary /
-/// generic parameter, an array, a versioned type, or a COMPUTED value whose type
+/// generic parameter, an array, or a COMPUTED value whose type
 /// is unresolved) yields `None` on one side and is skipped -- so this only ever
 /// rejects the unambiguous type confusion. The value's type resolves from a
 /// struct LITERAL's own type name (`B { .. }`) or, failing that, a PLACE's

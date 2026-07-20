@@ -1,1 +1,0 @@
-version match arm `Other::v1` does not match the subject's container `Versioned<Counter>`

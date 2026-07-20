@@ -5,8 +5,7 @@
 //! per field in field-number order the expected field-number varint bytes
 //! (compile-time) and a value varint read into the field's storage. Only the
 //! current era decodes; a payload carrying any other era fails on its first
-//! discriminator byte (historical eras await the stage 3 `Versioned<T>`
-//! container).
+//! discriminator byte.
 //!
 //! A NESTED MESSAGE field decodes as: expected tag bytes, a LENGTH varint
 //! read into the wire scratch's end slot, a nested OPEN (end slot becomes the
