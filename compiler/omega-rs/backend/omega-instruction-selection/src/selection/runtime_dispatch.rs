@@ -1591,7 +1591,7 @@ fn entry_slot_value_shape(
         .is_some_and(|machine| machine.boundary);
     if byte_size <= 8
         || policy == CallingPolicy::Aapcs64
-        || (policy == CallingPolicy::SystemVAMD64 && byte_size <= 16)
+        || policy == CallingPolicy::SystemVAMD64
         || (entry_is_boundary && byte_size <= 32 && byte_size.is_multiple_of(8))
     {
         return Some(ValueShape::integer(byte_size, alignment));

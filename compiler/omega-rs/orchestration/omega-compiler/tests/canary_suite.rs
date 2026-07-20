@@ -31292,6 +31292,7 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/sysv_mixed_aggregate_stack_entry", "linux_x64"),
     ("targets/sysv_small_aggregate_stack_entry", "linux_x64"),
     ("targets/sysv_large_aggregate_entry", "linux_x64"),
+    ("targets/sysv_wide_aggregate_entry", "linux_x64"),
     ("targets/sysv_large_hfa_result_entry", "linux_x64"),
     ("targets/sysv_small_result_entry", "linux_x64"),
     ("targets/sysv_hfa_result_entry", "linux_x64"),
@@ -31700,6 +31701,34 @@ fn sysv_large_aggregate_entry_copies_the_memory_class_stack_value() {
         assert!(
             image.windows(load.len()).any(|window| window == load),
             "expected MEMORY-class fragment load from incoming rsp+{source_offset}"
+        );
+    }
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn sysv_wide_aggregate_entry_uses_general_memory_classification() {
+    let canary = pass_canary("targets/sysv_wide_aggregate_entry");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-sysv-wide-aggregate-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("SysV record beyond 32 bytes should use general MEMORY stack passing");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86-64 ELF");
+    for source_offset in [8u8, 16, 24, 32, 40] {
+        let load = [0x4c, 0x8b, 0x94, 0x24, source_offset, 0, 0, 0];
+        assert!(
+            image.windows(load.len()).any(|window| window == load),
+            "expected wide MEMORY-class fragment load from incoming rsp+{source_offset}"
         );
     }
     let _ = fs::remove_dir_all(&build_dir);
