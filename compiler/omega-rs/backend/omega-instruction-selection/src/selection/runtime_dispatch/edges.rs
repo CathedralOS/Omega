@@ -193,6 +193,7 @@ pub(super) fn select_runtime_dispatch_edge(
                 edge,
                 source_key,
                 source_dispatch_index,
+                runtime_value_operands,
                 selected_instructions,
             );
             // NATURAL TERMINATION exits 0 (the interpreter -- the oracle --
@@ -241,13 +242,15 @@ pub(super) fn select_runtime_dispatch_edge(
 ///    also return that pointer in `rax`, while AAPCS64 has no corresponding
 ///    `x0` result.
 ///
-/// Anything else still emits no return-value write (the silent pre-existing
-/// fallthrough, now reduced to runtime ARITHMETIC terminals like `self.n + 1`).
+/// Flat runtime scalar binary terminals compute into the reserved entry-result
+/// scratch place through the ordinary binary writer, then load the normalized
+/// integer or vector result register.
 fn select_runtime_dispatch_return_value(
     input: &InstructionSelectionInput<'_>,
     edge: &RuntimeDispatchLoopEdge,
     source_key: StateKey,
     source_dispatch_index: u32,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) -> bool {
     if let Some(value) = static_terminal_target_value(input, source_key, edge.order) {
@@ -374,6 +377,38 @@ fn select_runtime_dispatch_return_value(
                 register,
                 byte_size,
                 value,
+            },
+            source_key,
+            source_statement: edge.statement_index,
+        });
+        return true;
+    }
+
+    let scratch_size = input.runtime_storage.entry_scalar_result_scratch_size;
+    let scratch_offset = input.runtime_storage.entry_scalar_result_scratch_base;
+    if matches!(scratch_size, 1 | 2 | 4 | 8)
+        && super::normalized_entry_record_result_placement(input).is_none()
+        && select_dispatch_binary_terminal_return(
+            input,
+            edge,
+            source_key,
+            source_dispatch_index,
+            RuntimeStorageRegion::RuntimeFrame,
+            scratch_offset,
+            scratch_size,
+            value_expr,
+            runtime_value_operands,
+            selected_instructions,
+        )
+    {
+        let register = super::normalized_entry_scalar_result_register(input, scratch_size)
+            .unwrap_or_else(|| super::normalized_entry_integer_result_register(input));
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+                register,
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: scratch_offset,
+                byte_size: scratch_size,
             },
             source_key,
             source_statement: edge.statement_index,

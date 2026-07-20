@@ -6230,11 +6230,10 @@ fn runtime_linear_search_early_exit_canary_runs() {
 }
 
 #[test]
-fn runtime_entry_return_field_exit_canary_runs() {
+fn runtime_entry_computed_result_exit_canary_runs() {
     // An entry `main -> i32` returns its exit code via its terminal value (no
-    // exit_process): a PLACE/field terminal routes to the exit correctly. Locks
-    // the field-bind workaround for returning a computed value from main
-    // (a raw computed terminal `_ -> (a+100)` miscompiles at the entry today).
+    // exit_process): a runtime binary terminal computes through entry-result
+    // scratch and loads the normalized native return register.
     let canary = pass_canary("control_flow/runtime_entry_return_field_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-entry-return-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -6244,14 +6243,14 @@ fn runtime_entry_return_field_exit_canary_runs() {
         target_name: None,
         write_output: true,
     })
-    .expect("entry return field canary should compile");
+    .expect("computed entry return canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
-        .expect("entry return field canary should run");
+        .expect("computed entry return canary should run");
     assert_eq!(
         output.status.code(),
         Some(200),
-        "expected main to return field r=200 as the exit code; got {:?}\n{}",
+        "expected main to return computed value 200 as the exit code; got {:?}\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -32775,7 +32774,7 @@ fn efi_float_entry_result_round_trips_through_xmm0() {
         target_name: Some("uefi_x64".into()),
         write_output: true,
     })
-    .expect("EFI float entry-result canary should compile");
+    .expect("EFI float arithmetic entry-result canary should compile");
 
     let image = fs::read(build_dir.join("omega-program.exe")).expect("emitted image should exist");
     assert!(
@@ -32788,7 +32787,7 @@ fn efi_float_entry_result_round_trips_through_xmm0() {
         image
             .windows(5)
             .any(|window| window == [0xf2, 0x41, 0x0f, 0x10, 0x87]),
-        "expected terminal f64 loaded into XMM0"
+        "expected computed terminal f64 loaded into XMM0"
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -32819,7 +32818,7 @@ fn scalar_float_entry_result_uses_native_vector_registers_on_linux() {
             target_name: Some(target.into()),
             write_output: true,
         })
-        .expect("scalar-float entry result should cross-compile");
+        .expect("scalar-float arithmetic entry result should cross-compile");
 
         let image = fs::read(out_dir.join("omega-program")).expect("read emitted ELF");
         if target == "linux_x64" {
@@ -32833,17 +32832,19 @@ fn scalar_float_entry_result_uses_native_vector_registers_on_linux() {
                 );
             }
         } else {
-            for (name, instruction) in [
-                ("incoming d0 store", 0xfd00_0200u32),
-                ("terminal d0 load", 0xfd40_0200u32),
-            ] {
-                assert!(
-                    image
-                        .windows(4)
-                        .any(|window| window == instruction.to_le_bytes()),
-                    "Linux ARM64 scalar-float entry missing {name}"
-                );
-            }
+            assert!(
+                image
+                    .windows(4)
+                    .any(|window| window == 0xfd00_0200u32.to_le_bytes()),
+                "Linux ARM64 scalar-float entry missing incoming d0 store"
+            );
+            assert!(
+                image.windows(4).any(|window| {
+                    let instruction = u32::from_le_bytes(window.try_into().expect("word"));
+                    instruction & !0x003f_fc00 == 0xfd40_0200
+                }),
+                "Linux ARM64 scalar-float entry missing terminal d0 scratch load"
+            );
         }
         let _ = fs::remove_dir_all(&scratch);
     }

@@ -190,6 +190,12 @@ ceiling derived exactly from the ABI volatile-register classes.
    result register. Source-to-image canaries pin full-width `rax` and `x0`
    writes for `u64`, and direct encoder tests pin the newly admitted `u16`
    shape on both architectures.
+   Flat runtime scalar binary entry terminals now reuse the ordinary
+   domain-aware binary writer through a reserved, width-aligned result scratch
+   place, then load the plan-selected integer or vector result register. A
+   native execution canary removes the former field-assignment workaround for
+   `self.a + 100`, while the existing PE and cross-target ELF float canaries
+   now compute before returning through `xmm0`/`d0`.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
    complete import/vtable/service-table compatibility mechanism matrix is
