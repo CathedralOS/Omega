@@ -563,9 +563,9 @@ fn evaluate_const_fact_expression(
 }
 
 /// Discharge `N in Domain` when `N` is a concrete const parameter and the
-/// domain is defined by ordinary boolean facts over `self`. Classifier-backed
-/// and nested-membership domains stay on the concrete record for the typed
-/// proof machinery; this bridge does not guess their build-time semantics.
+/// domain is defined by an evaluable boolean classifier and/or ordinary
+/// boolean facts over `self`. Machine-call classifiers and nested-membership
+/// domains stay on the concrete record for richer build-time evaluation.
 fn evaluate_const_membership_fact(
     syntax: &SyntaxTrees,
     membership: &omega_syntax_trees::item::ProofMembershipFact,
@@ -618,7 +618,19 @@ fn evaluate_const_membership_fact(
         ));
     }
     if domain.classifier.is_valid() {
-        return Ok(None);
+        let Some(ConstFactValue::Boolean(holds)) = evaluate_const_fact_expression(
+            syntax,
+            domain.classifier,
+            const_values,
+            &HashMap::new(),
+            Some(value),
+        )?
+        else {
+            return Ok(None);
+        };
+        if !holds {
+            return Ok(Some(false));
+        }
     }
     for fact in syntax.items.proof_facts(domain.facts) {
         let ProofFact::Expression(expression) = fact else {
