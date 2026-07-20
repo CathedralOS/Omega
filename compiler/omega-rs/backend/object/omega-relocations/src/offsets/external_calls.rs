@@ -1,18 +1,22 @@
 use omega_calling_conventions::HostOperationKey;
 use omega_object_file::RelocationKind;
-use omega_target::Architecture;
+use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::InstructionOperandLike;
 
 pub(crate) fn external_call_relocation_offset<T: InstructionOperandLike>(
-    architecture: Architecture,
+    target: NativeTarget,
     operation_key: HostOperationKey,
     selected_text_offset: usize,
     operands: &[T],
     authored_import: bool,
 ) -> usize {
+    let architecture = target.architecture;
     if architecture == Architecture::X86_64
-        && let Some(site) =
-            omega_isa_x86_64::host_call_external_relocation_site(operation_key, operands)
+        && let Some(site) = omega_isa_x86_64::host_call_external_relocation_site_for_policy(
+            omega_calling_conventions::CallingPolicy::native_for_target(target),
+            operation_key,
+            operands,
+        )
     {
         return selected_text_offset + site.byte_offset;
     }
@@ -95,5 +99,53 @@ pub(crate) fn external_call_relocation_kind(architecture: Architecture) -> Reloc
     match architecture {
         Architecture::Aarch64 => RelocationKind::Aarch64Branch26,
         Architecture::X86_64 => RelocationKind::X86_64Relative32,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::external_call_relocation_offset;
+    use omega_assigned_target_operations::{InstructionOperand, InstructionOperandKind};
+    use omega_target::NativeTarget;
+    use omega_target_operations::RuntimeStorageRegion;
+
+    #[test]
+    fn authored_sysv_call_relocation_follows_aggregate_marshalling() {
+        let operands = [
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeSmallAggregate {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 0,
+                    byte_count: 16,
+                    alignment: 8,
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeScalarInteger {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 32,
+                    byte_count: 8,
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeSmallAggregate {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 40,
+                    byte_count: 16,
+                    alignment: 8,
+                },
+            },
+        ];
+
+        assert_eq!(
+            external_call_relocation_offset(
+                NativeTarget::linux_x64(),
+                omega_calling_conventions::HostOperationKey::default(),
+                20,
+                &operands,
+                true,
+            ),
+            66
+        );
     }
 }

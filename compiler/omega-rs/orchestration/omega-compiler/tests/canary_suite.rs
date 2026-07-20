@@ -28140,6 +28140,33 @@ fn cross_aarch64_small_aggregate_import_uses_consecutive_x_registers() {
 }
 
 #[test]
+fn cross_sysv_small_aggregate_import_reaches_elf_dynamic_binding_blocker() {
+    let canary = pass_canary("capabilities/sysv_small_aggregate_import_compile");
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-sysv-small-aggregate-import-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+
+    let diagnostics = compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(scratch.clone()),
+        target_name: Some("linux_x64".to_owned()),
+        write_output: true,
+    })
+    .expect_err("ELF direct images do not have dynamic import binding yet");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("relocation references unknown symbol `omega_sysv_small_aggregate_probe`")
+        }),
+        "the source call must pass SysV selection/encoding/relocation and stop only at ELF dynamic binding: {diagnostics:#?}"
+    );
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
 fn cross_aarch64_small_aggregate_import_falls_wholly_to_stack() {
     let canary = pass_canary("capabilities/aarch64_small_aggregate_stack_import_compile");
     let scratch = std::env::temp_dir().join(format!(

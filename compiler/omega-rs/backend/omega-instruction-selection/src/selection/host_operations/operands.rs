@@ -1,6 +1,6 @@
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::RuntimeAliasResolutionContext;
-use omega_calling_conventions::{HostCapability, HostOperation, PlatformCallData};
+use omega_calling_conventions::{CallingPolicy, HostCapability, HostOperation, PlatformCallData};
 use omega_platform_interface::{
     HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation,
 };
@@ -168,8 +168,9 @@ pub(super) fn select_host_operation_operands(
         // A provides-sourced call (VtableSlot / authored DllImport): the
         // operation key falls OUTSIDE the closed catalog (Unknown), so there
         // is no bespoke arm -- marshal the DECLARED arguments in order (each
-        // a scalar value or an address-of), exactly as written. `this` lands
-        // in RCX, the rest follow MS-x64. When the collector prepended a
+        // a scalar value, preserved native small aggregate, or address-of),
+        // exactly as written. The native call plan owns their eventual ABI
+        // locations. When the collector prepended a
         // RESULT place (`let m = self.b.beep(v)`), argument[0] is a WRITABLE
         // place and must lower as the result-storage operand, not be read as
         // a value; the declared arguments then start at index 1. Any
@@ -193,7 +194,7 @@ pub(super) fn select_host_operation_operands(
                         )
                     })
                     .or_else(|| {
-                        aapcs_small_aggregate_argument_operand_at(
+                        native_small_aggregate_argument_operand_at(
                             input,
                             host_call,
                             dispatch_index,
@@ -254,7 +255,7 @@ pub(super) fn select_host_operation_operands(
                             )
                         })
                         .or_else(|| {
-                            aapcs_small_aggregate_argument_operand_at(
+                            native_small_aggregate_argument_operand_at(
                                 input,
                                 host_call,
                                 dispatch_index,
@@ -2422,14 +2423,20 @@ fn hfa_descriptor_shape(
         .then_some((member_byte_count, members))
 }
 
-fn aapcs_small_aggregate_argument_operand_at(
+/// Preserve a fixed pure-integer record of at most two ABI words as one
+/// selected operand for AAPCS64 and SysV AMD64. Their normalized plans split
+/// the value into architecture-specific fragments or move it wholly to stack.
+fn native_small_aggregate_argument_operand_at(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
     dispatch_index: Option<u32>,
     alias_context: Option<RuntimeAliasResolutionContext<'_, '_>>,
     index: usize,
 ) -> Option<InstructionOperandKind> {
-    if input.target.architecture != omega_target::Architecture::Aarch64 {
+    if !matches!(
+        CallingPolicy::native_for_target(input.target),
+        CallingPolicy::Aapcs64 | CallingPolicy::SystemVAMD64
+    ) {
         return None;
     }
     let argument = input

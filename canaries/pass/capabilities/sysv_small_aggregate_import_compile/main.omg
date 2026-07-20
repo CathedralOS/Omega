@@ -1,0 +1,21 @@
+// A fixed 16-byte pure-INTEGER record remains one by-value SysV AMD64
+// operand. The leading scalar consumes rdi, the record consumes rsi/rdx, and
+// the returned record spills from rax/rdx into one result place.
+data Pair {
+    first: u64;
+    second: u64;
+}
+
+boundary trait AggregateImport {
+    machine call(tag: u64, pair: Pair) -> Pair;
+}
+
+linux_x64 provides AggregateImport {
+    call -> DllImport("libomega-probes.so", "omega_sysv_small_aggregate_probe")
+}
+
+data Main { foreign: AggregateImport; pair: Pair; result: Pair; }
+machine Main::main(&mut self) {
+    self.pair = Pair { first: 1, second: 2 };
+    self.result = self.foreign.call(7, self.pair);
+}
