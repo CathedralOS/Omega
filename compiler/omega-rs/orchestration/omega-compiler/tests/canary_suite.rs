@@ -34285,6 +34285,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/generic_data_instantiation",
     "generics/generic_data_type_param",
     "generics/generic_machine_call_monomorphization",
+    "generics/generic_seq_consuming_map_filter",
     "generics/generic_machine_multiple_type_params",
     "generics/generic_machine_type_param_signature",
     "generics/generic_machine_where_machine_requirement",

@@ -90,7 +90,11 @@ pub(super) fn assign_statement_symbols(
                 symbols,
             );
             for argument in &mut call.machine_arguments {
-                argument.symbol = resolve_static_machine_argument_symbol(symbols, &argument.path);
+                argument.symbol = resolve_static_machine_argument_symbol(
+                    symbols,
+                    machine.symbol,
+                    &argument.path,
+                );
             }
         }
         omega_symbol_resolved_trees::statement::Statement::Expression(expression) => {

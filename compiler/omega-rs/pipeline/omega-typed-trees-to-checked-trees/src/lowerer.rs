@@ -8,8 +8,9 @@ pub(crate) fn lower_typed_trees(
 ) -> Result<CheckedTrees, Vec<omega_core::diagnostics::Diagnostic>> {
     // Stage-1 machine monomorphization MUST precede validation: a generic
     // machine whose value calls agree on one instantiation is substituted to a
-    // concrete machine here, so the generic-value-call fence in validation only
-    // rejects the machines that remain generic (uninferable or conflicting).
+    // concrete machine here. Validation permits unused template bodies but the
+    // generic-value-call fence still rejects any emitted concrete caller whose
+    // callee remains generic (an incomplete specialization).
     let mut program = program;
     // MP2b must judge the authored requirement -> selected implementation edge
     // before MP4 consumes the call-site selections and clears the template's

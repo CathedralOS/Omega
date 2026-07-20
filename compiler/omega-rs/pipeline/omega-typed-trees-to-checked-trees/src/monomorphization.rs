@@ -53,6 +53,7 @@ struct CallSelection {
     callee_symbol: SymbolHandle,
     candidate_index: usize,
     caller_is_generic: bool,
+    self_forwarded_machine_parameters: bool,
     type_bindings: Vec<Option<TypeReferenceHandle>>,
     machine_bindings: Vec<Option<StaticMachineArgument>>,
     conflicted: bool,
@@ -61,6 +62,7 @@ struct CallSelection {
 impl CallSelection {
     fn is_complete(&self) -> bool {
         !self.conflicted
+            && !self.self_forwarded_machine_parameters
             && self.type_bindings.iter().all(Option::is_some)
             && self.machine_bindings.iter().all(Option::is_some)
     }
@@ -253,6 +255,12 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
     }
 
     for (candidate_index, parameter_index, binding) in machine_proposals {
+        // A generic body may forward its own machine parameter recursively.
+        // That symbol is a lexical placeholder, not specialization evidence;
+        // only a concrete entry selected by an outer call binds the tuple.
+        if machine_parameter_by_symbol(program, binding.symbol).is_some() {
+            continue;
+        }
         let candidate = &mut candidates[candidate_index];
         match &candidate.machine_bindings[parameter_index] {
             None => candidate.machine_bindings[parameter_index] = Some(binding),
@@ -284,7 +292,9 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         let candidate = candidates[candidate_index].clone();
         let has_static_selection = candidate.machine_bindings.iter().any(Option::is_some);
         let has_incomplete_call = selections.iter().any(|selection| {
-            selection.candidate_index == candidate_index && !selection.is_complete()
+            selection.candidate_index == candidate_index
+                && !selection.self_forwarded_machine_parameters
+                && !selection.is_complete()
         });
         if has_incomplete_call {
             if has_static_selection {
@@ -343,6 +353,21 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
     } else {
         Err(diagnostics)
     }
+}
+
+fn machine_parameter_by_symbol(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<&omega_typed_trees::data::TypeParameter> {
+    program.machines().iter().find_map(|machine| {
+        program
+            .machine_type_parameters(machine)
+            .iter()
+            .find(|parameter| {
+                parameter.symbol == symbol
+                    && matches!(parameter.kind, TypeParameterKind::Machine { .. })
+            })
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -694,6 +719,7 @@ fn selection_from_proposals(
         callee_symbol: callee.symbol,
         candidate_index: callee.candidate_index,
         caller_is_generic,
+        self_forwarded_machine_parameters: false,
         type_bindings: vec![None; candidate.type_parameters.len()],
         machine_bindings: vec![None; candidate.machine_parameters.len()],
         conflicted: false,
@@ -711,6 +737,9 @@ fn selection_from_proposals(
         }
     }
     for (_, parameter, binding) in machine_proposals {
+        if candidate.machine_parameters[parameter].0 == binding.symbol {
+            selection.self_forwarded_machine_parameters = true;
+        }
         match &selection.machine_bindings[parameter] {
             None => selection.machine_bindings[parameter] = Some(binding),
             Some(existing) if existing.symbol != binding.symbol => selection.conflicted = true,
@@ -811,6 +840,7 @@ fn has_forwarded_generic_call(selections: &[CallSelection], candidate_index: usi
     selections.iter().any(|selection| {
         selection.candidate_index == candidate_index
             && selection.caller_is_generic
+            && !selection.self_forwarded_machine_parameters
             && !selection.is_complete()
     })
 }

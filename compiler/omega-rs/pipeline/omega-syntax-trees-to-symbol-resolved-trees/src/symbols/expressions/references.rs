@@ -145,7 +145,11 @@ pub(super) fn assign_call_symbol(
     {
         call.target_symbol = target_symbol;
         for argument in &mut call.machine_arguments {
-            argument.symbol = resolve_static_machine_argument_symbol(symbols, &argument.path);
+            argument.symbol = resolve_static_machine_argument_symbol(
+                symbols,
+                machine.symbol,
+                &argument.path,
+            );
         }
     }
 }

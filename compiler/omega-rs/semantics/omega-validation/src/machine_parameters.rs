@@ -113,6 +113,13 @@ fn validate_call_selection(
             .map(|member| member.as_str())
             .collect::<Vec<_>>()
             .join("::");
+        // A recursive generic body may forward its own authored machine
+        // parameter (`map<F>(tail)`). This is not a concrete selection yet,
+        // but it is already governed by exactly this requirement; the
+        // eventual external selection is validated at the concrete call edge.
+        if selected.symbol == parameter.symbol {
+            continue;
+        }
         if !selected.symbol.is_valid() {
             diagnostics.push(Diagnostic::error(format!(
                 "static machine argument `{rendered}` for `{}` does not resolve to a concrete machine",

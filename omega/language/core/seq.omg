@@ -10,6 +10,44 @@ data Seq<T> {
     case Cons(head: T, tail: Seq<T>);
 }
 
+// MP6 consuming transforms (2026-07-19). Static machine parameters remain
+// compile-time identities: each call specializes the recursive template and
+// recursive `map<F>` / `filter<Predicate>` edges become direct calls. There is
+// no runtime callable, dictionary, or hidden capture object.
+machine map<T, U, machine F>(items: Seq<T>) -> Seq<U>
+where machine F(value: T) -> U;
+terminates by items;
+{
+    transition items {
+        Seq::Empty -> Seq::Empty
+        Seq::Cons { head, tail } -> Seq::Cons {
+            head: F(head),
+            tail: map<F>(tail)
+        }
+    }
+}
+
+machine filter<T, machine Predicate>(items: Seq<T>) -> Seq<T>
+where machine Predicate(value: &T) -> bool;
+terminates by items;
+{
+    transition items {
+        Seq::Empty -> Seq::Empty
+        Seq::Cons { head, tail } -> choose(
+            Predicate(head),
+            head,
+            filter<Predicate>(tail)
+        )
+    }
+
+    state choose(keep: bool, head: T, tail: Seq<T>) -> Seq<T> {
+        transition keep {
+            true -> Seq::Cons { head: head, tail: tail }
+            false -> tail
+        }
+    }
+}
+
 use omega::language::core::nat;
 
 // N4 Seq operations (2026-07-11): length as a structurally-recursive

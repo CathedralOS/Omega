@@ -138,9 +138,12 @@ its selected static machines, and exports that relation in the machine-contract
 manifest. Contract changes invalidate instances; implementation-body-only edits
 remain contract-invisible.
 
-1. **MP6 — consuming slices.** Add `Seq` map/filter, nested proof schemas used
-   by N5/N6, task-runtime machine selection, and build-surface canaries. No
-   runtime callable values, dictionaries, or capture inference.
+1. **MP6 — remaining consuming slices.** `Seq`'s consuming `map`/`filter` are
+   now core machines: recursive static-machine selections specialize to direct
+   calls, with no runtime callable, dictionary, or capture inference. Still add
+   the nested proof schemas used by N5/N6, task-runtime machine selection, and
+   the remaining build-surface canaries.
+
 ## Correctness bugs and missing lowering
 
 These are unblocked and should gain a focused pass/fail or differential canary

@@ -698,3 +698,142 @@ fn generic_template_identity_is_positional_across_parameter_renames() {
         fingerprint("Operation", "input", "candidate")
     );
 }
+
+#[test]
+fn consuming_seq_map_specializes_recursive_machine_parameter_calls() {
+    let source = r#"
+        data Seq<T> {
+            case Empty;
+            case Cons(head: T, tail: Seq<T>);
+        }
+        data Main {}
+
+        machine increment(value: u64) -> u64 { value + 1 }
+
+        machine map<T, U, machine F>(items: Seq<T>) -> Seq<U>
+        where machine F(value: T) -> U;
+        terminates by items;
+        {
+            transition items {
+                Seq::Empty -> Seq::Empty
+                Seq::Cons { head, tail } -> Seq::Cons {
+                    head: F(head),
+                    tail: map<F>(tail)
+                }
+            }
+        }
+
+        machine caller(items: Seq<u64>) -> Seq<u64> {
+            map<increment>(items)
+        }
+        machine Main::run(&mut self) {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("consuming Seq map should specialize");
+
+    let map_instances: Vec<_> = checked
+        .machine_specializations
+        .iter()
+        .filter(|specialization| {
+            checked.machines().iter().any(|machine| {
+                machine.symbol == specialization.template && machine.name.as_str() == "map"
+            })
+        })
+        .collect();
+    assert_eq!(map_instances.len(), 1);
+    assert_eq!(map_instances[0].type_arguments, ["u64", "u64"]);
+    assert_eq!(map_instances[0].machine_arguments.len(), 1);
+}
+
+#[test]
+fn unused_recursive_generic_value_template_is_not_emitted_or_fenced() {
+    let source = r#"
+        data Seq<T> {
+            case Empty;
+            case Cons(head: T, tail: Seq<T>);
+        }
+        data Main {}
+
+        machine map<T, U, machine F>(items: Seq<T>) -> Seq<U>
+        where machine F(value: T) -> U;
+        terminates by items;
+        {
+            transition items {
+                Seq::Empty -> Seq::Empty
+                Seq::Cons { head, tail } -> Seq::Cons {
+                    head: F(head),
+                    tail: map<F>(tail)
+                }
+            }
+        }
+
+        machine Main::run(&mut self) {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("unused generic template should remain legal");
+    let map = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "map")
+        .expect("generic template should remain in checked semantic data");
+    assert!(!checked.machine_type_parameters(map).is_empty());
+}
+
+#[test]
+fn consuming_seq_filter_borrows_each_value_before_preserving_or_dropping_it() {
+    let source = r#"
+        data Seq<T> {
+            case Empty;
+            case Cons(head: T, tail: Seq<T>);
+        }
+        data Main {}
+
+        machine positive(value: &i32) -> bool { value > 0 }
+
+        machine filter<T, machine Predicate>(items: Seq<T>) -> Seq<T>
+        where machine Predicate(value: &T) -> bool;
+        terminates by items;
+        {
+            transition items {
+                Seq::Empty -> Seq::Empty
+                Seq::Cons { head, tail } -> choose(
+                    Predicate(head),
+                    head,
+                    filter<Predicate>(tail)
+                )
+            }
+
+            state choose(keep: bool, head: T, tail: Seq<T>) -> Seq<T> {
+                transition keep {
+                    true -> Seq::Cons { head: head, tail: tail }
+                    false -> tail
+                }
+            }
+        }
+
+        machine caller(items: Seq<i32>) -> Seq<i32> {
+            filter<positive>(items)
+        }
+        machine Main::run(&mut self) {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    lower_typed_trees(typed).expect("consuming Seq filter should specialize");
+}

@@ -158,12 +158,26 @@ fn free_machine_entry_state_symbol(symbols: &SymbolTable, target: &str) -> Symbo
 /// `Card::power`. The argument denotes no runtime value.
 pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
     symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
     path: &[omega_symbol_resolved_trees::name::DiagnosticName],
 ) -> SymbolHandle {
     let Some((target, owner)) = path.split_last() else {
         return SymbolHandle::invalid();
     };
     if owner.is_empty() {
+        // A generic machine may forward one of its own compile-time machine
+        // parameters (`map<F>(tail)`). Keep that lexical binding distinct
+        // from a same-named free machine; specialization substitutes it with
+        // the concrete selected entry before checked lowering.
+        let parameter = child_symbol_by_kinds(
+            symbols,
+            machine_symbol,
+            &[SymbolKind::MachineParameter],
+            target.as_str(),
+        );
+        if parameter.is_valid() {
+            return parameter;
+        }
         return free_machine_entry_state_symbol(symbols, target.as_str());
     }
 
