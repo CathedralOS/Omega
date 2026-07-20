@@ -1,0 +1,29 @@
+// Microsoft x64 passes 1/2/4/8-byte records by value in the argument's
+// positional integer register or stack slot. This eight-byte record sits
+// between scalar arguments and therefore occupies RDX.
+data Pair32 {
+    first: u32;
+    second: u32;
+}
+
+boundary trait DirectAggregateImport {
+    machine send(before: u64, value: Pair32, after: u64) -> i32;
+}
+
+windows_x64 provides DirectAggregateImport {
+    send -> DllImport("omega_abi_probe.dll", "omega_win64_direct_aggregate_probe")
+}
+
+data Main {
+    foreign: DirectAggregateImport;
+    before: u64;
+    input: Pair32;
+    after: u64;
+    status: i32;
+}
+machine Main::main(&mut self) {
+    self.before = 7;
+    self.input = Pair32 { first: 1, second: 2 };
+    self.after = 9;
+    self.status = self.foreign.send(self.before, self.input, self.after);
+}

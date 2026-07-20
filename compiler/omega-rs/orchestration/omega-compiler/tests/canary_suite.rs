@@ -28452,6 +28452,39 @@ fn cross_win64_large_aggregate_import_uses_an_aligned_caller_copy() {
     let _ = fs::remove_dir_all(&scratch);
 }
 
+#[test]
+fn cross_win64_direct_aggregate_import_loads_the_record_by_value() {
+    let canary = pass_canary("capabilities/win64_direct_aggregate_import_compile");
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-win64-direct-aggregate-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(scratch.clone()),
+        target_name: Some("windows_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("direct aggregate import should compile for windows_x64");
+
+    let image = fs::read(scratch.join("omega-program.exe")).expect("read emitted Win64 PE");
+    assert!(
+        image
+            .windows(17)
+            .any(|window| { window[0..2] == [0x49, 0xbb] && window[10..13] == [0x49, 0x8b, 0x93] }),
+        "expected the eight-byte record loaded by value into RDX"
+    );
+    assert!(
+        image
+            .windows(4)
+            .any(|window| window == [0x48, 0x83, 0xec, 40]),
+        "a direct record must require only the ordinary shadow reservation"
+    );
+    let _ = fs::remove_dir_all(&scratch);
+}
+
 // An AUTHORED provides import end to end (hosted-consumption rung 2): the
 // program's own `windows_x64 provides Beeper { beep -> DllImport("msvcrt.dll",
 // "abs") }` row binds, the import table names msvcrt.dll (the binding, not
