@@ -668,7 +668,11 @@ and the concrete interrupt state policy remain. Remaining order:
    substituting a weaker range/alignment/phase/regime/scope record behind the
    admitted plan identity. Native symbolic actions
    lower with tagged materialization origin rather than pretending those sites
-   came from an instruction.
+   came from an instruction. Canonical executable-container v2 now requires a
+   validated entry-set section, binds that set's identity into admission, and
+   lets only an admitted artifact select sealed `EntryStubId` targets present
+   in the set. Numeric entry resolution still awaits the linear state that
+   binds that artifact to one exact placement.
 3. Connect the implemented normalized `Extent` conservation/mapping model to
    the Omega linear carrier and sealed facts, then implement provider execution
    and source APIs. Root admission, split/merge/attenuation, borrow polarity,
