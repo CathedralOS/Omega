@@ -93,7 +93,8 @@ fn insert_import_call_record(
         .insert(RelocationRecord {
             function_symbol_handle: context.function_symbol_handle,
             selected_instruction_index: context.selected_instruction_index,
-            text_offset: context.selected_text_offset + call_offset_in_instruction,
+            section: omega_object_file::SectionKind::Text,
+            offset: context.selected_text_offset + call_offset_in_instruction,
             byte_width: 4,
             symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol.as_ref()),
             kind: external_call_relocation_kind(context.input.target.architecture),
@@ -123,7 +124,8 @@ fn insert_get_std_handle_record(
         .insert(RelocationRecord {
             function_symbol_handle: context.function_symbol_handle,
             selected_instruction_index: context.selected_instruction_index,
-            text_offset: context.selected_text_offset + fixup_offset_in_instruction,
+            section: omega_object_file::SectionKind::Text,
+            offset: context.selected_text_offset + fixup_offset_in_instruction,
             byte_width: 4,
             symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol.as_ref()),
             kind: external_call_relocation_kind(context.input.target.architecture),

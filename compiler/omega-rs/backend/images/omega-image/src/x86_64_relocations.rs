@@ -20,28 +20,35 @@ pub fn apply_x86_64_relocations(
         };
 
         match relocation.kind {
-            RelocationKind::X86_64Absolute64 => {
-                patch_bytes::write_u64(
-                    &mut image.memory.text,
-                    relocation.text_offset,
-                    symbol_address,
-                    "x86_64",
-                )?;
+            RelocationKind::Absolute64 => {
+                let section = relocation.section;
+                let section_bytes = image.memory.initialized_section_mut(section).ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "{output_name} x86_64 absolute relocation targets non-materialized section {section:?}"
+                    ))
+                })?;
+                patch_bytes::write_u64(section_bytes, relocation.offset, symbol_address, "x86_64")?;
             }
             RelocationKind::X86_64Relative32 => {
-                let relocation_address = layout.text_address + relocation.text_offset as u64 + 4;
+                let section = relocation.section;
+                let section_address = layout.section_address(section).ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "{output_name} x86_64 relative relocation has no section"
+                    ))
+                })?;
+                let relocation_address = section_address + relocation.offset as u64 + 4;
                 let delta = symbol_address as i64 - relocation_address as i64;
                 let value = i32::try_from(delta).map_err(|_| {
                     Diagnostic::error(format!(
                         "{output_name} x86_64 relative relocation is out of range: {delta} byte(s)"
                     ))
                 })?;
-                patch_bytes::write_i32(
-                    &mut image.memory.text,
-                    relocation.text_offset,
-                    value,
-                    "x86_64",
-                )?;
+                let section_bytes = image.memory.initialized_section_mut(section).ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "{output_name} x86_64 relative relocation targets non-materialized section {section:?}"
+                    ))
+                })?;
+                patch_bytes::write_i32(section_bytes, relocation.offset, value, "x86_64")?;
             }
             RelocationKind::Aarch64Page21
             | RelocationKind::Aarch64PageOffset12
@@ -54,4 +61,65 @@ pub fn apply_x86_64_relocations(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::apply_x86_64_relocations;
+    use crate::{
+        FinalImage, FinalImageLayout, FinalImageMemory, FinalImageRelocation, FinalImageSection,
+        FinalImageSymbol,
+    };
+    use omega_core::arena::Handle;
+    use omega_object_file::{RelocationKind, SymbolKind};
+    use omega_target::NativeTarget;
+
+    #[test]
+    fn absolute_relocation_can_patch_initialized_data() {
+        let mut image = FinalImage::with_capacity(
+            NativeTarget::linux_x64(),
+            FinalImageMemory {
+                text: vec![0; 8],
+                data: vec![0; 8],
+                ..Default::default()
+            },
+            Handle::invalid(),
+            1,
+            0,
+            1,
+        );
+        let target = image.symbol_table.symbols.insert(FinalImageSymbol {
+            name: "entry".into(),
+            section: FinalImageSection::Text,
+            offset: 4,
+            size: 1,
+            kind: SymbolKind::Function,
+        });
+        image
+            .relocation_table
+            .relocations
+            .insert(FinalImageRelocation {
+                section: FinalImageSection::Data,
+                offset: 0,
+                byte_width: 8,
+                symbol_handle: target,
+                kind: RelocationKind::Absolute64,
+            });
+
+        apply_x86_64_relocations(
+            &mut image,
+            &FinalImageLayout {
+                text_address: 0x1000,
+                data_address: 0x2000,
+                bss_address: 0x3000,
+            },
+            "test image",
+        )
+        .expect("data relocation should apply");
+
+        assert_eq!(
+            u64::from_le_bytes(image.memory.data.try_into().unwrap()),
+            0x1004
+        );
+    }
 }

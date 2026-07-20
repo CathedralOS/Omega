@@ -1,4 +1,4 @@
-use crate::ObjectSymbolHandle;
+use crate::{ObjectSymbolHandle, SectionKind};
 use omega_core::arena::{Arena, Handle};
 use omega_target::NativeTarget;
 
@@ -59,7 +59,8 @@ impl RelocationPlan {
 pub struct RelocationRecord {
     pub function_symbol_handle: ObjectSymbolHandle,
     pub selected_instruction_index: u32,
-    pub text_offset: usize,
+    pub section: SectionKind,
+    pub offset: usize,
     pub byte_width: usize,
     pub symbol_handle: ObjectSymbolHandle,
     pub kind: RelocationKind,
@@ -70,7 +71,8 @@ impl Default for RelocationRecord {
         Self {
             function_symbol_handle: Handle::invalid(),
             selected_instruction_index: 0,
-            text_offset: 0,
+            section: SectionKind::Text,
+            offset: 0,
             byte_width: 0,
             symbol_handle: Handle::invalid(),
             kind: RelocationKind::Aarch64Branch26,
@@ -83,7 +85,7 @@ pub enum RelocationKind {
     Aarch64Page21,
     Aarch64PageOffset12,
     Aarch64Branch26,
-    X86_64Absolute64,
+    Absolute64,
     X86_64Relative32,
 }
 

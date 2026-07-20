@@ -65,7 +65,8 @@ pub(super) fn collect_runtime_text_read_relocations(
                 .insert(RelocationRecord {
                     function_symbol_handle: context.function_symbol_handle,
                     selected_instruction_index: context.selected_instruction_index,
-                    text_offset: runtime_text_line_read_get_std_handle_call_offset(
+                    section: omega_object_file::SectionKind::Text,
+                    offset: runtime_text_line_read_get_std_handle_call_offset(
                         context.input.target.architecture,
                         context.selected_text_offset,
                         read.is_bounded_buffer,
@@ -87,7 +88,8 @@ pub(super) fn collect_runtime_text_read_relocations(
         .insert(RelocationRecord {
             function_symbol_handle: context.function_symbol_handle,
             selected_instruction_index: context.selected_instruction_index,
-            text_offset: runtime_text_line_read_import_call_offset(
+            section: omega_object_file::SectionKind::Text,
+            offset: runtime_text_line_read_import_call_offset(
                 context.input.target.architecture,
                 context.selected_text_offset,
                 read.is_bounded_buffer,

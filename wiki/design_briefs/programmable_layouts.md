@@ -196,7 +196,12 @@ identities derive resolved writes, native whole-pointer relocations, or
 post-handoff writer records from the same validated plan. Loader-consumed
 unresolved fragments reject, while fixed addresses may constant-fold through
 the identical write path. Source-level symbolic-value derivation, placement
-constraints beyond consumption phase, and backend/object lowering remain.
+constraints beyond consumption phase, and symbolic-action lowering remain.
+The object/image substrate no longer assumes relocation sites are text:
+section-qualified generic `Absolute64` relocations can patch initialized data,
+including PE base-rebase records. Materialized-data origin/provenance must get
+an honest record before the symbolic consumer emits those relocations; it must
+not borrow instruction-index sentinels.
 
 ## Still open
 

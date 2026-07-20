@@ -1,5 +1,5 @@
-//! The PE base-relocation (`.reloc`) section. Every `X86_64Absolute64`
-//! relocation bakes a full `ImageBase + rva` virtual address into `.text`; a
+//! The PE base-relocation (`.reloc`) section. Every `Absolute64`
+//! relocation bakes a full `ImageBase + rva` virtual address into an initialized section; a
 //! loader that places the image at any base OTHER than the preferred one
 //! (Windows ASLR under DYNAMICBASE, and UEFI/OVMF which loads at an arbitrary
 //! base) must fix those sites up. The `.reloc` section is the list of them.
@@ -9,8 +9,7 @@
 //! it (and DYNAMICBASE set), Windows relocates the image on every run using
 //! these entries, so the ordinary run-tests become a live correctness oracle.
 
-use crate::constants::TEXT_RVA;
-use omega_image::FinalImage;
+use omega_image::{FinalImage, FinalImageSection};
 use omega_object_file::RelocationKind;
 
 /// IMAGE_REL_BASED_DIR64: the loader adds the base delta to the 64-bit value
@@ -26,17 +25,27 @@ pub(crate) struct BaseRelocations {
     pub(crate) bytes: Vec<u8>,
 }
 
-/// Build the `.reloc` section from the image's `X86_64Absolute64` relocations
-/// (all of which patch `.text`, so each site's RVA is `TEXT_RVA + offset`).
+/// Build the `.reloc` section from the image's `Absolute64` relocations
 /// Entries are grouped into per-4KiB-page blocks in ascending RVA order, and
 /// each block is padded to a 4-byte boundary with an ABSOLUTE no-op entry.
-pub(crate) fn build_base_relocations(image: &FinalImage) -> BaseRelocations {
+pub(crate) fn build_base_relocations(
+    image: &FinalImage,
+    text_rva: u32,
+    data_rva: u32,
+) -> BaseRelocations {
     let mut rvas: Vec<u32> = image
         .relocation_table
         .relocations
         .iter()
-        .filter(|(_, relocation)| relocation.kind == RelocationKind::X86_64Absolute64)
-        .map(|(_, relocation)| TEXT_RVA + relocation.text_offset as u32)
+        .filter(|(_, relocation)| relocation.kind == RelocationKind::Absolute64)
+        .filter_map(|(_, relocation)| {
+            let section_rva = match relocation.section {
+                FinalImageSection::Text => text_rva,
+                FinalImageSection::Data => data_rva,
+                FinalImageSection::Bss | FinalImageSection::None => return None,
+            };
+            Some(section_rva + relocation.offset as u32)
+        })
         .collect();
     if rvas.is_empty() {
         return BaseRelocations { bytes: Vec::new() };
@@ -70,4 +79,42 @@ pub(crate) fn build_base_relocations(image: &FinalImage) -> BaseRelocations {
     }
 
     BaseRelocations { bytes }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_base_relocations;
+    use omega_core::arena::Handle;
+    use omega_image::{FinalImage, FinalImageRelocation, FinalImageSection};
+    use omega_object_file::RelocationKind;
+
+    #[test]
+    fn data_absolute_relocation_uses_data_rva() {
+        let mut image = FinalImage::with_capacity(
+            FinalImage::default().target,
+            Default::default(),
+            Handle::invalid(),
+            0,
+            0,
+            1,
+        );
+        image
+            .relocation_table
+            .relocations
+            .insert(FinalImageRelocation {
+                section: FinalImageSection::Data,
+                offset: 0x28,
+                byte_width: 8,
+                symbol_handle: Handle::invalid(),
+                kind: RelocationKind::Absolute64,
+            });
+
+        let relocations = build_base_relocations(&image, 0x1000, 0x3000);
+
+        assert_eq!(&relocations.bytes[0..4], &0x3000_u32.to_le_bytes());
+        assert_eq!(
+            &relocations.bytes[8..10],
+            &(0xa000_u16 | 0x28).to_le_bytes()
+        );
+    }
 }

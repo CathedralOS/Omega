@@ -29,7 +29,7 @@ pub fn emit_pe_x86_64_executable(
     // The `.reloc` bytes are built from the relocation table BEFORE
     // relocations are applied (the sites' offsets, not their values, are what
     // it lists), so the section is base-independent.
-    let base_relocations = relocations::build_base_relocations(&image);
+    let base_relocations = relocations::build_base_relocations(&image, TEXT_RVA, sections.data_rva);
 
     patch_import_thunks(&mut image, &layout, &import_thunks, &import_table.iat_rvas)?;
     apply_x86_64_relocations(&mut image, &layout, "PE direct executable")?;

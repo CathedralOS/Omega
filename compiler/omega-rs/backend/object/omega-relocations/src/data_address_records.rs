@@ -33,7 +33,8 @@ fn insert_data_address_relocations_for_architecture(
             relocation_plan.push_record(RelocationRecord {
                 function_symbol_handle,
                 selected_instruction_index,
-                text_offset: operand_text_offset,
+                section: omega_object_file::SectionKind::Text,
+                offset: operand_text_offset,
                 byte_width: 4,
                 symbol_handle,
                 kind: RelocationKind::Aarch64Page21,
@@ -41,7 +42,8 @@ fn insert_data_address_relocations_for_architecture(
             relocation_plan.push_record(RelocationRecord {
                 function_symbol_handle,
                 selected_instruction_index,
-                text_offset: operand_text_offset + 4,
+                section: omega_object_file::SectionKind::Text,
+                offset: operand_text_offset + 4,
                 byte_width: 4,
                 symbol_handle,
                 kind: RelocationKind::Aarch64PageOffset12,
@@ -51,10 +53,11 @@ fn insert_data_address_relocations_for_architecture(
             relocation_plan.push_record(RelocationRecord {
                 function_symbol_handle,
                 selected_instruction_index,
-                text_offset: operand_text_offset,
+                section: omega_object_file::SectionKind::Text,
+                offset: operand_text_offset,
                 byte_width: 8,
                 symbol_handle,
-                kind: RelocationKind::X86_64Absolute64,
+                kind: RelocationKind::Absolute64,
             });
         }
     }
@@ -85,10 +88,10 @@ mod tests {
 
         assert_eq!(aarch64_records.len(), 2);
         assert_eq!(aarch64_records[0].kind, RelocationKind::Aarch64Page21);
-        assert_eq!(aarch64_records[0].text_offset, 12);
+        assert_eq!(aarch64_records[0].offset, 12);
         assert_eq!(aarch64_records[0].byte_width, 4);
         assert_eq!(aarch64_records[1].kind, RelocationKind::Aarch64PageOffset12);
-        assert_eq!(aarch64_records[1].text_offset, 16);
+        assert_eq!(aarch64_records[1].offset, 16);
         assert_eq!(aarch64_records[1].byte_width, 4);
 
         let mut x86_plan = RelocationPlan::with_target(NativeTarget::windows_x64());
@@ -103,8 +106,8 @@ mod tests {
         let x86_records: Vec<_> = x86_plan.records().map(|(_, record)| record).collect();
 
         assert_eq!(x86_records.len(), 1);
-        assert_eq!(x86_records[0].kind, RelocationKind::X86_64Absolute64);
-        assert_eq!(x86_records[0].text_offset, 12);
+        assert_eq!(x86_records[0].kind, RelocationKind::Absolute64);
+        assert_eq!(x86_records[0].offset, 12);
         assert_eq!(x86_records[0].byte_width, 8);
     }
 }

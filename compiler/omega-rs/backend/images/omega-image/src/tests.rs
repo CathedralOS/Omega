@@ -58,7 +58,8 @@ fn builds_final_image_from_object_symbols_imports_and_relocations() {
     relocations.push_record(RelocationRecord {
         function_symbol_handle: entry_symbol,
         selected_instruction_index: 0,
-        text_offset: 4,
+        section: SectionKind::Text,
+        offset: 4,
         byte_width: 4,
         symbol_handle: import_symbol,
         kind: RelocationKind::X86_64Relative32,

@@ -183,10 +183,11 @@ fn write_relocation_record(
     relocation: &RelocationRecord,
 ) {
     output.push_str(&format!(
-        "- {:?} {} text @{} width {} instruction #{} -> {}\n",
+        "- {:?} {} {} @{} width {} instruction #{} -> {}\n",
         relocation.kind,
         object_symbol_name(backend_plan.object, relocation.function_symbol_handle),
-        relocation.text_offset,
+        section_name(backend_plan.target, relocation.section),
+        relocation.offset,
         relocation.byte_width,
         relocation.selected_instruction_index,
         object_symbol_name(backend_plan.object, relocation.symbol_handle)
