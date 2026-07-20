@@ -20123,6 +20123,32 @@ fn runtime_generic_record_instance_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_const_data_array_length_exit_canary_runs() {
+    let canary = pass_canary("generics/runtime_const_data_array_length_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-const-data-array-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("literal const data argument should specialize the array extent");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("const data array canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected specialized `[i32; 4]` storage to round-trip 70, got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_generic_two_instantiations_exit_canary_runs() {
     // Phase 1: TWO distinct instantiations of `Box<T>` (`Box<i32>` + `Box<bool>`)
     // coexist in one program with native field access on both -- the
@@ -36351,6 +36377,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/generic_type_param_in_state",
     "generics/machine_bound_satisfied_at_call",
     "generics/property_bound_type_parameter",
+    "generics/runtime_const_data_array_length_exit",
     "generics/runtime_generic_record_instance_exit",
     "generics/runtime_generic_two_instantiations_exit",
     "generics/runtime_generic_enum_payload_exit",
@@ -36758,6 +36785,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/property_sized_declared",
     "data/property_unknown",
     "generics/colon_bound_rejected",
+    "generics/const_data_argument_out_of_range",
+    "generics/const_data_argument_requires_value",
     "generics/machine_bound_value_call_unchecked",
     "generics/machine_bound_violated_at_call",
     "generics/property_bound_missing_on_field",

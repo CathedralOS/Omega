@@ -678,7 +678,8 @@ impl<'program> LayoutBuilder<'program> {
             } => {
                 let element_layout =
                     self.layout_type_reference_handle_with_bindings(*element_type, bindings)?;
-                let FixedArrayLength::Literal(length) = length else {
+                let Some(length) = fixed_array_length_with_bindings(self.program, length, bindings)
+                else {
                     return Ok(TypeLayout::default());
                 };
 
@@ -686,7 +687,7 @@ impl<'program> LayoutBuilder<'program> {
                 // length (`[i32; 5e18]`); use checked arithmetic so a too-large array is a
                 // clean diagnostic, never a compiler panic on `attempt to multiply with
                 // overflow`.
-                let Some(size) = element_layout.size.checked_mul(*length) else {
+                let Some(size) = element_layout.size.checked_mul(length) else {
                     return Err(Diagnostic::error(format!(
                         "fixed array `[_; {length}]` is too large: {length} elements of {} \
                          byte(s) each overflow the addressable size",
@@ -1032,20 +1033,18 @@ impl<'program> LayoutBuilder<'program> {
             TypeReferenceNode::FixedArray {
                 element_type,
                 length,
-            } => match length {
-                FixedArrayLength::Literal(length) => TypeLayoutDescriptor::FixedArray {
+            } => match fixed_array_length_with_bindings(self.program, length, bindings) {
+                Some(length) => TypeLayoutDescriptor::FixedArray {
                     element_type: Box::new(
                         self.type_descriptor_with_bindings(*element_type, bindings),
                     ),
-                    length: *length,
+                    length,
                 },
                 // ConstCall lengths are substituted to literals by the
                 // orchestration const-eval pass before layout; an unresolved
                 // one degrades to Unit exactly like an unresolved const
                 // parameter (layout cannot size it).
-                FixedArrayLength::ConstParameter { .. } | FixedArrayLength::ConstCall { .. } => {
-                    TypeLayoutDescriptor::Unit
-                }
+                None => TypeLayoutDescriptor::Unit,
             },
             TypeReferenceNode::Slice { element_type } => TypeLayoutDescriptor::Slice {
                 element_type: Box::new(self.type_descriptor_with_bindings(*element_type, bindings)),
@@ -1095,4 +1094,40 @@ fn binding_for_type<'program>(
                 || binding.parameter_name == name
         })
         .copied()
+}
+
+fn fixed_array_length_with_bindings(
+    program: &CheckedTrees,
+    length: &FixedArrayLength,
+    bindings: &[GenericLayoutBinding<'_>],
+) -> Option<usize> {
+    match length {
+        FixedArrayLength::Literal(length) => Some(*length),
+        FixedArrayLength::ConstParameter { symbol, name } => {
+            let binding = binding_for_type(*symbol, name, bindings)?;
+            const_argument_value(program, binding.argument, bindings, 0)
+        }
+        FixedArrayLength::ConstCall { .. } => None,
+    }
+}
+
+fn const_argument_value(
+    program: &CheckedTrees,
+    argument: TypeReferenceHandle,
+    bindings: &[GenericLayoutBinding<'_>],
+    depth: usize,
+) -> Option<usize> {
+    if depth >= 16 {
+        return None;
+    }
+    let TypeReferenceNode::Named { symbol, name } =
+        program.type_reference_table.type_reference(argument)
+    else {
+        return None;
+    };
+    if !symbol.is_valid() {
+        return name.as_str().parse::<usize>().ok();
+    }
+    let binding = binding_for_type(*symbol, name, bindings)?;
+    const_argument_value(program, binding.argument, bindings, depth + 1)
 }

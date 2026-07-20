@@ -2,8 +2,10 @@ use crate::StateSignatureOwner;
 use crate::symbols::TopLevelSymbols;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
-use omega_typed_trees::data::TypeParameter;
-use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use omega_typed_trees::data::{TypeParameter, TypeParameterKind};
+use omega_typed_trees::types::{
+    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 use std::fmt;
 
 #[derive(Debug, Clone, Copy)]
@@ -348,19 +350,73 @@ fn validate_type_reference_handle_with_context(
                 diagnostics,
             );
 
-            for argument in program
+            let argument_handles = program
                 .type_reference_table
-                .type_reference_handles(*arguments)
-            {
-                validate_type_reference_handle_with_context(
-                    program,
-                    *argument,
-                    symbols,
-                    diagnostics,
-                    owner.generic_argument(),
-                    false,
-                    type_parameter_scope,
-                );
+                .type_reference_handles(*arguments);
+            let definition = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.name.as_str() == base_name.as_str());
+            if let Some(definition) = definition {
+                let parameters = program.data_type_parameters(definition);
+                // A zero-parameter data declaration can still appear in the
+                // `Policy<Schema>` layout-application form. Its argument is a
+                // schema, not a data-generic argument.
+                if parameters.is_empty() {
+                    for argument in argument_handles {
+                        validate_type_reference_handle_with_context(
+                            program,
+                            *argument,
+                            symbols,
+                            diagnostics,
+                            owner.generic_argument(),
+                            false,
+                            type_parameter_scope,
+                        );
+                    }
+                    return;
+                }
+                if parameters.len() != argument_handles.len() {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "generic data `{base_name}` expected {} arguments but got {}",
+                        parameters.len(),
+                        argument_handles.len()
+                    )));
+                }
+                for (parameter, argument) in parameters.iter().zip(argument_handles) {
+                    if let TypeParameterKind::Const { type_reference } = parameter.kind {
+                        validate_const_data_argument(
+                            program,
+                            base_name,
+                            parameter,
+                            type_reference,
+                            *argument,
+                            diagnostics,
+                        );
+                        continue;
+                    }
+                    validate_type_reference_handle_with_context(
+                        program,
+                        *argument,
+                        symbols,
+                        diagnostics,
+                        owner.generic_argument(),
+                        false,
+                        type_parameter_scope,
+                    );
+                }
+            } else {
+                for argument in argument_handles {
+                    validate_type_reference_handle_with_context(
+                        program,
+                        *argument,
+                        symbols,
+                        diagnostics,
+                        owner.generic_argument(),
+                        false,
+                        type_parameter_scope,
+                    );
+                }
             }
         }
         TypeReferenceNode::DynamicTrait { name, .. } => {
@@ -389,6 +445,72 @@ fn validate_type_reference_handle_with_context(
             }
         }
         TypeReferenceNode::Unit => {}
+    }
+}
+
+fn validate_const_data_argument(
+    program: &TypedTrees,
+    base_name: &str,
+    parameter: &TypeParameter,
+    parameter_type: TypeReferenceHandle,
+    argument: TypeReferenceHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let TypeReferenceNode::Named { symbol, name } =
+        program.type_reference_table.type_reference(argument)
+    else {
+        diagnostics.push(Diagnostic::error(format!(
+            "const parameter `{}` of `{base_name}` requires an integer literal argument",
+            parameter.name
+        )));
+        return;
+    };
+    let Ok(value) = name.as_str().parse::<u64>() else {
+        diagnostics.push(Diagnostic::error(format!(
+            "const parameter `{}` of `{base_name}` requires an integer literal argument, got `{name}`",
+            parameter.name
+        )));
+        return;
+    };
+    if symbol.is_valid() {
+        diagnostics.push(Diagnostic::error(format!(
+            "const parameter `{}` of `{base_name}` requires a value, not a type",
+            parameter.name
+        )));
+        return;
+    }
+    let Some(primitive) = program.type_reference_table.primitive_type(parameter_type) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "const parameter `{}` of `{base_name}` must declare an integer primitive type",
+            parameter.name
+        )));
+        return;
+    };
+    if !primitive.accepts_integer_literal() {
+        diagnostics.push(Diagnostic::error(format!(
+            "const parameter `{}` of `{base_name}` has non-integer type `{}`",
+            parameter.name,
+            primitive.name()
+        )));
+        return;
+    }
+    let maximum = match primitive {
+        PrimitiveType::I8 => i8::MAX as u64,
+        PrimitiveType::I16 => i16::MAX as u64,
+        PrimitiveType::I32 => i32::MAX as u64,
+        PrimitiveType::I64 => i64::MAX as u64,
+        PrimitiveType::U8 => u8::MAX as u64,
+        PrimitiveType::U16 => u16::MAX as u64,
+        PrimitiveType::U32 => u32::MAX as u64,
+        PrimitiveType::U64 | PrimitiveType::Addr => u64::MAX,
+        _ => return,
+    };
+    if value > maximum {
+        diagnostics.push(Diagnostic::error(format!(
+            "const argument `{value}` for `{base_name}::{}` does not fit `{}`",
+            parameter.name,
+            primitive.name()
+        )));
     }
 }
 

@@ -698,7 +698,12 @@ before the fix.
 
 - **Lifetimes.** Implement the decision-15 `'name` lifetime arc and borrow-
   carrying data needed by placed views and task storage.
-- **Const data parameters.** Add instantiation-time substitution, validation,
+- **Const data parameters.** Literal arguments now parse in generic type
+  position, validate against the declared integer kind/range, and substitute
+  into fixed-array layout, descriptors, runtime storage, and interpreter
+  defaults; a differential canary pins `FixedBuffer<i32, 4>` indexed storage.
+  Continue with named/forwarded const arguments, per-instance identity beyond
+  the existing generic-data collision boundary, richer const expressions,
   layout diagnostics, and const-fact proof integration.
 - **Trait defaults.** Implement conformance, reuse, override, and dispatch for
   trait machines whose body supplies the default. Do not restore a `default`
