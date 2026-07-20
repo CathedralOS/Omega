@@ -48,7 +48,7 @@ pub(crate) fn validate_assignment_target_handle(
     // through to the backend's "needs runtime storage write lowering" blocker --
     // loud but MISLEADING (it reads as a missing lowering, not a typo). Report
     // the missing member on its resolved container instead. The walker's skips
-    // (versioned containers, contained-machine/owned-data roots, non-data hops)
+    // (contained-machine/owned-data roots and non-data hops)
     // keep every legal write untouched.
     if let Some((container, member)) =
         first_unknown_nested_field(program, machine, current_state, target)
@@ -156,19 +156,6 @@ pub(crate) fn machine_attached_data<'a>(
     machine: &Machine,
 ) -> Option<&'a DataDefinition> {
     let attached = machine.attached_data.as_ref()?;
-    // VERSIONED data (`Counter::v1`) has version-specific fields that a naive
-    // top-level field list does not capture (a cross-version field like `timestamp`
-    // is legally reachable but not in this version's `data_members`). Skip the
-    // unknown-field check for it -- leave those to the version-access / writable-roots
-    // diagnostics -- rather than mis-report "no field".
-    if attached
-        .as_str()
-        .rsplit("::")
-        .next()
-        .is_some_and(omega_core::versioning::is_version_selector)
-    {
-        return None;
-    }
     program
         .data_definitions()
         .iter()
@@ -322,12 +309,8 @@ fn collect_member_path(
 /// - a `self` path whose FIRST hop names a CONTAINED machine or the machine's
 ///   OWNED data skips (those live on the machine, not the attached data --
 ///   `self.counter.value` with `contains counter: Counter` is legal);
-/// - a VERSIONED container skips: its fields live in wire VERSION BLOCKS
-///   (`WireMember::Version` on the schema), not `DataDefinition.members`, so a
-///   member lookup there cannot conclude "missing" (the false positive that
-///   reverted the first attempt at this check);
 /// - a hop through a non-data type (array, slice, primitive, generic
-///   parameter, `Versioned<T>`) skips -- other checks own those shapes.
+///   parameter) skips -- other checks own those shapes.
 pub(crate) fn first_unknown_nested_field(
     program: &TypedTrees,
     current_machine: &Machine,
@@ -363,9 +346,6 @@ pub(crate) fn first_unknown_nested_field(
         data_definition_for_type(program, receiver_type)?
     };
     for (position, hop) in rest.iter().enumerate() {
-        if data_is_versioned(program, current_data) {
-            return None;
-        }
         let Some(hop_type) = data_field_or_payload_type(program, current_data, hop) else {
             // Missing from a resolved, plain container: the silent-ZII read.
             return Some((current_data.name.as_str().to_owned(), hop.clone()));
@@ -378,36 +358,6 @@ pub(crate) fn first_unknown_nested_field(
         current_data = data_definition_for_type(program, hop_type)?;
     }
     None
-}
-
-/// Whether a data definition is VERSIONED -- its member lookup CANNOT conclude
-/// "missing" because some of its fields live outside `DataDefinition.members`.
-/// Two representations exist:
-/// - versioned DATA (`version v1 {..}` blocks) lowers to a FAMILY of sibling
-///   definitions (`Counter`, `Counter::v1`, `Counter::v2`), and the COMMON
-///   fields (`count`) are not in the base definition's members (they ride the
-///   per-version structures) -- detect via any sibling named `<name>::…`;
-/// - a versioned WIRE schema carries `WireMember::Version` blocks (matched by
-///   name). Over-matching only SKIPS (under-reports a typo), never falsely
-///   rejects, so both checks stay generous.
-fn data_is_versioned(
-    program: &TypedTrees,
-    data: &omega_typed_trees::data::DataDefinition,
-) -> bool {
-    let version_prefix = format!("{}::", data.name.as_str());
-    program
-        .data_definitions()
-        .iter()
-        .any(|sibling| sibling.name.as_str().starts_with(&version_prefix))
-        || program.wire_schemas().iter().any(|schema| {
-            schema.name.as_str() == data.name.as_str()
-                && program
-                    .wire_members(schema.members)
-                    .iter()
-                    .any(|member| {
-                        matches!(member, omega_typed_trees::wire::WireMember::Version(_))
-                    })
-        })
 }
 
 /// Resolve a 3+-member place by walking each hop through its struct/sum type:

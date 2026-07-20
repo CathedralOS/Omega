@@ -1,34 +1,35 @@
-// Chapter 21 (Versioned Data), stage 3: version match arms on a
-// `Versioned<Counter>` subject (the ONLY legal subject -- frozen decision 14).
-// The paren form binds the WHOLE historical value: `Counter::v1(old)` tests
-// the era tag and reinterprets the payload as the v1 shape; the bare
-// `Counter(current)` arm selects the CURRENT era.
-//
-// The zero-initialized container carries era 0 = v1 (decision-10 numbering),
-// so the v1 arm must be selected even though the CURRENT arm is written
-// FIRST -- this pins real tag dispatch, not first-arm fallthrough. The bound
-// `old.counter` is the ZII payload (0), driving exit 70.
+// A lineage envelope is an ordinary sum over separately declared era shapes.
+// Ordinary case matching selects V1 even though Current is written first.
 
 use omega::language::std::console;
 
-data Counter {
-    version v1 {
-        counter: i32;
-    }
+data CounterV1 {
+    counter: i32;
+}
 
+data Counter {
     count: i32;
     timestamp: i32;
 }
 
+data CounterHistory {
+    case Invalid;
+    case V1(v1: CounterV1);
+    case Current(current: Counter);
+}
+
 data Main {
     console: Console;
-    raw: Versioned<Counter>;
+    raw: CounterHistory;
 }
 
 machine Main::main(&mut self) {
+    let old: CounterV1 = CounterV1 { counter: 0 };
+    self.raw = CounterHistory::V1 { v1: old };
     transition self.raw {
-        Counter(current) -> new_era(current.count)
-        Counter::v1(old) -> old_era(old.counter)
+        CounterHistory::Invalid -> bad()
+        CounterHistory::Current { current } -> new_era(current.count)
+        CounterHistory::V1 { v1 } -> old_era(v1.counter)
     }
     state old_era(&mut self, counter: i32) {
         transition counter == 0 {

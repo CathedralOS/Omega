@@ -1,5 +1,5 @@
 // Wire stage 2b: decode only accepts the schema's CURRENT era
-// (historical eras await the stage 3 `Versioned<T>` container). The buffer
+// (historical eras decode through format-package lineage sums). The buffer
 // is hand-built with era byte 5 where the schema's current era is 0, so the
 // decoder must report failure (`ok` = false). The failure flag is STICKY:
 // the decoder keeps scanning (bounds-checked) after the mismatch, but no

@@ -34,12 +34,14 @@ irreversible; flag any you dislike.
    Join type replaces this at stage 2. Borrows into spawn and `self` capture
    are rejected for now.
 
-4. **Versioned<T> payload layout is a STRUCT (sum of era sizes), not the
+4. **Historical note, since retired:** `Versioned<T>` payload layout was a STRUCT (sum of era sizes), not the
    union-of-eras max-size layout you signed off (decision 14).** This is
    unobservable today (ZII era-0 is the only construction path until a
    boundary decoder exists) and is loudly documented in
-   `omega-core/src/versioning.rs`. The true union layout lands with the
-   decoder (stage 4). Calling this out because it technically diverges from
+   `omega-core/src/versioning.rs`. The builtin container, historical-shape
+   syntax, and lowering path were later deleted; Chapter 22 records the
+   replacement. At the time, the true union layout was deferred to the
+   decoder (stage 4). Calling this out because it technically diverged from
    the frozen decision — accepted as an invisible interim, but you should
    know.
 

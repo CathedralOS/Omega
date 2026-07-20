@@ -1,37 +1,32 @@
-// Chapter 21 stage 3 (frozen decision 14): version match arms over a THREE
-// era chain (v1, v2, current -- decision-10 numbering: v1 = era 0, v2 = era
-// 1, current = era 2). The ZII container carries era 0, so the `Counter::v1`
-// arm must be selected even though BOTH newer arms are written first --
-// pinning that era-tag dispatch scales past the two-arm case (a tag/boolean
-// confusion or a first-arm fallthrough would take the current or v2 arm).
-// The bound v1 payload is the ZII shape (counter == 0), driving exit 70.
+// Three historical/current shapes use an ordinary three-era sum. Explicit
+// construction and ordinary case dispatch replace hidden era numbers.
 
 use omega::language::std::console;
 
-data Counter {
-    version v1 {
-        counter: i32;
-    }
+data CounterV1 { counter: i32; }
+data CounterV2 { counter: i64; flags: i32; }
+data Counter { count: i32; timestamp: i32; }
 
-    version v2 {
-        counter: i64;
-        flags: i32;
-    }
-
-    count: i32;
-    timestamp: i32;
+data CounterHistory {
+    case Invalid;
+    case V1(v1: CounterV1);
+    case V2(v2: CounterV2);
+    case Current(current: Counter);
 }
 
 data Main {
     console: Console;
-    raw: Versioned<Counter>;
+    raw: CounterHistory;
 }
 
 machine Main::main(&mut self) {
+    let old: CounterV1 = CounterV1 { counter: 0 };
+    self.raw = CounterHistory::V1 { v1: old };
     transition self.raw {
-        Counter(current) -> new_era(current.count)
-        Counter::v2(mid) -> mid_era(mid.flags)
-        Counter::v1(old) -> old_era(old.counter)
+        CounterHistory::Invalid -> bad()
+        CounterHistory::Current { current } -> new_era(current.count)
+        CounterHistory::V2 { v2 } -> mid_era(v2.flags)
+        CounterHistory::V1 { v1 } -> old_era(v1.counter)
     }
     state old_era(&mut self, counter: i32) {
         transition counter == 0 {
@@ -39,16 +34,8 @@ machine Main::main(&mut self) {
             false -> bad()
         }
     }
-    state mid_era(&mut self, flags: i32) {
-        self.console.exit_process(73);
-    }
-    state new_era(&mut self, count: i32) {
-        self.console.exit_process(72);
-    }
-    state good(&mut self) {
-        self.console.exit_process(70);
-    }
-    state bad(&mut self) {
-        self.console.exit_process(71);
-    }
+    state mid_era(&mut self, flags: i32) { self.console.exit_process(73); }
+    state new_era(&mut self, count: i32) { self.console.exit_process(72); }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
 }

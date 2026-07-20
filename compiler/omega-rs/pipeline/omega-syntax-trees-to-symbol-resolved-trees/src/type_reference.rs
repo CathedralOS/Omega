@@ -57,37 +57,6 @@ pub(crate) fn lower_type_reference_handle(
             base_name,
             arguments,
         } => {
-            // `Versioned<T>` is the BUILTIN era-tagged container (frozen
-            // decision 14), not a user generic: fold the reference into the
-            // synthesized container type's NAME (`Versioned<Counter>`), the
-            // same way `Counter::v1` folds into a nameable historical shape.
-            // Only a single plain named argument can name a versioned data
-            // type; any other shape keeps the generic form (and its
-            // unknown-generic diagnostics).
-            if base_name.as_str() == "Versioned" {
-                let argument_handles = syntax_trees
-                    .type_references
-                    .type_reference_handles(*arguments);
-                if let [argument] = argument_handles
-                    && let syntax::types::TypeReferenceNode::Named(argument_name) =
-                        syntax_trees.type_references.type_reference(*argument)
-                {
-                    return Ok(TypeReference::Named {
-                        symbol: SymbolHandle::invalid(),
-                        name: crate::name::lower_name(
-                            &omega_syntax_trees::identifier::Identifier::generated(
-                                omega_core::versioning::versioned_container_name(
-                                    argument_name.as_str(),
-                                ),
-                            ),
-                        ),
-                    });
-                }
-                return Err(Diagnostic::error(
-                    "`Versioned<T>` takes exactly one plain data type argument that declares `version vN { ... }` blocks",
-                ));
-            }
-
             Ok(TypeReference::Generic(GenericTypeReference {
                 storage: GenericTypeReferenceStorage {
                     base_symbol: SymbolHandle::invalid(),

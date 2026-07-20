@@ -562,36 +562,12 @@ pub enum TypeParameterKind {
 pub enum DataMember {
     Field(DataField),
     Variant(DataVariant),
-    Version(DataVersion),
 }
 
 impl Default for DataMember {
     fn default() -> Self {
         Self::Variant(DataVariant::default())
     }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct DataVersion {
-    pub name: Identifier,
-    pub members: HandleSpan<DataMember>,
-}
-
-impl DataVersion {
-    /// The root-level type name a version block introduces: `Counter::v1` for
-    /// `version v1 { ... }` inside `data Counter`.
-    pub fn shape_name(&self, data_name: &str) -> String {
-        format!("{data_name}::{}", self.name)
-    }
-}
-
-/// A historical-version selector segment: `v` followed by one or more ASCII
-/// digits (`v1`, `v2`, ...). This is the canonical spelling shared by data
-/// `version vN { ... }` blocks, version-scoped machine paths
-/// (`machine Counter::increment::v1`), and version-shape type references
-/// (`Counter::v1`).
-pub fn is_version_selector(name: &str) -> bool {
-    omega_core::versioning::is_version_selector(name)
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

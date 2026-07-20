@@ -203,10 +203,6 @@ pub enum DataMemberSnapshot {
     Variant {
         name: IdentifierSnapshot,
     },
-    Version {
-        name: IdentifierSnapshot,
-        members: Vec<DataMemberSnapshot>,
-    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1040,15 +1036,6 @@ fn snapshot_data_member(syntax_trees: &SyntaxTrees, member: &DataMember) -> Data
         },
         DataMember::Variant(variant) => DataMemberSnapshot::Variant {
             name: snapshot_identifier(&variant.name),
-        },
-        DataMember::Version(version) => DataMemberSnapshot::Version {
-            name: snapshot_identifier(&version.name),
-            members: syntax_trees
-                .items
-                .data_members(version.members)
-                .iter()
-                .map(|member| snapshot_data_member(syntax_trees, member))
-                .collect(),
         },
     }
 }

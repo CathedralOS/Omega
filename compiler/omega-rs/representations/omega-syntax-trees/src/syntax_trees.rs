@@ -7,7 +7,7 @@ use crate::identifier::Identifier;
 use crate::item::{
     BoundaryLevel, BoundaryMode, BoundaryPolicy, CapabilityContract, CapabilityContractKind,
     CapabilityDefinition, CapabilityField, CapabilityMember, CapabilityState, DataDefinition,
-    DataField, DataMember, DataVariant, DataVersion, DomainDefinition, HostProviderDefinition,
+    DataField, DataMember, DataVariant, DomainDefinition, HostProviderDefinition,
     HostProviderMapping, Item, ItemHandle, ItemTable, LibraryDefinition, LibraryFunction, Machine,
     MeasureDefinition, OperatorDefinition, ProofFact, ProofMembershipFact, State, StateHandle,
     StateParameterHandle, StateParameterNode, StateSignature, StateSignatureHandle,
@@ -527,10 +527,6 @@ impl SyntaxTrees {
                 DataMember::Variant(variant) => DataMember::Variant(DataVariant {
                     name: variant.name.clone(),
                     payload: this.copy_data_payload_field_span(other, variant.payload),
-                }),
-                DataMember::Version(version) => DataMember::Version(DataVersion {
-                    name: version.name.clone(),
-                    members: this.copy_data_member_span(other, version.members),
                 }),
             },
             |this, member| this.items.append_data_member(member),

@@ -7284,13 +7284,8 @@ fn runtime_float_arithmetic_exit_canary_runs() {
 
 #[test]
 fn runtime_version_migration_exit_canary_runs() {
-    // Chapter 21 (Versioned Data), first runtime migration: a historical-shape
-    // value is CONSTRUCTED (`Counter::v1 { counter: 3 }` -- the brace literal
-    // resolves to the data's `version v1` shape, not a case), the migration
-    // machine `Counter::from_v1(old, &mut current)` is called through the data
-    // type name, and the migrated current-shape fields drive the exit (the
-    // guard `count * 10 + timestamp == 77` holds only when both migrated
-    // writes landed; exits 70 when correct).
+    // Historical and current shapes are ordinary data. The explicit migration
+    // machine lands both current-shape writes and exits 70.
     let canary = pass_canary("versioning/runtime_version_migration_exit");
     let main_path = canary.join("main.omg");
     let build_dir =
@@ -7312,43 +7307,7 @@ fn runtime_version_migration_exit_canary_runs() {
     assert_eq!(
         output.status.code(),
         Some(70),
-        "expected Counter::v1 construction + Counter::from_v1 migration to land both current-shape writes (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-#[test]
-fn runtime_versioned_era_query_exit_canary_runs() {
-    // Chapter 21 stage 3 (frozen decision 14): `Versioned<T>` is the builtin
-    // era-tagged container and `era` is read-only source-queryable. The only
-    // reachable container today is the zero-initialized data field (no source
-    // constructor -- boundaries mint it), so `self.raw.era` must read 0 (the
-    // oldest declared era under decision-10 numbering) and exit 70.
-    let canary = pass_canary("versioning/runtime_versioned_era_query_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-versioned-era-query-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("versioned era query canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("versioned era query canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the ZII `Versioned<Counter>` field's `era` to read 0 (exit 70), got {:?}\nstderr:\n{}",
+        "expected CounterV1 construction + Counter::from_v1 migration to land both current-shape writes (exit 70), got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -7358,11 +7317,8 @@ fn runtime_versioned_era_query_exit_canary_runs() {
 
 #[test]
 fn runtime_versioned_match_zii_exit_canary_runs() {
-    // Chapter 21 stage 3 (frozen decision 14): version match arms are legal on
-    // `Versioned<T>` subjects; the paren form binds the WHOLE historical
-    // value. The ZII container carries era 0 = v1, and the CURRENT arm is
-    // written FIRST, so selecting the v1 arm pins real era-tag dispatch (not
-    // first-arm fallthrough); the bound `old.counter` payload reads 0 -> 70.
+    // An explicitly constructed ordinary lineage sum selects its V1 case even
+    // though Current is written first; the historical payload drives exit 70.
     let canary = pass_canary("versioning/runtime_versioned_match_zii_exit");
     let main_path = canary.join("main.omg");
     let build_dir =
@@ -7393,47 +7349,9 @@ fn runtime_versioned_match_zii_exit_canary_runs() {
 }
 
 #[test]
-fn runtime_versioned_era_guard_exit_canary_runs() {
-    // Chapter 21 stage 3 (frozen decision 14): `era` is read-only
-    // source-queryable DIRECTLY as a transition guard subject (the era-query
-    // canary reads it through a local first; this pins the guard-position
-    // read). ZII container carries era 0 -> the `== 0` arm exits 70.
-    let canary = pass_canary("versioning/runtime_versioned_era_guard_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-versioned-era-guard-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("versioned era guard canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("versioned era guard canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the ZII `Versioned<Counter>` era to read 0 in guard position (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-#[test]
 fn runtime_versioned_three_era_match_zii_exit_canary_runs() {
-    // Chapter 21 stage 3: version match arms over a THREE era chain (v1 = era
-    // 0, v2 = era 1, current = era 2). The ZII container is era 0, and both
-    // newer arms are written first, so selecting the v1 arm pins that era-tag
-    // dispatch scales past two arms (no first-arm fallthrough, no
-    // tag/boolean confusion). The bound v1 payload reads 0 -> 70.
+    // An ordinary sum over three explicit era shapes selects V1 even though
+    // both newer cases are written first; the V1 payload drives exit 70.
     let canary = pass_canary("versioning/runtime_versioned_three_era_match_zii_exit");
     let main_path = canary.join("main.omg");
     let build_dir =
@@ -7911,96 +7829,6 @@ fn runtime_view_of_view_chain_exit_canary_runs() {
         "expected the write through the chained leaf view to reach the root array element (exit 70), got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
-    );
-
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-// Chapter 21 stage 3b (frozen decision 14): migration-chain completeness
-// along the declared version chain is a REPORT VERDICT in the wire protocol
-// artifact, never a compile error -- an arm may handle an old era manually.
-// `Counter` declares v1 + v2 with only `Counter::from_v1` written, so the
-// report must show the v1 migration as present and a MISSING verdict for v2.
-#[test]
-fn version_chain_report_renders_missing_migration_verdict() {
-    let canary = pass_canary("versioning/version_chain_report");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-version-chain-report-canary-{}",
-        std::process::id()
-    ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("incomplete migration chain must stay a report verdict, not a compile error");
-
-    let report = fs::read_to_string(build_dir.join("04_wire_protocols.txt"))
-        .expect("wire protocol report should be written");
-    assert!(
-        report.contains("## data Counter") && report.contains("versions: v1, v2, current"),
-        "report should list the declared data version chain\n{}",
-        report
-    );
-    assert!(
-        report.contains("v1 -> current via `Counter::from_v1`"),
-        "report should record the present migration machine\n{}",
-        report
-    );
-    assert!(
-        report.contains(
-            "era v2 declared but no `Counter::from_v2` exists; `Versioned<Counter>` consumers must handle `Counter::v2` arms manually"
-        ),
-        "report should record the missing migration as a chain-completeness verdict\n{}",
-        report
-    );
-
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-// The COMPLETE side of the chain-completeness verdict: both `Counter::from_v1`
-// and `Counter::from_v2` exist, so the report must list both hops and emit NO
-// missing-migration verdict ("missing:\n  none") -- no off-by-one flagging the
-// newest era despite its migration being written.
-#[test]
-fn version_chain_report_renders_complete_chain() {
-    let canary = pass_canary("versioning/version_chain_report_complete");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-version-chain-report-complete-{}",
-        std::process::id()
-    ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("complete migration chain canary should compile");
-
-    let report = fs::read_to_string(build_dir.join("04_wire_protocols.txt"))
-        .expect("wire protocol report should be written");
-    assert!(
-        report.contains("## data Counter") && report.contains("versions: v1, v2, current"),
-        "report should list the declared data version chain\n{}",
-        report
-    );
-    assert!(
-        report.contains("v1 -> current via `Counter::from_v1`")
-            && report.contains("v2 -> current via `Counter::from_v2`"),
-        "report should record both present migration machines\n{}",
-        report
-    );
-    assert!(
-        report.contains("missing:\n  none"),
-        "a complete chain should report no missing migrations\n{}",
-        report
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -34327,18 +34155,10 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "versioning/data_version_block",
     "versioning/migration_machine_from_v1",
     "versioning/runtime_version_migration_exit",
-    "versioning/runtime_versioned_era_query_exit",
-    "versioning/runtime_versioned_era_guard_exit",
     "versioning/runtime_versioned_match_zii_exit",
     "versioning/runtime_versioned_three_era_match_zii_exit",
-    "versioning/version_chain_report",
-    "versioning/version_chain_report_complete",
     "versioning/versioned_match_all_eras_exhaustive",
     "versioning/versioned_match_default_arm",
-    // version block with MORE fields than the current body (regression 2026-06-12)
-    "versioning/version_block_more_fields_than_current",
-    "versioning/version_block_three_fields_vs_one",
-    "versioning/version_block_v1_more_than_current",
     "wire/wire_generic_trait",
     "wire/runtime_transform_machine_from_wire",
     "wire/runtime_transform_machine_to_wire",
@@ -34908,20 +34728,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "modules/ambiguous_imported_data",
     "modules/use_unresolved_path",
     "traits/trait_satisfies_arity_mismatch",
-    "versioning/match_on_version",
-    "versioning/duplicate_version_declaration",
-    "versioning/version_field_unknown_type",
-    "versioning/version_scoped_machine_undeclared_version",
-    "versioning/nested_version_block",
-    "versioning/non_canonical_version_name",
-    "versioning/cross_version_field_access",
-    "versioning/versioned_match_unknown_era",
-    "versioning/versioned_era_write",
-    "versioning/versioned_container_unversioned_payload",
-    "versioning/versioned_redeclared",
-    // --- 2026-06-12 canary coverage sweep (feature-edge additions) ---
-    "versioning/versioned_match_wrong_type_arm",
-    "versioning/versioned_match_missing_current_arm",
+    "versioning/data_version_block_retired",
     "data/property_send_case_payload_string",
     "data/property_zero_init_array_element_violation",
     "data/builtin_type_name_shadow",
@@ -34975,10 +34782,6 @@ struct PendingCanary {
 // mirrors the statement-position `validate_call_node` path.  A companion
 // pass canary (generics/machine_bound_satisfied_at_value_call) pins the
 // accepted side: `[copy]`-satisfying data types and scalars compile fine.
-// versioned_match_missing_current_arm was promoted to fail/versioning/ when
-// version-match exhaustiveness counting landed (the decidable arm set of a
-// `Versioned<T>` subject is {each declared era vN} + {current};
-// crate::exhaustiveness in omega-symbol-resolved-trees-to-typed-trees).
 // const_array_length_bare_call_arm was promoted to
 // pass/comptime/runtime_const_array_length_bare_call_arm_exit when the
 // parenthesized-lone-call arm body became a VALUE expression (the parser
@@ -34996,8 +34799,6 @@ struct PendingCanary {
 //   landed (leaf terminal-value StructLiteral substitution + call-result-backed
 //   locals keep their name). Task-runtime TR1 later retired the fake spawn
 //   wrapper; calls/runtime_free_machine_struct_return_exit keeps the real pin.
-// - versioning/versioned_match_missing_current_arm -> fail/versioning/
-//   (version-match exhaustiveness counting landed).
 // - comptime/const_array_length_bare_call_arm -> pass/comptime/
 //   runtime_const_array_length_bare_call_arm_exit (parenthesized lone-call
 //   arm bodies are value expressions; sibling-state callees re-classify).

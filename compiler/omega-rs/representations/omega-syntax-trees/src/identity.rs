@@ -73,10 +73,6 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                     crate::item::DataMember::Variant(variant) => {
                         count_identifier(&variant.name, counts);
                     }
-                    crate::item::DataMember::Version(version) => {
-                        count_identifier(&version.name, counts);
-                        count_data_member_identity_storage(syntax_trees, version.members, counts);
-                    }
                 }
             }
         }
@@ -276,26 +272,6 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 count_identifier(encoding, counts);
             }
             count_wire_data_members(syntax_trees, wire_data.members, counts);
-        }
-    }
-}
-
-fn count_data_member_identity_storage(
-    syntax_trees: &SyntaxTrees,
-    members: omega_core::arena::HandleSpan<crate::item::DataMember>,
-    counts: &mut AstIdentityStorageCounts,
-) {
-    for member in syntax_trees.items.data_members(members) {
-        match member {
-            crate::item::DataMember::Field(field) => {
-                count_identifier(&field.name, counts);
-                count_type_reference_handle(syntax_trees, field.type_reference, counts);
-            }
-            crate::item::DataMember::Variant(variant) => count_identifier(&variant.name, counts),
-            crate::item::DataMember::Version(version) => {
-                count_identifier(&version.name, counts);
-                count_data_member_identity_storage(syntax_trees, version.members, counts);
-            }
         }
     }
 }

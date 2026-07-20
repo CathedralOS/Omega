@@ -1,0 +1,10 @@
+// Historical data-version blocks are retired. Declare CounterV1 and Counter
+// as ordinary data, then put them in an ordinary lineage sum.
+
+data Counter {
+    version v1 {
+        counter: i32;
+    }
+
+    count: i32;
+}

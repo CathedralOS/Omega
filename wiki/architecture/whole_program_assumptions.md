@@ -55,7 +55,7 @@ provider manifest, wire schemas, version/migration tables, authority-flow
 report) and how it is content-addressed.
 
 [^abi]: The cross-component ABI granularity is undesigned: presumably "machine
-entry + versioned data layouts + wire schemas," but calling convention,
+entry + immutable schema/layout identities + wire schemas," but calling convention,
 dispatch handoff, and frame ownership across a component edge are open.
 
 [^loader]: Loader/linker responsibilities (who patches what at load time, how

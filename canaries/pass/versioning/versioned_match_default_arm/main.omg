@@ -1,32 +1,19 @@
-// Version-match EXHAUSTIVENESS, default side: a `_` arm catches every
-// fallthrough, so a version match handling only the historical v1 era closes
-// the dispatch with `_` instead of naming the current era -- the version
-// analogue of the `_`-closed case dispatches.
+// An ordinary lineage sum may deliberately use a default route when policy
+// does not require an explicit route per era.
 
-use omega::language::std::console;
-
-data Counter {
-    version v1 {
-        counter: i32;
-    }
-
-    count: i32;
+data CounterV1 { counter: i32; }
+data Counter { count: i32; }
+data CounterHistory {
+    case Invalid;
+    case V1(v1: CounterV1);
+    case Current(current: Counter);
 }
-
-data Main {
-    console: Console;
-    raw: Versioned<Counter>;
-}
+data Main { raw: CounterHistory; }
 
 machine Main::main(&mut self) {
     transition self.raw {
-        Counter::v1(old) -> old_era(old.counter)
-        _ -> other_era()
+        CounterHistory::V1 { v1 as _ } -> done()
+        _ -> done()
     }
-    state old_era(&mut self, counter: i32) {
-        self.console.exit_process(70);
-    }
-    state other_era(&mut self) {
-        self.console.exit_process(71);
-    }
+    state done(&mut self) { }
 }

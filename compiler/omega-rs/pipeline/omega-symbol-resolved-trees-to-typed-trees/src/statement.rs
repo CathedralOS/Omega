@@ -37,18 +37,6 @@ pub(crate) fn lower_statement_node(
             ))
         }
         resolved::statement::StatementNode::Assignment(assignment) => {
-            // The builtin `Versioned<T>` container is constructed only at
-            // boundaries (frozen decision 14): `era` is read-only and the
-            // payload fields cannot be written from source.
-            if let Some(diagnostic) = crate::expression::version_membership::
-                versioned_interior_write_error(
-                    lowerer.source_trees,
-                    &lowerer.source_trees.tables.bodies.expressions,
-                    assignment.target,
-                )
-            {
-                return Err(diagnostic);
-            }
             Ok(typed::statement::StatementNode::Assignment(
                 typed::statement::TableAssignment {
                     target: lower_statement_expression(lowerer, assignment.target)?,
