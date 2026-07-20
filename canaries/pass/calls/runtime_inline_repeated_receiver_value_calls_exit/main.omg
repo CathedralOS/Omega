@@ -1,18 +1,19 @@
-// Two inline value calls with the SAME target and receiver must read their own
-// ordinal result slots. If operand lookup aliases both to the first occurrence,
-// this exits 60 instead of 70.
+// Repeated stateful inline calls with the SAME target, receiver, and literal
+// argument must read their own ordinal result slots, including a nested
+// occurrence. Aliasing the nested call to its identical sibling exits 69.
 use omega::language::std::console;
 
 data Gauge { value: i32 in Wrapping; }
 
-machine Gauge::with_delta(&self, delta: i32 in Wrapping) -> i32 in Wrapping {
+machine Gauge::next(&mut self, delta: i32 in Wrapping) -> i32 in Wrapping {
+    self.value = self.value + 1;
     transition { _ -> (self.value + delta) }
 }
 
 data Main { console: Console; gauge: Gauge; }
 
 machine Main::main(&mut self) {
-    self.gauge.value = 20;
-    let total: i32 in Wrapping = self.gauge.with_delta(10) + self.gauge.with_delta(20);
+    self.gauge.value = 0;
+    let total: i32 in Wrapping = 64 + self.gauge.next(0) + self.gauge.next(self.gauge.next(0));
     self.console.exit_process(total);
 }

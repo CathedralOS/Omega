@@ -4,11 +4,11 @@ use super::lookups::{
     state_call_for_statement, state_has_no_transitions, state_operations,
 };
 use super::model::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
-use omega_checked_trees::expression::ExpressionTable;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::name::Identifier;
 use omega_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use omega_checked_trees::types::TypeReferenceTable;
-use omega_control_flow::{OperationKind, StateKey};
+use omega_control_flow::{OperationExpressionRefs, OperationKind, StateKey};
 use omega_core::arena::Arena;
 use omega_state_calls::{StateCall, StateCallLowering, StateCallRole};
 use omega_state_dispatch::DispatchState;
@@ -468,6 +468,12 @@ fn append_state_body_operations(
             .filter(|state_call| state_call.role == StateCallRole::AssignmentValue)
             .collect::<Vec<_>>();
         assignment_value_calls.sort_by_key(|state_call| state_call.call_ordinal);
+        if let OperationExpressionRefs::Assignment { value, .. }
+        | OperationExpressionRefs::Expression(value) = operation.expressions
+        {
+            assignment_value_calls =
+                assignment_value_calls_in_evaluation_order(context, value, assignment_value_calls);
+        }
         for state_call in assignment_value_calls {
             // A DISPATCHED value call's result arrives via the dispatch terminal
             // writing the callee's return into the call-result slot; do not also
@@ -563,6 +569,127 @@ fn append_state_body_operations(
     }
 
     visiting.pop();
+}
+
+/// State-call ordinals are minted in call-preorder (an outer call precedes
+/// calls nested in its receiver/arguments), while evaluation must produce an
+/// inner result before expanding the outer call that consumes it. Reorder the
+/// calls to expression postorder without disturbing left-to-right siblings.
+fn assignment_value_calls_in_evaluation_order<'plan>(
+    context: &'plan RuntimeDispatchBodyContext,
+    root: ExpressionHandle,
+    calls: Vec<&'plan StateCall>,
+) -> Vec<&'plan StateCall> {
+    fn receiver_symbol(
+        expressions: &ExpressionTable,
+        expression: ExpressionHandle,
+    ) -> omega_core::symbols::SymbolHandle {
+        if !expression.is_valid() {
+            return omega_core::symbols::SymbolHandle::invalid();
+        }
+        match expressions.expression(expression) {
+            ExpressionNode::Member(member) => member.member_symbol,
+            ExpressionNode::Mutable(inner) => receiver_symbol(expressions, *inner),
+            ExpressionNode::Name(path) => path.symbol,
+            _ => omega_core::symbols::SymbolHandle::invalid(),
+        }
+    }
+
+    fn call_matches(
+        context: &RuntimeDispatchBodyContext,
+        state_call: &StateCall,
+        call: &omega_checked_trees::expression::TableCallExpression,
+    ) -> bool {
+        let target_matches = state_call.target_key.state == call.target_symbol
+            || context
+                .control_flow
+                .state_by_key(state_call.target_key)
+                .is_some_and(|state| state.name == call.target);
+        if !target_matches {
+            return false;
+        }
+        let actual_receiver = receiver_symbol(&context.control_flow.expressions, call.receiver);
+        !actual_receiver.is_valid()
+            || !state_call.receiver_symbol.is_valid()
+            || actual_receiver == state_call.receiver_symbol
+    }
+
+    fn visit<'plan>(
+        context: &RuntimeDispatchBodyContext,
+        expression: ExpressionHandle,
+        calls: &[&'plan StateCall],
+        cursor: &mut usize,
+        ordered: &mut Vec<&'plan StateCall>,
+    ) {
+        let expressions = &context.control_flow.expressions;
+        match expressions.expression(expression) {
+            ExpressionNode::ArrayLiteral(values) => {
+                for value in expressions.expression_handles(*values) {
+                    visit(context, *value, calls, cursor, ordered);
+                }
+            }
+            ExpressionNode::Binary(binary) => {
+                visit(context, binary.left, calls, cursor, ordered);
+                visit(context, binary.right, calls, cursor, ordered);
+            }
+            ExpressionNode::Call(call) => {
+                // Consume this call's preorder record before descending, then
+                // append it after its dependencies have been appended.
+                let current = calls
+                    .get(*cursor)
+                    .copied()
+                    .filter(|state_call| call_matches(context, state_call, call));
+                if current.is_some() {
+                    *cursor += 1;
+                }
+                if call.receiver.is_valid() {
+                    visit(context, call.receiver, calls, cursor, ordered);
+                }
+                for argument in expressions.expression_handles(call.arguments) {
+                    visit(context, *argument, calls, cursor, ordered);
+                }
+                if let Some(current) = current {
+                    ordered.push(current);
+                }
+            }
+            ExpressionNode::Cast(cast) => visit(context, cast.value, calls, cursor, ordered),
+            ExpressionNode::Indexed(indexed) => {
+                visit(context, indexed.collection, calls, cursor, ordered);
+                visit(context, indexed.index, calls, cursor, ordered);
+            }
+            ExpressionNode::Member(member) => {
+                visit(context, member.receiver, calls, cursor, ordered)
+            }
+            ExpressionNode::Mutable(inner) => visit(context, *inner, calls, cursor, ordered),
+            ExpressionNode::Range(range) => {
+                if range.start.is_valid() {
+                    visit(context, range.start, calls, cursor, ordered);
+                }
+                if range.end.is_valid() {
+                    visit(context, range.end, calls, cursor, ordered);
+                }
+            }
+            ExpressionNode::StructLiteral(struct_literal) => {
+                for field in expressions.struct_fields(struct_literal.fields) {
+                    visit(context, field.value, calls, cursor, ordered);
+                }
+            }
+            ExpressionNode::Unary(unary) => visit(context, unary.operand, calls, cursor, ordered),
+            ExpressionNode::Boolean(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::Name(_)
+            | ExpressionNode::String(_) => {}
+        }
+    }
+
+    let mut ordered = Vec::with_capacity(calls.len());
+    let mut cursor = 0;
+    visit(context, root, &calls, &mut cursor, &mut ordered);
+    // Preserve any unusual unmatched plan records (for example, multiple dyn
+    // candidates for one expression occurrence) in their original order.
+    ordered.extend(calls.into_iter().skip(cursor));
+    ordered
 }
 
 fn state_call_is_dispatched(context: &RuntimeDispatchBodyContext, state_call: &StateCall) -> bool {

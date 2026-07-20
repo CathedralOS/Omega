@@ -31,6 +31,7 @@ use super::super::writes::{
     RuntimeStaticValues, emit_runtime_frame_slot_slice_descriptor_write_in_table,
     runtime_frame_slot_target_expression, runtime_storage_copy,
     runtime_storage_fixed_indexed_source_copy, select_runtime_frame_slot_value_write_in_table,
+    select_runtime_frame_slot_value_write_in_table_with_call_ordinal,
 };
 use super::mutation::select_runtime_resolved_mutation_write_in_table_with_scratch;
 use crate::selection::instruction_sink::SelectedInstructionSink;
@@ -900,11 +901,22 @@ fn select_runtime_leaf_branch_terminal_value_write(
         );
     }
     for resolution_key in resolution_keys.into_iter().flatten() {
+        // Expressions substituted from the caller (including a nested value
+        // call used as this call's argument) keep the CALLER statement's
+        // result-slot identity. Callee-owned terminal expressions still use
+        // the terminal statement index for locals and fields.
+        let resolution_is_caller =
+            super::super::state_key_matches_statement_source(resolution_key, expansion.source_key);
+        let resolution_statement_index = if resolution_is_caller {
+            expansion.statement_index
+        } else {
+            expansion.target_statement_index
+        };
         if emit_runtime_frame_slot_slice_descriptor_write_in_table(
             input,
             expansion.dispatch_index,
             resolution_key,
-            expansion.target_statement_index,
+            resolution_statement_index,
             &expressions,
             slot,
             resolved_value,
@@ -913,21 +925,37 @@ fn select_runtime_leaf_branch_terminal_value_write(
         ) {
             return;
         }
-        if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
-            input,
-            expansion.dispatch_index,
-            resolution_key,
-            expansion.target_statement_index,
-            &expressions,
-            slot,
-            resolved_value,
-            &static_values,
-            runtime_value_operands,
-        ) {
+        let kind = if resolution_is_caller {
+            select_runtime_frame_slot_value_write_in_table_with_call_ordinal(
+                input,
+                expansion.dispatch_index,
+                resolution_key,
+                resolution_statement_index,
+                &expressions,
+                slot,
+                resolved_value,
+                expansion.call_ordinal.saturating_add(1),
+                &static_values,
+                runtime_value_operands,
+            )
+        } else {
+            select_runtime_frame_slot_value_write_in_table(
+                input,
+                expansion.dispatch_index,
+                resolution_key,
+                resolution_statement_index,
+                &expressions,
+                slot,
+                resolved_value,
+                &static_values,
+                runtime_value_operands,
+            )
+        };
+        if let Some(kind) = kind {
             selected_instructions.push(SelectedInstruction {
                 kind,
                 source_key: resolution_key,
-                source_statement: expansion.target_statement_index,
+                source_statement: resolution_statement_index,
             });
             return;
         }
@@ -939,7 +967,7 @@ fn select_runtime_leaf_branch_terminal_value_write(
             resolution_key,
             expansion.source_key,
             resolution_key,
-            expansion.target_statement_index,
+            resolution_statement_index,
             &expressions,
             target,
             resolved_value,

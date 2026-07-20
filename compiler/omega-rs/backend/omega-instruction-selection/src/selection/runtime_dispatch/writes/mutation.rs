@@ -56,7 +56,6 @@ use super::storage_copy::runtime_storage_indirect_copy;
 use super::subslice_copy::{
     runtime_fixed_array_subslice_descriptor_write, runtime_fixed_array_subslice_indexed_source_copy,
 };
-pub(in crate::selection::runtime_dispatch) use binary_table_writes::select_runtime_storage_binary_write_in_table;
 pub(in crate::selection::runtime_dispatch) use binary_table_writes::{
     build_runtime_convert_write, select_runtime_convert_mutation_write_in_table,
     signedness_adjusted_operator, signedness_adjusted_operator_for_operands,
@@ -64,8 +63,13 @@ pub(in crate::selection::runtime_dispatch) use binary_table_writes::{
 pub(super) use binary_table_writes::{
     select_runtime_binary_mutation_write_in_table, select_runtime_frame_slot_convert_write_in_table,
 };
+pub(in crate::selection::runtime_dispatch) use binary_table_writes::{
+    select_runtime_storage_binary_write_in_table,
+    select_runtime_storage_binary_write_in_table_with_call_ordinal,
+};
 pub(in crate::selection) use frame_slots::{
     runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,
+    select_runtime_frame_slot_value_write_in_table_with_call_ordinal,
     select_runtime_frame_slot_value_write_in_table_with_source_anchor,
 };
 pub(super) use normalization::simplify_runtime_expression_with_state_locals;
@@ -160,6 +164,7 @@ fn resolve_matching_runtime_call_result_source_place(
     target: &str,
     receiver_path: &[&str],
     occurrence_rank: usize,
+    minimum_call_ordinal: Option<usize>,
 ) -> Option<super::super::super::storage_places::RuntimeStoragePlace> {
     input
         .state_calls
@@ -172,6 +177,7 @@ fn resolve_matching_runtime_call_result_source_place(
                     source_key,
                 )
                 && state_call.statement_index == statement_index
+                && minimum_call_ordinal.is_none_or(|minimum| state_call.call_ordinal >= minimum)
                 && state_call_matches_expression(input, state_call, target, receiver_path))
             .then_some(state_call)
         })
@@ -341,6 +347,7 @@ fn resolve_runtime_tree_call_result_source_place_in_expression(
         call.target.as_str(),
         &receiver_path,
         occurrence_rank,
+        None,
     )
 }
 
@@ -601,6 +608,7 @@ fn resolve_runtime_table_call_result_source_place(
     root: ExpressionHandle,
     call_expression: ExpressionHandle,
     call: &omega_checked_trees::expression::TableCallExpression,
+    minimum_call_ordinal: Option<usize>,
 ) -> Option<super::super::super::storage_places::RuntimeStoragePlace> {
     let receiver_path = append_table_expression_path(expressions, call.receiver);
     let occurrence_rank = runtime_table_call_occurrence_rank(
@@ -621,6 +629,7 @@ fn resolve_runtime_table_call_result_source_place(
         call.target.as_str(),
         &receiver_path,
         occurrence_rank,
+        minimum_call_ordinal,
     )
 }
 
