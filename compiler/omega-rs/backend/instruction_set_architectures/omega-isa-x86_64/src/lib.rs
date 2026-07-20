@@ -2417,10 +2417,10 @@ fn append_sysv_parameter<T: InstructionOperandLike>(
         operand.runtime_system_v_aggregate()
     {
         if byte_count != usize::from(placement.shape.byte_size)
-            || !matches!(sse_eightbytes, 0b01 | 0b10)
+            || !matches!(sse_eightbytes, 0b01 | 0b10 | 0b11)
         {
             return Err(Diagnostic::error(format!(
-                "SysV AMD64 mixed aggregate operand {operand_index} disagrees with its plan"
+                "SysV AMD64 classified aggregate operand {operand_index} disagrees with its plan"
             )));
         }
         append_sysv_runtime_base(bytes, relocation_sites, operand_index);
@@ -2463,7 +2463,7 @@ fn append_sysv_parameter<T: InstructionOperandLike>(
                 }
                 ValueLocation::Indirect { .. } => {
                     return Err(Diagnostic::error(
-                        "SysV AMD64 mixed aggregate received an indirect placement",
+                        "SysV AMD64 classified aggregate received an indirect placement",
                     ));
                 }
             }
@@ -2721,10 +2721,10 @@ fn append_sysv_result<T: InstructionOperandLike>(
         operand.runtime_system_v_aggregate()
     {
         if byte_count != usize::from(placement.shape.byte_size)
-            || !matches!(sse_eightbytes, 0b01 | 0b10)
+            || !matches!(sse_eightbytes, 0b01 | 0b10 | 0b11)
         {
             return Err(Diagnostic::error(
-                "SysV AMD64 mixed aggregate result disagrees with its plan",
+                "SysV AMD64 classified aggregate result disagrees with its plan",
             ));
         }
         append_sysv_runtime_base(bytes, relocation_sites, 0);
@@ -2736,7 +2736,7 @@ fn append_sysv_result<T: InstructionOperandLike>(
             } = *location
             else {
                 return Err(Diagnostic::error(
-                    "SysV AMD64 mixed aggregate result is not register-resident",
+                    "SysV AMD64 classified aggregate result is not register-resident",
                 ));
             };
             let destination_offset = byte_offset + usize::from(value_byte_offset);
@@ -2962,9 +2962,9 @@ fn sysv_operand_shape<T: InstructionOperandLike>(operand: &T) -> Result<ValueSha
     if let Some((_, _, byte_count, alignment, sse_eightbytes)) =
         operand.runtime_system_v_aggregate()
     {
-        if !matches!(byte_count, 9..=16) || !matches!(sse_eightbytes, 0b01 | 0b10) {
+        if !matches!(byte_count, 9..=16) || !matches!(sse_eightbytes, 0b01 | 0b10 | 0b11) {
             return Err(Diagnostic::error(
-                "SysV AMD64 mixed aggregates require 9-16 bytes and exactly one SSE eightbyte",
+                "SysV AMD64 classified aggregates require 9-16 bytes and at least one SSE eightbyte",
             ));
         }
         let class = |index: u8| {
@@ -4052,6 +4052,40 @@ mod x86_import_plan_tests {
                 .map(|site| site.operand_index)
                 .collect::<Vec<_>>(),
             [Some(1), None, Some(0)]
+        );
+    }
+
+    #[test]
+    fn authored_sysv_nonhomogeneous_sse_record_uses_two_xmm_fragments() {
+        let aggregate = |byte_offset| {
+            operand(TargetInstructionOperandKind::RuntimeSystemVAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset,
+                byte_count: 16,
+                alignment: 8,
+                sse_eightbytes: 0b11,
+            })
+        };
+        let operands = [aggregate(0), aggregate(16)];
+        let layout =
+            sysv_import_layout(&operands, true).expect("SysV non-homogeneous SSE aggregate");
+
+        assert!(layout.bytes.windows(18).any(|window| window
+            == [
+                0xf2, 0x41, 0x0f, 0x10, 0x83, 16, 0, 0, 0, 0xf2, 0x41, 0x0f, 0x10, 0x8b, 24, 0, 0,
+                0,
+            ]));
+        assert!(
+            layout
+                .bytes
+                .windows(9)
+                .any(|window| window == [0xf2, 0x41, 0x0f, 0x11, 0x83, 0, 0, 0, 0])
+        );
+        assert!(
+            layout
+                .bytes
+                .windows(9)
+                .any(|window| window == [0xf2, 0x41, 0x0f, 0x11, 0x8b, 8, 0, 0, 0])
         );
     }
 

@@ -35937,6 +35937,13 @@ fn sysv_vtable_field_call_emits_indirect_dispatch() {
             .any(|window| window == mixed_needle),
         "expected layout-resolved +40 dispatch for the mixed INTEGER/SSE record call"
     );
+    let split_sse_needle = [0x48u8, 0x8b, 0x87, 0x30, 0x00, 0x00, 0x00, 0xff, 0xd0];
+    assert!(
+        bytes
+            .windows(split_sse_needle.len())
+            .any(|window| window == split_sse_needle),
+        "expected layout-resolved +48 dispatch for the non-homogeneous SSE/SSE record call"
+    );
     let _ = fs::remove_dir_all(&build_dir);
 }
 

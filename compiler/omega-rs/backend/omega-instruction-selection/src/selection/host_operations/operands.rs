@@ -183,50 +183,44 @@ pub(super) fn select_host_operation_operands(
                 .span(host_call.arguments)
                 .map_or(0, |arguments| arguments.len());
             let result = if host_call.has_result {
-                system_v_mixed_aggregate_operand_at(
-                    input,
-                    host_call,
-                    dispatch_index,
-                    alias_context,
-                    0,
-                )
-                .or_else(|| {
-                    native_hfa_argument_operand_at(
-                        input,
-                        host_call,
-                        dispatch_index,
-                        alias_context,
-                        0,
-                    )
-                })
-                .or_else(|| {
-                    native_large_aggregate_argument_operand_at(
-                        input,
-                        host_call,
-                        dispatch_index,
-                        alias_context,
-                        0,
-                    )
-                })
-                .or_else(|| {
-                    native_small_aggregate_argument_operand_at(
-                        input,
-                        host_call,
-                        dispatch_index,
-                        alias_context,
-                        0,
-                    )
-                })
-                .or_else(|| {
-                    authored_float_argument_operand_at(
-                        input,
-                        host_call,
-                        dispatch_index,
-                        alias_context,
-                        0,
-                    )
-                })
-                .or_else(|| first_scalar_argument_operand(input, host_call, dispatch_index))
+                native_hfa_argument_operand_at(input, host_call, dispatch_index, alias_context, 0)
+                    .or_else(|| {
+                        system_v_classified_aggregate_operand_at(
+                            input,
+                            host_call,
+                            dispatch_index,
+                            alias_context,
+                            0,
+                        )
+                    })
+                    .or_else(|| {
+                        native_large_aggregate_argument_operand_at(
+                            input,
+                            host_call,
+                            dispatch_index,
+                            alias_context,
+                            0,
+                        )
+                    })
+                    .or_else(|| {
+                        native_small_aggregate_argument_operand_at(
+                            input,
+                            host_call,
+                            dispatch_index,
+                            alias_context,
+                            0,
+                        )
+                    })
+                    .or_else(|| {
+                        authored_float_argument_operand_at(
+                            input,
+                            host_call,
+                            dispatch_index,
+                            alias_context,
+                            0,
+                        )
+                    })
+                    .or_else(|| first_scalar_argument_operand(input, host_call, dispatch_index))
             } else {
                 None
             };
@@ -262,7 +256,7 @@ pub(super) fn select_host_operation_operands(
                             )
                         })
                     } else {
-                        system_v_mixed_aggregate_operand_at(
+                        native_hfa_argument_operand_at(
                             input,
                             host_call,
                             dispatch_index,
@@ -270,7 +264,7 @@ pub(super) fn select_host_operation_operands(
                             index,
                         )
                         .or_else(|| {
-                            native_hfa_argument_operand_at(
+                            system_v_classified_aggregate_operand_at(
                                 input,
                                 host_call,
                                 dispatch_index,
@@ -2530,11 +2524,11 @@ fn hfa_descriptor_shape(
         .then_some((member_byte_count, members))
 }
 
-/// Preserve the currently normalized mixed SysV record family. Each flat
+/// Preserve the currently normalized classified SysV record family. Each flat
 /// scalar field contributes INTEGER or SSE to its containing eightbyte;
-/// INTEGER dominates within an eightbyte, and this operand is selected only
-/// when the two final eightbyte classes differ.
-fn system_v_mixed_aggregate_operand_at(
+/// INTEGER dominates within an eightbyte. All-INTEGER records keep using the
+/// native small-aggregate operand; HFA selection runs before this classifier.
+fn system_v_classified_aggregate_operand_at(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
     dispatch_index: Option<u32>,
@@ -2570,7 +2564,7 @@ fn system_v_mixed_aggregate_operand_at(
         *expression,
     )?;
     let (byte_count, alignment, sse_eightbytes) =
-        system_v_mixed_aggregate_descriptor_shape(input, &descriptor)?;
+        system_v_classified_aggregate_descriptor_shape(input, &descriptor)?;
     (place.byte_count == byte_count).then_some(InstructionOperandKind::RuntimeSystemVAggregate {
         region: place.region,
         byte_offset: place.byte_offset,
@@ -2580,13 +2574,13 @@ fn system_v_mixed_aggregate_operand_at(
     })
 }
 
-fn system_v_mixed_aggregate_descriptor_shape(
+fn system_v_classified_aggregate_descriptor_shape(
     input: &InstructionSelectionInput<'_>,
     descriptor: &TypeLayoutDescriptor,
 ) -> Option<(usize, usize, u8)> {
     let descriptor = match descriptor {
         TypeLayoutDescriptor::Constrained { base_type, .. } => {
-            return system_v_mixed_aggregate_descriptor_shape(input, base_type);
+            return system_v_classified_aggregate_descriptor_shape(input, base_type);
         }
         descriptor => descriptor,
     };
@@ -2631,7 +2625,7 @@ fn system_v_mixed_aggregate_descriptor_shape(
     let [Some(first_is_sse), Some(second_is_sse)] = classes else {
         return None;
     };
-    if first_is_sse == second_is_sse {
+    if !first_is_sse && !second_is_sse {
         return None;
     }
     let sse_eightbytes = u8::from(first_is_sse) | (u8::from(second_is_sse) << 1);
