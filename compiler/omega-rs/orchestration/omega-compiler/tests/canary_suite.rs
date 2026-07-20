@@ -31296,6 +31296,7 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/sysv_small_result_entry", "linux_x64"),
     ("targets/sysv_hfa_result_entry", "linux_x64"),
     ("targets/sysv_mixed_result_entry", "linux_x64"),
+    ("targets/sysv_wrapped_float_entry", "linux_x64"),
 ];
 
 #[test]
@@ -31850,6 +31851,39 @@ fn sysv_mixed_result_entry_loads_rax_and_xmm0() {
             window[10..13] == [0x49, 0x8b, 0x87] && window[27..32] == [0xf2, 0x41, 0x0f, 0x10, 0x87]
         }),
         "expected terminal record fragments loaded into rax and xmm0"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn sysv_wrapped_float_entry_uses_xmm0_in_both_directions() {
+    let canary = pass_canary("targets/sysv_wrapped_float_entry");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-sysv-wrapped-float-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("one-eightbyte nested SSE record should use xmm0 for entry and result");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86-64 ELF");
+    assert!(
+        image
+            .windows(5)
+            .any(|window| window == [0xf2, 0x41, 0x0f, 0x11, 0x87]),
+        "expected incoming wrapped f64 stored from xmm0"
+    );
+    assert!(
+        image
+            .windows(5)
+            .any(|window| window == [0xf2, 0x41, 0x0f, 0x10, 0x87]),
+        "expected terminal wrapped f64 loaded into xmm0"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
@@ -36204,6 +36238,13 @@ fn sysv_vtable_field_call_emits_indirect_dispatch() {
             .windows(array_needle.len())
             .any(|window| window == array_needle),
         "expected layout-resolved +64 dispatch for the array-member INTEGER/SSE record call"
+    );
+    let wrapped_needle = [0x48u8, 0x8b, 0x87, 0x48, 0x00, 0x00, 0x00, 0xff, 0xd0];
+    assert!(
+        bytes
+            .windows(wrapped_needle.len())
+            .any(|window| window == wrapped_needle),
+        "expected layout-resolved +72 dispatch for the one-eightbyte nested SSE record call"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }

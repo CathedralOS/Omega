@@ -2565,7 +2565,17 @@ fn system_v_classified_aggregate_operand_at(
     )?;
     let (byte_count, alignment, sse_eightbytes) =
         system_v_classified_aggregate_descriptor_shape(input, &descriptor)?;
-    (place.byte_count == byte_count).then_some(InstructionOperandKind::RuntimeSystemVAggregate {
+    if place.byte_count != byte_count {
+        return None;
+    }
+    if byte_count <= 8 {
+        return (sse_eightbytes == 0b01).then_some(InstructionOperandKind::RuntimeScalarFloat {
+            region: place.region,
+            byte_offset: place.byte_offset,
+            byte_count,
+        });
+    }
+    Some(InstructionOperandKind::RuntimeSystemVAggregate {
         region: place.region,
         byte_offset: place.byte_offset,
         byte_count,
@@ -2703,7 +2713,7 @@ fn system_v_pure_integer_aggregate_descriptor_shape(
 ) -> Option<(usize, usize)> {
     system_v_record_descriptor_shape(input, descriptor).and_then(
         |(byte_count, alignment, sse_eightbytes)| {
-            (sse_eightbytes == 0).then_some((byte_count, alignment))
+            (byte_count > 8 && sse_eightbytes == 0).then_some((byte_count, alignment))
         },
     )
 }
@@ -2727,7 +2737,7 @@ pub(in crate::selection) fn system_v_record_descriptor_shape(
         .iter()
         .find(|(_, layout)| layout.symbol == *symbol || layout.name.as_str() == name.as_str())
         .map(|(_, layout)| layout)?;
-    if !(9..=16).contains(&data_layout.layout.size)
+    if !(1..=16).contains(&data_layout.layout.size)
         || !data_layout.layout.alignment.is_power_of_two()
         || data_layout.layout.alignment > 8
     {
@@ -2742,8 +2752,13 @@ pub(in crate::selection) fn system_v_record_descriptor_shape(
         &mut classes,
         0,
     )?;
-    let [Some(first_is_sse), Some(second_is_sse)] = classes else {
+    let Some(first_is_sse) = classes[0] else {
         return None;
+    };
+    let second_is_sse = if data_layout.layout.size > 8 {
+        classes[1]?
+    } else {
+        false
     };
     let sse_eightbytes = u8::from(first_is_sse) | (u8::from(second_is_sse) << 1);
     Some((
