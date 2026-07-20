@@ -769,15 +769,17 @@ remain contract-invisible.
   reject); mixed field/const facts remain standing default-domain facts with
   their const operands specialized. Const-parameter membership in an integer
   domain defined by boolean `self` facts and/or evaluable machine-backed facts
-  also discharges per instance; false membership rejects. The current
-  implementation incorrectly routes part of this through the retired `when`
+  also discharges per instance; false membership rejects. Closed const-argument
+  shifts and bitwise operations now wait for the parameter declaration and use
+  its exact signed/unsigned width, including arithmetic signed right shift and
+  overflow/range rejection. The current membership implementation incorrectly
+  routes part of its machine-backed evaluation through the retired `when`
   classifier surface. Migrate it through the ordinary domain-body fact list as
   required by the immediate purge above, retaining inferred transitive-effect
   and signature checks, checked integer operands, logical negation, nested
   memberships, nested direct machine-backed facts, and conservative cycle
-  handling. Only after that migration, continue with declared-width signed
-  shift/bitwise and arithmetic-domain semantics plus richer build-time fact
-  operands.
+  handling. After that migration, continue with arithmetic-domain semantics
+  and richer build-time fact operands.
 - **Trait defaults (authored bodies complete).** Standalone data conformances synthesize a
   missing attached machine from the trait's authored body before resolution,
   including defaults inherited through `requires` and header parents. Ordinary

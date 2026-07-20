@@ -136,14 +136,23 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                 let expression_start = input;
                 let (expression, rest) =
                     parse_const_integer_expression_handle(syntax_trees, input)?;
-                let value = evaluate_closed_const_integer_expression(syntax_trees, expression)
-                    .map_err(|reason| expression_start.error_here(reason))?;
-                (
-                    syntax_trees
-                        .type_references
-                        .insert_named(Identifier::generated(value.to_string())),
-                    rest,
-                )
+                if const_expression_requires_declared_width(syntax_trees, expression) {
+                    (
+                        syntax_trees
+                            .type_references
+                            .insert(TypeReferenceNode::ConstExpression(expression)),
+                        rest,
+                    )
+                } else {
+                    let value = evaluate_closed_const_integer_expression(syntax_trees, expression)
+                        .map_err(|reason| expression_start.error_here(reason))?;
+                    (
+                        syntax_trees
+                            .type_references
+                            .insert_named(Identifier::generated(value.to_string())),
+                        rest,
+                    )
+                }
             } else if input
                 .tokens
                 .first()
@@ -262,6 +271,28 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
 
     let (type_reference, input) = apply_in_domain_suffix(syntax_trees, type_reference, input)?;
     Ok((type_reference, input))
+}
+
+/// Shifts and bitwise operations depend on the const parameter's declared
+/// width and signedness. Preserve those expression trees until generic
+/// matching can supply that declaration instead of folding them as `u64` in
+/// the parser.
+fn const_expression_requires_declared_width(
+    syntax_trees: &SyntaxTrees,
+    expression: omega_syntax_trees::expression::ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Binary(binary) = syntax_trees.expressions.expression(expression) else {
+        return false;
+    };
+    matches!(
+        binary.operator,
+        BinaryOperator::ShiftLeft
+            | BinaryOperator::ShiftRight
+            | BinaryOperator::BitwiseAnd
+            | BinaryOperator::BitwiseOr
+            | BinaryOperator::BitwiseXor
+    ) || const_expression_requires_declared_width(syntax_trees, binary.left)
+        || const_expression_requires_declared_width(syntax_trees, binary.right)
 }
 
 /// Fold the first richer const-argument slice before generic-instance

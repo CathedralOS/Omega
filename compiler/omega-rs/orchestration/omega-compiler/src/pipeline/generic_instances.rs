@@ -953,13 +953,17 @@ fn normalize_template_type_reference(
             const_values,
             symbolic_parameters,
         ),
-        TypeReferenceNode::Generic { arguments, .. } => {
+        TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+        } => {
             let arguments = syntax
                 .tables
                 .type_references
                 .type_reference_handles(arguments)
                 .to_vec();
-            for argument in arguments {
+            let integer_types = generic_const_integer_types(syntax, base_name.as_str());
+            for (index, argument) in arguments.into_iter().enumerate() {
                 let node = syntax
                     .tables
                     .type_references
@@ -972,6 +976,7 @@ fn normalize_template_type_reference(
                         const_values,
                         &HashMap::new(),
                         symbolic_parameters,
+                        integer_types.get(index).copied().flatten(),
                     )?;
                     let name = match placeholder {
                         EvaluatedConst::Concrete(value) => value.to_string(),
@@ -999,6 +1004,7 @@ fn normalize_template_type_reference(
                 const_values,
                 &HashMap::new(),
                 symbolic_parameters,
+                None,
             )?;
             let name = match placeholder {
                 EvaluatedConst::Concrete(value) => value.to_string(),
@@ -1132,6 +1138,8 @@ fn consider_generic_spelling(
                     const_values,
                     &HashMap::new(),
                     &HashSet::new(),
+                    parameter_type
+                        .and_then(|parameter_type| const_integer_type(syntax, parameter_type)),
                 )
                 .and_then(EvaluatedConst::into_concrete)
                 .map_err(|reason| {
@@ -1223,15 +1231,15 @@ fn const_arguments_fit_declarations(
 /// Evaluate the symbolic integer subset retained in a const-generic argument.
 /// Names resolve to literal scoped const declarations collected above.
 /// Arithmetic deliberately matches the closed-expression parser fold over the
-/// current signed/unsigned 64-bit envelope. Signed shifts and bitwise
-/// operations stay fenced until the declaration's width/domain is threaded
-/// into this evaluator.
+/// current signed/unsigned 64-bit envelope. Shifts and bitwise operations use
+/// the matched const parameter's declared width and signedness.
 fn evaluate_const_argument_expression(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
     const_values: &HashMap<String, i128>,
     parameter_values: &HashMap<String, i128>,
     symbolic_parameters: &HashSet<String>,
+    integer_type: Option<ConstIntegerType>,
 ) -> Result<EvaluatedConst, String> {
     match syntax.expressions.expression(expression) {
         ExpressionNode::Integer(value) => integer_literal_value(value)
@@ -1265,6 +1273,7 @@ fn evaluate_const_argument_expression(
                 const_values,
                 parameter_values,
                 symbolic_parameters,
+                integer_type,
             )?;
             let right = evaluate_const_argument_expression(
                 syntax,
@@ -1272,6 +1281,7 @@ fn evaluate_const_argument_expression(
                 const_values,
                 parameter_values,
                 symbolic_parameters,
+                integer_type,
             )?;
             match (binary.operator, &right) {
                 (BinaryOperator::Divide | BinaryOperator::Modulo, EvaluatedConst::Concrete(0)) => {
@@ -1332,33 +1342,198 @@ fn evaluate_const_argument_expression(
                     .checked_rem(right)
                     .map(EvaluatedConst::Concrete)
                     .ok_or_else(|| "remainder by zero is invalid".to_string()),
-                BinaryOperator::ShiftLeft if left >= 0 => u32::try_from(right)
-                    .ok()
-                    .and_then(|amount| left.checked_shl(amount))
-                    .and_then(const_integer_in_envelope)
-                    .map(EvaluatedConst::Concrete)
-                    .ok_or_else(|| "left shift exceeds the `u64` width".to_string()),
-                BinaryOperator::ShiftRight if left >= 0 => u32::try_from(right)
-                    .ok()
-                    .and_then(|amount| left.checked_shr(amount))
-                    .map(EvaluatedConst::Concrete)
-                    .ok_or_else(|| "right shift exceeds the `u64` width".to_string()),
-                BinaryOperator::BitwiseAnd if left >= 0 && right >= 0 => {
-                    Ok(EvaluatedConst::Concrete(left & right))
+                BinaryOperator::ShiftLeft
+                | BinaryOperator::ShiftRight
+                | BinaryOperator::BitwiseAnd
+                | BinaryOperator::BitwiseOr
+                | BinaryOperator::BitwiseXor => {
+                    evaluate_declared_width_operation(binary.operator, left, right, integer_type)
+                        .map(EvaluatedConst::Concrete)
                 }
-                BinaryOperator::BitwiseOr if left >= 0 && right >= 0 => {
-                    Ok(EvaluatedConst::Concrete(left | right))
-                }
-                BinaryOperator::BitwiseXor if left >= 0 && right >= 0 => {
-                    Ok(EvaluatedConst::Concrete(left ^ right))
-                }
-                _ => Err(
-                    "signed shifts and bitwise operators require declared-width semantics"
-                        .to_string(),
-                ),
+                _ => unreachable!("const integer operator was validated above"),
             }
         }
         _ => Err("expression is not a symbolic integer const expression".to_string()),
+    }
+}
+
+#[derive(Clone, Copy)]
+struct ConstIntegerType {
+    name: &'static str,
+    bits: u32,
+    signed: bool,
+}
+
+fn const_integer_type(
+    syntax: &SyntaxTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<ConstIntegerType> {
+    let TypeReferenceNode::Named(name) =
+        syntax.tables.type_references.type_reference(type_reference)
+    else {
+        return None;
+    };
+    Some(match name.as_str() {
+        "i8" => ConstIntegerType {
+            name: "i8",
+            bits: 8,
+            signed: true,
+        },
+        "i16" => ConstIntegerType {
+            name: "i16",
+            bits: 16,
+            signed: true,
+        },
+        "i32" => ConstIntegerType {
+            name: "i32",
+            bits: 32,
+            signed: true,
+        },
+        "i64" => ConstIntegerType {
+            name: "i64",
+            bits: 64,
+            signed: true,
+        },
+        "u8" => ConstIntegerType {
+            name: "u8",
+            bits: 8,
+            signed: false,
+        },
+        "u16" => ConstIntegerType {
+            name: "u16",
+            bits: 16,
+            signed: false,
+        },
+        "u32" => ConstIntegerType {
+            name: "u32",
+            bits: 32,
+            signed: false,
+        },
+        "u64" => ConstIntegerType {
+            name: "u64",
+            bits: 64,
+            signed: false,
+        },
+        "addr" => ConstIntegerType {
+            name: "addr",
+            bits: 64,
+            signed: false,
+        },
+        _ => return None,
+    })
+}
+
+fn generic_const_integer_types(
+    syntax: &SyntaxTrees,
+    generic_name: &str,
+) -> Vec<Option<ConstIntegerType>> {
+    syntax
+        .root_items()
+        .find_map(|item| {
+            let Item::Data(definition) = item else {
+                return None;
+            };
+            (definition.name.as_str() == generic_name).then(|| {
+                syntax
+                    .tables
+                    .items
+                    .type_parameters(definition.type_parameters)
+                    .iter()
+                    .map(|parameter| match parameter.kind {
+                        TypeParameterKind::Const { type_reference } => {
+                            const_integer_type(syntax, type_reference)
+                        }
+                        _ => None,
+                    })
+                    .collect()
+            })
+        })
+        .unwrap_or_default()
+}
+
+fn evaluate_declared_width_operation(
+    operator: BinaryOperator,
+    left: i128,
+    right: i128,
+    integer_type: Option<ConstIntegerType>,
+) -> Result<i128, String> {
+    let Some(integer_type) = integer_type else {
+        return Err(
+            "shifts and bitwise operators require a declared integer const type".to_string(),
+        );
+    };
+    let modulus = 1i128 << integer_type.bits;
+    let maximum = if integer_type.signed {
+        (modulus >> 1) - 1
+    } else {
+        modulus - 1
+    };
+    let minimum = if integer_type.signed {
+        -(modulus >> 1)
+    } else {
+        0
+    };
+    if left < minimum || left > maximum {
+        return Err(format!(
+            "left operand `{left}` is outside the declared `{}` range",
+            integer_type.name
+        ));
+    }
+
+    match operator {
+        BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight => {
+            let amount = u32::try_from(right)
+                .ok()
+                .filter(|amount| *amount < integer_type.bits)
+                .ok_or_else(|| {
+                    format!(
+                        "shift count must be non-negative and below the declared `{}` width",
+                        integer_type.name
+                    )
+                })?;
+            if operator == BinaryOperator::ShiftRight {
+                // `i128 >>` sign-extends negative signed operands. Unsigned
+                // operands were range-checked non-negative, for which the same
+                // operation is the required logical shift.
+                return Ok(left >> amount);
+            }
+            let shifted = left.checked_shl(amount).ok_or_else(|| {
+                format!(
+                    "left shift exceeds the declared `{}` range",
+                    integer_type.name
+                )
+            })?;
+            if shifted < minimum || shifted > maximum {
+                return Err(format!(
+                    "left shift exceeds the declared `{}` range",
+                    integer_type.name
+                ));
+            }
+            Ok(shifted)
+        }
+        BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor => {
+            if right < minimum || right > maximum {
+                return Err(format!(
+                    "right operand `{right}` is outside the declared `{}` range",
+                    integer_type.name
+                ));
+            }
+            let mask = modulus - 1;
+            let left_bits = left & mask;
+            let right_bits = right & mask;
+            let result_bits = match operator {
+                BinaryOperator::BitwiseAnd => left_bits & right_bits,
+                BinaryOperator::BitwiseOr => left_bits | right_bits,
+                BinaryOperator::BitwiseXor => left_bits ^ right_bits,
+                _ => unreachable!(),
+            };
+            if integer_type.signed && result_bits >= modulus >> 1 {
+                Ok(result_bits - modulus)
+            } else {
+                Ok(result_bits)
+            }
+        }
+        _ => unreachable!("caller provides only shifts and bitwise operators"),
     }
 }
 
@@ -1567,6 +1742,7 @@ fn substitute_member(
                 .type_references
                 .type_reference_handles(arguments)
                 .to_vec();
+            let integer_types = generic_const_integer_types(syntax, base_name.as_str());
             let const_bindings: HashMap<String, i128> = substitution
                 .iter()
                 .filter_map(|(name, argument)| {
@@ -1579,7 +1755,7 @@ fn substitute_member(
                 })
                 .collect();
             let mut substituted_arguments = Vec::with_capacity(argument_handles.len());
-            for argument in argument_handles {
+            for (index, argument) in argument_handles.into_iter().enumerate() {
                 let node = syntax
                     .tables
                     .type_references
@@ -1596,6 +1772,7 @@ fn substitute_member(
                             const_values,
                             &const_bindings,
                             &HashSet::new(),
+                            integer_types.get(index).copied().flatten(),
                         )
                         .and_then(EvaluatedConst::into_concrete)
                         {
