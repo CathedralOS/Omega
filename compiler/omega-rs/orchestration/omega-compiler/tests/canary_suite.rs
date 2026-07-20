@@ -36922,6 +36922,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/property_sized_declared",
     "data/property_unknown",
     "generics/colon_bound_rejected",
+    "generics/const_container_method_signature_mismatch",
     "generics/const_data_argument_out_of_range",
     "generics/const_data_forwarded_type_mismatch",
     "generics/const_data_argument_requires_value",

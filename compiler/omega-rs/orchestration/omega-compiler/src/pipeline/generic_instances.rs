@@ -36,6 +36,7 @@
 
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
+use omega_core::literals::{IntegerLiteral, IntegerRadix};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{DataDefinition, DataMember, Item, TypeParameterKind};
@@ -119,9 +120,6 @@ pub(crate) fn desugar_generic_data_instances(
         {
             continue;
         }
-        let has_const_parameters = definition_parameters
-            .iter()
-            .any(|parameter| matches!(parameter.kind, TypeParameterKind::Const { .. }));
         if data_with_machines.contains(definition.name.as_str()) {
             // A CONTAINER (generic data with attached machines) monomorphizes
             // ONLY when every method's own type parameters are covered by the
@@ -132,12 +130,17 @@ pub(crate) fn desugar_generic_data_instances(
             // a CONCRETE machine and the T-typed value call materializes
             // (was the runtime silent-0). An uncovered method leaves the
             // whole container for the type-check-only path, as before.
-            let data_parameter_names: Vec<String> = syntax
+            let data_parameters: Vec<(String, bool)> = syntax
                 .tables
                 .items
                 .type_parameters(definition.type_parameters)
                 .iter()
-                .map(|parameter| parameter.name.as_str().to_string())
+                .map(|parameter| {
+                    (
+                        parameter.name.as_str().to_string(),
+                        matches!(parameter.kind, TypeParameterKind::Const { .. }),
+                    )
+                })
                 .collect();
             let all_methods_covered =
                 attached_machines[definition.name.as_str()]
@@ -158,24 +161,19 @@ pub(crate) fn desugar_generic_data_instances(
                             .state_handles(machine.states)
                             .iter()
                             .any(|state| !syntax.tables.items.state(*state).statements.is_empty());
-                        let machine_parameters =
-                            syntax.tables.items.type_parameters(machine.type_parameters);
-                        // A parameter-free method can be cloned onto each
-                        // const-specialized record directly. A method that
-                        // itself declares const parameters may carry N in value
-                        // positions this type-reference watermark does not yet
-                        // rewrite, so leave that container on the generic path.
                         has_bodies
-                            && (!has_const_parameters || machine_parameters.is_empty())
                             && syntax
                                 .tables
                                 .items
                                 .type_parameters(machine.type_parameters)
                                 .iter()
                                 .all(|parameter| {
-                                    data_parameter_names
-                                        .iter()
-                                        .any(|name| name == parameter.name.as_str())
+                                    let method_is_const =
+                                        matches!(parameter.kind, TypeParameterKind::Const { .. });
+                                    data_parameters.iter().any(|(name, data_is_const)| {
+                                        name == parameter.name.as_str()
+                                            && *data_is_const == method_is_const
+                                    })
                                 })
                     });
             if !all_methods_covered {
@@ -283,7 +281,8 @@ pub(crate) fn desugar_generic_data_instances(
                 let Some(Item::Machine(machine)) = snapshot.root_items().nth(item_index) else {
                     continue;
                 };
-                let watermark = syntax.tables.type_references.node_count();
+                let type_watermark = syntax.tables.type_references.node_count();
+                let expression_watermark = syntax.expressions.expression_count() as u32;
                 let Item::Machine(mut clone) =
                     syntax.copy_item_from(&snapshot, &Item::Machine(machine.clone()))
                 else {
@@ -306,7 +305,11 @@ pub(crate) fn desugar_generic_data_instances(
                     Identifier::generated(format!("{}::{}", instance.synthetic_name, method_tail));
                 clone.attached_data = Some(Identifier::generated(instance.synthetic_name.as_str()));
                 clone.type_parameters = HandleSpan::default();
-                for (handle, name) in syntax.tables.type_references.named_nodes_from(watermark) {
+                for (handle, name) in syntax
+                    .tables
+                    .type_references
+                    .named_nodes_from(type_watermark)
+                {
                     if let Some(argument) = substitution.get(&name) {
                         let replacement = syntax
                             .tables
@@ -318,6 +321,72 @@ pub(crate) fn desugar_generic_data_instances(
                             .type_references
                             .replace_type_reference(handle, replacement);
                     }
+                }
+                for (handle, element_type, name) in syntax
+                    .tables
+                    .type_references
+                    .const_parameter_array_nodes_from(type_watermark)
+                {
+                    let Some(length) = substitution.get(&name).and_then(|argument| {
+                        match syntax.tables.type_references.type_reference(*argument) {
+                            TypeReferenceNode::Named(value) => value.as_str().parse::<usize>().ok(),
+                            _ => None,
+                        }
+                    }) else {
+                        continue;
+                    };
+                    syntax.tables.type_references.replace_type_reference(
+                        handle,
+                        TypeReferenceNode::FixedArray {
+                            element_type,
+                            length: FixedArrayLength::Literal(length),
+                        },
+                    );
+                }
+                let const_literals: HashMap<String, IntegerLiteral> = base_info
+                    .parameter_names
+                    .iter()
+                    .zip(&base_info.const_parameter_types)
+                    .filter_map(|(name, parameter_type)| {
+                        parameter_type.as_ref()?;
+                        let argument = substitution.get(name)?;
+                        let TypeReferenceNode::Named(value) =
+                            syntax.tables.type_references.type_reference(*argument)
+                        else {
+                            return None;
+                        };
+                        let literal = IntegerLiteral::from_parts(
+                            false,
+                            IntegerRadix::Decimal,
+                            value.as_str(),
+                        )
+                        .ok()?;
+                        Some((name.clone(), literal))
+                    })
+                    .collect();
+                let expression_replacements = syntax
+                    .expressions
+                    .iter_expressions()
+                    .filter(|(handle, _)| handle.arena_index() >= expression_watermark)
+                    .filter_map(|(handle, expression)| {
+                        let omega_syntax_trees::expression::ExpressionNode::Name(path) = expression
+                        else {
+                            return None;
+                        };
+                        let [name] = syntax.expressions.identifier_path_members(*path) else {
+                            return None;
+                        };
+                        const_literals
+                            .get(name.as_str())
+                            .cloned()
+                            .map(|literal| (handle, literal))
+                    })
+                    .collect::<Vec<_>>();
+                for (handle, literal) in expression_replacements {
+                    syntax.expressions.replace_expression(
+                        handle,
+                        omega_syntax_trees::expression::ExpressionNode::Integer(literal),
+                    );
                 }
                 syntax.push_root_item(Item::Machine(clone));
             }
