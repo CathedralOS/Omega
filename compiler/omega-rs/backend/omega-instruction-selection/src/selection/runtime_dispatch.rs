@@ -1584,6 +1584,55 @@ pub(super) fn normalized_entry_scalar_result_register(
     (*placed_byte_size == byte_size).then_some(*register)
 }
 
+/// Return the normalized register and declared width for an integer primitive
+/// entry result. Constant terminals use this instead of the legacy fixed i32
+/// shape so narrow and pointer-width returns select their actual ABI value.
+pub(super) fn normalized_entry_integer_result_placement(
+    input: &InstructionSelectionInput<'_>,
+) -> Option<(MachineRegister, usize)> {
+    let machine = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == input.entry_key.machine)?;
+    let state = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == input.entry_key.state)?;
+    let primitive = input.program.primitive_type_reference(state.return_type)?;
+    if matches!(
+        primitive,
+        PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String
+    ) {
+        return None;
+    }
+    let byte_size = primitive.scalar_byte_size()?;
+    let shape = ValueShape::integer(
+        u16::try_from(byte_size).ok()?,
+        u16::try_from(byte_size.max(1)).ok()?,
+    );
+    let boundary = evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::native_for_target(input.target),
+        &CallSignature {
+            parameters: Vec::new(),
+            result: Some(shape),
+        },
+    )
+    .ok()?;
+    let [
+        ValueLocation::Register {
+            register,
+            value_byte_offset: 0,
+            byte_size: placed_byte_size,
+        },
+    ] = boundary.plan().call.result.as_ref()?.locations.as_slice()
+    else {
+        return None;
+    };
+    (usize::from(*placed_byte_size) == byte_size).then_some((*register, byte_size))
+}
+
 fn entry_slot_value_shape(
     input: &InstructionSelectionInput<'_>,
     slot: &omega_runtime_storage::RuntimeFrameSlot,

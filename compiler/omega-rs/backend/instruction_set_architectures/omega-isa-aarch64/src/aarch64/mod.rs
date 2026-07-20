@@ -1355,7 +1355,7 @@ pub fn encode_return_register_integer_write_bytes(
     byte_size: usize,
     value: i64,
 ) -> Result<[u8; 4], Diagnostic> {
-    if !matches!(byte_size, 1 | 4 | 8) {
+    if !matches!(byte_size, 1 | 2 | 4 | 8) {
         return Err(Diagnostic::error(format!(
             "AArch64 MVP encoder cannot write {byte_size}-byte return integers yet"
         )));
@@ -1392,6 +1392,13 @@ mod result_register_tests {
         let bytes = encode_return_register_integer_write_bytes(MachineRegister::Aarch64X(3), 4, 7)
             .expect("w3 result write");
         assert_eq!(bytes, 0x5280_00e3u32.to_le_bytes());
+    }
+
+    #[test]
+    fn constant_result_accepts_the_normalized_u16_width() {
+        let bytes = encode_return_register_integer_write_bytes(MachineRegister::Aarch64X(0), 2, 7)
+            .expect("w0 carries the u16 result");
+        assert_eq!(bytes, 0x5280_00e0u32.to_le_bytes());
     }
 }
 

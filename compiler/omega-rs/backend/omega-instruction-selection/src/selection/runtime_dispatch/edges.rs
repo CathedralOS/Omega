@@ -251,10 +251,12 @@ fn select_runtime_dispatch_return_value(
     selected_instructions: &mut SelectedInstructionSink,
 ) -> bool {
     if let Some(value) = static_terminal_target_value(input, source_key, edge.order) {
+        let (register, byte_size) = super::normalized_entry_integer_result_placement(input)
+            .unwrap_or_else(|| (super::normalized_entry_integer_result_register(input), 4));
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::WriteReturnRegisterInteger {
-                register: super::normalized_entry_integer_result_register(input),
-                byte_size: 4,
+                register,
+                byte_size,
                 value,
             },
             source_key,
@@ -365,10 +367,12 @@ fn select_runtime_dispatch_return_value(
     if let Some(value) =
         simplified_static_terminal_value(input, source_key, edge.statement_index, value_expr)
     {
+        let (register, byte_size) = super::normalized_entry_integer_result_placement(input)
+            .unwrap_or_else(|| (super::normalized_entry_integer_result_register(input), 4));
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::WriteReturnRegisterInteger {
-                register: super::normalized_entry_integer_result_register(input),
-                byte_size: 4,
+                register,
+                byte_size,
                 value,
             },
             source_key,

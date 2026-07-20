@@ -184,6 +184,12 @@ ceiling derived exactly from the ABI volatile-register classes.
    load the plan-selected `xmm0` or `v0`. Source-to-PE and cross-target ELF
    canaries pin complete incoming/outgoing `xmm0` and `d0` round trips on
    Microsoft x64, SysV AMD64, and AAPCS64.
+   Constant primitive-integer entry terminals now evaluate that same declared
+   result shape instead of forcing the legacy four-byte fallback; exact
+   one-, two-, four-, and eight-byte widths reach the plan-selected native
+   result register. Source-to-image canaries pin full-width `rax` and `x0`
+   writes for `u64`, and direct encoder tests pin the newly admitted `u16`
+   shape on both architectures.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
    complete import/vtable/service-table compatibility mechanism matrix is
