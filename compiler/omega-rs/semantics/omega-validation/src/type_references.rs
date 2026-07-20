@@ -541,7 +541,7 @@ fn validate_const_data_argument(
         return;
     };
 
-    if let Ok(value) = name.as_str().parse::<u64>() {
+    if let Ok(value) = name.as_str().parse::<i128>() {
         validate_const_integer_range(base_name, parameter, primitive, value, diagnostics);
         return;
     }
@@ -588,21 +588,21 @@ fn validate_const_integer_range(
     base_name: &str,
     parameter: &TypeParameter,
     primitive: PrimitiveType,
-    value: u64,
+    value: i128,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let maximum = match primitive {
-        PrimitiveType::I8 => i8::MAX as u64,
-        PrimitiveType::I16 => i16::MAX as u64,
-        PrimitiveType::I32 => i32::MAX as u64,
-        PrimitiveType::I64 => i64::MAX as u64,
-        PrimitiveType::U8 => u8::MAX as u64,
-        PrimitiveType::U16 => u16::MAX as u64,
-        PrimitiveType::U32 => u32::MAX as u64,
-        PrimitiveType::U64 | PrimitiveType::Addr => u64::MAX,
+    let (minimum, maximum) = match primitive {
+        PrimitiveType::I8 => (i128::from(i8::MIN), i128::from(i8::MAX)),
+        PrimitiveType::I16 => (i128::from(i16::MIN), i128::from(i16::MAX)),
+        PrimitiveType::I32 => (i128::from(i32::MIN), i128::from(i32::MAX)),
+        PrimitiveType::I64 => (i128::from(i64::MIN), i128::from(i64::MAX)),
+        PrimitiveType::U8 => (0, i128::from(u8::MAX)),
+        PrimitiveType::U16 => (0, i128::from(u16::MAX)),
+        PrimitiveType::U32 => (0, i128::from(u32::MAX)),
+        PrimitiveType::U64 | PrimitiveType::Addr => (0, i128::from(u64::MAX)),
         _ => return,
     };
-    if value > maximum {
+    if value < minimum || value > maximum {
         diagnostics.push(Diagnostic::error(format!(
             "const argument `{value}` for `{base_name}::{}` does not fit `{}`",
             parameter.name,

@@ -130,7 +130,9 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
             // symbol-free named leaves until the declaration's parameter kinds
             // are available during validation/layout; literal decimal spelling
             // is canonical.
-            let (argument, rest) = if input.at_integer() {
+            let (argument, rest) = if input.at_integer()
+                || input.at_punctuation(PunctuationKind::Minus)
+            {
                 let expression_start = input;
                 let (expression, rest) =
                     parse_const_integer_expression_handle(syntax_trees, input)?;
@@ -263,7 +265,8 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
 }
 
 /// Fold the first richer const-argument slice before generic-instance
-/// synthesis: closed, non-negative integer expressions. The folded decimal
+/// synthesis: closed integer expressions in the language's current 64-bit
+/// signed/unsigned envelope. The folded decimal
 /// leaf is the same representation a literal argument already used, so symbol
 /// resolution, type identity, layout, and runtime specialization remain
 /// unchanged. Symbolic expressions are intentionally left for the subsequent
@@ -271,56 +274,73 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
 fn evaluate_closed_const_integer_expression(
     syntax_trees: &SyntaxTrees,
     expression: omega_syntax_trees::expression::ExpressionHandle,
-) -> Result<u64, String> {
+) -> Result<i128, String> {
     match syntax_trees.expressions.expression(expression) {
-        ExpressionNode::Integer(value) => value.value_u64().ok_or_else(|| {
-            "const data arguments must be non-negative integers that fit `u64`".to_string()
-        }),
+        ExpressionNode::Integer(value) => const_literal_value(value),
         ExpressionNode::Binary(binary) => {
             let left = evaluate_closed_const_integer_expression(syntax_trees, binary.left)?;
             let right = evaluate_closed_const_integer_expression(syntax_trees, binary.right)?;
             match binary.operator {
-                BinaryOperator::Add => left.checked_add(right).ok_or_else(|| {
-                    "const data argument addition overflows `u64`".to_string()
-                }),
-                BinaryOperator::Subtract => left.checked_sub(right).ok_or_else(|| {
-                    "const data argument subtraction produces a negative value".to_string()
-                }),
-                BinaryOperator::Multiply => left.checked_mul(right).ok_or_else(|| {
-                    "const data argument multiplication overflows `u64`".to_string()
-                }),
+                BinaryOperator::Add => checked_const_integer(left.checked_add(right), "addition"),
+                BinaryOperator::Subtract => {
+                    checked_const_integer(left.checked_sub(right), "subtraction")
+                }
+                BinaryOperator::Multiply => {
+                    checked_const_integer(left.checked_mul(right), "multiplication")
+                }
                 BinaryOperator::Divide => left.checked_div(right).ok_or_else(|| {
                     "const data argument division by zero is invalid".to_string()
                 }),
                 BinaryOperator::Modulo => left.checked_rem(right).ok_or_else(|| {
                     "const data argument remainder by zero is invalid".to_string()
                 }),
-                BinaryOperator::ShiftLeft => u32::try_from(right)
+                BinaryOperator::ShiftLeft if left >= 0 && right >= 0 => {
+                    let shifted = u32::try_from(right)
+                        .ok()
+                        .filter(|amount| *amount < u64::BITS)
+                        .and_then(|amount| left.checked_shl(amount));
+                    checked_const_integer(shifted, "left shift")
+                }
+                BinaryOperator::ShiftRight if left >= 0 && right >= 0 => u32::try_from(right)
                     .ok()
-                    .and_then(|amount| left.checked_shl(amount))
-                    .ok_or_else(|| {
-                        "const data argument left shift exceeds the `u64` width".to_string()
-                    }),
-                BinaryOperator::ShiftRight => u32::try_from(right)
-                    .ok()
+                    .filter(|amount| *amount < u64::BITS)
                     .and_then(|amount| left.checked_shr(amount))
                     .ok_or_else(|| {
                         "const data argument right shift exceeds the `u64` width".to_string()
                     }),
-                BinaryOperator::BitwiseAnd => Ok(left & right),
-                BinaryOperator::BitwiseOr => Ok(left | right),
-                BinaryOperator::BitwiseXor => Ok(left ^ right),
+                BinaryOperator::BitwiseAnd if left >= 0 && right >= 0 => Ok(left & right),
+                BinaryOperator::BitwiseOr if left >= 0 && right >= 0 => Ok(left | right),
+                BinaryOperator::BitwiseXor if left >= 0 && right >= 0 => Ok(left ^ right),
                 _ => Err(
-                    "const data arguments currently support only non-negative integer arithmetic, shifts, and bitwise operators"
+                    "signed const data arguments support arithmetic; signed shifts and bitwise operators require declared-width semantics"
                         .to_string(),
                 ),
             }
         }
         _ => Err(
-            "const data arguments currently support only closed non-negative integer expressions"
-                .to_string(),
+            "const data arguments currently support only closed integer expressions".to_string(),
         ),
     }
+}
+
+fn const_literal_value(value: &omega_core::literals::IntegerLiteral) -> Result<i128, String> {
+    value
+        .value_i64()
+        .map(i128::from)
+        .or_else(|| value.value_u64().map(i128::from))
+        .ok_or_else(|| {
+            "const data arguments must fit either the signed or unsigned 64-bit range".to_string()
+        })
+}
+
+fn checked_const_integer(value: Option<i128>, operation: &str) -> Result<i128, String> {
+    let value = value.ok_or_else(|| format!("const data argument {operation} overflows"))?;
+    if value < i128::from(i64::MIN) || value > i128::from(u64::MAX) {
+        return Err(format!(
+            "const data argument {operation} exceeds the signed/unsigned 64-bit envelope"
+        ));
+    }
+    Ok(value)
 }
 
 /// Apply an optional `in <Domain>` suffix to a just-parsed type reference.

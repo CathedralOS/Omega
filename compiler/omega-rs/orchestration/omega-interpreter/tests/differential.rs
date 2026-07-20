@@ -1649,6 +1649,20 @@ fn interpreter_runs_const_data_machine_classifier() {
 }
 
 #[test]
+fn interpreter_runs_signed_const_data() {
+    let main_path = pass_canary("generics/runtime_signed_const_data_exit").join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "signed const data failed frontend checking:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+    let outcome = interpret(&checked, b"");
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 70);
+}
+
+#[test]
 fn interpreter_runs_trait_default_dispatch() {
     let main_path = pass_canary("traits/runtime_trait_default_dispatch_exit").join("main.omg");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {

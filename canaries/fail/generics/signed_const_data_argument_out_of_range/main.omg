@@ -1,0 +1,10 @@
+// Signed const arguments are range-checked at the parameter's declared width.
+data TinySigned<const N: i8> {
+    marker: i8;
+}
+
+data Main {
+    value: TinySigned<-129>;
+}
+
+machine Main::main(&mut self) {}

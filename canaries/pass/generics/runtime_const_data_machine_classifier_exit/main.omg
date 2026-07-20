@@ -2,11 +2,13 @@
 // at build time for the concrete const-generic instance.
 use omega::language::std::console;
 
-machine is_buffer_size(value: u64) -> bool {
-    value > 0 && value <= 8
+machine is_positive(value: u64) -> bool {
+    value > 0
 }
 
-domain u64::BufferSize when is_buffer_size(self) {}
+domain u64::BufferSize when is_positive(self) {
+    self <= 8
+}
 
 data FixedBuffer<const N: u64>
 where
