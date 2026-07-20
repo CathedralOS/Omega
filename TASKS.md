@@ -228,6 +228,9 @@ ceiling derived exactly from the ABI volatile-register classes.
    Authored scalar helper calls in entry-terminal position already preserve the
    callee's native result register through entry termination; the former
    compile-only free-standing `add_i32(3, 4)` canary now executes and pins exit 7.
+   Fixed-array and text/slice descriptor entry results now wait on the explicit
+   native-boundary policy decision in `OWNER_QUESTIONS.md` section 5; byte size
+   alone must not silently define their public ABI.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
    complete import/vtable/service-table compatibility mechanism matrix is
