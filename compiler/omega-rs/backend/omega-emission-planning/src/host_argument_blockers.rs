@@ -104,7 +104,8 @@ fn collect_computed_scalar_argument_blockers(
             };
             let is_computed_scalar = match input.host_calls.expressions.expression(expression) {
                 omega_checked_trees::expression::ExpressionNode::Binary(_)
-                | omega_checked_trees::expression::ExpressionNode::Cast(_) => true,
+                | omega_checked_trees::expression::ExpressionNode::Cast(_)
+                | omega_checked_trees::expression::ExpressionNode::Indexed(_) => true,
                 // Selection admits only the scalar builtin symbols. An
                 // authored nested call reaches this blocker too and stays
                 // fail-closed until explicit call sequencing exists.
@@ -119,14 +120,13 @@ fn collect_computed_scalar_argument_blockers(
                 |(_, instruction)| {
                     state_key_matches_statement_source(instruction.source_key, host_call.source_key)
                         && instruction.source_statement == host_call.statement_index
-                        && matches!(
+                        && (matches!(
                             instruction.kind,
                             SelectedInstructionKind::WritePlaceBinary { target, .. }
                                 if target.region
                                     == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
                                     && target.const_offset() == Some(target_offset)
-                        )
-                        || matches!(
+                        ) || matches!(
                             instruction.kind,
                             SelectedInstructionKind::WriteRuntimeStorageConvert {
                                 target_region,
@@ -135,7 +135,13 @@ fn collect_computed_scalar_argument_blockers(
                             } if target_region
                                 == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
                                 && actual_offset == target_offset
-                        )
+                        ) || matches!(
+                            instruction.kind,
+                            SelectedInstructionKind::CopyPlaces { target, .. }
+                                if target.region
+                                    == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                                    && target.const_offset() == Some(target_offset)
+                        ))
                 },
             );
             if has_materialization {

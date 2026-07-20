@@ -555,7 +555,8 @@ fn host_computed_scalar_argument_slot_count(
                         omega_platform_interface::HostCallArgumentKind::Expression(expression)
                             if match host_calls.expressions.expression(expression) {
                                 omega_checked_trees::expression::ExpressionNode::Binary(_)
-                                | omega_checked_trees::expression::ExpressionNode::Cast(_) => true,
+                                | omega_checked_trees::expression::ExpressionNode::Cast(_)
+                                | omega_checked_trees::expression::ExpressionNode::Indexed(_) => true,
                                 omega_checked_trees::expression::ExpressionNode::Call(call) => [
                                     omega_core::symbols::BuiltinFunction::Max,
                                     omega_core::symbols::BuiltinFunction::Min,
