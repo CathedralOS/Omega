@@ -78,6 +78,18 @@ pub(super) fn selected_instruction_operands_name(
                     member_byte_count * 8
                 )
             }
+            InstructionOperandKind::RuntimeSystemVAggregate {
+                region,
+                byte_offset,
+                byte_count,
+                alignment,
+                sse_eightbytes,
+            } => {
+                let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
+                format!(
+                    "sysv aggregate {byte_count}/{alignment} sse={sse_eightbytes:#04b} {symbol}@{byte_offset}"
+                )
+            }
             InstructionOperandKind::RuntimeSmallAggregate {
                 region,
                 byte_offset,

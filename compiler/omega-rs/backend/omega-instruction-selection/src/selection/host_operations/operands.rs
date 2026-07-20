@@ -183,35 +183,50 @@ pub(super) fn select_host_operation_operands(
                 .span(host_call.arguments)
                 .map_or(0, |arguments| arguments.len());
             let result = if host_call.has_result {
-                native_hfa_argument_operand_at(input, host_call, dispatch_index, alias_context, 0)
-                    .or_else(|| {
-                        native_large_aggregate_argument_operand_at(
-                            input,
-                            host_call,
-                            dispatch_index,
-                            alias_context,
-                            0,
-                        )
-                    })
-                    .or_else(|| {
-                        native_small_aggregate_argument_operand_at(
-                            input,
-                            host_call,
-                            dispatch_index,
-                            alias_context,
-                            0,
-                        )
-                    })
-                    .or_else(|| {
-                        authored_float_argument_operand_at(
-                            input,
-                            host_call,
-                            dispatch_index,
-                            alias_context,
-                            0,
-                        )
-                    })
-                    .or_else(|| first_scalar_argument_operand(input, host_call, dispatch_index))
+                system_v_mixed_aggregate_operand_at(
+                    input,
+                    host_call,
+                    dispatch_index,
+                    alias_context,
+                    0,
+                )
+                .or_else(|| {
+                    native_hfa_argument_operand_at(
+                        input,
+                        host_call,
+                        dispatch_index,
+                        alias_context,
+                        0,
+                    )
+                })
+                .or_else(|| {
+                    native_large_aggregate_argument_operand_at(
+                        input,
+                        host_call,
+                        dispatch_index,
+                        alias_context,
+                        0,
+                    )
+                })
+                .or_else(|| {
+                    native_small_aggregate_argument_operand_at(
+                        input,
+                        host_call,
+                        dispatch_index,
+                        alias_context,
+                        0,
+                    )
+                })
+                .or_else(|| {
+                    authored_float_argument_operand_at(
+                        input,
+                        host_call,
+                        dispatch_index,
+                        alias_context,
+                        0,
+                    )
+                })
+                .or_else(|| first_scalar_argument_operand(input, host_call, dispatch_index))
             } else {
                 None
             };
@@ -247,13 +262,22 @@ pub(super) fn select_host_operation_operands(
                             )
                         })
                     } else {
-                        native_hfa_argument_operand_at(
+                        system_v_mixed_aggregate_operand_at(
                             input,
                             host_call,
                             dispatch_index,
                             alias_context,
                             index,
                         )
+                        .or_else(|| {
+                            native_hfa_argument_operand_at(
+                                input,
+                                host_call,
+                                dispatch_index,
+                                alias_context,
+                                index,
+                            )
+                        })
                         .or_else(|| {
                             native_large_aggregate_argument_operand_at(
                                 input,
@@ -2506,6 +2530,118 @@ fn hfa_descriptor_shape(
         .then_some((member_byte_count, members))
 }
 
+/// Preserve the currently normalized mixed SysV record family. Each flat
+/// scalar field contributes INTEGER or SSE to its containing eightbyte;
+/// INTEGER dominates within an eightbyte, and this operand is selected only
+/// when the two final eightbyte classes differ.
+fn system_v_mixed_aggregate_operand_at(
+    input: &InstructionSelectionInput<'_>,
+    host_call: &HostCall,
+    dispatch_index: Option<u32>,
+    alias_context: Option<RuntimeAliasResolutionContext<'_, '_>>,
+    index: usize,
+) -> Option<InstructionOperandKind> {
+    if CallingPolicy::native_for_target(input.target) != CallingPolicy::SystemVAMD64 {
+        return None;
+    }
+    let argument = input
+        .host_calls
+        .arguments
+        .span(host_call.arguments)
+        .and_then(|arguments| arguments.get(index))?;
+    let HostCallArgumentKind::Expression(expression) = &argument.kind else {
+        return None;
+    };
+    let place = alias_resolved_place_at(input, host_call, dispatch_index, alias_context, index)
+        .or_else(|| {
+            resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index.unwrap_or(0),
+                host_call.source_key,
+                &input.host_calls.expressions,
+                *expression,
+            )
+        })?;
+    let descriptor = resolve_runtime_storage_leaf_descriptor_in_table(
+        input,
+        dispatch_index.unwrap_or(0),
+        host_call.source_key,
+        &input.host_calls.expressions,
+        *expression,
+    )?;
+    let (byte_count, alignment, sse_eightbytes) =
+        system_v_mixed_aggregate_descriptor_shape(input, &descriptor)?;
+    (place.byte_count == byte_count).then_some(InstructionOperandKind::RuntimeSystemVAggregate {
+        region: place.region,
+        byte_offset: place.byte_offset,
+        byte_count,
+        alignment,
+        sse_eightbytes,
+    })
+}
+
+fn system_v_mixed_aggregate_descriptor_shape(
+    input: &InstructionSelectionInput<'_>,
+    descriptor: &TypeLayoutDescriptor,
+) -> Option<(usize, usize, u8)> {
+    let descriptor = match descriptor {
+        TypeLayoutDescriptor::Constrained { base_type, .. } => {
+            return system_v_mixed_aggregate_descriptor_shape(input, base_type);
+        }
+        descriptor => descriptor,
+    };
+    let TypeLayoutDescriptor::Named { symbol, name } = descriptor else {
+        return None;
+    };
+    let data_layout = input
+        .layouts
+        .data_layouts
+        .iter()
+        .find(|(_, layout)| layout.symbol == *symbol || layout.name.as_str() == name.as_str())
+        .map(|(_, layout)| layout)?;
+    let DataShape::Record { fields } = data_layout.shape else {
+        return None;
+    };
+    if !(9..=16).contains(&data_layout.layout.size)
+        || !data_layout.layout.alignment.is_power_of_two()
+    {
+        return None;
+    }
+    let mut classes = [None, None];
+    for field in input.layouts.fields.span(fields)? {
+        let primitive = PrimitiveType::from_name(field.type_name.as_ref())?;
+        let field_size = primitive.scalar_byte_size()?;
+        if field_size != field.layout.size
+            || field_size > 8
+            || field.offset % field.layout.alignment != 0
+            || field.offset + field_size > data_layout.layout.size
+        {
+            return None;
+        }
+        let eightbyte = field.offset / 8;
+        if eightbyte != (field.offset + field_size - 1) / 8 || eightbyte > 1 {
+            return None;
+        }
+        let field_is_sse = matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64);
+        classes[eightbyte] = Some(match classes[eightbyte] {
+            Some(class_is_sse) => class_is_sse && field_is_sse,
+            None => field_is_sse,
+        });
+    }
+    let [Some(first_is_sse), Some(second_is_sse)] = classes else {
+        return None;
+    };
+    if first_is_sse == second_is_sse {
+        return None;
+    }
+    let sse_eightbytes = u8::from(first_is_sse) | (u8::from(second_is_sse) << 1);
+    Some((
+        data_layout.layout.size,
+        data_layout.layout.alignment,
+        sse_eightbytes,
+    ))
+}
+
 /// Preserve a fixed pure-integer record of at most two ABI words as one
 /// selected operand for AAPCS64 and SysV AMD64. Their normalized plans split
 /// the value into architecture-specific fragments or move it wholly to stack.
@@ -2547,7 +2683,12 @@ fn native_small_aggregate_argument_operand_at(
         &input.host_calls.expressions,
         *expression,
     )?;
-    let (byte_count, alignment) = small_aggregate_descriptor_shape(input, &descriptor)?;
+    let (byte_count, alignment) =
+        if CallingPolicy::native_for_target(input.target) == CallingPolicy::SystemVAMD64 {
+            system_v_pure_integer_aggregate_descriptor_shape(input, &descriptor)?
+        } else {
+            small_aggregate_descriptor_shape(input, &descriptor)?
+        };
     (place.byte_count == byte_count).then_some(InstructionOperandKind::RuntimeSmallAggregate {
         region: place.region,
         byte_offset: place.byte_offset,
@@ -2614,6 +2755,50 @@ fn small_aggregate_descriptor_shape(
 ) -> Option<(usize, usize)> {
     aggregate_descriptor_shape(input, descriptor)
         .filter(|(byte_count, _)| (9..=16).contains(byte_count))
+}
+
+fn system_v_pure_integer_aggregate_descriptor_shape(
+    input: &InstructionSelectionInput<'_>,
+    descriptor: &TypeLayoutDescriptor,
+) -> Option<(usize, usize)> {
+    let descriptor = match descriptor {
+        TypeLayoutDescriptor::Constrained { base_type, .. } => {
+            return system_v_pure_integer_aggregate_descriptor_shape(input, base_type);
+        }
+        descriptor => descriptor,
+    };
+    let TypeLayoutDescriptor::Named { symbol, name } = descriptor else {
+        return None;
+    };
+    let data_layout = input
+        .layouts
+        .data_layouts
+        .iter()
+        .find(|(_, layout)| layout.symbol == *symbol || layout.name.as_str() == name.as_str())
+        .map(|(_, layout)| layout)?;
+    let DataShape::Record { fields } = data_layout.shape else {
+        return None;
+    };
+    if !(9..=16).contains(&data_layout.layout.size)
+        || !data_layout.layout.alignment.is_power_of_two()
+    {
+        return None;
+    }
+    input
+        .layouts
+        .fields
+        .span(fields)?
+        .iter()
+        .all(|field| {
+            PrimitiveType::from_name(field.type_name.as_ref()).is_some_and(|primitive| {
+                !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+                    && primitive.scalar_byte_size() == Some(field.layout.size)
+                    && field.layout.size <= 8
+                    && field.offset % field.layout.alignment == 0
+                    && field.offset + field.layout.size <= data_layout.layout.size
+            })
+        })
+        .then_some((data_layout.layout.size, data_layout.layout.alignment))
 }
 
 fn aggregate_descriptor_shape(

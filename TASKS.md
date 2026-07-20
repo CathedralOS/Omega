@@ -213,8 +213,12 @@ ceiling derived exactly from the ABI volatile-register classes.
    eightbyte into `xmm` registers (or roll wholly to aligned stack fragments),
    return through the corresponding `xmm` registers, and survive source
    selection, indirect field dispatch, result storage, width, and relocation
-   accounting. Mixed INTEGER/SSE and other non-homogeneous SSE aggregate
-   forms, plus entry-side hidden-result handling, remain to migrate.
+   accounting. Flat scalar records whose two eightbytes merge to distinct
+   INTEGER/SSE classes now carry that ordered class pair through selection,
+   reserve both register banks atomically (with whole-record stack rollback),
+   return through `rax` plus `xmm0`, and survive the same source-to-ELF field
+   dispatch path. Other non-homogeneous SSE aggregate forms, nested aggregate
+   classification, and entry-side hidden-result handling remain to migrate.
    Ordinary AArch64 `VtableSlot` and `VtableField` calls now evaluate AAPCS64
    from their selected operands, require the full-width receiver in planned
    `x0`, marshal every argument/stack slot through the shared plan consumer,

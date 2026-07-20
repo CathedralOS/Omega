@@ -60,17 +60,27 @@ pub enum InstructionOperandKind {
         byte_offset: usize,
         byte_count: usize,
     },
-    /// A flat AAPCS64 homogeneous floating-point aggregate read from one
-    /// runtime-storage place. One source value may be split across two to four
-    /// vector argument registers; preserving the aggregate here prevents
-    /// selection from degrading a by-value record into a pointer.
+    /// A flat native homogeneous floating-point aggregate read from one
+    /// runtime-storage place. AAPCS64 spreads members across vector registers;
+    /// SysV AMD64 packs them by eightbyte. Preserving the aggregate here
+    /// prevents selection from degrading a by-value record into a pointer.
     RuntimeHomogeneousFloatAggregate {
         region: RuntimeStorageRegion,
         byte_offset: usize,
         member_byte_count: usize,
         members: u8,
     },
-    /// A fixed non-HFA AAPCS64 aggregate of 9-16 bytes, preserved by value so
+    /// A two-eightbyte SysV AMD64 aggregate whose eightbytes use different
+    /// INTEGER/SSE register classes. Bit 0/1 of `sse_eightbytes` identifies
+    /// the corresponding SSE-class eightbyte.
+    RuntimeSystemVAggregate {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+        byte_count: usize,
+        alignment: usize,
+        sse_eightbytes: u8,
+    },
+    /// A fixed non-HFA native aggregate of 9-16 bytes, preserved by value so
     /// lowering can copy its doubleword fragments into registers or the stack.
     RuntimeSmallAggregate {
         region: RuntimeStorageRegion,
@@ -78,8 +88,9 @@ pub enum InstructionOperandKind {
         byte_count: usize,
         alignment: usize,
     },
-    /// A fixed non-HFA AAPCS64 aggregate above 16 bytes. The caller copies the
-    /// value to temporary stack storage and passes that copy indirectly.
+    /// A fixed non-HFA native aggregate above 16 bytes. AAPCS64 passes a
+    /// caller copy indirectly; SysV AMD64 places the value in outgoing stack
+    /// storage.
     RuntimeLargeAggregate {
         region: RuntimeStorageRegion,
         byte_offset: usize,

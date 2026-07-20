@@ -38,6 +38,11 @@ pub trait InstructionOperandLike {
     ) -> Option<(RuntimeStorageRegion, usize, usize, u8)> {
         None
     }
+    fn runtime_system_v_aggregate(
+        &self,
+    ) -> Option<(RuntimeStorageRegion, usize, usize, usize, u8)> {
+        None
+    }
     fn runtime_small_aggregate(&self) -> Option<(RuntimeStorageRegion, usize, usize, usize)> {
         None
     }
@@ -151,6 +156,21 @@ impl InstructionOperandLike for TargetInstructionOperand {
         }
     }
 
+    fn runtime_system_v_aggregate(
+        &self,
+    ) -> Option<(RuntimeStorageRegion, usize, usize, usize, u8)> {
+        match self.kind {
+            InstructionOperandKind::RuntimeSystemVAggregate {
+                region,
+                byte_offset,
+                byte_count,
+                alignment,
+                sse_eightbytes,
+            } => Some((region, byte_offset, byte_count, alignment, sse_eightbytes)),
+            _ => None,
+        }
+    }
+
     fn runtime_small_aggregate(&self) -> Option<(RuntimeStorageRegion, usize, usize, usize)> {
         match self.kind {
             InstructionOperandKind::RuntimeSmallAggregate {
@@ -246,6 +266,13 @@ pub enum TargetInstructionOperandKind {
         byte_offset: usize,
         member_byte_count: usize,
         members: u8,
+    },
+    RuntimeSystemVAggregate {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+        byte_count: usize,
+        alignment: usize,
+        sse_eightbytes: u8,
     },
     RuntimeSmallAggregate {
         region: RuntimeStorageRegion,

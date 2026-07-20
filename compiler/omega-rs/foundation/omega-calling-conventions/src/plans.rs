@@ -80,10 +80,22 @@ impl RegisterSet {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SystemVEightbyteClass {
+    Integer,
+    Sse,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueClass {
     Integer,
     Float,
-    HomogeneousFloatAggregate { members: u8 },
+    HomogeneousFloatAggregate {
+        members: u8,
+    },
+    SystemVAggregate {
+        first: SystemVEightbyteClass,
+        second: SystemVEightbyteClass,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,6 +127,19 @@ impl ValueShape {
             class: ValueClass::HomogeneousFloatAggregate { members },
             byte_size: member_size * members as u16,
             alignment: member_size,
+        }
+    }
+
+    pub const fn system_v_aggregate(
+        byte_size: u16,
+        alignment: u16,
+        first: SystemVEightbyteClass,
+        second: SystemVEightbyteClass,
+    ) -> Self {
+        Self {
+            class: ValueClass::SystemVAggregate { first, second },
+            byte_size,
+            alignment,
         }
     }
 }
@@ -563,6 +588,17 @@ fn validate_signature_shapes(
                         .into(),
                 ));
             }
+            ValueClass::SystemVAggregate { first, second }
+                if policy != CallingPolicy::SystemVAMD64
+                    || !(9..=16).contains(&shape.byte_size)
+                    || shape.alignment > 8
+                    || first == second =>
+            {
+                return Err(PlanDiagnostic(
+                    "mixed SysV aggregates require two distinct INTEGER/SSE eightbyte classes, a 9-16 byte shape, and at most eight-byte alignment"
+                        .into(),
+                ));
+            }
             _ => {}
         }
     }
@@ -831,7 +867,10 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
     ];
     let mut parameters = Vec::with_capacity(signature.parameters.len());
     for (index, shape) in signature.parameters.iter().copied().enumerate() {
-        if matches!(shape.class, ValueClass::HomogeneousFloatAggregate { .. }) {
+        if matches!(
+            shape.class,
+            ValueClass::HomogeneousFloatAggregate { .. } | ValueClass::SystemVAggregate { .. }
+        ) {
             return Err(PlanDiagnostic(
                 "Microsoft x64 aggregate classification is not normalized yet".into(),
             ));
@@ -854,7 +893,7 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
     Ok(CallPlan {
         policy: CallingPolicy::MicrosoftX64,
         parameters,
-        result: result_placement(signature.result, MachineRegister::X86Rax, |index| {
+        result: result_placement(signature.result, &[MachineRegister::X86Rax], |index| {
             MachineRegister::X86Xmm(index)
         })?,
         ordinary_clobbers: RegisterSet::new(
@@ -891,7 +930,7 @@ fn evaluate_system_v_amd64(signature: &CallSignature) -> Result<CallPlan, PlanDi
         &integer,
         8,
         MachineRegister::X86Xmm,
-        MachineRegister::X86Rax,
+        &[MachineRegister::X86Rax, MachineRegister::X86Rdx],
         16,
         RegisterSet::new(
             [
@@ -947,7 +986,7 @@ fn evaluate_aapcs64(signature: &CallSignature) -> Result<CallPlan, PlanDiagnosti
         &integer,
         8,
         MachineRegister::Aarch64V,
-        MachineRegister::Aarch64X(0),
+        &integer[..2],
         16,
         RegisterSet::new(
             (0..=17)
@@ -979,7 +1018,7 @@ fn evaluate_split_bank_call(
     integer_registers: &[MachineRegister],
     float_register_count: u8,
     float_register: impl Fn(u8) -> MachineRegister + Copy,
-    integer_result: MachineRegister,
+    integer_results: &[MachineRegister],
     stack_alignment: u16,
     ordinary_clobbers: RegisterSet,
 ) -> Result<CallPlan, PlanDiagnostic> {
@@ -996,10 +1035,57 @@ fn evaluate_split_bank_call(
     let mut parameters = Vec::with_capacity(signature.parameters.len());
     for shape in signature.parameters.iter().copied() {
         let mut locations = Vec::new();
+        if let ValueClass::SystemVAggregate { first, second } = shape.class {
+            debug_assert_eq!(policy, CallingPolicy::SystemVAMD64);
+            let classes = [first, second];
+            let integer_registers_needed = classes
+                .iter()
+                .filter(|class| matches!(class, SystemVEightbyteClass::Integer))
+                .count();
+            let float_registers_needed = classes
+                .iter()
+                .filter(|class| matches!(class, SystemVEightbyteClass::Sse))
+                .count() as u8;
+            if integer_index + integer_registers_needed <= integer_registers.len()
+                && float_index.saturating_add(float_registers_needed) <= float_register_count
+            {
+                let mut aggregate_integer_index = integer_index;
+                let mut aggregate_float_index = float_index;
+                for (fragment, class) in classes.into_iter().enumerate() {
+                    let register = match class {
+                        SystemVEightbyteClass::Integer => {
+                            let register = integer_registers[aggregate_integer_index];
+                            aggregate_integer_index += 1;
+                            register
+                        }
+                        SystemVEightbyteClass::Sse => {
+                            let register = float_register(aggregate_float_index);
+                            aggregate_float_index += 1;
+                            register
+                        }
+                    };
+                    let value_byte_offset = fragment as u16 * 8;
+                    locations.push(ValueLocation::Register {
+                        register,
+                        value_byte_offset,
+                        byte_size: (shape.byte_size - value_byte_offset).min(8),
+                    });
+                }
+                integer_index = aggregate_integer_index;
+                float_index = aggregate_float_index;
+            } else {
+                stack_offset = align_up(stack_offset, u32::from(shape.alignment.clamp(8, 16)));
+                locations.extend(integer_stack_fragment_locations(shape, stack_offset));
+                stack_offset += u32::from(shape.byte_size).next_multiple_of(8);
+            }
+            parameters.push(ValuePlacement { shape, locations });
+            continue;
+        }
         let float_members = match shape.class {
             ValueClass::Float => Some(1),
             ValueClass::HomogeneousFloatAggregate { members } => Some(members),
             ValueClass::Integer => None,
+            ValueClass::SystemVAggregate { .. } => unreachable!("handled above"),
         };
         let float_registers_needed = float_members.map(|members| {
             if policy == CallingPolicy::SystemVAMD64
@@ -1114,7 +1200,7 @@ fn evaluate_split_bank_call(
     Ok(CallPlan {
         policy,
         parameters,
-        result: result_placement(signature.result, integer_result, float_register)?,
+        result: result_placement(signature.result, integer_results, float_register)?,
         ordinary_clobbers,
         stack_alignment,
         shadow_bytes: 0,
@@ -1273,14 +1359,19 @@ fn evaluate_syscall(
 
 fn result_placement(
     result: Option<ValueShape>,
-    integer_register: MachineRegister,
+    integer_registers: &[MachineRegister],
     float_register: impl Fn(u8) -> MachineRegister,
 ) -> Result<Option<ValuePlacement>, PlanDiagnostic> {
     let Some(shape) = result else {
         return Ok(None);
     };
     let locations = match shape.class {
-        ValueClass::Integer => vec![register_location(integer_register, shape)],
+        ValueClass::Integer => vec![register_location(
+            *integer_registers.first().ok_or_else(|| {
+                PlanDiagnostic("calling policy has no integer result register".into())
+            })?,
+            shape,
+        )],
         ValueClass::Float => vec![register_location(float_register(0), shape)],
         ValueClass::HomogeneousFloatAggregate { members } => {
             let member_size = shape.byte_size / u16::from(members);
@@ -1291,6 +1382,41 @@ fn result_placement(
                     byte_size: member_size,
                 })
                 .collect()
+        }
+        ValueClass::SystemVAggregate { first, second } => {
+            let classes = [first, second];
+            let mut integer_index = 0usize;
+            let mut float_index = 0u8;
+            classes
+                .into_iter()
+                .enumerate()
+                .map(|(fragment, class)| {
+                    let register = match class {
+                        SystemVEightbyteClass::Integer => {
+                            let register =
+                                *integer_registers.get(integer_index).ok_or_else(|| {
+                                    PlanDiagnostic(
+                                    "calling policy has too few integer aggregate result registers"
+                                        .into(),
+                                )
+                                })?;
+                            integer_index += 1;
+                            register
+                        }
+                        SystemVEightbyteClass::Sse => {
+                            let register = float_register(float_index);
+                            float_index += 1;
+                            register
+                        }
+                    };
+                    let value_byte_offset = fragment as u16 * 8;
+                    Ok(ValueLocation::Register {
+                        register,
+                        value_byte_offset,
+                        byte_size: (shape.byte_size - value_byte_offset).min(8),
+                    })
+                })
+                .collect::<Result<Vec<_>, PlanDiagnostic>>()?
         }
     };
     Ok(Some(ValuePlacement { shape, locations }))
@@ -1316,6 +1442,13 @@ fn stack_location(stack_byte_offset: u32, shape: ValueShape) -> ValueLocation {
 fn align_up(value: u32, alignment: u32) -> u32 {
     let mask = alignment - 1;
     (value + mask) & !mask
+}
+
+const fn system_v_eightbyte_class_code(class: SystemVEightbyteClass) -> u8 {
+    match class {
+        SystemVEightbyteClass::Integer => 0,
+        SystemVEightbyteClass::Sse => 1,
+    }
 }
 
 struct Fnv1a(u64);
@@ -1488,6 +1621,11 @@ impl Fnv1a {
             ValueClass::HomogeneousFloatAggregate { members } => {
                 self.u8(2);
                 self.u8(members);
+            }
+            ValueClass::SystemVAggregate { first, second } => {
+                self.u8(3);
+                self.u8(system_v_eightbyte_class_code(first));
+                self.u8(system_v_eightbyte_class_code(second));
             }
         }
         self.u16(shape.byte_size);
@@ -2141,5 +2279,148 @@ mod tests {
         ];
         assert_eq!(plan.parameters[0].locations, expected);
         assert_eq!(plan.result.expect("packed SSE result").locations, expected);
+    }
+
+    #[test]
+    fn system_v_mixed_record_uses_independent_register_banks() {
+        let integer_sse = ValueShape::system_v_aggregate(
+            16,
+            8,
+            SystemVEightbyteClass::Integer,
+            SystemVEightbyteClass::Sse,
+        );
+        let sse_integer = ValueShape::system_v_aggregate(
+            16,
+            8,
+            SystemVEightbyteClass::Sse,
+            SystemVEightbyteClass::Integer,
+        );
+        let plan = evaluate_call_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: vec![integer_sse],
+                result: Some(sse_integer),
+            },
+        )
+        .expect("mixed SysV aggregate plan");
+
+        assert_eq!(
+            plan.parameters[0].locations,
+            vec![
+                ValueLocation::Register {
+                    register: MachineRegister::X86Rdi,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+                ValueLocation::Register {
+                    register: MachineRegister::X86Xmm(0),
+                    value_byte_offset: 8,
+                    byte_size: 8,
+                },
+            ]
+        );
+        assert_eq!(
+            plan.result.expect("mixed result").locations,
+            vec![
+                ValueLocation::Register {
+                    register: MachineRegister::X86Xmm(0),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+                ValueLocation::Register {
+                    register: MachineRegister::X86Rax,
+                    value_byte_offset: 8,
+                    byte_size: 8,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn system_v_mixed_record_rolls_back_both_banks() {
+        let mixed = ValueShape::system_v_aggregate(
+            16,
+            8,
+            SystemVEightbyteClass::Integer,
+            SystemVEightbyteClass::Sse,
+        );
+        let mut parameters = vec![ValueShape::float(8); 8];
+        parameters.extend([mixed, ValueShape::integer(8, 8)]);
+        let plan = evaluate_call_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters,
+                result: None,
+            },
+        )
+        .expect("mixed SysV rollback plan");
+
+        assert!(matches!(
+            plan.parameters[8].locations.as_slice(),
+            [
+                ValueLocation::Stack {
+                    stack_byte_offset: 0,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                    ..
+                },
+                ValueLocation::Stack {
+                    stack_byte_offset: 8,
+                    value_byte_offset: 8,
+                    byte_size: 8,
+                    ..
+                }
+            ]
+        ));
+        assert!(matches!(
+            plan.parameters[9].locations.as_slice(),
+            [ValueLocation::Register {
+                register: MachineRegister::X86Rdi,
+                ..
+            }]
+        ));
+
+        let mut parameters = vec![ValueShape::integer(8, 8); 6];
+        parameters.extend([mixed, ValueShape::float(8)]);
+        let plan = evaluate_call_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters,
+                result: None,
+            },
+        )
+        .expect("inverse mixed SysV rollback plan");
+        assert!(
+            plan.parameters[6]
+                .locations
+                .iter()
+                .all(|location| matches!(location, ValueLocation::Stack { .. }))
+        );
+        assert!(matches!(
+            plan.parameters[7].locations.as_slice(),
+            [ValueLocation::Register {
+                register: MachineRegister::X86Xmm(0),
+                ..
+            }]
+        ));
+    }
+
+    #[test]
+    fn system_v_mixed_record_rejects_equal_eightbyte_classes() {
+        let malformed = ValueShape::system_v_aggregate(
+            16,
+            8,
+            SystemVEightbyteClass::Integer,
+            SystemVEightbyteClass::Integer,
+        );
+        let error = evaluate_call_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: vec![malformed],
+                result: None,
+            },
+        )
+        .expect_err("equal classes must use an existing normalized aggregate class");
+        assert!(error.0.contains("two distinct INTEGER/SSE"));
     }
 }

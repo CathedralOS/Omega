@@ -232,6 +232,9 @@ pub fn encode_vtable_call_sequence_at_offset<T: InstructionOperandLike>(
                             byte_offset,
                         )
                     }
+                    omega_calling_conventions::ValueClass::SystemVAggregate { .. } => Err(
+                        Diagnostic::error("SysV aggregate class reached AAPCS64 vtable encoding"),
+                    ),
                 }
             } else {
                 debug_assert!(result.is_none());
@@ -335,6 +338,11 @@ pub fn encode_table_function_call_sequence<T: InstructionOperandLike>(
                     &arguments,
                     result.as_ref().expect("matched present result"),
                     byte_offset,
+                ),
+                Some(omega_calling_conventions::ValueClass::SystemVAggregate { .. }) => Err(
+                    Diagnostic::error(
+                        "SysV aggregate class reached AAPCS64 table-function encoding",
+                    ),
                 ),
             }
         }
@@ -498,6 +506,9 @@ pub fn encode_authored_import_call_sequence<T: InstructionOperandLike>(
                         scalar_result_register(Some(result), "authored")?,
                     )
                 }
+                omega_calling_conventions::ValueClass::SystemVAggregate { .. } => Err(
+                    Diagnostic::error("SysV aggregate class reached AAPCS64 import encoding"),
+                ),
             }
         }
         Architecture::X86_64 => x86_64::encode_host_call_sequence(
@@ -689,6 +700,7 @@ fn validate_aarch64_field_result(result: &ValuePlacement, label: &str) -> Result
                     )
                 })
         }
+        omega_calling_conventions::ValueClass::SystemVAggregate { .. } => false,
     };
     if !locations_match {
         return Err(Diagnostic::error(format!(
