@@ -6,44 +6,12 @@
 //! position, so policies may reorder entries or fragment one logical field.
 
 use omega_interpreter::BuildTimeValue;
+pub use omega_layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::types::PrimitiveType;
 
 const SCHEMA_FIELD_CAPACITY: usize = 32;
 const PLAN_ENTRY_CAPACITY: usize = 64;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LayoutPlacementReport {
-    At {
-        offset: i64,
-    },
-    Bits {
-        container: i64,
-        container_width: i64,
-        destination_lsb: i64,
-        source_lsb: i64,
-        width: i64,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LayoutFieldEntryReport {
-    /// Normalized field name. Compiler-issued keys do not escape into artifact
-    /// reports or identity.
-    pub field: String,
-    pub placement: LayoutPlacementReport,
-}
-
-/// A validated layout plan, ready for consumers.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LayoutPlanReport {
-    pub entries: Vec<LayoutFieldEntryReport>,
-    /// Declaration-order offsets when every field has one fixed `At`
-    /// placement. Fragmented plans deliberately have no such projection.
-    pub offsets: Option<Vec<i64>>,
-    pub size: Option<i64>,
-    pub align: i64,
-}
 
 #[derive(Debug, Clone)]
 struct SchemaFieldInfo {

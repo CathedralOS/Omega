@@ -67,12 +67,15 @@ results and source-selected policies remain below.
 3. **ENT3 — constrained entry codegen.** Derive entry stubs, specialize/codegen
    under the state ceiling, emit a checkable final footprint certificate, and
    validate after relaxation, veneers, thunks, and generated stubs.
-4. **IDT1 — symbolic materialization (fragment foundation complete).**
+4. **IDT1 — symbolic materialization (normalized foundation complete).**
    `LayoutPlan` now uses compiler-issued field keys normalized back to names;
    repeated `Bits` entries validate exact logical-source tiling plus
    destination bounds/overlap, while ordinary plan-laid values require one
-   `At` per field. Add sealed symbolic `Entry(EntryStubId)` relocation sources
-   and generate the phase-aware post-load split-address writer.
+   `At` per field. Normalized sealed `Data(DataSymbolId) | Entry(EntryStubId)`
+   sources now derive resolved writes, native whole-pointer relocations, and
+   post-handoff writer records while rejecting loader-consumed unresolved
+   fragments. Wire entry identities from selected artifacts and lower the
+   actions into object relocations or generated post-handoff code.
 5. **IDT2 — installed-root ledger.** Add `lidt` only as an installation path
    that consumes scoped IDT
    authority and records every installed entry as an external analysis root
@@ -283,9 +286,10 @@ before the fix.
   whole writes, and typed atomics while preserving borrow polarity and static
   reach. Never expose arbitrary-offset volatile access or per-access revocation
   probes.
-- **L6c — symbolic materializer.** Add relocation-valued fragmented fields,
-  phase/placement constraints, generated writers, and validation for
-  loader-consumed versus post-handoff structures.
+- **L6c — symbolic materializer.** The normalized source/action plan and
+  loader-versus-post-handoff validation are live. Add richer placement
+  constraints, source identity derivation, object-relocation lowering, and
+  generated writer code.
 - **External loans.** Represent DMA/device borrowing with linear proxy tokens,
   completion/fence/cache obligations, and CPU-access exclusion through the
   ordinary permission context.
