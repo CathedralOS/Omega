@@ -176,6 +176,12 @@ transition returns its authority inputs. The native container, real PCC and
 final-code validators, target materializer/installer operations, Omega
 linearity, and live replacement remain implementation work.
 
+Normalized retirement also enforces the opposite lifecycle edge: exact scoped
+authority and a provider receipt must prove executors quiesced, X removed,
+write authority restored, and target completion facts before the placement can
+return to W+NX. Visibility never substitutes for quiescence. Runtime provider
+execution and component replacement orchestration remain.
+
 AP trampoline installation consumes a compiler-produced admitted artifact and
 is followed by a target boot protocol; it is not runtime code generation. A
 dormant/local target needs local completion, while a future remote fetcher needs

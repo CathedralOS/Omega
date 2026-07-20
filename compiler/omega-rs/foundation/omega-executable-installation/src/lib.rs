@@ -42,6 +42,7 @@ normalized_id!(InstallationScopeId, "installation-scope");
 normalized_id!(FinalBytesId, "final-bytes");
 normalized_id!(FinalValidationId, "final-validation");
 normalized_id!(InstalledCodeId, "installed-code");
+normalized_id!(RetirementFactId, "retirement-fact");
 
 #[derive(Debug, PartialEq, Eq)]
 struct ArtifactRecord {
@@ -626,6 +627,158 @@ impl InstalledCode {
     }
 }
 
+/// One-shot authority to retire one exact installed realization. Required
+/// completion facts are open provider vocabulary; quiescence and permission
+/// transition remain mandatory lifecycle gates.
+#[derive(Debug, PartialEq, Eq)]
+pub struct RetirementAuthority {
+    installed: InstalledCodeId,
+    artifact: ArtifactId,
+    placement: CodePlacementId,
+    scope: InstallationScopeId,
+    required_facts: std::collections::BTreeSet<RetirementFactId>,
+}
+
+impl RetirementAuthority {
+    pub fn from_admitted_provider(
+        installed: InstalledCodeId,
+        artifact: ArtifactId,
+        placement: CodePlacementId,
+        scope: InstallationScopeId,
+        required_facts: impl IntoIterator<Item = RetirementFactId>,
+    ) -> Self {
+        Self {
+            installed,
+            artifact,
+            placement,
+            scope,
+            required_facts: required_facts.into_iter().collect(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct RetirementReceipt {
+    installed: InstalledCodeId,
+    artifact: ArtifactId,
+    placement: CodePlacementId,
+    scope: InstallationScopeId,
+    executors_quiesced: bool,
+    execute_disabled: bool,
+    write_authority_restored: bool,
+    established_facts: std::collections::BTreeSet<RetirementFactId>,
+}
+
+impl RetirementReceipt {
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_provider(
+        installed: InstalledCodeId,
+        artifact: ArtifactId,
+        placement: CodePlacementId,
+        scope: InstallationScopeId,
+        executors_quiesced: bool,
+        execute_disabled: bool,
+        write_authority_restored: bool,
+        established_facts: impl IntoIterator<Item = RetirementFactId>,
+    ) -> Self {
+        Self {
+            installed,
+            artifact,
+            placement,
+            scope,
+            executors_quiesced,
+            execute_disabled,
+            write_authority_restored,
+            established_facts: established_facts.into_iter().collect(),
+        }
+    }
+}
+
+/// Result of synchronous retirement. The previous artifact remains reusable;
+/// the exact destination returns to the W+NX `CodePlacement` state.
+#[derive(Debug)]
+pub struct RetiredInstallation {
+    previous_artifact: AdmittedArtifact,
+    placement: CodePlacement,
+}
+
+impl RetiredInstallation {
+    pub const fn previous_artifact(&self) -> &AdmittedArtifact {
+        &self.previous_artifact
+    }
+
+    pub fn into_placement(self) -> CodePlacement {
+        self.placement
+    }
+}
+
+pub fn retire_installed(
+    installed: InstalledCode,
+    authority: RetirementAuthority,
+    receipt: RetirementReceipt,
+) -> Result<RetiredInstallation, Box<RetirementError>> {
+    let artifact = installed.artifact.artifact.0.identity;
+    let placement = installed.placement.placement;
+    let scope = installed.placement.scope;
+    let mismatch = if authority.installed != installed.identity
+        || authority.artifact != artifact
+        || authority.placement != placement
+        || authority.scope != scope
+    {
+        Some("retirement authority is not scoped to this installed code")
+    } else if receipt.installed != installed.identity
+        || receipt.artifact != artifact
+        || receipt.placement != placement
+        || receipt.scope != scope
+    {
+        Some("retirement receipt does not match installed code")
+    } else if !receipt.executors_quiesced {
+        Some("retirement receipt does not establish executor quiescence")
+    } else if !receipt.execute_disabled {
+        Some("retirement receipt does not establish execute removal")
+    } else if !receipt.write_authority_restored {
+        Some("retirement receipt does not restore placement write authority")
+    } else if !authority
+        .required_facts
+        .is_subset(&receipt.established_facts)
+    {
+        Some("retirement receipt lacks required completion facts")
+    } else {
+        None
+    };
+    if let Some(message) = mismatch {
+        return Err(Box::new(RetirementError {
+            installed,
+            authority,
+            receipt,
+            diagnostic: InstallationDiagnostic(message.into()),
+        }));
+    }
+
+    Ok(RetiredInstallation {
+        previous_artifact: installed.artifact,
+        placement: installed.placement,
+    })
+}
+
+#[derive(Debug)]
+pub struct RetirementError {
+    installed: InstalledCode,
+    authority: RetirementAuthority,
+    receipt: RetirementReceipt,
+    diagnostic: InstallationDiagnostic,
+}
+
+impl RetirementError {
+    pub const fn diagnostic(&self) -> &InstallationDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (InstalledCode, RetirementAuthority, RetirementReceipt) {
+        (self.installed, self.authority, self.receipt)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstallationDiagnostic(pub String);
 
@@ -748,6 +901,35 @@ mod tests {
             id(71, MachineFootprintId::from_normalized_identity),
             true,
         )
+    }
+
+    fn installed_code(admitted: &AdmittedArtifact, placement: u64, base: u64) -> InstalledCode {
+        let validated = validate_final_placement(
+            frozen(admitted, placement, base),
+            &certificate(admitted, placement),
+        )
+        .expect("validated placement");
+        install_validated(
+            validated,
+            InstallAuthority::from_admitted_provider(
+                admitted.artifact().identity(),
+                admitted.admission(),
+                id(placement, CodePlacementId::from_normalized_identity),
+                id(61, InstallationScopeId::from_normalized_identity),
+                InstallationAudience::FutureFetcher,
+            ),
+            InstallationReceipt::from_provider(
+                id(200 + placement, InstalledCodeId::from_normalized_identity),
+                admitted.artifact().identity(),
+                admitted.admission(),
+                id(placement, CodePlacementId::from_normalized_identity),
+                id(61, InstallationScopeId::from_normalized_identity),
+                id(80 + placement, FinalValidationId::from_normalized_identity),
+                true,
+                WxEnforcement::HardwareEnforced,
+            ),
+        )
+        .expect("installed code")
     }
 
     #[test]
@@ -891,5 +1073,72 @@ mod tests {
         assert!(error.diagnostic().0.contains("lacks rights"));
         let (_authority, extent) = (*error).into_parts();
         assert_eq!(extent.base(), 0x6000);
+    }
+
+    #[test]
+    fn retirement_requires_quiescence_then_returns_writable_placement() {
+        let admitted = admit(&artifact(1));
+        let installed = installed_code(&admitted, 107, 0x7000);
+        let retirement_fact = id(300, RetirementFactId::from_normalized_identity);
+        let authority = RetirementAuthority::from_admitted_provider(
+            installed.identity(),
+            installed.artifact(),
+            installed.placement(),
+            id(61, InstallationScopeId::from_normalized_identity),
+            [retirement_fact],
+        );
+        let error = retire_installed(
+            installed,
+            authority,
+            RetirementReceipt::from_provider(
+                id(307, InstalledCodeId::from_normalized_identity),
+                admitted.artifact().identity(),
+                id(107, CodePlacementId::from_normalized_identity),
+                id(61, InstallationScopeId::from_normalized_identity),
+                false,
+                true,
+                true,
+                [retirement_fact],
+            ),
+        )
+        .expect_err("visibility is not quiescence");
+        assert!(error.diagnostic().0.contains("quiescence"));
+        let (installed, authority, _) = (*error).into_parts();
+
+        let retired = retire_installed(
+            installed,
+            authority,
+            RetirementReceipt::from_provider(
+                id(307, InstalledCodeId::from_normalized_identity),
+                admitted.artifact().identity(),
+                id(107, CodePlacementId::from_normalized_identity),
+                id(61, InstallationScopeId::from_normalized_identity),
+                true,
+                true,
+                true,
+                [retirement_fact],
+            ),
+        )
+        .expect("retired code");
+        assert_eq!(
+            retired.previous_artifact().artifact().identity(),
+            admitted.artifact().identity()
+        );
+
+        let replacement = admit(&artifact(2));
+        materialize_and_freeze(
+            &replacement,
+            retired.into_placement(),
+            MaterializationReceipt::from_provider(
+                replacement.artifact().identity(),
+                replacement.admission(),
+                id(107, CodePlacementId::from_normalized_identity),
+                id(32, PlacementPlanId::from_normalized_identity),
+                id(177, FinalBytesId::from_normalized_identity),
+                id(71, MachineFootprintId::from_normalized_identity),
+                true,
+            ),
+        )
+        .expect("placement reusable only after quiescent retirement");
     }
 }

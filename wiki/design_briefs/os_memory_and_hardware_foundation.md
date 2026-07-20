@@ -442,6 +442,14 @@ Failed linear transitions return their inputs. Container decode, actual PCC and
 final-code validators, provider execution, Omega linear integration, and live
 replacement remain.
 
+The normalized retirement path is live as well. It consumes one exact
+`InstalledCode` plus authority scoped to its artifact, placement, and scope;
+visibility evidence cannot satisfy it. The provider receipt must separately
+establish executor quiescence, removal of execute permission, restoration of
+write authority, and every open target completion fact. Only then does the
+placement return to W+NX for a later admitted artifact. The runtime
+quiescence/provider implementation and component-slot orchestration remain.
+
 This invariant covers every route to execute permission. Correct-by-construction
 page-table APIs require admitted-artifact provenance before deriving an
 executable mapping, and checked assembly emits the same installation authority
