@@ -738,8 +738,12 @@ remain contract-invisible.
   header parents before substitution into the synthesized signature and body.
   Reflection-driven trait generators remain under build-time evaluation below.
   Do not restore a `default` keyword.
-- **Dynamic traits.** Implement `dyn Trait` construction, descriptors carrying
-  satisfier identity, vtable emission, dispatch lowering, and object-safety.
+- **Dynamic traits (OWNER-BLOCKED: `OWNER_QUESTIONS.md` section 6).**
+  Closed-world parameter calls currently specialize per concrete call site.
+  Runtime-varying construction/storage, descriptors carrying satisfier
+  identity, vtable emission, true indirect dispatch, and object-safety await
+  the runtime representation, ownership, ABI, and admissible-signature
+  decisions recorded there.
 - **Equatable synthesis.** Provide a callable conformance surface rather than
   structural magic.
 - **Build-time evaluation.** Add compile-time evaluation and trait generators
