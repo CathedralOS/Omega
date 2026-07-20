@@ -15,6 +15,81 @@ use std::process::Stdio;
 #[cfg(windows)]
 use std::process::Stdio;
 
+#[test]
+fn retired_domain_when_surface_is_absent_from_authored_corpus() {
+    let root = repo_root();
+    let tracked = Command::new("git")
+        .args([
+            "-C",
+            root.to_str().expect("UTF-8 repository path"),
+            "ls-files",
+            "-z",
+        ])
+        .output()
+        .expect("list tracked corpus files");
+    assert!(tracked.status.success(), "git ls-files should succeed");
+
+    let retired_keyword = "when";
+    let retired_role = "classifier";
+    let retired_name_fragments = [
+        ["domain", retired_role].join("_"),
+        ["machine", retired_role].join("_"),
+        [retired_keyword, retired_role].join("_"),
+        ["const", "domain", retired_role].join("_"),
+    ];
+    let syntax_exceptions = [
+        "canaries/fail/domains/domain_when_clause_retired/main.omg",
+        "wiki/language_guide/chapter_8_domains.md",
+    ];
+    let mut violations = Vec::new();
+
+    for relative in String::from_utf8_lossy(&tracked.stdout).split('\0') {
+        if relative.is_empty() || !root.join(relative).is_file() {
+            continue;
+        }
+        if retired_name_fragments
+            .iter()
+            .any(|fragment| relative.contains(fragment))
+        {
+            violations.push(format!("retired vocabulary in path `{relative}`"));
+        }
+
+        let extension = Path::new(relative)
+            .extension()
+            .and_then(|extension| extension.to_str());
+        if !matches!(extension, Some("omg" | "rs" | "md" | "txt")) {
+            continue;
+        }
+        let Ok(source) = fs::read_to_string(root.join(relative)) else {
+            continue;
+        };
+        for (index, line) in source.lines().enumerate() {
+            let lower = line.to_ascii_lowercase();
+            let old_declaration = lower.trim_start().starts_with("domain ")
+                && lower.contains(&format!(" {retired_keyword} "));
+            let old_multiline_clause = extension == Some("omg")
+                && lower
+                    .trim_start()
+                    .starts_with(&format!("{retired_keyword} "));
+            let old_prose = lower.contains(retired_keyword) && lower.contains(retired_role);
+            let old_identifier = retired_name_fragments
+                .iter()
+                .any(|fragment| lower.contains(fragment));
+            if (old_declaration || old_multiline_clause || old_prose || old_identifier)
+                && !syntax_exceptions.contains(&relative)
+            {
+                violations.push(format!("{}:{}: {}", relative, index + 1, line.trim()));
+            }
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "retired domain `when` surface remains:\n{}",
+        violations.join("\n")
+    );
+}
+
 #[cfg(windows)]
 #[test]
 fn windows_x64_cli_mvp_emits_runnable_pe() {
@@ -3136,7 +3211,7 @@ fn utf8_literal_len_exit_canary_runs() {
 }
 
 // #66: the literal-grant mechanism is GENERAL -- not hardcoded to the `Utf8`
-// domain name. A USER domain `[u8]::Ascii` with a DIFFERENT classifier predicate
+// domain name. A USER domain `[u8]::Ascii` with a DIFFERENT byte-predicate fact
 // (`ascii_only(self)`) grants an ASCII string literal its domain, discharging the
 // param's `in Ascii` requirement; under the old `name == "Utf8"` hardcode this
 // would have failed. The literal also flows as a real `&[u8]` view, so
@@ -3165,7 +3240,7 @@ fn user_domain_literal_grant_canary_runs() {
         output.status.code(),
         Some(70),
         "expected an ASCII literal to be granted a user `[u8]::Ascii` domain via its \
-         `ascii_only(self)` classifier and read len 2 (exit 70), got {:?}\nstderr:\n{}",
+         `ascii_only(self)` fact and read len 2 (exit 70), got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -16509,8 +16584,8 @@ fn match_exhaustive_by_cases_canary_runs() {
 
 #[test]
 fn match_exhaustive_by_case_union_domain_canary_runs() {
-    // A PURE case-union domain arm (`when self in Command::Move |
-    // Command::Say`, nothing else) contributes its tag set to exhaustiveness
+    // A PURE case-union domain arm (the sole body fact is
+    // `self in Command::Move | Command::Say`) contributes its tag set to exhaustiveness
     // -- no `_` needed -- and classifies at runtime: the held value is the
     // SECOND union member, so a lowering that drops union arms exits 71.
     let canary = pass_canary("data/match_exhaustive_by_case_union_domain");
@@ -20327,10 +20402,16 @@ fn runtime_const_data_where_fact_exit_canary_runs() {
 }
 
 #[test]
-fn runtime_const_data_machine_classifier_exit_canary_runs() {
-    let canary = pass_canary("generics/runtime_const_data_machine_classifier_exit");
+fn domain_body_case_membership_with_default_arm_compiles() {
+    compile_canary_without_output(&pass_canary("data/match_default_satisfies_exhaustiveness"))
+        .expect("a domain-body fact may name an implicit case domain");
+}
+
+#[test]
+fn runtime_const_data_machine_fact_exit_canary_runs() {
+    let canary = pass_canary("generics/runtime_const_data_machine_fact_exit");
     let build_dir = std::env::temp_dir().join(format!(
-        "omega-const-data-machine-classifier-{}",
+        "omega-const-data-machine-fact-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
@@ -20340,10 +20421,10 @@ fn runtime_const_data_machine_classifier_exit_canary_runs() {
         target_name: None,
         write_output: true,
     })
-    .expect("machine-backed const domain classifiers should discharge");
+    .expect("machine-backed const domain facts should discharge");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
-        .expect("machine-backed const domain classifier canary should run");
+        .expect("machine-backed const domain fact canary should run");
     assert_eq!(output.status.code(), Some(70));
     let _ = fs::remove_dir_all(&build_dir);
 }
@@ -36184,8 +36265,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/domain_operator_proven_fact_selects_meaning",
     "domains/domain_operator_unproven_keeps_builtin_meaning",
     "domains/domain_operator_requires_discharged",
-    "domains/string_non_empty_classifier",
-    "domains/when_classifier_clause",
+    "domains/string_non_empty_fact",
     "domains/executable_domain_membership_expression_exit",
     "domains/executable_domain_membership_intersection_guard_exit",
     "domains/executable_imported_domain_membership_exit",
@@ -36751,7 +36831,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/runtime_const_data_array_length_exit",
     "generics/runtime_const_data_expression_exit",
     "generics/runtime_const_data_machine_call_exit",
-    "generics/runtime_const_data_machine_classifier_exit",
+    "generics/runtime_const_data_machine_fact_exit",
     "generics/runtime_const_data_where_fact_exit",
     "generics/runtime_const_data_symbolic_expression_exit",
     "generics/runtime_const_data_forwarded_length_exit",
@@ -36841,13 +36921,15 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "domains/domain_when_clause_retired",
     "generics/negative_const_data_argument_unsigned",
     "generics/signed_const_data_argument_out_of_range",
     "generics/signed_const_data_shift_overflow",
-    "generics/const_data_where_machine_classifier_effectful",
-    "generics/const_data_where_machine_classifier_fact_false",
-    "generics/const_data_where_machine_classifier_false",
-    "generics/const_data_where_machine_classifier_nested_false",
+    "generics/const_data_where_machine_fact_effectful",
+    "generics/const_data_where_machine_fact_composed_false",
+    "generics/const_data_where_machine_fact_false",
+    "generics/const_data_where_machine_fact_nested_false",
+    "generics/const_data_where_domain_membership_false",
     "core/task_core_scope_loss",
     "ownership/copy_linear_conflict",
     "ownership/linear_field_erased_by_affine_container",
@@ -37130,7 +37212,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/domain_carrier_mismatch",
     "domains/domain_param_requires_membership",
     "domains/domain_field_write_raw_value",
-    "domains/literal_violates_classifier",
+    "domains/literal_violates_domain_fact",
     "domains/domain_field_read_no_write_unproven",
     "expressions/arithmetic_domain_literal_target_overflow",
     "collections/fixed_vec_push_without_room",
@@ -37179,7 +37261,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "generics/const_data_machine_call_requires_zero_arguments",
     "generics/const_data_machine_call_requires_pure",
     "generics/const_data_where_fact_false",
-    "generics/const_data_where_classifier_membership_false",
+    "generics/const_data_where_domain_membership_false",
     "generics/const_data_where_membership_carrier_mismatch",
     "generics/const_data_where_membership_false",
     "generics/const_data_where_mixed_fact_violated",

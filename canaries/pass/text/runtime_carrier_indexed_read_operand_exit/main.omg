@@ -5,11 +5,12 @@
 // the carrier's `[u8]` storage, not to a single byte. Summing the bytes of
 // "ABCD" (65+66+67+68) gives 266 (a Wrapping u32). Exits 70.
 
-domain [u8]::Utf8 when valid_utf8(self) {
+domain [u8]::Utf8 {
+    valid_utf8(self);
 }
-domain [u8; 4]::Utf8 when valid_utf8(self) {
+domain [u8; 4]::Utf8 {
+    valid_utf8(self);
 }
-
 use omega::language::std::console;
 
 data Main {

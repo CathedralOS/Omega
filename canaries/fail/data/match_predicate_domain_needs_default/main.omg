@@ -1,7 +1,7 @@
 // Exhaustiveness counts only DECIDABLE arms (chapter 1 "Cases Are Domains"):
 // a predicate-domain arm classifies, but the compiler cannot count what it
 // covers, so the dispatch needs a `_` arm. `Entity::Dangerous` has a body
-// fact beyond its case-union classifier -- "nothing else" is the pure-union
+// fact beyond its case-union membership fact -- "nothing else" is the pure-union
 // rule -- so it is a predicate domain and the missing `_` is an error.
 
 data Entity {
@@ -9,7 +9,8 @@ data Entity {
     case Monster(health: i32);
 }
 
-domain Entity::Dangerous when self in Entity::Monster {
+domain Entity::Dangerous {
+    self in Entity::Monster;
     self.health > 0;
 }
 

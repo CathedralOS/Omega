@@ -1,0 +1,11 @@
+// A domain is exactly its body facts; the retired `when` axis is rejected.
+data Game {
+    phase: i32;
+}
+
+domain Game::Playing when self.phase == 1 {
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

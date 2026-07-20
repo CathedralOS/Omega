@@ -7,12 +7,12 @@
 // length-fits guard already proved `"Room " (5) + self.label (<= 4)` fits the
 // 16-byte target. `self.text == "Room A1"` matches (length 7, every byte) -> exit
 // 70. The interpreter agrees (differential).
-domain [u8; 4]::Utf8 when valid_utf8(self) {
+domain [u8; 4]::Utf8 {
+    valid_utf8(self);
 }
-
-domain [u8; 16]::Utf8 when valid_utf8(self) {
+domain [u8; 16]::Utf8 {
+    valid_utf8(self);
 }
-
 use omega::language::std::console;
 
 data Main {

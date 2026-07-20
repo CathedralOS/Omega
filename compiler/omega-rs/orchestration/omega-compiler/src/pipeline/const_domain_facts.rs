@@ -1,9 +1,9 @@
-//! Build-time evaluation of machine-backed integer-domain classifiers used by
+//! Build-time evaluation of machine-backed integer-domain facts used by
 //! concrete const-generic instances.
 //!
 //! Generic instance synthesis runs before symbol resolution. It can discharge
-//! closed arithmetic classifiers there, but a classifier such as
-//! `when is_buffer_size(self)` must wait until its callee has a typed symbol and
+//! closed arithmetic facts there, but a fact such as `is_buffer_size(self);`
+//! must wait until its callee has a typed symbol and
 //! an inferred transitive effect surface. This pass runs immediately after the
 //! other typed const-evaluation pass and replaces a proven concrete membership
 //! with the ordinary `true` fact consumed by checking.
@@ -25,11 +25,9 @@ struct PendingMembership {
     membership: ProofMembershipFact,
 }
 
-/// Evaluate direct `machine(self)` classifiers for literal memberships copied
+/// Evaluate direct `machine(self)` facts for literal memberships copied
 /// into synthesized const-generic data definitions.
-pub(super) fn evaluate_const_domain_classifiers(
-    typed: &mut TypedTrees,
-) -> Result<(), Vec<Diagnostic>> {
+pub(super) fn evaluate_const_domain_facts(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut pending = Vec::new();
     for data in typed.data_definitions() {
         // The unspecialized template has no angle-bracket spelling and must
@@ -80,7 +78,7 @@ pub(super) fn evaluate_const_domain_classifiers(
             ))),
             Ok(None) => {}
             Err(reason) => diagnostics.push(Diagnostic::error(format!(
-                "const domain classifier for generic instance `{}` failed: {reason}",
+                "const domain fact evaluation for generic instance `{}` failed: {reason}",
                 pending.instance_name
             ))),
         }
@@ -131,13 +129,6 @@ fn evaluate_membership(
     else {
         return Ok(None);
     };
-    let ExpressionNode::Call(call) = typed.expression_table.expression(domain.classifier) else {
-        return Ok(None);
-    };
-    if !is_direct_self_call(typed, call) {
-        return Ok(None);
-    }
-
     let ExpressionNode::Integer(literal) =
         typed.expression_table.expression(pending.membership.value)
     else {
@@ -149,25 +140,16 @@ fn evaluate_membership(
         )
     })?;
 
-    let Some(classifier_holds) =
-        evaluate_machine_classifier(typed, effect_plan, domain.classifier, value)?
-    else {
-        return Ok(None);
-    };
-    if !classifier_holds {
-        return Ok(Some(false));
-    }
-
     evaluate_domain_facts(typed, effect_plan, domain, value, &mut vec![domain.symbol])
 }
 
-fn evaluate_machine_classifier(
+fn evaluate_machine_fact(
     typed: &TypedTrees,
     effect_plan: &omega_effects::EffectPlan,
-    classifier: ExpressionHandle,
+    expression: ExpressionHandle,
     self_value: i64,
 ) -> Result<Option<bool>, String> {
-    let ExpressionNode::Call(call) = typed.expression_table.expression(classifier) else {
+    let ExpressionNode::Call(call) = typed.expression_table.expression(expression) else {
         return Ok(None);
     };
     if !is_direct_self_call(typed, call) {
@@ -184,7 +166,7 @@ fn evaluate_machine_classifier(
                 .find(|state| state.symbol == call.target_symbol)
                 .map(|state| (machine, state))
         })
-        // Domain classifiers are lowered outside a machine body, where a free
+        // Domain facts are lowered outside a machine body, where a free
         // call currently retains its resolved target name but not its state
         // symbol. Resolve that exact free-machine name here; ordinary call
         // validation still owns ambiguous or missing targets.
@@ -246,11 +228,11 @@ fn evaluate_machine_classifier(
     }
     if typed.primitive_type_reference(state.return_type) != Some(PrimitiveType::Bool) {
         return Err(format!(
-            "machine `{machine_name}` must return `bool` when used as a domain classifier"
+            "machine `{machine_name}` must return `bool` when used as a domain fact"
         ));
     }
 
-    let classifier_holds = match omega_interpreter::evaluate_build_time_machine(
+    let fact_holds = match omega_interpreter::evaluate_build_time_machine(
         typed,
         machine_name,
         vec![BuildTimeValue::Int(self_value)],
@@ -264,7 +246,7 @@ fn evaluate_machine_classifier(
             ));
         }
     };
-    Ok(Some(classifier_holds))
+    Ok(Some(fact_holds))
 }
 
 fn evaluate_domain_facts(
@@ -277,7 +259,12 @@ fn evaluate_domain_facts(
     for fact in typed.proof_facts.span_or_empty(domain.facts) {
         match fact {
             ProofFact::Expression(expression) => {
-                match evaluate_domain_fact_expression(typed, *expression, self_value)? {
+                let value =
+                    match evaluate_machine_fact(typed, effect_plan, *expression, self_value)? {
+                        Some(value) => Some(ConstProofValue::Boolean(value)),
+                        None => evaluate_domain_fact_expression(typed, *expression, self_value)?,
+                    };
+                match value {
                     Some(ConstProofValue::Boolean(true)) => {}
                     Some(ConstProofValue::Boolean(false)) => return Ok(Some(false)),
                     Some(ConstProofValue::Integer(_)) => {
@@ -335,25 +322,6 @@ fn evaluate_nested_domain_membership(
     else {
         return Ok(None);
     };
-
-    if domain.classifier.is_valid() {
-        let classifier =
-            match evaluate_machine_classifier(typed, effect_plan, domain.classifier, self_value)? {
-                Some(value) => Some(ConstProofValue::Boolean(value)),
-                None => evaluate_domain_fact_expression(typed, domain.classifier, self_value)?,
-            };
-        match classifier {
-            Some(ConstProofValue::Boolean(true)) => {}
-            Some(ConstProofValue::Boolean(false)) => return Ok(Some(false)),
-            Some(ConstProofValue::Integer(_)) => {
-                return Err(format!(
-                    "domain `{}` has a non-boolean classifier",
-                    domain.name
-                ));
-            }
-            None => return Ok(None),
-        }
-    }
 
     visiting.push(domain_symbol);
     let result = evaluate_domain_facts(typed, effect_plan, domain, self_value, visiting);

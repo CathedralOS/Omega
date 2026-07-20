@@ -12,10 +12,15 @@
 // subscript), then bounds-guarded.
 use omega::language::std::console;
 
-domain [u8]::Utf8 when valid_utf8(self) {}
-domain [u8; 16]::Utf8 when valid_utf8(self) {}
-domain [u8; 8]::Utf8 when valid_utf8(self) {}
-
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 16]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
 data Main {
     console: Console;
     hay: [u8; 16] in Utf8;

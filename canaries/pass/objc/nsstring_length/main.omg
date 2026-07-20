@@ -8,9 +8,9 @@
 // NSUInteger result in x0) yields n == 5 -> exit 5. Before Foundation loading,
 // objc_getClass("NSString") was nil and this silently took the nil path.
 
-domain [u8]::CString when no_nul(self) {
+domain [u8]::CString {
+    no_nul(self);
 }
-
 use omega::language::std::console;
 
 boundary trait ObjectiveC {

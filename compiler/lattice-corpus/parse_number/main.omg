@@ -6,9 +6,12 @@
 // is required: a carrier byte is a u8, and widening to i32 is explicit.)
 // Expected exit: 25.
 
-domain [u8]::Utf8 when valid_utf8(self) {}
-domain [u8; 4]::Utf8 when valid_utf8(self) {}
-
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 4]::Utf8 {
+    valid_utf8(self);
+}
 boundary trait Console {
     machine exit_process(return_code: i32);
 }

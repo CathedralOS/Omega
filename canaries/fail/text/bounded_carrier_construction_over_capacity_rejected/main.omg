@@ -6,9 +6,9 @@
 // storage (a write past the array's bounds into adjacent fields). The construction
 // walk (scan_construction_field_domains) previously checked only the DOMAIN half
 // (valid UTF-8), never the CAPACITY half.
-domain [u8; 4]::Utf8 when valid_utf8(self) {
+domain [u8; 4]::Utf8 {
+    valid_utf8(self);
 }
-
 use omega::language::std::console;
 
 data Holder {

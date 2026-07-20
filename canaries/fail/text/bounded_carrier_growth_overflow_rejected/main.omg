@@ -7,9 +7,9 @@
 // the no-overflow theorem for bounded text carriers: an unbounded in-place append
 // does not compile. The same guard admits a write that provably fits (a literal,
 // or a concatenation of bounded operands whose lengths sum to <= the capacity).
-domain [u8; 16]::Utf8 when valid_utf8(self) {
+domain [u8; 16]::Utf8 {
+    valid_utf8(self);
 }
-
 use omega::language::std::console;
 
 data Main {

@@ -1,4 +1,4 @@
-// A direct effect-free `machine(self)` integer-domain classifier is evaluated
+// A direct effect-free `machine(self)` integer-domain fact is evaluated
 // at build time for the concrete const-generic instance.
 use omega::language::std::console;
 
@@ -10,9 +10,11 @@ machine is_at_most_eight(value: u64) -> bool {
     value <= 8
 }
 
-domain u64::AtMostEight when is_at_most_eight(self) {}
-
-domain u64::BufferSize when is_positive(self) {
+domain u64::AtMostEight {
+    is_at_most_eight(self);
+}
+domain u64::BufferSize {
+    is_positive(self);
     self in AtMostEight;
     !(self == 3)
 }

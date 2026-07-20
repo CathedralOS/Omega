@@ -39,21 +39,6 @@ pub(crate) fn lower_expression_handle_from_table(
     )
 }
 
-pub(crate) fn lower_expression_handle_from_table_in_program(
-    program: &resolved::SymbolResolvedTrees,
-    source: &resolved::expression::ExpressionTable,
-    target: &mut typed::expression::ExpressionTable,
-    expression: resolved::expression::ExpressionHandle,
-) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-    lower_expression_handle_from_table_with_self_substitution(
-        Some(program),
-        source,
-        target,
-        expression,
-        None,
-    )
-}
-
 pub(super) fn lower_expression_handle_from_table_with_self_substitution(
     program: Option<&resolved::SymbolResolvedTrees>,
     source: &resolved::expression::ExpressionTable,
@@ -70,9 +55,9 @@ pub(super) fn lower_expression_handle_from_table_with_self_substitution(
     )
 }
 
-/// PROOF-FACT position twin of `lower_expression_handle_from_table_in_program`:
-/// equality over recursive (proof-only) data lowers as a raw Binary for the
-/// structural entailment judge instead of demanding runtime synthesis.
+/// Lower an expression in proof-fact position: equality over recursive
+/// (proof-only) data stays a raw Binary for the structural entailment judge
+/// instead of demanding runtime synthesis.
 pub(crate) fn lower_expression_handle_from_table_in_fact_position(
     program: &resolved::SymbolResolvedTrees,
     source: &resolved::expression::ExpressionTable,

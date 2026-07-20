@@ -1,11 +1,13 @@
 // Facts over only const parameters, including membership in an integer domain
-// with an evaluable `when` classifier, discharge once for the concrete generic
+// with an evaluable domain body fact, discharge once for the concrete generic
 // instance. They are not runtime invariants on the synthesized record.
 use omega::language::std::console;
 
-domain u64::Positive when self > 0 {}
-
-domain u64::BufferSize when self in Positive {
+domain u64::Positive {
+    self > 0;
+}
+domain u64::BufferSize {
+    self in Positive;
     self <= 8;
 }
 

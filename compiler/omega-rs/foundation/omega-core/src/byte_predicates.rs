@@ -1,6 +1,5 @@
-//! Compiler-recognized BYTE-SEQUENCE classifier predicates -- the reusable
-//! building blocks a domain selects by spelling one as its
-//! `when <predicate>(self)` classifier. The ENUM and its evaluation/laws are
+//! Compiler-recognized BYTE-SEQUENCE predicates -- reusable building blocks a
+//! domain selects by spelling one as a body fact. The enum and its evaluation/laws are
 //! dependency-free vocabulary shared by the checker (compile-time proof),
 //! the interpreter, AND the instruction kinds (the native decode boundary
 //! carries a predicate MASK -- ZII: an empty mask is a plain byte copy).
@@ -55,7 +54,7 @@ impl ByteSequencePredicate {
     }
 
     /// Whether `predicate(a) && predicate(b)` implies `predicate(a ++ b)`: the
-    /// classifier is preserved under byte-sequence concatenation. All four
+    /// predicate is preserved under byte-sequence concatenation. All four
     /// recognized predicates are concat-preserving -- concatenating two
     /// valid-UTF-8 / nul-free / ASCII-only / non-empty sequences yields one of
     /// the same kind (UTF-8 sequences are self-delimiting, so a complete valid
@@ -69,7 +68,7 @@ impl ByteSequencePredicate {
     }
 
     /// Whether `predicate(x)` implies `predicate(x[a..b])` for EVERY contiguous
-    /// subslice: the classifier is preserved under subslicing. True only for
+    /// subslice: the predicate is preserved under subslicing. True only for
     /// PER-BYTE character-class predicates -- `no_nul`/`ascii_only` classify each
     /// byte independently, so any subset of the bytes still satisfies them.
     /// `valid_utf8` is NOT subslice-preserving (a subslice can cut a multi-byte

@@ -39,8 +39,8 @@ remain ordinary operations and may perform runtime work.
 > consumption point (settled 2026-07-17). The first implementation slices now
 > cover declaration clauses, exact construction gates, range sugar, propagated
 > zero-validity, standing scalar bounds, direct/nested/indexed windows, and
-> witness-pinning loans, flow-proven local construction, and classifier-backed
-> byte-domain membership through construction and windows. Versioned expression
+> witness-pinning loans, flow-proven local construction, and byte-predicate
+> domain facts through construction and windows. Versioned expression
 > provenance discharges identical and affine correlations across construction
 > and adjacent writes; `.len` measure facts cover zero values, literals, place
 > copies, construction, and writes. Other operator facts and broader relational
@@ -404,8 +404,7 @@ domain Game::Playing::RoundStart { self.turn == 1; }
 // RoundStart ≡ { self in Game::Playing; self.turn == 1 } — the parent facts are inherited
 ```
 
-Membership is a lattice and the name is the edge. This subsumes what a `when`
-classifier used to do, for free: to test a sub-domain the compiler tests the
+Membership is a lattice and the name is the edge. To test a sub-domain the compiler tests the
 parent first, so a cheap parent (`phase == Playing`) gives a tag-switch and an
 expensive one (a byte scan) is paid honestly — the cost follows the facts, not a
 keyword.
@@ -836,7 +835,7 @@ never from the transport:
   ```
 
   This is the blessed pattern, not a trick to be discovered: a multi-domain
-  classifier is a sum-returning fallible call, and the matched case payload IS
+  classification operation is a sum-returning fallible call, and the matched case payload IS
   the discharge.
 
 - **Never from the wire.** Deserializing a wire message produces structure + raw

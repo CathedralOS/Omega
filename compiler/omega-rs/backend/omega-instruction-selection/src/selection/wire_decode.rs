@@ -589,7 +589,7 @@ fn collect_field_reads(
             }
             // Decode-boundary byte-domain obligations: the emitted sequence
             // validates the copied bytes (interp parity). An UNRECOGNIZED
-            // domain classifier refuses selection -- silently decoding
+            // domain fact set refuses selection -- silently decoding
             // without validation is the pinned utf8 soundness hole; the
             // emission planner reports the unlowered decode loudly.
             let mut predicate_mask = 0u8;

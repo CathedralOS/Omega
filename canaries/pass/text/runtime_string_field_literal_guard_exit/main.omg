@@ -5,9 +5,9 @@
 // runtime_slice_indexed_string_guard_exit -- before the TextEqualsLiteral
 // guard selection existed, BOTH shapes selected no compare and the guard
 // silently evaluated true.
-domain [u8]::Utf8 when valid_utf8(self) {
+domain [u8]::Utf8 {
+    valid_utf8(self);
 }
-
 use omega::language::std::console;
 
 data Main {

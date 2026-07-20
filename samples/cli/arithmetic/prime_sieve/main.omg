@@ -10,9 +10,12 @@
 // Expected output contains: 47
 use omega::language::std::console;
 
-domain [u8]::Utf8 when valid_utf8(self) {}
-domain [u8; 48]::Utf8 when valid_utf8(self) {}
-
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 48]::Utf8 {
+    valid_utf8(self);
+}
 data Main {
     console: Console;
     marked: [i32; 50] in Wrapping; // 0 = prime candidate, 1 = composite (zero-init)

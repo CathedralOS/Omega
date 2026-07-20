@@ -9,9 +9,12 @@
 // Expected output contains: 16
 use omega::language::std::console;
 
-domain [u8]::Utf8 when valid_utf8(self) {}
-domain [u8; 16]::Utf8 when valid_utf8(self) {}
-
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 16]::Utf8 {
+    valid_utf8(self);
+}
 data Main {
     console: Console;
     wall: [i32; 25] in Wrapping;

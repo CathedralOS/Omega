@@ -8,7 +8,8 @@ data Entity {
     case Monster(health: i32);
 }
 
-domain Entity::Dangerous when self in Entity::Monster {
+domain Entity::Dangerous {
+    self in Entity::Monster;
     self.health > 0;
 }
 

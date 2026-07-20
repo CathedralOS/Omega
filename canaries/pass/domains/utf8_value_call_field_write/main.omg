@@ -12,9 +12,9 @@
 // descriptor-copy path bail, surfacing as "needs runtime storage write lowering" +
 // "needs runtime value lowering". Unwrapping `Constrained` in the field layout
 // makes the field a fat descriptor and the copy lowers.
-domain [u8]::Utf8 when valid_utf8(self) {
+domain [u8]::Utf8 {
+    valid_utf8(self);
 }
-
 data Main {
     out: &[u8] in Utf8;
 }

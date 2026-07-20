@@ -1,5 +1,5 @@
 use super::lower_expression_handle_from_table_with_self_substitution;
-use super::name_paths::lower_name_path_members_into_table;
+use crate::name::lower_name;
 use omega_core::diagnostics::Diagnostic;
 use omega_symbol_resolved_trees as resolved;
 use omega_typed_trees as typed;
@@ -21,7 +21,21 @@ pub(super) fn lower_case_membership_expression(
     value: typed::expression::ExpressionHandle,
     domain: omega_core::arena::HandleSpan<resolved::name::DiagnosticName>,
 ) -> Option<typed::expression::ExpressionHandle> {
-    let [type_name, case_name] = source.name_path_members(domain) else {
+    lower_case_membership_expression_from_members(
+        program,
+        target,
+        value,
+        source.name_path_members(domain),
+    )
+}
+
+fn lower_case_membership_expression_from_members(
+    program: &resolved::SymbolResolvedTrees,
+    target: &mut typed::expression::ExpressionTable,
+    value: typed::expression::ExpressionHandle,
+    domain_members: &[resolved::name::DiagnosticName],
+) -> Option<typed::expression::ExpressionHandle> {
+    let [type_name, case_name] = domain_members else {
         return None;
     };
 
@@ -43,7 +57,10 @@ pub(super) fn lower_case_membership_expression(
 
     // The case reference must carry its symbols: the backend's guard tag
     // clamp keys the tag-only compare off a symbol-stamped `Type::Case` path.
-    let members = lower_name_path_members_into_table(source, target, domain);
+    let mut members = omega_core::arena::HandleSpan::empty();
+    for member in domain_members {
+        target.push_name_path_member(&mut members, lower_name(member));
+    }
     let mut member_symbols = omega_core::arena::HandleSpan::empty();
     target.push_name_path_member_symbol(&mut member_symbols, data_definition.symbol);
     target.push_name_path_member_symbol(&mut member_symbols, variant_symbol);
@@ -85,19 +102,6 @@ pub(super) fn lower_domain_membership_expression(
     let source = &program.tables.bodies.expressions;
     let mut lowered_facts = Vec::new();
 
-    // The `when` classifier is part of the runtime membership test: a
-    // case-subset domain (`when self in Type::A | Type::B`) has ONLY a
-    // classifier, and its membership is exactly that union of tag tests.
-    if domain_definition.classifier.is_valid() {
-        lowered_facts.push(lower_expression_handle_from_table_with_self_substitution(
-            Some(program),
-            source,
-            target,
-            domain_definition.classifier,
-            Some(value),
-        )?);
-    }
-
     for fact in program.proof_facts(domain_definition.facts) {
         let lowered = match fact {
             resolved::domain::ProofFact::Expression(expression) => {
@@ -117,12 +121,21 @@ pub(super) fn lower_domain_membership_expression(
                     membership.value,
                     Some(value),
                 )?;
-                lower_domain_membership_expression(
+                if let Some(case_membership) = lower_case_membership_expression_from_members(
                     program,
                     target,
                     nested_value,
-                    membership.domain_symbol,
-                )?
+                    program.domain_path_members(membership.domain),
+                ) {
+                    case_membership
+                } else {
+                    lower_domain_membership_expression(
+                        program,
+                        target,
+                        nested_value,
+                        membership.domain_symbol,
+                    )?
+                }
             }
         };
         lowered_facts.push(lowered);

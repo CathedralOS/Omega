@@ -4,7 +4,9 @@
 // bytes) is separate from the fixed-array element_cell path, so this pins the
 // coercion for carriers specifically. The existing carrier byte-write canary only
 // covers in-range literals/fields. exit 71 = the byte was not the low-byte 44.
-domain [u8; 8]::Utf8 when valid_utf8(self) {}
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
 use omega::language::std::console;
 data Main { console: Console; buffer: [u8; 8] in Utf8; a: u8 in Wrapping; b: u8 in Wrapping; }
 machine Main::main(&mut self) {

@@ -13,7 +13,7 @@
 //! desugar to membership at parse time, so every equality this pass sees is
 //! user-written. That is what lets the check cover ALL positions --
 //! statements, transition guard subjects/conditions, transition target
-//! arguments, domain `when` classifiers and proof facts, and machine
+//! arguments, domain proof facts, and machine
 //! contracts -- without re-flagging the tag compare that membership lowering
 //! synthesizes afterwards (the guard tag clamp survives only as that
 //! internal lowering of `in`).
@@ -45,9 +45,6 @@ pub(crate) fn validate_equality_operands(program: &SymbolResolvedTrees) -> Resul
     }
 
     for domain in &program.domain_definitions {
-        if domain.classifier.is_valid() {
-            scan_expression(program, domain.classifier, false)?;
-        }
         scan_proof_facts(program, domain.facts)?;
     }
 

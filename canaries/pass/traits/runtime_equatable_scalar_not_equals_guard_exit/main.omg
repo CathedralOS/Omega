@@ -1,6 +1,6 @@
-domain [u8]::Utf8 when valid_utf8(self) {
+domain [u8]::Utf8 {
+    valid_utf8(self);
 }
-
 // Equatable `!=` NEGATION in GUARD position over a scalar record: the
 // synthesized structural equality must drive the negated operator, and both
 // spellings must work as a DIRECT transition guard subject (the other

@@ -5,11 +5,12 @@
 // of "0000" with 'X'(88) and reading back index 0 AND index 3 confirms the index
 // is respected at both ends. Exits 70.
 
-domain [u8]::Utf8 when valid_utf8(self) {
+domain [u8]::Utf8 {
+    valid_utf8(self);
 }
-domain [u8; 4]::Utf8 when valid_utf8(self) {
+domain [u8; 4]::Utf8 {
+    valid_utf8(self);
 }
-
 use omega::language::std::console;
 
 data Main {

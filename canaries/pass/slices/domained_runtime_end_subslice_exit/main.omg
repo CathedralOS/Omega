@@ -7,9 +7,9 @@
 // subslice-preserving); and the subslice descriptor passed onward as a `&[u8] in Path`
 // arg. Exits on the subslice length (5) so no fs machinery is involved.
 
-domain [u8]::Path when no_nul(self) {
+domain [u8]::Path {
+    no_nul(self);
 }
-
 use omega::language::std::console;
 
 data Main {

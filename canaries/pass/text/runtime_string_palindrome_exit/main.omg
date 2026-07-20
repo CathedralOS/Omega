@@ -10,9 +10,12 @@
 //
 // "ABCBA" is a palindrome -> every mirror pair matches -> exit 70.
 
-domain [u8]::Utf8 when valid_utf8(self) {}
-domain [u8; 5]::Utf8 when valid_utf8(self) {}
-
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 5]::Utf8 {
+    valid_utf8(self);
+}
 use omega::language::std::console;
 
 data Main {

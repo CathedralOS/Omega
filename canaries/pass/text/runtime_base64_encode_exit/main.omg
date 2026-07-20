@@ -7,10 +7,15 @@
 // "Man" (77,97,110) encodes to "TWFu"; all four output bytes are checked -> exit 70.
 use omega::language::std::console;
 
-domain [u8]::Utf8 when valid_utf8(self) {}
-domain [u8; 64]::Utf8 when valid_utf8(self) {}
-domain [u8; 4]::Utf8 when valid_utf8(self) {}
-
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 64]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 4]::Utf8 {
+    valid_utf8(self);
+}
 data Main {
     console: Console;
     alpha: [u8; 64] in Utf8;  // the Base64 alphabet

@@ -9,9 +9,12 @@
 // Expected output contains: 81
 use omega::language::std::console;
 
-domain [u8]::Utf8 when valid_utf8(self) {}
-domain [u8; 28]::Utf8 when valid_utf8(self) {}
-
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 28]::Utf8 {
+    valid_utf8(self);
+}
 data Main {
     console: Console;
     line: [u8; 28] in Utf8;

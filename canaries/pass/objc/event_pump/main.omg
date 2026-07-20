@@ -13,9 +13,9 @@
 // fast iterations proves the pump is repeatably non-blocking. Headless-safe: a
 // fresh process has no events, so each pump returns nil and the loop completes.
 
-domain [u8]::CString when no_nul(self) {
+domain [u8]::CString {
+    no_nul(self);
 }
-
 use omega::language::std::console;
 
 boundary trait ObjectiveC {

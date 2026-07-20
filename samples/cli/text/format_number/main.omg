@@ -8,9 +8,12 @@
 // rather than write_line because a raw byte write cannot be PROVEN valid Utf8.)
 // Expected exit: 70.
 
-domain [u8]::Utf8 when valid_utf8(self) {}
-domain [u8; 8]::Utf8 when valid_utf8(self) {}
-
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
 use omega::language::std::console;
 
 data Main {

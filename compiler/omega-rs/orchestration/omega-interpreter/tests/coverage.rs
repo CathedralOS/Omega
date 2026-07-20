@@ -718,9 +718,11 @@ fn filesystem_path_carrier_concat() {
     interpret_fs(
         "fs-path-concat",
         r#"
-domain [u8; 32]::Path when no_nul(self) {
+domain [u8; 32]::Path {
+    no_nul(self)
 }
-domain [u8; 64]::Path when no_nul(self) {
+domain [u8; 64]::Path {
+    no_nul(self)
 }
 data Main {
     console: Console;

@@ -1,0 +1,20 @@
+// A concrete const parameter must satisfy nested integer-domain membership
+// facts before its generic instance can be synthesized.
+domain u64::Positive {
+    self > 0;
+}
+domain u64::BufferSize {
+    self in Positive;
+}
+data FixedBuffer<const N: u64>
+where
+    N in BufferSize,
+{
+    values: [u8; N];
+}
+
+data Main {
+    buffer: FixedBuffer<0>;
+}
+
+machine Main::main(&mut self) {}

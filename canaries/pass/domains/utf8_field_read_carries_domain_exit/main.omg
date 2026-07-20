@@ -6,9 +6,9 @@
 // with "cannot prove requires contract ... self.out in [u8]::Utf8"). `check`
 // guards `text == "Gate"` (content equality over the carried view) and exits 70.
 // (Counter-checked: storing "Door" makes the `== "Gate"` guard false -> exit 71.)
-domain [u8]::Utf8 when valid_utf8(self) {
+domain [u8]::Utf8 {
+    valid_utf8(self);
 }
-
 use omega::language::std::console;
 
 data Main {

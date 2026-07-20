@@ -1,6 +1,6 @@
-domain [u8]::Utf8 when valid_utf8(self) {
+domain [u8]::Utf8 {
+    valid_utf8(self);
 }
-
 // #66 case-payload domain forwarding: a local constructed as a sum case with a
 // domain-refined payload (`Command::First { text: "ok" }`, where the payload
 // `text` is `&[u8] in Utf8`) carries that payload domain. Destructuring the

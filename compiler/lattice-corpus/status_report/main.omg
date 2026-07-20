@@ -10,10 +10,15 @@
 // runtime_bounded_carrier_length_exit canary.)
 // Expected exit: 70.
 
-domain [u8]::Utf8 when valid_utf8(self) {}
-domain [u8; 8]::Utf8 when valid_utf8(self) {}
-domain [u8; 32]::Utf8 when valid_utf8(self) {}
-
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 32]::Utf8 {
+    valid_utf8(self);
+}
 boundary trait Console {
     machine write_line(text: &[u8] in Utf8);
     machine exit_process(return_code: i32);

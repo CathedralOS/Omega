@@ -1,11 +1,12 @@
-// A false machine-backed domain classifier rejects the concrete const-generic
+// A false machine-backed domain fact rejects the concrete const-generic
 // instance before the membership reaches ordinary proof validation.
 machine is_buffer_size(value: u64) -> bool {
     value > 0 && value <= 8
 }
 
-domain u64::BufferSize when is_buffer_size(self) {}
-
+domain u64::BufferSize {
+    is_buffer_size(self);
+}
 data FixedBuffer<const N: u64>
 where
     N in BufferSize,

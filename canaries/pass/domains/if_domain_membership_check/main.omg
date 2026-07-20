@@ -1,4 +1,4 @@
-// Chapter 8 "Classifiers": a domain MEMBERSHIP test (`x in Type::Domain`) is
+// Chapter 8: a domain MEMBERSHIP test (`x in Type::Domain`) is
 // a full executable check in guard position when the domain is
 // runtime-checkable. (Historically this canary used the bare `if x in ...`
 // statement; a bare `if` has no else and no continuation, so its dispatch can

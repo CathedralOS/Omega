@@ -14,9 +14,9 @@
 // A filesystem path: NUL-free bytes (the POSIX C-string invariant). Deliberately
 // not `Utf8`: POSIX paths are arbitrary nul-free bytes; Windows re-encodes at the
 // boundary. `no_nul` is a compiler-recognized byte predicate.
-domain [u8]::Path when no_nul(self) {
+domain [u8]::Path {
+    no_nul(self);
 }
-
 boundary trait FilesystemHost {
     machine create(path: &[u8] in Path, mode: i32) -> i32 effects filesystem_io;
     machine open(path: &[u8] in Path, flags: i32) -> i32 effects filesystem_io;

@@ -9,7 +9,7 @@
 //! `X in D`, exactly as a `requires <arg> in D` call argument must. The discharge
 //! reuses the call-requires machinery: a value proven in `D` by the entry-context
 //! facts (a domained param/field copy), or a string literal whose comptime bytes
-//! satisfy `D`'s classifier (`super::grants`), is accepted; anything else (a raw
+//! satisfy `D`'s byte-predicate fact (`super::grants`), is accepted; anything else (a raw
 //! `&[u8]` with no domain fact) is rejected. This is the encoding-domain analog
 //! of the #63 assignment range-check; without it the field-read narrowing would
 //! rest on an unenforced refinement (the #40 trap).
@@ -66,8 +66,8 @@ pub(super) fn check_domain_field_writes(
             diagnostics.push(Diagnostic::error(format!(
                 "cannot prove the value assigned to `{target_label}` in {} is in domain `{}`; \
                  a field declared `in {}` requires every write to be established in that domain \
-                 (pass a value already proven in the domain, or a literal the domain's classifier \
-                 accepts)",
+                 (pass a value already proven in the domain, or a literal its byte-predicate \
+                 fact accepts)",
                 machine_name(program, state_flow.machine_symbol),
                 symbol_name(program, domain_symbol),
                 symbol_name(program, domain_symbol),
@@ -250,8 +250,8 @@ fn scan_construction_field_domains(
                         diagnostics.push(Diagnostic::error(format!(
                             "construction of `{}` field `{}` is not proven in domain `{}`; \
                              a field declared `in {}` requires every construction value to be \
-                             established in that domain (construct with a literal the domain's \
-                             classifier accepts, or a value already proven in the domain)",
+                             established in that domain (construct with a literal its byte-predicate \
+                             fact accepts, or a value already proven in the domain)",
                             type_name.as_str(),
                             field.name.as_str(),
                             symbol_name(program, domain_symbol),
@@ -527,7 +527,7 @@ fn construction_field_type(
 }
 
 /// Whether the assigned `value` is provably in `domain_symbol` at this statement:
-/// a string literal the domain's classifier accepts (the construction-grant),
+/// a string literal the domain's byte-predicate fact accepts (the construction-grant),
 /// or a value carried in (a domained param/field) whose entry-context domain
 /// fact implies `domain_symbol`. Mirrors the call-requires discharge.
 fn value_proves_domain(
@@ -542,7 +542,7 @@ fn value_proves_domain(
         return true;
     }
 
-    // Concat preserves a classifier-backed domain: a `left + right` whose two
+    // Concat preserves a byte-predicate domain: a `left + right` whose two
     // operands are each provably in `domain_symbol` is itself in the domain, for
     // the recognized concat-preserving byte-predicates (valid_utf8/no_nul/
     // ascii_only/non_empty). This is the DOMAIN half of the rung-2 growth bound;
