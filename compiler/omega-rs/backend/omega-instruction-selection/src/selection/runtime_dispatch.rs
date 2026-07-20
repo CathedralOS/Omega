@@ -1341,11 +1341,11 @@ fn select_normalized_entry_argument_writes(
             },
         ] = placement.locations.as_slice()
         else {
-            panic!("large SysV entry result must arrive through one register pointer");
+            panic!("large native entry result must arrive through one register pointer");
         };
         assert_eq!(
             input.runtime_storage.entry_indirect_result_pointer_size, 8,
-            "large SysV entry result must reserve its destination pointer"
+            "large native entry result must reserve its destination pointer"
         );
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::WriteEntryArgumentRegister {
@@ -1451,9 +1451,6 @@ fn normalized_entry_record_result_shape(
     let alignment = u16::try_from(data_layout.layout.alignment).ok()?;
 
     if policy == CallingPolicy::Aapcs64 {
-        if byte_size > 16 {
-            return None;
-        }
         return flat_homogeneous_float_aggregate_shape(input, fields, data_layout.layout)
             .or_else(|| Some(ValueShape::integer(byte_size, alignment)));
     }

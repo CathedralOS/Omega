@@ -190,7 +190,13 @@ ceiling derived exactly from the ABI volatile-register classes.
    Small AAPCS64 entry results now consume those normalized result placements:
    fixed two-word records load `x0`/`x1`, while flat HFA members load `s`/`d`
    vector registers directly from runtime storage. Cross-target source
-   canaries and direct encoder tests pin both families.
+   canaries and direct encoder tests pin both families, including a 24-byte HFA
+   that remains in `d0`/`d1`/`d2` rather than capturing `x8`. Large non-HFA
+   AAPCS64 entry results now preserve the plan-selected hidden destination from
+   `x8` before volatile work and copy the complete terminal record through it;
+   unlike SysV, the entry emits no extra pointer return in `x0`. A Linux ARM64
+   source-to-object canary pins the capture, three-word copy, and immediate
+   terminal handoff.
    Pure-integer SysV AMD64 entry records up to 16 bytes now consume consecutive
    plan-selected GPR fragments when the complete aggregate fits. If the
    remaining register bank is too small, the complete aggregate moves to

@@ -31288,6 +31288,7 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/aarch64_wide_aggregate_entry", "linux_arm64"),
     ("targets/aarch64_small_result_entry", "linux_arm64"),
     ("targets/aarch64_hfa_result_entry", "linux_arm64"),
+    ("targets/aarch64_large_result_entry", "linux_arm64"),
     ("targets/sysv_small_aggregate_entry", "linux_x64"),
     ("targets/sysv_hfa_entry_argument", "linux_x64"),
     ("targets/sysv_mixed_aggregate_entry", "linux_x64"),
@@ -31561,7 +31562,7 @@ fn aarch64_small_result_entry_loads_x0_and_x1() {
 }
 
 #[test]
-fn aarch64_hfa_result_entry_loads_d0_and_d1() {
+fn aarch64_hfa_result_entry_loads_d0_d1_and_d2() {
     let canary = pass_canary("targets/aarch64_hfa_result_entry");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-aarch64-hfa-result-entry-{}",
@@ -31575,17 +31576,77 @@ fn aarch64_hfa_result_entry_loads_d0_and_d1() {
         target_name: Some("linux_arm64".into()),
         write_output: true,
     })
-    .expect("AAPCS64 HFA entry result should load d0/d1");
+    .expect("AAPCS64 24-byte HFA entry result should load d0/d1/d2");
 
     let image = fs::read(build_dir.join("omega-program")).expect("read emitted AArch64 ELF");
     let register_mask = 0xffc0_03ffu32;
     assert!(
-        image.windows(24).any(|window| {
+        image.windows(36).any(|window| {
             let first = u32::from_le_bytes(window[8..12].try_into().expect("first load"));
             let second = u32::from_le_bytes(window[20..24].try_into().expect("second load"));
-            first & register_mask == 0xfd40_0200 && second & register_mask == 0xfd40_0201
+            let third = u32::from_le_bytes(window[32..36].try_into().expect("third load"));
+            first & register_mask == 0xfd40_0200
+                && second & register_mask == 0xfd40_0201
+                && third & register_mask == 0xfd40_0202
         }),
-        "expected terminal HFA members loaded into d0 and d1"
+        "expected terminal HFA members loaded into d0, d1, and d2"
+    );
+    assert!(
+        !image.windows(4).any(|window| {
+            u32::from_le_bytes(window.try_into().expect("possible x8 store")) & register_mask
+                == 0xf900_0208
+        }),
+        "24-byte HFA must not capture x8 as an indirect-result pointer"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn aarch64_large_result_entry_saves_x8_and_copies_through_it() {
+    let canary = pass_canary("targets/aarch64_large_result_entry");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-aarch64-large-result-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_arm64".into()),
+        write_output: true,
+    })
+    .expect("AAPCS64 indirect entry result should preserve and populate x8's pointer");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted AArch64 ELF");
+    let register_mask = 0xffc0_03ffu32;
+    assert!(
+        image.windows(4).any(|window| {
+            u32::from_le_bytes(window.try_into().expect("x8 store")) & register_mask == 0xf900_0208
+        }),
+        "expected incoming x8 hidden-result pointer captured in runtime storage"
+    );
+    let terminal_copy = [
+        0xf940_0210u32,
+        0xf940_0291,
+        0xf900_0211,
+        0xf940_0691,
+        0xf900_0611,
+        0xf940_0a91,
+        0xf900_0a11,
+        0x5280_001c,
+    ];
+    assert!(
+        image.windows(terminal_copy.len() * 4).any(|window| {
+            terminal_copy.iter().enumerate().all(|(index, expected)| {
+                u32::from_le_bytes(
+                    window[index * 4..index * 4 + 4]
+                        .try_into()
+                        .expect("terminal-copy instruction"),
+                ) == *expected
+            })
+        }),
+        "expected three terminal words copied through saved x8 with no x0 pointer return"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
