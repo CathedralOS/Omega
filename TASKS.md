@@ -225,6 +225,9 @@ ceiling derived exactly from the ABI volatile-register classes.
    booleans, while terminal `min`/`max`/`sqrt` builtins receive result scratch
    only when their builtin symbol matches. Native canaries pin `a < b` as exit 1
    and `max(a, b)` as exit 70.
+   Authored scalar helper calls in entry-terminal position already preserve the
+   callee's native result register through entry termination; the former
+   compile-only free-standing `add_i32(3, 4)` canary now executes and pins exit 7.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
    complete import/vtable/service-table compatibility mechanism matrix is

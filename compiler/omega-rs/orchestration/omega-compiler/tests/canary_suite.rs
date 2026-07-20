@@ -6425,6 +6425,31 @@ fn runtime_entry_scalar_operation_results_exit_canaries_run() {
 }
 
 #[test]
+fn free_standing_helper_entry_result_canary_runs() {
+    let canary = pass_canary("calls/free_standing_machine_helper_compile");
+    let build_dir = std::env::temp_dir().join(format!("omega-entry-helper-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("free-standing terminal helper should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("free-standing terminal helper should run");
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "expected add_i32(3, 4) to return exit 7; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_loop_patterns_exit_canary_runs() {
     // Loop patterns via self-transition: a LARGE counting loop (1..10000) stays
     // iterative (no stack growth) and nested loops re-initialize the inner counter.
