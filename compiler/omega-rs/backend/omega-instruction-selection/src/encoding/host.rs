@@ -6,7 +6,7 @@ use omega_calling_conventions::{
 use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
-use omega_target::Architecture;
+use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::InstructionOperandLike;
 
 pub(super) struct NormalizedSyscallRegisters {
@@ -150,11 +150,11 @@ pub fn encode_table_function_call_sequence<T: InstructionOperandLike>(
 }
 
 pub fn encode_host_call_sequence<T: InstructionOperandLike>(
-    architecture: Architecture,
+    target: NativeTarget,
     operation_key: HostOperationKey,
     operands: &[T],
 ) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
+    match target.architecture {
         // Deref-result ops (errno) must be checked before the plain
         // value-returning arm: they share `returns_value()` but insert an extra
         // `ldr` to deref the returned pointer.
@@ -218,7 +218,11 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
                 &arguments,
             )
         }
-        Architecture::X86_64 => x86_64::encode_host_call_sequence(operation_key, operands),
+        Architecture::X86_64 => x86_64::encode_host_call_sequence(
+            CallingPolicy::native_for_target(target),
+            operation_key,
+            operands,
+        ),
     }
 }
 
@@ -231,11 +235,11 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
 /// import_call_argument_lost class). x86_64's encoder handles the key
 /// itself (windows-session verified).
 pub fn encode_authored_import_call_sequence<T: InstructionOperandLike>(
-    architecture: Architecture,
+    target: NativeTarget,
     operation_key: HostOperationKey,
     operands: &[T],
 ) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
+    match target.architecture {
         Architecture::Aarch64 => {
             let (arguments, result) =
                 normalized_aarch64_import_registers(operands, Aarch64ImportResult::Integer, false)?;
@@ -245,7 +249,11 @@ pub fn encode_authored_import_call_sequence<T: InstructionOperandLike>(
                 result.expect("integer result requested"),
             )
         }
-        Architecture::X86_64 => x86_64::encode_host_call_sequence(operation_key, operands),
+        Architecture::X86_64 => x86_64::encode_host_call_sequence(
+            CallingPolicy::native_for_target(target),
+            operation_key,
+            operands,
+        ),
     }
 }
 

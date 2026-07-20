@@ -46,16 +46,12 @@ pub(super) fn encode_host_operation(
             ) =>
         {
             architecture::encode_authored_import_call_sequence(
-                input.target.architecture,
+                input.target,
                 operation_key,
                 operands,
             )
         }
-        _ => architecture::encode_host_call_sequence(
-            input.target.architecture,
-            operation_key,
-            operands,
-        ),
+        _ => architecture::encode_host_call_sequence(input.target, operation_key, operands),
     }
 }
 

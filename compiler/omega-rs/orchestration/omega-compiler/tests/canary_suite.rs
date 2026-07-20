@@ -27985,6 +27985,43 @@ fn windows_wrapper_copy_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn cross_windows_general_imports_compile() {
+    // ENT2c: exercise both a seven-argument built-in GUI import (three planned
+    // shadow-relative stack arguments) and a provides-authored import through
+    // full PE layout/emission on every development host.
+    for canary_name in [
+        "host/runtime_gui_window_lifecycle_exit",
+        "capabilities/windows_provides_import_exit",
+    ] {
+        let canary = pass_canary(canary_name);
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-win-plan-import-{}-{}",
+            canary_name.replace('/', "-"),
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let src_dir = scratch.join("src");
+        fs::create_dir_all(&src_dir).expect("scratch source directory");
+        fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
+        fs::write(
+            src_dir.join("build.omg"),
+            "target windows_x64 {\n    boundary omega::host::contracts\n    boundary omega::host::targets::windows\n}\n",
+        )
+        .expect("write windows target manifest");
+        compile(CompileOptions {
+            root_path: src_dir.join("main.omg"),
+            build_dir: Some(scratch.join("out")),
+            target_name: Some("windows_x64".to_owned()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostic| {
+            panic!("{canary_name} should cross-compile for windows_x64: {diagnostic:?}")
+        });
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
 // An AUTHORED provides import end to end (hosted-consumption rung 2): the
 // program's own `windows_x64 provides Beeper { beep -> DllImport("msvcrt.dll",
 // "abs") }` row binds, the import table names msvcrt.dll (the binding, not
