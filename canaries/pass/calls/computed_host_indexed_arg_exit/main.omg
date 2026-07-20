@@ -1,0 +1,31 @@
+// A runtime-indexed slice element stages through host-argument scratch before
+// the platform marshaller reads the scalar value.
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    values: [i32; 2];
+    index: u64 [0..2];
+}
+
+machine Main::emit(&mut self, view: &[i32], index: u64 [0..2]) {
+    transition index < view.len {
+        true -> checked(view, index)
+        false -> failed()
+    }
+
+    state checked(&mut self, view: &[i32], index: u64) {
+        self.console.exit_process(view[index]);
+    }
+
+    state failed(&mut self) {
+        self.console.exit_process(1);
+    }
+}
+
+machine Main::main(&mut self) {
+    self.values[0] = 7;
+    self.values[1] = 70;
+    self.index = 1;
+    self.emit(self.values.as_slice(), self.index);
+}

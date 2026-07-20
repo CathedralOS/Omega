@@ -23,6 +23,7 @@ use super::host_operations::{
 };
 use super::instruction_sink::SelectedInstructionSink;
 use super::lookups::host_call_for_statement;
+use super::storage_places::resolve_runtime_frame_indexed_target_in_table;
 use crate::selection::bindings::{RuntimeAliasBuffer, RuntimeAliasResolutionContext};
 pub(super) use branches::{
     BranchPreludeSelectionScratch, select_runtime_branch_preludes_for_operation,
@@ -390,6 +391,27 @@ pub(in crate::selection) fn select_computed_host_argument_write(
                 runtime_value_operands,
             )?
         }
+        ExpressionNode::Indexed(_) => {
+            let indexed = resolve_runtime_frame_indexed_target_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                value,
+            )?;
+            if indexed.byte_count != byte_size {
+                return None;
+            }
+            copy_places_from_indexed(
+                indexed.descriptor_offset,
+                indexed.index_offset,
+                indexed.element_byte_size,
+                indexed.field_byte_offset,
+                RuntimeStorageRegion::RuntimeFrame,
+                target_offset,
+                byte_size,
+            )
+        }
         _ => return None,
     };
     Some((instruction, byte_size))
@@ -440,6 +462,14 @@ pub(in crate::selection) fn computed_host_argument_byte_size(
                 right,
             ))
         }
+        ExpressionNode::Indexed(_) => resolve_runtime_frame_indexed_target_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            value,
+        )
+        .map(|indexed| indexed.byte_count),
         _ => None,
     }
 }
