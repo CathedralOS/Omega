@@ -1400,8 +1400,13 @@ fn select_normalized_entry_argument_writes(
 pub(super) fn normalized_entry_indirect_result_shape(
     input: &InstructionSelectionInput<'_>,
 ) -> Option<ValueShape> {
-    normalized_entry_record_result_shape(input)
-        .filter(|shape| matches!(shape.class, ValueClass::Integer) && shape.byte_size > 16)
+    let shape = normalized_entry_record_result_shape(input)?;
+    let is_indirect = match CallingPolicy::native_for_target(input.target) {
+        CallingPolicy::MicrosoftX64 => !matches!(shape.byte_size, 1 | 2 | 4 | 8),
+        CallingPolicy::Aapcs64 | CallingPolicy::SystemVAMD64 => shape.byte_size > 16,
+        _ => false,
+    };
+    (matches!(shape.class, ValueClass::Integer) && is_indirect).then_some(shape)
 }
 
 pub(super) fn normalized_entry_record_result_placement(
@@ -1454,11 +1459,9 @@ fn normalized_entry_record_result_shape(
     let alignment = u16::try_from(data_layout.layout.alignment).ok()?;
 
     // Microsoft x64 returns only 1-, 2-, 4-, and 8-byte records directly in
-    // RAX. Wider records require its distinct hidden-RCX convention, which is
-    // kept fail-closed until the x86 indirect-entry path can preserve it.
+    // RAX. Every other record width uses its distinct hidden-RCX convention.
     if policy == CallingPolicy::MicrosoftX64 {
-        return matches!(byte_size, 1 | 2 | 4 | 8)
-            .then(|| ValueShape::integer(byte_size, alignment));
+        return Some(ValueShape::integer(byte_size, alignment));
     }
 
     if policy == CallingPolicy::Aapcs64 {

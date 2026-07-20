@@ -31281,6 +31281,7 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/efi_out_param_call", "uefi_x64"),
     ("targets/efi_ref_param_call_arg", "uefi_x64"),
     ("targets/efi_small_aggregate_entry", "uefi_x64"),
+    ("targets/efi_large_result_entry", "uefi_x64"),
     ("targets/aarch64_hfa_entry_argument", "linux_arm64"),
     ("targets/aarch64_small_aggregate_entry", "linux_arm64"),
     ("targets/aarch64_small_aggregate_stack_entry", "linux_arm64"),
@@ -32612,6 +32613,39 @@ fn efi_small_aggregate_entry_uses_rcx_and_rax() {
             .windows(17)
             .any(|window| { window[0..2] == [0x49, 0xbf] && window[10..13] == [0x49, 0x8b, 0x87] }),
         "expected the terminal eight-byte record loaded into rax"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn efi_large_result_entry_saves_rcx_shifts_argument_and_returns_pointer() {
+    let canary = pass_canary("targets/efi_large_result_entry");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-efi-large-result-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("uefi_x64".into()),
+        write_output: true,
+    })
+    .expect("Microsoft x64 indirect-result entry should compile");
+
+    let image = fs::read(build_dir.join("omega-program.exe")).expect("emitted image should exist");
+    assert!(
+        image.windows(34).any(|window| {
+            window[10..13] == [0x49, 0x89, 0x8f] && window[27..30] == [0x49, 0x89, 0x97]
+        }),
+        "expected hidden rcx capture before the shifted declared rdx parameter"
+    );
+    assert!(
+        image.windows(3).any(|window| window == [0x4d, 0x8b, 0xbf]),
+        "expected terminal record copy through the saved result pointer"
+    );
+    assert!(
+        image.windows(3).any(|window| window == [0x49, 0x8b, 0x87]),
+        "expected the saved result pointer returned in rax"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }

@@ -544,7 +544,12 @@ fn validate_signature_shapes(
     policy: CallingPolicy,
     signature: &CallSignature,
 ) -> Result<(), PlanDiagnostic> {
-    for shape in signature.parameters.iter().chain(signature.result.iter()) {
+    for (shape, is_result) in signature
+        .parameters
+        .iter()
+        .map(|shape| (shape, false))
+        .chain(signature.result.iter().map(|shape| (shape, true)))
+    {
         if shape.byte_size == 0 || shape.alignment == 0 || !shape.alignment.is_power_of_two() {
             return Err(PlanDiagnostic(
                 "call-signature values need nonzero size and power-of-two alignment".into(),
@@ -554,7 +559,8 @@ fn validate_signature_shapes(
             ValueClass::Integer
                 if shape.byte_size > 8
                     && policy != CallingPolicy::Aapcs64
-                    && policy != CallingPolicy::SystemVAMD64 =>
+                    && policy != CallingPolicy::SystemVAMD64
+                    && !(policy == CallingPolicy::MicrosoftX64 && is_result) =>
             {
                 return Err(PlanDiagnostic(
                     "aggregate integer classification is not normalized for this calling policy"
@@ -871,6 +877,10 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
         MachineRegister::X86R8,
         MachineRegister::X86R9,
     ];
+    let indirect_result = signature.result.is_some_and(|shape| {
+        matches!(shape.class, ValueClass::Integer) && !matches!(shape.byte_size, 1 | 2 | 4 | 8)
+    });
+    let parameter_slot_base = usize::from(indirect_result);
     let mut parameters = Vec::with_capacity(signature.parameters.len());
     for (index, shape) in signature.parameters.iter().copied().enumerate() {
         if matches!(
@@ -881,15 +891,16 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
                 "Microsoft x64 aggregate classification is not normalized yet".into(),
             ));
         }
-        let location = if index < 4 {
+        let slot = parameter_slot_base + index;
+        let location = if slot < 4 {
             let register = if matches!(shape.class, ValueClass::Float) {
-                MachineRegister::X86Xmm(index as u8)
+                MachineRegister::X86Xmm(slot as u8)
             } else {
-                integer[index]
+                integer[slot]
             };
             register_location(register, shape)
         } else {
-            stack_location(32 + ((index - 4) * 8) as u32, shape)
+            stack_location(32 + ((slot - 4) * 8) as u32, shape)
         };
         parameters.push(ValuePlacement {
             shape,
@@ -899,9 +910,22 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
     Ok(CallPlan {
         policy: CallingPolicy::MicrosoftX64,
         parameters,
-        result: result_placement(signature.result, &[MachineRegister::X86Rax], |index| {
-            MachineRegister::X86Xmm(index)
-        })?,
+        result: if indirect_result {
+            let shape = signature.result.expect("indirect result shape was present");
+            Some(ValuePlacement {
+                shape,
+                locations: vec![ValueLocation::Indirect {
+                    pointer: IndirectPointerLocation::Register(MachineRegister::X86Rcx),
+                    copy_stack_byte_offset: None,
+                    byte_size: shape.byte_size,
+                    alignment: shape.alignment,
+                }],
+            })
+        } else {
+            result_placement(signature.result, &[MachineRegister::X86Rax], |index| {
+                MachineRegister::X86Xmm(index)
+            })?
+        },
         ordinary_clobbers: RegisterSet::new(
             [
                 MachineRegister::X86Rax,
@@ -1706,6 +1730,40 @@ mod tests {
             }
         ));
         assert_eq!(plan.shadow_bytes, 32);
+    }
+
+    #[test]
+    fn microsoft_x64_indirect_result_uses_rcx_and_shifts_parameters() {
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8); 4],
+            result: Some(ValueShape::integer(16, 8)),
+        };
+        let plan = evaluate_call_plan(CallingPolicy::MicrosoftX64, &signature)
+            .expect("MS x64 indirect-result plan");
+
+        assert!(matches!(
+            plan.result.expect("indirect result").locations.as_slice(),
+            [ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Register(MachineRegister::X86Rcx),
+                copy_stack_byte_offset: None,
+                byte_size: 16,
+                alignment: 8,
+            }]
+        ));
+        assert!(matches!(
+            plan.parameters[0].locations.as_slice(),
+            [ValueLocation::Register {
+                register: MachineRegister::X86Rdx,
+                ..
+            }]
+        ));
+        assert!(matches!(
+            plan.parameters[3].locations.as_slice(),
+            [ValueLocation::Stack {
+                stack_byte_offset: 32,
+                ..
+            }]
+        ));
     }
 
     #[test]

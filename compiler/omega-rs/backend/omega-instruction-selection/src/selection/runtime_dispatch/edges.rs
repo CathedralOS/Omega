@@ -237,8 +237,9 @@ pub(super) fn select_runtime_dispatch_edge(
 ///
 /// 4. a native record follows its normalized result fragments: small records
 ///    load ABI-selected integer/vector registers; indirect records copy
-///    through the saved hidden destination pointer. SysV also returns that
-///    pointer in `rax`, while AAPCS64 has no corresponding `x0` result.
+///    through the saved hidden destination pointer. Microsoft x64 and SysV
+///    also return that pointer in `rax`, while AAPCS64 has no corresponding
+///    `x0` result.
 ///
 /// Anything else still emits no return-value write (the silent pre-existing
 /// fallthrough, now reduced to runtime ARITHMETIC terminals like `self.n + 1`).
@@ -338,9 +339,11 @@ fn select_runtime_dispatch_return_value(
                     source_key,
                     source_statement: edge.statement_index,
                 });
-                if omega_calling_conventions::CallingPolicy::native_for_target(input.target)
-                    == omega_calling_conventions::CallingPolicy::SystemVAMD64
-                {
+                if matches!(
+                    omega_calling_conventions::CallingPolicy::native_for_target(input.target),
+                    omega_calling_conventions::CallingPolicy::MicrosoftX64
+                        | omega_calling_conventions::CallingPolicy::SystemVAMD64
+                ) {
                     selected_instructions.push(SelectedInstruction {
                         kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
                             register: omega_calling_conventions::MachineRegister::X86Rax,
