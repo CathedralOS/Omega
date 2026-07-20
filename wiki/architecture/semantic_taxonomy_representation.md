@@ -161,7 +161,10 @@ place-liveness rejects forbidden values across direct or transitive `Suspend`
 reach, including persistent fields through reachable state transitions,
 arguments carried by the call itself, and later operands under left-to-right
 evaluation. Opaque admission, per-mint qualification, contained-machine
-subtrees, runtime admission, and artifact/model export remain.
+subtrees, runtime admission, and artifact/model export remain. The legacy
+contained-machine IR span currently has no parser surface; subtree carry work
+waits on a deliberate retirement-or-reintroduction decision rather than
+inventing semantics for an unreachable compatibility form.
 
 Executable provenance and control-flow integrity must also remain separate.
 `Artifact::AdmittedExecutable` plus linear placement states prove which bytes

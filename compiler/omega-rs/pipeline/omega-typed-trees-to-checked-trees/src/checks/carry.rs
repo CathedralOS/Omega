@@ -137,10 +137,7 @@ fn append_call_carried_argument_diagnostics(
         let display_name = program.expression_table.display_name(*argument);
         append_if_suspension_forbidden_with_type_parameters(
             program,
-            // A concrete target parameter derives normally. An unsubstituted
-            // generic target parameter remains born-strict until semantic call
-            // substitution supplies its admitted argument policy.
-            &[],
+            crate::call_target_type_parameters(program, call.target_symbol),
             parameter.type_reference,
             &display_name,
             call,
