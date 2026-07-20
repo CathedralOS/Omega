@@ -495,6 +495,15 @@ ignorable section is informational only and contributes no admission authority;
 anything affecting meaning or trust is required. UEFI may require a thin
 PE/COFF boot envelope, but that envelope is not Omega's component format.
 
+The normalized post-decode validator is live in
+`omega-executable-installation`. It applies configured total/section/count
+bounds, checked range arithmetic, non-overlap, exact presence and identity of
+code/relocation/contract/footprint/placement/proof sections, and the required
+versus informational unknown-section rule. Its output is only an immutable
+`Artifact` candidate; executable qualification still requires the separate
+admission receipt. Actual byte decoding through LayoutPlan/schema machinery,
+content-identity computation, and closed relocation validation remain.
+
 The boot base case preserves the same discipline:
 
 ```text

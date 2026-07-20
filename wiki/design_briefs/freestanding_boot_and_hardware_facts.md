@@ -198,6 +198,14 @@ Component-slot binding is a later logical dispatch/versioning operation, not
 part of code placement. Installation prevents injection; sealed entries and
 protected-return/final CFI validation remain a separate control-transfer gate.
 
+The normalized Omega-native container validator is live over checked-layout
+decode output. It enforces configured bounds, checked non-overlapping ranges,
+one exact copy of every semantic section, rejection of unknown required
+sections, and informational-only treatment of unknown optional sections. It
+produces an immutable admission candidate, never executable eligibility. The
+schema-driven byte decoder, content normalization, and relocation validation
+remain to connect.
+
 The initial image uses the same trust discipline at an earlier phase: the build
 checks PCC/CFI and signs the admitted artifact identity, secure boot
 authenticates that identity and gates entry, and measured boot records what

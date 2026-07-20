@@ -43,6 +43,13 @@ normalized_id!(FinalBytesId, "final-bytes");
 normalized_id!(FinalValidationId, "final-validation");
 normalized_id!(InstalledCodeId, "installed-code");
 normalized_id!(RetirementFactId, "retirement-fact");
+normalized_id!(RelocationSetId, "relocation-set");
+normalized_id!(ProofPayloadId, "proof-payload");
+normalized_id!(InformationalSectionId, "informational-section");
+
+mod container;
+
+pub use container::*;
 
 #[derive(Debug, PartialEq, Eq)]
 struct ArtifactRecord {

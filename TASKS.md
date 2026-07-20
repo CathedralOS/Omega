@@ -334,10 +334,15 @@ before the fix.
   placement authority advances through frozen and exact-final-byte validated
   states; installation consumes artifact/placement/scope/audience-specific
   authority plus synchronous visibility evidence; W^X enforcement is reported;
-  and every failed linear transition returns its inputs. Implement the minimal
-  checked container, actual admission/PCC and final-footprint validators,
-  materializer/installer providers, Omega linear integration, and
-  provider-backed quiescence/replacement execution. The normalized retirement
+  and every failed linear transition returns its inputs. The normalized container
+  validator is live over checked-layout decode output: bounds and range
+  arithmetic are checked, semantic sections are exact and non-overlapping,
+  unknown required sections reject, and unknown optional sections remain
+  informational with zero admission authority. Connect it to actual
+  schema/layout byte decoding and the closed relocation validator; implement
+  admission/PCC and final-footprint validators, materializer/installer
+  providers, Omega linear integration, and provider-backed
+  quiescence/replacement execution. The normalized retirement
   path already distinguishes visibility from quiescence, requires X removal
   and write-authority restoration, and returns the exact placement for reuse
   only after an exact scoped receipt. PE/COFF remains only a firmware envelope;
