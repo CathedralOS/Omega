@@ -1,0 +1,12 @@
+[package]
+name = "omega-access-plans"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_access_plans"
+path = "src/lib.rs"
+
+[dependencies]
+omega-layout-plans = { path = "../omega-layout-plans" }

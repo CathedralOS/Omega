@@ -216,6 +216,15 @@ as W1C, read-to-clear, FIFO pop, and doorbells remain package machines over
 provider-private primitive access. This does not forbid atomic RMW on an
 explicitly atomic shared-memory field; those are different access classes.
 
+The normalized `AccessPlan` foundation is now implemented independently of its
+future source spelling. It validates name-keyed entries against fixed
+`LayoutPlan` geometry, exact whole-byte transfer width, observation/operation
+compatibility, provider-private external RMW, and statically pinned reach. Its
+operation gate already enforces shared-read/exclusive-write polarity while
+allowing explicitly atomic shared mutation. Source-policy evaluation,
+extent-provenance agreement, sealed accessor derivation, and primitive lowering
+remain.
+
 The extent's provenance gates construction of an access capability. The
 accessor's normalized contract statically pins service reach. Runtime
 provenance never changes a machine's effect row.
@@ -560,24 +569,26 @@ and the concrete interrupt state policy remain. Remaining order:
 
 1. Complete the checked-assembly instruction-contract catalog needed by the
    entry provider. No raw-byte shortcut.
-2. Lower the implemented normalized symbolic materialization actions into
-   object relocations and post-handoff writer code, and derive their sealed
-   data/entry identities from selected compiler artifacts. Name-keyed fragment
-   placement, exact tiling, phase-aware action derivation, fixed-address
-   resolution, early-consumption rejection, and section-qualified absolute
-   data relocation/rebasing are already live. Native symbolic actions lower
-   with tagged materialization origin rather than pretending those sites came
-   from an instruction. Connect selected data/entry identities and emit the
-   generated post-handoff writer path.
+2. Derive sealed data/entry identities from selected compiler artifacts,
+   propagate normalized placement constraints through artifact construction,
+   and lower the derived post-handoff writer program to target code. Name-keyed
+   fragment placement, exact tiling, phase-aware action derivation,
+   fixed-address resolution, early-consumption rejection, section-qualified
+   absolute data relocation/rebasing, concrete-site validation, and the atomic
+   provider-resolved writer program are already live. Native symbolic actions
+   lower with tagged materialization origin rather than pretending those sites
+   came from an instruction.
 3. Implement the settled `Extent` carrier, conservation rules, source-loan /
    destination-authority mapping, and authority-origin validation.
-4. Implement `AccessPlan`, validation against `LayoutPlan`, sealed field-access
-   derivation, borrow-polarity checks, and exact volatile/atomic primitives.
+4. Connect the implemented normalized `AccessPlan` validator to Omega-authored
+   policies and extent provenance, derive sealed field-access values, and lower
+   exact external/atomic primitives. Geometry, policy compatibility, static
+   reach, and borrow-polarity authorization are already checked.
 5. Connect `Calling<C>` to evaluated boundary-plan identity, migrate lowering
    to the normalized plans, constrain codegen, emit footprint evidence, and
    validate final artifacts.
-6. Extend materialization with placement constraints, admitted-artifact
-   validation, and scoped executable installation.
+6. Connect the live placement constraints to admitted-artifact validation and
+   scoped executable installation.
 7. Add the external-root ledger and IDT/timer vertical slice.
 8. Add external loans and DMA/hostile-IPC vertical slices.
 9. Add carry/runtime admission and the Arena-backed Cathedral task profile.

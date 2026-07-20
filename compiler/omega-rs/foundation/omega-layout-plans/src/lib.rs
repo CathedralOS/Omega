@@ -322,7 +322,7 @@ impl PlacementConstraints {
                 site.phase, self.phase
             )));
         }
-        if site.base_address % self.alignment != 0 {
+        if !site.base_address.is_multiple_of(self.alignment) {
             return Err(MaterializationDiagnostic(format!(
                 "placement address {:#x} is not aligned to {} bytes",
                 site.base_address, self.alignment

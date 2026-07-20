@@ -291,11 +291,15 @@ before the fix.
   sealed space/rights/provenance/era facts, move-split, common-origin merge,
   borrow-carrying subranges, and provider-backed map/unmap plus
   shootdown/quiescence.
-- **L6b — AccessPlan and placed views.** Pair layout geometry with a separate
-  normalized exact-access plan; derive sealed field access, snapshot reads,
-  whole writes, and typed atomics while preserving borrow polarity and static
-  reach. Never expose arbitrary-offset volatile access or per-access revocation
-  probes.
+- **L6b — AccessPlan and placed views.** The separate normalized validator is
+  live: name-keyed entries pin exact transfer width, stable/external/atomic
+  observation, ordinary and atomic permissions, exported versus
+  provider-private access, and static service reach. Validation checks fixed
+  layout geometry, rejects multi-container one-access laundering and public
+  external RMW, and enforces borrow polarity at operation authorization. Add
+  the Omega-authored policy surface, extent-provenance agreement, sealed
+  field-access derivation, and exact external/atomic lowering. Never expose
+  arbitrary-offset access or per-access revocation probes.
 - **L6c — symbolic materializer.** The normalized source/action plan and
   loader-versus-post-handoff validation are live. Range/alignment/phase/regime/
   installation-scope constraints are normalized and concrete-site validated.
