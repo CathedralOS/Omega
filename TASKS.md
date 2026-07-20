@@ -744,8 +744,10 @@ remain contract-invisible.
   identity, vtable emission, true indirect dispatch, and object-safety await
   the runtime representation, ownership, ABI, and admissible-signature
   decisions recorded there.
-- **Equatable synthesis.** Provide a callable conformance surface rather than
-  structural magic.
+- **Equatable synthesis.** A declared conformance now emits a callable
+  compiler-owned `Type::equals` wrapper over the same structural expansion as
+  `==`/`!=`; a written implementation still wins. Generalize this closed core
+  privilege through build-time trait generators below.
 - **Build-time evaluation.** Add compile-time evaluation and trait generators
   for effect-free machines in value/refinement position.
 - **Separate compilation and component artifacts.** Normalize imports, pinned

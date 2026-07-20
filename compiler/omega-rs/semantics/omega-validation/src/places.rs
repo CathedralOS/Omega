@@ -134,6 +134,9 @@ pub(crate) fn direct_self_field_member(
 ) -> Option<&str> {
     match program.expression_table.expression(target) {
         ExpressionNode::Member(member) => {
+            if member.case_variant.is_some() {
+                return None;
+            }
             let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver)
             else {
                 return None;

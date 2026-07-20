@@ -707,13 +707,15 @@ Status: Equatable synthesis is LIVE for records and payload-bearing sums. A
 declared `Type satisfies Equatable;` makes `==`/`!=` legal; the compiler
 expands the compare INLINE at lowering into field-by-field compares (for
 sums: a disjunction over cases, each arm tag compares first, then that
-case's payload fields), riding the existing comparison machinery -- no
-callable `Type::equals` machine is emitted yet (that arrives with trait
-generators). A hand-written `Type::equals` wins: `==` lowers to a call to
-it. Prerequisites are enforced at the conformance item: every field must be
-a scalar primitive, a payload-less sum, or itself Equatable-conforming;
-`String` fields are rejected (no native value-position text comparison
-yet); recursive types are rejected (inline expansion would not terminate).
+case's payload fields), riding the existing comparison machinery. A callable
+compiler-owned `Type::equals` wrapper carries that same expansion; direct
+calls lower it in the caller's storage scope, so ordinary method calls and
+operators share the implementation. A
+hand-written `Type::equals` wins: `==` lowers to a call to it. Prerequisites
+are enforced at the conformance item: every field must be
+a scalar primitive, a payload-less sum, text (`String` or a byte-slice view,
+compared by content), or itself Equatable-conforming; recursive types are
+rejected (inline expansion would not terminate).
 Without a conformance, `==` on a structural type stays a compile error
 suggesting the one-line conformance; payload-less sums keep `==` as the
 tag compare (which IS their total equality).

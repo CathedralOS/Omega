@@ -8,9 +8,12 @@
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::expression::ExpressionHandle;
+use omega_syntax_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
+};
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{Item, Machine, State, StateSignatureNode};
+use omega_syntax_trees::statement::StatementNode;
 use omega_syntax_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -155,6 +158,19 @@ pub(super) fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), 
             )));
             continue;
         }
+        if trait_name == "Equatable"
+            && let Some(signature) = conformed_trait
+                .signatures
+                .iter()
+                .find(|signature| signature.name.as_str() == "equals" && !signature.is_default)
+        {
+            let attached_method = (type_name.clone(), "equals".to_string());
+            if !attached_methods.contains(&attached_method)
+                && synthesize_equatable_machine(syntax, &type_name, signature)
+            {
+                attached_methods.insert(attached_method);
+            }
+        }
         let substitution = conformed_trait
             .parameter_names
             .iter()
@@ -205,6 +221,65 @@ pub(super) fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), 
     } else {
         Err(diagnostics)
     }
+}
+
+fn synthesize_equatable_machine(
+    syntax: &mut SyntaxTrees,
+    type_name: &str,
+    signature: &StateSignatureNode,
+) -> bool {
+    let [receiver_handle, other_handle] = syntax.items.state_parameters(signature.parameters)
+    else {
+        return false;
+    };
+    let receiver = syntax.items.state_parameter(*receiver_handle);
+    let other = syntax.items.state_parameter(*other_handle);
+    if !receiver.is_self || other.is_self {
+        return false;
+    }
+    let other_name = other.name.as_str().to_string();
+    let snapshot = syntax.clone();
+    let type_watermark = syntax.type_references.node_count();
+    let mut signature = syntax.copy_state_signature_node_from(&snapshot, signature);
+    for handle in syntax.type_references.self_type_nodes_from(type_watermark) {
+        syntax.type_references.replace_type_reference(
+            handle,
+            TypeReferenceNode::Named(Identifier::generated(type_name)),
+        );
+    }
+
+    let receiver = syntax.expressions.insert(ExpressionNode::SelfValue);
+    let other_member = syntax
+        .expressions
+        .append_identifier_path_member(Identifier::generated(other_name));
+    let other = syntax
+        .expressions
+        .insert(ExpressionNode::Name(HandleSpan::from_parts(
+            other_member,
+            1,
+        )));
+    let equality = syntax
+        .expressions
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: receiver,
+            operator: BinaryOperator::Equal,
+            right: other,
+        }));
+    let statement = syntax
+        .statements
+        .insert(StatementNode::Expression(equality));
+    let statement = syntax.items.append_statement_handle(statement);
+    signature.default_body = HandleSpan::from_parts(statement, 1);
+
+    synthesize_machine_named(
+        syntax,
+        type_name,
+        Identifier::generated(format!(
+            "__omega_synthesized_equatable::{type_name}::equals"
+        )),
+        &signature,
+    );
+    true
 }
 
 /// Compute the defaults visible from one trait. A declaration on the child,
@@ -485,6 +560,20 @@ fn synthesize_default_machine(
     type_name: &str,
     signature: &StateSignatureNode,
 ) {
+    synthesize_machine_named(
+        syntax,
+        type_name,
+        Identifier::generated(format!("{type_name}::{}", signature.name.as_str())),
+        signature,
+    );
+}
+
+fn synthesize_machine_named(
+    syntax: &mut SyntaxTrees,
+    type_name: &str,
+    machine_name: Identifier,
+    signature: &StateSignatureNode,
+) {
     let state = State {
         name: signature.name.clone(),
         parameters: signature.parameters,
@@ -494,7 +583,7 @@ fn synthesize_default_machine(
     let state = syntax.items.insert_state(&state);
     let state = syntax.items.append_state_handle(state);
     syntax.push_root_item(Item::Machine(Machine {
-        name: Identifier::generated(format!("{type_name}::{}", signature.name.as_str())),
+        name: machine_name,
         attached_data: Some(Identifier::generated(type_name)),
         bodyless: false,
         target: None,

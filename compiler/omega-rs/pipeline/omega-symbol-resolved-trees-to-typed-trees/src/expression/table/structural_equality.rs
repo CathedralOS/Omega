@@ -39,6 +39,55 @@ enum Operand {
 }
 
 impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope> {
+    /// Expand calls to the compiler-owned `equals` surface in the caller's
+    /// storage scope, exactly like `==`. Generated calls can pass through a
+    /// name alias before their final state symbol is assigned, so recognize
+    /// them from the receiver's conformance and lack of an authored override.
+    pub(super) fn try_lower_synthesized_equatable_call(
+        &mut self,
+        call: &resolved::expression::TableCallExpression,
+    ) -> Result<Option<typed::expression::ExpressionHandle>, Diagnostic> {
+        if call.target.as_str() != "equals" || !call.receiver.is_valid() {
+            return Ok(None);
+        }
+        let Some(program) = self.program else {
+            return Ok(None);
+        };
+        let Some(type_name) = self.operand_data_type_name(call.receiver) else {
+            return Ok(None);
+        };
+        if !equatable_conformance_declared(program, &type_name)
+            || written_equals_state_symbol(program, &type_name).is_some()
+        {
+            return Ok(None);
+        }
+        let [argument] = self.source.expression_handles(call.arguments) else {
+            return Ok(None);
+        };
+        let equality = resolved::expression::TableBinaryExpression {
+            left: call.receiver,
+            operator: resolved::expression::BinaryOperator::Equal,
+            right: *argument,
+        };
+        if let Some(lowered) = self.try_lower_structural_equality(&equality)? {
+            return Ok(Some(lowered));
+        }
+
+        // Empty records and payload-less sums use their existing direct value
+        // equality. Lower that comparison in the caller too: besides avoiding
+        // a needless call, this preserves the value width when a small `&Self`
+        // argument is content-spilled into a pointer-sized parameter slot.
+        let left = self.lower(equality.left)?;
+        let right = self.lower(equality.right)?;
+        Ok(Some(self.target.insert(
+            typed::expression::ExpressionNode::Binary(typed::expression::TableBinaryExpression {
+                left,
+                operator: typed::expression::BinaryOperator::Equal,
+                right,
+            }),
+        )))
+    }
+
     /// Expand `==`/`!=` when an operand types to a structural (record /
     /// payload-bearing sum) data definition. Returns `Ok(None)` when the
     /// compare is not structural (primitives, payload-less sums, untypable
@@ -371,7 +420,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             .collect();
 
         if variants.is_empty() {
-            let compares = self.field_compares(data, &fields, left, right, visiting)?;
+            let compares = self.field_compares(data, &fields, None, left, right, visiting)?;
             return Ok(self.conjunction(compares));
         }
 
@@ -379,7 +428,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         // matches (tag AND matching payload -- the ordinary sum expansion).
         // Common fields compare unconditionally: they exist in every case.
         if !fields.is_empty() {
-            let mut compares = self.field_compares(data, &fields, left, right, visiting)?;
+            let mut compares = self.field_compares(data, &fields, None, left, right, visiting)?;
             compares.push(self.sum_equality(data, &variants, left, right, visiting)?);
             return Ok(self.conjunction(compares));
         }
@@ -392,13 +441,14 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         &mut self,
         data: &'program DataDefinition,
         fields: &[&DataField],
+        case_variant: Option<&DataVariant>,
         left: &Operand,
         right: &Operand,
         visiting: &mut Vec<String>,
     ) -> Result<Vec<typed::expression::ExpressionHandle>, Diagnostic> {
         let mut compares = Vec::new();
         for field in fields {
-            compares.push(self.field_compare(data, field, left, right, visiting)?);
+            compares.push(self.field_compare(data, field, case_variant, left, right, visiting)?);
         }
         Ok(compares)
     }
@@ -439,7 +489,8 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     .data_payload_fields(variant.payload)
                     .iter()
                     .collect();
-                let compares = self.field_compares(data, &payload, left, right, visiting)?;
+                let compares =
+                    self.field_compares(data, &payload, Some(variant), left, right, visiting)?;
                 Ok(self.conjunction(compares))
             }
             (
@@ -484,6 +535,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 compares.extend(self.field_compares(
                     data,
                     &payload,
+                    Some(variant),
                     &place_operand,
                     &literal,
                     visiting,
@@ -506,6 +558,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     compares.extend(self.field_compares(
                         data,
                         &payload,
+                        Some(variant),
                         &Operand::Place(left_place),
                         &Operand::Place(right_place),
                         visiting,
@@ -539,6 +592,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         &mut self,
         data: &'program DataDefinition,
         field: &DataField,
+        case_variant: Option<&DataVariant>,
         left: &Operand,
         right: &Operand,
         visiting: &mut Vec<String>,
@@ -548,8 +602,8 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             .expect("structural equality requires program context");
         match field_equality(program, &visiting[0], data.name.as_str(), field)? {
             FieldEquality::Direct => {
-                let left_value = self.operand_field_value(field, left)?;
-                let right_value = self.operand_field_value(field, right)?;
+                let left_value = self.operand_field_value(field, case_variant, left)?;
+                let right_value = self.operand_field_value(field, case_variant, right)?;
                 Ok(self
                     .target
                     .insert(typed::expression::ExpressionNode::Binary(
@@ -574,8 +628,8 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         field.name, data.name
                     )));
                 }
-                let left_value = self.operand_field_value(field, left)?;
-                let right_value = self.operand_field_value(field, right)?;
+                let left_value = self.operand_field_value(field, case_variant, left)?;
+                let right_value = self.operand_field_value(field, case_variant, right)?;
                 Ok(self
                     .target
                     .insert(typed::expression::ExpressionNode::Binary(
@@ -594,8 +648,10 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         visiting[0], field.name, data.name
                     )));
                 }
-                let left_nested = self.operand_field_operand(field, left, nested_name)?;
-                let right_nested = self.operand_field_operand(field, right, nested_name)?;
+                let left_nested =
+                    self.operand_field_operand(field, case_variant, left, nested_name)?;
+                let right_nested =
+                    self.operand_field_operand(field, case_variant, right, nested_name)?;
                 visiting.push(nested_name.to_owned());
                 let equality =
                     self.structural_equality(nested, &left_nested, &right_nested, visiting)?;
@@ -611,10 +667,11 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
     fn operand_field_value(
         &mut self,
         field: &DataField,
+        case_variant: Option<&DataVariant>,
         operand: &Operand,
     ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
         match operand {
-            Operand::Place(place) => Ok(self.member_read(*place, field)),
+            Operand::Place(place) => Ok(self.member_read(*place, field, case_variant)),
             Operand::Literal { .. } => {
                 let value = self.literal_field_expression(field, operand)?;
                 self.lower(value)
@@ -628,11 +685,16 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
     fn operand_field_operand(
         &mut self,
         field: &DataField,
+        case_variant: Option<&DataVariant>,
         operand: &Operand,
         field_type_name: &str,
     ) -> Result<Operand, Diagnostic> {
         match operand {
-            Operand::Place(place) => Ok(Operand::Place(self.member_read(*place, field))),
+            Operand::Place(place) => Ok(Operand::Place(self.member_read(
+                *place,
+                field,
+                case_variant,
+            ))),
             Operand::Literal { .. } => {
                 let value = self.literal_field_expression(field, operand)?;
                 self.classify_operand(value, field_type_name)
@@ -666,6 +728,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         &mut self,
         place: typed::expression::ExpressionHandle,
         field: &DataField,
+        case_variant: Option<&DataVariant>,
     ) -> typed::expression::ExpressionHandle {
         self.target
             .insert(typed::expression::ExpressionNode::Member(
@@ -673,7 +736,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     receiver: place,
                     member_symbol: field.symbol,
                     member: lower_name(&field.name),
-                    case_variant: None,
+                    case_variant: case_variant.map(|variant| lower_name(&variant.name)),
                 },
             ))
     }

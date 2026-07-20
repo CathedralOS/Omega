@@ -10,9 +10,11 @@
 //! `expression::table::structural_equality`). The expansion is an AND/OR tree
 //! of field compares and tag-guarded payload compares, so it rides every
 //! existing backend and interpreter path with zero new runtime surface. A
-//! CALLABLE synthesized `Type::equals` machine is deliberately NOT emitted --
-//! that is the comptime/trait-generator arc (a hand-written `Type::equals`
-//! still wins: `==` lowers to a call to it).
+//! pre-resolution wrapper also makes that exact expansion callable as
+//! `Type::equals`; direct calls to the compiler-owned surface expand in the
+//! caller's storage scope, and the wrapper is excluded from the hand-written-
+//! override lookup so its own `self == other` body cannot recursively target
+//! itself. A hand-written `Type::equals` still wins.
 //!
 //! The conformance PREREQUISITES are validated up front (before machine
 //! lowering) so violations error at the conformance item, not at some later
@@ -94,10 +96,14 @@ pub(crate) fn written_equals_state_symbol(
         .machines
         .iter()
         .filter(|machine| {
-            machine
-                .attached_data
-                .as_ref()
-                .is_some_and(|attached| attached.as_str() == type_name)
+            !machine
+                .name
+                .as_str()
+                .starts_with("__omega_synthesized_equatable::")
+                && machine
+                    .attached_data
+                    .as_ref()
+                    .is_some_and(|attached| attached.as_str() == type_name)
         })
         .find_map(|machine| {
             program
