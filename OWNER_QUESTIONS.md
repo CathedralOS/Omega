@@ -92,3 +92,33 @@ save with no SIMD use permitted transitively, and a protocol-neutral linear
 acknowledgement requirement refined by PIC/LAPIC providers. This is deliberately
 conservative and can later admit nesting or a broader state ceiling, but it is
 still an OS policy choice because it fixes stack demand and preemption edges.
+
+## 4. What is the generated post-handoff writer boundary?
+
+The normalized materializer can derive an atomic writer plan, and exact
+`InstalledCode` can privately resolve only entry identities admitted with that
+artifact. What remains is not an opcode-selection question: no platform
+boundary yet specifies how generated target code receives resolver authority,
+destination authority, staging storage, or publication/failure obligations.
+
+Decide:
+
+- whether the writer is a compiler-generated checked Omega machine, a
+  provider-private admitted entry, or code inlined into each platform provider;
+- what sealed capability resolves `DataSymbolId` and `EntryStubId` without
+  exposing a general numeric-address operation;
+- who owns the full-plan staging buffer required for all-or-nothing publication,
+  how its maximum size/alignment is admitted, and what happens on allocation or
+  resolution failure;
+- which memory-order/cache/device-visibility fact constitutes publication for
+  ordinary RAM versus hardware-consumed tables; and
+- how the writer's call/state plan, footprint evidence, destination extent,
+  installation scope, and installed target lifetimes are bound into one receipt.
+
+Recommendation: generate a provider-private checked Omega machine from the
+normalized writer plan. It should consume an exact destination extent plus a
+sealed resolver capability, use provider-owned bounded staging storage admitted
+with the plan, and return a receipt establishing one target-specific publication
+fact. The machine may lower normally under its evaluated call/state plan; do not
+standardize a public callback ABI or let ordinary Omega code observe resolved
+addresses.
