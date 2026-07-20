@@ -38,7 +38,7 @@ use omega_abstract_operations::{
 };
 use omega_calling_conventions::{
     CallSignature, CallingPolicy, MachineRegister, ValueClass, ValueLocation, ValueShape,
-    evaluate_call_plan,
+    evaluate_ordinary_boundary_entry_plan,
 };
 use omega_layout::DataShape;
 use operation_aliases::bind_runtime_operation_aliases;
@@ -1315,8 +1315,12 @@ fn select_normalized_entry_argument_writes(
         parameters: destinations.iter().map(|(_, shape)| *shape).collect(),
         result: None,
     };
-    let plan = evaluate_call_plan(CallingPolicy::native_for_target(input.target), &signature)
-        .expect("runtime entry signature must have a normalized native call plan");
+    let boundary = evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::native_for_target(input.target),
+        &signature,
+    )
+    .expect("runtime entry signature must have a normalized boundary entry plan");
+    let plan = &boundary.plan().call;
 
     for ((destination_offset, _), placement) in destinations.iter().zip(&plan.parameters) {
         for location in &placement.locations {
@@ -1360,10 +1364,15 @@ pub(super) fn normalized_entry_integer_result_register(
         parameters: Vec::new(),
         result: Some(ValueShape::integer(4, 4)),
     };
-    let plan = evaluate_call_plan(CallingPolicy::native_for_target(input.target), &signature)
-        .expect("runtime entry result must have a normalized native call plan");
+    let boundary = evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::native_for_target(input.target),
+        &signature,
+    )
+    .expect("runtime entry result must have a normalized boundary entry plan");
+    let plan = &boundary.plan().call;
     let result = plan
         .result
+        .as_ref()
         .expect("integer-result call plan must place its result");
     let [
         ValueLocation::Register {

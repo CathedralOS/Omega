@@ -75,8 +75,11 @@ signature and ignored `BOOL` result; RCX/RDX/R8/R9, the shadow-relative fifth
 argument, and the scratch-slot reservation all come from that evaluated plan.
 The dedicated runtime line and byte Windows sequences reuse that exact layout
 plus an actual one-DWORD/RAX `GetStdHandle` plan, preserving their fixed widths
-and relocation sites. AArch64 fragmented calls, concrete firmware state policy,
-and source-selected policies remain below.
+and relocation sites. AArch64 fragmented calls and source-selected policies
+remain below. Ordinary/firmware entry lowering now validates a combined
+boundary plan with no interrupted state, no save/restore obligation, a
+provider-selected stack, non-preemptive entry semantics, and a transitive state
+ceiling derived exactly from the ABI volatile-register classes.
 
 1. **ENT2b — source policy evaluation and identity (OWNER-BLOCKED: see
    `OWNER_QUESTIONS.md` section 2).** Evaluate the policy type
@@ -100,8 +103,7 @@ and source-selected policies remain below.
    materialize integer/pointer or float values through caller-saved scratch
    registers, store at plan-selected offsets, restore SP after the call, and
    feed the same overhead into layout and both relocation walkers. Continue
-   through AArch64 fragmented calls and
-   remaining firmware state policy, then make the plan authoritative. Add the
+   through AArch64 fragmented calls, then make the plan authoritative. Add the
    concrete x86 interrupt `StatePlan`, stack/IST, nesting, and acknowledgement
    policy used by Cathedral.
 3. **ENT3 — constrained entry codegen.** Derive entry stubs, specialize/codegen

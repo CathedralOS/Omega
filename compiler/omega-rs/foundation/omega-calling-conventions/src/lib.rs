@@ -9,8 +9,9 @@ pub use plans::{
     BoundaryEntryPlan, CallPlan, CallSignature, CallingPolicy, EntryControl, EntryStack,
     MachineRegime, MachineRegister, MachineState, MachineStateSet, PlanDiagnostic, Preemption,
     RegisterSet, StateFootprintEvidence, StatePlan, ValidatedBoundaryEntryPlan, ValueClass,
-    ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan, validate_boundary_entry_plan,
-    validate_call_plan, validate_state_footprint,
+    ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan,
+    evaluate_ordinary_boundary_entry_plan, validate_boundary_entry_plan, validate_call_plan,
+    validate_state_footprint,
 };
 pub use windows::windows_import_library;
 
