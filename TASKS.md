@@ -60,9 +60,11 @@ instead of silently applying Win64. Microsoft x64 vtable and firmware
 service-table calls now use the same plan-driven register/stack marshaller,
 with dispatch-only table pointers excluded from the wire signature and
 plan-selected results checked before storage. Bespoke/composite Windows
-imports remain for file I/O, key-state result normalization, and time
-out-parameters; `GetStdHandle`, `ExitProcess`, and `Sleep` now use the
+imports remain for file I/O and time out-parameters; `GetStdHandle`,
+`ExitProcess`, and `Sleep` now use the
 plan-driven general marshaller with byte-identical relocation layouts.
+`GetAsyncKeyState` now consumes planned RCX/RAX placements while preserving
+its required 16-bit zero-extension result transform.
 AArch64 stack/fragmented calls, concrete firmware state policy, and
 source-selected policies remain below.
 
@@ -82,8 +84,8 @@ source-selected policies remain below.
    placements. The general Microsoft x64 import path likewise consumes exact
    planned register/stack/result placements and target-derived policy, as do
    Microsoft vtable and firmware service-table calls. Continue through
-   the remaining bespoke/composite x86-64 imports (simple one-argument imports
-   are migrated), AArch64 stack/fragmented calls, and
+   the remaining bespoke/composite x86-64 imports (simple one-argument and
+   key-state imports are migrated), AArch64 stack/fragmented calls, and
    remaining firmware state policy, then make the plan authoritative. Add the
    concrete x86 interrupt `StatePlan`, stack/IST, nesting, and acknowledgement
    policy used by Cathedral.
