@@ -122,11 +122,6 @@ pub(crate) fn desugar_generic_data_instances(
         let has_const_parameters = definition_parameters
             .iter()
             .any(|parameter| matches!(parameter.kind, TypeParameterKind::Const { .. }));
-        if has_const_parameters && data_with_machines.contains(definition.name.as_str()) {
-            // Const substitution in cloned attached-machine bodies is a later
-            // slice; keep such containers on the existing generic path.
-            continue;
-        }
         if data_with_machines.contains(definition.name.as_str()) {
             // A CONTAINER (generic data with attached machines) monomorphizes
             // ONLY when every method's own type parameters are covered by the
@@ -163,7 +158,15 @@ pub(crate) fn desugar_generic_data_instances(
                             .state_handles(machine.states)
                             .iter()
                             .any(|state| !syntax.tables.items.state(*state).statements.is_empty());
+                        let machine_parameters =
+                            syntax.tables.items.type_parameters(machine.type_parameters);
+                        // A parameter-free method can be cloned onto each
+                        // const-specialized record directly. A method that
+                        // itself declares const parameters may carry N in value
+                        // positions this type-reference watermark does not yet
+                        // rewrite, so leave that container on the generic path.
                         has_bodies
+                            && (!has_const_parameters || machine_parameters.is_empty())
                             && syntax
                                 .tables
                                 .items

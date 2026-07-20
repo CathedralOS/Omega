@@ -703,9 +703,11 @@ before the fix.
   into fixed-array layout, descriptors, runtime storage, and interpreter
   defaults; differential canaries pin direct and same-name, symbol-resolved
   forwarded const arguments through indexed storage. Const-specialized plain
-  records now give distinct literal instances independent layout identity.
-  Continue with richer const expressions, layout diagnostics, const-bearing
-  containers/methods, and const-fact proof integration.
+  records now give distinct literal instances independent layout identity, and
+  parameter-free mutating attached methods clone onto those specializations.
+  Continue with richer const expressions, layout diagnostics, same-signature
+  value-method dispatch across const specializations, const-parameterized method
+  signatures/bodies, and const-fact proof integration.
 - **Trait defaults.** Implement conformance, reuse, override, and dispatch for
   trait machines whose body supplies the default. Do not restore a `default`
   keyword.
