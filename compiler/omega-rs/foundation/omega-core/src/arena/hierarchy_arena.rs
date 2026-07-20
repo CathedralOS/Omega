@@ -41,11 +41,13 @@ impl<T: HierarchyNode> HierarchyArena<T> {
             self.get(parent).children().is_empty(),
             "generated hierarchy parent already has children"
         );
-        let children = self.nodes.insert_many(children.into_iter().map(|mut child| {
-            child.set_parent(parent);
-            child.set_children(HandleSpan::empty());
-            child
-        }));
+        let children = self
+            .nodes
+            .insert_many(children.into_iter().map(|mut child| {
+                child.set_parent(parent);
+                child.set_children(HandleSpan::empty());
+                child
+            }));
         self.nodes.get_mut(parent).set_children(children);
         children
     }

@@ -128,22 +128,22 @@ fn expression_root_name_handle(program: &TypedTrees, expression: ExpressionHandl
 /// The field name of a DIRECT `self.<field>` place, whether it lowered as a
 /// `Member(Name([self]), field)` or a two-segment `Name([self, field])` path.
 /// `None` for anything deeper (`self.a.b`), a bare local, or a non-`self` receiver.
-pub(crate) fn direct_self_field_member(program: &TypedTrees, target: ExpressionHandle) -> Option<&str> {
+pub(crate) fn direct_self_field_member(
+    program: &TypedTrees,
+    target: ExpressionHandle,
+) -> Option<&str> {
     match program.expression_table.expression(target) {
         ExpressionNode::Member(member) => {
-            let ExpressionNode::Name(path) =
-                program.expression_table.expression(member.receiver)
+            let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver)
             else {
                 return None;
             };
             let receiver = program.expression_table.name_path_members(path.members);
-            (receiver.len() == 1 && receiver[0].as_str() == "self")
-                .then(|| member.member.as_str())
+            (receiver.len() == 1 && receiver[0].as_str() == "self").then(|| member.member.as_str())
         }
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
-            (members.len() == 2 && members[0].as_str() == "self")
-                .then(|| members[1].as_str())
+            (members.len() == 2 && members[0].as_str() == "self").then(|| members[1].as_str())
         }
         _ => None,
     }
@@ -200,7 +200,10 @@ pub fn declared_place_type_raw(
                     if let omega_typed_trees::statement::StatementNode::LocalData(local) = statement
                         && local.name.as_str() == name
                     {
-                        return local.type_reference.is_valid().then_some(local.type_reference);
+                        return local
+                            .type_reference
+                            .is_valid()
+                            .then_some(local.type_reference);
                     }
                 }
                 for parameter in program.state_parameters(state) {
@@ -276,10 +279,7 @@ pub fn declared_place_type_raw(
 /// Collect a place expression's member path (`self.p.x` -> ["self","p","x"]),
 /// descending NESTED `Member` receivers. `None` for non-name shapes (indexed
 /// receivers, calls) -- those re-resolve during instruction selection.
-fn collect_member_path(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-) -> Option<Vec<String>> {
+fn collect_member_path(program: &TypedTrees, expression: ExpressionHandle) -> Option<Vec<String>> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => Some(
             program
@@ -402,8 +402,7 @@ pub(crate) fn nested_receiver_type_name<'program>(
     current_state: Option<&omega_typed_trees::state::State>,
     path: &[String],
 ) -> Option<&'program str> {
-    let type_reference =
-        resolve_nested_member_path(program, current_machine, current_state, path)?;
+    let type_reference = resolve_nested_member_path(program, current_machine, current_state, path)?;
     let unwrapped = unwrapped_type_reference(program, type_reference)?;
     match program.type_reference_table.type_reference(unwrapped) {
         TypeReferenceNode::Named { name, .. } => Some(name.as_str()),
@@ -440,7 +439,10 @@ fn local_or_parameter_type(
         if let omega_typed_trees::statement::StatementNode::LocalData(local) = statement
             && local.name.as_str() == name
         {
-            return local.type_reference.is_valid().then_some(local.type_reference);
+            return local
+                .type_reference
+                .is_valid()
+                .then_some(local.type_reference);
         }
     }
     for parameter in program.state_parameters(state) {
@@ -471,12 +473,18 @@ fn data_field_or_payload_type(
         if let omega_typed_trees::data::DataMember::Field(field) = member
             && field.name.as_str() == field_name
         {
-            return field.type_reference.is_valid().then_some(field.type_reference);
+            return field
+                .type_reference
+                .is_valid()
+                .then_some(field.type_reference);
         }
         if let omega_typed_trees::data::DataMember::Variant(variant) = member {
             for field in program.data_payload_fields(variant) {
                 if field.name.as_str() == field_name {
-                    return field.type_reference.is_valid().then_some(field.type_reference);
+                    return field
+                        .type_reference
+                        .is_valid()
+                        .then_some(field.type_reference);
                 }
             }
         }

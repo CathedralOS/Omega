@@ -77,8 +77,7 @@ pub fn validate_asm_discharge(
                 else {
                     continue;
                 };
-                if required_authority
-                    == omega_core::inline_assembly::AsmAuthorityRequirement::None
+                if required_authority == omega_core::inline_assembly::AsmAuthorityRequirement::None
                 {
                     continue;
                 }

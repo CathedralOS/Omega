@@ -32,7 +32,6 @@ impl WritableRoots<'_, '_> {
                 .iter()
                 .any(|parameter| parameter.is_mutable && parameter.name.as_str() == root_name)
     }
-
 }
 
 pub(crate) fn local_is_mutable_reference(
@@ -44,8 +43,13 @@ pub(crate) fn local_is_mutable_reference(
         return false;
     }
     matches!(
-        program.type_reference_table.type_reference(local_data.type_reference),
-        TypeReferenceNode::Reference { is_mutable: true, .. }
+        program
+            .type_reference_table
+            .type_reference(local_data.type_reference),
+        TypeReferenceNode::Reference {
+            is_mutable: true,
+            ..
+        }
     )
 }
 

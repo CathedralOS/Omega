@@ -14,9 +14,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_typed_trees::machine::Machine;
-use omega_typed_trees::statement::{
-    StatementNode, TransitionGuardNode, TransitionTargetNode,
-};
+use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 pub(crate) fn validate_machine_call_cycles(
@@ -205,16 +203,10 @@ fn dfs_report_cycles(
                 } else {
                     let mut parts = Vec::new();
                     if !non_tail.is_empty() {
-                        parts.push(format!(
-                            "non-tail call edge(s): {}",
-                            non_tail.join(", "),
-                        ));
+                        parts.push(format!("non-tail call edge(s): {}", non_tail.join(", "),));
                     }
                     if !unmeasured.is_empty() {
-                        parts.push(format!(
-                            "unmeasured machine(s): {}",
-                            unmeasured.join(", "),
-                        ));
+                        parts.push(format!("unmeasured machine(s): {}", unmeasured.join(", "),));
                     }
                     format!(
                         " MR4 shape check: NOT met -- {}. A joint-measure \
@@ -235,7 +227,14 @@ fn dfs_report_cycles(
             }
         } else if color[next] == 0 {
             dfs_report_cycles(
-                program, edges, edge_is_tail, edge_decreases, next, color, path, reported,
+                program,
+                edges,
+                edge_is_tail,
+                edge_decreases,
+                next,
+                color,
+                path,
+                reported,
                 diagnostics,
             );
         }
@@ -266,7 +265,14 @@ fn collect_statement_edges(
                 || matches!(receiver_members, [receiver] if receiver.as_str() == "self")
             {
                 add_edge_for_name(
-                    program, machine, symbols, index_of, &call.target, false, false, out,
+                    program,
+                    machine,
+                    symbols,
+                    index_of,
+                    &call.target,
+                    false,
+                    false,
+                    out,
                 );
             }
             for argument in program.statement_table.expression_handles(call.arguments) {
@@ -327,7 +333,12 @@ fn collect_statement_edges(
                     }
                     TransitionTargetNode::Value(expression) => {
                         collect_expression_edges(
-                            program, machine, symbols, index_of, *expression, out,
+                            program,
+                            machine,
+                            symbols,
+                            index_of,
+                            *expression,
+                            out,
                         );
                     }
                     TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
@@ -365,7 +376,14 @@ fn collect_expression_edges(
                 );
             if receiver_is_selfish {
                 add_edge_for_name(
-                    program, machine, symbols, index_of, &call.target, false, false, out,
+                    program,
+                    machine,
+                    symbols,
+                    index_of,
+                    &call.target,
+                    false,
+                    false,
+                    out,
                 );
             } else {
                 recurse(call.receiver, out);
@@ -396,7 +414,10 @@ fn collect_expression_edges(
             }
         }
         ExpressionNode::StructLiteral(struct_literal) => {
-            for field in program.expression_table.struct_fields(struct_literal.fields) {
+            for field in program
+                .expression_table
+                .struct_fields(struct_literal.fields)
+            {
                 recurse(field.value, out);
             }
         }
@@ -515,13 +536,22 @@ fn tail_edge_decrease_proven(
     let debug = std::env::var_os("OMEGA_MR4_TRACE").is_some();
     // The caller's own single measure subject.
     let Some(caller_witness) = machine.termination_plan.implementation_witness.as_ref() else {
-        if debug { eprintln!("MR4 {}->{}: no caller witness", machine.name, target.as_str()); }
+        if debug {
+            eprintln!(
+                "MR4 {}->{}: no caller witness",
+                machine.name,
+                target.as_str()
+            );
+        }
         return false;
     };
     if debug {
         eprintln!(
             "MR4 {}->{}: caller subjects {:?} zero_excluded {:?}",
-            machine.name, target.as_str(), caller_witness.subjects, zero_excluded
+            machine.name,
+            target.as_str(),
+            caller_witness.subjects,
+            zero_excluded
         );
     }
     let [caller_subject] = caller_witness.subjects.as_slice() else {
@@ -572,11 +602,13 @@ fn tail_edge_decrease_proven(
     if binary.operator != omega_typed_trees::expression::BinaryOperator::Subtract {
         return false;
     }
-    let ExpressionNode::Name(left_path) = program.expression_table.expression(binary.left)
-    else {
+    let ExpressionNode::Name(left_path) = program.expression_table.expression(binary.left) else {
         return false;
     };
-    let [left_name] = program.expression_table.name_path_members(left_path.members) else {
+    let [left_name] = program
+        .expression_table
+        .name_path_members(left_path.members)
+    else {
         return false;
     };
     if left_name.as_str() != caller_subject.as_str() {

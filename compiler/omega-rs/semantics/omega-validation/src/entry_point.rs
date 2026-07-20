@@ -19,9 +19,7 @@ pub(crate) fn validate_entry_point(program: &TypedTrees, diagnostics: &mut Vec<D
     .find_map(|(machine_name, state_name)| find_entry_point(program, machine_name, state_name));
 
     let Some((machine, state)) = entry else {
-        diagnostics.push(Diagnostic::error(
-            "missing runtime entry point `Main::run`",
-        ));
+        diagnostics.push(Diagnostic::error("missing runtime entry point `Main::run`"));
         return;
     };
 
@@ -75,10 +73,11 @@ fn find_entry_point<'trees>(
         .machines()
         .iter()
         .find(|machine| machine.symbol == machine_symbol)?;
-    let state_symbol =
-        program
-            .symbols
-            .find_child_by_name_and_kind(machine.symbol, state_name, SymbolKind::State)?;
+    let state_symbol = program.symbols.find_child_by_name_and_kind(
+        machine.symbol,
+        state_name,
+        SymbolKind::State,
+    )?;
     let state = program
         .machine_states(machine)
         .iter()

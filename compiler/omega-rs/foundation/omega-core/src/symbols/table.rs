@@ -126,7 +126,9 @@ impl SymbolTable {
     /// remain unchanged. Children must be installed once, as one batch, via
     /// [`Self::insert_generated_children`].
     pub fn insert_generated_root(&mut self, kind: SymbolKind, name: &str) -> SymbolHandle {
-        let name = self.names.insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name)));
+        let name = self
+            .names
+            .insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name)));
         self.symbols.insert_generated_root(Symbol {
             parent: SymbolHandle::invalid(),
             children: HandleSpan::empty(),

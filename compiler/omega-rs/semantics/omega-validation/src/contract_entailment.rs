@@ -3614,8 +3614,7 @@ fn recognize_guarded_structural_value_arms(
         if equality.operator != BinaryOperator::Equal {
             return None;
         }
-        let ExpressionNode::Boolean(polarity) =
-            program.expression_table.expression(equality.right)
+        let ExpressionNode::Boolean(polarity) = program.expression_table.expression(equality.right)
         else {
             return None;
         };
@@ -4633,9 +4632,9 @@ impl<'program> StructuralJudge<'program> {
             // retain it as an opaque operand so the self-application has the
             // correct arity and identity.  The separate arithmetic recursion
             // validator is solely responsible for proving the edge decreases.
-            ExpressionNode::Binary(_) | ExpressionNode::Integer(_) => Some(
-                StructuralTerm::Opaque(program.expression_table.display_name(expression)),
-            ),
+            ExpressionNode::Binary(_) | ExpressionNode::Integer(_) => Some(StructuralTerm::Opaque(
+                program.expression_table.display_name(expression),
+            )),
             _ => None,
         }
     }

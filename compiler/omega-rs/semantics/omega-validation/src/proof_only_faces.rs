@@ -28,8 +28,7 @@ pub(crate) fn validate_proof_only_consumption(
         {
             continue;
         }
-        if let Some(reason) = classification.describe(definition.name.as_str(), definition.symbol)
-        {
+        if let Some(reason) = classification.describe(definition.name.as_str(), definition.symbol) {
             diagnostics.push(Diagnostic::error(format!(
                 "data `{}` declares runtime properties, but {reason}; properties speak \
                  about values in memory, which proof-only data never becomes",
@@ -166,8 +165,7 @@ pub(crate) fn validate_proof_only_consumption(
                 }
             };
             for field in fields {
-                if let Some(held) =
-                    classification.proof_only_mention(program, field.type_reference)
+                if let Some(held) = classification.proof_only_mention(program, field.type_reference)
                 {
                     diagnostics.push(Diagnostic::error(format!(
                         "data `{}` field `{}` views proof-only `{held}` through an \

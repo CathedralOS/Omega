@@ -414,7 +414,9 @@ fn validate_generic_argument_bounds(
     };
 
     let parameters = program.data_type_parameters(definition);
-    let argument_handles = program.type_reference_table.type_reference_handles(arguments);
+    let argument_handles = program
+        .type_reference_table
+        .type_reference_handles(arguments);
     for (parameter, argument) in parameters.iter().zip(argument_handles) {
         let bounds = crate::properties::declared_property_requirements(&parameter.bounds);
         let bound_labels = bounds.iter().map(ToString::to_string).collect::<Vec<_>>();
@@ -640,13 +642,11 @@ fn validate_type_constraints_node(
                 if primitive_type.is_some_and(|primitive| primitive.accepts_finite_constraint()) {
                     let primitive_name = primitive_type.expect("checked above").name();
                     match domain {
-                        ArithmeticDomain::Wrapping => diagnostics.push(Diagnostic::error(
-                            format!(
-                                "{owner} applies `Wrapping` to `{primitive_name}`, but there \
+                        ArithmeticDomain::Wrapping => diagnostics.push(Diagnostic::error(format!(
+                            "{owner} applies `Wrapping` to `{primitive_name}`, but there \
                                  is no modular reading of a float -- a wrapping policy is only \
                                  meaningful on integers"
-                            ),
-                        )),
+                        ))),
                         // F5 LANDED (2026-07-16): Saturating clamps magnitude
                         // overflow to +-MAX_FINITE (div-by-zero/invalid keep
                         // their non-finites, per the brief); Trapping traps on
@@ -775,7 +775,7 @@ fn dependent_state_parameter_range_error(
     owner: &TypeReferenceOwner<'_>,
     minimum: omega_typed_trees::expression::ExpressionHandle,
     maximum: omega_typed_trees::expression::ExpressionHandle,
-    ) -> Option<String> {
+) -> Option<String> {
     let generic = || {
         format!(
             "{owner} declares a range whose bound is not a constant integer \
@@ -834,10 +834,9 @@ fn dependent_state_parameter_range_error(
         }
         return None;
     }
-    let Some(symbolic) = omega_typed_trees::dependent_ranges::symbolic_max_bound(
-        &program.expression_table,
-        maximum,
-    ) else {
+    let Some(symbolic) =
+        omega_typed_trees::dependent_ranges::symbolic_max_bound(&program.expression_table, maximum)
+    else {
         return Some(generic());
     };
     let TypeReferenceOwner::StateParameter {
@@ -859,16 +858,20 @@ fn dependent_state_parameter_range_error(
                 .find(|data| data.name.as_str() == attached.as_str())
         })
         .and_then(|data| {
-            program.data_members(data).iter().find_map(|member| {
-                match member {
+            program
+                .data_members(data)
+                .iter()
+                .find_map(|member| match member {
                     omega_typed_trees::data::DataMember::Field(field)
                         if field.name.as_str() == symbolic.field.as_str() =>
                     {
-                        field.type_reference.is_valid().then_some(field.type_reference)
+                        field
+                            .type_reference
+                            .is_valid()
+                            .then_some(field.type_reference)
                     }
                     _ => None,
-                }
-            })
+                })
         })
         .is_some_and(|field_type| {
             // The field must EXIST and be an integer primitive. A LITERAL
@@ -898,10 +901,7 @@ fn omega_typed_rees_sibling(
     omega_typed_trees::dependent_ranges::sibling_len_bound(&program.expression_table, maximum)
 }
 
-fn type_reference_is_sliceable(
-    program: &TypedTrees,
-    handle: TypeReferenceHandle,
-) -> bool {
+fn type_reference_is_sliceable(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Reference { referee, .. } => {
             type_reference_is_sliceable(program, *referee)

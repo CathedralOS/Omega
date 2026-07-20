@@ -25,7 +25,12 @@ pub enum ByteSequencePredicate {
 }
 
 impl ByteSequencePredicate {
-    pub const ALL: [Self; 4] = [Self::ValidUtf8, Self::NoNul, Self::AsciiOnly, Self::NonEmpty];
+    pub const ALL: [Self; 4] = [
+        Self::ValidUtf8,
+        Self::NoNul,
+        Self::AsciiOnly,
+        Self::NonEmpty,
+    ];
 
     pub fn from_name(name: &str) -> Option<Self> {
         match name {

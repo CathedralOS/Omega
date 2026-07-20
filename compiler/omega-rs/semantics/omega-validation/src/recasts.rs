@@ -65,7 +65,9 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                     referee,
                     is_mutable: let_is_mutable,
                     ..
-                } = program.type_reference_table.type_reference(local.type_reference)
+                } = program
+                    .type_reference_table
+                    .type_reference(local.type_reference)
                 else {
                     continue;
                 };
@@ -217,8 +219,7 @@ fn judge_qualification_cast(
             // `machine use(..) requires raw >= 0` mints inside `use`.
             if matches!(judgment, MintJudgment::NotLiteral)
                 && let Some((machine, _)) = context
-                && let Some(judged) =
-                    requires_mint_discharges(program, machine, domain, cast.value)
+                && let Some(judged) = requires_mint_discharges(program, machine, domain, cast.value)
             {
                 judgment = judged;
             }
@@ -266,8 +267,7 @@ fn range_mint_discharges(
 ) -> Option<MintJudgment> {
     // The RAW declared type keeps the Constrained shell the range lives in
     // (declared_place_type strips it -- the R2 slice-9 gotcha).
-    let declared =
-        crate::places::declared_place_type_raw(program, machine, Some(state), value)?;
+    let declared = crate::places::declared_place_type_raw(program, machine, Some(state), value)?;
     let interval = crate::arithmetic_domains::range_constraint_interval(program, declared)?;
     let (low, high) = (interval.low?, interval.high?);
     for fact in program.proof_facts.span_or_empty(domain.facts) {
@@ -391,14 +391,17 @@ fn judge_scalar_recast(
                         "{context}: the recast target `{target_name}` needs {record_size} bytes at offset {offset}, but the region holds {region_length} -- the view would read past the buffer (§5b rule 1 is byte-granular)",
                     )));
                 }
-                let let_names_target = crate::places::unwrapped_type_reference(program, let_referee)
-                    .map(|unwrapped| {
-                        matches!(
-                            program.type_reference_table.type_reference(unwrapped),
-                            TypeReferenceNode::Named { name, .. } if name.as_str() == target_name
-                        )
-                    })
-                    .unwrap_or(false);
+                let let_names_target = crate::places::unwrapped_type_reference(
+                    program,
+                    let_referee,
+                )
+                .map(|unwrapped| {
+                    matches!(
+                        program.type_reference_table.type_reference(unwrapped),
+                        TypeReferenceNode::Named { name, .. } if name.as_str() == target_name
+                    )
+                })
+                .unwrap_or(false);
                 if !let_names_target {
                     diagnostics.push(Diagnostic::error(format!(
                         "{context}: the let's declared type must restate the recast target `&{target_name}`",
@@ -473,8 +476,9 @@ fn judge_scalar_recast(
         }
         return;
     }
-    let source_primitive = crate::places::declared_place_type(program, machine, Some(state), source)
-        .and_then(|type_reference| program.primitive_type_reference(type_reference));
+    let source_primitive =
+        crate::places::declared_place_type(program, machine, Some(state), source)
+            .and_then(|type_reference| program.primitive_type_reference(type_reference));
     let Some(source_primitive) = source_primitive else {
         diagnostics.push(Diagnostic::error(format!(
             "{context}: a recast re-views a PLACE's bytes -- the source must be a borrowed \
@@ -586,12 +590,9 @@ fn interior_byte_region_source(
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(source) else {
         return InteriorByteRegion::NotInteriorShape;
     };
-    let Some(collection_type) = crate::places::declared_place_type(
-        program,
-        machine,
-        Some(state),
-        indexed.collection,
-    ) else {
+    let Some(collection_type) =
+        crate::places::declared_place_type(program, machine, Some(state), indexed.collection)
+    else {
         return InteriorByteRegion::NotInteriorShape;
     };
     let TypeReferenceNode::FixedArray {
@@ -630,8 +631,7 @@ fn interior_byte_region_source(
                 indexed.index,
             )
             .and_then(|raw| {
-                let interval =
-                    crate::arithmetic_domains::range_constraint_interval(program, raw)?;
+                let interval = crate::arithmetic_domains::range_constraint_interval(program, raw)?;
                 let high = interval.high()?;
                 (!interval.low().is_some_and(|low| low < 0) && high >= 0).then_some(high)
             });
@@ -769,8 +769,9 @@ fn incoming_offset_bound(
                 if !target_handle.is_valid() {
                     continue;
                 }
-                let TransitionTargetNode::Named { path, arguments, .. } =
-                    program.statement_table.transition_target(target_handle)
+                let TransitionTargetNode::Named {
+                    path, arguments, ..
+                } = program.statement_table.transition_target(target_handle)
                 else {
                     continue;
                 };
@@ -812,15 +813,23 @@ fn incoming_offset_bound(
                 // the R4 ensures witness precedes the whole transition, so it
                 // holds on EITHER arm (and on an Always edge).
                 let guard_bound = match transition.guard {
-                    TransitionGuardNode::When(guard)
-                        if target_handle == transition.target =>
-                    {
+                    TransitionGuardNode::When(guard) if target_handle == transition.target => {
                         match side {
                             BoundSide::Upper => guard_upper_bound_for(
-                                program, machine, source, guard, &argument_label, depth,
+                                program,
+                                machine,
+                                source,
+                                guard,
+                                &argument_label,
+                                depth,
                             ),
                             BoundSide::Lower => guard_lower_bound_for(
-                                program, machine, source, guard, &argument_label, depth,
+                                program,
+                                machine,
+                                source,
+                                guard,
+                                &argument_label,
+                                depth,
                             ),
                         }
                     }
@@ -933,8 +942,10 @@ fn boundary_call_ensures_bound(
         .data_definitions()
         .iter()
         .find(|data| data.name.as_str() == attached.as_str())?;
-    let field_type = program.data_members(data).iter().find_map(|member| {
-        match member {
+    let field_type = program
+        .data_members(data)
+        .iter()
+        .find_map(|member| match member {
             omega_typed_trees::data::DataMember::Field(field)
                 if field.name.as_str() == receiver.as_str() =>
             {
@@ -944,10 +955,10 @@ fn boundary_call_ensures_bound(
                     .then_some(field.type_reference)
             }
             _ => None,
-        }
-    })?;
-    let TypeReferenceNode::Named { name: trait_name, .. } =
-        program.type_reference_table.type_reference(field_type)
+        })?;
+    let TypeReferenceNode::Named {
+        name: trait_name, ..
+    } = program.type_reference_table.type_reference(field_type)
     else {
         return None;
     };
@@ -1081,14 +1092,7 @@ fn guard_upper_bound_for(
         }
         BinaryOperator::Equal if depth > 0 => {
             let peer = equality_peer_for(program, guard, label)?;
-            symbolic_expression_bound(
-                program,
-                machine,
-                source,
-                peer,
-                depth - 1,
-                BoundSide::Upper,
-            )
+            symbolic_expression_bound(program, machine, source, peer, depth - 1, BoundSide::Upper)
         }
         BinaryOperator::LessOrEqual | BinaryOperator::Less => {
             // The comparison's inclusive RHS bound: a literal, or (gap 4b)
@@ -1096,13 +1100,9 @@ fn guard_upper_bound_for(
             // the per-edge meet in the SOURCE state's scope.
             let rhs_inclusive = match program.expression_table.expression(binary.right) {
                 ExpressionNode::Integer(literal) => literal.value_i64()?,
-                ExpressionNode::Name(_) if depth > 0 => symbolic_param_upper_bound(
-                    program,
-                    machine,
-                    source,
-                    binary.right,
-                    depth - 1,
-                )?,
+                ExpressionNode::Name(_) if depth > 0 => {
+                    symbolic_param_upper_bound(program, machine, source, binary.right, depth - 1)?
+                }
                 _ => return None,
             };
             let bound = if binary.operator == BinaryOperator::Less {
@@ -1127,13 +1127,8 @@ fn guard_upper_bound_for(
                     (addition.right, addition.left),
                 ] {
                     if program.expression_table.display_name(x) == label
-                        && let Some(y_floor) = symbolic_param_lower_bound(
-                            program,
-                            machine,
-                            source,
-                            y,
-                            depth - 1,
-                        )
+                        && let Some(y_floor) =
+                            symbolic_param_lower_bound(program, machine, source, y, depth - 1)
                         && y_floor >= 0
                     {
                         return bound.checked_sub(y_floor);
@@ -1160,7 +1155,8 @@ fn symbolic_param_upper_bound(
             let interval = crate::arithmetic_domains::range_constraint_interval(program, raw)?;
             interval.high()
         });
-    declared.or_else(|| incoming_offset_bound(program, machine, source, name, depth, BoundSide::Upper))
+    declared
+        .or_else(|| incoming_offset_bound(program, machine, source, name, depth, BoundSide::Upper))
 }
 
 /// A NAME's inclusive LOWER bound in `source`'s scope (declared range or
@@ -1177,7 +1173,8 @@ fn symbolic_param_lower_bound(
             let interval = crate::arithmetic_domains::range_constraint_interval(program, raw)?;
             interval.low()
         });
-    declared.or_else(|| incoming_offset_bound(program, machine, source, name, depth, BoundSide::Lower))
+    declared
+        .or_else(|| incoming_offset_bound(program, machine, source, name, depth, BoundSide::Lower))
 }
 
 /// `label >= K` / `> K` within the same guard walk -- the lower twin.
@@ -1237,14 +1234,7 @@ fn guard_lower_bound_for(
         }
         BinaryOperator::Equal if depth > 0 => {
             let peer = equality_peer_for(program, guard, label)?;
-            symbolic_expression_bound(
-                program,
-                machine,
-                source,
-                peer,
-                depth - 1,
-                BoundSide::Lower,
-            )
+            symbolic_expression_bound(program, machine, source, peer, depth - 1, BoundSide::Lower)
         }
         BinaryOperator::GreaterOrEqual | BinaryOperator::Greater => {
             if program.expression_table.display_name(binary.left) != label {
@@ -1317,12 +1307,8 @@ fn symbolic_expression_bound(
         return literal.value_i64();
     }
     match side {
-        BoundSide::Upper => {
-            symbolic_param_upper_bound(program, machine, source, expression, depth)
-        }
-        BoundSide::Lower => {
-            symbolic_param_lower_bound(program, machine, source, expression, depth)
-        }
+        BoundSide::Upper => symbolic_param_upper_bound(program, machine, source, expression, depth),
+        BoundSide::Lower => symbolic_param_lower_bound(program, machine, source, expression, depth),
     }
 }
 
@@ -1369,8 +1355,7 @@ fn judge_statement_qualification_casts(
                         roots.push(*value);
                     }
                     omega_typed_trees::statement::TransitionTargetNode::Named {
-                        arguments,
-                        ..
+                        arguments, ..
                     } => {
                         roots.extend(
                             program
@@ -1418,10 +1403,20 @@ fn judge_expression_qualification_casts(
         }
         ExpressionNode::Binary(binary) => {
             judge_expression_qualification_casts(
-                program, machine, state, binary.left, judged, diagnostics,
+                program,
+                machine,
+                state,
+                binary.left,
+                judged,
+                diagnostics,
             );
             judge_expression_qualification_casts(
-                program, machine, state, binary.right, judged, diagnostics,
+                program,
+                machine,
+                state,
+                binary.right,
+                judged,
+                diagnostics,
             );
         }
         ExpressionNode::Unary(unary) => {
@@ -1436,13 +1431,23 @@ fn judge_expression_qualification_casts(
         }
         ExpressionNode::Mutable(inner) => {
             judge_expression_qualification_casts(
-                program, machine, state, *inner, judged, diagnostics,
+                program,
+                machine,
+                state,
+                *inner,
+                judged,
+                diagnostics,
             );
         }
         ExpressionNode::Call(call) => {
             for argument in program.expression_table.expression_handles(call.arguments) {
                 judge_expression_qualification_casts(
-                    program, machine, state, *argument, judged, diagnostics,
+                    program,
+                    machine,
+                    state,
+                    *argument,
+                    judged,
+                    diagnostics,
                 );
             }
         }
@@ -1495,8 +1500,7 @@ fn literal_mint_discharges(
                 _ => None,
             }
         };
-        let (Some(left), Some(right)) = (side_value(binary.left), side_value(binary.right))
-        else {
+        let (Some(left), Some(right)) = (side_value(binary.left), side_value(binary.right)) else {
             return MintJudgment::NotLiteral;
         };
         use omega_typed_trees::expression::BinaryOperator;
@@ -1515,7 +1519,6 @@ fn literal_mint_discharges(
     }
     MintJudgment::Discharged
 }
-
 
 /// Requires-route discharge: the machine's REQUIRES facts about the cast
 /// value's NAME accumulate one-sided bounds (`raw >= 0` -> low = 0); the
@@ -1548,8 +1551,7 @@ fn requires_mint_discharges(
             let omega_typed_trees::domain::ProofFact::Expression(expression) = fact else {
                 continue;
             };
-            let ExpressionNode::Binary(binary) =
-                program.expression_table.expression(*expression)
+            let ExpressionNode::Binary(binary) = program.expression_table.expression(*expression)
             else {
                 continue;
             };

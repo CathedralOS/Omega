@@ -129,8 +129,7 @@ mod tests {
 
     #[test]
     fn root_grant_outranks_dev_activity() {
-        let commitment =
-            TrustCommitment::SemanticDomainIntroduction(SemanticDomainId(4));
+        let commitment = TrustCommitment::SemanticDomainIntroduction(SemanticDomainId(4));
         let mut table = TrustGrantTable::default();
         table.grant(TrustGrant {
             commitment: commitment.clone(),

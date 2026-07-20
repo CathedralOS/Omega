@@ -51,7 +51,8 @@ fn authored_carry_floor_rejects_a_stricter_stored_borrow() {
         )] { borrowed: &i32; }
         "#,
     );
-    let diagnostics = validate_program(&typed).expect_err("borrow must fail permissive carry floor");
+    let diagnostics =
+        validate_program(&typed).expect_err("borrow must fail permissive carry floor");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains("declares carry policy")
             && diagnostic.message.contains("field `borrowed`")
@@ -75,8 +76,7 @@ fn carry_bound_rejects_a_stricter_generic_argument() {
     let diagnostics =
         validate_program(&typed).expect_err("borrow type must not satisfy permissive carry bound");
     assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic.message.contains("type parameter `T")
-            && diagnostic.message.contains("carry(")
+        diagnostic.message.contains("type parameter `T") && diagnostic.message.contains("carry(")
     }));
 }
 
@@ -115,7 +115,9 @@ fn concrete_generic_carry_keeps_restrictive_substituted_arguments() {
     let diagnostics = validate_program(&typed)
         .expect_err("a concrete borrowed argument must remain carry-restrictive");
     assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic.message.contains("data `Bad` declares carry policy")
+        diagnostic
+            .message
+            .contains("data `Bad` declares carry policy")
             && diagnostic.message.contains("field `value`")
     }));
 }

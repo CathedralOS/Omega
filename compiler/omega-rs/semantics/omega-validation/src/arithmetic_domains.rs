@@ -253,13 +253,14 @@ fn narrow_env_by_condition(
                 place_path(program, comparison.right),
             )
             && left == right
-            && declared_place_type_raw(program, machine, state, comparison.left)
-                .is_some_and(|handle| {
+            && declared_place_type_raw(program, machine, state, comparison.left).is_some_and(
+                |handle| {
                     matches!(
                         program.primitive_type_reference(handle),
                         Some(PrimitiveType::F32 | PrimitiveType::F64)
                     )
-                })
+                },
+            )
         {
             env.mark_non_nan(left);
             return;
@@ -278,11 +279,7 @@ fn narrow_env_by_condition(
                 Some(PrimitiveType::F32 | PrimitiveType::F64)
             )
             && let Some(name) = place_path(program, place_expr)
-            && let Some(mut interval) = float_bound_from(
-                comparison.operator,
-                literal,
-                name_on_left,
-            )
+            && let Some(mut interval) = float_bound_from(comparison.operator, literal, name_on_left)
         {
             if let Some(declared) = float_range_constraint_interval(program, handle) {
                 interval = interval.intersect(declared);
@@ -395,7 +392,10 @@ pub(crate) fn seed_out_param_ensures(
         .iter()
         .filter(|parameter| !parameter.is_self)
         .collect();
-    for contract in program.signature_contracts.span_or_empty(signature.contracts) {
+    for contract in program
+        .signature_contracts
+        .span_or_empty(signature.contracts)
+    {
         if !matches!(contract.kind, SignatureContractKind::Ensures) {
             continue;
         }
@@ -403,7 +403,15 @@ pub(crate) fn seed_out_param_ensures(
             let ProofFact::Expression(expression) = fact else {
                 continue;
             };
-            seed_ensures_conjunct(program, machine, state, &parameters, arguments, *expression, env);
+            seed_ensures_conjunct(
+                program,
+                machine,
+                state,
+                &parameters,
+                arguments,
+                *expression,
+                env,
+            );
         }
     }
 }
@@ -646,9 +654,7 @@ fn expression_calls_state(
             expression_calls_state(program, left, state_name)
                 || expression_calls_state(program, right, state_name)
         }
-        ExpressionNode::Unary(unary) => {
-            expression_calls_state(program, unary.operand, state_name)
-        }
+        ExpressionNode::Unary(unary) => expression_calls_state(program, unary.operand, state_name),
         ExpressionNode::Member(member) => {
             expression_calls_state(program, member.receiver, state_name)
         }
@@ -823,11 +829,9 @@ impl ValueEnv {
                     .insert(path.clone(), interval.union(*other_interval));
             }
         }
-        joined.non_nan.extend(
-            self.non_nan
-                .intersection(&other.non_nan)
-                .cloned(),
-        );
+        joined
+            .non_nan
+            .extend(self.non_nan.intersection(&other.non_nan).cloned());
         joined
     }
 }
@@ -1429,8 +1433,7 @@ fn float_source_proves_int_cast(
             .map(|declared| declared.intersect(flow_range))
             .unwrap_or(flow_range);
         let declared_finite = declared.is_some_and(|declared| {
-            declared.low.is_some_and(f64::is_finite)
-                && declared.high.is_some_and(f64::is_finite)
+            declared.low.is_some_and(f64::is_finite) && declared.high.is_some_and(f64::is_finite)
         });
         (range, flow_non_nan || declared_finite)
     };
@@ -1452,9 +1455,7 @@ fn float_interval_fits_integer(low: f64, high: f64, target: PrimitiveType) -> bo
     // is exactly representable as a float. Smaller integer endpoints are all
     // exactly representable in f64 and may use the ordinary closed interval.
     match target {
-        PrimitiveType::I64 => {
-            low >= -9223372036854775808.0 && high < 9223372036854775808.0
-        }
+        PrimitiveType::I64 => low >= -9223372036854775808.0 && high < 9223372036854775808.0,
         PrimitiveType::U64 => low >= 0.0 && high < 18446744073709551616.0,
         _ => primitive_range(target).is_some_and(|range| {
             matches!((range.low, range.high), (Some(target_low), Some(target_high))
@@ -1779,13 +1780,13 @@ fn analyze(
                 left.domain
             } else {
                 match (left.domain, right.domain) {
-                    (Some(left_domain), Some(right_domain)) => Some(if left_domain
-                        == ArithmeticDomain::Exact
-                    {
-                        right_domain
-                    } else {
-                        left_domain
-                    }),
+                    (Some(left_domain), Some(right_domain)) => {
+                        Some(if left_domain == ArithmeticDomain::Exact {
+                            right_domain
+                        } else {
+                            left_domain
+                        })
+                    }
                     (Some(domain), None) | (None, Some(domain)) => Some(domain),
                     (None, None) => None,
                 }
@@ -1885,9 +1886,7 @@ fn analyze(
                 // range" is unactionable at the call site -- the fix is to annotate
                 // the CALLEE's return type. Name it so the user knows where to look.
                 let call_hint = overflow_operand_value_call_target(program, machine, binary.left)
-                    .or_else(|| {
-                        overflow_operand_value_call_target(program, machine, binary.right)
-                    })
+                    .or_else(|| overflow_operand_value_call_target(program, machine, binary.right))
                     .map(|target| {
                         format!(
                             " Here the operand `{target}(..)` is a value-machine call whose \
@@ -2038,14 +2037,8 @@ fn analyze(
                 && let Some(target) = primitive
                 && integer_bit_width(target).is_some()
             {
-                let provable = float_source_proves_int_cast(
-                    program,
-                    machine,
-                    state,
-                    env,
-                    cast.value,
-                    target,
-                );
+                let provable =
+                    float_source_proves_int_cast(program, machine, state, env, cast.value, target);
                 if !provable {
                     diagnostics.push(Diagnostic::error(format!(
                         "float-to-int cast in {owner} is not provably in `{}`'s range \
@@ -2087,12 +2080,26 @@ fn analyze(
             {
                 let mut throwaway = Vec::new();
                 let left = analyze(
-                    program, machine, state, *left_arg, env, target_primitive, target_domain,
-                    owner, &mut throwaway,
+                    program,
+                    machine,
+                    state,
+                    *left_arg,
+                    env,
+                    target_primitive,
+                    target_domain,
+                    owner,
+                    &mut throwaway,
                 );
                 let right = analyze(
-                    program, machine, state, *right_arg, env, target_primitive, target_domain,
-                    owner, &mut throwaway,
+                    program,
+                    machine,
+                    state,
+                    *right_arg,
+                    env,
+                    target_primitive,
+                    target_domain,
+                    owner,
+                    &mut throwaway,
                 );
                 if throwaway.is_empty() {
                     let interval = if call.target.as_str() == "max" {
@@ -2138,11 +2145,13 @@ fn analyze(
             }
             // ch15 stage 2 (modular return-range inference): no DECLARED range, so
             // infer the callee's return interval from its body (sound, permissive).
-            match resolve_unique_self_call_state(program, machine, call).and_then(|(callee, state)| {
-                let primitive = program.primitive_type_reference(state.return_type);
-                infer_return_interval(program, callee, state, primitive)
-                    .map(|interval| (primitive, interval))
-            }) {
+            match resolve_unique_self_call_state(program, machine, call).and_then(
+                |(callee, state)| {
+                    let primitive = program.primitive_type_reference(state.return_type);
+                    infer_return_interval(program, callee, state, primitive)
+                        .map(|interval| (primitive, interval))
+                },
+            ) {
                 Some((primitive, interval)) => Analysis {
                     domain: None,
                     interval,
@@ -2254,9 +2263,7 @@ pub(crate) fn check_range_under_non_exact_domain(
         handle: omega_typed_trees::types::TypeReferenceHandle,
     ) -> bool {
         match program.type_reference_table.type_reference(handle) {
-            TypeReferenceNode::Reference { referee, .. } => {
-                has_range_constraint(program, *referee)
-            }
+            TypeReferenceNode::Reference { referee, .. } => has_range_constraint(program, *referee),
             TypeReferenceNode::Constrained {
                 base_type,
                 constraints,
@@ -2265,9 +2272,7 @@ pub(crate) fn check_range_under_non_exact_domain(
                     .type_reference_table
                     .constraints(*constraints)
                     .iter()
-                    .any(|constraint| {
-                        matches!(constraint, TypeConstraintNode::Range { .. })
-                    })
+                    .any(|constraint| matches!(constraint, TypeConstraintNode::Range { .. }))
                     || has_range_constraint(program, *base_type)
             }
             _ => false,
@@ -2290,7 +2295,9 @@ pub(crate) fn range_constraint_interval(
     handle: TypeReferenceHandle,
 ) -> Option<Interval> {
     match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { referee, .. } => range_constraint_interval(program, *referee),
+        TypeReferenceNode::Reference { referee, .. } => {
+            range_constraint_interval(program, *referee)
+        }
         TypeReferenceNode::Constrained { constraints, .. } => program
             .type_reference_table
             .constraints(*constraints)
@@ -2299,9 +2306,8 @@ pub(crate) fn range_constraint_interval(
                 TypeConstraintNode::Range { minimum, maximum } => Some(Interval {
                     low: Some(literal_i64(program, *minimum)?),
                     high: Some(
-                        literal_i64(program, *maximum).or_else(|| {
-                            dependent_maximum_substituted(program, *maximum)
-                        })?,
+                        literal_i64(program, *maximum)
+                            .or_else(|| dependent_maximum_substituted(program, *maximum))?,
                     ),
                 }),
                 _ => None,
@@ -2386,8 +2392,7 @@ fn dependent_maximum_substituted(
             let omega_typed_trees::data::DataMember::Field(field) = member else {
                 continue;
             };
-            if field.name.as_str() != symbolic.field.as_str() || !field.type_reference.is_valid()
-            {
+            if field.name.as_str() != symbolic.field.as_str() || !field.type_reference.is_valid() {
                 continue;
             }
             let high = range_constraint_interval(program, field.type_reference)
@@ -2548,7 +2553,9 @@ fn infer_return_interval(
     if INFERRING_RETURN.with(std::cell::Cell::get) {
         return None;
     }
-    let statements = program.statement_table.statements(callee_state.statement_nodes);
+    let statements = program
+        .statement_table
+        .statements(callee_state.statement_nodes);
 
     // Collect every return expression, bailing if any exit could escape to an
     // uncaptured state. A terminal expression is the last statement; transition
@@ -2743,7 +2750,7 @@ fn primitive_name(primitive: PrimitiveType) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{float_interval_fits_integer, Interval};
+    use super::{Interval, float_interval_fits_integer};
     use omega_typed_trees::types::PrimitiveType;
 
     fn iv(low: i64, high: i64) -> Interval {
@@ -2800,11 +2807,17 @@ mod tests {
     fn min_max_clamp_against_unbounded() {
         assert_eq!(
             Interval::UNBOUNDED.max_with(iv(0, 0)),
-            Interval { low: Some(0), high: None }
+            Interval {
+                low: Some(0),
+                high: None
+            }
         );
         assert_eq!(
             Interval::UNBOUNDED.min_with(iv(100, 100)),
-            Interval { low: None, high: Some(100) }
+            Interval {
+                low: None,
+                high: Some(100)
+            }
         );
         assert_eq!(iv(0, 50).max_with(iv(10, 10)), iv(10, 50));
         assert_eq!(iv(0, 50).min_with(iv(10, 10)), iv(0, 10));
@@ -2893,10 +2906,9 @@ fn refine_dependent_subtract(
         return naive;
     };
     // Left: `self.F` or `self.F + m` for the SAME field.
-    let Some(left_bound) = omega_typed_trees::dependent_ranges::symbolic_max_bound(
-        &program.expression_table,
-        left,
-    ) else {
+    let Some(left_bound) =
+        omega_typed_trees::dependent_ranges::symbolic_max_bound(&program.expression_table, left)
+    else {
         return naive;
     };
     if left_bound.field.as_str() != right_field.as_str() {
@@ -3061,9 +3073,7 @@ fn requires_orders_operands(
             let omega_typed_trees::domain::ProofFact::Expression(expression) = fact else {
                 continue;
             };
-            if let Some(found) =
-                conjunct_orders(program, *expression, &left_label, &right_label)
-            {
+            if let Some(found) = conjunct_orders(program, *expression, &left_label, &right_label) {
                 floor = Some(floor.map_or(found, |existing: i64| existing.max(found)));
             }
         }
@@ -3096,14 +3106,22 @@ fn conjunct_orders(
             let lo = program.expression_table.display_name(binary.left);
             let hi = program.expression_table.display_name(binary.right);
             (lo == right_label && hi == left_label).then(|| {
-                if binary.operator == BinaryOperator::Less { 1 } else { 0 }
+                if binary.operator == BinaryOperator::Less {
+                    1
+                } else {
+                    0
+                }
             })
         }
         BinaryOperator::GreaterOrEqual | BinaryOperator::Greater => {
             let hi = program.expression_table.display_name(binary.left);
             let lo = program.expression_table.display_name(binary.right);
             (lo == right_label && hi == left_label).then(|| {
-                if binary.operator == BinaryOperator::Greater { 1 } else { 0 }
+                if binary.operator == BinaryOperator::Greater {
+                    1
+                } else {
+                    0
+                }
             })
         }
         _ => None,
@@ -3191,12 +3209,11 @@ fn refine_dependent_product(
             (product.left, product.right)
         }
     };
-    let Some(fb) = omega_typed_trees::dependent_ranges::symbolic_max_bound(
-        &program.expression_table,
-        fb_expr,
-    )
-    .filter(|bound| bound.offset == 0)
-    .map(|bound| bound.field) else {
+    let Some(fb) =
+        omega_typed_trees::dependent_ranges::symbolic_max_bound(&program.expression_table, fb_expr)
+            .filter(|bound| bound.offset == 0)
+            .map(|bound| bound.field)
+    else {
         return naive;
     };
     // a's STRICT dependent atom names Fa; c's STRICT atom names Fb (the
@@ -3265,9 +3282,7 @@ fn requires_product_coupling(
             let omega_typed_trees::domain::ProofFact::Expression(expression) = fact else {
                 continue;
             };
-            if let Some(k) =
-                product_coupling_conjunct(program, *expression, &fa_label, &fb_label)
-            {
+            if let Some(k) = product_coupling_conjunct(program, *expression, &fa_label, &fb_label) {
                 return Some(k);
             }
         }
@@ -3285,14 +3300,10 @@ fn product_coupling_conjunct(
         return None;
     };
     match binary.operator {
-        BinaryOperator::And => {
-            product_coupling_conjunct(program, binary.left, fa_label, fb_label).or_else(|| {
-                product_coupling_conjunct(program, binary.right, fa_label, fb_label)
-            })
-        }
+        BinaryOperator::And => product_coupling_conjunct(program, binary.left, fa_label, fb_label)
+            .or_else(|| product_coupling_conjunct(program, binary.right, fa_label, fb_label)),
         BinaryOperator::LessOrEqual | BinaryOperator::Less => {
-            let ExpressionNode::Binary(product) =
-                program.expression_table.expression(binary.left)
+            let ExpressionNode::Binary(product) = program.expression_table.expression(binary.left)
             else {
                 return None;
             };
@@ -3301,8 +3312,8 @@ fn product_coupling_conjunct(
             }
             let lhs = program.expression_table.display_name(product.left);
             let rhs = program.expression_table.display_name(product.right);
-            let matches = (lhs == fa_label && rhs == fb_label)
-                || (lhs == fb_label && rhs == fa_label);
+            let matches =
+                (lhs == fa_label && rhs == fb_label) || (lhs == fb_label && rhs == fa_label);
             if !matches {
                 return None;
             }
@@ -3338,14 +3349,17 @@ fn refine_dependent_product_factor(
             left,
         )
         .is_some_and(|bound| bound.offset == 0);
-        if left_is_field { (right, left) } else { (left, right) }
+        if left_is_field {
+            (right, left)
+        } else {
+            (left, right)
+        }
     };
-    let Some(fb) = omega_typed_trees::dependent_ranges::symbolic_max_bound(
-        &program.expression_table,
-        fb_expr,
-    )
-    .filter(|bound| bound.offset == 0)
-    .map(|bound| bound.field) else {
+    let Some(fb) =
+        omega_typed_trees::dependent_ranges::symbolic_max_bound(&program.expression_table, fb_expr)
+            .filter(|bound| bound.offset == 0)
+            .map(|bound| bound.field)
+    else {
         return naive;
     };
     let Some(fa) = strict_dependent_atom_field(program, machine, state, a_expr) else {
