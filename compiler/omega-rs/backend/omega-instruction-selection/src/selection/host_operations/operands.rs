@@ -2578,62 +2578,8 @@ fn system_v_classified_aggregate_descriptor_shape(
     input: &InstructionSelectionInput<'_>,
     descriptor: &TypeLayoutDescriptor,
 ) -> Option<(usize, usize, u8)> {
-    let descriptor = match descriptor {
-        TypeLayoutDescriptor::Constrained { base_type, .. } => {
-            return system_v_classified_aggregate_descriptor_shape(input, base_type);
-        }
-        descriptor => descriptor,
-    };
-    let TypeLayoutDescriptor::Named { symbol, name } = descriptor else {
-        return None;
-    };
-    let data_layout = input
-        .layouts
-        .data_layouts
-        .iter()
-        .find(|(_, layout)| layout.symbol == *symbol || layout.name.as_str() == name.as_str())
-        .map(|(_, layout)| layout)?;
-    let DataShape::Record { fields } = data_layout.shape else {
-        return None;
-    };
-    if !(9..=16).contains(&data_layout.layout.size)
-        || !data_layout.layout.alignment.is_power_of_two()
-    {
-        return None;
-    }
-    let mut classes = [None, None];
-    for field in input.layouts.fields.span(fields)? {
-        let primitive = PrimitiveType::from_name(field.type_name.as_ref())?;
-        let field_size = primitive.scalar_byte_size()?;
-        if field_size != field.layout.size
-            || field_size > 8
-            || field.offset % field.layout.alignment != 0
-            || field.offset + field_size > data_layout.layout.size
-        {
-            return None;
-        }
-        let eightbyte = field.offset / 8;
-        if eightbyte != (field.offset + field_size - 1) / 8 || eightbyte > 1 {
-            return None;
-        }
-        let field_is_sse = matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64);
-        classes[eightbyte] = Some(match classes[eightbyte] {
-            Some(class_is_sse) => class_is_sse && field_is_sse,
-            None => field_is_sse,
-        });
-    }
-    let [Some(first_is_sse), Some(second_is_sse)] = classes else {
-        return None;
-    };
-    if !first_is_sse && !second_is_sse {
-        return None;
-    }
-    let sse_eightbytes = u8::from(first_is_sse) | (u8::from(second_is_sse) << 1);
-    Some((
-        data_layout.layout.size,
-        data_layout.layout.alignment,
-        sse_eightbytes,
-    ))
+    system_v_record_descriptor_shape(input, descriptor)
+        .filter(|(_, _, sse_eightbytes)| *sse_eightbytes != 0)
 }
 
 /// Preserve a fixed pure-integer record of at most two ABI words as one
@@ -2755,9 +2701,20 @@ fn system_v_pure_integer_aggregate_descriptor_shape(
     input: &InstructionSelectionInput<'_>,
     descriptor: &TypeLayoutDescriptor,
 ) -> Option<(usize, usize)> {
+    system_v_record_descriptor_shape(input, descriptor).and_then(
+        |(byte_count, alignment, sse_eightbytes)| {
+            (sse_eightbytes == 0).then_some((byte_count, alignment))
+        },
+    )
+}
+
+fn system_v_record_descriptor_shape(
+    input: &InstructionSelectionInput<'_>,
+    descriptor: &TypeLayoutDescriptor,
+) -> Option<(usize, usize, u8)> {
     let descriptor = match descriptor {
         TypeLayoutDescriptor::Constrained { base_type, .. } => {
-            return system_v_pure_integer_aggregate_descriptor_shape(input, base_type);
+            return system_v_record_descriptor_shape(input, base_type);
         }
         descriptor => descriptor,
     };
@@ -2770,29 +2727,151 @@ fn system_v_pure_integer_aggregate_descriptor_shape(
         .iter()
         .find(|(_, layout)| layout.symbol == *symbol || layout.name.as_str() == name.as_str())
         .map(|(_, layout)| layout)?;
-    let DataShape::Record { fields } = data_layout.shape else {
-        return None;
-    };
     if !(9..=16).contains(&data_layout.layout.size)
         || !data_layout.layout.alignment.is_power_of_two()
+        || data_layout.layout.alignment > 8
     {
         return None;
     }
-    input
-        .layouts
-        .fields
-        .span(fields)?
-        .iter()
-        .all(|field| {
-            PrimitiveType::from_name(field.type_name.as_ref()).is_some_and(|primitive| {
-                !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
-                    && primitive.scalar_byte_size() == Some(field.layout.size)
-                    && field.layout.size <= 8
-                    && field.offset % field.layout.alignment == 0
-                    && field.offset + field.layout.size <= data_layout.layout.size
-            })
-        })
-        .then_some((data_layout.layout.size, data_layout.layout.alignment))
+    let mut classes = [None, None];
+    classify_system_v_record(
+        input,
+        data_layout,
+        0,
+        data_layout.layout.size,
+        &mut classes,
+        0,
+    )?;
+    let [Some(first_is_sse), Some(second_is_sse)] = classes else {
+        return None;
+    };
+    let sse_eightbytes = u8::from(first_is_sse) | (u8::from(second_is_sse) << 1);
+    Some((
+        data_layout.layout.size,
+        data_layout.layout.alignment,
+        sse_eightbytes,
+    ))
+}
+
+fn classify_system_v_record(
+    input: &InstructionSelectionInput<'_>,
+    data_layout: &omega_layout::DataLayout,
+    base_offset: usize,
+    outer_size: usize,
+    classes: &mut [Option<bool>; 2],
+    depth: usize,
+) -> Option<()> {
+    if depth > 8 || data_layout.layout.size == 0 {
+        return None;
+    }
+    let DataShape::Record { fields } = data_layout.shape else {
+        return None;
+    };
+    for field in input.layouts.fields.span(fields)? {
+        let absolute_offset = base_offset.checked_add(field.offset)?;
+        let field_end = absolute_offset.checked_add(field.layout.size)?;
+        let relative_end = field.offset.checked_add(field.layout.size)?;
+        if field.layout.size == 0
+            || field.layout.alignment == 0
+            || !field.layout.alignment.is_power_of_two()
+            || absolute_offset % field.layout.alignment != 0
+            || field_end > outer_size
+            || relative_end > data_layout.layout.size
+        {
+            return None;
+        }
+        classify_system_v_field(
+            input,
+            &field.type_descriptor,
+            field.layout,
+            absolute_offset,
+            outer_size,
+            classes,
+            depth,
+        )?;
+    }
+    Some(())
+}
+
+fn classify_system_v_field(
+    input: &InstructionSelectionInput<'_>,
+    descriptor: &TypeLayoutDescriptor,
+    layout: omega_layout::TypeLayout,
+    absolute_offset: usize,
+    outer_size: usize,
+    classes: &mut [Option<bool>; 2],
+    depth: usize,
+) -> Option<()> {
+    match descriptor {
+        TypeLayoutDescriptor::Constrained { base_type, .. } => classify_system_v_field(
+            input,
+            base_type,
+            layout,
+            absolute_offset,
+            outer_size,
+            classes,
+            depth,
+        ),
+        TypeLayoutDescriptor::Reference { .. } => {
+            (layout.size == 8).then_some(())?;
+            merge_system_v_scalar_class(classes, absolute_offset, 8, false)
+        }
+        TypeLayoutDescriptor::Named { symbol, name } => {
+            if let Some(primitive) = PrimitiveType::from_name(name.as_ref()) {
+                let scalar_size = primitive.scalar_byte_size()?;
+                if scalar_size != layout.size || scalar_size > 8 {
+                    return None;
+                }
+                return merge_system_v_scalar_class(
+                    classes,
+                    absolute_offset,
+                    scalar_size,
+                    matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64),
+                );
+            }
+            let nested = input
+                .layouts
+                .data_layouts
+                .iter()
+                .find(|(_, candidate)| {
+                    candidate.symbol == *symbol || candidate.name.as_str() == name.as_str()
+                })
+                .map(|(_, candidate)| candidate)?;
+            if nested.layout != layout || absolute_offset.checked_add(layout.size)? > outer_size {
+                return None;
+            }
+            classify_system_v_record(
+                input,
+                nested,
+                absolute_offset,
+                outer_size,
+                classes,
+                depth + 1,
+            )
+        }
+        TypeLayoutDescriptor::FixedArray { .. }
+        | TypeLayoutDescriptor::BoundedByteBuffer { .. }
+        | TypeLayoutDescriptor::Slice { .. }
+        | TypeLayoutDescriptor::DynamicTrait { .. }
+        | TypeLayoutDescriptor::Unit => None,
+    }
+}
+
+fn merge_system_v_scalar_class(
+    classes: &mut [Option<bool>; 2],
+    absolute_offset: usize,
+    byte_size: usize,
+    is_sse: bool,
+) -> Option<()> {
+    let eightbyte = absolute_offset / 8;
+    if byte_size == 0 || eightbyte > 1 || eightbyte != (absolute_offset + byte_size - 1) / 8 {
+        return None;
+    }
+    classes[eightbyte] = Some(match classes[eightbyte] {
+        Some(existing_is_sse) => existing_is_sse && is_sse,
+        None => is_sse,
+    });
+    Some(())
 }
 
 fn aggregate_descriptor_shape(
