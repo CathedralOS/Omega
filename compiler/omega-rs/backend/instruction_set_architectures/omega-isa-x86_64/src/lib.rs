@@ -1363,9 +1363,39 @@ fn encode_file_operation<T: InstructionOperandLike>(
             "cannot encode X86_64 file operation: missing pointer/length operands",
         ));
     }
+    let plan = normalized_win64_file_io_plan()?;
+    let handle_location = win64_argument_location(&plan.parameters[0], 0)?;
+    let pointer_location = win64_argument_location(&plan.parameters[1], 1)?;
+    let length_location = win64_argument_location(&plan.parameters[2], 2)?;
+    let transferred_location = win64_argument_location(&plan.parameters[3], 3)?;
+    let overlapped_location = win64_argument_location(&plan.parameters[4], 4)?;
+    let native_result = normalized_win64_result_register(&plan, true)?;
+    if native_result != Some(MachineRegister::X86Rax) {
+        return Err(Diagnostic::error(format!(
+            "Win64 file-I/O encoder requires its native BOOL result in rax, got {native_result:?}"
+        )));
+    }
+    let Win64ArgumentLocation::Stack(overlapped_offset) = overlapped_location else {
+        return Err(Diagnostic::error(format!(
+            "Win64 file-I/O encoder requires OVERLAPPED on the stack, got {overlapped_location:?}"
+        )));
+    };
+    let transferred_offset = overlapped_offset
+        .checked_add(8)
+        .ok_or_else(|| Diagnostic::error("Win64 file-I/O temporary stack offset overflowed"))?;
+    let reserve = win64_composite_reserve(transferred_offset + 8)?;
+    let transferred_disp = u8::try_from(transferred_offset)
+        .map_err(|_| Diagnostic::error("Win64 file-I/O transferred-count slot exceeds disp8"))?;
+    let overlapped_disp = u8::try_from(overlapped_offset)
+        .map_err(|_| Diagnostic::error("Win64 file-I/O OVERLAPPED slot exceeds disp8"))?;
 
     let mut bytes = Vec::new();
-    bytes.extend([0x48, 0x83, 0xec, 0x38]); // sub rsp, 56
+    append_sub_rsp(&mut bytes, reserve);
+    if handle_location != Win64ArgumentLocation::Register(MachineRegister::X86Rcx) {
+        return Err(Diagnostic::error(format!(
+            "Win64 file-I/O encoder requires HANDLE in rcx, got {handle_location:?}"
+        )));
+    }
     if pointer_index == 1 {
         let handle = immediate_i32(operands, 0, "file handle")?;
         bytes.push(0xb9); // mov ecx, imm32
@@ -1373,18 +1403,61 @@ fn encode_file_operation<T: InstructionOperandLike>(
     } else {
         bytes.extend([0x48, 0x89, 0xc1]); // mov rcx, rax
     }
+    if pointer_location != Win64ArgumentLocation::Register(MachineRegister::X86Rdx) {
+        return Err(Diagnostic::error(format!(
+            "Win64 file-I/O encoder requires the buffer pointer in rdx, got {pointer_location:?}"
+        )));
+    }
     append_file_pointer_operand(&mut bytes, &operands[pointer_index])?;
     if operation_key.capability == HostCapability::Stdin
         && operation_key.operation == HostOperation::ReadFile
     {
         bytes.extend([0xc6, 0x02, 0]); // mov byte ptr [rdx], 0
     }
+    if length_location != Win64ArgumentLocation::Register(MachineRegister::X86R8) {
+        return Err(Diagnostic::error(format!(
+            "Win64 file-I/O encoder requires the byte count in r8, got {length_location:?}"
+        )));
+    }
     append_file_length_operand(&mut bytes, &operands[length_index])?;
-    bytes.extend([0x4c, 0x8d, 0x4c, 0x24, 0x28]); // lea r9, [rsp + 40]
-    bytes.extend([0x48, 0xc7, 0x44, 0x24, 0x20, 0, 0, 0, 0]); // qword [rsp+32] = 0
+    if transferred_location != Win64ArgumentLocation::Register(MachineRegister::X86R9) {
+        return Err(Diagnostic::error(format!(
+            "Win64 file-I/O encoder requires the transferred-count pointer in r9, got {transferred_location:?}"
+        )));
+    }
+    bytes.extend([0x4c, 0x8d, 0x4c, 0x24, transferred_disp]); // lea r9, [rsp + temporary]
+    bytes.extend([0x48, 0xc7, 0x44, 0x24, overlapped_disp, 0, 0, 0, 0]);
     bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32
-    bytes.extend([0x48, 0x83, 0xc4, 0x38]); // add rsp, 56
+    append_add_rsp(&mut bytes, reserve);
     Ok(bytes)
+}
+
+/// ReadFile and WriteFile share the same five-argument Win32 signature:
+/// HANDLE, buffer pointer, DWORD count, transferred-count pointer, and an
+/// optional OVERLAPPED pointer. Their BOOL result is intentionally ignored by
+/// this compatibility sequence.
+fn normalized_win64_file_io_plan() -> Result<CallPlan, Diagnostic> {
+    evaluate_normalized_win64_plan(&CallSignature {
+        parameters: vec![
+            ValueShape::integer(8, 8),
+            ValueShape::integer(8, 8),
+            ValueShape::integer(4, 4),
+            ValueShape::integer(8, 8),
+            ValueShape::integer(8, 8),
+        ],
+        result: Some(ValueShape::integer(4, 4)),
+    })
+}
+
+/// Reserve through a composite call's final local byte while preserving the
+/// encoder's entry invariant: rsp is 8 mod 16 before `sub`, so the reservation
+/// itself must also be 8 mod 16 at the call boundary.
+fn win64_composite_reserve(required_bytes: u32) -> Result<usize, Diagnostic> {
+    let required = usize::try_from(required_bytes)
+        .map_err(|_| Diagnostic::error("Win64 composite stack reservation exceeds usize"))?;
+    let remainder = required % 16;
+    let padding = (8 + 16 - remainder) % 16;
+    Ok(required + padding)
 }
 
 fn append_file_pointer_operand<T: InstructionOperandLike>(
@@ -2171,6 +2244,36 @@ mod win64_import_plan_tests {
         assert!(
             filetime.result.is_none(),
             "FILETIME native call returns void"
+        );
+    }
+
+    #[test]
+    fn file_io_plan_models_registers_stack_argument_and_native_result() {
+        let plan = normalized_win64_file_io_plan().expect("ReadFile/WriteFile plan");
+        let expected_registers = [
+            MachineRegister::X86Rcx,
+            MachineRegister::X86Rdx,
+            MachineRegister::X86R8,
+            MachineRegister::X86R9,
+        ];
+        for (index, expected) in expected_registers.into_iter().enumerate() {
+            assert_eq!(
+                win64_argument_location(&plan.parameters[index], index)
+                    .expect("file-I/O register placement"),
+                Win64ArgumentLocation::Register(expected)
+            );
+        }
+        assert_eq!(
+            win64_argument_location(&plan.parameters[4], 4).expect("OVERLAPPED stack placement"),
+            Win64ArgumentLocation::Stack(32)
+        );
+        assert_eq!(
+            normalized_win64_result_register(&plan, true).expect("native BOOL result"),
+            Some(MachineRegister::X86Rax)
+        );
+        assert_eq!(
+            win64_composite_reserve(48).expect("outgoing area plus temporary"),
+            56
         );
     }
 }

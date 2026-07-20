@@ -59,10 +59,10 @@ non-Microsoft x86 policies
 instead of silently applying Win64. Microsoft x64 vtable and firmware
 service-table calls now use the same plan-driven register/stack marshaller,
 with dispatch-only table pointers excluded from the wire signature and
-plan-selected results checked before storage. Bespoke/composite Windows
-imports remain for file I/O; `GetStdHandle`,
-`ExitProcess`, and `Sleep` now use the
-plan-driven general marshaller with byte-identical relocation layouts.
+plan-selected results checked before storage. The ordinary host-operation
+Windows imports now consume evaluated Microsoft x64 placements. `GetStdHandle`,
+`ExitProcess`, and `Sleep` use the plan-driven general marshaller with
+byte-identical relocation layouts.
 `GetAsyncKeyState` now consumes planned RCX/RAX placements while preserving
 its required 16-bit zero-extension result transform.
 Windows time out-parameter calls now evaluate their actual foreign signatures:
@@ -70,8 +70,11 @@ one planned RCX pointer plus an ignored planned RAX `BOOL` for QPC/QPF, or void
 for `GetSystemTimePreciseAsFileTime`; the temporary stack slot remains an
 encoder materialization detail. The x86 constant-result routing remains
 operation-specific so QPF cannot be mistaken for AArch64's frequency constant.
-AArch64 stack/fragmented calls, concrete firmware state policy, and
-source-selected policies remain below.
+Composite `ReadFile`/`WriteFile` calls now model their actual five-parameter
+signature and ignored `BOOL` result; RCX/RDX/R8/R9, the shadow-relative fifth
+argument, and the scratch-slot reservation all come from that evaluated plan.
+Dedicated runtime line/byte Windows sequences, AArch64 stack/fragmented calls,
+concrete firmware state policy, and source-selected policies remain below.
 
 1. **ENT2b — source policy evaluation and identity (OWNER-BLOCKED: see
    `OWNER_QUESTIONS.md` section 2).** Evaluate the policy type
@@ -88,10 +91,10 @@ source-selected policies remain below.
    plan-selected argument/result registers and fail-closed unsupported
    placements. The general Microsoft x64 import path likewise consumes exact
    planned register/stack/result placements and target-derived policy, as do
-   Microsoft vtable and firmware service-table calls. Continue through
-   the remaining composite x86-64 file-I/O imports (simple one-argument,
-   key-state, and time out-parameter imports are migrated), AArch64
-   stack/fragmented calls, and
+   Microsoft vtable and firmware service-table calls. Ordinary composite
+   x86-64 host operations are now plan-checked through their actual foreign
+   signatures. Continue through the dedicated runtime line/byte Windows
+   sequences, AArch64 stack/fragmented calls, and
    remaining firmware state policy, then make the plan authoritative. Add the
    concrete x86 interrupt `StatePlan`, stack/IST, nesting, and acknowledgement
    policy used by Cathedral.
