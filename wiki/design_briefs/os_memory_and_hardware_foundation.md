@@ -551,9 +551,11 @@ and the concrete interrupt state policy remain. Remaining order:
 
 1. Complete the checked-assembly instruction-contract catalog needed by the
    entry provider. No raw-byte shortcut.
-2. Build on the implemented name-keyed fragmented placements and exact
-   source/destination validation to add symbolic relocation sources and the
-   phase-aware materializer.
+2. Lower the implemented normalized symbolic materialization actions into
+   object relocations and post-handoff writer code, and derive their sealed
+   data/entry identities from selected compiler artifacts. Name-keyed fragment
+   placement, exact tiling, phase-aware action derivation, fixed-address
+   resolution, and early-consumption rejection are already live.
 3. Implement the settled `Extent` carrier, conservation rules, source-loan /
    destination-authority mapping, and authority-origin validation.
 4. Implement `AccessPlan`, validation against `LayoutPlan`, sealed field-access
@@ -561,8 +563,8 @@ and the concrete interrupt state policy remain. Remaining order:
 5. Connect `Calling<C>` to evaluated boundary-plan identity, migrate lowering
    to the normalized plans, constrain codegen, emit footprint evidence, and
    validate final artifacts.
-6. Add symbolic relocation sources, phase/constraint-aware materialization,
-   admitted-artifact validation, and scoped executable installation.
+6. Extend materialization with placement constraints, admitted-artifact
+   validation, and scoped executable installation.
 7. Add the external-root ledger and IDT/timer vertical slice.
 8. Add external loans and DMA/hostile-IPC vertical slices.
 9. Add carry/runtime admission and the Arena-backed Cathedral task profile.

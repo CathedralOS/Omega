@@ -5,6 +5,9 @@ pub(crate) use omega_source_files_to_tokens as lexer;
 pub(crate) use omega_tokens_to_syntax_trees as parser;
 
 pub use pipeline::{
-    CompileOptions, CompileReport, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
-    compile, compile_to_checked, compute_layout_plan,
+    ByteOrder, CompileOptions, CompileReport, ConsumptionInstant, DataSymbolId, EntryStubId,
+    LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, MaterializationAction,
+    MaterializationContext, MaterializationDiagnostic, MaterializationWrite, RelocationTarget,
+    SymbolicFieldValue, SymbolicMaterializationPlan, compile, compile_to_checked,
+    compute_layout_plan, derive_symbolic_materialization,
 };

@@ -32,3 +32,8 @@ pub use compiler::compile;
 pub use layout_plans::{
     LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, compute_layout_plan,
 };
+pub use omega_layout_plans::{
+    ByteOrder, ConsumptionInstant, DataSymbolId, EntryStubId, MaterializationAction,
+    MaterializationContext, MaterializationDiagnostic, MaterializationWrite, RelocationTarget,
+    SymbolicFieldValue, SymbolicMaterializationPlan, derive_symbolic_materialization,
+};

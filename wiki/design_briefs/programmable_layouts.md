@@ -185,20 +185,26 @@ cache is a different policy choice made at that boundary.
 10. Remove `wire data` and legacy repr/format special cases.
 
 Implementation status: steps 1-3 are live for primitive record schemas. Step
-4's source shape is now live as compiler-issued field keys copied into
+4's source shape is live as compiler-issued field keys copied into
 `FieldEntry` values; the compiler normalizes those keys back to field names,
 accepts repeated `Bits` placements, and rejects unknown/missing fields, mixed
 whole/fragment placement, destination overlap/out-of-bounds ranges, and source
 fragments that do not tile the logical field exactly. Ordinary plan-laid value
-types continue to require one fixed `At` entry per field. Symbolic relocation
-sources and the materializer consumer remain step 8 work.
+types continue to require one fixed `At` entry per field. Step 8 now has a
+normalized foundation: sealed `Data(DataSymbolId) | Entry(EntryStubId)` source
+identities derive resolved writes, native whole-pointer relocations, or
+post-handoff writer records from the same validated plan. Loader-consumed
+unresolved fragments reject, while fixed addresses may constant-fold through
+the identical write path. Source-level symbolic-value derivation, placement
+constraints beyond consumption phase, and backend/object lowering remain.
 
 ## Still open
 
 - final `Schema` reflection and `Plan` source types;
 - exact source types for unions and runtime strides (the fixed-layout fragment
   slice uses compiler-issued field keys and `FieldEntry`);
-- symbolic relocation-source and phase/placement-constraint records;
+- source-level symbolic relocation derivation and richer phase/placement
+  constraints;
 - concrete `AccessPlan` record/source spelling and placed-view validator
   diagnostics (its semantics and public access discipline are settled in the
   OS-foundation brief);

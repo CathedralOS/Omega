@@ -310,6 +310,7 @@ dependencies = [
  "omega-image-emission",
  "omega-interpreter",
  "omega-layout",
+ "omega-layout-plans",
  "omega-object-file",
  "omega-platform-interface",
  "omega-runtime-bodies",
@@ -562,6 +563,10 @@ dependencies = [
  "omega-runtime-abi",
  "omega-target",
 ]
+
+[[package]]
+name = "omega-layout-plans"
+version = "0.1.0"
 
 [[package]]
 name = "omega-machine-bytes"

@@ -7,7 +7,11 @@
 //! compile error, never unsafety -- which is also why the policy's scratch
 //! arithmetic may honestly declare Wrapping: plan validation owns soundness.
 
-use omega_compiler::{LayoutPlacementReport, compile_to_checked, compute_layout_plan};
+use omega_compiler::{
+    ByteOrder, ConsumptionInstant, EntryStubId, LayoutPlacementReport, MaterializationAction,
+    MaterializationContext, RelocationTarget, SymbolicFieldValue, compile_to_checked,
+    compute_layout_plan, derive_symbolic_materialization,
+};
 use omega_layout::{DataShape, build_layout_plan};
 use omega_target::NativeTarget;
 use std::fs;
@@ -302,6 +306,29 @@ machine Main::main(&mut self) { }
             ..
         }
     ));
+
+    let target = RelocationTarget::Entry(
+        EntryStubId::from_normalized_identity(0x55aa).expect("normalized entry identity"),
+    );
+    let symbolic = SymbolicFieldValue::new("address", 64, target).expect("symbolic entry field");
+    let materialization = derive_symbolic_materialization(
+        &report,
+        &[symbolic],
+        MaterializationContext {
+            consumption: ConsumptionInstant::AfterOmegaHandoff,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: Some(64),
+        },
+        |_| None,
+    )
+    .expect("post-handoff split address should derive a writer plan");
+    assert_eq!(materialization.actions.len(), 3);
+    assert!(
+        materialization
+            .actions
+            .iter()
+            .all(|action| matches!(action, MaterializationAction::RuntimeWriter(_)))
+    );
 }
 
 #[test]
