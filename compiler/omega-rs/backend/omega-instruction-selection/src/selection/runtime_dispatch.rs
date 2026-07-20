@@ -1538,6 +1538,52 @@ pub(super) fn normalized_entry_integer_result_register(
     *register
 }
 
+/// Select a scalar runtime terminal's result register from the entry state's
+/// actual primitive return type. Float terminals must preserve their class so
+/// Microsoft x64/SysV use XMM0 and AAPCS64 uses V0 rather than collapsing a
+/// same-width value into the integer result bank.
+pub(super) fn normalized_entry_scalar_result_register(
+    input: &InstructionSelectionInput<'_>,
+    byte_size: usize,
+) -> Option<MachineRegister> {
+    let machine = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == input.entry_key.machine)?;
+    let state = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == input.entry_key.state)?;
+    let primitive = input.program.primitive_type_reference(state.return_type)?;
+    let byte_size = u16::try_from(byte_size).ok()?;
+    let shape = match primitive {
+        PrimitiveType::F32 | PrimitiveType::F64 => ValueShape::float(byte_size),
+        PrimitiveType::String => return None,
+        _ => ValueShape::integer(byte_size, byte_size.max(1)),
+    };
+    let boundary = evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::native_for_target(input.target),
+        &CallSignature {
+            parameters: Vec::new(),
+            result: Some(shape),
+        },
+    )
+    .ok()?;
+    let [
+        ValueLocation::Register {
+            register,
+            value_byte_offset: 0,
+            byte_size: placed_byte_size,
+        },
+    ] = boundary.plan().call.result.as_ref()?.locations.as_slice()
+    else {
+        return None;
+    };
+    (*placed_byte_size == byte_size).then_some(*register)
+}
+
 fn entry_slot_value_shape(
     input: &InstructionSelectionInput<'_>,
     slot: &omega_runtime_storage::RuntimeFrameSlot,

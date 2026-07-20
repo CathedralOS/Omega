@@ -35,8 +35,9 @@ bindings can be evaluated through this model as an independent oracle while
 their hardcoded encoders remain in service. The inbound process-entry
 argument prologue now consumes the normalized native `CallPlan`'s exact
 register and width on x86-64 and AArch64; incoming stack arguments and scalar
-float register locations are covered as well. Integer process-entry results
-now carry the plan-selected result register through both native encoders. Flat
+float register locations are covered as well. Integer and scalar-float
+process-entry results now carry the plan-selected result register through both
+native encoders. Flat
 one-to-four-member AAPCS64 homogeneous floating-point aggregate entry
 parameters are classified from their normalized record layout and spread
 across the selected vector registers. Fixed non-HFA AAPCS64 records up to 16
@@ -127,8 +128,9 @@ ceiling derived exactly from the ABI volatile-register classes.
 2. **ENT2c — lowering migration and concrete entry state.** Express the
    existing MS-x64, SysV-x64, AAPCS64, Linux-syscall, and firmware lowering
    choices through the normalized plan; continue beyond the completed
-   register- and stack-resident process-entry argument paths and integer entry
-   results and generic and runtime-text Linux syscall paths to C/firmware
+   register- and stack-resident process-entry argument paths, integer and
+   scalar-float entry results, and generic and runtime-text Linux syscall paths
+   to C/firmware
    outbound calls/results and compatibility-binding differential checks; the
    register-resident AArch64 C/import slice is complete, including exact
    plan-selected argument/result registers and fail-closed unsupported
@@ -177,6 +179,11 @@ ceiling derived exactly from the ABI volatile-register classes.
    calls share the float marshaller, width, and relocation accounting. A
    source-to-PE canary pins interleaved integer/float arguments in `rcx`/`xmm1`/
    `r8`/`xmm3`, a fifth-position stack float, and the `xmm0` result.
+   Runtime-backed scalar `f32`/`f64` entry terminals likewise evaluate the
+   declared primitive result shape instead of using the integer fallback, then
+   load the plan-selected `xmm0` or `v0`. Source-to-PE and cross-target ELF
+   canaries pin complete incoming/outgoing `xmm0` and `d0` round trips on
+   Microsoft x64, SysV AMD64, and AAPCS64.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
    complete import/vtable/service-table compatibility mechanism matrix is
