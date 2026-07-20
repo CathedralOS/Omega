@@ -75,8 +75,8 @@ signature and ignored `BOOL` result; RCX/RDX/R8/R9, the shadow-relative fifth
 argument, and the scratch-slot reservation all come from that evaluated plan.
 The dedicated runtime line and byte Windows sequences reuse that exact layout
 plus an actual one-DWORD/RAX `GetStdHandle` plan, preserving their fixed widths
-and relocation sites. AArch64 float-stack/fragmented calls, concrete firmware
-state policy, and source-selected policies remain below.
+and relocation sites. AArch64 fragmented calls, concrete firmware state policy,
+and source-selected policies remain below.
 
 1. **ENT2b — source policy evaluation and identity (OWNER-BLOCKED: see
    `OWNER_QUESTIONS.md` section 2).** Evaluate the policy type
@@ -97,10 +97,10 @@ state policy, and source-selected policies remain below.
    x86-64 host operations are now plan-checked through their actual foreign
    signatures, as are the dedicated runtime line/byte Windows sequences.
    Scalar AAPCS64 outbound stack placements now reserve aligned outgoing space,
-   materialize through caller-saved scratch registers, store at plan-selected
-   offsets, restore SP after the call, and feed the same overhead into layout
-   and both relocation walkers. Continue through AArch64 float-stack and
-   fragmented calls and
+   materialize integer/pointer or float values through caller-saved scratch
+   registers, store at plan-selected offsets, restore SP after the call, and
+   feed the same overhead into layout and both relocation walkers. Continue
+   through AArch64 fragmented calls and
    remaining firmware state policy, then make the plan authoritative. Add the
    concrete x86 interrupt `StatePlan`, stack/IST, nesting, and acknowledgement
    policy used by Cathedral.
