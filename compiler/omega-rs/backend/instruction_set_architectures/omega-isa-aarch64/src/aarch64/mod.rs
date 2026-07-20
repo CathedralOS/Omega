@@ -125,6 +125,58 @@ pub fn encode_vtable_call_sequence_at_offset_value_returning_from_operands(
     Ok(bytes)
 }
 
+pub fn encode_vtable_call_sequence_at_offset_float_returning_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    argument_placements: &[ValuePlacement],
+    result_register: MachineRegister,
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    validate_vtable_receiver(argument_placements)?;
+    let all = operands.collect::<Vec<_>>();
+    let Some((result, arguments)) = all.split_first() else {
+        return Err(Diagnostic::error(
+            "AArch64 float-returning vtable call has no result storage operand",
+        ));
+    };
+    let mut bytes = Vec::with_capacity(
+        host_call_sequence_width_from_operands(all.iter().copied())
+            + host_call_stack_total_width_for_placements(argument_placements)
+            + 4,
+    );
+    let stack_bytes =
+        append_call_operands(&mut bytes, arguments.iter().copied(), argument_placements)?;
+    append_vtable_dispatch(&mut bytes, byte_offset)?;
+    append_call_stack_restore(&mut bytes, stack_bytes)?;
+    append_indirect_float_result_store(&mut bytes, *result, result_register, "vtable")?;
+    Ok(bytes)
+}
+
+pub fn encode_vtable_call_sequence_at_offset_hfa_returning_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    argument_placements: &[ValuePlacement],
+    result_placement: &ValuePlacement,
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    validate_vtable_receiver(argument_placements)?;
+    let all = operands.collect::<Vec<_>>();
+    let Some((result, arguments)) = all.split_first() else {
+        return Err(Diagnostic::error(
+            "AArch64 HFA-returning vtable call has no result storage operand",
+        ));
+    };
+    let mut bytes = Vec::with_capacity(
+        host_call_sequence_width_from_operands(all.iter().copied())
+            + host_call_stack_total_width_for_placements(argument_placements)
+            + 4,
+    );
+    let stack_bytes =
+        append_call_operands(&mut bytes, arguments.iter().copied(), argument_placements)?;
+    append_vtable_dispatch(&mut bytes, byte_offset)?;
+    append_call_stack_restore(&mut bytes, stack_bytes)?;
+    append_indirect_hfa_result_store(&mut bytes, *result, result_placement, "vtable")?;
+    Ok(bytes)
+}
+
 /// AAPCS64 service-table dispatch. The table pointer is a storage operand used
 /// only to find the callee; it is excluded from `argument_placements`, so the
 /// first declared function argument still consumes x0/v0. Operand roles are
@@ -136,7 +188,56 @@ pub fn encode_table_function_call_sequence_from_operands(
     byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     let all = operands.collect::<Vec<_>>();
-    let table_index = usize::from(result_register.is_some());
+    let mut bytes = encode_table_function_call_prefix(
+        &all,
+        argument_placements,
+        result_register.is_some(),
+        byte_offset,
+    )?;
+    if let Some(result_register) = result_register {
+        append_indirect_integer_result_store(
+            &mut bytes,
+            all[0],
+            result_register,
+            "table-function",
+        )?;
+    }
+    Ok(bytes)
+}
+
+pub fn encode_table_function_call_sequence_float_returning_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    argument_placements: &[ValuePlacement],
+    result_register: MachineRegister,
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let all = operands.collect::<Vec<_>>();
+    let mut bytes =
+        encode_table_function_call_prefix(&all, argument_placements, true, byte_offset)?;
+    append_indirect_float_result_store(&mut bytes, all[0], result_register, "table-function")?;
+    Ok(bytes)
+}
+
+pub fn encode_table_function_call_sequence_hfa_returning_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    argument_placements: &[ValuePlacement],
+    result_placement: &ValuePlacement,
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let all = operands.collect::<Vec<_>>();
+    let mut bytes =
+        encode_table_function_call_prefix(&all, argument_placements, true, byte_offset)?;
+    append_indirect_hfa_result_store(&mut bytes, all[0], result_placement, "table-function")?;
+    Ok(bytes)
+}
+
+fn encode_table_function_call_prefix(
+    all: &[Aarch64CallOperand],
+    argument_placements: &[ValuePlacement],
+    result_present: bool,
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let table_index = usize::from(result_present);
     let Some(table) = all.get(table_index) else {
         return Err(Diagnostic::error(
             "AArch64 table-function call has no dispatch table operand",
@@ -168,34 +269,132 @@ pub fn encode_table_function_call_sequence_from_operands(
     append_load_data_from_x_offset(&mut bytes, 16, 16, table_byte_offset, 8, 17)?;
     append_vtable_dispatch_from_register(&mut bytes, 16, byte_offset)?;
     append_call_stack_restore(&mut bytes, stack_bytes)?;
+    Ok(bytes)
+}
 
-    if let Some(result_register) = result_register {
-        let Some(RuntimeScalarInteger {
-            byte_offset: result_byte_offset,
-            byte_count,
-        }) = all.first().copied()
+fn append_indirect_integer_result_store(
+    bytes: &mut Vec<u8>,
+    result: Aarch64CallOperand,
+    result_register: MachineRegister,
+    label: &str,
+) -> Result<(), Diagnostic> {
+    let RuntimeScalarInteger {
+        byte_offset,
+        byte_count,
+    } = result
+    else {
+        return Err(Diagnostic::error(format!(
+            "AArch64 value-returning {label} result place did not lower to an integer runtime scalar"
+        )));
+    };
+    let MachineRegister::Aarch64X(result_register) = result_register else {
+        return Err(Diagnostic::error(format!(
+            "AArch64 integer-returning {label} plan selected non-GPR result register {result_register:?}"
+        )));
+    };
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_store_data_to_x_offset(bytes, result_register, 16, byte_offset, byte_count, 17)
+}
+
+fn append_indirect_float_result_store(
+    bytes: &mut Vec<u8>,
+    result: Aarch64CallOperand,
+    result_register: MachineRegister,
+    label: &str,
+) -> Result<(), Diagnostic> {
+    let RuntimeScalarFloat {
+        byte_offset,
+        byte_count,
+    } = result
+    else {
+        return Err(Diagnostic::error(format!(
+            "AArch64 float-returning {label} result place did not lower to a float runtime scalar"
+        )));
+    };
+    if !matches!(byte_count, 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "AArch64 float-returning {label} cannot store a {byte_count}-byte result"
+        )));
+    }
+    let MachineRegister::Aarch64V(result_register) = result_register else {
+        return Err(Diagnostic::error(format!(
+            "AArch64 float-returning {label} plan selected non-vector result register {result_register:?}"
+        )));
+    };
+    bytes.extend(encode_float_move_to_gpr(byte_count, 0, result_register)?);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_store_data_to_x_offset(bytes, 0, 16, byte_offset, byte_count, 17)
+}
+
+fn append_indirect_hfa_result_store(
+    bytes: &mut Vec<u8>,
+    result: Aarch64CallOperand,
+    result_placement: &ValuePlacement,
+    label: &str,
+) -> Result<(), Diagnostic> {
+    let RuntimeHomogeneousFloatAggregate {
+        byte_offset,
+        member_byte_count,
+        members,
+    } = result
+    else {
+        return Err(Diagnostic::error(format!(
+            "AArch64 HFA-returning {label} result place is not a homogeneous float aggregate"
+        )));
+    };
+    if !matches!(member_byte_count, 4 | 8)
+        || !matches!(
+            result_placement.shape.class,
+            omega_calling_conventions::ValueClass::HomogeneousFloatAggregate {
+                members: planned_members
+            } if planned_members == members
+        )
+        || usize::from(result_placement.shape.byte_size) != member_byte_count * usize::from(members)
+        || result_placement.locations.len() != usize::from(members)
+    {
+        return Err(Diagnostic::error(format!(
+            "AAPCS64 {label} HFA result placement disagrees with its selected storage shape"
+        )));
+    }
+
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    for (member, location) in result_placement.locations.iter().copied().enumerate() {
+        let member_offset = member * member_byte_count;
+        let ValueLocation::Register {
+            register: MachineRegister::Aarch64V(register),
+            value_byte_offset,
+            byte_size,
+        } = location
         else {
-            return Err(Diagnostic::error(
-                "AArch64 value-returning table-function result place did not lower to a runtime scalar",
-            ));
-        };
-        let MachineRegister::Aarch64X(result_register) = result_register else {
             return Err(Diagnostic::error(format!(
-                "AArch64 integer-returning table-function plan selected non-GPR result register {result_register:?}"
+                "AAPCS64 {label} HFA result member {member} is not in a vector register: {location:?}"
             )));
         };
-        bytes.extend(encode_adrp_placeholder(16));
-        bytes.extend(encode_add_page_offset_placeholder(16));
+        if usize::from(value_byte_offset) != member_offset
+            || usize::from(byte_size) != member_byte_count
+        {
+            return Err(Diagnostic::error(format!(
+                "AAPCS64 {label} HFA result member {member} disagrees with its normalized byte range"
+            )));
+        }
+        bytes.extend(encode_float_move_to_gpr(member_byte_count, 17, register)?);
         append_store_data_to_x_offset(
-            &mut bytes,
-            result_register,
-            16,
-            result_byte_offset,
-            byte_count,
+            bytes,
             17,
+            16,
+            byte_offset.checked_add(member_offset).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "AAPCS64 {label} HFA result storage offset overflows usize"
+                ))
+            })?,
+            member_byte_count,
+            9,
         )?;
     }
-    Ok(bytes)
+    Ok(())
 }
 
 fn validate_vtable_receiver(argument_placements: &[ValuePlacement]) -> Result<(), Diagnostic> {
@@ -1030,6 +1229,94 @@ mod host_call_plan_register_tests {
         assert_eq!(&bytes[16..20], &encode_load_x_from_x(16, 16, 24).unwrap());
         assert_eq!(&bytes[20..24], &encode_instruction(0xd63f_0200));
         assert_eq!(bytes.len(), 24);
+    }
+
+    #[test]
+    fn indirect_calls_spill_vector_results_after_dispatch() {
+        let receiver = [placement(
+            omega_calling_conventions::ValueShape::integer(8, 8),
+            ValueLocation::Register {
+                register: MachineRegister::Aarch64X(0),
+                value_byte_offset: 0,
+                byte_size: 8,
+            },
+        )];
+        let float_bytes = encode_vtable_call_sequence_at_offset_float_returning_from_operands(
+            [
+                Aarch64CallOperand::RuntimeScalarFloat {
+                    byte_offset: 32,
+                    byte_count: 8,
+                },
+                Aarch64CallOperand::RuntimeScalarInteger {
+                    byte_offset: 0,
+                    byte_count: 8,
+                },
+            ]
+            .into_iter(),
+            &receiver,
+            MachineRegister::Aarch64V(0),
+            24,
+        )
+        .expect("float-returning vtable field");
+        assert_eq!(
+            &float_bytes[20..24],
+            &encode_float_move_to_gpr(8, 0, 0).unwrap()
+        );
+        assert_eq!(&float_bytes[24..28], &encode_adrp_placeholder(16));
+        assert_eq!(float_bytes.len(), 36);
+
+        let hfa_result = ValuePlacement {
+            shape: omega_calling_conventions::ValueShape::homogeneous_float_aggregate(8, 2),
+            locations: vec![
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64V(0),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64V(1),
+                    value_byte_offset: 8,
+                    byte_size: 8,
+                },
+            ],
+        };
+        let arguments = [placement(
+            omega_calling_conventions::ValueShape::integer(8, 8),
+            ValueLocation::Register {
+                register: MachineRegister::Aarch64X(0),
+                value_byte_offset: 0,
+                byte_size: 8,
+            },
+        )];
+        let hfa_bytes = encode_table_function_call_sequence_hfa_returning_from_operands(
+            [
+                Aarch64CallOperand::RuntimeHomogeneousFloatAggregate {
+                    byte_offset: 64,
+                    member_byte_count: 8,
+                    members: 2,
+                },
+                Aarch64CallOperand::RuntimeScalarInteger {
+                    byte_offset: 40,
+                    byte_count: 8,
+                },
+                Aarch64CallOperand::ImmediateInteger(7),
+            ]
+            .into_iter(),
+            &arguments,
+            &hfa_result,
+            24,
+        )
+        .expect("HFA-returning table function");
+        assert_eq!(&hfa_bytes[24..28], &encode_adrp_placeholder(16));
+        assert_eq!(
+            &hfa_bytes[32..36],
+            &encode_float_move_to_gpr(8, 17, 0).unwrap()
+        );
+        assert_eq!(
+            &hfa_bytes[40..44],
+            &encode_float_move_to_gpr(8, 17, 1).unwrap()
+        );
+        assert_eq!(hfa_bytes.len(), 48);
     }
 
     #[test]

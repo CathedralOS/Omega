@@ -1,6 +1,7 @@
 use omega_assigned_target_operations::InstructionOperand;
 use omega_calling_conventions::HostOperationKey;
 use omega_target::Architecture;
+use omega_target_operations::InstructionOperandLike;
 
 /// The fixup-relevant shape of a field-model (vtable/table-function) call:
 /// whether the receiver is a wire argument and whether a result place leads
@@ -59,6 +60,11 @@ pub(crate) fn data_address_relocation_offset(
     {
         let argument_start = usize::from(shape.result_present);
         if shape.result_present && operand_index == 0 {
+            let float_result_move = usize::from(
+                operands
+                    .first()
+                    .is_some_and(|operand| operand.runtime_scalar_float().is_some()),
+            ) * 4;
             return selected_text_offset
                 + operands[argument_start..]
                     .iter()
@@ -69,7 +75,8 @@ pub(crate) fn data_address_relocation_offset(
                 + omega_instruction_selection::aarch64_host_call_stack_total_width_for_placements(
                     &argument_placements,
                 )
-                + 8;
+                + 8
+                + float_result_move;
         }
         if operand_index >= argument_start {
             return selected_text_offset
@@ -107,13 +114,19 @@ pub(crate) fn data_address_relocation_offset(
                 .sum::<usize>()
         };
         if shape.result_present && operand_index == 0 {
+            let float_result_move = usize::from(
+                operands
+                    .first()
+                    .is_some_and(|operand| operand.runtime_scalar_float().is_some()),
+            ) * 4;
             return selected_text_offset
                 + argument_width(operands.len())
                 + omega_instruction_selection::operand_width(architecture, &operands[table_index])
                 + omega_instruction_selection::aarch64_host_call_stack_total_width_for_placements(
                     &argument_placements,
                 )
-                + 8;
+                + 8
+                + float_result_move;
         }
         if operand_index == table_index {
             return selected_text_offset
@@ -360,6 +373,36 @@ mod tests {
                 false,
             ),
             20
+        );
+
+        let float_operands = [
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeScalarFloat {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 32,
+                    byte_count: 8,
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeScalarInteger {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 0,
+                    byte_count: 8,
+                },
+            },
+        ];
+        assert_eq!(
+            data_address_relocation_offset(
+                Architecture::Aarch64,
+                None,
+                &float_operands,
+                20,
+                0,
+                false,
+                shape,
+                false,
+            ),
+            44
         );
     }
 
