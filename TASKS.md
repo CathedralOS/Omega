@@ -220,6 +220,11 @@ ceiling derived exactly from the ABI volatile-register classes.
    signed operator selection, and arithmetic-domain witnesses. A native canary
    pins `a + ((b * c) / 10)` as process exit 70; nearby scalar-float and ABI
    result canaries remain green.
+   Entry and internal call-result scalar operations now converge on the ordinary
+   pre-resolved-place writer. Runtime comparison terminals return normalized
+   booleans, while terminal `min`/`max`/`sqrt` builtins receive result scratch
+   only when their builtin symbol matches. Native canaries pin `a < b` as exit 1
+   and `max(a, b)` as exit 70.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
    complete import/vtable/service-table compatibility mechanism matrix is

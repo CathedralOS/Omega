@@ -224,7 +224,7 @@ pub(super) fn select_runtime_dispatch_edge(
 
 /// Deliver a terminating state's terminal value through the entry ABI.
 ///
-/// Nine shapes lower, in order:
+/// Ten shapes lower, in order:
 /// 1. an INTEGER CONSTANT terminal (`70`, `state shutdown { 0 }`) writes the immediate
 ///    into the return register (the original literal-only path);
 /// 2. a FLOAT CONSTANT terminal stages its raw bits through exact-width result
@@ -248,7 +248,9 @@ pub(super) fn select_runtime_dispatch_edge(
 ///    into result scratch, then loads the normalized integer result register;
 /// 9. a runtime scalar BINARY terminal recursively builds nested value operands
 ///    and computes through the ordinary domain-aware writer into result scratch,
-///    then loads the normalized integer or vector result register.
+///    then loads the normalized integer or vector result register;
+/// 10. scalar `min`, `max`, and `sqrt` BUILTIN terminals follow that same
+///     pre-resolved-place writer and normalized register load.
 fn select_runtime_dispatch_return_value(
     input: &InstructionSelectionInput<'_>,
     edge: &RuntimeDispatchLoopEdge,
@@ -463,7 +465,7 @@ fn select_runtime_dispatch_return_value(
 
     if let Some((scratch_offset, scratch_size, register)) =
         normalized_entry_scalar_result_scratch(input)
-        && select_dispatch_binary_terminal_return(
+        && select_dispatch_scalar_operation_terminal_return(
             input,
             edge,
             source_key,
@@ -826,15 +828,13 @@ fn select_runtime_dispatch_call_result_return(
         return;
     }
 
-    // BINARY terminal (`-> acc + 100`, `-> 0 - acc`): compute into the
-    // caller's result place. Operands are static integers (Immediate) or
-    // resolvable places (Storage); operators are the ARITHMETIC/BITWISE
-    // subset (a comparison terminal is a bool value, out of scope here).
-    // Signedness and domain come from whichever operand resolves to a typed
-    // place; float terminals bail (no dispatch float-return story yet).
-    // Before this path a binary terminal fell through SILENTLY and the
-    // caller's slot kept its prior/ZII value (probed native 71 vs interp 70).
-    if select_dispatch_binary_terminal_return(
+    // Scalar operation terminal (`-> acc + 100`, `-> min(a, b)`): compute into
+    // the caller's result place through the same pre-resolved-place writer used
+    // by frame-slot values. This preserves recursive operands, float class,
+    // signedness, domains, comparisons, and supported scalar builtins. Before
+    // this path a binary terminal fell through SILENTLY and the caller's slot
+    // kept its prior/ZII value (probed native 71 vs interp 70).
+    if select_dispatch_scalar_operation_terminal_return(
         input,
         edge,
         source_key,
@@ -1214,25 +1214,6 @@ fn select_dispatch_case_literal_terminal_return(
     true
 }
 
-/// The arithmetic/bitwise operator subset a binary TERMINAL may compute with
-/// (local sibling of writes/mutation's `runtime_binary_operator`, which is
-/// module-scoped there; comparisons are deliberately absent).
-fn dispatch_terminal_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperator> {
-    match operator {
-        BinaryOperator::Add => Some(StateGuardOperator::Add),
-        BinaryOperator::Subtract => Some(StateGuardOperator::Subtract),
-        BinaryOperator::Multiply => Some(StateGuardOperator::Multiply),
-        BinaryOperator::Divide => Some(StateGuardOperator::Divide),
-        BinaryOperator::Modulo => Some(StateGuardOperator::Modulo),
-        BinaryOperator::BitwiseAnd => Some(StateGuardOperator::BitwiseAnd),
-        BinaryOperator::BitwiseOr => Some(StateGuardOperator::BitwiseOr),
-        BinaryOperator::BitwiseXor => Some(StateGuardOperator::BitwiseXor),
-        BinaryOperator::ShiftLeft => Some(StateGuardOperator::ShiftLeft),
-        BinaryOperator::ShiftRight => Some(StateGuardOperator::ShiftRight),
-        _ => None,
-    }
-}
-
 #[allow(clippy::too_many_arguments)]
 fn select_dispatch_cast_terminal_return(
     input: &InstructionSelectionInput<'_>,
@@ -1336,7 +1317,7 @@ fn select_dispatch_unary_terminal_return(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn select_dispatch_binary_terminal_return(
+fn select_dispatch_scalar_operation_terminal_return(
     input: &InstructionSelectionInput<'_>,
     edge: &RuntimeDispatchLoopEdge,
     source_key: StateKey,
@@ -1349,105 +1330,24 @@ fn select_dispatch_binary_terminal_return(
     selected_instructions: &mut SelectedInstructionSink,
 ) -> bool {
     let expressions = &input.control_flow.expressions;
-    let ExpressionNode::Binary(binary) = expressions.expression(value_expr) else {
-        return false;
-    };
-    let Some(operator) = dispatch_terminal_binary_operator(binary.operator) else {
-        return false;
-    };
     let static_values = super::writes::RuntimeStaticValues::new();
-    let Some(left) = super::writes::mutation::resolve_runtime_value_operand_in_table(
+    let Some(kind) = super::writes::mutation::select_runtime_storage_binary_write_in_table(
         input,
         source_dispatch_index,
         source_key,
         edge.statement_index,
         expressions,
-        binary.left,
-        &static_values,
-        runtime_value_operands,
-    ) else {
-        return false;
-    };
-    let Some(right) = super::writes::mutation::resolve_runtime_value_operand_in_table(
-        input,
-        source_dispatch_index,
-        source_key,
-        edge.statement_index,
-        expressions,
-        binary.right,
-        &static_values,
-        runtime_value_operands,
-    ) else {
-        return false;
-    };
-    let primitive = crate::selection::storage_places::classify_scalar_value_type_in_table(
-        input,
-        source_dispatch_index,
-        source_key,
-        expressions,
+        target_region,
+        target_offset,
+        byte_size,
         value_expr,
-    );
-    // FLOAT terminal (`-> x + tail` -- sin's polynomial delivery): the op runs
-    // on the float unit, gated to the operator set BOTH encoders serve
-    // (fadd/fsub/fmul/fdiv twins); an unserved float operator falls through to
-    // the loud call-result fence instead of an integer op over IEEE bits.
-    let is_float = matches!(primitive, Some(PrimitiveType::F32 | PrimitiveType::F64));
-    if is_float
-        && !matches!(
-            operator,
-            StateGuardOperator::Add
-                | StateGuardOperator::Subtract
-                | StateGuardOperator::Multiply
-                | StateGuardOperator::Divide
-        )
-    {
+        &static_values,
+        runtime_value_operands,
+    ) else {
         return false;
-    }
-    // An f32 target runs every nested float-literal leaf in single precision.
-    if is_float && byte_size == 4 {
-        super::writes::mutation::narrow_f32_literal_operands(
-            runtime_value_operands,
-            expressions,
-            binary.left,
-            left,
-        );
-        super::writes::mutation::narrow_f32_literal_operands(
-            runtime_value_operands,
-            expressions,
-            binary.right,
-            right,
-        );
-    }
-    let operator = super::writes::mutation::signedness_adjusted_operator_for_operands(
-        input,
-        source_dispatch_index,
-        source_key,
-        expressions,
-        binary.left,
-        binary.right,
-        operator,
-    );
-    let (domain, operands_signed) =
-        crate::selection::storage_places::resolve_binary_operand_arithmetic_domain_in_table(
-            input,
-            source_dispatch_index,
-            source_key,
-            expressions,
-            binary.left,
-            binary.right,
-        );
+    };
     selected_instructions.push(SelectedInstruction {
-        kind: crate::selection::runtime_dispatch::write_place_binary_direct(
-            target_region,
-            target_offset,
-            byte_size,
-            left,
-            operator,
-            right,
-            is_float,
-            domain,
-            !is_float && operands_signed,
-        ),
+        kind,
         source_key,
         source_statement: edge.statement_index,
     });

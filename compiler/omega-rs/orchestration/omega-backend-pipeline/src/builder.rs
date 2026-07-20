@@ -567,6 +567,15 @@ fn entry_native_expression_result_layout(
             | omega_checked_trees::expression::ExpressionNode::Indexed(_)
             | omega_checked_trees::expression::ExpressionNode::StructLiteral(_)
             | omega_checked_trees::expression::ExpressionNode::Unary(_) => true,
+            omega_checked_trees::expression::ExpressionNode::Call(call) => [
+                omega_core::symbols::BuiltinFunction::Max,
+                omega_core::symbols::BuiltinFunction::Min,
+                omega_core::symbols::BuiltinFunction::Sqrt,
+            ]
+            .into_iter()
+            .any(|builtin| {
+                program.symbols.builtin_function_symbol(builtin) == Some(call.target_symbol)
+            }),
             omega_checked_trees::expression::ExpressionNode::Name(path) => {
                 path.head_symbol == result_symbol
             }

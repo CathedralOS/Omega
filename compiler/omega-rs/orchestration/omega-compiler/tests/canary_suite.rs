@@ -6393,6 +6393,38 @@ fn runtime_entry_nested_binary_result_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_entry_scalar_operation_results_exit_canaries_run() {
+    // The shared pre-resolved scalar writer covers both builtin calls and
+    // comparison-valued binaries at an entry terminal.
+    for (name, expected) in [
+        ("runtime_entry_builtin_result_exit", 70),
+        ("runtime_entry_comparison_result_exit", 1),
+    ] {
+        let canary = pass_canary(&format!("control_flow/{name}"));
+        let build_dir = std::env::temp_dir().join(format!("omega-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&build_dir);
+        compile(CompileOptions {
+            root_path: canary.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: None,
+            write_output: true,
+        })
+        .expect("scalar-operation entry return canary should compile");
+        let output = Command::new(build_dir.join(executable_name()))
+            .output()
+            .expect("scalar-operation entry return canary should run");
+        assert_eq!(
+            output.status.code(),
+            Some(expected),
+            "unexpected entry result for {name}; got {:?}\n{}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let _ = fs::remove_dir_all(&build_dir);
+    }
+}
+
+#[test]
 fn runtime_loop_patterns_exit_canary_runs() {
     // Loop patterns via self-transition: a LARGE counting loop (1..10000) stays
     // iterative (no stack growth) and nested loops re-initialize the inner counter.

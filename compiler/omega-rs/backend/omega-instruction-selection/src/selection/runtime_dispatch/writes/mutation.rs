@@ -59,9 +59,8 @@ use super::subslice_copy::{
 };
 pub(in crate::selection::runtime_dispatch) use binary_table_writes::select_runtime_storage_binary_write_in_table;
 pub(in crate::selection::runtime_dispatch) use binary_table_writes::{
-    build_runtime_convert_write, narrow_f32_literal_operands,
-    select_runtime_convert_mutation_write_in_table, signedness_adjusted_operator,
-    signedness_adjusted_operator_for_operands,
+    build_runtime_convert_write, select_runtime_convert_mutation_write_in_table,
+    signedness_adjusted_operator, signedness_adjusted_operator_for_operands,
 };
 pub(super) use binary_table_writes::{
     select_runtime_binary_mutation_write_in_table, select_runtime_frame_slot_convert_write_in_table,

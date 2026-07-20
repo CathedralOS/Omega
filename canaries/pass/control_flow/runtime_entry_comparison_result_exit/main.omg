@@ -1,0 +1,9 @@
+// A runtime comparison terminal writes its bool result into entry scratch and
+// returns the normalized one-byte result instead of falling through to zero.
+data Main { a: i32; b: i32; }
+
+machine Main::main(&mut self) -> bool {
+    self.a = 30;
+    self.b = 70;
+    transition { _ -> (self.a < self.b) }
+}
