@@ -6258,6 +6258,60 @@ fn runtime_entry_computed_result_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_entry_unary_result_exit_canary_runs() {
+    // A runtime logical-NOT terminal computes through one-byte entry-result
+    // scratch and returns the normalized bool value instead of falling through
+    // to the entrypoint's natural-termination zero write.
+    let canary = pass_canary("control_flow/runtime_entry_unary_result_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-entry-unary-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime unary entry return canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime unary entry return canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected main to return !false (exit 1); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+
+    let cross_dir =
+        std::env::temp_dir().join(format!("omega-entry-unary-arm64-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&cross_dir);
+    let src_dir = cross_dir.join("src");
+    let out_dir = cross_dir.join("out");
+    fs::create_dir_all(&src_dir).expect("scratch source directory");
+    fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
+    fs::write(src_dir.join("build.omg"), "target linux_arm64 {\n}\n")
+        .expect("write target manifest");
+    compile(CompileOptions {
+        root_path: src_dir.join("main.omg"),
+        build_dir: Some(out_dir.clone()),
+        target_name: Some("linux_arm64".into()),
+        write_output: true,
+    })
+    .expect("runtime unary entry return should cross-compile for AArch64");
+    let image = fs::read(out_dir.join("omega-program")).expect("read emitted AArch64 ELF");
+    assert!(
+        image.windows(4).any(|window| {
+            let instruction = u32::from_le_bytes(window.try_into().expect("word"));
+            instruction & !0x003f_fc00 == 0x3940_0200
+        }),
+        "AAPCS64 unary terminal missing w0 byte scratch load"
+    );
+    let _ = fs::remove_dir_all(&cross_dir);
+}
+
+#[test]
 fn runtime_loop_patterns_exit_canary_runs() {
     // Loop patterns via self-transition: a LARGE counting loop (1..10000) stays
     // iterative (no stack growth) and nested loops re-initialize the inner counter.

@@ -1,0 +1,8 @@
+// Runtime logical-not terminals compute through entry-result scratch instead
+// of falling through to the natural-termination zero write.
+data Main { flag: bool; }
+
+machine Main::main(&mut self) -> bool {
+    self.flag = false;
+    transition { _ -> (!self.flag) }
+}
