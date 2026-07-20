@@ -2,9 +2,15 @@
 // generic instance. It is not a runtime invariant on the synthesized record.
 use omega::language::std::console;
 
+domain u64::BufferSize {
+    self > 0;
+    self <= 8;
+}
+
 data FixedBuffer<const N: u64>
 where
     N > 0 && N <= 8,
+    N in BufferSize,
     used <= N,
 {
     used: u64;

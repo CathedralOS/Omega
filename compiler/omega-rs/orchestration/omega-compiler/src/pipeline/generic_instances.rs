@@ -293,6 +293,22 @@ pub(crate) fn desugar_generic_data_instances(
                     Some((name.clone(), value.as_str().parse().ok()?))
                 })
                 .collect();
+            let const_parameter_type_names: HashMap<String, String> = base_info
+                .parameter_names
+                .iter()
+                .zip(&base_info.const_parameter_types)
+                .filter_map(|(name, parameter_type)| {
+                    let parameter_type = parameter_type.as_ref()?;
+                    let TypeReferenceNode::Named(type_name) = syntax
+                        .tables
+                        .type_references
+                        .type_reference(*parameter_type)
+                    else {
+                        return None;
+                    };
+                    Some((name.clone(), type_name.as_str().to_string()))
+                })
+                .collect();
             let const_literals: HashMap<String, IntegerLiteral> = const_parameter_values
                 .iter()
                 .map(|(name, value)| {
@@ -315,20 +331,33 @@ pub(crate) fn desugar_generic_data_instances(
             let mut first_fact = Handle::invalid();
             let mut fact_count = 0u32;
             for fact in snapshot.tables.items.proof_facts(base_info.where_facts) {
-                if let ProofFact::Expression(expression) = fact
-                    && let Some(ConstFactValue::Boolean(value)) = evaluate_const_fact_expression(
+                let const_result = match fact {
+                    ProofFact::Expression(expression) => evaluate_const_fact_expression(
                         &snapshot,
                         *expression,
                         &const_values,
                         &const_parameter_values,
+                        None,
                     )
-                    .map_err(|reason| {
-                        vec![Diagnostic::error(format!(
-                            "const fact for generic instance `{}` is invalid: {reason}",
-                            instance.synthetic_name
-                        ))]
-                    })?
-                {
+                    .map(|value| match value {
+                        Some(ConstFactValue::Boolean(value)) => Some(value),
+                        _ => None,
+                    }),
+                    ProofFact::Membership(membership) => evaluate_const_membership_fact(
+                        &snapshot,
+                        membership,
+                        &const_values,
+                        &const_parameter_values,
+                        &const_parameter_type_names,
+                    ),
+                }
+                .map_err(|reason| {
+                    vec![Diagnostic::error(format!(
+                        "const fact for generic instance `{}` is invalid: {reason}",
+                        instance.synthetic_name
+                    ))]
+                })?;
+                if let Some(value) = const_result {
                     if value {
                         continue;
                     }
@@ -478,6 +507,7 @@ fn evaluate_const_fact_expression(
     expression: ExpressionHandle,
     const_values: &HashMap<String, u64>,
     parameter_values: &HashMap<String, u64>,
+    self_value: Option<u64>,
 ) -> Result<Option<ConstFactValue>, String> {
     match syntax.expressions.expression(expression) {
         ExpressionNode::Integer(value) => value
@@ -500,12 +530,14 @@ fn evaluate_const_fact_expression(
                 .copied()
                 .map(ConstFactValue::Integer))
         }
+        ExpressionNode::SelfValue => Ok(self_value.map(ConstFactValue::Integer)),
         ExpressionNode::Binary(binary) => {
             let Some(left) = evaluate_const_fact_expression(
                 syntax,
                 binary.left,
                 const_values,
                 parameter_values,
+                self_value,
             )?
             else {
                 return Ok(None);
@@ -515,6 +547,7 @@ fn evaluate_const_fact_expression(
                 binary.right,
                 const_values,
                 parameter_values,
+                self_value,
             )?
             else {
                 return Ok(None);
@@ -523,6 +556,85 @@ fn evaluate_const_fact_expression(
         }
         _ => Ok(None),
     }
+}
+
+/// Discharge `N in Domain` when `N` is a concrete const parameter and the
+/// domain is defined by ordinary boolean facts over `self`. Classifier-backed
+/// and nested-membership domains stay on the concrete record for the typed
+/// proof machinery; this bridge does not guess their build-time semantics.
+fn evaluate_const_membership_fact(
+    syntax: &SyntaxTrees,
+    membership: &omega_syntax_trees::item::ProofMembershipFact,
+    const_values: &HashMap<String, u64>,
+    parameter_values: &HashMap<String, u64>,
+    parameter_type_names: &HashMap<String, String>,
+) -> Result<Option<bool>, String> {
+    let ExpressionNode::Name(value_path) = syntax.expressions.expression(membership.value) else {
+        return Ok(None);
+    };
+    let [parameter_name] = syntax.expressions.identifier_path_members(*value_path) else {
+        return Ok(None);
+    };
+    let Some(value) = parameter_values.get(parameter_name.as_str()).copied() else {
+        return Ok(None);
+    };
+    let Some(parameter_type) = parameter_type_names.get(parameter_name.as_str()) else {
+        return Ok(None);
+    };
+    let domain_path = syntax
+        .items
+        .identifier_path_members(membership.domain)
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    let domain_name = if domain_path.contains("::") {
+        domain_path
+    } else {
+        format!("{parameter_type}::{domain_path}")
+    };
+    let Some(domain) = syntax.root_items().find_map(|item| {
+        let Item::Domain(domain) = item else {
+            return None;
+        };
+        (domain.name.as_str() == domain_name).then_some(domain)
+    }) else {
+        return Ok(None);
+    };
+    let TypeReferenceNode::Named(domain_target) =
+        syntax.type_references.type_reference(domain.target_type)
+    else {
+        return Ok(None);
+    };
+    if domain_target.as_str() != parameter_type {
+        return Err(format!(
+            "domain `{domain_name}` has carrier `{}`, but const parameter `{}` has carrier `{parameter_type}`",
+            domain_target.as_str(),
+            parameter_name.as_str()
+        ));
+    }
+    if domain.classifier.is_valid() {
+        return Ok(None);
+    }
+    for fact in syntax.items.proof_facts(domain.facts) {
+        let ProofFact::Expression(expression) = fact else {
+            return Ok(None);
+        };
+        let Some(ConstFactValue::Boolean(holds)) = evaluate_const_fact_expression(
+            syntax,
+            *expression,
+            const_values,
+            &HashMap::new(),
+            Some(value),
+        )?
+        else {
+            return Ok(None);
+        };
+        if !holds {
+            return Ok(Some(false));
+        }
+    }
+    Ok(Some(true))
 }
 
 fn evaluate_const_fact_binary(

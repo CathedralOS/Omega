@@ -37059,6 +37059,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "generics/const_data_machine_call_requires_zero_arguments",
     "generics/const_data_machine_call_requires_pure",
     "generics/const_data_where_fact_false",
+    "generics/const_data_where_membership_carrier_mismatch",
+    "generics/const_data_where_membership_false",
     "generics/const_data_where_mixed_fact_violated",
     "generics/const_data_symbolic_expression_unknown",
     "generics/const_data_named_value_out_of_range",
