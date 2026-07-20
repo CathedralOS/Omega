@@ -9,4 +9,5 @@ name = "omega_access_plans"
 path = "src/lib.rs"
 
 [dependencies]
+omega-extents = { path = "../omega-extents" }
 omega-layout-plans = { path = "../omega-layout-plans" }
