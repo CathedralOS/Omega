@@ -62,6 +62,18 @@ pub(crate) fn collect_machine_state_calls(
                 if context
                     .state_statement_has_host_call_by_key(state.key, operation.statement_index)
                 {
+                    // The statement-position call itself belongs to the host-call
+                    // plan, but authored machine calls nested in its arguments still
+                    // need state-call sequencing and result storage.
+                    collect_expression_state_calls_for_operation(
+                        context,
+                        machine,
+                        state.key,
+                        operation.statement_index,
+                        &mut call_ordinal,
+                        operation.expressions,
+                        &mut calls,
+                    );
                     continue;
                 }
 

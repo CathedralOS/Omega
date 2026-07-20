@@ -1194,28 +1194,32 @@ fn unapproved_host_call_canary_is_rejected() {
 }
 
 #[test]
-fn value_call_as_host_arg_rejected_canary_is_rejected() {
-    // A nested value-call result used directly as a host-call argument still needs explicit
-    // call sequencing; the selector rejects it cleanly rather than silently miscompiling (#40).
-    // Direct scalar binary expressions have their own scratch-materialization path. Workaround
-    // here: bind the nested call result to a field first.
-    let canary = fail_canary("calls/value_call_as_host_arg_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected value-call-as-host-arg canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
-    let combined = diagnostics
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        combined.contains("encodable"),
-        "expected a 'no encodable call selection' rejection diagnostic, got:\n{combined}"
+fn value_call_as_host_arg_exit_canary_runs() {
+    let canary = pass_canary("calls/value_call_as_host_arg_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-value-call-host-arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested value call used as a host argument should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested value-call host argument canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `exit_process(self.dbl(35))` to exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
     );
+
+    let _ = fs::remove_dir_all(&build_dir);
 }
 
 #[test]

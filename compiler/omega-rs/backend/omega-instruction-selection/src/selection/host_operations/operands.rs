@@ -10,8 +10,8 @@ use super::runtime_text::{
     runtime_text_literal_for_host_call,
 };
 use crate::selection::storage_places::{
-    resolve_fixed_array_length_in_table, resolve_runtime_storage_leaf_descriptor_in_table,
-    resolve_runtime_storage_place_in_table,
+    RuntimeStoragePlace, resolve_fixed_array_length_in_table,
+    resolve_runtime_storage_leaf_descriptor_in_table, resolve_runtime_storage_place_in_table,
 };
 use omega_abstract_operations::{
     AbstractDataObject, AbstractDataObjectHandle, InstructionOperand, InstructionOperandKind,
@@ -2256,6 +2256,15 @@ fn first_scalar_argument_operand(
             byte_offset: place.byte_offset,
             byte_count: place.byte_count,
         })
+        .or_else(|| {
+            machine_value_call_argument_result_place(input, host_call, dispatch_index, 0).map(
+                |place| InstructionOperandKind::RuntimeScalarInteger {
+                    region: place.region,
+                    byte_offset: place.byte_offset,
+                    byte_count: place.byte_count,
+                },
+            )
+        })
         .or_else(|| computed_scalar_argument_operand(input, host_call, dispatch_index, 0)),
         HostCallArgumentKind::Text(_) => Some(InstructionOperandKind::ImmediateInteger(0)),
     }
@@ -2320,6 +2329,15 @@ fn scalar_argument_operand_at(
                         host_call.source_key,
                         &input.host_calls.expressions,
                         *expression,
+                    )
+                    .and_then(scalar_place)
+                })
+                .or_else(|| {
+                    machine_value_call_argument_result_place(
+                        input,
+                        host_call,
+                        dispatch_index,
+                        index,
                     )
                     .and_then(scalar_place)
                 })
@@ -2404,12 +2422,76 @@ fn float_argument_operand_at(
             byte_count: place.byte_count,
         })
         .or_else(|| {
+            machine_value_call_argument_result_place(input, host_call, dispatch_index, index)
+                .filter(|place| matches!(place.byte_count, 4 | 8))
+                .map(|place| InstructionOperandKind::RuntimeScalarFloat {
+                    region: place.region,
+                    byte_offset: place.byte_offset,
+                    byte_count: place.byte_count,
+                })
+        })
+        .or_else(|| {
             computed_scalar_argument_operand(input, host_call, dispatch_index, index).filter(
                 |operand| matches!(operand, InstructionOperandKind::RuntimeScalarFloat { .. }),
             )
         }),
         _ => None,
     }
+}
+
+fn machine_value_call_argument_result_place(
+    input: &InstructionSelectionInput<'_>,
+    host_call: &HostCall,
+    dispatch_index: Option<u32>,
+    index: usize,
+) -> Option<RuntimeStoragePlace> {
+    let arguments = input.host_calls.arguments.span(host_call.arguments)?;
+    let HostCallArgumentKind::Expression(expression) = arguments.get(index)?.kind else {
+        return None;
+    };
+    let ExpressionNode::Call(call) = input.host_calls.expressions.expression(expression) else {
+        return None;
+    };
+
+    let target_matches = |state_call: &omega_state_calls::StateCall| {
+        let target_name = input
+            .control_flow
+            .state_by_key(state_call.target_key)
+            .map(|state| state.name.as_str());
+        state_call.target_key.state == call.target_symbol
+            || target_name == Some(call.target.as_str())
+    };
+    let prior_same_target = arguments[..index]
+        .iter()
+        .filter(|argument| {
+            let HostCallArgumentKind::Expression(expression) = argument.kind else {
+                return false;
+            };
+            let ExpressionNode::Call(prior) = input.host_calls.expressions.expression(expression)
+            else {
+                return false;
+            };
+            prior.target_symbol == call.target_symbol && prior.target == call.target
+        })
+        .count();
+    let state_call = input
+        .state_calls
+        .calls_for_statement(host_call.source_key, host_call.statement_index)
+        .filter(|state_call| state_call.role == omega_state_calls::StateCallRole::CallArgument)
+        .filter(|state_call| target_matches(state_call))
+        .nth(prior_same_target)?;
+    let slot = input.runtime_storage.call_result_slot_by_ordinal(
+        dispatch_index.unwrap_or(0),
+        state_call.source_key,
+        state_call.statement_index,
+        state_call.role,
+        state_call.call_ordinal,
+    )?;
+    matches!(slot.byte_size, 1 | 2 | 4 | 8).then_some(RuntimeStoragePlace {
+        region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+        byte_offset: slot.byte_offset,
+        byte_count: slot.byte_size,
+    })
 }
 
 /// Preserve scalar float identity for authored imports. Catalog operations
