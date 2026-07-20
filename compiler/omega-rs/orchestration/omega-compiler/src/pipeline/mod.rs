@@ -6,6 +6,7 @@ mod checked_entry;
 pub mod compile_options;
 pub mod compile_report;
 pub mod compiler;
+mod const_generic_calls;
 mod const_lengths;
 pub mod frontend;
 mod generic_instances;

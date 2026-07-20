@@ -98,6 +98,22 @@ fn evaluate_one(
     effect_plan: &omega_effects::EffectPlan,
     machine_name: &str,
 ) -> Result<usize, String> {
+    let value = evaluate_zero_argument_machine(typed, effect_plan, machine_name, "array length")?;
+    if value < 0 {
+        return Err(format!(
+            "the call returned {value}, but an array length must be a non-negative integer"
+        ));
+    }
+    usize::try_from(value)
+        .map_err(|_| format!("the call returned {value}, which does not fit an array length"))
+}
+
+pub(super) fn evaluate_zero_argument_machine(
+    typed: &TypedTrees,
+    effect_plan: &omega_effects::EffectPlan,
+    machine_name: &str,
+    position: &str,
+) -> Result<i64, String> {
     let machine = typed
         .machines()
         .iter()
@@ -110,7 +126,7 @@ fn evaluate_one(
     if parameter_count > 0 {
         return Err(format!(
             "machine `{machine_name}` takes {parameter_count} parameter(s); a const-evaluated \
-             array length must call a zero-argument machine (const arguments are not supported yet)"
+             {position} must call a zero-argument machine (const arguments are not supported yet)"
         ));
     }
 
@@ -129,16 +145,7 @@ fn evaluate_one(
         ));
     }
 
-    let value = omega_interpreter::evaluate_const_machine(typed, machine_name)?;
-
-    if value < 0 {
-        return Err(format!(
-            "the call returned {value}, but an array length must be a non-negative integer"
-        ));
-    }
-
-    usize::try_from(value)
-        .map_err(|_| format!("the call returned {value}, which does not fit an array length"))
+    omega_interpreter::evaluate_const_machine(typed, machine_name)
 }
 
 /// The parameter count of the machine's entry state (the body of a free

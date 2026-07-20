@@ -1,0 +1,22 @@
+// A zero-argument, effect-free machine call in const-generic position is
+// evaluated before instance synthesis. Its result must determine both layout
+// and indexed runtime storage in the native and interpreter engines.
+use omega::language::std::console;
+
+machine table_size() -> u64 {
+    transition { _ -> (2 + 2) }
+}
+
+data FixedBuffer<const N: u64> {
+    items: [i32 in Wrapping; N];
+}
+
+data Main {
+    console: Console;
+    buffer: FixedBuffer<table_size()>;
+}
+
+machine Main::main(&mut self) {
+    self.buffer.items[3] = 70;
+    self.console.exit_process(self.buffer.items[3]);
+}

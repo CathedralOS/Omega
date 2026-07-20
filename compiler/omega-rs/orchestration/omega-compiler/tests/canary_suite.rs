@@ -20283,6 +20283,28 @@ fn runtime_const_data_symbolic_expression_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_const_data_machine_call_exit_canary_runs() {
+    let canary = pass_canary("generics/runtime_const_data_machine_call_exit");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-const-data-machine-call-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("const-evaluated machine calls should specialize generic data");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("const data machine-call canary should run");
+    assert_eq!(output.status.code(), Some(70));
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_const_container_methods_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_const_container_methods_exit");
     let build_dir =
@@ -36595,6 +36617,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/property_bound_type_parameter",
     "generics/runtime_const_data_array_length_exit",
     "generics/runtime_const_data_expression_exit",
+    "generics/runtime_const_data_machine_call_exit",
     "generics/runtime_const_data_symbolic_expression_exit",
     "generics/runtime_const_data_forwarded_length_exit",
     "generics/runtime_const_data_multiple_instances_exit",
@@ -37010,6 +37033,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "generics/const_data_argument_out_of_range",
     "generics/const_data_expression_division_by_zero",
     "generics/const_data_expression_type_parameter",
+    "generics/const_data_machine_call_requires_zero_arguments",
+    "generics/const_data_machine_call_requires_pure",
     "generics/const_data_symbolic_expression_unknown",
     "generics/const_data_named_value_out_of_range",
     "generics/const_data_forwarded_type_mismatch",

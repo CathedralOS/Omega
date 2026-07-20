@@ -159,7 +159,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                     parse_const_integer_expression_handle(syntax_trees, input)?;
                 if matches!(
                     syntax_trees.expressions.expression(expression),
-                    ExpressionNode::Binary(_)
+                    ExpressionNode::Binary(_) | ExpressionNode::Call(_)
                 ) && (expression_rest.at_punctuation(PunctuationKind::Comma)
                     || expression_rest.at_punctuation(PunctuationKind::Greater))
                 {

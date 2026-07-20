@@ -717,8 +717,11 @@ remain contract-invisible.
   operands reject loudly. Expressions over forwarded const parameters now
   evaluate for each concrete clone while the surviving generic template keeps
   a validated const-parameter dependency placeholder for its ordinary kind/type
-  checks. Continue with const-evaluated machine-call arguments, signed/domain
-  semantics, and const-fact proof integration.
+  checks. Zero-argument machine calls in const-generic position now reuse the
+  fixed-array const evaluator's typed transitive-purity gate, interpreter fuel,
+  and target integer semantics before instance synthesis; parameterized and
+  effectful calls reject loudly. Continue with call operands inside larger const
+  expressions, signed/domain semantics, and const-fact proof integration.
 - **Trait defaults.** Implement conformance, reuse, override, and dispatch for
   trait machines whose body supplies the default. Do not restore a `default`
   keyword.

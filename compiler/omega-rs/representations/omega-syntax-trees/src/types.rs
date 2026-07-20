@@ -44,6 +44,19 @@ impl TypeReferenceTable {
             .collect()
     }
 
+    /// Const-generic expression nodes awaiting the orchestration prepass.
+    pub fn const_expression_nodes(
+        &self,
+    ) -> Vec<(TypeReferenceHandle, crate::expression::ExpressionHandle)> {
+        self.type_references
+            .iter()
+            .filter_map(|(handle, node)| match node {
+                TypeReferenceNode::ConstExpression(expression) => Some((handle, *expression)),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// Fixed-array nodes in a freshly copied subtree whose length still names
     /// a const parameter. Generic-instance method cloning substitutes these
     /// after the copy, alongside `Named(T)` type nodes.

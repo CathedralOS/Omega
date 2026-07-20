@@ -1,0 +1,14 @@
+machine sized(value: u64) -> u64 {
+    transition { _ -> value }
+}
+
+data FixedBuffer<const N: u64> {
+    items: [u8; N];
+}
+
+data Main {
+    buffer: FixedBuffer<sized()>;
+}
+
+machine Main::main(&mut self) {
+}
