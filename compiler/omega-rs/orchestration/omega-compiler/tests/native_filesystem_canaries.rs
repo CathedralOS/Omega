@@ -428,7 +428,8 @@ fn sample_note_vault_exits_14() {
 
 // The arm64 FLOAT-ARGUMENT calling convention: Math::round_nearest(x: f64) -> i64
 // via libm lround. Proves an f64 arg is marshalled into v0 (RuntimeScalarFloat
-// operand). round_nearest(3.7) == 4 -> exit 4.
+// operand). The direct computed argument round_nearest(3.0 + 0.7) also proves
+// host-argument scratch retains its FLOAT register class. It returns 4.
 #[test]
 fn native_float_arg_exits_4() {
     let main_path = repo_root().join("canaries/pass/float/native_float_arg/main.omg");
@@ -448,7 +449,7 @@ fn native_float_arg_exits_4() {
     assert_eq!(
         out.status.code(),
         Some(4),
-        "round_nearest(3.7) should be 4 (float arg in v0)"
+        "round_nearest(3.0 + 0.7) should be 4 (computed float arg in v0)"
     );
 }
 
@@ -480,8 +481,9 @@ fn native_float_return_exits_4() {
 }
 
 // Two f64 ARGUMENTS in consecutive float registers (v0, v1) alongside a float
-// return: Math::hypotenuse(x, y) -> f64 via libm hypot. hypot(3.0, 4.0) -> 5.0
-// round-tripped through round_nearest -> exit 5.
+// return: Math::hypotenuse(x, y) -> f64 via libm hypot. Two direct computed
+// arguments independently stage into FLOAT-class scratch before v0/v1.
+// hypot(3.0 + 0.0, 4.0 + 0.0) -> 5.0, then round_nearest -> exit 5.
 #[test]
 fn native_float_two_args_exits_5() {
     let main_path = repo_root().join("canaries/pass/float/native_float_two_args/main.omg");

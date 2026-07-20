@@ -2348,11 +2348,27 @@ fn computed_scalar_argument_operand(
         &input.host_calls.expressions,
         expression,
     )?;
-    Some(InstructionOperandKind::RuntimeScalarInteger {
-        region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
-        byte_offset: input.runtime_storage.host_argument_scratch_base + index * 8,
-        byte_count,
-    })
+    let region = omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame;
+    let byte_offset = input.runtime_storage.host_argument_scratch_base + index * 8;
+    if crate::selection::runtime_dispatch::computed_host_argument_is_float(
+        input,
+        dispatch_index.unwrap_or(0),
+        host_call.source_key,
+        &input.host_calls.expressions,
+        expression,
+    ) {
+        Some(InstructionOperandKind::RuntimeScalarFloat {
+            region,
+            byte_offset,
+            byte_count,
+        })
+    } else {
+        Some(InstructionOperandKind::RuntimeScalarInteger {
+            region,
+            byte_offset,
+            byte_count,
+        })
+    }
 }
 
 /// Like `scalar_argument_operand_at`, but for a FLOAT (`f32`/`f64`) argument: emits
@@ -2386,6 +2402,11 @@ fn float_argument_operand_at(
             region: place.region,
             byte_offset: place.byte_offset,
             byte_count: place.byte_count,
+        })
+        .or_else(|| {
+            computed_scalar_argument_operand(input, host_call, dispatch_index, index).filter(
+                |operand| matches!(operand, InstructionOperandKind::RuntimeScalarFloat { .. }),
+            )
         }),
         _ => None,
     }
