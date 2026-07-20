@@ -1,8 +1,7 @@
 use super::context::RuntimeDispatchBodyContext;
 use super::lookups::{
     host_call_for_statement, local_storage_for_statement, mutation_for_statement,
-    state_assignment_value_call, state_call_for_statement, state_has_no_transitions,
-    state_operations,
+    state_call_for_statement, state_has_no_transitions, state_operations,
 };
 use super::model::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_checked_trees::expression::ExpressionTable;
@@ -450,9 +449,13 @@ fn append_state_body_operations(
             continue;
         }
 
-        if let Some(state_call) =
-            state_assignment_value_call(context, state_key, operation.statement_index)
-        {
+        let mut assignment_value_calls = context
+            .state_calls
+            .calls_for_statement(state_key, operation.statement_index)
+            .filter(|state_call| state_call.role == StateCallRole::AssignmentValue)
+            .collect::<Vec<_>>();
+        assignment_value_calls.sort_by_key(|state_call| state_call.call_ordinal);
+        for state_call in assignment_value_calls {
             // A DISPATCHED value call's result arrives via the dispatch terminal
             // writing the callee's return into the call-result slot; do not also
             // inline-expand it here (that would double-lower and unroll a loop).

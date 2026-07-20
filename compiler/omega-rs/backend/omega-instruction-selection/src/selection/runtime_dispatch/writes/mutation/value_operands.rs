@@ -32,7 +32,9 @@ use super::operators::{
     builtin_runtime_call_operator, builtin_runtime_call_operator_in_table, runtime_binary_operator,
     supports_runtime_value_operand,
 };
-use super::resolve_runtime_call_result_source_place;
+use super::{
+    resolve_runtime_table_call_result_source_place, resolve_runtime_tree_call_result_source_place,
+};
 
 /// Whether a binary value operand built from these two operand expressions is
 /// floating-point, so the encoder uses the SSE unit (addsd/...) instead of an
@@ -319,11 +321,13 @@ pub(crate) fn resolve_runtime_value_operand_in_table(
             }));
         }
 
-        if let Some(place) = resolve_runtime_call_result_source_place(
+        if let Some(place) = resolve_runtime_table_call_result_source_place(
             input,
             dispatch_index,
             source_key,
             statement_index,
+            expressions,
+            call,
         ) {
             return Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
                 region: place.region,
@@ -852,12 +856,13 @@ pub(super) fn resolve_runtime_value_operand(
         }));
     }
 
-    if matches!(expression, Expression::Call(_))
-        && let Some(place) = resolve_runtime_call_result_source_place(
+    if let Expression::Call(call) = expression
+        && let Some(place) = resolve_runtime_tree_call_result_source_place(
             input,
             dispatch_index,
             source_key,
             statement_index,
+            call,
         )
     {
         return Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
