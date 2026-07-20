@@ -64,10 +64,7 @@ fn vtable_call_sequence_width_with_dispatch<T: InstructionOperandLike>(
             let Some(dispatch_width) = dispatch_width else {
                 return 0;
             };
-            operands
-                .iter()
-                .map(|operand| crate::operand_width(Architecture::Aarch64, operand))
-                .sum::<usize>()
+            aarch64_call_operands_width(operands, result_present)
                 + aarch64::host_call_stack_total_width_for_placements(&placements)
                 + dispatch_width
         }
@@ -98,10 +95,7 @@ pub fn table_function_call_sequence_width<T: InstructionOperandLike>(
             else {
                 return 0;
             };
-            operands
-                .iter()
-                .map(|operand| crate::operand_width(Architecture::Aarch64, operand))
-                .sum::<usize>()
+            aarch64_call_operands_width(operands, result_present)
                 + aarch64::host_call_stack_total_width_for_placements(&placements)
                 + dispatch_width
         }
@@ -145,14 +139,28 @@ pub fn host_call_sequence_width<T: InstructionOperandLike>(
             {
                 return aarch64::constant_result_sequence_width(byte_offset, byte_count);
             }
-            let base = aarch64::host_call_sequence_width_from_operands(
-                operands.iter().map(aarch64_call_operand),
-            );
             let authored_import = matches!(
                 operation_key.capability,
                 omega_calling_conventions::HostCapability::Unknown
                     | omega_calling_conventions::HostCapability::Custom(_)
             );
+            let base = if authored_import
+                && let Some(result_width) = operands
+                    .first()
+                    .map(aarch64_call_operand)
+                    .and_then(aarch64::indirect_result_address_width)
+            {
+                result_width
+                    + operands[1..]
+                        .iter()
+                        .map(|operand| crate::operand_width(Architecture::Aarch64, operand))
+                        .sum::<usize>()
+                    + 4
+            } else {
+                aarch64::host_call_sequence_width_from_operands(
+                    operands.iter().map(aarch64_call_operand),
+                )
+            };
             let Ok(argument_placements) = crate::normalized_aarch64_host_argument_placements(
                 operation_key,
                 operands,
@@ -188,6 +196,29 @@ pub fn host_call_sequence_width<T: InstructionOperandLike>(
             operation_key,
             operands,
         ),
+    }
+}
+
+fn aarch64_call_operands_width<T: InstructionOperandLike>(
+    operands: &[T],
+    result_present: bool,
+) -> usize {
+    if result_present
+        && let Some(result_width) = operands
+            .first()
+            .map(aarch64_call_operand)
+            .and_then(aarch64::indirect_result_address_width)
+    {
+        result_width
+            + operands[1..]
+                .iter()
+                .map(|operand| crate::operand_width(Architecture::Aarch64, operand))
+                .sum::<usize>()
+    } else {
+        operands
+            .iter()
+            .map(|operand| crate::operand_width(Architecture::Aarch64, operand))
+            .sum()
     }
 }
 

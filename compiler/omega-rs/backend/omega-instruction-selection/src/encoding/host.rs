@@ -181,6 +181,16 @@ pub fn encode_vtable_call_sequence_at_offset<T: InstructionOperandLike>(
                 })?;
                 match result.shape.class {
                     omega_calling_conventions::ValueClass::Integer
+                        if result.shape.byte_size > 16 =>
+                    {
+                        aarch64::encode_vtable_call_sequence_at_offset_indirect_returning_from_operands(
+                            operands.iter().map(aarch64_call_operand),
+                            &arguments,
+                            result,
+                            byte_offset,
+                        )
+                    }
+                    omega_calling_conventions::ValueClass::Integer
                         if result.shape.byte_size > 8 =>
                     {
                         aarch64::encode_vtable_call_sequence_at_offset_small_aggregate_returning_from_operands(
@@ -260,6 +270,18 @@ pub fn encode_table_function_call_sequence<T: InstructionOperandLike>(
                     None,
                     byte_offset,
                 ),
+                Some(omega_calling_conventions::ValueClass::Integer)
+                    if result
+                        .as_ref()
+                        .is_some_and(|result| result.shape.byte_size > 16) =>
+                {
+                    aarch64::encode_table_function_call_sequence_indirect_returning_from_operands(
+                        operands.iter().map(aarch64_call_operand),
+                        &arguments,
+                        result.as_ref().expect("matched present result"),
+                        byte_offset,
+                    )
+                }
                 Some(omega_calling_conventions::ValueClass::Integer)
                     if result
                         .as_ref()
@@ -427,11 +449,19 @@ pub fn encode_authored_import_call_sequence<T: InstructionOperandLike>(
                     )
                 }
                 omega_calling_conventions::ValueClass::Integer if result.shape.byte_size > 8 => {
-                    aarch64::encode_host_call_sequence_small_aggregate_returning_from_operands(
-                        operands.iter().map(aarch64_call_operand),
-                        &arguments,
-                        result,
-                    )
+                    if result.shape.byte_size > 16 {
+                        aarch64::encode_host_call_sequence_indirect_returning_from_operands(
+                            operands.iter().map(aarch64_call_operand),
+                            &arguments,
+                            result,
+                        )
+                    } else {
+                        aarch64::encode_host_call_sequence_small_aggregate_returning_from_operands(
+                            operands.iter().map(aarch64_call_operand),
+                            &arguments,
+                            result,
+                        )
+                    }
                 }
                 omega_calling_conventions::ValueClass::Integer => {
                     aarch64::encode_host_call_sequence_value_returning_from_operands(
@@ -576,6 +606,20 @@ fn validate_aarch64_field_result(result: &ValuePlacement, label: &str) -> Result
                     value_byte_offset: 0,
                     ..
                 }]
+            )
+        }
+        omega_calling_conventions::ValueClass::Integer if result.shape.byte_size > 16 => {
+            matches!(
+                result.locations.as_slice(),
+                [ValueLocation::Indirect {
+                    pointer: omega_calling_conventions::IndirectPointerLocation::Register(
+                        MachineRegister::Aarch64X(8)
+                    ),
+                    copy_stack_byte_offset: None,
+                    byte_size,
+                    alignment,
+                }] if *byte_size == result.shape.byte_size
+                    && *alignment == result.shape.alignment
             )
         }
         omega_calling_conventions::ValueClass::Integer => {
@@ -831,6 +875,18 @@ fn aarch64_operand_shape(
             })?;
             let alignment = u16::try_from(alignment)
                 .map_err(|_| Diagnostic::error("AArch64 small aggregate alignment exceeds u16"))?;
+            Ok(ValueShape::integer(byte_count, alignment))
+        }
+        Aarch64CallOperand::RuntimeLargeAggregate {
+            byte_count,
+            alignment,
+            ..
+        } => {
+            let byte_count = u16::try_from(byte_count).map_err(|_| {
+                Diagnostic::error("AArch64 large aggregate operand width exceeds u16")
+            })?;
+            let alignment = u16::try_from(alignment)
+                .map_err(|_| Diagnostic::error("AArch64 large aggregate alignment exceeds u16"))?;
             Ok(ValueShape::integer(byte_count, alignment))
         }
         Aarch64CallOperand::DataAddress
@@ -1522,6 +1578,61 @@ mod aarch64_import_plan_tests {
     }
 
     #[test]
+    fn field_model_large_aggregate_results_match_layout_widths() {
+        let aggregate_result = || {
+            operand(TargetInstructionOperandKind::RuntimeLargeAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 64,
+                byte_count: 24,
+                alignment: 8,
+            })
+        };
+        let pointer = || {
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 8,
+            })
+        };
+
+        let vtable_operands = [aggregate_result(), pointer()];
+        let vtable_bytes = encode_vtable_call_sequence_at_offset(
+            omega_target::NativeTarget::linux_arm64(),
+            &vtable_operands,
+            24,
+            true,
+        )
+        .expect("encode indirect-returning AAPCS64 vtable field");
+        assert_eq!(
+            vtable_bytes.len(),
+            crate::vtable_call_sequence_width_at_offset(
+                omega_target::NativeTarget::linux_arm64(),
+                &vtable_operands,
+                24,
+                true,
+            )
+        );
+
+        let table_operands = [aggregate_result(), pointer()];
+        let table_bytes = encode_table_function_call_sequence(
+            omega_target::NativeTarget::linux_arm64(),
+            &table_operands,
+            24,
+            true,
+        )
+        .expect("encode indirect-returning AAPCS64 table function");
+        assert_eq!(
+            table_bytes.len(),
+            crate::table_function_call_sequence_width(
+                omega_target::NativeTarget::linux_arm64(),
+                &table_operands,
+                24,
+                true,
+            )
+        );
+    }
+
+    #[test]
     fn ninth_float_argument_has_an_aapcs_stack_slot() {
         let operands = (0..9)
             .map(|index| {
@@ -1611,6 +1722,58 @@ mod aarch64_import_plan_tests {
                 byte_size: 8,
             }
         ));
+    }
+
+    #[test]
+    fn authored_large_aggregate_call_uses_indirect_argument_and_result() {
+        let aggregate = || {
+            operand(TargetInstructionOperandKind::RuntimeLargeAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 64,
+                byte_count: 24,
+                alignment: 8,
+            })
+        };
+        let operands = [aggregate(), aggregate()];
+        let (parameters, result) =
+            normalized_aarch64_import_plan(&operands, Aarch64ImportResult::Authored, false)
+                .expect("authored large aggregate call plan");
+
+        assert!(matches!(
+            parameters[0].locations.as_slice(),
+            [ValueLocation::Indirect {
+                pointer: omega_calling_conventions::IndirectPointerLocation::Register(
+                    MachineRegister::Aarch64X(0)
+                ),
+                copy_stack_byte_offset: Some(0),
+                ..
+            }]
+        ));
+        assert!(matches!(
+            result.expect("indirect result").locations.as_slice(),
+            [ValueLocation::Indirect {
+                pointer: omega_calling_conventions::IndirectPointerLocation::Register(
+                    MachineRegister::Aarch64X(8)
+                ),
+                copy_stack_byte_offset: None,
+                ..
+            }]
+        ));
+
+        let bytes = encode_authored_import_call_sequence(
+            omega_target::NativeTarget::linux_arm64(),
+            HostOperationKey::default(),
+            &operands,
+        )
+        .expect("authored indirect aggregate call");
+        assert_eq!(
+            bytes.len(),
+            crate::host_call_sequence_width(
+                omega_target::NativeTarget::linux_arm64(),
+                HostOperationKey::default(),
+                &operands,
+            )
+        );
     }
 
     #[test]

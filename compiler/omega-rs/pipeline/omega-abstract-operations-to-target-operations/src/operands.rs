@@ -89,6 +89,17 @@ fn translate_operand_kind(
             byte_count: *byte_count,
             alignment: *alignment,
         },
+        omega_abstract_operations::InstructionOperandKind::RuntimeLargeAggregate {
+            region,
+            byte_offset,
+            byte_count,
+            alignment,
+        } => InstructionOperandKind::RuntimeLargeAggregate {
+            region: *region,
+            byte_offset: *byte_offset,
+            byte_count: *byte_count,
+            alignment: *alignment,
+        },
         omega_abstract_operations::InstructionOperandKind::RuntimeStorageAddress {
             region,
             byte_offset,

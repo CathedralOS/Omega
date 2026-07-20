@@ -1,6 +1,8 @@
 use crate::Aarch64CallOperand;
 use crate::Aarch64CallOperand::*;
-use omega_calling_conventions::{MachineRegister, ValueLocation, ValuePlacement};
+use omega_calling_conventions::{
+    IndirectPointerLocation, MachineRegister, ValueLocation, ValuePlacement,
+};
 use omega_core::diagnostics::Diagnostic;
 
 mod dispatch;
@@ -208,6 +210,28 @@ pub fn encode_vtable_call_sequence_at_offset_small_aggregate_returning_from_oper
     Ok(bytes)
 }
 
+pub fn encode_vtable_call_sequence_at_offset_indirect_returning_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    argument_placements: &[ValuePlacement],
+    result_placement: &ValuePlacement,
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    validate_vtable_receiver(argument_placements)?;
+    let all = operands.collect::<Vec<_>>();
+    let Some((result, arguments)) = all.split_first() else {
+        return Err(Diagnostic::error(
+            "AArch64 indirect-returning vtable call has no result storage operand",
+        ));
+    };
+    let mut bytes = Vec::new();
+    append_indirect_result_address(&mut bytes, *result, result_placement, "vtable")?;
+    let stack_bytes =
+        append_call_operands(&mut bytes, arguments.iter().copied(), argument_placements)?;
+    append_vtable_dispatch(&mut bytes, byte_offset)?;
+    append_call_stack_restore(&mut bytes, stack_bytes)?;
+    Ok(bytes)
+}
+
 /// AAPCS64 service-table dispatch. The table pointer is a storage operand used
 /// only to find the callee; it is excluded from `argument_placements`, so the
 /// first declared function argument still consumes x0/v0. Operand roles are
@@ -280,6 +304,40 @@ pub fn encode_table_function_call_sequence_small_aggregate_returning_from_operan
     Ok(bytes)
 }
 
+pub fn encode_table_function_call_sequence_indirect_returning_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    argument_placements: &[ValuePlacement],
+    result_placement: &ValuePlacement,
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let all = operands.collect::<Vec<_>>();
+    if all.len() < 2 {
+        return Err(Diagnostic::error(
+            "AArch64 indirect-returning table-function call has no result or table operand",
+        ));
+    }
+    let mut bytes = Vec::new();
+    append_indirect_result_address(&mut bytes, all[0], result_placement, "table-function")?;
+    let arguments = &all[2..];
+    let stack_bytes =
+        append_call_operands(&mut bytes, arguments.iter().copied(), argument_placements)?;
+    let RuntimeScalarInteger {
+        byte_offset: table_byte_offset,
+        byte_count: 8,
+    } = all[1]
+    else {
+        return Err(Diagnostic::error(
+            "AArch64 table-function dispatch table did not lower to an eight-byte runtime scalar",
+        ));
+    };
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_load_data_from_x_offset(&mut bytes, 16, 16, table_byte_offset, 8, 17)?;
+    append_vtable_dispatch_from_register(&mut bytes, 16, byte_offset)?;
+    append_call_stack_restore(&mut bytes, stack_bytes)?;
+    Ok(bytes)
+}
+
 fn encode_table_function_call_prefix(
     all: &[Aarch64CallOperand],
     argument_placements: &[ValuePlacement],
@@ -344,6 +402,50 @@ fn append_compatibility_integer_result_store(
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     append_store_data_to_x_offset(bytes, result_register, 16, byte_offset, byte_count, 17)
+}
+
+fn append_indirect_result_address(
+    bytes: &mut Vec<u8>,
+    result: Aarch64CallOperand,
+    result_placement: &ValuePlacement,
+    label: &str,
+) -> Result<(), Diagnostic> {
+    let RuntimeLargeAggregate {
+        byte_offset,
+        byte_count,
+        alignment,
+    } = result
+    else {
+        return Err(Diagnostic::error(format!(
+            "AArch64 indirect-returning {label} result place is not a large aggregate"
+        )));
+    };
+    if !matches!(
+        result_placement.locations.as_slice(),
+        [ValueLocation::Indirect {
+            pointer: IndirectPointerLocation::Register(MachineRegister::Aarch64X(8)),
+            copy_stack_byte_offset: None,
+            byte_size,
+            alignment: planned_alignment,
+        }] if usize::from(*byte_size) == byte_count
+            && usize::from(*planned_alignment) == alignment
+    ) || byte_count <= 16
+        || !alignment.is_power_of_two()
+    {
+        return Err(Diagnostic::error(format!(
+            "AAPCS64 {label} indirect result placement disagrees with its storage shape"
+        )));
+    }
+    bytes.extend(encode_adrp_placeholder(8));
+    bytes.extend(encode_add_page_offset_placeholder(8));
+    append_add_x_constant(bytes, 8, 8, byte_offset, 9)
+}
+
+pub fn indirect_result_address_width(result: Aarch64CallOperand) -> Option<usize> {
+    let RuntimeLargeAggregate { byte_offset, .. } = result else {
+        return None;
+    };
+    Some(8 + add_constant_width(byte_offset))
 }
 
 fn append_compatibility_small_aggregate_result_store(
@@ -645,6 +747,26 @@ pub fn encode_host_call_sequence_small_aggregate_returning_from_operands(
         result_placement,
         "authored import",
     )?;
+    Ok(bytes)
+}
+
+pub fn encode_host_call_sequence_indirect_returning_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    argument_placements: &[ValuePlacement],
+    result_placement: &ValuePlacement,
+) -> Result<Vec<u8>, Diagnostic> {
+    let all = operands.collect::<Vec<_>>();
+    let Some((result, arguments)) = all.split_first() else {
+        return Err(Diagnostic::error(
+            "AArch64 indirect-returning host call has no result storage operand",
+        ));
+    };
+    let mut bytes = Vec::new();
+    append_indirect_result_address(&mut bytes, *result, result_placement, "authored import")?;
+    let stack_bytes =
+        append_call_operands(&mut bytes, arguments.iter().copied(), argument_placements)?;
+    bytes.extend(encode_branch_link_placeholder());
+    append_call_stack_restore(&mut bytes, stack_bytes)?;
     Ok(bytes)
 }
 
@@ -1131,6 +1253,11 @@ fn append_syscall_operands(
             RuntimeSmallAggregate { .. } => {
                 return Err(Diagnostic::error(
                     "AArch64 Linux syscall plans do not admit aggregate operands",
+                ));
+            }
+            RuntimeLargeAggregate { .. } => {
+                return Err(Diagnostic::error(
+                    "AArch64 Linux syscall plans do not admit indirect aggregate operands",
                 ));
             }
         }
@@ -1648,6 +1775,46 @@ mod host_call_plan_register_tests {
     }
 
     #[test]
+    fn large_aggregate_results_pass_the_destination_in_x8() {
+        let result = Aarch64CallOperand::RuntimeLargeAggregate {
+            byte_offset: 64,
+            byte_count: 24,
+            alignment: 8,
+        };
+        let result_placement = ValuePlacement {
+            shape: omega_calling_conventions::ValueShape::integer(24, 8),
+            locations: vec![ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Register(MachineRegister::Aarch64X(8)),
+                copy_stack_byte_offset: None,
+                byte_size: 24,
+                alignment: 8,
+            }],
+        };
+        let bytes = encode_host_call_sequence_indirect_returning_from_operands(
+            [result, Aarch64CallOperand::ImmediateInteger(7)].into_iter(),
+            &[placement(
+                omega_calling_conventions::ValueShape::integer(8, 8),
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(0),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+            )],
+            &result_placement,
+        )
+        .expect("indirect aggregate result should encode");
+
+        assert_eq!(&bytes[0..4], &encode_adrp_placeholder(8));
+        assert_eq!(&bytes[8..12], &encode_add_x_immediate(8, 8, 64).unwrap());
+        assert_eq!(&bytes[12..16], &encode_movz(0, 7));
+        assert_eq!(&bytes[16..20], &encode_branch_link_placeholder());
+        assert_eq!(
+            bytes.len(),
+            indirect_result_address_width(result).unwrap() + 8
+        );
+    }
+
+    #[test]
     fn import_register_bank_mismatches_are_rejected() {
         let error = encode_host_call_sequence(
             &[Aarch64CallOperand::ImmediateInteger(7)],
@@ -1865,6 +2032,79 @@ mod host_call_plan_register_tests {
                 + 4
         );
     }
+
+    #[test]
+    fn large_aggregate_argument_uses_a_caller_copy() {
+        let operand = Aarch64CallOperand::RuntimeLargeAggregate {
+            byte_offset: 64,
+            byte_count: 24,
+            alignment: 8,
+        };
+        let placement = ValuePlacement {
+            shape: omega_calling_conventions::ValueShape::integer(24, 8),
+            locations: vec![ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Register(MachineRegister::Aarch64X(0)),
+                copy_stack_byte_offset: Some(0),
+                byte_size: 24,
+                alignment: 8,
+            }],
+        };
+        let bytes = encode_host_call_sequence(&[operand], &[placement.clone()])
+            .expect("indirect aggregate argument should encode");
+
+        assert_eq!(&bytes[0..4], &0xd100_83ffu32.to_le_bytes());
+        assert_eq!(&bytes[4..8], &encode_adrp_placeholder(16));
+        assert_eq!(&bytes[36..40], &encode_add_x_immediate(0, 31, 0).unwrap());
+        assert_eq!(&bytes[40..44], &encode_branch_link_placeholder());
+        assert_eq!(&bytes[44..48], &0x9100_83ffu32.to_le_bytes());
+        assert_eq!(
+            bytes.len(),
+            crate::aarch64::operand_width(&operand)
+                + crate::aarch64::host_call_stack_total_width_for_placements(&[placement])
+                + 4
+        );
+    }
+
+    #[test]
+    fn large_aggregate_stack_pointer_precedes_its_aligned_copy() {
+        let operand = Aarch64CallOperand::RuntimeLargeAggregate {
+            byte_offset: 64,
+            byte_count: 24,
+            alignment: 16,
+        };
+        let placement = ValuePlacement {
+            shape: omega_calling_conventions::ValueShape::integer(24, 16),
+            locations: vec![ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Stack {
+                    stack_byte_offset: 0,
+                    alignment: 8,
+                },
+                copy_stack_byte_offset: Some(16),
+                byte_size: 24,
+                alignment: 16,
+            }],
+        };
+        let bytes = encode_host_call_sequence(&[operand], &[placement.clone()])
+            .expect("stack-indirect aggregate argument should encode");
+
+        assert_eq!(&bytes[0..4], &0xd100_c3ffu32.to_le_bytes());
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == encode_add_x_immediate(10, 31, 16).unwrap())
+        );
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == encode_store_x_to_x(10, 31, 0).unwrap())
+        );
+        assert_eq!(
+            bytes.len(),
+            crate::aarch64::operand_width(&operand)
+                + crate::aarch64::host_call_stack_total_width_for_placements(&[placement])
+                + 4
+        );
+    }
 }
 
 fn append_call_operands(
@@ -1884,13 +2124,30 @@ fn append_call_operands(
     let stack_bytes = argument_placements
         .iter()
         .flat_map(|placement| &placement.locations)
-        .filter_map(|location| match location {
+        .map(|location| match location {
             ValueLocation::Stack {
                 stack_byte_offset,
                 byte_size,
                 ..
-            } => Some(*stack_byte_offset as usize + usize::from(*byte_size)),
-            ValueLocation::Register { .. } => None,
+            } => *stack_byte_offset as usize + usize::from(*byte_size),
+            ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset,
+                byte_size,
+                ..
+            } => {
+                let pointer_end = match pointer {
+                    IndirectPointerLocation::Register(_) => 0,
+                    IndirectPointerLocation::Stack {
+                        stack_byte_offset, ..
+                    } => *stack_byte_offset as usize + 8,
+                };
+                let copy_end = copy_stack_byte_offset
+                    .map(|offset| offset as usize + usize::from(*byte_size))
+                    .unwrap_or(0);
+                pointer_end.max(copy_end)
+            }
+            ValueLocation::Register { .. } => 0,
         })
         .max()
         .map(|bytes| (bytes + 15) & !15)
@@ -1905,6 +2162,22 @@ fn append_call_operands(
         } = operand
         {
             append_small_aggregate_call_operand(
+                bytes,
+                byte_offset,
+                byte_count,
+                alignment,
+                &placement.locations,
+                index,
+            )?;
+            continue;
+        }
+        if let RuntimeLargeAggregate {
+            byte_offset,
+            byte_count,
+            alignment,
+        } = operand
+        {
+            append_large_aggregate_call_operand(
                 bytes,
                 byte_offset,
                 byte_count,
@@ -1978,6 +2251,102 @@ fn append_call_operands(
     }
 
     Ok(stack_bytes)
+}
+
+fn append_large_aggregate_call_operand(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+    byte_count: usize,
+    alignment: usize,
+    locations: &[ValueLocation],
+    parameter_index: usize,
+) -> Result<(), Diagnostic> {
+    let [
+        ValueLocation::Indirect {
+            pointer,
+            copy_stack_byte_offset: Some(copy_stack_byte_offset),
+            byte_size,
+            alignment: planned_alignment,
+        },
+    ] = locations
+    else {
+        return Err(Diagnostic::error(format!(
+            "AAPCS64 large aggregate parameter {parameter_index} has no caller-copy placement"
+        )));
+    };
+    if byte_count <= 16
+        || usize::from(*byte_size) != byte_count
+        || usize::from(*planned_alignment) != alignment
+        || !alignment.is_power_of_two()
+    {
+        return Err(Diagnostic::error(format!(
+            "AAPCS64 large aggregate parameter {parameter_index} has inconsistent shape or placement"
+        )));
+    }
+    let copy_stack_byte_offset = usize::try_from(*copy_stack_byte_offset)
+        .map_err(|_| Diagnostic::error("AAPCS64 aggregate copy offset exceeds usize"))?;
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    let mut copied = 0usize;
+    while copied < byte_count {
+        let fragment_byte_count = aggregate_copy_fragment_byte_count(byte_count - copied);
+        append_load_data_from_x_offset(
+            bytes,
+            17,
+            16,
+            byte_offset + copied,
+            fragment_byte_count,
+            9,
+        )?;
+        let target_offset = copy_stack_byte_offset + copied;
+        if fragment_byte_count < 8 {
+            bytes.extend(encode_store_w_to_x(
+                17,
+                31,
+                target_offset,
+                fragment_byte_count,
+            )?);
+        } else {
+            bytes.extend(encode_store_x_to_x(17, 31, target_offset)?);
+        }
+        copied += fragment_byte_count;
+    }
+
+    let pointer_register = match *pointer {
+        IndirectPointerLocation::Register(MachineRegister::Aarch64X(register)) => register,
+        IndirectPointerLocation::Stack { .. } => 10,
+        IndirectPointerLocation::Register(register) => {
+            return Err(Diagnostic::error(format!(
+                "AAPCS64 indirect aggregate parameter {parameter_index} selected non-GPR pointer {register:?}"
+            )));
+        }
+    };
+    if copy_stack_byte_offset == 0 {
+        // Register 31 denotes SP in ADD-immediate but XZR in the generic MOV
+        // alias, so materialize an unshifted stack pointer explicitly.
+        bytes.extend(encode_add_x_immediate(pointer_register, 31, 0)?);
+    } else {
+        append_add_x_constant(bytes, pointer_register, 31, copy_stack_byte_offset, 9)?;
+    }
+    if let IndirectPointerLocation::Stack {
+        stack_byte_offset, ..
+    } = *pointer
+    {
+        bytes.extend(encode_store_x_to_x(
+            pointer_register,
+            31,
+            usize::try_from(stack_byte_offset)
+                .map_err(|_| Diagnostic::error("AAPCS64 pointer stack offset exceeds usize"))?,
+        )?);
+    }
+    Ok(())
+}
+
+fn aggregate_copy_fragment_byte_count(remaining: usize) -> usize {
+    [8, 4, 2, 1]
+        .into_iter()
+        .find(|fragment| remaining >= *fragment)
+        .expect("aggregate copy always has bytes remaining")
 }
 
 fn append_small_aggregate_call_operand(
@@ -2316,6 +2685,11 @@ fn append_register_call_operand(
         RuntimeSmallAggregate { .. } => {
             return Err(Diagnostic::error(
                 "AAPCS64 small aggregates require their complete fragmented placement",
+            ));
+        }
+        RuntimeLargeAggregate { .. } => {
+            return Err(Diagnostic::error(
+                "AAPCS64 large aggregates require their indirect placement",
             ));
         }
         RuntimeStorageAddress { byte_offset } => {

@@ -1,6 +1,6 @@
 use crate::Aarch64CallOperand;
 use crate::Aarch64CallOperand::*;
-use omega_calling_conventions::{ValueLocation, ValuePlacement};
+use omega_calling_conventions::{IndirectPointerLocation, ValueLocation, ValuePlacement};
 use omega_target_operations::{
     RuntimeValueOperandHandle, RuntimeValueOperandSource, StateGuardOperator,
 };
@@ -29,21 +29,50 @@ pub fn host_call_stack_prefix_width_for_placements(
     let has_stack = placements
         .iter()
         .flat_map(|placement| &placement.locations)
-        .any(|location| matches!(location, ValueLocation::Stack { .. }));
+        .any(|location| {
+            matches!(
+                location,
+                ValueLocation::Stack { .. } | ValueLocation::Indirect { .. }
+            )
+        });
     usize::from(has_stack) * 4
         + placements
             .iter()
             .take(argument_count)
-            .filter(|placement| {
-                !matches!(
-                    placement.shape.class,
-                    omega_calling_conventions::ValueClass::HomogeneousFloatAggregate { .. }
-                )
+            .map(|placement| {
+                placement
+                    .locations
+                    .iter()
+                    .map(|location| match location {
+                        ValueLocation::Stack { .. }
+                            if !matches!(
+                                placement.shape.class,
+                                omega_calling_conventions::ValueClass::HomogeneousFloatAggregate {
+                                    ..
+                                }
+                            ) =>
+                        {
+                            4
+                        }
+                        ValueLocation::Indirect {
+                            pointer,
+                            copy_stack_byte_offset: Some(copy_stack_byte_offset),
+                            byte_size,
+                            ..
+                        } => {
+                            let copy_stores = aggregate_copy_fragment_count(usize::from(*byte_size)) * 4;
+                            let pointer_address = add_constant_width(*copy_stack_byte_offset as usize).max(4);
+                            let pointer_store = usize::from(matches!(
+                                pointer,
+                                IndirectPointerLocation::Stack { .. }
+                            )) * 4;
+                            copy_stores + pointer_address + pointer_store
+                        }
+                        _ => 0,
+                    })
+                    .sum::<usize>()
             })
-            .flat_map(|placement| &placement.locations)
-            .filter(|location| matches!(location, ValueLocation::Stack { .. }))
-            .count()
-            * 4
+            .sum::<usize>()
 }
 
 pub fn host_call_stack_total_width_for_placements(placements: &[ValuePlacement]) -> usize {
@@ -52,8 +81,17 @@ pub fn host_call_stack_total_width_for_placements(placements: &[ValuePlacement])
             placements
                 .iter()
                 .flat_map(|placement| &placement.locations)
-                .any(|location| matches!(location, ValueLocation::Stack { .. })),
+                .any(|location| {
+                    matches!(
+                        location,
+                        ValueLocation::Stack { .. } | ValueLocation::Indirect { .. }
+                    )
+                }),
         ) * 4
+}
+
+fn aggregate_copy_fragment_count(byte_count: usize) -> usize {
+    byte_count / 8 + (byte_count % 8).count_ones() as usize
 }
 
 pub fn syscall_sequence_width_from_operands(
@@ -1706,6 +1744,23 @@ pub fn operand_width(operand: &Aarch64CallOperand) -> usize {
                     )
                 })
                 .sum::<usize>()
+        }
+        RuntimeLargeAggregate {
+            byte_offset,
+            byte_count,
+            ..
+        } => {
+            let mut width = 8;
+            let mut copied = 0;
+            while copied < *byte_count {
+                let fragment = [8, 4, 2, 1]
+                    .into_iter()
+                    .find(|fragment| byte_count - copied >= *fragment)
+                    .expect("large aggregate copy has bytes remaining");
+                width += load_data_offset_width(byte_offset + copied, fragment);
+                copied += fragment;
+            }
+            width
         }
         ImmediateInteger(value) => immediate_width(*value),
         ByteLength(value) => unsigned_immediate_width(*value as u64),

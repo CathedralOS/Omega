@@ -60,6 +60,13 @@ pub(crate) fn data_address_relocation_offset(
     {
         let argument_start = usize::from(shape.result_present);
         if shape.result_present && operand_index == 0 {
+            if operands
+                .first()
+                .and_then(omega_target_operations::InstructionOperandLike::runtime_large_aggregate)
+                .is_some()
+            {
+                return selected_text_offset;
+            }
             let float_result_move = usize::from(
                 operands
                     .first()
@@ -79,7 +86,16 @@ pub(crate) fn data_address_relocation_offset(
                 + float_result_move;
         }
         if operand_index >= argument_start {
+            let result_prefix = if shape.result_present {
+                operands
+                    .first()
+                    .and_then(omega_instruction_selection::aarch64_indirect_result_address_width)
+                    .unwrap_or(0)
+            } else {
+                0
+            };
             return selected_text_offset
+                + result_prefix
                 + operands[argument_start..operand_index]
                     .iter()
                     .map(|operand| {
@@ -114,6 +130,13 @@ pub(crate) fn data_address_relocation_offset(
                 .sum::<usize>()
         };
         if shape.result_present && operand_index == 0 {
+            if operands
+                .first()
+                .and_then(omega_target_operations::InstructionOperandLike::runtime_large_aggregate)
+                .is_some()
+            {
+                return selected_text_offset;
+            }
             let float_result_move = usize::from(
                 operands
                     .first()
@@ -129,7 +152,16 @@ pub(crate) fn data_address_relocation_offset(
                 + float_result_move;
         }
         if operand_index == table_index {
+            let result_prefix = if shape.result_present {
+                operands
+                    .first()
+                    .and_then(omega_instruction_selection::aarch64_indirect_result_address_width)
+                    .unwrap_or(0)
+            } else {
+                0
+            };
             return selected_text_offset
+                + result_prefix
                 + argument_width(operands.len())
                 + omega_instruction_selection::aarch64_host_call_stack_prefix_width_for_placements(
                     &argument_placements,
@@ -137,7 +169,16 @@ pub(crate) fn data_address_relocation_offset(
                 );
         }
         if operand_index >= argument_start {
+            let result_prefix = if shape.result_present {
+                operands
+                    .first()
+                    .and_then(omega_instruction_selection::aarch64_indirect_result_address_width)
+                    .unwrap_or(0)
+            } else {
+                0
+            };
             return selected_text_offset
+                + result_prefix
                 + argument_width(operand_index)
                 + omega_instruction_selection::aarch64_host_call_stack_prefix_width_for_placements(
                     &argument_placements,
@@ -196,6 +237,13 @@ pub(crate) fn data_address_relocation_offset(
                 .sum::<usize>()
         };
         if operand_index == 0 {
+            if operands
+                .first()
+                .and_then(omega_target_operations::InstructionOperandLike::runtime_large_aggregate)
+                .is_some()
+            {
+                return selected_text_offset;
+            }
             // The result store's adrp/add lands after the args + the BL (4). A
             // deref-result op (errno) inserts an extra `ldr w0,[x0]` (4) between
             // the BL and the store, pushing the store's page-pair 4 bytes later.
@@ -234,7 +282,12 @@ pub(crate) fn data_address_relocation_offset(
                     &argument_placements,
                 );
         }
+        let result_prefix = operands
+            .first()
+            .and_then(omega_instruction_selection::aarch64_indirect_result_address_width)
+            .unwrap_or(0);
         return selected_text_offset
+            + result_prefix
             + arg_bytes(1..operand_index)
             + omega_instruction_selection::aarch64_host_call_stack_prefix_width_for_placements(
                 &argument_placements,
@@ -393,6 +446,46 @@ mod tests {
     }
 
     #[test]
+    fn authored_aarch64_indirect_result_precedes_the_caller_copy() {
+        let aggregate = || InstructionOperand {
+            kind: InstructionOperandKind::RuntimeLargeAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 64,
+                byte_count: 24,
+                alignment: 8,
+            },
+        };
+        let operands = [aggregate(), aggregate()];
+
+        assert_eq!(
+            data_address_relocation_offset(
+                Architecture::Aarch64,
+                Some(omega_calling_conventions::HostOperationKey::default()),
+                &operands,
+                20,
+                0,
+                false,
+                None,
+                true,
+            ),
+            20
+        );
+        assert_eq!(
+            data_address_relocation_offset(
+                Architecture::Aarch64,
+                Some(omega_calling_conventions::HostOperationKey::default()),
+                &operands,
+                20,
+                1,
+                false,
+                None,
+                true,
+            ),
+            36
+        );
+    }
+
+    #[test]
     fn aarch64_vtable_result_relocation_follows_arguments_and_indirect_dispatch() {
         let operands = [
             InstructionOperand {
@@ -474,6 +567,61 @@ mod tests {
             ),
             44
         );
+    }
+
+    #[test]
+    fn aarch64_field_indirect_result_relocation_precedes_dispatch_inputs() {
+        let result = || InstructionOperand {
+            kind: InstructionOperandKind::RuntimeLargeAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 64,
+                byte_count: 24,
+                alignment: 8,
+            },
+        };
+        let pointer = || InstructionOperand {
+            kind: InstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 8,
+            },
+        };
+
+        for (passes_receiver, operands) in [
+            (true, [result(), pointer()]),
+            (false, [result(), pointer()]),
+        ] {
+            let shape = Some(FieldModelCallShape {
+                passes_receiver,
+                result_present: true,
+            });
+            assert_eq!(
+                data_address_relocation_offset(
+                    Architecture::Aarch64,
+                    None,
+                    &operands,
+                    20,
+                    0,
+                    false,
+                    shape,
+                    false,
+                ),
+                20
+            );
+            assert_eq!(
+                data_address_relocation_offset(
+                    Architecture::Aarch64,
+                    None,
+                    &operands,
+                    20,
+                    1,
+                    false,
+                    shape,
+                    false,
+                ),
+                32
+            );
+        }
     }
 
     #[test]

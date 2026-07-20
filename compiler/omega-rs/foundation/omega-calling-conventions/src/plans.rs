@@ -141,6 +141,25 @@ pub enum ValueLocation {
         byte_size: u16,
         alignment: u16,
     },
+    /// A value passed indirectly through a pointer. Parameters larger than the
+    /// ABI's direct-value ceiling carry a pointer to a caller-owned stack copy;
+    /// large results carry a pointer to their final caller-owned destination
+    /// and therefore have no copy slot.
+    Indirect {
+        pointer: IndirectPointerLocation,
+        copy_stack_byte_offset: Option<u32>,
+        byte_size: u16,
+        alignment: u16,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IndirectPointerLocation {
+    Register(MachineRegister),
+    Stack {
+        stack_byte_offset: u32,
+        alignment: u16,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -507,13 +526,9 @@ fn validate_signature_shapes(
             ));
         }
         match shape.class {
-            ValueClass::Integer
-                if shape.byte_size > 8
-                    && (policy != CallingPolicy::Aapcs64 || shape.byte_size > 16) =>
-            {
+            ValueClass::Integer if shape.byte_size > 8 && policy != CallingPolicy::Aapcs64 => {
                 return Err(PlanDiagnostic(
-                    "aggregate integer classification is not normalized except for AAPCS64 values up to 16 bytes"
-                        .into(),
+                    "aggregate integer classification is not normalized outside AAPCS64".into(),
                 ));
             }
             ValueClass::Float if !matches!(shape.byte_size, 4 | 8) => {
@@ -612,6 +627,53 @@ pub fn validate_call_plan(
                     }
                     occupied_stack_ranges.push((stack_byte_offset, end));
                 }
+                ValueLocation::Indirect {
+                    pointer,
+                    copy_stack_byte_offset,
+                    byte_size,
+                    ..
+                } => {
+                    match pointer {
+                        IndirectPointerLocation::Register(register) => {
+                            if occupied_registers.contains(register) {
+                                return Err(PlanDiagnostic(format!(
+                                    "parameter {index} reuses a register occupied by another parameter"
+                                )));
+                            }
+                            occupied_registers = RegisterSet::new(
+                                occupied_registers
+                                    .as_slice()
+                                    .iter()
+                                    .copied()
+                                    .chain([register]),
+                            );
+                        }
+                        IndirectPointerLocation::Stack {
+                            stack_byte_offset, ..
+                        } => {
+                            let end = stack_byte_offset + 8;
+                            if occupied_stack_ranges.iter().any(|(start, prior_end)| {
+                                stack_byte_offset < *prior_end && *start < end
+                            }) {
+                                return Err(PlanDiagnostic(format!(
+                                    "parameter {index} indirect pointer overlaps another stack placement"
+                                )));
+                            }
+                            occupied_stack_ranges.push((stack_byte_offset, end));
+                        }
+                    }
+                    if let Some(copy_stack_byte_offset) = copy_stack_byte_offset {
+                        let end = copy_stack_byte_offset + u32::from(byte_size);
+                        if occupied_stack_ranges.iter().any(|(start, prior_end)| {
+                            copy_stack_byte_offset < *prior_end && *start < end
+                        }) {
+                            return Err(PlanDiagnostic(format!(
+                                "parameter {index} indirect copy overlaps another stack placement"
+                            )));
+                        }
+                        occupied_stack_ranges.push((copy_stack_byte_offset, end));
+                    }
+                }
             }
         }
     }
@@ -672,6 +734,52 @@ fn validate_value_placement(
                     )));
                 }
                 (value_byte_offset, byte_size)
+            }
+            ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset,
+                byte_size,
+                alignment,
+            } => {
+                if byte_size != placement.shape.byte_size
+                    || alignment != placement.shape.alignment
+                    || alignment == 0
+                    || !alignment.is_power_of_two()
+                {
+                    return Err(PlanDiagnostic(format!(
+                        "value {value_index} has an invalid indirect shape"
+                    )));
+                }
+                match pointer {
+                    IndirectPointerLocation::Register(register) => {
+                        if register.architecture() != architecture {
+                            return Err(PlanDiagnostic(format!(
+                                "value {value_index} uses an indirect pointer register from the wrong architecture"
+                            )));
+                        }
+                    }
+                    IndirectPointerLocation::Stack {
+                        stack_byte_offset,
+                        alignment,
+                    } => {
+                        if alignment == 0
+                            || !alignment.is_power_of_two()
+                            || stack_byte_offset % u32::from(alignment) != 0
+                        {
+                            return Err(PlanDiagnostic(format!(
+                                "value {value_index} has a misaligned indirect pointer"
+                            )));
+                        }
+                    }
+                }
+                if let Some(copy_stack_byte_offset) = copy_stack_byte_offset
+                    && copy_stack_byte_offset % u32::from(alignment.clamp(8, 16)) != 0
+                {
+                    return Err(PlanDiagnostic(format!(
+                        "value {value_index} has a misaligned indirect copy"
+                    )));
+                }
+                (0, byte_size)
             }
         };
         let end = usize::from(value_byte_offset) + usize::from(byte_size);
@@ -805,9 +913,17 @@ fn evaluate_aapcs64(signature: &CallSignature) -> Result<CallPlan, PlanDiagnosti
     )?;
     if let Some(result) = plan.result.as_mut()
         && matches!(result.shape.class, ValueClass::Integer)
-        && result.shape.byte_size > 8
     {
-        result.locations = integer_fragment_locations(result.shape, 0);
+        if result.shape.byte_size > 16 {
+            result.locations = vec![ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Register(MachineRegister::Aarch64X(8)),
+                copy_stack_byte_offset: None,
+                byte_size: result.shape.byte_size,
+                alignment: result.shape.alignment,
+            }];
+        } else if result.shape.byte_size > 8 {
+            result.locations = integer_fragment_locations(result.shape, 0);
+        }
     }
     Ok(plan)
 }
@@ -845,6 +961,27 @@ fn evaluate_split_bank_call(
                 });
             }
             float_index += members;
+        } else if float_members.is_none() && shape.byte_size > 16 {
+            debug_assert_eq!(policy, CallingPolicy::Aapcs64);
+            let pointer = if integer_index < integer_registers.len() {
+                let register = integer_registers[integer_index];
+                integer_index += 1;
+                IndirectPointerLocation::Register(register)
+            } else {
+                stack_offset = align_up(stack_offset, 8);
+                let pointer = IndirectPointerLocation::Stack {
+                    stack_byte_offset: stack_offset,
+                    alignment: 8,
+                };
+                stack_offset += 8;
+                pointer
+            };
+            locations.push(ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset: None,
+                byte_size: shape.byte_size,
+                alignment: shape.alignment,
+            });
         } else if float_members.is_none() && shape.byte_size > 8 {
             // AAPCS64 B.5/C.10-C.15: a fixed non-HFA value up to 16 bytes is
             // rounded to doublewords, aligned to an even NGRN when required,
@@ -880,6 +1017,21 @@ fn evaluate_split_bank_call(
             stack_offset += u32::from(shape.byte_size.max(8));
         }
         parameters.push(ValuePlacement { shape, locations });
+    }
+    for placement in &mut parameters {
+        if let [
+            ValueLocation::Indirect {
+                copy_stack_byte_offset,
+                alignment,
+                byte_size,
+                ..
+            },
+        ] = placement.locations.as_mut_slice()
+        {
+            stack_offset = align_up(stack_offset, u32::from((*alignment).clamp(8, 16)));
+            *copy_stack_byte_offset = Some(stack_offset);
+            stack_offset += u32::from(*byte_size).next_multiple_of(8);
+        }
     }
     Ok(CallPlan {
         policy,
@@ -1199,6 +1351,37 @@ impl Fnv1a {
                     self.u16(byte_size);
                     self.u16(alignment);
                 }
+                ValueLocation::Indirect {
+                    pointer,
+                    copy_stack_byte_offset,
+                    byte_size,
+                    alignment,
+                } => {
+                    self.u8(2);
+                    match pointer {
+                        IndirectPointerLocation::Register(register) => {
+                            self.u8(0);
+                            self.register(register);
+                        }
+                        IndirectPointerLocation::Stack {
+                            stack_byte_offset,
+                            alignment,
+                        } => {
+                            self.u8(1);
+                            self.u32(stack_byte_offset);
+                            self.u16(alignment);
+                        }
+                    }
+                    match copy_stack_byte_offset {
+                        Some(offset) => {
+                            self.u8(1);
+                            self.u32(offset);
+                        }
+                        None => self.u8(0),
+                    }
+                    self.u16(byte_size);
+                    self.u16(alignment);
+                }
             }
         }
     }
@@ -1410,6 +1593,68 @@ mod tests {
                 ..
             }]
         ));
+    }
+
+    #[test]
+    fn aapcs_large_aggregates_use_caller_copies_and_indirect_results() {
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(24, 8), ValueShape::integer(8, 8)],
+            result: Some(ValueShape::integer(32, 16)),
+        };
+        let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature)
+            .expect("AAPCS large aggregate plan");
+
+        assert_eq!(
+            plan.parameters[0].locations,
+            vec![ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Register(MachineRegister::Aarch64X(0)),
+                copy_stack_byte_offset: Some(0),
+                byte_size: 24,
+                alignment: 8,
+            }]
+        );
+        assert!(matches!(
+            plan.parameters[1].locations.as_slice(),
+            [ValueLocation::Register {
+                register: MachineRegister::Aarch64X(1),
+                ..
+            }]
+        ));
+        assert_eq!(
+            plan.result.expect("indirect aggregate result").locations,
+            vec![ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Register(MachineRegister::Aarch64X(8)),
+                copy_stack_byte_offset: None,
+                byte_size: 32,
+                alignment: 16,
+            }]
+        );
+    }
+
+    #[test]
+    fn aapcs_large_aggregate_pointer_uses_stack_before_its_copy() {
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8); 8]
+                .into_iter()
+                .chain([ValueShape::integer(24, 16)])
+                .collect(),
+            result: None,
+        };
+        let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature)
+            .expect("AAPCS stack-indirect aggregate plan");
+
+        assert_eq!(
+            plan.parameters[8].locations,
+            vec![ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Stack {
+                    stack_byte_offset: 0,
+                    alignment: 8,
+                },
+                copy_stack_byte_offset: Some(16),
+                byte_size: 24,
+                alignment: 16,
+            }]
+        );
     }
 
     #[test]

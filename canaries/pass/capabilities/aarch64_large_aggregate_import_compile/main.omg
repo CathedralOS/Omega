@@ -1,0 +1,21 @@
+// A fixed aggregate above 16 bytes crosses AAPCS64 indirectly: the caller
+// passes a pointer to a stack copy in x0 and the result destination in x8.
+data Triple {
+    first: u64;
+    second: u64;
+    third: u64;
+}
+
+boundary trait LargeAggregateImport {
+    machine call(value: Triple) -> Triple;
+}
+
+macos_arm64 provides LargeAggregateImport {
+    call -> DllImport("libSystem.B.dylib", "omega_large_aggregate_probe")
+}
+
+data Main { foreign: LargeAggregateImport; input: Triple; result: Triple; }
+machine Main::main(&mut self) {
+    self.input = Triple { first: 1, second: 2, third: 3 };
+    self.result = self.foreign.call(self.input);
+}

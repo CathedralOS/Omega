@@ -1321,6 +1321,18 @@ fn select_normalized_entry_argument_writes(
     .expect("runtime entry signature must have a normalized boundary entry plan");
     let plan = &boundary.plan().call;
 
+    // Indirect entry parameters require a pointee-to-frame copy operation.
+    // Keep the entry prologue fail-closed until that operation is selected;
+    // outbound call lowering consumes the same normalized placement now.
+    if plan.parameters.iter().any(|placement| {
+        placement
+            .locations
+            .iter()
+            .any(|location| matches!(location, ValueLocation::Indirect { .. }))
+    }) {
+        return;
+    }
+
     for ((destination_offset, _), placement) in destinations.iter().zip(&plan.parameters) {
         for location in &placement.locations {
             let kind = match *location {
@@ -1343,6 +1355,9 @@ fn select_normalized_entry_argument_writes(
                     byte_offset: *destination_offset + usize::from(value_byte_offset),
                     byte_size: usize::from(byte_size),
                 },
+                ValueLocation::Indirect { .. } => {
+                    unreachable!("indirect entry placements were rejected before selection")
+                }
             };
             selected_instructions.push(SelectedInstruction {
                 kind,
