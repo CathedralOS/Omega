@@ -36574,6 +36574,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "control_flow/sum_tuple_matrix_uncovered_rejected",
     "control_flow/tuple_destructure_duplicate_binding_rejected",
     "control_flow/tuple_destructure_second_missing_field",
+    "domains/domain_pattern_payload_binding_rejected",
     "control_flow/transition_fall_through_bool",
     "control_flow/transition_fall_through_value_match",
     "calls/abs_call_argument_rejected",

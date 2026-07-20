@@ -695,15 +695,6 @@ before the fix.
 
 - **Lifetimes.** Implement the decision-15 `'name` lifetime arc and borrow-
   carrying data needed by placed views and task storage.
-- **Transition patterns.** Record and case-payload binding, renaming/waiving,
-  exhaustive field spelling, and `field: value` equality patterns are live
-  with single subject evaluation. Finite multi-subject exhaustiveness now
-  proves the Cartesian product of case tags, pure case-union domains, boolean
-  literals, and wildcards (and diagnoses the first uncovered cell rather than
-  pooling marginal coverage). Multi-subject record/case destructures now bind
-  every axis into the shared arm guard and target, reject cross-axis name
-  collisions, and retain one validation carrier per subject. Finish the
-  remaining domain-pattern diagnostics.
 - **Const data parameters.** Add instantiation-time substitution, validation,
   layout diagnostics, and const-fact proof integration.
 - **Trait defaults.** Implement conformance, reuse, override, and dispatch for

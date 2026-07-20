@@ -211,6 +211,20 @@ fn validate_arm_pattern_marker(
         }
         fields
     } else {
+        let qualified_pattern = format!("{}::{variant}", data.name);
+        if program.domain_definitions().iter().any(|domain| {
+            domain.name.as_str() == qualified_pattern
+                && crate::type_references::type_references_match(
+                    program,
+                    declared,
+                    domain.target_type,
+                )
+        }) {
+            diagnostics.push(Diagnostic::error(format!(
+                "domain pattern `{qualified_pattern}` cannot bind payload fields; payload destructuring is only valid for a data case"
+            )));
+            return;
+        }
         let Some(case) = program
             .data_members(data)
             .iter()
