@@ -215,6 +215,11 @@ ceiling derived exactly from the ABI volatile-register classes.
    conversion writer in result scratch, deriving the destination primitive
    from the declared entry return type before its normalized register load. A
    native canary pins runtime `u8`-to-`i32` widening as process exit 70.
+   Runtime binary entry terminals now build their operands through the shared
+   recursive value-operand resolver, preserving nested arithmetic, conversions,
+   signed operator selection, and arithmetic-domain witnesses. A native canary
+   pins `a + ((b * c) / 10)` as process exit 70; nearby scalar-float and ABI
+   result canaries remain green.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
    complete import/vtable/service-table compatibility mechanism matrix is
