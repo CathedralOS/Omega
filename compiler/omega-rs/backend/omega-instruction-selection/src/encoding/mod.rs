@@ -21,6 +21,7 @@ pub use dispatch::{
     encode_dispatch_state_write_bytes,
 };
 pub use host::{
+    aarch64_host_call_stack_prefix_width, aarch64_host_call_stack_total_width,
     encode_authored_import_call_sequence, encode_entry_argument_register_write_bytes,
     encode_entry_arguments_slice_descriptor_write_bytes, encode_entry_stack_argument_write_bytes,
     encode_function_enter_bytes, encode_host_call_sequence, encode_interrupt_control_bytes,
@@ -28,7 +29,7 @@ pub use host::{
     encode_return_register_integer_write_bytes,
     encode_runtime_storage_copy_to_return_register_bytes, encode_syscall_sequence,
     encode_table_function_call_sequence, encode_vtable_call_sequence,
-    encode_vtable_call_sequence_at_offset,
+    encode_vtable_call_sequence_at_offset, normalized_aarch64_host_argument_locations,
 };
 pub use runtime_storage::{
     CopyPlacesShape, WritePlaceShape, classify_copy_places_shape, classify_write_place_shape,

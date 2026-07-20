@@ -1,5 +1,6 @@
 use crate::Aarch64CallOperand;
 use crate::Aarch64CallOperand::*;
+use omega_calling_conventions::ValueLocation;
 use omega_target_operations::{
     RuntimeValueOperandHandle, RuntimeValueOperandSource, StateGuardOperator,
 };
@@ -19,6 +20,32 @@ pub fn host_call_sequence_width_from_operands(
         .map(|operand| operand_width(&operand))
         .sum::<usize>()
         + 4
+}
+
+pub fn host_call_stack_prefix_width(locations: &[ValueLocation], argument_count: usize) -> usize {
+    let has_stack = locations
+        .iter()
+        .any(|location| matches!(location, ValueLocation::Stack { .. }));
+    usize::from(has_stack) * 4
+        + locations
+            .iter()
+            .take(argument_count)
+            .filter(|location| matches!(location, ValueLocation::Stack { .. }))
+            .count()
+            * 4
+}
+
+pub fn host_call_stack_restore_width(locations: &[ValueLocation]) -> usize {
+    usize::from(
+        locations
+            .iter()
+            .any(|location| matches!(location, ValueLocation::Stack { .. })),
+    ) * 4
+}
+
+pub fn host_call_stack_total_width(locations: &[ValueLocation]) -> usize {
+    host_call_stack_prefix_width(locations, locations.len())
+        + host_call_stack_restore_width(locations)
 }
 
 pub fn syscall_sequence_width_from_operands(

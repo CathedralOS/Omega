@@ -80,6 +80,13 @@ pub(crate) fn data_address_relocation_offset(
             // walker, which sees the binding mechanism.
             || authored_import)
     {
+        let argument_locations =
+            omega_instruction_selection::normalized_aarch64_host_argument_locations(
+                operation_key,
+                operands,
+                authored_import,
+            )
+            .unwrap_or_default();
         let arg_bytes = |range: std::ops::Range<usize>| {
             operands[range]
                 .iter()
@@ -111,9 +118,38 @@ pub(crate) fn data_address_relocation_offset(
                 + 4
                 + deref_bytes
                 + float_return_bytes
-                + stack_mode_bytes;
+                + stack_mode_bytes
+                + omega_instruction_selection::aarch64_host_call_stack_total_width(
+                    &argument_locations,
+                );
         }
-        return selected_text_offset + arg_bytes(1..operand_index);
+        return selected_text_offset
+            + arg_bytes(1..operand_index)
+            + omega_instruction_selection::aarch64_host_call_stack_prefix_width(
+                &argument_locations,
+                operand_index - 1,
+            );
+    }
+
+    if architecture == Architecture::Aarch64
+        && let Some(operation_key) = operation_key
+        && let Ok(argument_locations) =
+            omega_instruction_selection::normalized_aarch64_host_argument_locations(
+                operation_key,
+                operands,
+                false,
+            )
+    {
+        return selected_text_offset
+            + operands
+                .iter()
+                .take(operand_index)
+                .map(|operand| omega_instruction_selection::operand_width(architecture, operand))
+                .sum::<usize>()
+            + omega_instruction_selection::aarch64_host_call_stack_prefix_width(
+                &argument_locations,
+                operand_index,
+            );
     }
 
     selected_text_offset

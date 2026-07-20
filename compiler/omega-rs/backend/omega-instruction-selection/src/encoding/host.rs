@@ -285,9 +285,43 @@ enum Aarch64ImportResult {
     Float,
 }
 
-/// ENT2c: evaluate the register-resident AAPCS64 call surface from the actual
-/// selected operands. The encoder receives these exact registers and may no
-/// longer reconstruct x0../v0.. or the result bank independently.
+pub fn normalized_aarch64_host_argument_locations<T: InstructionOperandLike>(
+    operation_key: HostOperationKey,
+    operands: &[T],
+    authored_import: bool,
+) -> Result<Vec<ValueLocation>, Diagnostic> {
+    let result_kind = if authored_import || operation_key.dereferences_result() {
+        Aarch64ImportResult::Integer
+    } else if operation_key.returns_float() {
+        Aarch64ImportResult::Float
+    } else if operation_key.returns_value() {
+        Aarch64ImportResult::Integer
+    } else {
+        Aarch64ImportResult::None
+    };
+    normalized_aarch64_import_registers(
+        operands,
+        result_kind,
+        operation_key.passes_trailing_mode_on_stack(),
+    )
+    .map(|(locations, _)| locations)
+}
+
+pub fn aarch64_host_call_stack_prefix_width(
+    locations: &[ValueLocation],
+    argument_count: usize,
+) -> usize {
+    omega_isa_aarch64::aarch64::host_call_stack_prefix_width(locations, argument_count)
+}
+
+pub fn aarch64_host_call_stack_total_width(locations: &[ValueLocation]) -> usize {
+    omega_isa_aarch64::aarch64::host_call_stack_total_width(locations)
+}
+
+/// ENT2c: evaluate the AAPCS64 call surface from the actual selected operands.
+/// The encoder receives exact register/stack locations and may no longer
+/// reconstruct x0../v0.. or outgoing offsets independently. Scalar stack
+/// placements are supported; float-stack and fragmented placements fail closed.
 ///
 /// `trailing_variadic_stack` is the compatibility seam for Darwin `open`:
 /// its anonymous `mode` argument is intentionally stack-passed by Apple's
@@ -298,7 +332,7 @@ fn normalized_aarch64_import_registers<T: InstructionOperandLike>(
     operands: &[T],
     result_kind: Aarch64ImportResult,
     trailing_variadic_stack: bool,
-) -> Result<(Vec<MachineRegister>, Option<MachineRegister>), Diagnostic> {
+) -> Result<(Vec<ValueLocation>, Option<MachineRegister>), Diagnostic> {
     let aarch64_operands = operands
         .iter()
         .map(aarch64_call_operand)
@@ -347,18 +381,18 @@ fn normalized_aarch64_import_registers<T: InstructionOperandLike>(
     let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature).map_err(|error| {
         Diagnostic::error(format!("cannot evaluate AAPCS64 import plan: {error}"))
     })?;
-    let parameter_registers = plan
+    let parameter_locations = plan
         .parameters
         .iter()
         .enumerate()
-        .map(|(index, placement)| one_register(&placement.locations, "parameter", index))
+        .map(|(index, placement)| one_location(&placement.locations, "parameter", index))
         .collect::<Result<Vec<_>, _>>()?;
     let result_register = plan
         .result
         .as_ref()
         .map(|placement| one_register(&placement.locations, "result", 0))
         .transpose()?;
-    Ok((parameter_registers, result_register))
+    Ok((parameter_locations, result_register))
 }
 
 fn aarch64_operand_shape(
@@ -421,7 +455,31 @@ fn one_register(
             },
         ] => Ok(*register),
         _ => Err(Diagnostic::error(format!(
-            "AAPCS64 import {role} {index} is not register-resident; stack and fragmented outbound C calls are not implemented yet"
+            "AAPCS64 import {role} {index} is not a scalar register result; fragmented outbound results are not implemented yet"
+        ))),
+    }
+}
+
+fn one_location(
+    locations: &[ValueLocation],
+    role: &str,
+    index: usize,
+) -> Result<ValueLocation, Diagnostic> {
+    match locations {
+        [
+            location @ ValueLocation::Register {
+                value_byte_offset: 0,
+                ..
+            },
+        ]
+        | [
+            location @ ValueLocation::Stack {
+                value_byte_offset: 0,
+                ..
+            },
+        ] => Ok(*location),
+        _ => Err(Diagnostic::error(format!(
+            "AAPCS64 import {role} {index} has a fragmented placement that the outbound encoder cannot realize: {locations:?}"
         ))),
     }
 }
@@ -678,24 +736,45 @@ mod aarch64_import_plan_tests {
         assert_eq!(
             parameters,
             [
-                MachineRegister::Aarch64X(0),
-                MachineRegister::Aarch64V(0),
-                MachineRegister::Aarch64X(1),
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(0),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64V(0),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(1),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
             ]
         );
         assert_eq!(result, None);
     }
 
     #[test]
-    fn outbound_stack_arguments_fail_before_the_register_only_encoder() {
+    fn outbound_stack_arguments_flow_to_the_encoder() {
         let operands = (0..9)
             .map(|value| operand(TargetInstructionOperandKind::ImmediateInteger(value)))
             .collect::<Vec<_>>();
 
-        let error =
+        let (locations, result) =
             normalized_aarch64_import_registers(&operands, Aarch64ImportResult::None, false)
-                .expect_err("ninth AAPCS integer argument is stack-resident");
+                .expect("ninth AAPCS integer argument has a scalar stack placement");
 
-        assert!(error.message.contains("not register-resident"));
+        assert_eq!(result, None);
+        assert_eq!(
+            locations[8],
+            ValueLocation::Stack {
+                stack_byte_offset: 0,
+                value_byte_offset: 0,
+                byte_size: 8,
+                alignment: 8,
+            }
+        );
     }
 }
