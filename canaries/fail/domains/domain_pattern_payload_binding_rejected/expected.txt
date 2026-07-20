@@ -1,0 +1,1 @@
+domain pattern `Player::Alive` cannot bind payload fields; payload destructuring is only valid for a data case
