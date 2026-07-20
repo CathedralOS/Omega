@@ -892,6 +892,24 @@ fn resolve_state_call_target(
             });
         }
 
+        // The frontend target symbol can name the same method on a sibling
+        // specialization (for example `Cell<i32>::get` at a
+        // `Cell<bool>::get` site). The contained receiver's concrete type is
+        // authoritative; fall back to the method spelling across every
+        // machine attached to that exact type before consulting the one
+        // representative machine symbol stored in `ContainedGraph`.
+        if let Some(key) = resolve_attached_data_state_key_by_name(
+            control_flow,
+            &contained.type_name,
+            target_symbol,
+            target_state,
+        ) {
+            return Some(ResolvedStateCall {
+                key,
+                resolution: StateCallResolution::ContainedMachine,
+            });
+        }
+
         return resolve_state_key_in_machine(
             control_flow,
             contained.type_symbol,

@@ -706,8 +706,8 @@ before the fix.
   records now give distinct literal instances independent layout identity, and
   parameter-free mutating attached methods clone onto those specializations.
   Continue with richer const expressions, layout diagnostics, same-signature
-  value-method dispatch across const specializations, const-parameterized method
-  signatures/bodies, and const-fact proof integration.
+  value-method receiver materialization across const specializations, const-
+  parameterized method signatures/bodies, and const-fact proof integration.
 - **Trait defaults.** Implement conformance, reuse, override, and dispatch for
   trait machines whose body supplies the default. Do not restore a `default`
   keyword.
