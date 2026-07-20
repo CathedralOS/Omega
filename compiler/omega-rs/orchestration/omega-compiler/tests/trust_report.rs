@@ -286,6 +286,82 @@ machine Main::main(&mut self) {{
 }
 
 #[test]
+fn granted_generic_axiom_receipt_pins_template_and_machine_requirement() {
+    let project =
+        std::env::temp_dir().join(format!("omega-generic-axiom-lock-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project dir");
+    std::fs::write(
+        project.join("build.omg"),
+        r#"data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
+data Build { subsystem: Subsystem; freestanding: bool; }
+
+machine build(b: &mut Build) {
+    b.accept_boundary<admitted>();
+}
+"#,
+    )
+    .expect("write build.omg");
+    let main_with = |requirement_clause: &str| {
+        format!(
+            r#"boundary trait Console {{ machine exit_process(return_code: i32); }}
+data Main {{ console: Console; value: i32; }}
+
+machine selected(value: &i32) {{}}
+
+boundary machine admitted<T, machine F>(value: &T)
+where machine F(item: &T){requirement_clause};
+ensures true;
+
+machine Main::main(&mut self) {{
+    admitted<selected>(&self.value);
+    self.console.exit_process(70);
+}}
+"#
+        )
+    };
+    std::fs::write(project.join("main.omg"), main_with("")).expect("write generic axiom source");
+
+    let build_dir = project.join("build");
+    let options = || CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    };
+    compile(options()).expect("granted generic axiom project should compile");
+    let lock = std::fs::read_to_string(project.join("omega.lock")).expect("lock written");
+    assert_eq!(
+        lock.lines()
+            .filter(|line| line.contains("accepted fact: admitted"))
+            .count(),
+        1,
+        "one universal template grant should produce one receipt:\n{lock}"
+    );
+    let manifest = std::fs::read_to_string(build_dir.join("05_machine_contracts.json"))
+        .expect("machine contract manifest written");
+    assert!(manifest.contains("\"accepted_template_commitment\": \"admitted\""));
+    assert!(manifest.contains("\"machine_argument_contract_fingerprints\": [\"0x"));
+
+    // Changing the authored machine-parameter contract changes the universal
+    // template statement under the existing grant. The lockfile gate runs
+    // before instantiation, so it reports drift rather than spending a new
+    // per-instance grant.
+    std::fs::write(project.join("main.omg"), main_with(" ensures true"))
+        .expect("rewrite generic axiom requirement");
+    let message = format!(
+        "{:?}",
+        compile(options()).expect_err("template drift should refuse")
+    );
+    assert!(
+        message.contains("granted statement drifted"),
+        "expected generic template drift refusal, got: {message}"
+    );
+
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
 fn granted_plan_receipt_pins_the_fingerprint() {
     // PRV3: granting a derived plan pins its normalized identity in the
     // lockfile; changing the plan's policy under the grant drifts.

@@ -1050,7 +1050,15 @@ fn apply_multiple_specializations(
     // copied from this snapshot, receive fresh lexical symbols, and are then
     // rewritten independently.
     let source = program.clone();
+    let template_contract_fingerprint =
+        template_contract_fingerprint(&source, template.machine_index);
+    let accepted_template_commitment =
+        accepted_template_commitment(&source, template.machine_index);
     apply_specialization(program, &concrete_candidates[0]);
+    if let Some(first) = program.machine_specializations.last_mut() {
+        first.template_contract_fingerprint = template_contract_fingerprint;
+        first.accepted_template_commitment = accepted_template_commitment.clone();
+    }
 
     for (group_index, ((_, members), candidate)) in groups
         .iter()
@@ -1058,7 +1066,14 @@ fn apply_multiple_specializations(
         .enumerate()
         .skip(1)
     {
-        let state_symbols = clone_specialized_machine(&source, program, candidate, group_index);
+        let state_symbols = clone_specialized_machine(
+            &source,
+            program,
+            candidate,
+            group_index,
+            template_contract_fingerprint,
+            accepted_template_commitment.clone(),
+        );
         for selection_index in members {
             let selection = &selections[*selection_index];
             let Some((_, concrete_state)) = state_symbols
@@ -1111,6 +1126,8 @@ fn clone_specialized_machine(
     program: &mut TypedTrees,
     candidate: &Candidate,
     ordinal: usize,
+    template_contract_fingerprint: u64,
+    accepted_template_commitment: Option<String>,
 ) -> Vec<(SymbolHandle, SymbolHandle)> {
     let source_machine = &source.machines()[candidate.machine_index];
     let source_states = source.machine_states(source_machine).to_vec();
@@ -1336,6 +1353,9 @@ fn clone_specialized_machine(
                 .iter()
                 .map(|binding| binding.as_ref().expect("complete specialization").symbol)
                 .collect(),
+            template_contract_fingerprint,
+            accepted_template_commitment,
+            machine_argument_contract_fingerprints: Vec::new(),
             fingerprint,
         });
 
@@ -1553,6 +1573,10 @@ fn remapped_symbol(symbol: SymbolHandle, symbols: &[(SymbolHandle, SymbolHandle)
 }
 
 fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
+    let template_contract_fingerprint =
+        template_contract_fingerprint(program, candidate.machine_index);
+    let accepted_template_commitment =
+        accepted_template_commitment(program, candidate.machine_index);
     let type_arguments: Vec<String> = candidate
         .type_bindings
         .iter()
@@ -1590,6 +1614,9 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
             template: candidate.template_symbol,
             type_arguments: type_arguments.clone(),
             machine_arguments,
+            template_contract_fingerprint,
+            accepted_template_commitment,
+            machine_argument_contract_fingerprints: Vec::new(),
             fingerprint: specialization_fingerprint(
                 &candidate.template_name,
                 &type_arguments,
@@ -1688,6 +1715,416 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
     }
 
     program.machines_mut()[candidate.machine_index].type_parameters = HandleSpan::empty();
+}
+
+/// MP5's pre-specialization template identity. The in-place specialization
+/// pass necessarily consumes generic declarations, so the universal contract
+/// must be captured before substitution. This encoding is binder-positional:
+/// renaming a type, machine, or value parameter does not change the identity.
+fn template_contract_fingerprint(program: &TypedTrees, machine_index: usize) -> u64 {
+    const OFFSET: u64 = 0xcbf29ce484222325;
+    const PRIME: u64 = 0x100000001b3;
+    let machine = &program.machines()[machine_index];
+    let parameters = program.machine_type_parameters(machine);
+    let binders: Vec<(String, String)> = parameters
+        .iter()
+        .enumerate()
+        .map(|(index, parameter)| {
+            let prefix = match parameter.kind {
+                TypeParameterKind::Type => "T",
+                TypeParameterKind::Const { .. } => "C",
+                TypeParameterKind::Machine { .. } => "M",
+            };
+            (
+                parameter.name.as_str().to_owned(),
+                format!("${prefix}{index}"),
+            )
+        })
+        .collect();
+    let mut bytes = Vec::new();
+    bytes.extend(machine.name.as_str().as_bytes());
+    bytes.push(0xff);
+    bytes.push(match machine.supply_mode {
+        omega_core::semantics::MachineSupplyMode::CheckedBody => 1,
+        omega_core::semantics::MachineSupplyMode::Requirement => 2,
+        omega_core::semantics::MachineSupplyMode::Boundary => 3,
+        omega_core::semantics::MachineSupplyMode::Accepted => 4,
+        omega_core::semantics::MachineSupplyMode::ExternalRealization { .. } => 5,
+    });
+    for (index, parameter) in parameters.iter().enumerate() {
+        bytes.push(match parameter.kind {
+            TypeParameterKind::Type => 1,
+            TypeParameterKind::Const { .. } => 2,
+            TypeParameterKind::Machine { .. } => 3,
+        });
+        bytes.extend((index as u32).to_le_bytes());
+        encode_data_properties(parameter.bounds, &mut bytes);
+        match &parameter.kind {
+            TypeParameterKind::Const { type_reference } => encode_normalized_text(
+                &program.display_type_reference(*type_reference),
+                &binders,
+                &mut bytes,
+            ),
+            TypeParameterKind::Machine { contract } => {
+                encode_state_signature(program, contract, &binders, &mut bytes)
+            }
+            TypeParameterKind::Type => {}
+        }
+        bytes.push(0xfe);
+    }
+    let mut state_shapes = Vec::new();
+    for state in program.machine_states(machine) {
+        let mut shape = Vec::new();
+        encode_state_shape(program, state, &binders, &mut shape);
+        state_shapes.push(shape);
+    }
+    state_shapes.sort();
+    for shape in state_shapes {
+        bytes.extend(shape);
+        bytes.push(0xfd);
+    }
+    let mut effects: Vec<_> = program
+        .machine_effects(machine)
+        .iter()
+        .map(|effect| effect.as_str())
+        .collect();
+    effects.sort_unstable();
+    effects.dedup();
+    for effect in effects {
+        bytes.extend(effect.as_bytes());
+        bytes.push(0);
+    }
+    let mut contract_binders = binders.clone();
+    if let Some(state) = program.machine_states(machine).first() {
+        contract_binders.extend(
+            program
+                .state_parameters(state)
+                .iter()
+                .enumerate()
+                .map(|(index, parameter)| {
+                    (parameter.name.as_str().to_owned(), format!("$P{index}"))
+                }),
+        );
+    }
+    let mut contracts = Vec::new();
+    for contract in program.machine_contracts(machine) {
+        let mut encoded = Vec::new();
+        encode_contract(program, contract, &contract_binders, &mut encoded);
+        contracts.push(encoded);
+    }
+    contracts.sort();
+    for contract in contracts {
+        bytes.extend(contract);
+        bytes.push(0xfc);
+    }
+    match machine.termination_plan.published.as_ref() {
+        None => bytes.push(0),
+        Some(omega_core::semantics::TerminationGuarantee::NoGuarantee) => bytes.push(1),
+        Some(omega_core::semantics::TerminationGuarantee::EventualTerminal { premises }) => {
+            bytes.push(2);
+            let mut premises = premises.clone();
+            premises.sort_unstable_by_key(|premise| premise.0);
+            for premise in premises {
+                bytes.extend(premise.0.to_le_bytes());
+            }
+        }
+    }
+    let mut hash = OFFSET;
+    for byte in bytes {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(PRIME);
+    }
+    hash
+}
+
+/// Deterministic identity of an authored generic machine declaration before
+/// monomorphization consumes its binders. Trust receipts and separate-
+/// compilation caches use this same identity; callers cannot substitute the
+/// identity of one concrete instance for the universal template grant.
+pub fn generic_machine_template_fingerprint(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+) -> Option<u64> {
+    let machine_index = program
+        .machines()
+        .iter()
+        .position(|machine| machine.symbol == machine_symbol)?;
+    (!program
+        .machine_type_parameters(&program.machines()[machine_index])
+        .is_empty())
+    .then(|| template_contract_fingerprint(program, machine_index))
+}
+
+fn accepted_template_commitment(program: &TypedTrees, machine_index: usize) -> Option<String> {
+    let machine = &program.machines()[machine_index];
+    (machine.supply_mode == omega_core::semantics::MachineSupplyMode::Accepted)
+        .then(|| machine.name.as_str().to_owned())
+}
+
+pub(crate) fn bind_specialization_contract_identities(
+    program: &mut TypedTrees,
+    contracts: &omega_checked_trees::MachineContractPlans,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    let updates: Vec<Vec<u64>> = program
+        .machine_specializations
+        .iter()
+        .map(|specialization| {
+            let template = program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == specialization.template);
+            match (template.map(|machine| machine.supply_mode), &specialization.accepted_template_commitment) {
+                (Some(omega_core::semantics::MachineSupplyMode::Accepted), None) => {
+                    diagnostics.push(Diagnostic::error(
+                        "accepted generic specialization lost its template trust commitment",
+                    ));
+                }
+                (Some(omega_core::semantics::MachineSupplyMode::Accepted), Some(commitment))
+                    if template.is_some_and(|machine| machine.name.as_str() != commitment) =>
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "accepted generic specialization records template commitment `{commitment}`, but its template identity no longer matches"
+                    )));
+                }
+                (Some(omega_core::semantics::MachineSupplyMode::Accepted), Some(_)) => {}
+                (Some(mode), Some(commitment)) => diagnostics.push(Diagnostic::error(format!(
+                    "generic specialization records accepted template commitment `{commitment}`, but the retained template supply mode is {mode:?}"
+                ))),
+                _ => {}
+            }
+            if specialization.template_contract_fingerprint == 0 {
+                diagnostics.push(Diagnostic::error(
+                    "generic specialization is missing its pre-substitution template contract identity",
+                ));
+            }
+
+            specialization
+                .machine_arguments
+                .iter()
+                .filter_map(|state_symbol| {
+                    let owner = program.machines().iter().find(|machine| {
+                        program
+                            .machine_states(machine)
+                            .iter()
+                            .any(|state| state.symbol == *state_symbol)
+                    });
+                    let Some(owner) = owner else {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "generic specialization references static machine symbol {:?}, but no owning machine exists",
+                            state_symbol
+                        )));
+                        return None;
+                    };
+                    let Some(contract) = contracts.for_machine(owner.symbol) else {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "generic specialization selected `{}`, but its normalized machine contract identity is missing",
+                            owner.name
+                        )));
+                        return None;
+                    };
+                    Some(contract.fingerprint)
+                })
+                .collect()
+        })
+        .collect();
+
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+    for (specialization, identities) in program.machine_specializations.iter_mut().zip(updates) {
+        if !specialization
+            .machine_argument_contract_fingerprints
+            .is_empty()
+            && specialization.machine_argument_contract_fingerprints != identities
+        {
+            return Err(vec![Diagnostic::error(
+                "generic specialization cache entry no longer matches its selected machine contract identities",
+            )]);
+        }
+        specialization.machine_argument_contract_fingerprints = identities;
+        specialization.fingerprint = specialization_contract_fingerprint(
+            specialization.fingerprint,
+            specialization.template_contract_fingerprint,
+            &specialization.machine_argument_contract_fingerprints,
+        );
+    }
+    Ok(())
+}
+
+fn specialization_contract_fingerprint(
+    selection_fingerprint: u64,
+    template_contract_fingerprint: u64,
+    selected_contracts: &[u64],
+) -> u64 {
+    const OFFSET: u64 = 0xcbf29ce484222325;
+    const PRIME: u64 = 0x100000001b3;
+    let mut hash = OFFSET;
+    for byte in selection_fingerprint
+        .to_le_bytes()
+        .into_iter()
+        .chain(template_contract_fingerprint.to_le_bytes())
+        .chain(
+            selected_contracts
+                .iter()
+                .flat_map(|identity| identity.to_le_bytes()),
+        )
+    {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(PRIME);
+    }
+    hash
+}
+
+fn encode_data_properties(
+    properties: omega_typed_trees::data::DataProperties,
+    output: &mut Vec<u8>,
+) {
+    output.push(u8::from(properties.copy));
+    output.push(u8::from(properties.zero_init));
+    output.push(match properties.multiplicity {
+        omega_core::semantics::Multiplicity::Unrestricted => 1,
+        omega_core::semantics::Multiplicity::Affine => 2,
+        omega_core::semantics::Multiplicity::Linear => 3,
+    });
+    if let Some(carry) = properties.carry {
+        output.extend(format!("{carry}").as_bytes());
+    }
+    output.push(0);
+}
+
+fn encode_state_signature(
+    program: &TypedTrees,
+    signature: &omega_typed_trees::signature::StateSignature,
+    binders: &[(String, String)],
+    output: &mut Vec<u8>,
+) {
+    for parameter in program.state_signature_parameters(signature) {
+        encode_parameter(program, parameter, binders, output);
+    }
+    encode_normalized_text(
+        &program.display_type_reference(signature.return_type),
+        binders,
+        output,
+    );
+    for effect in program.state_signature_effects(signature) {
+        output.extend(effect.as_bytes());
+        output.push(0);
+    }
+    let mut contract_binders = binders.to_vec();
+    contract_binders.extend(
+        program
+            .state_signature_parameters(signature)
+            .iter()
+            .enumerate()
+            .map(|(index, parameter)| (parameter.name.as_str().to_owned(), format!("$P{index}"))),
+    );
+    let mut contracts = Vec::new();
+    for contract in program.state_signature_contracts(signature) {
+        let mut encoded = Vec::new();
+        encode_contract(program, contract, &contract_binders, &mut encoded);
+        contracts.push(encoded);
+    }
+    contracts.sort();
+    for contract in contracts {
+        output.extend(contract);
+        output.push(0xfc);
+    }
+    output.push(u8::from(signature.terminates_guarantee));
+}
+
+fn encode_state_shape(
+    program: &TypedTrees,
+    state: &omega_typed_trees::state::State,
+    binders: &[(String, String)],
+    output: &mut Vec<u8>,
+) {
+    for parameter in program.state_parameters(state) {
+        encode_parameter(program, parameter, binders, output);
+    }
+    encode_normalized_text(
+        &program.display_type_reference(state.return_type),
+        binders,
+        output,
+    );
+}
+
+fn encode_parameter(
+    program: &TypedTrees,
+    parameter: &omega_typed_trees::signature::StateParameter,
+    binders: &[(String, String)],
+    output: &mut Vec<u8>,
+) {
+    output.push(u8::from(parameter.is_self));
+    output.push(u8::from(parameter.is_mutable));
+    output.push(u8::from(parameter.is_const));
+    encode_normalized_text(
+        &program.display_type_reference(parameter.type_reference),
+        binders,
+        output,
+    );
+}
+
+fn encode_contract(
+    program: &TypedTrees,
+    contract: &omega_typed_trees::signature::SignatureContract,
+    binders: &[(String, String)],
+    output: &mut Vec<u8>,
+) {
+    output.push(match contract.kind {
+        omega_typed_trees::signature::SignatureContractKind::Requires => 1,
+        omega_typed_trees::signature::SignatureContractKind::Ensures => 2,
+        omega_typed_trees::signature::SignatureContractKind::Boundary => 3,
+    });
+    let mut facts: Vec<String> = program
+        .proof_facts
+        .span_or_empty(contract.facts)
+        .iter()
+        .map(|fact| match fact {
+            omega_typed_trees::domain::ProofFact::Expression(expression) => {
+                program.expression_table.display_name(*expression)
+            }
+            omega_typed_trees::domain::ProofFact::Membership(membership) => format!(
+                "{} in {}",
+                program.expression_table.display_name(membership.value),
+                program
+                    .domain_path_members(membership.domain)
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::")
+            ),
+        })
+        .collect();
+    facts.sort();
+    for fact in facts {
+        encode_normalized_text(&fact, binders, output);
+    }
+}
+
+fn encode_normalized_text(text: &str, binders: &[(String, String)], output: &mut Vec<u8>) {
+    let mut word = String::new();
+    let flush = |word: &mut String, output: &mut Vec<u8>| {
+        if word.is_empty() {
+            return;
+        }
+        if let Some((_, replacement)) = binders.iter().find(|(name, _)| name == word) {
+            output.extend(replacement.as_bytes());
+        } else {
+            output.extend(word.as_bytes());
+        }
+        word.clear();
+    };
+    for character in text.chars() {
+        if character.is_ascii_alphanumeric() || character == '_' {
+            word.push(character);
+        } else {
+            flush(&mut word, output);
+            output.extend(character.to_string().as_bytes());
+        }
+    }
+    flush(&mut word, output);
+    output.push(0);
 }
 
 fn specialization_fingerprint(

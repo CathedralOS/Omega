@@ -20,6 +20,7 @@ pub fn lower_typed_trees(
     lowerer::lower_typed_trees(program)
 }
 
+pub use monomorphization::generic_machine_template_fingerprint;
 /// The v0 asm-intrinsic discharge gate (asm requires a freestanding boundary
 /// root) -- re-exported for the ORCHESTRATION layer, which owns the
 /// BuildConfig fact the gate consumes; the other validations run inside

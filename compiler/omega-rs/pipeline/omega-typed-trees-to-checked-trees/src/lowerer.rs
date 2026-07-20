@@ -24,6 +24,15 @@ pub(crate) fn lower_typed_trees(
     let validated = validate_typed_program(&program)?;
     let mut facts = build_check_facts(&program, &validated.proof_plan, validated.effects);
 
+    // MP5: specialization selection happens before checked contract plans
+    // exist. Bind the selected machines' normalized contract identities now,
+    // validate the recorded relation, and make those identities part of the
+    // instance fingerprint used by caches and artifacts.
+    crate::monomorphization::bind_specialization_contract_identities(
+        &mut program,
+        &facts.contract_plans,
+    )?;
+
     checks::check_checked_facts_recording(&program, &mut facts)?;
 
     Ok(CheckedTrees::with_roots(program, facts))

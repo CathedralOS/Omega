@@ -266,6 +266,47 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
         }
         json.push_str("\n      }\n    }");
     }
+    json.push_str("\n  ],\n  \"specializations\": [");
+    for (index, specialization) in program.machine_specializations.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        let template = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == specialization.template)
+            .map(|machine| machine.name.as_str())
+            .unwrap_or("<unknown>");
+        json.push_str("\n    {\n      \"template\": ");
+        push_json_string(&mut json, template);
+        json.push_str(",\n      \"instance_fingerprint\": \"0x");
+        json.push_str(&format!("{:016x}", specialization.fingerprint));
+        json.push_str("\",\n      \"template_contract_fingerprint\": \"0x");
+        json.push_str(&format!(
+            "{:016x}",
+            specialization.template_contract_fingerprint
+        ));
+        json.push_str("\",\n      \"accepted_template_commitment\": ");
+        if let Some(commitment) = specialization.accepted_template_commitment.as_deref() {
+            push_json_string(&mut json, commitment);
+        } else {
+            json.push_str("null");
+        }
+        json.push_str(",\n      \"type_arguments\": [");
+        push_json_strings(&mut json, &specialization.type_arguments);
+        json.push_str("],\n      \"machine_argument_contract_fingerprints\": [");
+        for (identity_index, identity) in specialization
+            .machine_argument_contract_fingerprints
+            .iter()
+            .enumerate()
+        {
+            if identity_index > 0 {
+                json.push_str(", ");
+            }
+            push_json_string(&mut json, &format!("0x{identity:016x}"));
+        }
+        json.push_str("]\n    }");
+    }
     json.push_str("\n  ]\n}\n");
     json
 }
@@ -1090,6 +1131,7 @@ mod tests {
     use omega_core::symbols::SymbolHandle;
     use omega_typed_trees::machine::Machine;
     use omega_typed_trees::name::Identifier;
+    use omega_typed_trees::typed_trees::MachineSpecialization;
 
     #[test]
     fn carry_manifest_keeps_authored_and_effective_policies_separate() {
@@ -1180,5 +1222,38 @@ mod tests {
         assert!(json[implementation_start..].contains("\"kind\": \"eventual_terminal\""));
         assert!(json[implementation_start..].contains("\"subjects\": [\"remaining\"]"));
         assert!(json[implementation_start..].contains("\"view\": \"Nat::Descending\""));
+    }
+
+    #[test]
+    fn machine_contract_manifest_records_specialization_trust_and_contract_ids() {
+        let symbol = SymbolHandle::from_arena_index(3);
+        let mut program = CheckedTrees::default();
+        program.typed.push_machine(Machine {
+            symbol,
+            name: Identifier::generated("accepted_map"),
+            supply_mode: MachineSupplyMode::Accepted,
+            ..Default::default()
+        });
+        program
+            .typed
+            .machine_specializations
+            .push(MachineSpecialization {
+                template: symbol,
+                type_arguments: vec!["Card".to_owned()],
+                machine_arguments: vec![SymbolHandle::from_arena_index(8)],
+                template_contract_fingerprint: 0x1111,
+                accepted_template_commitment: Some("accepted_map".to_owned()),
+                machine_argument_contract_fingerprints: vec![0x2222],
+                fingerprint: 0x3333,
+            });
+
+        let json = machine_contract_manifest_json(&program);
+        assert!(json.contains("\"template\": \"accepted_map\""));
+        assert!(json.contains("\"accepted_template_commitment\": \"accepted_map\""));
+        assert!(json.contains("\"template_contract_fingerprint\": \"0x0000000000001111\""));
+        assert!(
+            json.contains("\"machine_argument_contract_fingerprints\": [\"0x0000000000002222\"]")
+        );
+        assert!(json.contains("\"instance_fingerprint\": \"0x0000000000003333\""));
     }
 }

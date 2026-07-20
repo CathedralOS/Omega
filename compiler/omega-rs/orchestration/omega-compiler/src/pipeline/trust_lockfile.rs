@@ -108,12 +108,35 @@ pub(super) fn enforce_trust_lockfile(
         // A grant naming a DERIVED PROVIDER PLAN (by plan name or trait
         // leaf) pins the plan's NORMALIZED IDENTITY -- the fingerprint IS
         // the receipt hash, so any change to the plan's policy drifts.
-        if let Some(plan) = provider_plans.iter().find(|plan| {
-            grant == &plan.name || grant == plan.schema.trait_name.as_str()
-        }) {
+        if let Some(plan) = provider_plans
+            .iter()
+            .find(|plan| grant == &plan.name || grant == plan.schema.trait_name.as_str())
+        {
             let commitment = format!("provider plan: {}", plan.name);
             if !rows.iter().any(|(existing, _)| *existing == commitment) {
                 rows.push((commitment, plan.identity_fingerprint()));
+            }
+            continue;
+        }
+        // MP5: a generic accepted axiom is granted ONCE at its universal
+        // normalized template. Every concrete specialization references this
+        // receipt; none creates another grant row. The template identity
+        // includes its machine-parameter requirements, so changing a `where
+        // machine` contract drifts the existing receipt before any instance
+        // can reuse it.
+        if let Some(machine) = typed.machines().iter().find(|machine| {
+            machine.supply_mode == omega_core::semantics::MachineSupplyMode::Accepted
+                && (grant == machine.name.as_str()
+                    || Some(grant.as_str()) == machine.name.as_str().rsplit("::").next())
+        }) && let Some(identity) =
+            omega_typed_trees_to_checked_trees::generic_machine_template_fingerprint(
+                typed,
+                machine.symbol,
+            )
+        {
+            let commitment = format!("accepted fact: {}", machine.name.as_str());
+            if !rows.iter().any(|(existing, _)| *existing == commitment) {
+                rows.push((commitment, identity));
             }
             continue;
         }

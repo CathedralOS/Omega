@@ -551,3 +551,150 @@ fn forwarded_generic_calls_specialize_after_their_caller() {
     assert_eq!(specialization_count("Main::copy_it"), 2);
     assert_eq!(specialization_count("Main::wrap"), 1);
 }
+
+#[test]
+fn accepted_template_instances_share_one_commitment_and_pin_argument_contracts() {
+    let source = r#"
+        data Light {}
+        data Main { light: Light; number: i32; }
+
+        machine Light::touch(value: &Light) {}
+        machine touch_number(value: &i32) {}
+
+        boundary machine admitted<T, machine F>(value: &T)
+        where machine F(item: &T);
+        ensures true;
+
+        machine Main::run(&mut self) {
+            admitted<Light::touch>(&self.light);
+            admitted<touch_number>(&self.number);
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("accepted generic instances should check");
+    let instances: Vec<_> = checked
+        .machine_specializations
+        .iter()
+        .filter(|specialization| {
+            checked.machines().iter().any(|machine| {
+                machine.symbol == specialization.template && machine.name.as_str() == "admitted"
+            })
+        })
+        .collect();
+
+    assert_eq!(instances.len(), 2);
+    assert!(instances.iter().all(|instance| {
+        instance.accepted_template_commitment.as_deref() == Some("admitted")
+            && instance.template_contract_fingerprint != 0
+            && instance.machine_argument_contract_fingerprints.len() == 1
+            && instance.machine_argument_contract_fingerprints[0] != 0
+    }));
+    assert_eq!(
+        instances[0].template_contract_fingerprint,
+        instances[1].template_contract_fingerprint
+    );
+    assert_ne!(
+        instances[0].machine_argument_contract_fingerprints,
+        instances[1].machine_argument_contract_fingerprints
+    );
+    assert_ne!(instances[0].fingerprint, instances[1].fingerprint);
+}
+
+#[test]
+fn specialization_identity_changes_with_selected_machine_contract() {
+    fn fingerprint(extra_contract: &str) -> u64 {
+        let source = format!(
+            r#"
+                data Main {{}}
+                machine selected(value: &i32)
+                {extra_contract}
+                {{}}
+                machine apply<T, machine F>(value: &T)
+                where machine F(item: &T)
+                {{ F(value); }}
+                machine caller(value: &i32) {{ apply<selected>(value); }}
+                machine Main::run(&mut self) {{}}
+            "#
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        lower_typed_trees(typed)
+            .expect("specialization should check")
+            .machine_specializations[0]
+            .fingerprint
+    }
+
+    assert_ne!(fingerprint(""), fingerprint("ensures true;"));
+}
+
+#[test]
+fn specialization_identity_ignores_selected_machine_body_edits() {
+    fn fingerprint(body: &str) -> u64 {
+        let source = format!(
+            r#"
+                data Main {{}}
+                machine selected(value: &i32) {{ {body} }}
+                machine apply<T, machine F>(value: &T)
+                where machine F(item: &T)
+                {{ F(value); }}
+                machine caller(value: &i32) {{ apply<selected>(value); }}
+                machine Main::run(&mut self) {{}}
+            "#
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        lower_typed_trees(typed)
+            .expect("specialization should check")
+            .machine_specializations[0]
+            .fingerprint
+    }
+
+    assert_eq!(fingerprint(""), fingerprint("let one: i32 = 1;"));
+}
+
+#[test]
+fn generic_template_identity_is_positional_across_parameter_renames() {
+    fn fingerprint(machine_parameter: &str, value: &str, item: &str) -> u64 {
+        let source = format!(
+            r#"
+                boundary machine admitted<machine {machine_parameter}>({value}: i32)
+                where machine {machine_parameter}({item}: i32)
+                    requires {item} > 0;
+                requires {value} > 0;
+                ensures true;
+            "#
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        let admitted = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "admitted")
+            .expect("accepted template should exist");
+        crate::monomorphization::generic_machine_template_fingerprint(&typed, admitted.symbol)
+            .expect("generic template should have an identity")
+    }
+
+    assert_eq!(
+        fingerprint("F", "value", "item"),
+        fingerprint("Operation", "input", "candidate")
+    );
+}
