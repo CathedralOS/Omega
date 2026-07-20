@@ -44,6 +44,17 @@ pub struct MachineSpecialization {
     pub template: omega_core::symbols::SymbolHandle,
     pub type_arguments: Vec<String>,
     pub machine_arguments: Vec<omega_core::symbols::SymbolHandle>,
+    /// The normalized authored template identity captured before in-place
+    /// substitution consumes its generic parameter declarations.
+    pub template_contract_fingerprint: u64,
+    /// The one accepted-fact commitment this instance relies upon. Every
+    /// instance points at the same template commitment; none spends a new
+    /// grant. `None` for checked templates.
+    pub accepted_template_commitment: Option<String>,
+    /// Checked contract identities of the selected static machine arguments.
+    /// Populated after contract-plan construction and folded into
+    /// `fingerprint`, so a selected contract change invalidates the instance.
+    pub machine_argument_contract_fingerprints: Vec<u64>,
     pub fingerprint: u64,
 }
 

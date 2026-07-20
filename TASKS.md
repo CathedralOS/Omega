@@ -131,11 +131,14 @@ The source model is fixed: `<machine M>` requires an authored
 argument or inferred contract. MP4b now groups complete call-site tuples,
 deep-copies each additional template body with fresh lexical symbols, rewrites
 calls to their concrete states, and runs distinct type and static-machine
-specializations in both engines.
+specializations in both engines. MP5 now captures a binder-positional universal
+template-contract identity before substitution, spends one trust receipt for an
+accepted template, binds every instance to the checked contract identities of
+its selected static machines, and exports that relation in the machine-contract
+manifest. Contract changes invalidate instances; implementation-body-only edits
+remain contract-invisible.
 
-1. **MP5 — admitted templates.** Grant accepted templates once, preserve their
-   contract identity, and validate each instance against argument contract IDs.
-2. **MP6 — consuming slices.** Add `Seq` map/filter, nested proof schemas used
+1. **MP6 — consuming slices.** Add `Seq` map/filter, nested proof schemas used
    by N5/N6, task-runtime machine selection, and build-surface canaries. No
    runtime callable values, dictionaries, or capture inference.
 ## Correctness bugs and missing lowering

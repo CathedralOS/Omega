@@ -102,6 +102,36 @@ fn build_contract_plans(
         // RENAMES change the identity in v1 -- positional normalization is
         // the recorded follow-up.
         let mut canonical_facts: Vec<Vec<u8>> = Vec::new();
+        // The callable shape is contract identity too. A selected static
+        // machine changing parameter mode/type, result type, or state surface
+        // must invalidate every specialization that recorded its contract ID.
+        // Encode generic binders positionally so a rename remains invisible.
+        let generic_binders: Vec<(String, String)> = program
+            .machine_type_parameters(machine)
+            .iter()
+            .enumerate()
+            .map(|(index, parameter)| (parameter.name.as_str().to_owned(), format!("$G{index}")))
+            .collect();
+        for state in program.machine_states(machine) {
+            let mut encoded = vec![0xa0];
+            for parameter in program.state_parameters(state) {
+                encoded.push(u8::from(parameter.is_self));
+                encoded.push(u8::from(parameter.is_mutable));
+                encoded.push(u8::from(parameter.is_const));
+                encode_type_spelling(
+                    &program.display_type_reference(parameter.type_reference),
+                    &generic_binders,
+                    &mut encoded,
+                );
+            }
+            encoded.push(0xaf);
+            encode_type_spelling(
+                &program.display_type_reference(state.return_type),
+                &generic_binders,
+                &mut encoded,
+            );
+            canonical_facts.push(encoded);
+        }
         // Positional parameter normalization: a contract fact naming the
         // machine's Nth parameter encodes as P<N>, so RENAMES never change
         // the identity (the substitutable contract is positional).
@@ -172,6 +202,31 @@ fn build_contract_plans(
         });
     }
     omega_checked_trees::MachineContractPlans { machines }
+}
+
+fn encode_type_spelling(text: &str, binders: &[(String, String)], output: &mut Vec<u8>) {
+    let mut word = String::new();
+    let flush = |word: &mut String, output: &mut Vec<u8>| {
+        if word.is_empty() {
+            return;
+        }
+        if let Some((_, replacement)) = binders.iter().find(|(name, _)| name == word) {
+            output.extend(replacement.as_bytes());
+        } else {
+            output.extend(word.as_bytes());
+        }
+        word.clear();
+    };
+    for character in text.chars() {
+        if character.is_ascii_alphanumeric() || character == '_' {
+            word.push(character);
+        } else {
+            flush(&mut word, output);
+            output.extend(character.to_string().as_bytes());
+        }
+    }
+    flush(&mut word, output);
+    output.push(0);
 }
 
 /// STR4 checked plans, slice 2 (decision 19): collect each machine's
@@ -286,9 +341,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                         collect_casts(program, local.initial_value, &mut committed);
                     }
                     StatementNode::Call(call) => {
-                        for argument in
-                            program.statement_table.expression_handles(call.arguments)
-                        {
+                        for argument in program.statement_table.expression_handles(call.arguments) {
                             collect_casts(program, *argument, &mut committed);
                         }
                     }
@@ -376,7 +429,6 @@ fn build_effect_row_facts(
     omega_checked_trees::EffectRowFacts { rows, machines }
 }
 
-
 /// A stable, spelling-independent byte encoding of a contract fact
 /// expression: prefix walk with operator tags, name paths as text, integer
 /// literals as text (exact at any magnitude). Deterministic across
@@ -459,12 +511,7 @@ fn encode_expression_canonical(
         other => {
             let _ = other;
             out.push(8);
-            out.extend(
-                program
-                    .expression_table
-                    .display_name(expression)
-                    .as_bytes(),
-            );
+            out.extend(program.expression_table.display_name(expression).as_bytes());
             out.push(0);
         }
     }
