@@ -99,6 +99,8 @@ ceiling derived exactly from the ABI volatile-register classes.
    Microsoft vtable and firmware service-table calls. Ordinary composite
    x86-64 host operations are now plan-checked through their actual foreign
    signatures, as are the dedicated runtime line/byte Windows sequences.
+   Compatibility syscall rows are differentially checked against normalized
+   number-register and supervisor-call facts on both Linux architectures.
    Scalar AAPCS64 outbound stack placements now reserve aligned outgoing space,
    materialize integer/pointer or float values through caller-saved scratch
    registers, store at plan-selected offsets, restore SP after the call, and

@@ -249,6 +249,11 @@ transitive machine-state use to the general/vector classes named by the ABI's
 volatile register set. The current ordinary AArch64 hosted projection records
 EL0; that reversible target default can be refined when higher-EL roots land.
 
+While compatibility syscall rows coexist with normalized plans, evaluation
+differentially checks their historical register-slot and supervisor-call facts
+on both x86-64 and AArch64. Unknown x86 register slots fail closed instead of
+being ignored by the plan-driven encoder.
+
 Remaining order:
 
 1. Evaluate the policy selected by `Calling<C>` against the requirement
