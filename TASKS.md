@@ -734,9 +734,10 @@ remain contract-invisible.
   inferred transitive-effect checks; true results ungate the concrete record,
   while false or effectful classifiers reject. Their boolean/arithmetic facts
   over `self` compose in the same build-time proof, including checked integer
-  operands and logical negation. Continue with declared-width signed
-  shift/bitwise and arithmetic-domain semantics, plus richer build-time proof
-  operands such as nested memberships.
+  operands and logical negation; nested membership facts recursively compose
+  with ordinary integer-domain facts and conservatively stand down on cycles.
+  Continue with declared-width signed shift/bitwise and arithmetic-domain
+  semantics, plus richer build-time operands such as nested machine classifiers.
 - **Trait defaults (authored bodies complete).** Standalone data conformances synthesize a
   missing attached machine from the trait's authored body before resolution,
   including defaults inherited through `requires` and header parents. Ordinary

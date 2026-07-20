@@ -6,8 +6,13 @@ machine is_positive(value: u64) -> bool {
     value > 0
 }
 
-domain u64::BufferSize when is_positive(self) {
+domain u64::AtMostEight {
     self <= 8
+}
+
+domain u64::BufferSize when is_positive(self) {
+    self in AtMostEight;
+    !(self == 3)
 }
 
 data FixedBuffer<const N: u64>
