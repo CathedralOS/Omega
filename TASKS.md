@@ -221,8 +221,12 @@ ceiling derived exactly from the ABI volatile-register classes.
    dispatch path. MEMORY-result entries now save incoming hidden `rdi` before
    volatile work, shift declared parameters, copy a large terminal through the
    saved destination, and return that pointer in `rax`; a source-to-ELF canary
-   pins the complete handoff. Nested aggregate classification remains to
-   migrate.
+   pins the complete handoff. Named records nested within small SysV records
+   are now classified recursively: scalar leaves merge into their containing
+   eightbytes with INTEGER dominance, so a nested `{ u64, { f64 } }` record
+   follows the same atomic mixed-bank parameter and result path. The indirect
+   field-dispatch canary pins that recursive source-to-ELF selection. Fixed
+   array members remain to migrate into the recursive classifier.
    Ordinary AArch64 `VtableSlot` and `VtableField` calls now evaluate AAPCS64
    from their selected operands, require the full-width receiver in planned
    `x0`, marshal every argument/stack slot through the shared plan consumer,

@@ -1,12 +1,14 @@
 // Source-to-ELF pin for normalized SysV AMD64 indirect field dispatch. The
 // ordinary receiver is the first wire argument (rdi), while a MEMORY-class
 // result takes hidden rdi and shifts the receiver to rsi. Layout resolves the
-// six functions from +8 through +48 behind the leading field.
+// seven functions from +8 through +56 behind the leading field.
 data Triple { first: u64; second: u64; third: u64; }
 data FloatPair { first: f64; second: f64; }
 data FloatTriple { first: f32; second: f32; third: f32; }
 data MixedPair { integer: u64; floating: f64; }
 data SplitFloatPair { wide: f64; narrow: f32; }
+data NestedFloat { value: f64; }
+data NestedMixedPair { integer: u64; floating: NestedFloat; }
 boundary trait FieldDispatch {
     machine invoke(this: addr, value: u64);
     machine transform(this: addr, value: Triple) -> Triple;
@@ -14,6 +16,7 @@ boundary trait FieldDispatch {
     machine pack(this: addr, value: FloatTriple) -> FloatTriple;
     machine mix(this: addr, value: MixedPair) -> MixedPair;
     machine split(this: addr, value: SplitFloatPair) -> SplitFloatPair;
+    machine nest(this: addr, value: NestedMixedPair) -> NestedMixedPair;
 }
 data NativeVtable {
     header: addr;
@@ -23,6 +26,7 @@ data NativeVtable {
     pack: addr;
     mix: addr;
     split: addr;
+    nest: addr;
 }
 linux_x64 provides FieldDispatch over NativeVtable {
     invoke -> invoke;
@@ -31,6 +35,7 @@ linux_x64 provides FieldDispatch over NativeVtable {
     pack -> pack;
     mix -> mix;
     split -> split;
+    nest -> nest;
 }
 data Main {
     dispatch: FieldDispatch; receiver: addr;
@@ -39,6 +44,7 @@ data Main {
     packed_input: FloatTriple; packed_output: FloatTriple;
     mixed_input: MixedPair; mixed_output: MixedPair;
     split_input: SplitFloatPair; split_output: SplitFloatPair;
+    nested_input: NestedMixedPair; nested_output: NestedMixedPair;
 }
 boundary machine Main::run(&self) -> i32 {
     self.dispatch.invoke(self.receiver, 7);
@@ -47,5 +53,6 @@ boundary machine Main::run(&self) -> i32 {
     self.packed_output = self.dispatch.pack(self.receiver, self.packed_input);
     self.mixed_output = self.dispatch.mix(self.receiver, self.mixed_input);
     self.split_output = self.dispatch.split(self.receiver, self.split_input);
+    self.nested_output = self.dispatch.nest(self.receiver, self.nested_input);
     transition { _ -> (0) }
 }
