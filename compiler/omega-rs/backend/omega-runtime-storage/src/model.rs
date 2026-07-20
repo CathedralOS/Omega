@@ -45,11 +45,11 @@ pub struct RuntimeStoragePlan {
     /// pointer reserved.
     pub entry_indirect_result_pointer_base: usize,
     pub entry_indirect_result_pointer_size: usize,
-    /// Frame scratch used to compute a scalar entry terminal before loading
-    /// the ABI-selected result register. Zero size means the entry has no
-    /// fixed-width primitive result.
-    pub entry_scalar_result_scratch_base: usize,
-    pub entry_scalar_result_scratch_size: usize,
+    /// Frame scratch used to materialize an entry terminal before loading or
+    /// copying its ABI-selected result placement. Zero size means no terminal
+    /// expression needs a materialized place.
+    pub entry_result_scratch_base: usize,
+    pub entry_result_scratch_size: usize,
 }
 
 impl RuntimeStoragePlan {
@@ -72,8 +72,8 @@ impl RuntimeStoragePlan {
             entry_argument_spill_size: 0,
             entry_indirect_result_pointer_base: 0,
             entry_indirect_result_pointer_size: 0,
-            entry_scalar_result_scratch_base: 0,
-            entry_scalar_result_scratch_size: 0,
+            entry_result_scratch_base: 0,
+            entry_result_scratch_size: 0,
         }
     }
 

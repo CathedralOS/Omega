@@ -31739,6 +31739,77 @@ fn aarch64_small_result_entry_loads_x0_and_x1() {
 }
 
 #[test]
+fn aggregate_literal_entry_result_uses_native_fragments() {
+    let canary = pass_canary("targets/aggregate_literal_result_entry");
+    for target in ["linux_x64", "linux_arm64", "uefi_x64"] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-{target}-aggregate-literal-result-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let src_dir = scratch.join("src");
+        let out_dir = scratch.join("out");
+        fs::create_dir_all(&src_dir).expect("scratch source directory");
+        fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
+        fs::write(
+            src_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write target manifest");
+
+        compile(CompileOptions {
+            root_path: src_dir.join("main.omg"),
+            build_dir: Some(out_dir.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .expect("aggregate-literal entry result should cross-compile");
+
+        let output_name = if target == "uefi_x64" {
+            "omega-program.exe"
+        } else {
+            "omega-program"
+        };
+        let image = fs::read(out_dir.join(output_name)).expect("read emitted image");
+        if target == "linux_x64" {
+            assert!(
+                image.windows(34).any(|window| {
+                    window[10..13] == [0x49, 0x8b, 0x87] && window[27..30] == [0x49, 0x8b, 0x97]
+                }),
+                "SysV aggregate literal missing rax/rdx result loads"
+            );
+        } else if target == "linux_arm64" {
+            let register_mask = 0xffc0_03ffu32;
+            assert!(
+                image.windows(24).any(|window| {
+                    let first = u32::from_le_bytes(window[8..12].try_into().expect("first load"));
+                    let second =
+                        u32::from_le_bytes(window[20..24].try_into().expect("second load"));
+                    first & register_mask == 0xf940_0200 && second & register_mask == 0xf940_0201
+                }),
+                "AAPCS64 aggregate literal missing x0/x1 result loads"
+            );
+        } else {
+            assert!(
+                image.windows(17).any(|window| {
+                    window[0..2] == [0x49, 0xbf] && window[10..13] == [0x49, 0x89, 0x8f]
+                }),
+                "Microsoft x64 aggregate literal missing hidden-result capture"
+            );
+            assert!(
+                image.windows(3).any(|window| window == [0x4d, 0x8b, 0xbe]),
+                "Microsoft x64 aggregate literal missing scratch-to-pointee copy"
+            );
+            assert!(
+                image.windows(3).any(|window| window == [0x49, 0x8b, 0x87]),
+                "Microsoft x64 aggregate literal missing hidden pointer return"
+            );
+        }
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
 fn aarch64_hfa_result_entry_loads_d0_d1_and_d2() {
     let canary = pass_canary("targets/aarch64_hfa_result_entry");
     let build_dir = std::env::temp_dir().join(format!(

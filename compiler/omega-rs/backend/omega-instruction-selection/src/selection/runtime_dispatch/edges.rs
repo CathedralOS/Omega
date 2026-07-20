@@ -224,7 +224,7 @@ pub(super) fn select_runtime_dispatch_edge(
 
 /// Deliver a terminating state's terminal value through the entry ABI.
 ///
-/// Five shapes lower, in order:
+/// Six shapes lower, in order:
 /// 1. an INTEGER CONSTANT terminal (`70`, `state shutdown { 0 }`) writes the immediate
 ///    into the return register (the original literal-only path);
 /// 2. a FLOAT CONSTANT terminal stages its raw bits through exact-width result
@@ -234,11 +234,13 @@ pub(super) fn select_runtime_dispatch_edge(
 ///    are reassigned always have storage, so the stale-initializer fold below
 ///    can never apply to them. Native records follow all normalized result
 ///    fragments, including hidden destinations;
-/// 4. a STORAGE-LESS local / constant arithmetic terminal (`let x = 1 + 69; x`)
+/// 4. a RECORD/CASE LITERAL materializes into layout-sized result scratch,
+///    then follows the same direct fragments or hidden destination;
+/// 5. a STORAGE-LESS local / constant arithmetic terminal (`let x = 1 + 69; x`)
 ///    substitutes simple local initializers and constant-folds; such locals
 ///    were culled from storage precisely because nothing mutates them, so the
 ///    initializer IS the terminal value;
-/// 5. a flat runtime scalar BINARY terminal computes through the ordinary
+/// 6. a flat runtime scalar BINARY terminal computes through the ordinary
 ///    domain-aware writer into result scratch, then loads the normalized
 ///    integer or vector result register.
 fn select_runtime_dispatch_return_value(
@@ -306,93 +308,43 @@ fn select_runtime_dispatch_return_value(
         source_key,
         &input.control_flow.expressions,
         value_expr,
+    ) && select_entry_runtime_place_result(
+        input,
+        edge,
+        source_key,
+        &place,
+        selected_instructions,
     ) {
-        if matches!(place.byte_count, 1 | 2 | 4 | 8)
-            && super::normalized_entry_record_result_placement(input).is_none()
-        {
-            let register = super::normalized_entry_scalar_result_register(input, place.byte_count)
-                .unwrap_or_else(|| super::normalized_entry_integer_result_register(input));
-            selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
-                    register,
-                    region: place.region,
-                    byte_offset: place.byte_offset,
-                    byte_size: place.byte_count,
-                },
-                source_key,
-                source_statement: edge.statement_index,
-            });
-            return true;
-        }
-        if let Some((result_shape, locations)) =
-            super::normalized_entry_record_result_placement(input)
-            && place.byte_count == usize::from(result_shape.byte_size)
-        {
-            if locations.iter().all(|location| {
-                matches!(
-                    location,
-                    omega_calling_conventions::ValueLocation::Register { .. }
-                )
-            }) {
-                for location in locations {
-                    let omega_calling_conventions::ValueLocation::Register {
-                        register,
-                        value_byte_offset,
-                        byte_size,
-                    } = location
-                    else {
-                        unreachable!("result locations were checked as registers")
-                    };
-                    selected_instructions.push(SelectedInstruction {
-                        kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
-                            register,
-                            region: place.region,
-                            byte_offset: place.byte_offset + usize::from(value_byte_offset),
-                            byte_size: usize::from(byte_size),
-                        },
-                        source_key,
-                        source_statement: edge.statement_index,
-                    });
-                }
-                return true;
-            }
-            if matches!(
-                locations.as_slice(),
-                [omega_calling_conventions::ValueLocation::Indirect { .. }]
-            ) && input.runtime_storage.entry_indirect_result_pointer_size == 8
-            {
-                let pointer_offset = input.runtime_storage.entry_indirect_result_pointer_base;
-                selected_instructions.push(SelectedInstruction {
-                    kind: SelectedInstructionKind::CopyPlaces {
-                        source: omega_abstract_operations::Place::at(
-                            place.region,
-                            place.byte_offset,
-                        ),
-                        target: super::pointee_place(pointer_offset, 0),
-                        byte_count: place.byte_count,
-                    },
-                    source_key,
-                    source_statement: edge.statement_index,
-                });
-                if matches!(
-                    omega_calling_conventions::CallingPolicy::native_for_target(input.target),
-                    omega_calling_conventions::CallingPolicy::MicrosoftX64
-                        | omega_calling_conventions::CallingPolicy::SystemVAMD64
-                ) {
-                    selected_instructions.push(SelectedInstruction {
-                        kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
-                            register: omega_calling_conventions::MachineRegister::X86Rax,
-                            region: RuntimeStorageRegion::RuntimeFrame,
-                            byte_offset: pointer_offset,
-                            byte_size: 8,
-                        },
-                        source_key,
-                        source_statement: edge.statement_index,
-                    });
-                }
-                return true;
-            }
-        }
+        return true;
+    }
+
+    let result_scratch = crate::selection::storage_places::RuntimeStoragePlace {
+        region: RuntimeStorageRegion::RuntimeFrame,
+        byte_offset: input.runtime_storage.entry_result_scratch_base,
+        byte_count: input.runtime_storage.entry_result_scratch_size,
+    };
+    if result_scratch.byte_count > 0
+        && super::normalized_entry_record_result_placement(input).is_some()
+        && select_dispatch_case_literal_terminal_return(
+            input,
+            edge,
+            source_key,
+            source_dispatch_index,
+            result_scratch.region,
+            result_scratch.byte_offset,
+            result_scratch.byte_count,
+            value_expr,
+            selected_instructions,
+        )
+        && select_entry_runtime_place_result(
+            input,
+            edge,
+            source_key,
+            &result_scratch,
+            selected_instructions,
+        )
+    {
+        return true;
     }
 
     if let Some(value) =
@@ -445,7 +397,7 @@ fn select_runtime_dispatch_return_value(
 fn normalized_entry_scalar_result_scratch(
     input: &InstructionSelectionInput<'_>,
 ) -> Option<(usize, usize, omega_calling_conventions::MachineRegister)> {
-    let byte_size = input.runtime_storage.entry_scalar_result_scratch_size;
+    let byte_size = input.runtime_storage.entry_result_scratch_size;
     if !matches!(byte_size, 1 | 2 | 4 | 8)
         || super::normalized_entry_record_result_placement(input).is_some()
     {
@@ -453,10 +405,105 @@ fn normalized_entry_scalar_result_scratch(
     }
     let register = super::normalized_entry_scalar_result_register(input, byte_size)?;
     Some((
-        input.runtime_storage.entry_scalar_result_scratch_base,
+        input.runtime_storage.entry_result_scratch_base,
         byte_size,
         register,
     ))
+}
+
+fn select_entry_runtime_place_result(
+    input: &InstructionSelectionInput<'_>,
+    edge: &RuntimeDispatchLoopEdge,
+    source_key: StateKey,
+    place: &crate::selection::storage_places::RuntimeStoragePlace,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    if matches!(place.byte_count, 1 | 2 | 4 | 8)
+        && super::normalized_entry_record_result_placement(input).is_none()
+    {
+        let register = super::normalized_entry_scalar_result_register(input, place.byte_count)
+            .unwrap_or_else(|| super::normalized_entry_integer_result_register(input));
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+                register,
+                region: place.region,
+                byte_offset: place.byte_offset,
+                byte_size: place.byte_count,
+            },
+            source_key,
+            source_statement: edge.statement_index,
+        });
+        return true;
+    }
+    let Some((result_shape, locations)) = super::normalized_entry_record_result_placement(input)
+    else {
+        return false;
+    };
+    if place.byte_count != usize::from(result_shape.byte_size) {
+        return false;
+    }
+    if locations.iter().all(|location| {
+        matches!(
+            location,
+            omega_calling_conventions::ValueLocation::Register { .. }
+        )
+    }) {
+        for location in locations {
+            let omega_calling_conventions::ValueLocation::Register {
+                register,
+                value_byte_offset,
+                byte_size,
+            } = location
+            else {
+                unreachable!("result locations were checked as registers")
+            };
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+                    register,
+                    region: place.region,
+                    byte_offset: place.byte_offset + usize::from(value_byte_offset),
+                    byte_size: usize::from(byte_size),
+                },
+                source_key,
+                source_statement: edge.statement_index,
+            });
+        }
+        return true;
+    }
+    if matches!(
+        locations.as_slice(),
+        [omega_calling_conventions::ValueLocation::Indirect { .. }]
+    ) && input.runtime_storage.entry_indirect_result_pointer_size == 8
+    {
+        let pointer_offset = input.runtime_storage.entry_indirect_result_pointer_base;
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::CopyPlaces {
+                source: omega_abstract_operations::Place::at(place.region, place.byte_offset),
+                target: super::pointee_place(pointer_offset, 0),
+                byte_count: place.byte_count,
+            },
+            source_key,
+            source_statement: edge.statement_index,
+        });
+        if matches!(
+            omega_calling_conventions::CallingPolicy::native_for_target(input.target),
+            omega_calling_conventions::CallingPolicy::MicrosoftX64
+                | omega_calling_conventions::CallingPolicy::SystemVAMD64
+        ) {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+                    register: omega_calling_conventions::MachineRegister::X86Rax,
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: pointer_offset,
+                    byte_size: 8,
+                },
+                source_key,
+                source_statement: edge.statement_index,
+            });
+        }
+        return true;
+    }
+    false
 }
 
 /// Constant-fold a terminal value through SIMPLE local initializers
@@ -760,7 +807,7 @@ fn select_runtime_dispatch_call_result_return(
     // values serve static integers and resolvable places; anything else
     // leaves the terminal unserved and the call-result blocker refuses
     // loudly. This is the shape every wrapper result enum returns through.
-    select_dispatch_case_literal_terminal_return(
+    let _ = select_dispatch_case_literal_terminal_return(
         input,
         edge,
         source_key,
@@ -929,7 +976,7 @@ fn select_dispatch_case_literal_terminal_return(
     byte_size: usize,
     value_expr: ExpressionHandle,
     selected_instructions: &mut SelectedInstructionSink,
-) {
+) -> bool {
     let expressions = &input.control_flow.expressions;
     // A BARE nullary case (`-> EmptyResult::Empty`): zero + tag, no fields.
     if let Some(tag) = crate::selection::storage_places::enum_variant_value_in_table(
@@ -955,10 +1002,10 @@ fn select_dispatch_case_literal_terminal_return(
             source_key,
             source_statement: edge.statement_index,
         });
-        return;
+        return true;
     }
     let ExpressionNode::StructLiteral(literal) = expressions.expression(value_expr) else {
-        return;
+        return false;
     };
     let type_name = literal.type_name.clone();
     let case_name = literal.case_name.clone();
@@ -973,7 +1020,7 @@ fn select_dispatch_case_literal_terminal_return(
         .find(|(_, data_layout)| data_layout.name == type_name)
         .map(|(_, data_layout)| data_layout);
     let Some(data_layout) = data_layout else {
-        return;
+        return false;
     };
     let (tag, payload_fields) = match (&data_layout.shape, &case_name) {
         (omega_layout::DataShape::Enum { variants, .. }, Some(case_name)) => {
@@ -984,7 +1031,7 @@ fn select_dispatch_case_literal_terminal_return(
                 .iter()
                 .find(|variant| variant.name == *case_name)
             else {
-                return;
+                return false;
             };
             let Some(tag) = input
                 .layouts
@@ -994,12 +1041,12 @@ fn select_dispatch_case_literal_terminal_return(
                 .position(|variant| variant.name == *case_name)
                 .and_then(|index| i64::try_from(index).ok())
             else {
-                return;
+                return false;
             };
             (Some(tag), variant.fields)
         }
         (omega_layout::DataShape::Record { fields }, None) => (None, *fields),
-        _ => return,
+        _ => return false,
     };
 
     let mut writes: Vec<FieldWrite> = Vec::new();
@@ -1013,7 +1060,7 @@ fn select_dispatch_case_literal_terminal_return(
         0,
         &mut writes,
     ) {
-        return;
+        return false;
     }
 
     // ZII: zero the whole slot (construction zero-initializes every field the
@@ -1067,6 +1114,7 @@ fn select_dispatch_case_literal_terminal_return(
             }
         }
     }
+    true
 }
 
 /// The arithmetic/bitwise operator subset a binary TERMINAL may compute with

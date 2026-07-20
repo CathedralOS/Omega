@@ -198,6 +198,11 @@ ceiling derived exactly from the ABI volatile-register classes.
    now compute before returning through `xmm0`/`d0`. Literal float terminals
    stage their exact IEEE bits through the same scratch-to-vector path; PE and
    Linux ARM64 source canaries pin both the bits and normalized register load.
+   Record and case-literal entry terminals likewise materialize through a
+   layout-sized, layout-aligned result place before consuming the same direct
+   fragments or saved hidden destination as runtime-backed records. One
+   source canary pins a two-word literal through SysV `rax`/`rdx`, AAPCS64
+   `x0`/`x1`, and the Microsoft x64 indirect-result path.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
    complete import/vtable/service-table compatibility mechanism matrix is
