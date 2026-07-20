@@ -216,9 +216,7 @@ fn call_receiver_base(
     // Single-segment param receiver: the environment answers absolutely.
     // (Param-ROOTED nested paths stay unrecoverable this round.)
     if field_segments.len() <= 1
-        && let Some((_, bound)) = env
-            .iter()
-            .find(|(name, _)| name.as_str() == receiver_name)
+        && let Some((_, bound)) = env.iter().find(|(name, _)| name.as_str() == receiver_name)
     {
         return Some(*bound);
     }
@@ -322,9 +320,7 @@ fn collect_expression_path_segments<'table>(
 ) -> bool {
     use omega_checked_trees::expression::ExpressionNode;
     match table.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            collect_expression_path_segments(table, *inner, segments)
-        }
+        ExpressionNode::Mutable(inner) => collect_expression_path_segments(table, *inner, segments),
         ExpressionNode::Name(path) => {
             segments.extend(table.name_path_members(path.members).iter());
             true

@@ -5,10 +5,9 @@ use omega_control_flow::{OperationKind, StateKey, StateParameterFlow};
 use omega_core::arena::Arena;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_runtime_branching::{
-    RuntimeLeafBranchExpansion,
-    RuntimeStraightLineBranchBinding, RuntimeStraightLineBranchBindingKind,
-    RuntimeStraightLineBranchExpansion, RuntimeStraightLineBranchOperation,
-    RuntimeStraightLineBranchOperationKind,
+    RuntimeLeafBranchExpansion, RuntimeStraightLineBranchBinding,
+    RuntimeStraightLineBranchBindingKind, RuntimeStraightLineBranchExpansion,
+    RuntimeStraightLineBranchOperation, RuntimeStraightLineBranchOperationKind,
 };
 
 use super::super::super::bindings::{
@@ -29,9 +28,7 @@ use super::super::writes::{
     RuntimeStaticValues, emit_runtime_frame_slot_slice_descriptor_write_in_table,
     runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,
 };
-use super::mutation::{
-    select_runtime_resolved_mutation_write_in_table_with_scratch,
-};
+use super::mutation::select_runtime_resolved_mutation_write_in_table_with_scratch;
 use super::prelude::{BranchPreludeSelectionScratch, select_runtime_branch_preludes_for_operation};
 use crate::selection::host_operations::select_host_call;
 use crate::selection::instruction_sink::SelectedInstructionSink;
@@ -60,12 +57,8 @@ pub(in crate::selection) fn select_runtime_straight_line_branch_expansions_for_o
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    let Some(root_scope_id) = root_scope_id_for_operation(
-        input,
-        dispatch_index,
-        operation,
-        false,
-    ) else {
+    let Some(root_scope_id) = root_scope_id_for_operation(input, dispatch_index, operation, false)
+    else {
         return;
     };
     select_runtime_branch_scope(
@@ -131,7 +124,10 @@ fn select_runtime_branch_scope(
         .runtime_branching_calls
         .straight_line_expansions
         .storage_slice();
-    let leaves = input.runtime_branching_calls.leaf_expansions.storage_slice();
+    let leaves = input
+        .runtime_branching_calls
+        .leaf_expansions
+        .storage_slice();
 
     // A synthetic self-target expansion is the nested call's entry prelude,
     // not a transition arm. It runs once before the root scope's edges.
@@ -173,12 +169,7 @@ fn select_runtime_branch_scope(
     }));
     arms.extend(leaves.iter().filter_map(|expansion| {
         (expansion.scope_id == scope_id
-            && leaf_expansion_matches_tree_operation(
-                expansion,
-                dispatch_index,
-                operation,
-                true,
-            ))
+            && leaf_expansion_matches_tree_operation(expansion, dispatch_index, operation, true))
         .then_some(RuntimeBranchTreeArm::Leaf(expansion))
     }));
     arms.sort_by_key(|arm| (arm.is_default(use_local_guard), arm.edge_order()));
@@ -572,7 +563,13 @@ fn select_runtime_straight_line_assignment_value_target_copy(
         && source_slot.byte_size > 0
     {
         selected_instructions.push(SelectedInstruction {
-            kind: crate::selection::runtime_dispatch::copy_places_to_pointee(RuntimeStorageRegion::RuntimeFrame, source_slot.byte_offset, pointer_target.pointer_byte_offset, pointer_target.field_byte_offset, source_slot.byte_size),
+            kind: crate::selection::runtime_dispatch::copy_places_to_pointee(
+                RuntimeStorageRegion::RuntimeFrame,
+                source_slot.byte_offset,
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                source_slot.byte_size,
+            ),
             source_key: expansion.source_key,
             source_statement: expansion.statement_index,
         });
@@ -592,7 +589,13 @@ fn select_runtime_straight_line_assignment_value_target_copy(
     }
 
     selected_instructions.push(SelectedInstruction {
-        kind: crate::selection::runtime_dispatch::copy_places_direct(RuntimeStorageRegion::RuntimeFrame, source_slot.byte_offset, target_place.region, target_place.byte_offset, source_slot.byte_size),
+        kind: crate::selection::runtime_dispatch::copy_places_direct(
+            RuntimeStorageRegion::RuntimeFrame,
+            source_slot.byte_offset,
+            target_place.region,
+            target_place.byte_offset,
+            source_slot.byte_size,
+        ),
         source_key: expansion.source_key,
         source_statement: expansion.statement_index,
     });
@@ -854,10 +857,22 @@ fn fold_straight_line_prior_local_names(
     match expressions.expression(expression).clone() {
         ExpressionNode::Binary(binary) => {
             let left = fold_straight_line_prior_local_names(
-                input, state_key, dispatch_index, expressions, binary.left, bindings, statement_bound,
+                input,
+                state_key,
+                dispatch_index,
+                expressions,
+                binary.left,
+                bindings,
+                statement_bound,
             );
             let right = fold_straight_line_prior_local_names(
-                input, state_key, dispatch_index, expressions, binary.right, bindings, statement_bound,
+                input,
+                state_key,
+                dispatch_index,
+                expressions,
+                binary.right,
+                bindings,
+                statement_bound,
             );
             if left == binary.left && right == binary.right {
                 return expression;
@@ -872,7 +887,13 @@ fn fold_straight_line_prior_local_names(
         }
         ExpressionNode::Unary(unary) => {
             let operand = fold_straight_line_prior_local_names(
-                input, state_key, dispatch_index, expressions, unary.operand, bindings, statement_bound,
+                input,
+                state_key,
+                dispatch_index,
+                expressions,
+                unary.operand,
+                bindings,
+                statement_bound,
             );
             if operand == unary.operand {
                 return expression;
@@ -886,7 +907,13 @@ fn fold_straight_line_prior_local_names(
         }
         ExpressionNode::Cast(cast) => {
             let value = fold_straight_line_prior_local_names(
-                input, state_key, dispatch_index, expressions, cast.value, bindings, statement_bound,
+                input,
+                state_key,
+                dispatch_index,
+                expressions,
+                cast.value,
+                bindings,
+                statement_bound,
             );
             if value == cast.value {
                 return expression;
@@ -903,7 +930,13 @@ fn fold_straight_line_prior_local_names(
         }
         ExpressionNode::Mutable(inner) => {
             let resolved = fold_straight_line_prior_local_names(
-                input, state_key, dispatch_index, expressions, inner, bindings, statement_bound,
+                input,
+                state_key,
+                dispatch_index,
+                expressions,
+                inner,
+                bindings,
+                statement_bound,
             );
             if resolved == inner {
                 return expression;
@@ -968,8 +1001,7 @@ fn fold_straight_line_prior_local_names(
             if has_slot {
                 return expression;
             }
-            let initializer =
-                expressions.copy_from(&input.program.expression_table, initial_value);
+            let initializer = expressions.copy_from(&input.program.expression_table, initial_value);
             let bound = resolve_straight_line_binding_expression_handle(
                 &input.runtime_branching_calls.expressions,
                 expressions,
@@ -977,7 +1009,13 @@ fn fold_straight_line_prior_local_names(
                 bindings,
             );
             fold_straight_line_prior_local_names(
-                input, state_key, dispatch_index, expressions, bound, bindings, local_index,
+                input,
+                state_key,
+                dispatch_index,
+                expressions,
+                bound,
+                bindings,
+                local_index,
             )
         }
         _ => expression,
@@ -1333,7 +1371,13 @@ pub(in crate::selection) fn select_assignment_value_call_result_local_copy(
         return;
     }
     selected_instructions.push(SelectedInstruction {
-        kind: crate::selection::runtime_dispatch::copy_places_direct(RuntimeStorageRegion::RuntimeFrame, source_slot.byte_offset, RuntimeStorageRegion::RuntimeFrame, target_slot.byte_offset, source_slot.byte_size),
+        kind: crate::selection::runtime_dispatch::copy_places_direct(
+            RuntimeStorageRegion::RuntimeFrame,
+            source_slot.byte_offset,
+            RuntimeStorageRegion::RuntimeFrame,
+            target_slot.byte_offset,
+            source_slot.byte_size,
+        ),
         source_key,
         source_statement: statement_index,
     });
@@ -1436,7 +1480,6 @@ fn select_runtime_straight_line_inline_state_call(
         &mut StateBodyVisitStack::with_capacity(input.control_flow.states.len()),
     );
 }
-
 
 #[allow(clippy::too_many_arguments)]
 fn select_runtime_straight_line_leaf_state_call_writes(

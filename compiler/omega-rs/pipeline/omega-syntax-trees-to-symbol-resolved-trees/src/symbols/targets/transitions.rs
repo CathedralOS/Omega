@@ -168,13 +168,15 @@ fn reclassify_state_call_value_target(
     let mut path = HandleSpan::empty();
     statement_path_members.append_to_span(&mut path, call.target.clone());
 
-    Some(omega_symbol_resolved_trees::statement::NamedTransitionTarget {
-        head_symbol: state_symbol,
-        symbol: state_symbol,
-        storage: omega_symbol_resolved_trees::statement::NamedTransitionTargetStorage {
-            path,
-            path_starts_at_self: false,
-            arguments: call.arguments,
+    Some(
+        omega_symbol_resolved_trees::statement::NamedTransitionTarget {
+            head_symbol: state_symbol,
+            symbol: state_symbol,
+            storage: omega_symbol_resolved_trees::statement::NamedTransitionTargetStorage {
+                path,
+                path_starts_at_self: false,
+                arguments: call.arguments,
+            },
         },
-    })
+    )
 }

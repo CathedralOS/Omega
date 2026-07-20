@@ -190,7 +190,8 @@ pub(super) fn collect_runtime_storage_string_relocations(
             // base materialization. A frame-local source adds a second base
             // (the runtime frame) right after it -- `mov r14, imm64` on x86_64,
             // an `adrp`+`add` pair on aarch64 -- at the arch-aware offset.
-            context.insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
+            context
+                .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
             if *source_in_frame {
                 context.insert_data_address_at_relative_offset(
                     bounded_buffer_source_append_frame_address_offset(
@@ -204,7 +205,8 @@ pub(super) fn collect_runtime_storage_string_relocations(
         SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral { .. } => {
             // The literal bytes are immediates; the target carrier is machine-
             // resident off the leading `mov r15, imm64` base -- the only reloc.
-            context.insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
+            context
+                .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
             true
         }
         _ => false,

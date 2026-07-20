@@ -88,32 +88,28 @@ pub(crate) fn state_ownership_summary(
                 .then_some(event)
         })
     {
-        state_graph
-            .semantics
-            .ownership
-            .permissions
-            .append_to_span(
-                &mut permissions,
-                StatePermissionEvent {
-                    source: event.source,
-                    kind: event.kind,
-                    multiplicity: event.multiplicity,
-                    access: event.access,
-                    provenance: event.provenance,
-                    root: event.root,
-                    segments: state_graph.semantics.ownership.segments.insert_many(
-                        program
-                            .facts
-                            .flow
-                            .ownership
-                            .segments
-                            .span_or_empty(event.segments)
-                            .iter()
-                            .copied(),
-                    ),
-                    obligation_live: event.obligation_live,
-                },
-            );
+        state_graph.semantics.ownership.permissions.append_to_span(
+            &mut permissions,
+            StatePermissionEvent {
+                source: event.source,
+                kind: event.kind,
+                multiplicity: event.multiplicity,
+                access: event.access,
+                provenance: event.provenance,
+                root: event.root,
+                segments: state_graph.semantics.ownership.segments.insert_many(
+                    program
+                        .facts
+                        .flow
+                        .ownership
+                        .segments
+                        .span_or_empty(event.segments)
+                        .iter()
+                        .copied(),
+                ),
+                obligation_live: event.obligation_live,
+            },
+        );
     }
 
     StateOwnershipSummary {

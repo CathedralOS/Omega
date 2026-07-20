@@ -38,7 +38,7 @@ pub fn compile_to_checked(
     )?;
     // TARGET-SCOPED MACHINES -- exactly as the full `compile` pipeline does:
     // the interpreter runs the SELECTED target's implementations.
-    crate::pipeline::target_machines::filter_target_machines(
+    let target_default_machine_names = crate::pipeline::target_machines::filter_target_machines(
         &mut syntax.syntax_trees,
         target_name,
     )?;
@@ -67,6 +67,10 @@ pub fn compile_to_checked(
     crate::pipeline::wire_plans::compute_wire_plans(&mut typed)?;
     let build_config =
         crate::pipeline::build_config::compute_build_config(&typed, &build_file_machine_names)?;
+    let target_provider_defaults = crate::pipeline::build_config::compute_target_provider_defaults(
+        &typed,
+        &target_default_machine_names,
+    )?;
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
@@ -87,6 +91,7 @@ pub fn compile_to_checked(
     let selected_provider_plans = crate::pipeline::provider_plans::select_provider_plan_names(
         &provider_plans,
         selected_native_target,
+        &target_provider_defaults,
         &build_config.provider_selections,
     )?;
     crate::pipeline::adapter_dispatch::rewrite_adapter_calls(

@@ -111,9 +111,7 @@ pub fn build_runtime_branching_call_plan(
             // prelude operations, no nested-callee expansions, and no value-selection
             // leafs -- their guard comparisons re-read the shared slot.
             let mut repeated_guard_subject = false;
-            if has_prelude
-                && state_call.role == omega_state_calls::StateCallRole::TransitionGuard
-            {
+            if has_prelude && state_call.role == omega_state_calls::StateCallRole::TransitionGuard {
                 let subject = context
                     .control_flow
                     .transition_guard_subject_call(operation.source_key, operation.statement_index);

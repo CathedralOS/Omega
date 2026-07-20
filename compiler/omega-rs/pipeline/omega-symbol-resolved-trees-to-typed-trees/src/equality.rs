@@ -33,7 +33,12 @@ pub(crate) fn validate_equality_operands(program: &SymbolResolvedTrees) -> Resul
 
         for state_handle in program.machine_state_handles(machine.states) {
             let state = program.machine_state(*state_handle);
-            for statement in program.tables.bodies.statements.statements(state.statement_nodes) {
+            for statement in program
+                .tables
+                .bodies
+                .statements
+                .statements(state.statement_nodes)
+            {
                 scan_statement(program, statement)?;
             }
         }
@@ -88,7 +93,9 @@ fn scan_statement(
             Ok(())
         }
         StatementNode::Expression(expression) => scan_expression(program, *expression, false),
-        StatementNode::LocalData(local_data) => scan_expression(program, local_data.initial_value, false),
+        StatementNode::LocalData(local_data) => {
+            scan_expression(program, local_data.initial_value, false)
+        }
         StatementNode::Transition(transition) => {
             if let TransitionGuardNode::When(guard) = transition.guard {
                 scan_expression(program, guard, false)?;
@@ -167,7 +174,9 @@ fn scan_expression(
         ExpressionNode::Member(member) => scan_expression(program, member.receiver, fact_position),
         // The membership DOMAIN is a name path, not a value: a bare case
         // name is exactly what `in` is for, so only the subject is scanned.
-        ExpressionNode::Membership(membership) => scan_expression(program, membership.value, fact_position),
+        ExpressionNode::Membership(membership) => {
+            scan_expression(program, membership.value, fact_position)
+        }
         ExpressionNode::Mutable(inner) => scan_expression(program, *inner, fact_position),
         ExpressionNode::Range(range) => {
             scan_expression(program, range.start, fact_position)?;
@@ -280,15 +289,18 @@ pub(crate) fn data_is_directly_recursive(program: &SymbolResolvedTrees, type_nam
     else {
         return false;
     };
-    program.data_members(definition.members).iter().any(|member| {
-        let fields = match member {
-            DataMember::Field(field) => std::slice::from_ref(field),
-            DataMember::Variant(variant) => program.data_payload_fields(variant.payload),
-        };
-        fields
-            .iter()
-            .any(|field| type_reference_names(&field.type_reference, type_name))
-    })
+    program
+        .data_members(definition.members)
+        .iter()
+        .any(|member| {
+            let fields = match member {
+                DataMember::Field(field) => std::slice::from_ref(field),
+                DataMember::Variant(variant) => program.data_payload_fields(variant.payload),
+            };
+            fields
+                .iter()
+                .any(|field| type_reference_names(&field.type_reference, type_name))
+        })
 }
 
 /// Whether a declaration-storage type reference names `goal` inline (named

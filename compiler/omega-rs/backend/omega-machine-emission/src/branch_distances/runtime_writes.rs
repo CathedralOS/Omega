@@ -29,9 +29,7 @@ pub(crate) fn byte_distance_to_branch_arms_end(
     let target = machine_instructions
         .iter()
         .skip(machine_instruction_index + 1)
-        .find(|instruction| {
-            branch_arms_end_scope_id(input, instruction) == Some(branch_scope_id)
-        })
+        .find(|instruction| branch_arms_end_scope_id(input, instruction) == Some(branch_scope_id))
         .ok_or_else(|| {
             Diagnostic::error(format!(
                 "cannot encode forward branch skip at byte {}: missing BranchArmsEnd marker",
@@ -220,10 +218,9 @@ fn next_guarded_runtime_write_target_offset(
     let current_site =
         selected_instruction_site(input, machine_instructions.get(machine_instruction_index)?);
 
-    if let Some(scope_id) = enclosing_branch_scope_id(
-        machine_instructions,
-        machine_instruction_index,
-    ) {
+    if let Some(scope_id) =
+        enclosing_branch_scope_id(machine_instructions, machine_instruction_index)
+    {
         for instruction in machine_instructions
             .iter()
             .skip(machine_instruction_index + 1)

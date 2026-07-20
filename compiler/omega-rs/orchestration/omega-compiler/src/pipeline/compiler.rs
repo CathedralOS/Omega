@@ -291,10 +291,11 @@ impl Compiler {
         // the SELECTED target's `<target> machine` implementations become
         // ordinary machines; every other target's stay inert. Loud edges:
         // duplicate / missing implementations for the selected target.
-        crate::pipeline::target_machines::filter_target_machines(
-            &mut syntax.syntax_trees,
-            self.options.target_name.as_deref(),
-        )?;
+        let target_default_machine_names =
+            crate::pipeline::target_machines::filter_target_machines(
+                &mut syntax.syntax_trees,
+                self.options.target_name.as_deref(),
+            )?;
         // The BUILD-MACHINE identity is FILE-based (owner answer #3:
         // build.omg is the home; a `Builder::build` in ordinary source is
         // just a machine): collect the machines declared at build.omg roots
@@ -345,6 +346,11 @@ impl Compiler {
         // `target { subsystem }` word is the fallback until its removal.
         let build_config =
             crate::pipeline::build_config::compute_build_config(&typed, &build_file_machine_names)?;
+        let target_provider_defaults =
+            crate::pipeline::build_config::compute_target_provider_defaults(
+                &typed,
+                &target_default_machine_names,
+            )?;
         let build_machine_present = typed.machines().iter().any(|machine| {
             crate::pipeline::build_config::is_build_machine(machine, &build_file_machine_names)
         });
@@ -375,6 +381,7 @@ impl Compiler {
         let selected_provider_plans = crate::pipeline::provider_plans::select_provider_plan_names(
             &provider_plans,
             selected_native_target,
+            &target_provider_defaults,
             &build_config.provider_selections,
         )?;
         // PRV4 adapter dispatch (both engines, before checking): only the

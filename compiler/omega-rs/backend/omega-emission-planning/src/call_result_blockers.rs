@@ -67,15 +67,18 @@ pub(crate) fn collect_call_result_return_blockers(
                 call_result.call_source_key,
                 call_result.statement_index,
             );
-            let served = input.instructions.code.instructions.iter().any(
-                |(_, instruction)| {
+            let served = input
+                .instructions
+                .code
+                .instructions
+                .iter()
+                .any(|(_, instruction)| {
                     if instruction.source_key.machine != case.key.machine
                         || instruction.source_key.state != case.key.state
                     {
                         return false;
                     }
-                    let Some((is_frame, start, end)) =
-                        instruction_write_target(&instruction.kind)
+                    let Some((is_frame, start, end)) = instruction_write_target(&instruction.kind)
                     else {
                         return false;
                     };
@@ -85,8 +88,7 @@ pub(crate) fn collect_call_result_return_blockers(
                     slot_ranges
                         .iter()
                         .any(|(_, lo, hi)| start < *hi && end > *lo)
-                },
-            );
+                });
             if served {
                 continue;
             }

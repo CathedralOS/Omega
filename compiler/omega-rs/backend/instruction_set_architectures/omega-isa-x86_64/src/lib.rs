@@ -213,9 +213,7 @@ pub const fn control_register_read_width() -> usize {
     4 + CONTROL_REGISTER_DESTINATION_STORE_WIDTH
 }
 
-const fn control_register_modrm(
-    register: omega_core::inline_assembly::AsmControlRegister,
-) -> u8 {
+const fn control_register_modrm(register: omega_core::inline_assembly::AsmControlRegister) -> u8 {
     use omega_core::inline_assembly::AsmControlRegister;
     match register {
         AsmControlRegister::Cr0 => 0xc2,
@@ -363,9 +361,7 @@ pub fn runtime_storage_copy_to_return_register_width(
 /// relocation machinery adds the +2 to reach its immediate).
 pub const MACHINE_INDEXED_ADDRESS_INDEX_BASE_IMM_OFFSET: usize = 10;
 
-fn x86_gpr_number(
-    register: omega_calling_conventions::MachineRegister,
-) -> Option<u8> {
+fn x86_gpr_number(register: omega_calling_conventions::MachineRegister) -> Option<u8> {
     Some(match register {
         omega_calling_conventions::MachineRegister::X86Rax => 0,
         omega_calling_conventions::MachineRegister::X86Rcx => 1,
@@ -413,9 +409,8 @@ pub fn encode_entry_argument_register_write_bytes(
                 "x86-64 entry prologue cannot store {byte_size} bytes from XMM{register_index}"
             )));
         }
-        let mut bytes = Vec::with_capacity(entry_argument_register_write_width(
-            register, byte_size,
-        ));
+        let mut bytes =
+            Vec::with_capacity(entry_argument_register_write_width(register, byte_size));
         append_mov_r15_imm64(&mut bytes, 0);
         // movss/movsd [r15+disp32], xmmN. The mandatory F3/F2 prefix precedes
         // REX; B names r15 and R extends XMM8..15.
@@ -444,8 +439,8 @@ pub fn encode_entry_argument_register_write_bytes(
     if byte_size == 2 {
         bytes.push(0x66);
     }
-    let rex = (if byte_size == 8 { 0x49 } else { 0x41 })
-        | if register_number >= 8 { 0x04 } else { 0 };
+    let rex =
+        (if byte_size == 8 { 0x49 } else { 0x41 }) | if register_number >= 8 { 0x04 } else { 0 };
     let modrm = 0x87 | ((register_number & 7) << 3);
     bytes.extend([rex, if byte_size == 1 { 0x88 } else { 0x89 }, modrm]);
     bytes.extend(disp32(byte_offset)?.to_le_bytes());
@@ -517,12 +512,8 @@ mod entry_argument_register_tests {
 
     #[test]
     fn scalar_float_entry_arguments_store_from_the_selected_xmm_register() {
-        let bytes = encode_entry_argument_register_write_bytes(
-            MachineRegister::X86Xmm(8),
-            8,
-            8,
-        )
-        .expect("movsd entry store");
+        let bytes = encode_entry_argument_register_write_bytes(MachineRegister::X86Xmm(8), 8, 8)
+            .expect("movsd entry store");
         assert_eq!(bytes.len(), 19);
         assert_eq!(&bytes[10..15], &[0xf2, 0x45, 0x0f, 0x11, 0x87]);
         assert_eq!(&bytes[15..19], &8i32.to_le_bytes());
@@ -530,19 +521,15 @@ mod entry_argument_register_tests {
 
     #[test]
     fn scalar_float_entry_arguments_reject_non_scalar_widths() {
-        let error = encode_entry_argument_register_write_bytes(
-            MachineRegister::X86Xmm(0),
-            0,
-            16,
-        )
-        .expect_err("unclassified vector argument must reject");
+        let error = encode_entry_argument_register_write_bytes(MachineRegister::X86Xmm(0), 0, 16)
+            .expect_err("unclassified vector argument must reject");
         assert!(error.message.contains("cannot store 16 bytes"));
     }
 
     #[test]
     fn ms_x64_fifth_argument_loads_after_return_address_and_shadow_space() {
-        let bytes = encode_entry_stack_argument_write_bytes(32, 24, 8)
-            .expect("incoming stack copy");
+        let bytes =
+            encode_entry_stack_argument_write_bytes(32, 24, 8).expect("incoming stack copy");
         assert_eq!(bytes.len(), 25);
         assert_eq!(&bytes[10..18], &[0x4c, 0x8b, 0x94, 0x24, 40, 0, 0, 0]);
         assert_eq!(&bytes[18..25], &[0x4d, 0x89, 0x97, 24, 0, 0, 0]);
@@ -745,7 +732,10 @@ pub fn encode_return_register_integer_write_bytes(
     })?;
     let mut bytes = Vec::with_capacity(return_register_integer_write_width(register, byte_size));
     if byte_size == 8 {
-        bytes.extend([0x48 | u8::from(register_number >= 8), 0xb8 + (register_number & 7)]);
+        bytes.extend([
+            0x48 | u8::from(register_number >= 8),
+            0xb8 + (register_number & 7),
+        ]);
         bytes.extend(value.to_le_bytes());
     } else {
         let value = i32::try_from(value).map_err(|_| {
@@ -759,7 +749,10 @@ pub fn encode_return_register_integer_write_bytes(
         bytes.push(0xb8 + (register_number & 7));
         bytes.extend(value.to_le_bytes());
     }
-    debug_assert_eq!(bytes.len(), return_register_integer_write_width(register, byte_size));
+    debug_assert_eq!(
+        bytes.len(),
+        return_register_integer_write_width(register, byte_size)
+    );
     Ok(bytes)
 }
 
@@ -814,23 +807,16 @@ mod result_register_tests {
 
     #[test]
     fn constant_result_uses_the_plan_selected_high_gpr() {
-        let bytes = encode_return_register_integer_write_bytes(
-            MachineRegister::X86R9,
-            4,
-            7,
-        )
-        .expect("r9d result write");
+        let bytes = encode_return_register_integer_write_bytes(MachineRegister::X86R9, 4, 7)
+            .expect("r9d result write");
         assert_eq!(bytes, [0x41, 0xb9, 7, 0, 0, 0]);
     }
 
     #[test]
     fn runtime_result_load_uses_the_plan_selected_high_gpr() {
-        let bytes = encode_runtime_storage_copy_to_return_register_bytes(
-            MachineRegister::X86R10,
-            16,
-            4,
-        )
-        .expect("r10d result load");
+        let bytes =
+            encode_runtime_storage_copy_to_return_register_bytes(MachineRegister::X86R10, 16, 4)
+                .expect("r10d result load");
         assert_eq!(&bytes[10..17], &[0x45, 0x8b, 0x97, 16, 0, 0, 0]);
     }
 }
@@ -1150,11 +1136,7 @@ pub fn encode_syscall_sequence<T: InstructionOperandLike>(
             bytes.extend(value.to_le_bytes());
         }
     }
-    append_mov_syscall_register_imm64(
-        &mut bytes,
-        number_register,
-        u64::from(syscall_number),
-    )?;
+    append_mov_syscall_register_imm64(&mut bytes, number_register, u64::from(syscall_number))?;
     bytes.extend([0x0f, 0x05]); // syscall
     debug_assert_eq!(bytes.len(), syscall_sequence_width(operands));
     Ok(bytes)
@@ -10781,7 +10763,10 @@ mod machine_control_tests {
         let bytes = encode_msr_read(&source, index, 24).expect("encode RDMSR");
         assert_eq!(bytes.len(), msr_read_width(&source, index));
         assert_eq!(&bytes[10..15], &[0x44, 0x89, 0xd1, 0x0f, 0x32]);
-        assert_eq!(&bytes[15..25], &[0x41, 0x89, 0xc2, 0x48, 0xc1, 0xe2, 0x20, 0x49, 0x09, 0xd2]);
+        assert_eq!(
+            &bytes[15..25],
+            &[0x41, 0x89, 0xc2, 0x48, 0xc1, 0xe2, 0x20, 0x49, 0x09, 0xd2]
+        );
         assert_eq!(msr_read_destination_base_offset(&source, index), 25);
         assert_eq!(&bytes[25..27], &[0x49, 0xbf]);
         assert_eq!(&bytes[35..38], &[0x4d, 0x89, 0x97]);
@@ -10834,8 +10819,8 @@ mod machine_control_tests {
             (AsmControlRegister::Cr3, 0xda),
             (AsmControlRegister::Cr4, 0xe2),
         ] {
-            let bytes = encode_control_register_write(&source, register, value)
-                .expect("encode MOV to CR");
+            let bytes =
+                encode_control_register_write(&source, register, value).expect("encode MOV to CR");
             assert_eq!(bytes.len(), control_register_write_width(&source, value));
             assert_eq!(&bytes[0..2], &[0x49, 0xba]);
             assert_eq!(&bytes[2..10], &0x1122_3344_5566_7788u64.to_le_bytes());
@@ -11455,17 +11440,16 @@ mod byte_io_width_tests {
         for (target_offset, payload_offset) in [(0usize, 4usize), (8, 4), (48, 4)] {
             let import = encode_runtime_byte_read_import(target_offset, payload_offset).unwrap();
             assert_eq!(import.len(), runtime_byte_read_import_width());
-            let syscall =
-                encode_runtime_byte_read_syscall(
-                    target_offset,
-                    payload_offset,
-                    0,
-                    &PARAMETERS,
-                    MachineRegister::X86Rax,
-                    MachineRegister::X86Rax,
-                    0,
-                )
-                .unwrap();
+            let syscall = encode_runtime_byte_read_syscall(
+                target_offset,
+                payload_offset,
+                0,
+                &PARAMETERS,
+                MachineRegister::X86Rax,
+                MachineRegister::X86Rax,
+                0,
+            )
+            .unwrap();
             assert_eq!(syscall.len(), runtime_byte_read_syscall_width());
         }
         for source_offset in [0usize, 8, 48] {
@@ -11501,6 +11485,10 @@ mod byte_io_width_tests {
         )
         .unwrap_err();
 
-        assert!(diagnostic.message.contains("cannot realize normalized plan"));
+        assert!(
+            diagnostic
+                .message
+                .contains("cannot realize normalized plan")
+        );
     }
 }

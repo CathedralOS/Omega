@@ -113,18 +113,12 @@ pub(super) fn leaf_local_initializer_operations(
             matches!(operation.kind, omega_control_flow::OperationKind::LocalData)
                 && state_call_for_operation(context, source_key, operation.statement_index)
                     .is_none()
-                && host_call_for_statement(context, source_key, operation.statement_index)
-                    .is_none()
+                && host_call_for_statement(context, source_key, operation.statement_index).is_none()
         })
         .map(|operation| RuntimeLeafBranchOperation {
             source_key,
             statement_index: operation.statement_index,
-            kind: leaf_operation_kind(
-                context,
-                expressions,
-                source_key,
-                operation.statement_index,
-            ),
+            kind: leaf_operation_kind(context, expressions, source_key, operation.statement_index),
         })
         .collect();
     output_operations.insert_many(kept)

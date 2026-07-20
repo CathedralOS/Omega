@@ -1199,7 +1199,7 @@ fn select_entry_argument_register_writes(
                     slot.kind,
                     omega_runtime_storage::RuntimeFrameSlotKind::Parameter
                 ) && slot.source_key == input.entry_key)
-                .then_some(slot.byte_offset)
+                    .then_some(slot.byte_offset)
             });
         let Some(descriptor_offset) = descriptor_offset else {
             return;
@@ -1234,11 +1234,11 @@ fn select_entry_argument_register_writes(
                 slot.kind,
                 omega_runtime_storage::RuntimeFrameSlotKind::Parameter
             ) && slot.source_key == input.entry_key)
-            .then(|| {
-                entry_slot_value_shape(input, slot)
-                    .map(|shape| (slot.byte_offset, slot.byte_size, shape))
-            })
-            .flatten()
+                .then(|| {
+                    entry_slot_value_shape(input, slot)
+                        .map(|shape| (slot.byte_offset, slot.byte_size, shape))
+                })
+                .flatten()
         })
         .collect();
     let declared_parameter_count = input
@@ -1297,9 +1297,10 @@ fn select_entry_argument_register_writes(
     // A mixed/multi-parameter signature must therefore retain the previous
     // no-prologue behavior rather than turning the plan evaluator's directed
     // "not normalized yet" result into a compiler panic.
-    if destinations.iter().any(|(_, shape)| {
-        matches!(shape.class, ValueClass::Integer) && shape.byte_size > 8
-    }) {
+    if destinations
+        .iter()
+        .any(|(_, shape)| matches!(shape.class, ValueClass::Integer) && shape.byte_size > 8)
+    {
         return;
     }
     select_normalized_entry_argument_writes(input, &destinations, selected_instructions);
@@ -1364,11 +1365,13 @@ pub(super) fn normalized_entry_integer_result_register(
     let result = plan
         .result
         .expect("integer-result call plan must place its result");
-    let [ValueLocation::Register {
-        register,
-        value_byte_offset: 0,
-        byte_size: 4,
-    }] = result.locations.as_slice()
+    let [
+        ValueLocation::Register {
+            register,
+            value_byte_offset: 0,
+            byte_size: 4,
+        },
+    ] = result.locations.as_slice()
     else {
         panic!("integer-result call plan must select one complete register");
     };
@@ -1405,7 +1408,8 @@ fn entry_slot_value_shape(
     };
 
     if CallingPolicy::native_for_target(input.target) == CallingPolicy::Aapcs64
-        && let Some(shape) = flat_homogeneous_float_aggregate_shape(input, fields, data_layout.layout)
+        && let Some(shape) =
+            flat_homogeneous_float_aggregate_shape(input, fields, data_layout.layout)
     {
         return Some(shape);
     }
@@ -1420,9 +1424,7 @@ fn entry_slot_value_shape(
         .iter()
         .find(|machine| machine.symbol == input.entry_key.machine)
         .is_some_and(|machine| machine.boundary);
-    if byte_size <= 8
-        || (entry_is_boundary && byte_size <= 32 && byte_size.is_multiple_of(8))
-    {
+    if byte_size <= 8 || (entry_is_boundary && byte_size <= 32 && byte_size.is_multiple_of(8)) {
         return Some(ValueShape::integer(byte_size, alignment));
     }
     None
@@ -1655,8 +1657,8 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                         operation.statement_index,
                     ) {
                         let alias_bindings = runtime_aliases.bindings();
-                        let alias_context = (!alias_bindings.is_empty()).then_some(
-                            RuntimeAliasResolutionContext {
+                        let alias_context =
+                            (!alias_bindings.is_empty()).then_some(RuntimeAliasResolutionContext {
                                 aliases: alias_bindings,
                                 alias_expressions: &runtime_alias_expressions,
                             });
@@ -1771,10 +1773,8 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     operation,
                 ) && {
                     // Case A: the caller's own LocalStorage for this statement.
-                    let has_caller_local = operations
-                        .iter()
-                        .skip(operation_index + 1)
-                        .any(|later| {
+                    let has_caller_local =
+                        operations.iter().skip(operation_index + 1).any(|later| {
                             matches!(
                                 later.kind,
                                 RuntimeDispatchBodyOperationKind::LocalStorage { .. }
@@ -1798,8 +1798,8 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     // OWN value call splices the nested callee's ops (a third
                     // key) BETWEEN the callee's entry ops and its store (face
                     // #5: `self.flag = self.helper.check(1)` in the callee).
-                    let has_callee_local = state_call_target_key(operation).is_some_and(
-                        |target_key| {
+                    let has_callee_local =
+                        state_call_target_key(operation).is_some_and(|target_key| {
                             operations
                                 .iter()
                                 .skip(operation_index + 1)
@@ -1847,7 +1847,10 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     );
                 }
 
-                if matches!(operation.kind, RuntimeDispatchBodyOperationKind::MachineHalt) {
+                if matches!(
+                    operation.kind,
+                    RuntimeDispatchBodyOperationKind::MachineHalt
+                ) {
                     selected_instructions.push(SelectedInstruction {
                         kind: SelectedInstructionKind::MachineHalt,
                         source_key: operation.source_key,
@@ -1899,12 +1902,11 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                 }
 
                 if matches!(operation.kind, RuntimeDispatchBodyOperationKind::MsrWrite)
-                    && let Some((index_expr, value_expr)) =
-                        super::lookups::asm_msr_write_operands(
-                            input,
-                            operation.source_key,
-                            operation.statement_index,
-                        )
+                    && let Some((index_expr, value_expr)) = super::lookups::asm_msr_write_operands(
+                        input,
+                        operation.source_key,
+                        operation.statement_index,
+                    )
                 {
                     let scratch = writes::RuntimeStaticValues::with_capacity(0);
                     let index = writes::mutation::resolve_runtime_value_operand_in_table(
@@ -1937,12 +1939,11 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                 }
 
                 if matches!(operation.kind, RuntimeDispatchBodyOperationKind::MsrRead)
-                    && let Some((index_expr, dest_expr)) =
-                        super::lookups::asm_msr_read_operands(
-                            input,
-                            operation.source_key,
-                            operation.statement_index,
-                        )
+                    && let Some((index_expr, dest_expr)) = super::lookups::asm_msr_read_operands(
+                        input,
+                        operation.source_key,
+                        operation.statement_index,
+                    )
                 {
                     let scratch = writes::RuntimeStaticValues::with_capacity(0);
                     let index = writes::mutation::resolve_runtime_value_operand_in_table(
@@ -1955,13 +1956,14 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                         &scratch,
                         runtime_value_operands,
                     );
-                    let dest = crate::selection::storage_places::resolve_runtime_storage_place_in_table(
-                        input,
-                        dispatch_case.dispatch_index,
-                        operation.source_key,
-                        &input.state_storage.expressions,
-                        dest_expr,
-                    );
+                    let dest =
+                        crate::selection::storage_places::resolve_runtime_storage_place_in_table(
+                            input,
+                            dispatch_case.dispatch_index,
+                            operation.source_key,
+                            &input.state_storage.expressions,
+                            dest_expr,
+                        );
                     if let (Some(index), Some(dest)) = (index, dest) {
                         selected_instructions.push(SelectedInstruction {
                             kind: SelectedInstructionKind::MsrRead {
@@ -2015,13 +2017,14 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                             operation.statement_index,
                         )
                 {
-                    let dest = crate::selection::storage_places::resolve_runtime_storage_place_in_table(
-                        input,
-                        dispatch_case.dispatch_index,
-                        operation.source_key,
-                        &input.state_storage.expressions,
-                        dest_expr,
-                    );
+                    let dest =
+                        crate::selection::storage_places::resolve_runtime_storage_place_in_table(
+                            input,
+                            dispatch_case.dispatch_index,
+                            operation.source_key,
+                            &input.state_storage.expressions,
+                            dest_expr,
+                        );
                     if let Some(dest) = dest {
                         selected_instructions.push(SelectedInstruction {
                             kind: SelectedInstructionKind::ControlRegisterRead {
@@ -2090,13 +2093,14 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                         &scratch,
                         runtime_value_operands,
                     );
-                    let dest = crate::selection::storage_places::resolve_runtime_storage_place_in_table(
-                        input,
-                        dispatch_case.dispatch_index,
-                        operation.source_key,
-                        &input.state_storage.expressions,
-                        dest_expr,
-                    );
+                    let dest =
+                        crate::selection::storage_places::resolve_runtime_storage_place_in_table(
+                            input,
+                            dispatch_case.dispatch_index,
+                            operation.source_key,
+                            &input.state_storage.expressions,
+                            dest_expr,
+                        );
                     if let (Some(port), Some(dest)) = (port, dest) {
                         selected_instructions.push(SelectedInstruction {
                             kind: SelectedInstructionKind::PortRead {
@@ -2347,13 +2351,14 @@ fn select_runtime_dispatch_local_initializer_write(
             });
         let source = cast.value;
         if let Some(size) = target_size
-            && let Some(place) = crate::selection::storage_places::resolve_runtime_storage_place_in_table(
-                input,
-                dispatch_index,
-                resolved_initializer_source_key,
-                expressions,
-                source,
-            )
+            && let Some(place) =
+                crate::selection::storage_places::resolve_runtime_storage_place_in_table(
+                    input,
+                    dispatch_index,
+                    resolved_initializer_source_key,
+                    expressions,
+                    source,
+                )
             && size != place.byte_count
         {
             // A wide named-record reference follows the same address model
@@ -2396,13 +2401,14 @@ fn select_runtime_dispatch_local_initializer_write(
         // walk). At or under pointer width the slot stays a content copy
         // (the pinned `&u32`/`&f32` shape) and reads stay flat.
         if let Some(size) = target_size
-            && let Some(indexed) = crate::selection::storage_places::resolve_runtime_machine_indexed_target_in_table(
-                input,
-                dispatch_index,
-                resolved_initializer_source_key,
-                expressions,
-                source,
-            )
+            && let Some(indexed) =
+                crate::selection::storage_places::resolve_runtime_machine_indexed_target_in_table(
+                    input,
+                    dispatch_index,
+                    resolved_initializer_source_key,
+                    expressions,
+                    source,
+                )
         {
             let kind = if size > input.runtime_abi.pointer_size {
                 write_place_address_machine_indexed(
@@ -2616,9 +2622,7 @@ fn strip_recast_initializer(
     initializer: ExpressionHandle,
 ) -> ExpressionHandle {
     match expressions.expression(initializer) {
-        omega_checked_trees::expression::ExpressionNode::Cast(cast)
-            if cast.form.is_recast() =>
-        {
+        omega_checked_trees::expression::ExpressionNode::Cast(cast) if cast.form.is_recast() => {
             cast.value
         }
         _ => initializer,

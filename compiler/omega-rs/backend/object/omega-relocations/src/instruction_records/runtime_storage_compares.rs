@@ -115,12 +115,20 @@ pub(super) fn collect_runtime_storage_compare_relocations(
             }
             true
         }
-        SelectedInstructionKind::ComparePlaceValue { place, byte_size, expected_value, operator } => {
+        SelectedInstructionKind::ComparePlaceValue {
+            place,
+            byte_size,
+            expected_value,
+            operator,
+        } => {
             match context.input.target.architecture {
                 omega_target::Architecture::X86_64 => {
                     let (_, sites) =
                         omega_instruction_selection::x86_64_encode_place_value_compare_with_sites(
-                            place, *byte_size, *expected_value, *operator,
+                            place,
+                            *byte_size,
+                            *expected_value,
+                            *operator,
                         )
                         .expect(
                             "ComparePlaceValue reached relocation with a shape the \
@@ -136,9 +144,9 @@ pub(super) fn collect_runtime_storage_compare_relocations(
                                 .scaled_index_regions()
                                 .nth(1)
                                 .expect("a TargetIndex2 site implies two ScaledIndex steps"),
-                            _ => unreachable!(
-                                "a value compare materializes only its subject place"
-                            ),
+                            _ => {
+                                unreachable!("a value compare materializes only its subject place")
+                            }
                         };
                         context.insert_data_address_at_relative_offset(
                             byte_offset,

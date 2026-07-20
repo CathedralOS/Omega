@@ -8,8 +8,8 @@ pub use darwin::{
 pub use plans::{
     BoundaryEntryPlan, CallPlan, CallSignature, CallingPolicy, EntryControl, EntryStack,
     MachineRegime, MachineRegister, MachineState, MachineStateSet, PlanDiagnostic, Preemption,
-    RegisterSet, StateFootprintEvidence, StatePlan, ValueClass, ValueLocation, ValuePlacement,
-    ValidatedBoundaryEntryPlan, ValueShape, evaluate_call_plan, validate_boundary_entry_plan,
+    RegisterSet, StateFootprintEvidence, StatePlan, ValidatedBoundaryEntryPlan, ValueClass,
+    ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan, validate_boundary_entry_plan,
     validate_call_plan, validate_state_footprint,
 };
 pub use windows::windows_import_library;
@@ -901,7 +901,9 @@ pub enum HostBindingMechanism {
     /// is read from the RECEIVER at call time -- `mov rax, [this + index*8];
     /// call rax`. The protocol struct IS the vtable (UEFI SimpleTextOutput:
     /// OutputString at slot 1 = +8). No import thunk, no relocation.
-    VtableSlot { index: i64 },
+    VtableSlot {
+        index: i64,
+    },
     /// The FIELD-MODEL flavor of vtable dispatch (extern brief SS12.1,
     /// decided 2026-07-04): the fn-ptr FIELD of `table` named `field`;
     /// `byte_offset` is resolved from the LAYOUT PLAN by the backend's
@@ -1122,21 +1124,34 @@ pub struct ProvidesRow {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProvidesBindingKind {
-    Syscall { number: i64 },
-    DllImport { module: String, symbol: String },
-    VtableSlot { index: i64 },
+    Syscall {
+        number: i64,
+    },
+    DllImport {
+        module: String,
+        symbol: String,
+    },
+    VtableSlot {
+        index: i64,
+    },
     /// Dispatch by fn-ptr FIELD of the row's `vtable_struct` (the field
     /// model): the byte offset comes from the layout plan, resolved by the
     /// backend pass -- no magic slot counts.
-    VtableField { field: String },
+    VtableField {
+        field: String,
+    },
     /// Dispatch by fn-ptr FIELD like `VtableField`, but the table pointer is
     /// DISPATCH-ONLY -- never a wire argument (EFI table services take no
     /// This; protocol/COM methods do).
-    TableFunction { field: String },
+    TableFunction {
+        field: String,
+    },
     /// A per-target named CONSTANT (`O_CREATE -> 32768`): carried on the row
     /// stream but never a call binding -- the const-resolution rung consumes
     /// it; the ABI merge skips it.
-    Value { value: i64 },
+    Value {
+        value: i64,
+    },
 }
 
 /// The boundary-policy path provides-sourced bindings live under: the program
@@ -1167,10 +1182,7 @@ pub fn build_freestanding_abi_plan(
 /// provides wildcard rows in table order, and exact platform matches beat
 /// `"*"`, so an authored method NAME shared with a built-in state cannot
 /// shadow it.
-pub fn merge_provides_rows(
-    plan: &mut HostAbiPlan,
-    provides: &[ProvidesRow],
-) -> Result<(), String> {
+pub fn merge_provides_rows(plan: &mut HostAbiPlan, provides: &[ProvidesRow]) -> Result<(), String> {
     if provides.is_empty() {
         return Ok(());
     }
@@ -1402,7 +1414,9 @@ mod call_shape_tests {
             PlatformCallData::MutableOutputBuffer { byte_capacity: 256 },
             PlatformCallData::SingleByteRead,
             PlatformCallData::SingleByteWrite,
-            PlatformCallData::ConstantResult { value: 1_000_000_000 },
+            PlatformCallData::ConstantResult {
+                value: 1_000_000_000,
+            },
             PlatformCallData::ConstantArgument { value: 4 },
         ];
         for shape in shapes {

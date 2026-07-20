@@ -12,11 +12,9 @@ pub(super) fn encode_host_operation(
     operands: &[InstructionOperand],
 ) -> Result<Vec<u8>, Diagnostic> {
     match host_binding_mechanism(input, operation_key) {
-        Some(HostBindingMechanism::Syscall { number, .. }) => architecture::encode_syscall_sequence(
-            input.target.architecture,
-            operands,
-            *number,
-        ),
+        Some(HostBindingMechanism::Syscall { number, .. }) => {
+            architecture::encode_syscall_sequence(input.target.architecture, operands, *number)
+        }
         Some(HostBindingMechanism::VtableSlot { index }) => {
             architecture::encode_vtable_call_sequence(input.target.architecture, operands, *index)
         }

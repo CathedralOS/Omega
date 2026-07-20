@@ -163,7 +163,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                     syntax_trees,
                     input,
                     |input| {
-                    input.at_punctuation(PunctuationKind::LeftBrace)
+                        input.at_punctuation(PunctuationKind::LeftBrace)
                         // CH10 bodyless machines (`ensures <fact>;` then the
                         // next item): a HARD item keyword after the facts
                         // terminates the list -- a fact expression can never
@@ -319,10 +319,8 @@ fn parse_ranked_subjects<'tokens, 'source>(
     } else {
         // NO-MEMBERSHIP variant: the clause's own `in <range>` must not be
         // eaten as a membership expression on the subject.
-        let (expression, rest) = parse_expression_handle_without_struct_literals_or_membership(
-            syntax_trees,
-            input,
-        )?;
+        let (expression, rest) =
+            parse_expression_handle_without_struct_literals_or_membership(syntax_trees, input)?;
         (vec![expression], rest)
     };
     let decreases = syntax_trees.expressions.insert_expression_handles(subjects);
@@ -347,14 +345,17 @@ fn parse_ranked_subjects<'tokens, 'source>(
                     parse_expression_handle_without_struct_literals(syntax_trees, argument_input)?;
                 arguments.push(argument);
                 if after_argument.at_punctuation(PunctuationKind::Comma) {
-                    argument_input = after_argument.take_punctuation(PunctuationKind::Comma, ",")?;
+                    argument_input =
+                        after_argument.take_punctuation(PunctuationKind::Comma, ",")?;
                     continue;
                 }
                 argument_input =
                     after_argument.take_punctuation(PunctuationKind::RightParen, ")")?;
                 break;
             }
-            decrease_view_arguments = syntax_trees.expressions.insert_expression_handles(arguments);
+            decrease_view_arguments = syntax_trees
+                .expressions
+                .insert_expression_handles(arguments);
             rest = argument_input;
         }
     }
@@ -384,20 +385,26 @@ fn parse_ranked_subjects<'tokens, 'source>(
             syntax_trees,
             after_separator,
         )?;
-        decrease_range = syntax_trees.expressions.insert(
-            omega_syntax_trees::expression::ExpressionNode::Range(
-                omega_syntax_trees::expression::TableRangeExpression {
-                    start,
-                    end,
-                    end_inclusive,
-                },
-            ),
-        );
+        decrease_range =
+            syntax_trees
+                .expressions
+                .insert(omega_syntax_trees::expression::ExpressionNode::Range(
+                    omega_syntax_trees::expression::TableRangeExpression {
+                        start,
+                        end,
+                        end_inclusive,
+                    },
+                ));
         rest = next;
     }
 
     Ok((
-        (decreases, decrease_order, decrease_view_arguments, decrease_range),
+        (
+            decreases,
+            decrease_order,
+            decrease_view_arguments,
+            decrease_range,
+        ),
         rest,
     ))
 }
@@ -441,8 +448,7 @@ pub(super) fn parse_satisfies_traits<'tokens, 'source>(
         let mut via = None;
         if rest.at_contextual("via") {
             let next = rest.take_contextual("via")?;
-            let (binding, next) =
-                crate::parser::item::parse_external_provider_binding(next)?;
+            let (binding, next) = crate::parser::item::parse_external_provider_binding(next)?;
             via = Some(binding);
             rest = next;
         }

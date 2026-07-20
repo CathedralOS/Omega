@@ -72,8 +72,7 @@ pub(crate) struct Lowerer {
         Vec<(String, omega_symbol_resolved_trees::types::TypeReference)>,
     /// The CURRENT state's declared return type -- the synthesized
     /// continuation state returns the same type. Overwritten at each state.
-    pub(crate) current_state_return_type:
-        Option<omega_symbol_resolved_trees::types::TypeReference>,
+    pub(crate) current_state_return_type: Option<omega_symbol_resolved_trees::types::TypeReference>,
     /// Continuation states synthesized by the guarded-arm value-call rewrite
     /// (`cond -> (call(a, b))` becomes `cond -> __arm_k_N(a, b)` plus a
     /// state whose Always terminal hoists the call). Drained by the machine

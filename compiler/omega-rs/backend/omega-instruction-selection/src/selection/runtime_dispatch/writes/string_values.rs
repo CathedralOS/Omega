@@ -187,12 +187,14 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
             target,
         )
     {
-        return Some(crate::selection::runtime_dispatch::write_place_string_pointee(
-            pointer_target.pointer_byte_offset,
-            pointer_target.field_byte_offset,
-            data,
-            value.len(),
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::write_place_string_pointee(
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                data,
+                value.len(),
+            ),
+        );
     }
 
     if data.is_valid()
@@ -204,12 +206,14 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
             target,
         )
     {
-        return Some(crate::selection::runtime_dispatch::write_place_string_pointee(
-            pointer_target.pointer_byte_offset,
-            pointer_target.field_byte_offset,
-            data,
-            value.len(),
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::write_place_string_pointee(
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                data,
+                value.len(),
+            ),
+        );
     }
 
     if data.is_valid()
@@ -222,14 +226,16 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
         )
         && indexed_target.byte_count == input.runtime_abi.string_descriptor_size()
     {
-        return Some(crate::selection::runtime_dispatch::write_place_string_frame_indexed(
-            indexed_target.descriptor_offset,
-            indexed_target.index_offset,
-            indexed_target.element_byte_size,
-            indexed_target.field_byte_offset,
-            data,
-            value.len(),
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::write_place_string_frame_indexed(
+                indexed_target.descriptor_offset,
+                indexed_target.index_offset,
+                indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
+                data,
+                value.len(),
+            ),
+        );
     }
 
     if data.is_valid()
@@ -243,12 +249,14 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
         && indexed_target.byte_count == input.runtime_abi.string_descriptor_size()
         && let Some(field_byte_offset) = indexed_target.pointee_field_byte_offset()
     {
-        return Some(crate::selection::runtime_dispatch::write_place_string_pointee(
-            indexed_target.descriptor_offset,
-            field_byte_offset,
-            data,
-            value.len(),
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::write_place_string_pointee(
+                indexed_target.descriptor_offset,
+                field_byte_offset,
+                data,
+                value.len(),
+            ),
+        );
     }
 
     let target_place = resolve_runtime_storage_place_in_table(
@@ -268,13 +276,13 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
     // `target_place.byte_offset`, which for a frame slot at offset 0 collided with
     // the machine-storage region base -- corrupting unrelated state.
     match target_place.region {
-        region @ (RuntimeStorageRegion::RuntimeFrame | RuntimeStorageRegion::Machine) => {
-            Some(crate::selection::runtime_dispatch::write_place_string_direct(
+        region @ (RuntimeStorageRegion::RuntimeFrame | RuntimeStorageRegion::Machine) => Some(
+            crate::selection::runtime_dispatch::write_place_string_direct(
                 region,
                 target_place.byte_offset,
                 data,
                 value.len(),
-            ))
-        }
+            ),
+        ),
     }
 }

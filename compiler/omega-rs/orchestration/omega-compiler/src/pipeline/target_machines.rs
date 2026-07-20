@@ -31,7 +31,7 @@ use std::collections::BTreeMap;
 pub(crate) fn filter_target_machines(
     syntax: &mut SyntaxTrees,
     target_name: Option<&str>,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Vec<String>, Vec<Diagnostic>> {
     let selected =
         NativeTarget::from_omega_target_name(target_name).map_err(|diagnostic| vec![diagnostic])?;
 
@@ -89,6 +89,18 @@ pub(crate) fn filter_target_machines(
         }
     }
 
+    // PRV4c: a target package may contribute ordinary provider defaults with
+    // a target-scoped, package-owned `Owner::provider_defaults` machine. Keep
+    // the selected declarations' full names before erasing the target marker;
+    // typed machines intentionally carry no deployment marker after this pass.
+    let mut provider_default_machines = Vec::new();
+    for (full_name, (selected_handles, _)) in &rows {
+        if !selected_handles.is_empty() && full_name.ends_with("::provider_defaults") {
+            provider_default_machines.push(full_name.clone());
+        }
+    }
+    provider_default_machines.sort();
+
     // Clear the selected machines' markers LAST, after the loud edges passed:
     // from here on they are ordinary machines.
     for (_, (selected_handles, _)) in rows {
@@ -102,5 +114,5 @@ pub(crate) fn filter_target_machines(
         }
     }
 
-    Ok(())
+    Ok(provider_default_machines)
 }

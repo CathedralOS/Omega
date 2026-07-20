@@ -48,7 +48,10 @@ pub fn return_register_integer_write_width() -> usize {
     4
 }
 
-pub fn runtime_storage_copy_to_return_register_width(byte_offset: usize, byte_size: usize) -> usize {
+pub fn runtime_storage_copy_to_return_register_width(
+    byte_offset: usize,
+    byte_size: usize,
+) -> usize {
     // adrp+add (8) + scalar load into w0/x0 + sign extension for narrow operands
     // (SXTB/SXTH, 4) so a negative i8/i16 terminal survives the widening read.
     let extend_width = if matches!(byte_size, 1 | 2) { 4 } else { 0 };
@@ -340,8 +343,7 @@ fn runtime_convert_operation_width(
             // Every narrow source extends when widening (one SXT/UXT); a
             // 4-byte source extends only when signed.
             if target_byte_size > source_byte_size
-                && (matches!(source_byte_size, 1 | 2)
-                    || (source_byte_size == 4 && source_signed))
+                && (matches!(source_byte_size, 1 | 2) || (source_byte_size == 4 && source_signed))
             {
                 4
             } else {
@@ -497,17 +499,28 @@ fn saturating_trapping_arithmetic_width(
     // bound checks (28 each: padded bound 16 + cmp 4 + b.cond 4 + mov/brk 4)
     // -- both bounds for signed, the single unsigned upper bound otherwise.
     if operator == StateGuardOperator::ShiftLeft {
-        let count_guard = if domain == ArithmeticDomain::Trapping { 12 } else { 0 };
-        let value_extend = if target_signed && !left_is_wide_immediate { 4 } else { 0 };
+        let count_guard = if domain == ArithmeticDomain::Trapping {
+            12
+        } else {
+            0
+        };
+        let value_extend = if target_signed && !left_is_wide_immediate {
+            4
+        } else {
+            0
+        };
         return count_guard
-            + if target_signed { value_extend + 28 + 56 } else { 28 + 28 };
+            + if target_signed {
+                value_extend + 28 + 56
+            } else {
+                28 + 28
+            };
     }
     // One SXTB/SXTH/SXTW sign-extend (4 bytes) per SIGNED NON-IMMEDIATE
     // operand -- immediates are already their true wide value and skipping
     // keeps them uncorrupted (MUST mirror the emission's per-side skip).
     let sign_extend = if target_signed {
-        (if left_is_wide_immediate { 0 } else { 4 })
-            + (if right_is_wide_immediate { 0 } else { 4 })
+        (if left_is_wide_immediate { 0 } else { 4 }) + (if right_is_wide_immediate { 0 } else { 4 })
     } else {
         0
     };
@@ -1135,9 +1148,8 @@ pub fn runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_stora
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
 ) -> usize {
     let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
-    let any_frame = source_region == frame
-        || outer_index_region == frame
-        || inner_index_region == frame;
+    let any_frame =
+        source_region == frame || outer_index_region == frame || inner_index_region == frame;
     8 + if any_frame { 8 } else { 0 } + 4 + 36 + 4
 }
 
@@ -1769,8 +1781,7 @@ pub fn runtime_text_equals_literal_operand_width(
     place: RuntimeValueOperandHandle,
     literal: &str,
 ) -> usize {
-    let place_setup_width = if let Some((_, byte_offset, _)) =
-        runtime_value_operands.storage(place)
+    let place_setup_width = if let Some((_, byte_offset, _)) = runtime_value_operands.storage(place)
     {
         8 + add_constant_width(byte_offset)
     } else if let Some((pointer_byte_offset, field_byte_offset, _)) =
@@ -1783,13 +1794,8 @@ pub fn runtime_text_equals_literal_operand_width(
         runtime_value_operands.frame_indexed(place)
     {
         runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
-    } else if let Some((
-        base_byte_offset,
-        index_offset,
-        element_byte_size,
-        field_byte_offset,
-        _,
-    )) = runtime_value_operands.frame_base_indexed(place)
+    } else if let Some((base_byte_offset, index_offset, element_byte_size, field_byte_offset, _)) =
+        runtime_value_operands.frame_base_indexed(place)
     {
         runtime_frame_base_index_setup_width(
             base_byte_offset,
@@ -1885,13 +1891,12 @@ pub fn runtime_value_operand_width(
         // MUST mirror the machine-indexed operand arm exactly: machine pair
         // (8) + conditional frame pair (8) + 4-byte index load + scale +
         // address add (4) + combined base+field constant + element load (4).
-        let frame_pair = if index_region
-            == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-        {
-            8
-        } else {
-            0
-        };
+        let frame_pair =
+            if index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                8
+            } else {
+                0
+            };
         let _ = byte_size;
         8 + frame_pair
             + load_data_offset_width(index_offset, 4)
@@ -1963,7 +1968,9 @@ pub fn runtime_value_operand_width(
             saturating_trapping_arithmetic_width(
                 domain,
                 operator,
-                runtime_value_operands.binary_byte_width(operand).unwrap_or(8),
+                runtime_value_operands
+                    .binary_byte_width(operand)
+                    .unwrap_or(8),
                 operands_signed,
                 runtime_value_operands.immediate_integer(left).is_some(),
                 runtime_value_operands.immediate_integer(right).is_some(),
@@ -1971,7 +1978,9 @@ pub fn runtime_value_operand_width(
         } else if saturating_signed_div_mod {
             // Signed Saturating div/mod operand arm: the TYPE_MIN/-1 fixup.
             saturating_signed_divide_modulo_width(
-                runtime_value_operands.binary_byte_width(operand).unwrap_or(8),
+                runtime_value_operands
+                    .binary_byte_width(operand)
+                    .unwrap_or(8),
                 operator == StateGuardOperator::Modulo,
             )
         } else {
@@ -2038,11 +2047,7 @@ fn runtime_binary_operation_width(operator: StateGuardOperator, byte_size: usize
     // narrow signed shift-right extends the shifted value (+4). See
     // append_narrow_signed_division_operand_extension / the ShiftRight arm.
     let narrow_signed_extension = match operator {
-        StateGuardOperator::Divide | StateGuardOperator::Modulo
-            if matches!(byte_size, 1 | 2) =>
-        {
-            8
-        }
+        StateGuardOperator::Divide | StateGuardOperator::Modulo if matches!(byte_size, 1 | 2) => 8,
         StateGuardOperator::ShiftRight if matches!(byte_size, 1 | 2) => 4,
         // A narrow logical `>>` zero-extends the shifted value the same way
         // (see the ShiftRightLogical arm's uxtb/uxth); width 4 uses the W form
@@ -2202,7 +2207,11 @@ pub fn append_wire_scalar_varint_width(
     wire_append_prologue_width(out_offset, written_offset)
         + 8
         + load_data_offset_width(source_offset, byte_size)
-        + if zigzag { wire_zigzag_width(byte_size) } else { 0 }
+        + if zigzag {
+            wire_zigzag_width(byte_size)
+        } else {
+            0
+        }
         + wire_varint_emit_loop_width()
         + store_data_offset_width(written_offset, 8)
 }
@@ -2451,7 +2460,11 @@ pub fn append_wire_repeated_scalar_varint_width(
         + 8
         + 8
         + load_data_offset_width(source_offset, byte_size)
-        + if zigzag { wire_zigzag_width(byte_size) } else { 0 }
+        + if zigzag {
+            wire_zigzag_width(byte_size)
+        } else {
+            0
+        }
         + wire_varint_emit_loop_width()
         + store_data_offset_width(written_offset, 8)
 }

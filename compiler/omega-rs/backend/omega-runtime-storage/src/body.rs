@@ -705,7 +705,6 @@ fn append_branch_operation_storage(
     }
 }
 
-
 /// Rung C2: a reference-typed local INITIALIZED BY A JUDGED RECAST sizes by
 /// its referee record (the wide-view carrier). `None` keeps the ordinary layout
 /// -- the gate is the recast initializer, so boundary pointer-model locals
@@ -886,8 +885,7 @@ fn branch_transition_target_key(
                     .filter(|(_, sibling)| {
                         sibling.symbol != machine.symbol
                             && attached.is_some()
-                            && sibling.attached_data.as_ref().map(|data| data.as_str())
-                                == attached
+                            && sibling.attached_data.as_ref().map(|data| data.as_str()) == attached
                     })
                     .find_map(|(_, sibling)| {
                         context
@@ -896,8 +894,7 @@ fn branch_transition_target_key(
                             .span(sibling.states)
                             .and_then(|states| {
                                 states.iter().find(|candidate| {
-                                    state_symbol.is_valid()
-                                        && candidate.key.state == *state_symbol
+                                    state_symbol.is_valid() && candidate.key.state == *state_symbol
                                 })
                             })
                             .map(|target_state| target_state.key)

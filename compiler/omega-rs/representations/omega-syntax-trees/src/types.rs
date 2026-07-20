@@ -44,7 +44,6 @@ impl TypeReferenceTable {
             .collect()
     }
 
-
     pub fn insert_named(&mut self, name: Identifier) -> TypeReferenceHandle {
         self.insert(TypeReferenceNode::Named(name))
     }
@@ -315,8 +314,12 @@ mod tests {
         let mut expressions = ExpressionTable::new();
         let mut types = TypeReferenceTable::new();
         let base_type = types.insert_named(Identifier::generated("i32"));
-        let minimum = expressions.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
-        let maximum = expressions.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(10)));
+        let minimum = expressions.insert(ExpressionNode::Integer(
+            omega_core::literals::IntegerLiteral::from_value(0),
+        ));
+        let maximum = expressions.insert(ExpressionNode::Integer(
+            omega_core::literals::IntegerLiteral::from_value(10),
+        ));
         let constraint = types.append_constraint(TypeConstraintNode::Range { minimum, maximum });
         let root = types.insert_constrained(base_type, HandleSpan::from_parts(constraint, 1));
 

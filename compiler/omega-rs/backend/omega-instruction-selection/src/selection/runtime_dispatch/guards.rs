@@ -27,10 +27,8 @@ use super::super::storage_places::{
     resolve_runtime_transition_guard_call_result_place, static_elided_local_value_in_table,
     static_fixed_array_len_in_table,
 };
+use super::writes::mutation::{binary_value_operand_byte_width, binary_value_operands_are_float};
 use super::writes::resolve_runtime_text_equals_operand_in_table;
-use super::writes::mutation::{
-    binary_value_operand_byte_width, binary_value_operands_are_float,
-};
 use omega_abstract_operations::{
     RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstructionKind, TargetDataObjectHandle,
 };
@@ -1390,26 +1388,30 @@ fn runtime_storage_guard(
         && let Some(expected_value) = enum_variant_value(&input.layouts, &binary.right)
             .or_else(|| static_guard_value(&binary.right))
     {
-        return Some(crate::selection::runtime_dispatch::compare_place_value_direct(
-            place.region,
-            place.byte_offset,
-            place.byte_count,
-            expected_value,
-            operator,
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::compare_place_value_direct(
+                place.region,
+                place.byte_offset,
+                place.byte_count,
+                expected_value,
+                operator,
+            ),
+        );
     }
 
     if let Some(place) = right
         && let Some(expected_value) = enum_variant_value(&input.layouts, &binary.left)
             .or_else(|| static_guard_value(&binary.left))
     {
-        return Some(crate::selection::runtime_dispatch::compare_place_value_direct(
-            place.region,
-            place.byte_offset,
-            place.byte_count,
-            expected_value,
-            operator,
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::compare_place_value_direct(
+                place.region,
+                place.byte_offset,
+                place.byte_count,
+                expected_value,
+                operator,
+            ),
+        );
     }
 
     None
@@ -1527,13 +1529,15 @@ pub(super) fn runtime_storage_guard_in_table(
             enum_variant_value_in_table(&input.layouts, expressions, binary.right)
                 .or_else(|| static_guard_value_in_table(expressions, binary.right))
     {
-        return Some(crate::selection::runtime_dispatch::compare_place_value_direct(
-            place.region,
-            place.byte_offset,
-            place.byte_count,
-            expected_value,
-            operator,
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::compare_place_value_direct(
+                place.region,
+                place.byte_offset,
+                place.byte_count,
+                expected_value,
+                operator,
+            ),
+        );
     }
 
     if let Some(place) = right
@@ -1541,13 +1545,15 @@ pub(super) fn runtime_storage_guard_in_table(
             enum_variant_value_in_table(&input.layouts, expressions, binary.left)
                 .or_else(|| static_guard_value_in_table(expressions, binary.left))
     {
-        return Some(crate::selection::runtime_dispatch::compare_place_value_direct(
-            place.region,
-            place.byte_offset,
-            place.byte_count,
-            expected_value,
-            operator,
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::compare_place_value_direct(
+                place.region,
+                place.byte_offset,
+                place.byte_count,
+                expected_value,
+                operator,
+            ),
+        );
     }
 
     None

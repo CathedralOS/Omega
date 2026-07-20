@@ -114,7 +114,12 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                             .machine_arguments
                             .iter()
                             .map(|argument| typed::expression::StaticMachineArgument {
-                                path: argument.path.iter().map(lower_name).collect::<Vec<_>>().into_boxed_slice(),
+                                path: argument
+                                    .path
+                                    .iter()
+                                    .map(lower_name)
+                                    .collect::<Vec<_>>()
+                                    .into_boxed_slice(),
                                 symbol: argument.symbol,
                             })
                             .collect::<Vec<_>>()
@@ -127,9 +132,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 // The carrier CLONES across layers (spelling + landing ride);
                 // rebuilding from the f64 value was the strip-on-lowering
                 // disease the shared payload exists to kill.
-                Ok(self.target.insert(typed::expression::ExpressionNode::Float(
-                    value.clone(),
-                )))
+                Ok(self
+                    .target
+                    .insert(typed::expression::ExpressionNode::Float(value.clone())))
             }
             resolved::expression::ExpressionNode::Indexed(indexed) => {
                 let collection = self.lower(indexed.collection)?;
@@ -293,9 +298,13 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         // sibling of the cross-enum `==` check).
         self.reject_cross_type_case_membership(membership.value, membership.domain)?;
         let value = self.lower(membership.value)?;
-        if let Some(lowered) =
-            lower_case_membership_expression(program, self.source, self.target, value, membership.domain)
-        {
+        if let Some(lowered) = lower_case_membership_expression(
+            program,
+            self.source,
+            self.target,
+            value,
+            membership.domain,
+        ) {
             return Ok(lowered);
         }
 

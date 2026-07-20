@@ -48,18 +48,14 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_static_muta
     value: ExpressionHandle,
     static_values: &mut RuntimeStaticValues,
 ) -> Option<SelectedInstructionKind> {
-    let value = match resolve_runtime_static_integer_in_table(
-        input,
-        expressions,
-        value,
-        static_values,
-    ) {
-        Some(integer) => StaticWriteValue::Integer(integer),
-        None => StaticWriteValue::Float(resolve_runtime_static_float_value_in_table(
-            expressions,
-            value,
-        )?),
-    };
+    let value =
+        match resolve_runtime_static_integer_in_table(input, expressions, value, static_values) {
+            Some(integer) => StaticWriteValue::Integer(integer),
+            None => StaticWriteValue::Float(resolve_runtime_static_float_value_in_table(
+                expressions,
+                value,
+            )?),
+        };
 
     if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
         input,
@@ -69,14 +65,16 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_static_muta
         target,
     ) && supports_scalar_integer_write(indexed_target.byte_count)
     {
-        return Some(crate::selection::runtime_dispatch::write_place_integer_frame_indexed(
-            indexed_target.descriptor_offset,
-            indexed_target.index_offset,
-            indexed_target.element_byte_size,
-            indexed_target.field_byte_offset,
-            value.stored_integer(indexed_target.byte_count).bits(),
-            indexed_target.byte_count,
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::write_place_integer_frame_indexed(
+                indexed_target.descriptor_offset,
+                indexed_target.index_offset,
+                indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
+                value.stored_integer(indexed_target.byte_count).bits(),
+                indexed_target.byte_count,
+            ),
+        );
     }
 
     if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target_in_table(
@@ -111,16 +109,18 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_static_muta
     {
         let value = value.stored_integer(indexed_target.byte_count);
         set_runtime_static_value_in_table(static_values, expressions, target, value);
-        return Some(crate::selection::runtime_dispatch::write_place_integer_base_indexed(
-            omega_target_operations::RuntimeStorageRegion::Machine,
-            indexed_target.base_byte_offset,
-            indexed_target.index_region,
-            indexed_target.index_offset,
-            indexed_target.element_byte_size,
-            indexed_target.field_byte_offset,
-            value.bits(),
-            indexed_target.byte_count,
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::write_place_integer_base_indexed(
+                omega_target_operations::RuntimeStorageRegion::Machine,
+                indexed_target.base_byte_offset,
+                indexed_target.index_region,
+                indexed_target.index_offset,
+                indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
+                value.bits(),
+                indexed_target.byte_count,
+            ),
+        );
     }
 
     if let Some(indexed_target) = resolve_runtime_frame_fixed_indexed_target_in_table(
@@ -134,12 +134,14 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_static_muta
     {
         let value = value.stored_integer(indexed_target.byte_count);
         set_runtime_static_value_in_table(static_values, expressions, target, value);
-        return Some(crate::selection::runtime_dispatch::write_place_integer_pointee(
-            indexed_target.descriptor_offset,
-            field_byte_offset,
-            value.bits(),
-            indexed_target.byte_count,
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::write_place_integer_pointee(
+                indexed_target.descriptor_offset,
+                field_byte_offset,
+                value.bits(),
+                indexed_target.byte_count,
+            ),
+        );
     }
 
     if let Some(pointer_target) = resolve_runtime_pointee_fixed_indexed_target_in_table(
@@ -152,12 +154,14 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_static_muta
     {
         let value = value.stored_integer(pointer_target.pointee_byte_size);
         set_runtime_static_value_in_table(static_values, expressions, target, value);
-        return Some(crate::selection::runtime_dispatch::write_place_integer_pointee(
-            pointer_target.pointer_byte_offset,
-            pointer_target.field_byte_offset,
-            value.bits(),
-            pointer_target.pointee_byte_size,
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::write_place_integer_pointee(
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                value.bits(),
+                pointer_target.pointee_byte_size,
+            ),
+        );
     }
 
     if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
@@ -169,12 +173,14 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_static_muta
     ) {
         let value = value.stored_integer(pointer_target.pointee_byte_size);
         set_runtime_static_value_in_table(static_values, expressions, target, value);
-        return Some(crate::selection::runtime_dispatch::write_place_integer_pointee(
-            pointer_target.pointer_byte_offset,
-            pointer_target.field_byte_offset,
-            value.bits(),
-            pointer_target.pointee_byte_size,
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::write_place_integer_pointee(
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                value.bits(),
+                pointer_target.pointee_byte_size,
+            ),
+        );
     }
 
     let target_place = resolve_runtime_storage_place_in_table(
@@ -190,10 +196,12 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_static_muta
 
     let value = value.stored_integer(target_place.byte_count);
     set_runtime_static_value_in_table(static_values, expressions, target, value);
-    Some(crate::selection::runtime_dispatch::write_place_integer_direct(
-        target_place.region,
-        target_place.byte_offset,
-        value.bits(),
-        target_place.byte_count,
-    ))
+    Some(
+        crate::selection::runtime_dispatch::write_place_integer_direct(
+            target_place.region,
+            target_place.byte_offset,
+            value.bits(),
+            target_place.byte_count,
+        ),
+    )
 }

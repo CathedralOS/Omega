@@ -50,7 +50,10 @@ impl IntegerLanding {
             PrimitiveType::U32 => LandedIntegerType::U32,
             PrimitiveType::U64 => LandedIntegerType::U64,
             PrimitiveType::Addr => LandedIntegerType::Addr,
-            PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
+            PrimitiveType::Bool
+            | PrimitiveType::F32
+            | PrimitiveType::F64
+            | PrimitiveType::String => {
                 return None;
             }
         };
@@ -293,9 +296,7 @@ pub(super) fn fold_binary_expression(
         (Expression::Integer(a), _) if a.landing().is_some() => {
             a.landing().and_then(IntegerLanding::from_carrier_landing)
         }
-        (_, Expression::Integer(b)) => b
-            .landing()
-            .and_then(IntegerLanding::from_carrier_landing),
+        (_, Expression::Integer(b)) => b.landing().and_then(IntegerLanding::from_carrier_landing),
         _ => None,
     });
 

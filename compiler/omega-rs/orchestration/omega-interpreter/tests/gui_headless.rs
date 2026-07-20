@@ -39,7 +39,8 @@ fn window_demo_runs_headless_to_native_exit() {
         outcome.error
     );
     assert_eq!(
-        outcome.exit_code, 0,
+        outcome.exit_code,
+        0,
         "headless window_demo must exit 0 like the native run; stderr:\n{}",
         String::from_utf8_lossy(&outcome.stderr)
     );

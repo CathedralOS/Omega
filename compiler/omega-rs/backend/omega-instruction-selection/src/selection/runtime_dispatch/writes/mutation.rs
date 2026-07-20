@@ -26,21 +26,20 @@ use super::super::super::bindings::{
     resolve_runtime_alias_binding_handle, strip_mutable_expression,
 };
 use super::super::super::storage_places::{
-    resolve_binary_write_arithmetic_domain,
-    resolve_runtime_storage_arithmetic_domain, resolve_runtime_storage_is_signed,
-    resolve_runtime_storage_place, resolve_runtime_storage_place_is_bounded_byte_buffer,
-    resolve_runtime_storage_primitive_type, runtime_storage_target_is_atomic,
+    resolve_binary_write_arithmetic_domain, resolve_runtime_storage_arithmetic_domain,
+    resolve_runtime_storage_is_signed, resolve_runtime_storage_place,
+    resolve_runtime_storage_place_is_bounded_byte_buffer, resolve_runtime_storage_primitive_type,
+    runtime_storage_target_is_atomic,
 };
-use omega_checked_trees::types::PrimitiveType;
 use super::super::super::storage_places::{
     resolve_runtime_assignment_value_call_result_place,
     resolve_runtime_assignment_value_call_result_place_by_ordinal,
     resolve_runtime_call_argument_call_result_place,
     resolve_runtime_call_argument_call_result_place_by_ordinal,
     resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_fixed_indexed_target,
-    resolve_runtime_frame_indexed_target,
-    resolve_runtime_machine_double_indexed_source, resolve_runtime_machine_indexed_target,
-    resolve_runtime_pointee_slot_offset, resolve_runtime_transition_argument_call_result_place,
+    resolve_runtime_frame_indexed_target, resolve_runtime_machine_double_indexed_source,
+    resolve_runtime_machine_indexed_target, resolve_runtime_pointee_slot_offset,
+    resolve_runtime_transition_argument_call_result_place,
 };
 use super::super::guards::static_guard_conjunct_summary_in_table;
 use super::super::text_writes::{
@@ -58,11 +57,10 @@ use super::storage_copy::runtime_storage_indirect_copy;
 use super::subslice_copy::{
     runtime_fixed_array_subslice_descriptor_write, runtime_fixed_array_subslice_indexed_source_copy,
 };
-pub(super) use binary_table_writes::{
-    select_runtime_binary_mutation_write_in_table,
-    select_runtime_frame_slot_convert_write_in_table,
-};
 pub(in crate::selection::runtime_dispatch) use binary_table_writes::select_runtime_storage_binary_write_in_table;
+pub(super) use binary_table_writes::{
+    select_runtime_binary_mutation_write_in_table, select_runtime_frame_slot_convert_write_in_table,
+};
 pub(in crate::selection::runtime_dispatch) use binary_table_writes::{
     select_runtime_convert_mutation_write_in_table, signedness_adjusted_operator,
     signedness_adjusted_operator_for_operands,
@@ -73,6 +71,7 @@ pub(in crate::selection) use frame_slots::{
 };
 pub(super) use normalization::simplify_runtime_expression_with_state_locals;
 use normalization::{normalize_runtime_mutation_expression, resolve_runtime_mutation_target};
+use omega_checked_trees::types::PrimitiveType;
 use operators::{
     builtin_runtime_call_operator, runtime_binary_operator, supports_scalar_integer_write,
 };
@@ -413,8 +412,7 @@ fn resolve_static_inline_branching_call_expression_value_with_branch(
                 .state_names_by_key_cloned(expansion.branch_key);
             (expansion.branch_key.state == call.target_symbol
                 || branch_state.as_str() == &*call.target)
-                && receiver_machine
-                    .is_none_or(|machine| expansion.branch_key.machine == machine)
+                && receiver_machine.is_none_or(|machine| expansion.branch_key.machine == machine)
                 && expansion.target_value.is_valid()
                 && leaf_expansion_bindings_match_call_arguments(input, expansion, call)
         })
@@ -1023,11 +1021,13 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         if let [Expression::String(prefix), rest @ ..] = segments.as_slice() {
             let mut kinds: Vec<SelectedInstructionKind> = Vec::with_capacity(segments.len());
             // The concat target is gated to the Machine region above.
-            kinds.push(crate::selection::runtime_dispatch::write_place_bounded_buffer_direct(
-                omega_abstract_operations::RuntimeStorageRegion::Machine,
-                target_place.byte_offset,
-                std::sync::Arc::from(prefix.to_string()),
-            ));
+            kinds.push(
+                crate::selection::runtime_dispatch::write_place_bounded_buffer_direct(
+                    omega_abstract_operations::RuntimeStorageRegion::Machine,
+                    target_place.byte_offset,
+                    std::sync::Arc::from(prefix.to_string()),
+                ),
+            );
             let mut all_segments_resolved = true;
             for segment in rest {
                 if let Expression::String(literal) = segment {
@@ -1064,11 +1064,13 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
                         source_place.region,
                         omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
                     );
-                    kinds.push(SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
-                        target_byte_offset: target_place.byte_offset,
-                        source_byte_offset: source_place.byte_offset,
-                        source_in_frame,
-                    });
+                    kinds.push(
+                        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
+                            target_byte_offset: target_place.byte_offset,
+                            source_byte_offset: source_place.byte_offset,
+                            source_in_frame,
+                        },
+                    );
                 } else {
                     all_segments_resolved = false;
                     break;
@@ -1129,8 +1131,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         // multi-site stays correct: all sites share the callee's local slots
         // and splice contiguity keeps each site's values live at its own
         // Mutation op.
-        let (value_machine, value_state) =
-            input.control_flow.state_names_by_key_cloned(branch_key);
+        let (value_machine, value_state) = input.control_flow.state_names_by_key_cloned(branch_key);
         select_runtime_resolved_target_value_source_mutation_writes(
             input,
             dispatch_index,
@@ -1255,7 +1256,13 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         &resolved_value.expression,
     ) {
         selected_instructions.push(SelectedInstruction {
-            kind: crate::selection::runtime_dispatch::copy_places_to_pointee(source_place.region, source_place.byte_offset, pointer_target.pointer_byte_offset, pointer_target.field_byte_offset, source_place.byte_count),
+            kind: crate::selection::runtime_dispatch::copy_places_to_pointee(
+                source_place.region,
+                source_place.byte_offset,
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                source_place.byte_count,
+            ),
             source_key: operation_source_key,
             source_statement: statement_index,
         });
@@ -1296,7 +1303,13 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         ) && source_place.byte_count > 0
         {
             selected_instructions.push(SelectedInstruction {
-                kind: crate::selection::runtime_dispatch::copy_places_to_pointee(source_place.region, source_place.byte_offset, pointer_target.pointer_byte_offset, pointer_target.field_byte_offset, source_place.byte_count),
+                kind: crate::selection::runtime_dispatch::copy_places_to_pointee(
+                    source_place.region,
+                    source_place.byte_offset,
+                    pointer_target.pointer_byte_offset,
+                    pointer_target.field_byte_offset,
+                    source_place.byte_count,
+                ),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
@@ -1312,7 +1325,15 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             && source_place.byte_count == indexed_target.byte_count
         {
             selected_instructions.push(SelectedInstruction {
-                kind: crate::selection::runtime_dispatch::copy_places_to_indexed(source_place.region, source_place.byte_offset, indexed_target.descriptor_offset, indexed_target.index_offset, indexed_target.element_byte_size, indexed_target.field_byte_offset, indexed_target.byte_count),
+                kind: crate::selection::runtime_dispatch::copy_places_to_indexed(
+                    source_place.region,
+                    source_place.byte_offset,
+                    indexed_target.descriptor_offset,
+                    indexed_target.index_offset,
+                    indexed_target.element_byte_size,
+                    indexed_target.field_byte_offset,
+                    indexed_target.byte_count,
+                ),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
@@ -1345,7 +1366,13 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             && pointee.pointee_byte_size > 0
         {
             selected_instructions.push(SelectedInstruction {
-                kind: crate::selection::runtime_dispatch::copy_places_from_pointee(pointee.pointer_byte_offset, pointee.field_byte_offset, target_place.region, target_place.byte_offset, target_place.byte_count),
+                kind: crate::selection::runtime_dispatch::copy_places_from_pointee(
+                    pointee.pointer_byte_offset,
+                    pointee.field_byte_offset,
+                    target_place.region,
+                    target_place.byte_offset,
+                    target_place.byte_count,
+                ),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
@@ -1362,7 +1389,13 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         ) && target_place.byte_count == source_place.byte_count
         {
             selected_instructions.push(SelectedInstruction {
-                kind: crate::selection::runtime_dispatch::copy_places_direct(source_place.region, source_place.byte_offset, target_place.region, target_place.byte_offset, target_place.byte_count),
+                kind: crate::selection::runtime_dispatch::copy_places_direct(
+                    source_place.region,
+                    source_place.byte_offset,
+                    target_place.region,
+                    target_place.byte_offset,
+                    target_place.byte_count,
+                ),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
@@ -1398,7 +1431,13 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
                 selected_instructions,
             );
             selected_instructions.push(SelectedInstruction {
-                kind: crate::selection::runtime_dispatch::copy_places_to_pointee(source_place.region, source_place.byte_offset, indexed_target.descriptor_offset, field_byte_offset, indexed_target.byte_count),
+                kind: crate::selection::runtime_dispatch::copy_places_to_pointee(
+                    source_place.region,
+                    source_place.byte_offset,
+                    indexed_target.descriptor_offset,
+                    field_byte_offset,
+                    indexed_target.byte_count,
+                ),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
@@ -1430,7 +1469,13 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
                 selected_instructions,
             );
             selected_instructions.push(SelectedInstruction {
-                kind: crate::selection::runtime_dispatch::copy_places_to_pointee(source_place.region, source_place.byte_offset, pointer_target.pointer_byte_offset, pointer_target.field_byte_offset, source_place.byte_count),
+                kind: crate::selection::runtime_dispatch::copy_places_to_pointee(
+                    source_place.region,
+                    source_place.byte_offset,
+                    pointer_target.pointer_byte_offset,
+                    pointer_target.field_byte_offset,
+                    source_place.byte_count,
+                ),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
@@ -1464,7 +1509,13 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
                 selected_instructions,
             );
             selected_instructions.push(SelectedInstruction {
-                kind: crate::selection::runtime_dispatch::copy_places_direct(source_place.region, source_place.byte_offset, target_place.region, target_place.byte_offset, target_place.byte_count),
+                kind: crate::selection::runtime_dispatch::copy_places_direct(
+                    source_place.region,
+                    source_place.byte_offset,
+                    target_place.region,
+                    target_place.byte_offset,
+                    target_place.byte_count,
+                ),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
@@ -1512,7 +1563,15 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         ) && source_place.region == omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
         {
             selected_instructions.push(SelectedInstruction {
-                kind: crate::selection::runtime_dispatch::copy_places_to_indexed(source_place.region, source_place.byte_offset, indexed_target.descriptor_offset, indexed_target.index_offset, indexed_target.element_byte_size, indexed_target.field_byte_offset, indexed_target.byte_count),
+                kind: crate::selection::runtime_dispatch::copy_places_to_indexed(
+                    source_place.region,
+                    source_place.byte_offset,
+                    indexed_target.descriptor_offset,
+                    indexed_target.index_offset,
+                    indexed_target.element_byte_size,
+                    indexed_target.field_byte_offset,
+                    indexed_target.byte_count,
+                ),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
@@ -1635,7 +1694,16 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         ) && source_place.byte_count == indexed_target.byte_count
         {
             selected_instructions.push(SelectedInstruction {
-                kind: crate::selection::runtime_dispatch::copy_places_to_machine_indexed(source_place.region, source_place.byte_offset, indexed_target.base_byte_offset, indexed_target.index_region, indexed_target.index_offset, indexed_target.element_byte_size, indexed_target.field_byte_offset, indexed_target.byte_count),
+                kind: crate::selection::runtime_dispatch::copy_places_to_machine_indexed(
+                    source_place.region,
+                    source_place.byte_offset,
+                    indexed_target.base_byte_offset,
+                    indexed_target.index_region,
+                    indexed_target.index_offset,
+                    indexed_target.element_byte_size,
+                    indexed_target.field_byte_offset,
+                    indexed_target.byte_count,
+                ),
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
@@ -2136,16 +2204,18 @@ fn select_runtime_binary_mutation_write(
         target_source_key,
         resolved_target,
     ) {
-        return Some(crate::selection::runtime_dispatch::write_place_binary_frame_indexed(
-            indexed_target.descriptor_offset,
-            indexed_target.index_offset,
-            indexed_target.element_byte_size,
-            indexed_target.field_byte_offset,
-            indexed_target.byte_count,
-            left,
-            operator,
-            right,
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::write_place_binary_frame_indexed(
+                indexed_target.descriptor_offset,
+                indexed_target.index_offset,
+                indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
+                indexed_target.byte_count,
+                left,
+                operator,
+                right,
+            ),
+        );
     }
 
     if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target(
@@ -2180,18 +2250,20 @@ fn select_runtime_binary_mutation_write(
         target_source_key,
         resolved_target,
     ) {
-        return Some(crate::selection::runtime_dispatch::write_place_binary_base_indexed(
-            omega_target_operations::RuntimeStorageRegion::Machine,
-            indexed_target.base_byte_offset,
-            indexed_target.index_region,
-            indexed_target.index_offset,
-            indexed_target.element_byte_size,
-            indexed_target.field_byte_offset,
-            indexed_target.byte_count,
-            left,
-            operator,
-            right,
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::write_place_binary_base_indexed(
+                omega_target_operations::RuntimeStorageRegion::Machine,
+                indexed_target.base_byte_offset,
+                indexed_target.index_region,
+                indexed_target.index_offset,
+                indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
+                indexed_target.byte_count,
+                left,
+                operator,
+                right,
+            ),
+        );
     }
 
     // BOTH-RUNTIME nested target (`grid[i][j] = a OP b`, the direct-RMW face):
@@ -2228,14 +2300,16 @@ fn select_runtime_binary_mutation_write(
         target_source_key,
         resolved_target,
     ) {
-        return Some(crate::selection::runtime_dispatch::write_place_binary_pointee(
-            pointer_target.pointer_byte_offset,
-            pointer_target.field_byte_offset,
-            pointer_target.pointee_byte_size,
-            left,
-            operator,
-            right,
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::write_place_binary_pointee(
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                pointer_target.pointee_byte_size,
+                left,
+                operator,
+                right,
+            ),
+        );
     }
 
     // `slice[const].field = left OP right` where `slice` is a {ptr,len} descriptor
@@ -2249,14 +2323,16 @@ fn select_runtime_binary_mutation_write(
         resolved_target,
     ) && let Some(field_byte_offset) = indexed_target.pointee_field_byte_offset()
     {
-        return Some(crate::selection::runtime_dispatch::write_place_binary_pointee(
-            indexed_target.descriptor_offset,
-            field_byte_offset,
-            indexed_target.byte_count,
-            left,
-            operator,
-            right,
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::write_place_binary_pointee(
+                indexed_target.descriptor_offset,
+                field_byte_offset,
+                indexed_target.byte_count,
+                left,
+                operator,
+                right,
+            ),
+        );
     }
 
     let target_place = resolve_runtime_storage_place(
@@ -2303,17 +2379,19 @@ fn select_runtime_binary_mutation_write(
                 )
             })
             .unwrap_or(false);
-    Some(crate::selection::runtime_dispatch::write_place_binary_direct(
-        target_place.region,
-        target_place.byte_offset,
-        target_place.byte_count,
-        left,
-        operator,
-        right,
-        is_float,
-        domain,
-        target_signed,
-    ))
+    Some(
+        crate::selection::runtime_dispatch::write_place_binary_direct(
+            target_place.region,
+            target_place.byte_offset,
+            target_place.byte_count,
+            left,
+            operator,
+            right,
+            is_float,
+            domain,
+            target_signed,
+        ),
+    )
 }
 
 /// Decision 17 (task #39): clamp a compile-time-constant store to a
@@ -2396,17 +2474,19 @@ fn trapping_constant_overflow_write(
     };
     let left = runtime_value_operands.insert(RuntimeValueOperand::Immediate(bound));
     let right = runtime_value_operands.insert(RuntimeValueOperand::Immediate(1));
-    Some(crate::selection::runtime_dispatch::write_place_binary_direct(
-        target_place.region,
-        target_place.byte_offset,
-        target_place.byte_count,
-        left,
-        operator,
-        right,
-        false,
-        omega_core::arithmetic::ArithmeticDomain::Trapping,
-        primitive.is_signed_integer(),
-    ))
+    Some(
+        crate::selection::runtime_dispatch::write_place_binary_direct(
+            target_place.region,
+            target_place.byte_offset,
+            target_place.byte_count,
+            left,
+            operator,
+            right,
+            false,
+            omega_core::arithmetic::ArithmeticDomain::Trapping,
+            primitive.is_signed_integer(),
+        ),
+    )
 }
 
 /// Inclusive [min, max] of an integer primitive as `i64` (u64/usize high end
@@ -2422,10 +2502,9 @@ fn saturating_integer_bounds(primitive: PrimitiveType) -> Option<(i64, i64)> {
         PrimitiveType::U32 => Some((0, u32::MAX as i64)),
         PrimitiveType::I64 => Some((i64::MIN, i64::MAX)),
         PrimitiveType::U64 | PrimitiveType::Addr => Some((0, i64::MAX)),
-        PrimitiveType::Bool
-        | PrimitiveType::F32
-        | PrimitiveType::F64
-        | PrimitiveType::String => None,
+        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
+            None
+        }
     }
 }
 

@@ -140,7 +140,9 @@ pub enum FixedArrayLength {
     },
     /// A zero-argument machine call in length position (`[u8; table_size()]`),
     /// const-evaluated before layout (comptime stage 1).
-    ConstCall { name: DiagnosticName },
+    ConstCall {
+        name: DiagnosticName,
+    },
 }
 
 impl Default for FixedArrayLength {

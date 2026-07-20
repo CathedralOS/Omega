@@ -15,4 +15,6 @@ pub use instruction::{
     TargetOperationFunction, TargetOperationKind, TargetOperationPlan, TargetOwnershipSummary,
     TargetSemanticSummary, TargetValueOperand, TargetValueOperandHandle, TargetValueSummary,
 };
-pub use omega_abstract_operations::{PLACE_MAX_STEPS, Place, PlaceStep, StateGuardLowering, StateGuardOperator};
+pub use omega_abstract_operations::{
+    PLACE_MAX_STEPS, Place, PlaceStep, StateGuardLowering, StateGuardOperator,
+};

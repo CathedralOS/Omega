@@ -2,9 +2,8 @@ use omega_core::diagnostics::Diagnostic;
 
 use super::super::primitives::{
     append_add_x_constant, append_unsigned_immediate, encode_add_page_offset_placeholder,
-    encode_add_x_immediate,
-    encode_adrp_placeholder, encode_branch_link_placeholder, encode_cbnz_x, encode_cbz_x,
-    encode_compare_w_immediate, encode_conditional_branch_equal,
+    encode_add_x_immediate, encode_adrp_placeholder, encode_branch_link_placeholder, encode_cbnz_x,
+    encode_cbz_x, encode_compare_w_immediate, encode_conditional_branch_equal,
     encode_conditional_branch_not_equal, encode_load_byte_w_from_x, encode_move_x_register,
     encode_movz, encode_store_byte_w_to_x, encode_store_x_to_x, encode_subs_x_immediate,
     encode_svc, encode_unconditional_branch,
@@ -60,11 +59,8 @@ pub fn encode_runtime_text_line_read_syscall(
     number_register: omega_calling_conventions::MachineRegister,
     supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let registers = aarch64_syscall_registers(
-        parameter_registers,
-        result_register,
-        number_register,
-    )?;
+    let registers =
+        aarch64_syscall_registers(parameter_registers, result_register, number_register)?;
     encode_runtime_text_line_read(
         target_offset,
         byte_capacity,
@@ -98,11 +94,8 @@ pub fn encode_runtime_text_line_read_carrier_syscall(
     number_register: omega_calling_conventions::MachineRegister,
     supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let registers = aarch64_syscall_registers(
-        parameter_registers,
-        result_register,
-        number_register,
-    )?;
+    let registers =
+        aarch64_syscall_registers(parameter_registers, result_register, number_register)?;
     encode_runtime_text_line_read(
         target_offset,
         byte_capacity,
@@ -148,9 +141,10 @@ fn encode_runtime_text_line_read(
         (RuntimeTextReadTarget::BoundedByteCarrier, RuntimeTextReadCall::Import) => {
             runtime_text_line_read_carrier_import_width()
         }
-        (RuntimeTextReadTarget::BoundedByteCarrier, RuntimeTextReadCall::Syscall { number, .. }) => {
-            runtime_text_line_read_carrier_syscall_width(number)
-        }
+        (
+            RuntimeTextReadTarget::BoundedByteCarrier,
+            RuntimeTextReadCall::Syscall { number, .. },
+        ) => runtime_text_line_read_carrier_syscall_width(number),
     };
     let mut bytes = Vec::with_capacity(encoded_capacity);
     // x20 = the read destination base. Descriptor: the relocated line-buffer
@@ -203,7 +197,9 @@ fn encode_runtime_text_line_read(
         bytes.extend(encode_conditional_branch_not_equal(12)?);
         bytes.extend(encode_cbnz_x(22, finish_line_distance)?);
         let skip_leading_delimiter_distance = read_loop_offset as isize - bytes.len() as isize;
-        bytes.extend(encode_unconditional_branch(skip_leading_delimiter_distance)?);
+        bytes.extend(encode_unconditional_branch(
+            skip_leading_delimiter_distance,
+        )?);
     }
     bytes.extend(encode_compare_w_immediate(24, 0)?);
     bytes.extend(encode_conditional_branch_equal(20)?);
@@ -254,9 +250,10 @@ fn encode_runtime_text_line_read(
         (RuntimeTextReadTarget::BoundedByteCarrier, RuntimeTextReadCall::Import) => {
             runtime_text_line_read_carrier_import_width()
         }
-        (RuntimeTextReadTarget::BoundedByteCarrier, RuntimeTextReadCall::Syscall { number, .. }) => {
-            runtime_text_line_read_carrier_syscall_width(number)
-        }
+        (
+            RuntimeTextReadTarget::BoundedByteCarrier,
+            RuntimeTextReadCall::Syscall { number, .. },
+        ) => runtime_text_line_read_carrier_syscall_width(number),
     };
     debug_assert_eq!(bytes.len(), expected_width);
     Ok(bytes)

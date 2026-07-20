@@ -31,17 +31,19 @@ pub fn called_boundary_signature<'program>(
         .data_definitions()
         .iter()
         .find(|data| data.name.as_str() == attached.as_str())?;
-    let field_type = program.data_members(data).iter().find_map(|member| {
-        match member {
+    let field_type = program
+        .data_members(data)
+        .iter()
+        .find_map(|member| match member {
             DataMember::Field(field) if field.name.as_str() == receiver.as_str() => field
                 .type_reference
                 .is_valid()
                 .then_some(field.type_reference),
             _ => None,
-        }
-    })?;
-    let TypeReferenceNode::Named { name: trait_name, .. } =
-        program.type_reference_table.type_reference(field_type)
+        })?;
+    let TypeReferenceNode::Named {
+        name: trait_name, ..
+    } = program.type_reference_table.type_reference(field_type)
     else {
         return None;
     };

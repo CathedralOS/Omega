@@ -1,7 +1,7 @@
 use super::*;
 use omega_control_flow::{
-    ControlFlowPlan, StateDropEvent, StateFlow, StateKey, StateMoveEvent, StateOwnershipEventSource,
-    StatePermissionEvent,
+    ControlFlowPlan, StateDropEvent, StateFlow, StateKey, StateMoveEvent,
+    StateOwnershipEventSource, StatePermissionEvent,
 };
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
@@ -41,25 +41,19 @@ fn copies_control_flow_ownership_events() {
             segments: HandleSpan::empty(),
         },
     );
-    control_flow
-        .semantics
-        .ownership
-        .permissions
-        .append_to_span(
-            &mut state.ownership.permissions,
-            StatePermissionEvent {
-                source: omega_core::semantics::PermissionEventSource::Statement {
-                    statement_index: 4,
-                },
-                kind: omega_core::semantics::PermissionEventKind::Consume,
-                multiplicity: omega_core::semantics::Multiplicity::Linear,
-                access: omega_core::semantics::PermissionAccess::Owned,
-                provenance: omega_core::semantics::PermissionProvenance::Unknown,
-                root: omega_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(11)),
-                segments,
-                obligation_live: true,
-            },
-        );
+    control_flow.semantics.ownership.permissions.append_to_span(
+        &mut state.ownership.permissions,
+        StatePermissionEvent {
+            source: omega_core::semantics::PermissionEventSource::Statement { statement_index: 4 },
+            kind: omega_core::semantics::PermissionEventKind::Consume,
+            multiplicity: omega_core::semantics::Multiplicity::Linear,
+            access: omega_core::semantics::PermissionAccess::Owned,
+            provenance: omega_core::semantics::PermissionProvenance::Unknown,
+            root: omega_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(11)),
+            segments,
+            obligation_live: true,
+        },
+    );
     control_flow.states.insert(state);
 
     let summary = build_abstract_ownership_summary(&control_flow);

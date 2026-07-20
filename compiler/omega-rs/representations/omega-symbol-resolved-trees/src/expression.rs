@@ -194,8 +194,7 @@ impl ExpressionTable {
             ExpressionNode::Cast(cast) => {
                 let value = self.copy_from(source, cast.value);
                 let target_type = self.copy_name_path_members(source, cast.target_type);
-                let semantic_domain =
-                    self.copy_name_path_members(source, cast.semantic_domain);
+                let semantic_domain = self.copy_name_path_members(source, cast.semantic_domain);
                 self.insert(ExpressionNode::Cast(TableCastExpression {
                     value,
                     target_type,
@@ -573,8 +572,7 @@ impl ExpressionTable {
             ExpressionNode::Cast(cast) => {
                 let value = self.copy_from_self(cast.value);
                 let target_type = self.copy_name_path_members_from_self(cast.target_type);
-                let semantic_domain =
-                    self.copy_name_path_members_from_self(cast.semantic_domain);
+                let semantic_domain = self.copy_name_path_members_from_self(cast.semantic_domain);
                 self.insert(ExpressionNode::Cast(TableCastExpression {
                     value,
                     target_type,

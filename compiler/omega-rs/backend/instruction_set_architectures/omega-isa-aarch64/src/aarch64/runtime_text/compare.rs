@@ -1,13 +1,12 @@
 use omega_core::diagnostics::Diagnostic;
 
 use super::super::primitives::{
-    append_add_x_constant, append_unsigned_immediate_w_padded,
-    encode_add_page_offset_placeholder, encode_adrp_placeholder, encode_cbz_x,
-    encode_compare_w_immediate, encode_compare_w_register, encode_compare_w17_immediate,
-    encode_compare_x_register, encode_conditional_branch_equal, encode_conditional_branch_lower,
-    encode_conditional_branch_not_equal, encode_load_byte_w_from_x,
-    encode_load_byte_w_post_increment, encode_load_byte_w17_from_x16, encode_load_x_from_x,
-    encode_move_x_register, encode_runtime_text_input_delimiter_check_bytes,
+    append_add_x_constant, append_unsigned_immediate_w_padded, encode_add_page_offset_placeholder,
+    encode_adrp_placeholder, encode_cbz_x, encode_compare_w_immediate, encode_compare_w_register,
+    encode_compare_w17_immediate, encode_compare_x_register, encode_conditional_branch_equal,
+    encode_conditional_branch_lower, encode_conditional_branch_not_equal,
+    encode_load_byte_w_from_x, encode_load_byte_w_post_increment, encode_load_byte_w17_from_x16,
+    encode_load_x_from_x, encode_move_x_register, encode_runtime_text_input_delimiter_check_bytes,
     encode_subs_x_immediate, encode_unconditional_branch,
 };
 use super::super::widths::{

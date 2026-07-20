@@ -325,8 +325,7 @@ pub fn reserve_entry_argument_spill(
     // EXACT key match (segment included): case-payload bindings are Parameter
     // slots in later segments of the entry state, not platform entry arguments.
     let mut entry_parameters = plan.frame_slots.iter().filter(|(_, slot)| {
-        matches!(slot.kind, crate::RuntimeFrameSlotKind::Parameter)
-            && slot.source_key == entry_key
+        matches!(slot.kind, crate::RuntimeFrameSlotKind::Parameter) && slot.source_key == entry_key
     });
     let Some((_, only)) = entry_parameters.next() else {
         return;

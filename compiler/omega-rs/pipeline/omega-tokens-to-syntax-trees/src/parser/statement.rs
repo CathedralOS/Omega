@@ -427,10 +427,7 @@ fn parse_asm_where_contract<'tokens, 'source>(
         }
     }
 
-    if contract.clobbers.is_none()
-        && contract.requires.is_empty()
-        && contract.ensures.is_empty()
-    {
+    if contract.clobbers.is_none() && contract.requires.is_empty() && contract.ensures.is_empty() {
         return Err(contract_site.error_here(
             "asm where requires at least one `requires`, `ensures`, or `clobbers` clause",
         ));
@@ -445,12 +442,13 @@ fn append_asm_fact_statement(
     kind: AssemblyFactKind,
     expression: ExpressionHandle,
 ) {
-    let statement = syntax_trees
-        .statements
-        .insert(StatementNode::AssemblyFact(TableAssemblyFact {
-            kind,
-            expression,
-        }));
+    let statement =
+        syntax_trees
+            .statements
+            .insert(StatementNode::AssemblyFact(TableAssemblyFact {
+                kind,
+                expression,
+            }));
     let handle = syntax_trees.items.append_statement_handle(statement);
     if *statement_count == 0 {
         *statement_start = handle;
@@ -721,14 +719,15 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             let arguments = syntax_trees
                 .expressions
                 .insert_expression_handles(vec![index]);
-            let value = syntax_trees
-                .expressions
-                .insert(ExpressionNode::Call(TableCallExpression {
-                    receiver: ExpressionHandle::invalid(),
-                    target: Identifier::new("asm#rdmsr", mnemonic.source_span()),
-                    machine_arguments: Box::default(),
-                    arguments,
-                }));
+            let value =
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Call(TableCallExpression {
+                        receiver: ExpressionHandle::invalid(),
+                        target: Identifier::new("asm#rdmsr", mnemonic.source_span()),
+                        machine_arguments: Box::default(),
+                        arguments,
+                    }));
             Ok((
                 ParsedAsmInstruction {
                     statement: syntax_trees.statements.insert(StatementNode::Assignment(
@@ -768,18 +767,25 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
         }
         AsmInstructionShape::ControlRegisterRead(register) => {
             let (destination, input) = parse_expression_handle(syntax_trees, input)?;
-            let value = syntax_trees
-                .expressions
-                .insert(ExpressionNode::Call(TableCallExpression {
-                    receiver: ExpressionHandle::invalid(),
-                    target: Identifier::new(register.read_intrinsic_name(), mnemonic.source_span()),
-                    machine_arguments: Box::default(),
-                    arguments: HandleSpan::empty(),
-                }));
+            let value =
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Call(TableCallExpression {
+                        receiver: ExpressionHandle::invalid(),
+                        target: Identifier::new(
+                            register.read_intrinsic_name(),
+                            mnemonic.source_span(),
+                        ),
+                        machine_arguments: Box::default(),
+                        arguments: HandleSpan::empty(),
+                    }));
             Ok((
                 ParsedAsmInstruction {
                     statement: syntax_trees.statements.insert(StatementNode::Assignment(
-                        TableAssignment { target: destination, value },
+                        TableAssignment {
+                            target: destination,
+                            value,
+                        },
                     )),
                     contract,
                 },
@@ -793,19 +799,21 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 .insert_expression_handles(vec![source]);
             Ok((
                 ParsedAsmInstruction {
-                    statement: syntax_trees.statements.insert(StatementNode::Call(TableCall {
-                        receiver: HandleSpan::empty(),
-                        receiver_starts_at_self: false,
-                        target: Identifier::new(
-                            register
-                                .write_intrinsic_name()
-                                .expect("writable control-register shape"),
-                            mnemonic.source_span(),
-                        ),
-                        machine_arguments: Box::default(),
-                        arguments,
-                        discards_result: false,
-                    })),
+                    statement: syntax_trees
+                        .statements
+                        .insert(StatementNode::Call(TableCall {
+                            receiver: HandleSpan::empty(),
+                            receiver_starts_at_self: false,
+                            target: Identifier::new(
+                                register
+                                    .write_intrinsic_name()
+                                    .expect("writable control-register shape"),
+                                mnemonic.source_span(),
+                            ),
+                            machine_arguments: Box::default(),
+                            arguments,
+                            discards_result: false,
+                        })),
                     contract,
                 },
                 input,
@@ -1222,13 +1230,14 @@ pub(super) fn try_parse_destructure_let<'tokens, 'source>(
         let Some(binding) = binding else {
             continue; // waived: spelled in the marker, no binding minted
         };
-        let member = syntax_trees
-            .expressions
-            .insert(ExpressionNode::Member(TableMemberExpression {
-                receiver: value,
-                member: field,
-                case_variant: None,
-            }));
+        let member =
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver: value,
+                    member: field,
+                    case_variant: None,
+                }));
         let statement = syntax_trees
             .statements
             .insert(StatementNode::LocalData(TableLocalData {

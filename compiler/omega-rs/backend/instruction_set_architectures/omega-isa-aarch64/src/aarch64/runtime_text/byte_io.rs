@@ -53,11 +53,8 @@ pub fn encode_runtime_byte_read_syscall(
     number_register: omega_calling_conventions::MachineRegister,
     supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let registers = aarch64_syscall_registers(
-        parameter_registers,
-        result_register,
-        number_register,
-    )?;
+    let registers =
+        aarch64_syscall_registers(parameter_registers, result_register, number_register)?;
     encode_runtime_byte_read(
         target_offset,
         payload_offset,
@@ -139,11 +136,8 @@ pub fn encode_runtime_byte_write_syscall(
     number_register: omega_calling_conventions::MachineRegister,
     supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let registers = aarch64_syscall_registers(
-        parameter_registers,
-        result_register,
-        number_register,
-    )?;
+    let registers =
+        aarch64_syscall_registers(parameter_registers, result_register, number_register)?;
     encode_runtime_byte_write(
         source_offset,
         RuntimeByteCall::Syscall {
@@ -218,17 +212,16 @@ mod tests {
             assert_eq!(import.len(), runtime_byte_read_import_width());
             // darwin read = 3, linux_arm64 read = 63: one- and one-halfword numbers.
             for number in [3u32, 63] {
-                let syscall =
-                    encode_runtime_byte_read_syscall(
-                        target_offset,
-                        payload_offset,
-                        number,
-                        &PARAMETERS,
-                        MachineRegister::Aarch64X(0),
-                        MachineRegister::Aarch64X(16),
-                        0x80,
-                    )
-                    .unwrap();
+                let syscall = encode_runtime_byte_read_syscall(
+                    target_offset,
+                    payload_offset,
+                    number,
+                    &PARAMETERS,
+                    MachineRegister::Aarch64X(0),
+                    MachineRegister::Aarch64X(16),
+                    0x80,
+                )
+                .unwrap();
                 assert_eq!(syscall.len(), runtime_byte_read_syscall_width(number));
             }
         }

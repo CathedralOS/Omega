@@ -2,10 +2,9 @@ use crate::InstructionSelectionInput;
 use crate::selection::storage_places::{
     RuntimeStoragePlace, clamp_runtime_case_comparison_operands_in_table,
     classify_scalar_value_type_in_table, descriptor_primitive_type,
-    resolve_runtime_frame_indexed_target_in_table,
+    resolve_binary_write_arithmetic_domain_in_table, resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
-    resolve_runtime_pointee_slot_offset_in_table,
-    resolve_binary_write_arithmetic_domain_in_table, resolve_runtime_storage_is_signed_in_table,
+    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
     resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
     runtime_storage_target_is_atomic_in_table,
 };
@@ -325,17 +324,19 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
         invalidate_runtime_static_value_in_table(static_values, expressions, target);
         let zero = runtime_value_operands.insert(RuntimeValueOperand::Immediate(0));
         let target_place = target_place?;
-        return Some(crate::selection::runtime_dispatch::write_place_binary_direct(
-            target_place.region,
-            target_place.byte_offset,
-            target_place.byte_count,
-            text_equals,
-            StateGuardOperator::Or,
-            zero,
-            false,
-            omega_core::arithmetic::ArithmeticDomain::Exact,
-            false,
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::write_place_binary_direct(
+                target_place.region,
+                target_place.byte_offset,
+                target_place.byte_count,
+                text_equals,
+                StateGuardOperator::Or,
+                zero,
+                false,
+                omega_core::arithmetic::ArithmeticDomain::Exact,
+                false,
+            ),
+        );
     }
 
     // Division, modulo, right shift, min/max, and comparisons differ by
@@ -451,16 +452,18 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
             expressions,
             target,
         ) {
-            return Some(crate::selection::runtime_dispatch::write_place_binary_frame_indexed(
-                indexed_target.descriptor_offset,
-                indexed_target.index_offset,
-                indexed_target.element_byte_size,
-                indexed_target.field_byte_offset,
-                indexed_target.byte_count,
-                left,
-                operator,
-                right,
-            ));
+            return Some(
+                crate::selection::runtime_dispatch::write_place_binary_frame_indexed(
+                    indexed_target.descriptor_offset,
+                    indexed_target.index_offset,
+                    indexed_target.element_byte_size,
+                    indexed_target.field_byte_offset,
+                    indexed_target.byte_count,
+                    left,
+                    operator,
+                    right,
+                ),
+            );
         }
 
         if let Some(pointer_target) = resolve_runtime_pointee_fixed_indexed_target_in_table(
@@ -470,14 +473,16 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
             expressions,
             target,
         ) {
-            return Some(crate::selection::runtime_dispatch::write_place_binary_pointee(
-                pointer_target.pointer_byte_offset,
-                pointer_target.field_byte_offset,
-                pointer_target.pointee_byte_size,
-                left,
-                operator,
-                right,
-            ));
+            return Some(
+                crate::selection::runtime_dispatch::write_place_binary_pointee(
+                    pointer_target.pointer_byte_offset,
+                    pointer_target.field_byte_offset,
+                    pointer_target.pointee_byte_size,
+                    left,
+                    operator,
+                    right,
+                ),
+            );
         }
 
         if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
@@ -487,14 +492,16 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
             expressions,
             target,
         ) {
-            return Some(crate::selection::runtime_dispatch::write_place_binary_pointee(
-                pointer_target.pointer_byte_offset,
-                pointer_target.field_byte_offset,
-                pointer_target.pointee_byte_size,
-                left,
-                operator,
-                right,
-            ));
+            return Some(
+                crate::selection::runtime_dispatch::write_place_binary_pointee(
+                    pointer_target.pointer_byte_offset,
+                    pointer_target.field_byte_offset,
+                    pointer_target.pointee_byte_size,
+                    left,
+                    operator,
+                    right,
+                ),
+            );
         }
     }
 
@@ -521,17 +528,19 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     .unwrap_or(false);
 
     let target_place = target_place?;
-    Some(crate::selection::runtime_dispatch::write_place_binary_direct(
-        target_place.region,
-        target_place.byte_offset,
-        target_place.byte_count,
-        left,
-        operator,
-        right,
-        is_float,
-        domain,
-        target_signed,
-    ))
+    Some(
+        crate::selection::runtime_dispatch::write_place_binary_direct(
+            target_place.region,
+            target_place.byte_offset,
+            target_place.byte_count,
+            left,
+            operator,
+            right,
+            is_float,
+            domain,
+            target_signed,
+        ),
+    )
 }
 
 /// Replace a signed division/modulo/right-shift/min/max/comparison operator with
@@ -616,7 +625,11 @@ fn resolve_runtime_operand_signedness_in_table(
     static_values: &RuntimeStaticValues,
 ) -> Option<bool> {
     resolve_runtime_storage_is_signed_in_table(
-        input, dispatch_index, source_key, expressions, expression,
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
     )
     .or_else(|| {
         resolve_runtime_static_integer_landing_in_table(expressions, expression, static_values)
@@ -839,17 +852,19 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
         right_expression,
     );
     let target_signed = resolved_signed.unwrap_or(false);
-    Some(crate::selection::runtime_dispatch::write_place_binary_direct(
-        target_region,
-        target_offset,
-        byte_size,
-        left,
-        operator,
-        right,
-        is_float,
-        domain,
-        target_signed,
-    ))
+    Some(
+        crate::selection::runtime_dispatch::write_place_binary_direct(
+            target_region,
+            target_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+            is_float,
+            domain,
+            target_signed,
+        ),
+    )
 }
 
 /// When a binary's target is f32, a float-LITERAL operand was resolved to its f64

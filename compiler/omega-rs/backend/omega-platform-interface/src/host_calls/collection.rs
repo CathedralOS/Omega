@@ -1,3 +1,7 @@
+use super::lowering::{
+    expression_platform_receiver_type, find_platform_call_lowering_by_target,
+    lower_host_call_argument,
+};
 use crate::host_calls::lowering::{
     find_platform_call_lowering, host_operation, lower_host_call_arguments, platform_call_name,
     platform_call_receiver_type,
@@ -6,10 +10,6 @@ use crate::host_calls::static_values::{
     StaticValues, apply_call_static_effects, apply_static_assignment, initial_static_values,
 };
 use crate::{HostCall, HostCallPlan, UnsupportedHostCall, UnsupportedHostCallReason};
-use super::lowering::{
-    expression_platform_receiver_type, find_platform_call_lowering_by_target,
-    lower_host_call_argument,
-};
 use omega_calling_conventions::HostAbiPlan;
 use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::machine::Machine;
@@ -136,8 +136,7 @@ fn collect_assignment_result_host_lowering(
         return Ok(());
     };
     let call = call.clone();
-    let Some(platform_name) = expression_platform_receiver_type(program, call.target_symbol)
-    else {
+    let Some(platform_name) = expression_platform_receiver_type(program, call.target_symbol) else {
         return Ok(());
     };
     let Some((lowering_handle, lowering)) =
@@ -229,19 +228,26 @@ fn collect_local_result_host_lowering(
     static_values: &StaticValues,
     plan: &mut HostCallPlan,
 ) -> Result<(), Diagnostic> {
-    let omega_checked_trees::expression::ExpressionNode::Call(call) =
-        program.expression_table.expression(local_data.initial_value)
+    let omega_checked_trees::expression::ExpressionNode::Call(call) = program
+        .expression_table
+        .expression(local_data.initial_value)
     else {
         if std::env::var_os("OMEGA_DEBUG_HOSTCALL").is_some() {
-            eprintln!("HOSTCALL: local `{}` initializer is not a Call node", local_data.name.as_str());
+            eprintln!(
+                "HOSTCALL: local `{}` initializer is not a Call node",
+                local_data.name.as_str()
+            );
         }
         return Ok(());
     };
     let call = call.clone();
-    let Some(platform_name) = expression_platform_receiver_type(program, call.target_symbol)
-    else {
+    let Some(platform_name) = expression_platform_receiver_type(program, call.target_symbol) else {
         if std::env::var_os("OMEGA_DEBUG_HOSTCALL").is_some() {
-            eprintln!("HOSTCALL: local `{}` call target `{}` has no platform receiver type", local_data.name.as_str(), call.target.as_str());
+            eprintln!(
+                "HOSTCALL: local `{}` call target `{}` has no platform receiver type",
+                local_data.name.as_str(),
+                call.target.as_str()
+            );
         }
         return Ok(());
     };
@@ -277,16 +283,16 @@ fn collect_local_result_host_lowering(
     let mut member_symbols = HandleSpan::empty();
     plan.expressions
         .push_name_path_member_symbol(&mut member_symbols, local_data.symbol);
-    let result_place = plan.expressions.insert(
-        omega_checked_trees::expression::ExpressionNode::Name(
-            omega_checked_trees::expression::TableNamePath {
-                members,
-                member_symbols,
-                head_symbol: local_data.symbol,
-                symbol: local_data.symbol,
-            },
-        ),
-    );
+    let result_place =
+        plan.expressions
+            .insert(omega_checked_trees::expression::ExpressionNode::Name(
+                omega_checked_trees::expression::TableNamePath {
+                    members,
+                    member_symbols,
+                    head_symbol: local_data.symbol,
+                    symbol: local_data.symbol,
+                },
+            ));
 
     let mut argument_span = HandleSpan::empty();
     plan.arguments.append_to_span(

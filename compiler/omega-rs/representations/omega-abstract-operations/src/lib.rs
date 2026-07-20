@@ -20,8 +20,8 @@ pub use instruction::{
     AbstractFunctionPlan, AbstractOperation, AbstractOperationDomain, AbstractOperationKind,
     AbstractValueOperand, AbstractValueOperandHandle, FunctionInstructionPlan, InstructionOperand,
     InstructionOperandKind, PLACE_MAX_STEPS, Place, PlaceStep, RuntimeStorageRegion,
-    RuntimeValueOperand, RuntimeValueOperandHandle,
-    SelectedInstruction, SelectedInstructionKind, ValueOperand, ValueOperandHandle,
+    RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,
+    ValueOperand, ValueOperandHandle,
 };
 pub use ownership::{
     AbstractDropEvent, AbstractMoveEvent, AbstractOwnershipEventSource, AbstractOwnershipSummary,

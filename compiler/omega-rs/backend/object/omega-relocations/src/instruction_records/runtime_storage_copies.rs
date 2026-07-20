@@ -1,15 +1,15 @@
 use super::super::offsets::{
+    runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset,
     runtime_storage_copy_from_runtime_frame_indexed_target_address_offset,
+    runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset,
+    runtime_storage_copy_from_runtime_machine_double_indexed_target_base_offset,
     runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_offset,
     runtime_storage_copy_from_runtime_machine_indexed_target_address_offset,
-    runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset,
-    runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset,
-    runtime_storage_copy_from_runtime_machine_double_indexed_target_base_offset,
+    runtime_storage_copy_from_runtime_pointee_to_runtime_frame_target_address_offset,
     runtime_storage_copy_machine_indexed_frame_index_offset,
     runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset,
-    runtime_storage_copy_to_runtime_machine_indexed_source_address_offset,
-    runtime_storage_copy_from_runtime_pointee_to_runtime_frame_target_address_offset,
     runtime_storage_copy_target_address_offset,
+    runtime_storage_copy_to_runtime_machine_indexed_source_address_offset,
 };
 use super::context::InstructionRelocationContext;
 use omega_target::Architecture;
@@ -36,7 +36,9 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                 Architecture::X86_64 => {
                     let (_, sites) =
                         omega_instruction_selection::x86_64_encode_copy_places_with_sites(
-                            source, target, *byte_count,
+                            source,
+                            target,
+                            *byte_count,
                         )
                         .expect(
                             "CopyPlaces reached relocation with a shape the materializer \
@@ -375,9 +377,7 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                             omega_instruction_selection::PlaceCopySide::Source
                             | omega_instruction_selection::PlaceCopySide::SourceIndex
                             | omega_instruction_selection::PlaceCopySide::SourceIndex2 => {
-                                unreachable!(
-                                    "an integer write materializes only the target side"
-                                )
+                                unreachable!("an integer write materializes only the target side")
                             }
                         };
                         context.insert_data_address_at_relative_offset(
@@ -393,8 +393,7 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                     // integer-write layout anchors its base at the
                     // instruction start; the machine-indexed shapes add
                     // their frame-index relocations.
-                    let shape =
-                        omega_instruction_selection::classify_write_place_shape(target);
+                    let shape = omega_instruction_selection::classify_write_place_shape(target);
                     context.insert_data_address_at_instruction_start(
                         context.storage_region_symbol_handle(target.region),
                     );

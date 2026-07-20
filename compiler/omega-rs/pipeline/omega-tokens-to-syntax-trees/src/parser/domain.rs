@@ -18,8 +18,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     // `[u8]` slice). A bracket-prefixed target is parsed as a full type reference;
     // every other target stays the bare-identifier path, so existing named-target
     // declarations are completely unchanged (zero fallout).
-    let (target_type, target_label, input) = if input.at_punctuation(PunctuationKind::LeftBracket)
-    {
+    let (target_type, target_label, input) = if input.at_punctuation(PunctuationKind::LeftBracket) {
         let (handle, input) =
             crate::parser::type_reference::parse_type_reference_handle(syntax_trees, input)?;
         let label = type_reference_target_label(syntax_trees, handle);
@@ -59,10 +58,16 @@ fn type_reference_target_label(
 ) -> String {
     match syntax_trees.type_references.type_reference(handle) {
         TypeReferenceNode::Slice { element_type } => {
-            format!("[{}]", type_reference_target_label(syntax_trees, *element_type))
+            format!(
+                "[{}]",
+                type_reference_target_label(syntax_trees, *element_type)
+            )
         }
         TypeReferenceNode::FixedArray { element_type, .. } => {
-            format!("[{}; N]", type_reference_target_label(syntax_trees, *element_type))
+            format!(
+                "[{}; N]",
+                type_reference_target_label(syntax_trees, *element_type)
+            )
         }
         TypeReferenceNode::Named(name) => name.to_string(),
         _ => "?".to_owned(),

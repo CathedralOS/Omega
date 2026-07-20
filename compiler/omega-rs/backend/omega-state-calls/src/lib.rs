@@ -201,8 +201,10 @@ pub fn build_state_call_plan_with_workers(
                 &mut receiver_path,
             );
         } else if !call.receiver_name.as_str().is_empty() {
-            receiver_path
-                .push_contiguous(plan.receiver_path_segments.insert(call.receiver_name.clone()));
+            receiver_path.push_contiguous(
+                plan.receiver_path_segments
+                    .insert(call.receiver_name.clone()),
+            );
         }
 
         plan.calls.insert(StateCall {

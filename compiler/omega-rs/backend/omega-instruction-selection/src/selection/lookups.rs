@@ -331,8 +331,7 @@ pub(super) fn asm_port_read_operands<'plan>(
     statement_index: usize,
 ) -> Option<(ExpressionHandle, ExpressionHandle)> {
     let mutation = state_mutation_for_statement(input, source_key, statement_index)?;
-    let ExpressionNode::Call(call) =
-        input.state_storage.expressions.expression(mutation.value)
+    let ExpressionNode::Call(call) = input.state_storage.expressions.expression(mutation.value)
     else {
         return None;
     };

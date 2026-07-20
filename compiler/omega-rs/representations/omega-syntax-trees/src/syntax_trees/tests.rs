@@ -16,7 +16,9 @@ fn syntax_trees_collect_state_expression_and_type_payloads() {
     let mut syntax_trees = SyntaxTrees::new(Default::default());
     let guard = syntax_trees
         .expressions
-        .insert(crate::expression::ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(1)));
+        .insert(crate::expression::ExpressionNode::Integer(
+            omega_core::literals::IntegerLiteral::from_value(1),
+        ));
     let target = syntax_trees
         .statements
         .insert_transition_target(TransitionTargetNode::Terminal);
@@ -45,7 +47,7 @@ fn syntax_trees_collect_state_expression_and_type_payloads() {
         attached_data: None,
         target: None,
         boundary: false,
-            bodyless: false,
+        bodyless: false,
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
         terminates: false,
@@ -85,7 +87,7 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
         attached_data: None,
         target: None,
         boundary: false,
-            bodyless: false,
+        bodyless: false,
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
         terminates: false,
@@ -125,7 +127,9 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
     let receiver = HandleSpan::from_parts(receiver, 1);
     let argument = file
         .expressions
-        .insert(crate::expression::ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
+        .insert(crate::expression::ExpressionNode::Integer(
+            omega_core::literals::IntegerLiteral::from_value(0),
+        ));
     let argument = file.statements.append_expression_handle(argument);
     let call = file.statements.insert(StatementNode::Call(TableCall {
         receiver,
@@ -148,7 +152,7 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
         attached_data: None,
         target: None,
         boundary: false,
-            bodyless: false,
+        bodyless: false,
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
         terminates: false,
@@ -228,7 +232,9 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
             arguments: nested_arguments,
         }));
 
-    let zero = file.expressions.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
+    let zero = file.expressions.insert(ExpressionNode::Integer(
+        omega_core::literals::IntegerLiteral::from_value(0),
+    ));
     let max_arguments = file
         .expressions
         .insert_expression_handles([zero, nested_call]);
@@ -260,7 +266,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
         attached_data: None,
         target: None,
         boundary: false,
-            bodyless: false,
+        bodyless: false,
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
         terminates: false,

@@ -664,8 +664,11 @@ fn resolve_leaf_binding_expression_handle_at_depth(
             let copied_values = table.reserve_expression_handles(values.count());
             for offset in 0..values.count() {
                 let value = table.expression_handle_at_offset(values, offset);
-                let resolved =
-                    resolve_leaf_binding_expression_handle_at_depth(source_table, table, value, bindings,
+                let resolved = resolve_leaf_binding_expression_handle_at_depth(
+                    source_table,
+                    table,
+                    value,
+                    bindings,
                     substitution_depth,
                 );
                 table.set_expression_handle_at_offset(copied_values, offset, resolved);
@@ -673,14 +676,20 @@ fn resolve_leaf_binding_expression_handle_at_depth(
             table.insert(ExpressionNode::ArrayLiteral(copied_values))
         }
         ExpressionNode::Binary(binary) => {
-            let left =
-                resolve_leaf_binding_expression_handle_at_depth(source_table, table, binary.left, bindings,
-                    substitution_depth,
-                );
-            let right =
-                resolve_leaf_binding_expression_handle_at_depth(source_table, table, binary.right, bindings,
-                    substitution_depth,
-                );
+            let left = resolve_leaf_binding_expression_handle_at_depth(
+                source_table,
+                table,
+                binary.left,
+                bindings,
+                substitution_depth,
+            );
+            let right = resolve_leaf_binding_expression_handle_at_depth(
+                source_table,
+                table,
+                binary.right,
+                bindings,
+                substitution_depth,
+            );
             table.insert(ExpressionNode::Binary(
                 omega_checked_trees::expression::TableBinaryExpression {
                     left,
@@ -690,10 +699,13 @@ fn resolve_leaf_binding_expression_handle_at_depth(
             ))
         }
         ExpressionNode::Cast(cast) => {
-            let value =
-                resolve_leaf_binding_expression_handle_at_depth(source_table, table, cast.value, bindings,
-                    substitution_depth,
-                );
+            let value = resolve_leaf_binding_expression_handle_at_depth(
+                source_table,
+                table,
+                cast.value,
+                bindings,
+                substitution_depth,
+            );
             table.insert(ExpressionNode::Cast(
                 omega_checked_trees::expression::TableCastExpression {
                     value,
@@ -706,15 +718,22 @@ fn resolve_leaf_binding_expression_handle_at_depth(
         }
         ExpressionNode::Call(call) => {
             let receiver = call.receiver.is_valid().then(|| {
-                resolve_leaf_binding_expression_handle_at_depth(source_table, table, call.receiver, bindings,
+                resolve_leaf_binding_expression_handle_at_depth(
+                    source_table,
+                    table,
+                    call.receiver,
+                    bindings,
                     substitution_depth,
                 )
             });
             let copied_arguments = table.reserve_expression_handles(call.arguments.count());
             for offset in 0..call.arguments.count() {
                 let argument = table.expression_handle_at_offset(call.arguments, offset);
-                let resolved =
-                    resolve_leaf_binding_expression_handle_at_depth(source_table, table, argument, bindings,
+                let resolved = resolve_leaf_binding_expression_handle_at_depth(
+                    source_table,
+                    table,
+                    argument,
+                    bindings,
                     substitution_depth,
                 );
                 table.set_expression_handle_at_offset(copied_arguments, offset, resolved);
@@ -735,15 +754,15 @@ fn resolve_leaf_binding_expression_handle_at_depth(
                 table,
                 indexed.collection,
                 bindings,
-                    substitution_depth,
-                );
+                substitution_depth,
+            );
             let index = resolve_leaf_binding_expression_handle_at_depth(
                 source_table,
                 table,
                 indexed.index,
                 bindings,
-                    substitution_depth,
-                );
+                substitution_depth,
+            );
             // An index is always a VALUE, never a pointer. An inlined by-value
             // argument binds as `mut <expr>` (e.g. `items[key]` with `key = mut 2`
             // becomes `items[mut 2]`), which the index-path resolvers reject because
@@ -764,8 +783,8 @@ fn resolve_leaf_binding_expression_handle_at_depth(
                 table,
                 member.receiver,
                 bindings,
-                    substitution_depth,
-                );
+                substitution_depth,
+            );
             table.insert(ExpressionNode::Member(
                 omega_checked_trees::expression::TableMemberExpression {
                     receiver,
@@ -776,10 +795,13 @@ fn resolve_leaf_binding_expression_handle_at_depth(
             ))
         }
         ExpressionNode::Mutable(target) => {
-            let resolved_target =
-                resolve_leaf_binding_expression_handle_at_depth(source_table, table, target, bindings,
-                    substitution_depth,
-                );
+            let resolved_target = resolve_leaf_binding_expression_handle_at_depth(
+                source_table,
+                table,
+                target,
+                bindings,
+                substitution_depth,
+            );
             if matches!(
                 table.expression(resolved_target),
                 ExpressionNode::Mutable(_)
@@ -876,7 +898,13 @@ pub(super) fn resolve_straight_line_binding_expression_handle(
     expression: ExpressionHandle,
     bindings: &[RuntimeStraightLineBranchBinding],
 ) -> ExpressionHandle {
-    resolve_straight_line_binding_expression_handle_at_depth(source_table, table, expression, bindings, 0)
+    resolve_straight_line_binding_expression_handle_at_depth(
+        source_table,
+        table,
+        expression,
+        bindings,
+        0,
+    )
 }
 
 fn resolve_straight_line_binding_expression_handle_at_depth(
@@ -908,15 +936,15 @@ fn resolve_straight_line_binding_expression_handle_at_depth(
                 table,
                 binary.left,
                 bindings,
-                    substitution_depth,
-                );
+                substitution_depth,
+            );
             let right = resolve_straight_line_binding_expression_handle_at_depth(
                 source_table,
                 table,
                 binary.right,
                 bindings,
-                    substitution_depth,
-                );
+                substitution_depth,
+            );
             table.insert(ExpressionNode::Binary(
                 omega_checked_trees::expression::TableBinaryExpression {
                     left,
@@ -931,8 +959,8 @@ fn resolve_straight_line_binding_expression_handle_at_depth(
                 table,
                 cast.value,
                 bindings,
-                    substitution_depth,
-                );
+                substitution_depth,
+            );
             table.insert(ExpressionNode::Cast(
                 omega_checked_trees::expression::TableCastExpression {
                     value,
@@ -981,15 +1009,15 @@ fn resolve_straight_line_binding_expression_handle_at_depth(
                 table,
                 indexed.collection,
                 bindings,
-                    substitution_depth,
-                );
+                substitution_depth,
+            );
             let index = resolve_straight_line_binding_expression_handle_at_depth(
                 source_table,
                 table,
                 indexed.index,
                 bindings,
-                    substitution_depth,
-                );
+                substitution_depth,
+            );
             table.insert(ExpressionNode::Indexed(TableIndexedExpression {
                 collection,
                 index,
@@ -1001,8 +1029,8 @@ fn resolve_straight_line_binding_expression_handle_at_depth(
                 table,
                 member.receiver,
                 bindings,
-                    substitution_depth,
-                );
+                substitution_depth,
+            );
             table.insert(ExpressionNode::Member(
                 omega_checked_trees::expression::TableMemberExpression {
                     receiver,
@@ -1018,8 +1046,8 @@ fn resolve_straight_line_binding_expression_handle_at_depth(
                 table,
                 target,
                 bindings,
-                    substitution_depth,
-                );
+                substitution_depth,
+            );
             if matches!(
                 table.expression(resolved_target),
                 ExpressionNode::Mutable(_)
@@ -1107,7 +1135,13 @@ pub(super) fn resolve_branch_prelude_binding_expression_handle(
     expression: ExpressionHandle,
     bindings: &[RuntimeBranchPreludeBinding],
 ) -> ExpressionHandle {
-    resolve_branch_prelude_binding_expression_handle_at_depth(source_table, table, expression, bindings, 0)
+    resolve_branch_prelude_binding_expression_handle_at_depth(
+        source_table,
+        table,
+        expression,
+        bindings,
+        0,
+    )
 }
 
 fn resolve_branch_prelude_binding_expression_handle_at_depth(
@@ -1124,8 +1158,8 @@ fn resolve_branch_prelude_binding_expression_handle_at_depth(
                 table,
                 target,
                 bindings,
-                    substitution_depth,
-                );
+                substitution_depth,
+            );
             if matches!(
                 table.expression(resolved_target),
                 ExpressionNode::Mutable(_)

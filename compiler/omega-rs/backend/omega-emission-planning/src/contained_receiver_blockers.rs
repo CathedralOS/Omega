@@ -53,9 +53,7 @@ pub(crate) fn collect_contained_receiver_blockers(
         if state_call.receiver_name.as_str().is_empty() {
             continue;
         }
-        if !state_call.reachable
-            && !live_machines.contains(&state_call.source_key.machine)
-        {
+        if !state_call.reachable && !live_machines.contains(&state_call.source_key.machine) {
             continue;
         }
         if state_call.source_key.machine == state_call.target_key.machine {
@@ -241,13 +239,9 @@ pub(crate) fn collect_contained_receiver_blockers(
                     })
             {
                 let bound_by_env = source_anchor.is_some_and(|anchor| {
-                    anchor
-                        .params
-                        .iter()
-                        .any(|(name, bound)| {
-                            name.as_str() == state_call.receiver_name.as_str()
-                                && bound.is_some()
-                        })
+                    anchor.params.iter().any(|(name, bound)| {
+                        name.as_str() == state_call.receiver_name.as_str() && bound.is_some()
+                    })
                 });
                 if bound_by_env && unique_in_family {
                     continue; // tier 1: the binding serves it
@@ -686,9 +680,7 @@ fn collect_expression_path_segments<'table>(
 ) -> bool {
     use omega_checked_trees::expression::ExpressionNode;
     match table.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            collect_expression_path_segments(table, *inner, segments)
-        }
+        ExpressionNode::Mutable(inner) => collect_expression_path_segments(table, *inner, segments),
         ExpressionNode::Name(path) => {
             segments.extend(table.name_path_members(path.members).iter());
             true
@@ -721,8 +713,7 @@ fn hop_receiver_base(
         let source_attached = source_layout.attached_data.as_deref();
         let target_attached = machine_layout_by_symbol(input.layouts, call.target_key.machine)
             .and_then(|layout| layout.attached_data.as_deref());
-        return (source_attached.is_some() && source_attached == target_attached)
-            .then_some(base);
+        return (source_attached.is_some() && source_attached == target_attached).then_some(base);
     }
     if receiver_name.is_empty() {
         return None;

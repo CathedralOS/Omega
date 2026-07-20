@@ -156,7 +156,12 @@ mod tests {
             0,
         );
 
-        let plan = plan_macho_image(&image, 1, 12, &[crate::load_commands::MachoDylib::LIBSYSTEM]);
+        let plan = plan_macho_image(
+            &image,
+            1,
+            12,
+            &[crate::load_commands::MachoDylib::LIBSYSTEM],
+        );
 
         assert!(plan.has_imports);
         assert!(plan.has_data_segment);

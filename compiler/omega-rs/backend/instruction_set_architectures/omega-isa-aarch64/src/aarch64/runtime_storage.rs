@@ -5,46 +5,35 @@ use omega_target_operations::{
 
 use super::primitives::{
     append_add_x_constant, append_unsigned_immediate, append_unsigned_immediate_padded,
-    encode_add_x_immediate,
-    append_unsigned_immediate_w_padded, encode_add_page_offset_placeholder, encode_add_x_register,
-    encode_adrp_placeholder, encode_and_x_register, encode_casal, encode_cbz_x, encode_eor_x_register,
-    encode_float_add,
-    encode_ldaddal_discard,
-    encode_float_compare, encode_float_conditional_select, encode_float_sqrt,
-    encode_load_byte_w_post_increment, encode_store_byte_w_post_increment,
-    encode_subs_x_immediate,
-    encode_unconditional_branch,
-    encode_float_convert_double_to_single, encode_float_convert_single_to_double,
-    encode_float_divide, encode_float_move_from_gpr, encode_float_move_to_gpr,
-    encode_float_multiply, encode_float_to_signed_int, encode_float_to_unsigned_int,
-    encode_signed_int_to_float,
-    encode_brk, encode_sign_extend_byte_to_w, encode_sign_extend_byte_to_x,
-    encode_zero_extend_byte_to_w, encode_zero_extend_halfword_to_w,
-    encode_sign_extend_halfword_to_w, encode_sign_extend_halfword_to_x, encode_sign_extend_word_to_x,
-    encode_float_subtract, encode_compare_w_immediate, encode_compare_w_register,
-    encode_compare_x_immediate,
-    encode_compare_x_register, encode_load_byte_w_from_x,
+    append_unsigned_immediate_w_padded, encode_add_page_offset_placeholder, encode_add_x_immediate,
+    encode_add_x_register, encode_adds_x_register, encode_adrp_placeholder, encode_and_w_low_ones,
+    encode_and_w_top_bit, encode_and_x_low_ones, encode_and_x_register, encode_and_x_top_bit,
+    encode_asrv_w_register, encode_asrv_x_register, encode_brk, encode_casal, encode_cbz_x,
+    encode_compare_w_immediate, encode_compare_w_register, encode_compare_x_immediate,
+    encode_compare_x_register, encode_compare_x_register_sign_broadcast,
     encode_conditional_branch_equal, encode_conditional_branch_greater,
     encode_conditional_branch_greater_or_equal, encode_conditional_branch_higher,
-    encode_conditional_branch_less, encode_conditional_branch_less_or_equal,
-    encode_conditional_branch_higher_or_same, encode_conditional_branch_lower,
-    encode_conditional_branch_lower_or_same, encode_conditional_branch_not_equal,
-    encode_conditional_branch_plus,
-    encode_load_w_from_x, encode_load_x_from_x, encode_and_w_low_ones, encode_and_w_top_bit,
-    encode_and_x_low_ones, encode_and_x_top_bit, encode_asrv_w_register,
-    encode_asrv_x_register, encode_lslv_w_register, encode_lslv_x_register, encode_lsrv_w_register,
-    encode_lsrv_x_register, encode_move_w_register,
-    encode_move_x_register, encode_movz,
-    encode_movz_w,
-    encode_msub_w_register, encode_msub_x_register, encode_mul_x_register, encode_orr_x_register,
-    encode_adds_x_register, encode_compare_x_register_sign_broadcast,
-    encode_conditional_branch_no_overflow, encode_csel_x, encode_csinv_x, encode_smulh_x,
-    encode_umulh_x,
-    encode_sdiv_w_register, encode_sdiv_x_register, encode_store_byte_w_to_x, encode_store_w_to_x,
-    encode_subs_x_register,
-    encode_store_w17_to_x16,
-    encode_store_x_to_x, encode_store_x17_to_x16, encode_sub_x_register, encode_udiv_w_register,
-    encode_udiv_x_register,
+    encode_conditional_branch_higher_or_same, encode_conditional_branch_less,
+    encode_conditional_branch_less_or_equal, encode_conditional_branch_lower,
+    encode_conditional_branch_lower_or_same, encode_conditional_branch_no_overflow,
+    encode_conditional_branch_not_equal, encode_conditional_branch_plus, encode_csel_x,
+    encode_csinv_x, encode_eor_x_register, encode_float_add, encode_float_compare,
+    encode_float_conditional_select, encode_float_convert_double_to_single,
+    encode_float_convert_single_to_double, encode_float_divide, encode_float_move_from_gpr,
+    encode_float_move_to_gpr, encode_float_multiply, encode_float_sqrt, encode_float_subtract,
+    encode_float_to_signed_int, encode_float_to_unsigned_int, encode_ldaddal_discard,
+    encode_load_byte_w_from_x, encode_load_byte_w_post_increment, encode_load_w_from_x,
+    encode_load_x_from_x, encode_lslv_w_register, encode_lslv_x_register, encode_lsrv_w_register,
+    encode_lsrv_x_register, encode_move_w_register, encode_move_x_register, encode_movz,
+    encode_movz_w, encode_msub_w_register, encode_msub_x_register, encode_mul_x_register,
+    encode_orr_x_register, encode_sdiv_w_register, encode_sdiv_x_register,
+    encode_sign_extend_byte_to_w, encode_sign_extend_byte_to_x, encode_sign_extend_halfword_to_w,
+    encode_sign_extend_halfword_to_x, encode_sign_extend_word_to_x, encode_signed_int_to_float,
+    encode_smulh_x, encode_store_byte_w_post_increment, encode_store_byte_w_to_x,
+    encode_store_w_to_x, encode_store_w17_to_x16, encode_store_x_to_x, encode_store_x17_to_x16,
+    encode_sub_x_register, encode_subs_x_immediate, encode_subs_x_register, encode_udiv_w_register,
+    encode_udiv_x_register, encode_umulh_x, encode_unconditional_branch,
+    encode_zero_extend_byte_to_w, encode_zero_extend_halfword_to_w,
 };
 use super::widths::{
     runtime_frame_base_indexed_address_to_runtime_frame_write_width,
@@ -57,11 +46,11 @@ use super::widths::{
     runtime_machine_bounded_buffer_source_append_width, runtime_machine_bounded_buffer_write_width,
     runtime_machine_indexed_integer_write_width, runtime_machine_indexed_string_write_width,
     runtime_machine_integer_write_width, runtime_machine_string_write_width,
-    runtime_pointee_bounded_buffer_write_width,
     runtime_pointee_address_to_runtime_frame_write_width, runtime_pointee_binary_write_width,
-    runtime_pointee_integer_write_width, runtime_pointee_string_write_width,
-    runtime_storage_address_to_runtime_frame_write_width, runtime_storage_binary_write_width,
-    runtime_storage_compare_width, runtime_storage_convert_width,
+    runtime_pointee_bounded_buffer_write_width, runtime_pointee_integer_write_width,
+    runtime_pointee_string_write_width, runtime_storage_address_to_runtime_frame_write_width,
+    runtime_storage_binary_write_width, runtime_storage_compare_width,
+    runtime_storage_convert_width,
     runtime_storage_copy_from_runtime_pointee_to_runtime_frame_width,
     runtime_storage_copy_to_runtime_pointee_width, runtime_storage_copy_width,
     runtime_storage_value_compare_width, runtime_value_operand_width,
@@ -332,19 +321,9 @@ fn append_runtime_convert_operation(
                 )?;
             }
             bytes.extend(if target_signed {
-                encode_float_to_signed_int(
-                    source_byte_size,
-                    int_gpr_byte_size,
-                    register,
-                    0,
-                )?
+                encode_float_to_signed_int(source_byte_size, int_gpr_byte_size, register, 0)?
             } else {
-                encode_float_to_unsigned_int(
-                    source_byte_size,
-                    int_gpr_byte_size,
-                    register,
-                    0,
-                )?
+                encode_float_to_unsigned_int(source_byte_size, int_gpr_byte_size, register, 0)?
             });
             if saturating && target_byte_size < 4 {
                 append_float_to_narrow_int_saturating(
@@ -391,9 +370,7 @@ fn append_runtime_convert_operation(
                     (2, true) if target_byte_size > 4 => {
                         bytes.extend(encode_sign_extend_halfword_to_x(register, register))
                     }
-                    (2, true) => {
-                        bytes.extend(encode_sign_extend_halfword_to_w(register, register))
-                    }
+                    (2, true) => bytes.extend(encode_sign_extend_halfword_to_w(register, register)),
                     (2, false) => {
                         bytes.extend(encode_zero_extend_halfword_to_w(register, register))
                     }
@@ -999,7 +976,12 @@ fn append_saturating_trapping_arithmetic(
                     encode_adds_x_register(dest, dest, rhs)
                 });
                 bytes.extend(encode_conditional_branch_no_overflow(8)?);
-                bytes.extend(encode_csinv_x(dest, immediate_scratch, immediate_scratch, 0b0101)); // PL
+                bytes.extend(encode_csinv_x(
+                    dest,
+                    immediate_scratch,
+                    immediate_scratch,
+                    0b0101,
+                )); // PL
             }
             (ArithmeticDomain::Saturating, false) => {
                 if subtract {
@@ -1344,7 +1326,13 @@ pub fn encode_runtime_pointee_binary_write(
         17,
         operator,
         26,
-        runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
+        runtime_binary_operation_byte_size(
+            runtime_value_operands,
+            operator,
+            left,
+            right,
+            byte_size,
+        ),
     )?;
     append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
     Ok(bytes)
@@ -1594,7 +1582,7 @@ pub fn encode_runtime_frame_indexed_string_write(
     ));
     append_runtime_frame_index_target_address(
         &mut bytes,
-            16,
+        16,
         descriptor_offset,
         index_offset,
         element_byte_size,
@@ -1729,7 +1717,7 @@ pub fn encode_runtime_frame_fixed_indexed_address_to_runtime_frame_write(
     );
     append_runtime_frame_fixed_index_target_address(
         &mut bytes,
-            16,
+        16,
         descriptor_offset,
         element_index,
         element_byte_size,
@@ -1757,7 +1745,7 @@ pub fn encode_runtime_frame_base_indexed_address_to_runtime_frame_write(
     );
     append_runtime_frame_base_index_target_address(
         &mut bytes,
-            16,
+        16,
         base_byte_offset,
         index_offset,
         element_byte_size,
@@ -1810,7 +1798,7 @@ pub fn encode_runtime_frame_indexed_integer_write(
     ));
     append_runtime_frame_index_target_address(
         &mut bytes,
-            16,
+        16,
         descriptor_offset,
         index_offset,
         element_byte_size,
@@ -1854,7 +1842,7 @@ pub fn encode_runtime_frame_base_indexed_integer_write(
     ));
     append_runtime_frame_base_index_target_address(
         &mut bytes,
-            16,
+        16,
         base_byte_offset,
         index_offset,
         element_byte_size,
@@ -1998,7 +1986,7 @@ pub fn encode_runtime_frame_indexed_binary_write(
     ));
     append_runtime_frame_index_target_address(
         &mut bytes,
-            16,
+        16,
         descriptor_offset,
         index_offset,
         element_byte_size,
@@ -2025,7 +2013,13 @@ pub fn encode_runtime_frame_indexed_binary_write(
         17,
         operator,
         26,
-        runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
+        runtime_binary_operation_byte_size(
+            runtime_value_operands,
+            operator,
+            left,
+            right,
+            byte_size,
+        ),
     )?;
     append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
     Ok(bytes)
@@ -2055,7 +2049,7 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
     ));
     append_runtime_frame_base_index_target_address(
         &mut bytes,
-            16,
+        16,
         base_byte_offset,
         index_offset,
         element_byte_size,
@@ -2082,7 +2076,13 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
         17,
         operator,
         26,
-        runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
+        runtime_binary_operation_byte_size(
+            runtime_value_operands,
+            operator,
+            left,
+            right,
+            byte_size,
+        ),
     )?;
     append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
     Ok(bytes)
@@ -2146,7 +2146,13 @@ pub fn encode_runtime_machine_indexed_binary_write(
         17,
         operator,
         26,
-        runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
+        runtime_binary_operation_byte_size(
+            runtime_value_operands,
+            operator,
+            left,
+            right,
+            byte_size,
+        ),
     )?;
     append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
     Ok(bytes)
@@ -2170,7 +2176,7 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
     );
     append_runtime_frame_index_target_address(
         &mut bytes,
-            16,
+        16,
         descriptor_offset,
         index_offset,
         element_byte_size,
@@ -2207,7 +2213,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed(
     );
     append_runtime_frame_index_target_address(
         &mut bytes,
-            16,
+        16,
         descriptor_offset,
         index_offset,
         element_byte_size,
@@ -2244,7 +2250,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage
     );
     append_runtime_frame_index_target_address(
         &mut bytes,
-            16,
+        16,
         descriptor_offset,
         index_offset,
         element_byte_size,
@@ -2404,7 +2410,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee
     // source_field`); leaves x20 = frame base.
     append_runtime_frame_index_target_address(
         &mut bytes,
-            16,
+        16,
         descriptor_offset,
         index_offset,
         element_byte_size,
@@ -2684,9 +2690,19 @@ fn append_runtime_frame_index_target_address_with_index_region(
     };
     // Index is a 32-bit value: load it zero-extended so high bytes of the
     // adjacent slot can't be spliced into the index (see helper doc comment).
-    append_fixed_width_load_index_w_from_x_offset(bytes, index_scratch, index_base, index_offset, 21);
+    append_fixed_width_load_index_w_from_x_offset(
+        bytes,
+        index_scratch,
+        index_base,
+        index_offset,
+        21,
+    );
     append_scale_x_register_by_constant(bytes, scale_scratch, index_scratch, element_byte_size)?;
-    bytes.extend(encode_add_x_register(address_register, address_register, scale_scratch));
+    bytes.extend(encode_add_x_register(
+        address_register,
+        address_register,
+        scale_scratch,
+    ));
     append_add_constant_to_x_register(bytes, address_register, field_byte_offset)?;
     Ok(())
 }
@@ -2755,11 +2771,7 @@ fn append_fixed_shape_index_element_address(
     bytes.extend(encode_load_w_from_x(17, 20, index_offset, 4)?);
     bytes.extend(encode_movz(26, element_byte_size as u16));
     bytes.extend(encode_mul_x_register(26, 17, 26));
-    bytes.extend(encode_add_x_register(
-        base_register,
-        base_register,
-        26,
-    ));
+    bytes.extend(encode_add_x_register(base_register, base_register, 26));
     bytes.extend(encode_add_x_immediate(
         base_register,
         base_register,
@@ -2792,8 +2804,18 @@ fn append_double_index_address_math(
             )));
         }
     }
-    bytes.extend(encode_load_w_from_x(17, outer_base_register, outer_index_offset, 4)?);
-    bytes.extend(encode_load_w_from_x(26, inner_base_register, inner_index_offset, 4)?);
+    bytes.extend(encode_load_w_from_x(
+        17,
+        outer_base_register,
+        outer_index_offset,
+        4,
+    )?);
+    bytes.extend(encode_load_w_from_x(
+        26,
+        inner_base_register,
+        inner_index_offset,
+        4,
+    )?);
     bytes.extend(encode_movz(14, outer_stride as u16));
     bytes.extend(encode_mul_x_register(17, 17, 14));
     bytes.extend(encode_movz(14, inner_stride as u16));
@@ -2928,7 +2950,12 @@ pub fn encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtim
     let source_base = if source_region == frame { 15 } else { 16 };
     match byte_count {
         8 => bytes.extend(encode_load_x_from_x(24, source_base, source_offset)?),
-        _ => bytes.extend(encode_load_w_from_x(24, source_base, source_offset, byte_count)?),
+        _ => bytes.extend(encode_load_w_from_x(
+            24,
+            source_base,
+            source_offset,
+            byte_count,
+        )?),
     }
     append_double_index_address_math(
         &mut bytes,
@@ -3106,7 +3133,12 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_fr
             }
             _ => {
                 bytes.extend(encode_load_w_from_x(17, 16, source_offset, chunk_size)?);
-                bytes.extend(encode_store_w_to_x(17, 24, target_chunk_offset, chunk_size)?);
+                bytes.extend(encode_store_w_to_x(
+                    17,
+                    24,
+                    target_chunk_offset,
+                    chunk_size,
+                )?);
             }
         }
         Ok(())
@@ -3182,7 +3214,13 @@ pub fn encode_runtime_machine_double_indexed_binary_write(
         17,
         operator,
         26,
-        runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
+        runtime_binary_operation_byte_size(
+            runtime_value_operands,
+            operator,
+            left,
+            right,
+            byte_size,
+        ),
     )?;
     append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
     Ok(bytes)
@@ -3324,7 +3362,11 @@ fn append_runtime_frame_base_index_target_address(
     // adjacent slot can't be spliced into the index.
     append_load_data_from_x_offset(bytes, index_scratch, 20, index_offset, 4, 19)?;
     append_scale_x_register_by_constant(bytes, scale_scratch, index_scratch, element_byte_size)?;
-    bytes.extend(encode_add_x_register(address_register, address_register, scale_scratch));
+    bytes.extend(encode_add_x_register(
+        address_register,
+        address_register,
+        scale_scratch,
+    ));
     append_add_constant_to_x_register(bytes, address_register, field_byte_offset)?;
     Ok(())
 }
@@ -3552,20 +3594,30 @@ fn append_runtime_value_operand(
         };
         bytes.extend(encode_adrp_placeholder(15));
         bytes.extend(encode_add_page_offset_placeholder(15));
-        let index_base = if index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-        {
-            bytes.extend(encode_adrp_placeholder(20));
-            bytes.extend(encode_add_page_offset_placeholder(20));
-            20
-        } else {
-            15
-        };
+        let index_base =
+            if index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                bytes.extend(encode_adrp_placeholder(20));
+                bytes.extend(encode_add_page_offset_placeholder(20));
+                20
+            } else {
+                15
+            };
         append_load_data_from_x_offset(bytes, index_scratch, index_base, index_offset, 4, 19)?;
-        append_scale_x_register_by_constant(bytes, scale_scratch, index_scratch, element_byte_size)?;
+        append_scale_x_register_by_constant(
+            bytes,
+            scale_scratch,
+            index_scratch,
+            element_byte_size,
+        )?;
         bytes.extend(encode_add_x_register(15, 15, scale_scratch));
         append_add_constant_to_x_register(bytes, 15, base_byte_offset + field_byte_offset)?;
         match byte_size {
-            1 | 2 | 4 => bytes.extend(encode_load_w_from_x(destination_register, 15, 0, byte_size)?),
+            1 | 2 | 4 => bytes.extend(encode_load_w_from_x(
+                destination_register,
+                15,
+                0,
+                byte_size,
+            )?),
             8 => bytes.extend(encode_load_x_from_x(destination_register, 15, 0)?),
             _ => {
                 return Err(Diagnostic::error(format!(
@@ -3674,7 +3726,9 @@ fn append_runtime_value_operand(
             // (set at construction for non-Exact domains); the remaining
             // scratch supplies the sequences' immediate/high/sign/bound
             // registers.
-            let byte_width = runtime_value_operands.binary_byte_width(operand).unwrap_or(8);
+            let byte_width = runtime_value_operands
+                .binary_byte_width(operand)
+                .unwrap_or(8);
             append_saturating_trapping_arithmetic(
                 bytes,
                 domain,
@@ -3710,7 +3764,9 @@ fn append_runtime_value_operand(
                     "AArch64 MVP encoder ran out of scratch registers for runtime arithmetic",
                 ));
             };
-            let byte_width = runtime_value_operands.binary_byte_width(operand).unwrap_or(8);
+            let byte_width = runtime_value_operands
+                .binary_byte_width(operand)
+                .unwrap_or(8);
             append_saturating_signed_divide_modulo(
                 bytes,
                 byte_width,
@@ -3764,8 +3820,14 @@ fn append_runtime_value_operand(
             }
         }
         Ok(())
-    } else if let Some((source, source_byte_size, target_byte_size, source_is_float, target_is_float, source_signed)) =
-        runtime_value_operands.convert(operand)
+    } else if let Some((
+        source,
+        source_byte_size,
+        target_byte_size,
+        source_is_float,
+        target_is_float,
+        source_signed,
+    )) = runtime_value_operands.convert(operand)
     {
         // Load the cast's source into the destination register, then convert it
         // in place (SCVTF / FCVTZS / FCVT / SXTW), mirroring the x86_64 backend.
@@ -3858,7 +3920,11 @@ fn append_runtime_text_equals_operand(
     //  equal: movz destination, #1
     //  done:
     bytes.extend(encode_cbz_x(left_len, 28)?);
-    bytes.extend(encode_load_byte_w_post_increment(byte_scratch, left_ptr, 1)?);
+    bytes.extend(encode_load_byte_w_post_increment(
+        byte_scratch,
+        left_ptr,
+        1,
+    )?);
     bytes.extend(encode_load_byte_w_post_increment(19, right_ptr, 1)?);
     bytes.extend(encode_compare_w_register(byte_scratch, 19));
     bytes.extend(encode_conditional_branch_not_equal(16)?);
@@ -3909,7 +3975,13 @@ fn append_runtime_text_equals_literal_operand(
     literal: &str,
     place_is_bounded_buffer: bool,
 ) -> Result<(), Diagnostic> {
-    let [ptr_register, len_register, byte_scratch, address_register, ..] = *scratch_registers
+    let [
+        ptr_register,
+        len_register,
+        byte_scratch,
+        address_register,
+        ..,
+    ] = *scratch_registers
     else {
         return Err(Diagnostic::error(
             "AArch64 MVP encoder ran out of scratch registers for runtime text literal equality",
@@ -3931,7 +4003,14 @@ fn append_runtime_text_equals_literal_operand(
         // read the pointer slot's own bytes as a descriptor.
         bytes.extend(encode_adrp_placeholder(address_register));
         bytes.extend(encode_add_page_offset_placeholder(address_register));
-        append_runtime_storage_load(bytes, address_register, address_register, pointer_byte_offset, 8, "runtime text pointee")?;
+        append_runtime_storage_load(
+            bytes,
+            address_register,
+            address_register,
+            pointer_byte_offset,
+            8,
+            "runtime text pointee",
+        )?;
         if field_byte_offset > 0 {
             append_add_constant_to_x_register(bytes, address_register, field_byte_offset)?;
         }
@@ -4201,14 +4280,25 @@ fn append_runtime_binary_operation_with_domain(
         // LO (unsigned <): in-range counts keep rhs; otherwise NOT(XZR).
         bytes.extend(encode_csinv_x(rhs_register, rhs_register, 31, 0b0011));
     }
-    append_runtime_binary_operation(bytes, destination_register, operator, rhs_register, byte_size)?;
+    append_runtime_binary_operation(
+        bytes,
+        destination_register,
+        operator,
+        rhs_register,
+        byte_size,
+    )?;
     if non_exact && operator == StateGuardOperator::ShiftRightLogical {
         // Saturating logical `>>`: zero at/above-width (floor semantics;
         // unreachable post-F8a, kept for robustness).
         let width_bits = u32::try_from(byte_size * 8).unwrap_or(64);
         bytes.extend(encode_compare_x_immediate(rhs_register, width_bits)?);
         // HS (unsigned >=): count at or above the width selects XZR.
-        bytes.extend(encode_csel_x(destination_register, 31, destination_register, 0b0010));
+        bytes.extend(encode_csel_x(
+            destination_register,
+            31,
+            destination_register,
+            0b0010,
+        ));
     }
     Ok(())
 }
@@ -4441,7 +4531,12 @@ fn append_float_to_int_trap_guard(
         let lower_inclusive = lower_candidate == minimum;
         (
             upper.to_bits(),
-            (if lower_inclusive { minimum } else { lower_candidate }).to_bits(),
+            (if lower_inclusive {
+                minimum
+            } else {
+                lower_candidate
+            })
+            .to_bits(),
             lower_inclusive,
         )
     } else {
@@ -4451,7 +4546,12 @@ fn append_float_to_int_trap_guard(
         (
             u64::from((upper as f32).to_bits()),
             u64::from(
-                (if lower_inclusive { minimum } else { lower_candidate }).to_bits(),
+                (if lower_inclusive {
+                    minimum
+                } else {
+                    lower_candidate
+                })
+                .to_bits(),
             ),
             lower_inclusive,
         )
@@ -4462,13 +4562,21 @@ fn append_float_to_int_trap_guard(
     bytes.extend(encode_brk(0));
     // Upper: keep when f < upper (ordered less), else trap.
     append_unsigned_immediate_padded(bytes, scratch_gpr, upper_bits);
-    bytes.extend(encode_float_move_from_gpr(source_byte_size, 1, scratch_gpr)?);
+    bytes.extend(encode_float_move_from_gpr(
+        source_byte_size,
+        1,
+        scratch_gpr,
+    )?);
     bytes.extend(encode_float_compare(source_byte_size, 0, 1)?);
     bytes.extend(encode_conditional_branch_less(8)?);
     bytes.extend(encode_brk(0));
     // Lower: keep when f > lower (or >= for the inclusive bounds), else trap.
     append_unsigned_immediate_padded(bytes, scratch_gpr, lower_bits);
-    bytes.extend(encode_float_move_from_gpr(source_byte_size, 1, scratch_gpr)?);
+    bytes.extend(encode_float_move_from_gpr(
+        source_byte_size,
+        1,
+        scratch_gpr,
+    )?);
     bytes.extend(encode_float_compare(source_byte_size, 0, 1)?);
     bytes.extend(if lower_inclusive {
         encode_conditional_branch_greater_or_equal(8)?
@@ -4626,17 +4734,9 @@ fn append_runtime_binary_operation(
                 ));
             }
             bytes.extend(if narrow {
-                encode_asrv_w_register(
-                    destination_register,
-                    destination_register,
-                    right_register,
-                )
+                encode_asrv_w_register(destination_register, destination_register, right_register)
             } else {
-                encode_asrv_x_register(
-                    destination_register,
-                    destination_register,
-                    right_register,
-                )
+                encode_asrv_x_register(destination_register, destination_register, right_register)
             });
         }
         // Logical (zero-filling) right shift for an unsigned `>>`. The zero
@@ -4659,17 +4759,9 @@ fn append_runtime_binary_operation(
                 ));
             }
             bytes.extend(if narrow {
-                encode_lsrv_w_register(
-                    destination_register,
-                    destination_register,
-                    right_register,
-                )
+                encode_lsrv_w_register(destination_register, destination_register, right_register)
             } else {
-                encode_lsrv_x_register(
-                    destination_register,
-                    destination_register,
-                    right_register,
-                )
+                encode_lsrv_x_register(destination_register, destination_register, right_register)
             });
         }
         StateGuardOperator::Divide | StateGuardOperator::DivideUnsigned => {
@@ -4737,9 +4829,7 @@ fn append_runtime_binary_operation(
             bytes.extend(match operator {
                 StateGuardOperator::Max => encode_conditional_branch_greater_or_equal(8)?,
                 StateGuardOperator::Min => encode_conditional_branch_less_or_equal(8)?,
-                StateGuardOperator::MaxUnsigned => {
-                    encode_conditional_branch_higher_or_same(8)?
-                }
+                StateGuardOperator::MaxUnsigned => encode_conditional_branch_higher_or_same(8)?,
                 StateGuardOperator::MinUnsigned => encode_conditional_branch_lower_or_same(8)?,
                 _ => unreachable!(),
             });
@@ -4773,18 +4863,10 @@ fn append_runtime_binary_operation(
                 StateGuardOperator::GreaterOrEqual => encode_conditional_branch_less(8)?,
                 StateGuardOperator::Less => encode_conditional_branch_greater_or_equal(8)?,
                 StateGuardOperator::LessOrEqual => encode_conditional_branch_greater(8)?,
-                StateGuardOperator::GreaterUnsigned => {
-                    encode_conditional_branch_lower_or_same(8)?
-                }
-                StateGuardOperator::GreaterOrEqualUnsigned => {
-                    encode_conditional_branch_lower(8)?
-                }
-                StateGuardOperator::LessUnsigned => {
-                    encode_conditional_branch_higher_or_same(8)?
-                }
-                StateGuardOperator::LessOrEqualUnsigned => {
-                    encode_conditional_branch_higher(8)?
-                }
+                StateGuardOperator::GreaterUnsigned => encode_conditional_branch_lower_or_same(8)?,
+                StateGuardOperator::GreaterOrEqualUnsigned => encode_conditional_branch_lower(8)?,
+                StateGuardOperator::LessUnsigned => encode_conditional_branch_higher_or_same(8)?,
+                StateGuardOperator::LessOrEqualUnsigned => encode_conditional_branch_higher(8)?,
                 _ => unreachable!(),
             });
             bytes.extend(encode_movz_w(destination_register, 1));
@@ -5356,8 +5438,8 @@ fn data_offset_encodable(byte_offset: usize, byte_size: usize) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::widths;
+    use super::*;
 
     /// `LDADDAL <Ws/Xs>, WZR/XZR, [<Xn>]` per width: the size field selects the
     /// access size, the acquire+release bits (23,22) are set, Rs = the add
@@ -5436,7 +5518,10 @@ mod tests {
             assert_eq!(word & 0x1F, 17, "Rt = new value");
             assert_eq!((word >> 10) & 0x1F, 0x1F, "Rt2 fixed 11111");
         }
-        assert!(encode_casal(3, 26, 17, 16).is_err(), "non-power-of-two errors");
+        assert!(
+            encode_casal(3, 26, 17, 16).is_err(),
+            "non-power-of-two errors"
+        );
     }
 
     /// Full `encode_atomic_compare_exchange`: emitted length equals the width fn
@@ -5505,8 +5590,7 @@ mod tests {
     /// encoder emits after switching the index load to 32-bit.
     #[test]
     fn frame_index_setup_width_matches_emission() {
-        for &(element_size, field_offset) in
-            &[(1usize, 0usize), (4, 0), (8, 8), (24, 16), (40, 0)]
+        for &(element_size, field_offset) in &[(1usize, 0usize), (4, 0), (8, 8), (24, 16), (40, 0)]
         {
             let mut bytes = Vec::new();
             append_runtime_frame_index_target_address(
@@ -5549,12 +5633,13 @@ mod tests {
                 byte_count,
             )
             .unwrap();
-            let expected = widths::runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_width(
-                element_size,
-                source_field,
-                target_field,
-                byte_count,
-            );
+            let expected =
+                widths::runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_width(
+                    element_size,
+                    source_field,
+                    target_field,
+                    byte_count,
+                );
             assert_eq!(
                 bytes.len(),
                 expected,
@@ -5638,13 +5723,22 @@ mod tests {
             (0x20, 0x40, 16, 0, 1),
         ] {
             let bytes = encode_runtime_frame_base_indexed_integer_write(
-                base, index_off, element_size, field, value_size, 7,
+                base,
+                index_off,
+                element_size,
+                field,
+                value_size,
+                7,
             )
             .unwrap();
             assert_eq!(
                 bytes.len(),
                 widths::runtime_frame_base_indexed_integer_write_width(
-                    base, index_off, element_size, field, value_size,
+                    base,
+                    index_off,
+                    element_size,
+                    field,
+                    value_size,
                 ),
                 "value_size={value_size}"
             );
@@ -5684,24 +5778,12 @@ mod tests {
     /// not an integer `CMP`.
     #[test]
     fn float_storage_compare_emits_fcmp_of_correct_precision() {
-        let single = encode_runtime_storage_compare_bytes(
-            0x10,
-            0x20,
-            4,
-            8,
-            StateGuardOperator::Less,
-            true,
-        )
-        .unwrap();
-        let double = encode_runtime_storage_compare_bytes(
-            0x10,
-            0x20,
-            8,
-            8,
-            StateGuardOperator::Less,
-            true,
-        )
-        .unwrap();
+        let single =
+            encode_runtime_storage_compare_bytes(0x10, 0x20, 4, 8, StateGuardOperator::Less, true)
+                .unwrap();
+        let double =
+            encode_runtime_storage_compare_bytes(0x10, 0x20, 8, 8, StateGuardOperator::Less, true)
+                .unwrap();
         // The FCMP is the instruction immediately before the trailing branch.
         let fcmp_word = |bytes: &[u8]| {
             let start = bytes.len() - 8;
@@ -5748,9 +5830,9 @@ mod tests {
             (0x28, 4, 4, true, false, true),
             (0x30, 4, 1, true, false, true),
             // float -> float
-            (0x10, 8, 4, true, true, true),  // f64 -> f32 (FCVT narrow)
-            (0x20, 4, 8, true, true, true),  // f32 -> f64 (FCVT widen)
-            (0x18, 8, 8, true, true, true),  // f64 -> f64 (no-op convert)
+            (0x10, 8, 4, true, true, true), // f64 -> f32 (FCVT narrow)
+            (0x20, 4, 8, true, true, true), // f32 -> f64 (FCVT widen)
+            (0x18, 8, 8, true, true, true), // f64 -> f64 (no-op convert)
             // int -> int
             (0x10, 4, 8, false, false, true),  // signed widen (SXTW)
             (0x20, 4, 8, false, false, false), // unsigned widen (no SXTW)
@@ -5847,11 +5929,10 @@ mod tests {
         // int(w) -> double: SCVTF d0,w17 (0x1e62_0000 family) + FMOV x17,d0
         // (0x9e66_0000 family).
         let (arena, source) = storage_source(4);
-        let bytes =
-            encode_runtime_storage_convert(
-                &arena, 0x10, 8, source, 4, false, true, true, true, false, false,
-            )
-                .unwrap();
+        let bytes = encode_runtime_storage_convert(
+            &arena, 0x10, 8, source, 4, false, true, true, true, false, false,
+        )
+        .unwrap();
         // The store is a single 4-byte STR at offset 0x10 (encodable), so the two
         // convert words are at len-12..len-4.
         let word_at = |b: &[u8], from_end: usize| {
@@ -5868,11 +5949,10 @@ mod tests {
         // double -> int(w): FMOV d0,x17 (0x9e67_0000) + FCVTZS w17,d0
         // (0x1e38_0000 family).
         let (arena, source) = storage_source(8);
-        let bytes =
-            encode_runtime_storage_convert(
-                &arena, 0x10, 4, source, 8, true, false, true, true, false, false,
-            )
-                .unwrap();
+        let bytes = encode_runtime_storage_convert(
+            &arena, 0x10, 4, source, 8, true, false, true, true, false, false,
+        )
+        .unwrap();
         let fmov_in = word_at(&bytes, 12);
         let fcvtzs = word_at(&bytes, 8);
         // FMOV d0, x17: base 0x9e670000, Rn=17 -> (17<<5).
@@ -5898,18 +5978,15 @@ mod tests {
             unsigned_width + 4,
             "signed widen must be exactly one SXTW longer than unsigned"
         );
-        let signed_bytes =
-            encode_runtime_storage_convert(
-                &arena, 0x10, 8, source, 4, false, false, true, true, false, false,
-            )
-                .unwrap();
+        let signed_bytes = encode_runtime_storage_convert(
+            &arena, 0x10, 8, source, 4, false, false, true, true, false, false,
+        )
+        .unwrap();
         // SXTW x17, w17: 0x93407c00 | (17<<5) | 17 — it sits right before the store.
         let store_width = if signed_bytes.len() >= 8 { 4 } else { 0 };
         let _ = store_width;
         let sxtw_start = signed_bytes.len() - 8; // SXTW (4) + STR (4)
-        let sxtw = u32::from_le_bytes(
-            signed_bytes[sxtw_start..sxtw_start + 4].try_into().unwrap(),
-        );
+        let sxtw = u32::from_le_bytes(signed_bytes[sxtw_start..sxtw_start + 4].try_into().unwrap());
         assert_eq!(sxtw, 0x9340_7c00 | (17 << 5) | 17, "SXTW x17, w17");
     }
 
@@ -5924,8 +6001,12 @@ mod tests {
         omega_target_operations::RuntimeValueOperandHandle,
     ) {
         let mut arena = omega_core::arena::Arena::new();
-        let left = arena.insert(omega_target_operations::RuntimeValueOperand::Immediate(left));
-        let right = arena.insert(omega_target_operations::RuntimeValueOperand::Immediate(right));
+        let left = arena.insert(omega_target_operations::RuntimeValueOperand::Immediate(
+            left,
+        ));
+        let right = arena.insert(omega_target_operations::RuntimeValueOperand::Immediate(
+            right,
+        ));
         (arena, left, right)
     }
 
@@ -6073,7 +6154,9 @@ mod tests {
                         &arena, 0x10, 8, left, operator, right, false, domain, signed,
                     )
                     .unwrap_or_else(|error| {
-                        panic!("8-byte {domain:?} {operator:?} signed={signed} should encode: {error}")
+                        panic!(
+                            "8-byte {domain:?} {operator:?} signed={signed} should encode: {error}"
+                        )
                     });
                     assert_eq!(
                         bytes.len(),

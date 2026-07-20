@@ -3,16 +3,15 @@ use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTa
 use omega_control_flow::StateKey;
 
 use super::super::super::storage_places::{
+    resolve_runtime_frame_base_double_indexed_source,
+    resolve_runtime_frame_base_double_indexed_source_in_table,
     resolve_runtime_frame_fixed_indexed_target,
     resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target,
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_near_slot_in_table,
-    resolve_runtime_frame_base_double_indexed_source,
-    resolve_runtime_frame_base_double_indexed_source_in_table,
     resolve_runtime_machine_double_indexed_source,
-    resolve_runtime_machine_double_indexed_source_in_table,
-    resolve_runtime_machine_indexed_target, resolve_runtime_machine_indexed_target_in_table,
-    resolve_runtime_pointee_fixed_indexed_target,
+    resolve_runtime_machine_double_indexed_source_in_table, resolve_runtime_machine_indexed_target,
+    resolve_runtime_machine_indexed_target_in_table, resolve_runtime_pointee_fixed_indexed_target,
     resolve_runtime_pointee_fixed_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place,
     resolve_runtime_storage_place_in_table,
@@ -48,15 +47,20 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_copy(
     if matches!(
         target_place.region,
         RuntimeStorageRegion::RuntimeFrame | RuntimeStorageRegion::Machine
-    ) && let Some(pointee) = resolve_runtime_pointee_slot_offset(
-        input,
-        dispatch_index,
-        value_source_key,
-        value,
-    ) && pointee.pointee_byte_size == target_place.byte_count
+    ) && let Some(pointee) =
+        resolve_runtime_pointee_slot_offset(input, dispatch_index, value_source_key, value)
+        && pointee.pointee_byte_size == target_place.byte_count
         && pointee.pointee_byte_size > 0
     {
-        return Some(crate::selection::runtime_dispatch::copy_places_from_pointee(pointee.pointer_byte_offset, pointee.field_byte_offset, target_place.region, target_place.byte_offset, target_place.byte_count));
+        return Some(
+            crate::selection::runtime_dispatch::copy_places_from_pointee(
+                pointee.pointer_byte_offset,
+                pointee.field_byte_offset,
+                target_place.region,
+                target_place.byte_offset,
+                target_place.byte_count,
+            ),
+        );
     }
 
     let source_place = resolve_runtime_storage_place(
@@ -114,15 +118,17 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_fixed_indexed_sour
 
     // The retired ToFrame/ToStorage split collapses: the target region rides
     // the place (rung 2c-iv).
-    Some(crate::selection::runtime_dispatch::copy_places_from_fixed_indexed(
-        fixed_source.descriptor_offset,
-        fixed_source.element_index,
-        fixed_source.element_byte_size,
-        fixed_source.field_byte_offset,
-        target_place.region,
-        target_place.byte_offset,
-        target_place.byte_count,
-    ))
+    Some(
+        crate::selection::runtime_dispatch::copy_places_from_fixed_indexed(
+            fixed_source.descriptor_offset,
+            fixed_source.element_index,
+            fixed_source.element_byte_size,
+            fixed_source.field_byte_offset,
+            target_place.region,
+            target_place.byte_offset,
+            target_place.byte_count,
+        ),
+    )
 }
 
 pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_copy(
@@ -177,7 +183,16 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
         }
 
         return Some(
-            crate::selection::runtime_dispatch::copy_places_from_machine_indexed(indexed_source.base_byte_offset, indexed_source.index_region, indexed_source.index_offset, indexed_source.element_byte_size, indexed_source.field_byte_offset, target_place.region, target_place.byte_offset, target_place.byte_count),
+            crate::selection::runtime_dispatch::copy_places_from_machine_indexed(
+                indexed_source.base_byte_offset,
+                indexed_source.index_region,
+                indexed_source.index_offset,
+                indexed_source.element_byte_size,
+                indexed_source.field_byte_offset,
+                target_place.region,
+                target_place.byte_offset,
+                target_place.byte_count,
+            ),
         );
     }
 
@@ -266,13 +281,15 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_copy_in_table(
     ) && pointee.pointee_byte_size == target_place.byte_count
         && pointee.pointee_byte_size > 0
     {
-        return Some(crate::selection::runtime_dispatch::copy_places_from_pointee(
-            pointee.pointer_byte_offset,
-            pointee.field_byte_offset,
-            target_place.region,
-            target_place.byte_offset,
-            target_place.byte_count,
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::copy_places_from_pointee(
+                pointee.pointer_byte_offset,
+                pointee.field_byte_offset,
+                target_place.region,
+                target_place.byte_offset,
+                target_place.byte_count,
+            ),
+        );
     }
 
     let source_place = resolve_runtime_storage_place_in_table(
@@ -343,9 +360,13 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy(
         resolve_runtime_pointee_slot_offset(input, dispatch_index, target_source_key, target)
         && source_place.byte_count > 0
     {
-        return Some(
-            crate::selection::runtime_dispatch::copy_places_to_pointee(source_place.region, source_place.byte_offset, pointer_target.pointer_byte_offset, pointer_target.field_byte_offset, source_place.byte_count),
-        );
+        return Some(crate::selection::runtime_dispatch::copy_places_to_pointee(
+            source_place.region,
+            source_place.byte_offset,
+            pointer_target.pointer_byte_offset,
+            pointer_target.field_byte_offset,
+            source_place.byte_count,
+        ));
     }
 
     if let Some(pointer_target) = resolve_runtime_pointee_fixed_indexed_target(
@@ -355,9 +376,13 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy(
         target,
     ) && source_place.byte_count > 0
     {
-        return Some(
-            crate::selection::runtime_dispatch::copy_places_to_pointee(source_place.region, source_place.byte_offset, pointer_target.pointer_byte_offset, pointer_target.field_byte_offset, source_place.byte_count),
-        );
+        return Some(crate::selection::runtime_dispatch::copy_places_to_pointee(
+            source_place.region,
+            source_place.byte_offset,
+            pointer_target.pointer_byte_offset,
+            pointer_target.field_byte_offset,
+            source_place.byte_count,
+        ));
     }
 
     let indexed_target =
@@ -368,9 +393,15 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy(
         return None;
     }
 
-    Some(
-        crate::selection::runtime_dispatch::copy_places_to_indexed(source_place.region, source_place.byte_offset, indexed_target.descriptor_offset, indexed_target.index_offset, indexed_target.element_byte_size, indexed_target.field_byte_offset, indexed_target.byte_count),
-    )
+    Some(crate::selection::runtime_dispatch::copy_places_to_indexed(
+        source_place.region,
+        source_place.byte_offset,
+        indexed_target.descriptor_offset,
+        indexed_target.index_offset,
+        indexed_target.element_byte_size,
+        indexed_target.field_byte_offset,
+        indexed_target.byte_count,
+    ))
 }
 
 pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy_in_table(
@@ -398,9 +429,13 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy_in_t
         target,
     ) && source_place.byte_count > 0
     {
-        return Some(
-            crate::selection::runtime_dispatch::copy_places_to_pointee(source_place.region, source_place.byte_offset, pointer_target.pointer_byte_offset, pointer_target.field_byte_offset, source_place.byte_count),
-        );
+        return Some(crate::selection::runtime_dispatch::copy_places_to_pointee(
+            source_place.region,
+            source_place.byte_offset,
+            pointer_target.pointer_byte_offset,
+            pointer_target.field_byte_offset,
+            source_place.byte_count,
+        ));
     }
 
     if let Some(pointer_target) = resolve_runtime_pointee_fixed_indexed_target_in_table(
@@ -411,9 +446,13 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy_in_t
         target,
     ) && source_place.byte_count > 0
     {
-        return Some(
-            crate::selection::runtime_dispatch::copy_places_to_pointee(source_place.region, source_place.byte_offset, pointer_target.pointer_byte_offset, pointer_target.field_byte_offset, source_place.byte_count),
-        );
+        return Some(crate::selection::runtime_dispatch::copy_places_to_pointee(
+            source_place.region,
+            source_place.byte_offset,
+            pointer_target.pointer_byte_offset,
+            pointer_target.field_byte_offset,
+            source_place.byte_count,
+        ));
     }
 
     let indexed_target = resolve_runtime_frame_indexed_target_in_table(
@@ -429,9 +468,15 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy_in_t
         return None;
     }
 
-    Some(
-        crate::selection::runtime_dispatch::copy_places_to_indexed(source_place.region, source_place.byte_offset, indexed_target.descriptor_offset, indexed_target.index_offset, indexed_target.element_byte_size, indexed_target.field_byte_offset, indexed_target.byte_count),
-    )
+    Some(crate::selection::runtime_dispatch::copy_places_to_indexed(
+        source_place.region,
+        source_place.byte_offset,
+        indexed_target.descriptor_offset,
+        indexed_target.index_offset,
+        indexed_target.element_byte_size,
+        indexed_target.field_byte_offset,
+        indexed_target.byte_count,
+    ))
 }
 
 pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_copy_in_table(
@@ -465,7 +510,15 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
         && indexed_source.byte_count > 0
     {
         return Some(
-            crate::selection::runtime_dispatch::copy_places_indexed_to_pointee(indexed_source.descriptor_offset, indexed_source.index_offset, indexed_source.element_byte_size, indexed_source.field_byte_offset, pointer_target.pointer_byte_offset, pointer_target.field_byte_offset, indexed_source.byte_count),
+            crate::selection::runtime_dispatch::copy_places_indexed_to_pointee(
+                indexed_source.descriptor_offset,
+                indexed_source.index_offset,
+                indexed_source.element_byte_size,
+                indexed_source.field_byte_offset,
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                indexed_source.byte_count,
+            ),
         );
     }
 
@@ -528,7 +581,16 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
         }
 
         return Some(
-            crate::selection::runtime_dispatch::copy_places_from_machine_indexed(indexed_source.base_byte_offset, indexed_source.index_region, indexed_source.index_offset, indexed_source.element_byte_size, indexed_source.field_byte_offset, target_place.region, target_place.byte_offset, target_place.byte_count),
+            crate::selection::runtime_dispatch::copy_places_from_machine_indexed(
+                indexed_source.base_byte_offset,
+                indexed_source.index_region,
+                indexed_source.index_offset,
+                indexed_source.element_byte_size,
+                indexed_source.field_byte_offset,
+                target_place.region,
+                target_place.byte_offset,
+                target_place.byte_count,
+            ),
         );
     }
 
@@ -622,13 +684,15 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_fixed_indexed_sour
 
     // The retired ToFrame/ToStorage split collapses: the target region rides
     // the place (rung 2c-iv).
-    Some(crate::selection::runtime_dispatch::copy_places_from_fixed_indexed(
-        fixed_source.descriptor_offset,
-        fixed_source.element_index,
-        fixed_source.element_byte_size,
-        fixed_source.field_byte_offset,
-        target_place.region,
-        target_place.byte_offset,
-        target_place.byte_count,
-    ))
+    Some(
+        crate::selection::runtime_dispatch::copy_places_from_fixed_indexed(
+            fixed_source.descriptor_offset,
+            fixed_source.element_index,
+            fixed_source.element_byte_size,
+            fixed_source.field_byte_offset,
+            target_place.region,
+            target_place.byte_offset,
+            target_place.byte_count,
+        ),
+    )
 }

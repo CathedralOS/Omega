@@ -379,11 +379,7 @@ fn item_kind(item: &Item) -> &'static str {
 fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
     match item {
         Item::Capability(value) => format!("capability {}", value.name.as_str()),
-        Item::Const(value) => format!(
-            "const {}::{}",
-            value.scope.as_str(),
-            value.name.as_str()
-        ),
+        Item::Const(value) => format!("const {}::{}", value.scope.as_str(), value.name.as_str()),
         Item::Conformance(value) => format!(
             "{} satisfies {}",
             value.type_name.as_str(),

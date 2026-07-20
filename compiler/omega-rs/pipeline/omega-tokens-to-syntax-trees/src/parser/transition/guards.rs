@@ -125,7 +125,11 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
         // which rejects bare payload-bearing case names.
         let equality = match syntax_trees.expressions.expression(right) {
             ExpressionNode::Name(path)
-                if syntax_trees.expressions.identifier_path_members(*path).len() == 2 =>
+                if syntax_trees
+                    .expressions
+                    .identifier_path_members(*path)
+                    .len()
+                    == 2 =>
             {
                 let domain = *path;
                 syntax_trees.expressions.insert(ExpressionNode::Membership(
@@ -344,39 +348,43 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
     // starts with `subject in Type::Case`. Desugaring to membership (not
     // `==`) keeps the synthesized tag test distinct from user-written
     // equality, which rejects bare payload-bearing case names.
-    let mut combined = match syntax_trees.expressions.identifier_path_members(path).len() {
-        1 => ExpressionHandle::invalid(),
-        2 => syntax_trees.expressions.insert(ExpressionNode::Membership(
-            TableMembershipExpression {
-                value: subject,
-                domain: path,
-            },
-        )),
-        _ => {
-            return Err(pattern_input
-                .error_here("destructure pattern path must be `Type { .. }` or `Type::Case { .. }`"));
-        }
-    };
+    let mut combined =
+        match syntax_trees.expressions.identifier_path_members(path).len() {
+            1 => ExpressionHandle::invalid(),
+            2 => syntax_trees.expressions.insert(ExpressionNode::Membership(
+                TableMembershipExpression {
+                    value: subject,
+                    domain: path,
+                },
+            )),
+            _ => {
+                return Err(pattern_input.error_here(
+                    "destructure pattern path must be `Type { .. }` or `Type::Case { .. }`",
+                ));
+            }
+        };
 
     // A value-bearing field pattern is ordinary equality over an attenuated
     // field projection.  Keeping it as a real guard means the existing proof
     // and flow machinery establishes `subject.field == expected` inside the
     // arm; no pattern-only fact channel exists.
     for (member, expected) in matched_fields {
-        let projected = syntax_trees
-            .expressions
-            .insert(ExpressionNode::Member(TableMemberExpression {
-                receiver: subject,
-                member,
-                case_variant: case_variant.clone(),
-            }));
-        let equality = syntax_trees
-            .expressions
-            .insert(ExpressionNode::Binary(TableBinaryExpression {
-                left: projected,
-                operator: BinaryOperator::Equal,
-                right: expected,
-            }));
+        let projected =
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver: subject,
+                    member,
+                    case_variant: case_variant.clone(),
+                }));
+        let equality =
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: projected,
+                    operator: BinaryOperator::Equal,
+                    right: expected,
+                }));
         combined = if combined.is_valid() {
             syntax_trees
                 .expressions
@@ -415,7 +423,14 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
     } else {
         TransitionGuardNode::Always
     };
-    Ok(Some((guard, DestructureBindings { subject, fields, spelling })))
+    Ok(Some((
+        guard,
+        DestructureBindings {
+            subject,
+            fields,
+            spelling,
+        },
+    )))
 }
 
 fn find_top_level_keyword(input: Input<'_, '_>, keyword: KeywordKind) -> Option<usize> {

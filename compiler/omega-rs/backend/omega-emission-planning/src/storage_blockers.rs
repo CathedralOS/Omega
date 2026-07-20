@@ -135,7 +135,10 @@ pub(super) fn collect_state_storage_blockers(
                      copy the array base); bind the source to a field temp first",
                     source_name,
                     mutation.statement_index,
-                    input.state_storage.expressions.display_name(mutation.target),
+                    input
+                        .state_storage
+                        .expressions
+                        .display_name(mutation.target),
                     input.state_storage.expressions.display_name(mutation.value),
                     proof_scope_suffix(input, mutation.source_key)
                 ),
@@ -354,11 +357,11 @@ fn state_mutation_is_planned(
         .instructions
         .iter()
         .any(|(_, instruction)| {
-        if !state_key_matches_statement_source(instruction.source_key, source_key)
-            || instruction.source_statement != statement_index
-        {
-            return false;
-        }
+            if !state_key_matches_statement_source(instruction.source_key, source_key)
+                || instruction.source_statement != statement_index
+            {
+                return false;
+            }
 
             matches!(
                 instruction.kind,

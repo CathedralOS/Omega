@@ -314,7 +314,8 @@ fn local_initial_value_is_call(
     input: &InstructionSelectionInput<'_>,
     initial_value: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Call(call) = input.program.expression_table.expression(initial_value) else {
+    let ExpressionNode::Call(call) = input.program.expression_table.expression(initial_value)
+    else {
         return false;
     };
     // Borrowed-VIEW calls are NOT result-producing machine calls. They

@@ -184,8 +184,8 @@ fn simplify_expression_with_bindings(
                         value,
                         bindings,
                         preserve_call_locals,
-                    depth,
-                    None,
+                        depth,
+                        None,
                     )
                 })
                 .collect::<Arc<[_]>>(),
@@ -203,9 +203,14 @@ fn simplify_expression_with_bindings(
         | Expression::Float(_)
         | Expression::Integer(_)
         | Expression::String(_) => expression.clone(),
-        Expression::Call(call) => {
-            simplify_call_expression(program, machine, call, bindings, preserve_call_locals, depth)
-        }
+        Expression::Call(call) => simplify_call_expression(
+            program,
+            machine,
+            call,
+            bindings,
+            preserve_call_locals,
+            depth,
+        ),
         Expression::Cast(cast) => {
             Expression::Cast(Box::new(omega_checked_trees::expression::CastExpression {
                 value: simplify_expression_with_bindings(
@@ -214,8 +219,8 @@ fn simplify_expression_with_bindings(
                     &cast.value,
                     bindings,
                     preserve_call_locals,
-                depth,
-                None,
+                    depth,
+                    None,
                 ),
                 target_type: cast.target_type.clone(),
                 domain: cast.domain,
@@ -249,8 +254,8 @@ fn simplify_expression_with_bindings(
                         start,
                         bindings,
                         preserve_call_locals,
-                    depth,
-                    None,
+                        depth,
+                        None,
                     ))
                 }),
                 end: range.end.as_ref().map(|end| {
@@ -260,8 +265,8 @@ fn simplify_expression_with_bindings(
                         end,
                         bindings,
                         preserve_call_locals,
-                    depth,
-                    None,
+                        depth,
+                        None,
                     ))
                 }),
                 end_inclusive: range.end_inclusive,
@@ -274,8 +279,8 @@ fn simplify_expression_with_bindings(
                 &member.receiver,
                 bindings,
                 preserve_call_locals,
-            depth,
-            None,
+                depth,
+                None,
             );
             // Struct-literal field extraction: `Holder { f: X }.f` simplifies to
             // `X`. A local bound to a struct literal simplifies to that literal,
@@ -309,8 +314,8 @@ fn simplify_expression_with_bindings(
                 inner,
                 bindings,
                 preserve_call_locals,
-            depth,
-            landing,
+                depth,
+                landing,
             )))
         }
         Expression::Unary(unary) => {
@@ -320,8 +325,8 @@ fn simplify_expression_with_bindings(
                 &unary.operand,
                 bindings,
                 preserve_call_locals,
-            depth,
-            None,
+                depth,
+                None,
             );
             match unary.operator {
                 UnaryOperator::LogicalNot => boolean_not(operand),
@@ -351,8 +356,8 @@ fn simplify_expression_with_bindings(
                             &field.value,
                             bindings,
                             preserve_call_locals,
-                        depth,
-                        None,
+                            depth,
+                            None,
                         ),
                     })
                     .collect::<Arc<[_]>>(),
@@ -446,8 +451,8 @@ fn simplify_binary_expression(
         &binary.left,
         bindings,
         preserve_call_locals,
-    depth,
-    landing,
+        depth,
+        landing,
     );
     // A shift COUNT is not a value of the subject's landed type -- keep the
     // landing off it (counts are exact anonymous values; F8 rules their
@@ -467,8 +472,8 @@ fn simplify_binary_expression(
         &binary.right,
         bindings,
         preserve_call_locals,
-    depth,
-    right_landing,
+        depth,
+        right_landing,
     );
 
     if let Some(expression) = simplify_guarded_helper_comparison(
@@ -491,7 +496,7 @@ fn simplify_binary_expression(
             bindings,
             preserve_call_locals,
             depth + 1,
-        None,
+            None,
         );
     }
 
@@ -499,8 +504,7 @@ fn simplify_binary_expression(
         return folded;
     }
 
-    let landing =
-        landing.or_else(|| integer_fold_landing(program, machine, binary, &left, &right));
+    let landing = landing.or_else(|| integer_fold_landing(program, machine, binary, &left, &right));
     fold_binary_expression(binary.operator, left, right, landing)
 }
 
@@ -584,7 +588,9 @@ fn landing_from_type_reference(
     }
     Some(IntegerLanding {
         primitive,
-        domain: program.type_reference_table.arithmetic_domain(type_reference),
+        domain: program
+            .type_reference_table
+            .arithmetic_domain(type_reference),
     })
 }
 
@@ -708,8 +714,8 @@ fn simplify_call_expression(
             receiver,
             bindings,
             preserve_call_locals,
-        depth,
-        None,
+            depth,
+            None,
         )
     });
     let simplified_arguments: Arc<[_]> = call
@@ -722,8 +728,8 @@ fn simplify_call_expression(
                 argument,
                 bindings,
                 preserve_call_locals,
-            depth,
-            None,
+                depth,
+                None,
             )
         })
         .collect();
@@ -753,7 +759,7 @@ fn simplify_call_expression(
                 &argument_bindings,
                 preserve_call_locals,
                 depth + 1,
-            None,
+                None,
             );
         }
     }
@@ -832,7 +838,14 @@ fn simplify_helper_call_comparison(
         });
     }
 
-    helper_state_match_condition(state, program, target_machine, &argument_bindings, expected, depth)
+    helper_state_match_condition(
+        state,
+        program,
+        target_machine,
+        &argument_bindings,
+        expected,
+        depth,
+    )
 }
 
 fn helper_state_value(
@@ -1023,7 +1036,7 @@ fn helper_state_model(
                     &scoped_bindings,
                     false,
                     depth,
-                None,
+                    None,
                 );
                 local_bindings.insert(Binding {
                     symbol: local.symbol,
@@ -1049,7 +1062,7 @@ fn helper_state_model(
                             &scoped_bindings,
                             false,
                             depth,
-                        None,
+                            None,
                         )
                     }
                 };
@@ -1066,7 +1079,7 @@ fn helper_state_model(
                     &scoped_bindings,
                     false,
                     depth,
-                None,
+                    None,
                 );
                 transitions.insert(HelperTransition { guard, value });
             }
@@ -1079,7 +1092,7 @@ fn helper_state_model(
                     &scoped_bindings,
                     false,
                     depth,
-                None,
+                    None,
                 );
                 transitions.insert(HelperTransition {
                     guard: Expression::Boolean(true),
@@ -1187,7 +1200,9 @@ mod tests {
                     initial_value: Some(Expression::Binary(Box::new(BinaryExpression {
                         left: name("roll", roll_symbol),
                         operator: BinaryOperator::Less,
-                        right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(20)),
+                        right: Expression::Integer(
+                            omega_core::literals::IntegerLiteral::from_value(20),
+                        ),
                     }))),
                 },
                 TestStatement::LocalData {
@@ -1200,7 +1215,9 @@ mod tests {
                     initial_value: Some(Expression::Binary(Box::new(BinaryExpression {
                         left: name("roll", roll_symbol),
                         operator: BinaryOperator::Less,
-                        right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(30)),
+                        right: Expression::Integer(
+                            omega_core::literals::IntegerLiteral::from_value(30),
+                        ),
                     }))),
                 },
                 TestStatement::LocalData {
@@ -1213,7 +1230,9 @@ mod tests {
                     initial_value: Some(Expression::Binary(Box::new(BinaryExpression {
                         left: name("roll", roll_symbol),
                         operator: BinaryOperator::Less,
-                        right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(60)),
+                        right: Expression::Integer(
+                            omega_core::literals::IntegerLiteral::from_value(60),
+                        ),
                     }))),
                 },
                 TestStatement::TransitionValue {
@@ -1340,13 +1359,17 @@ mod tests {
                 left: Expression::Binary(Box::new(BinaryExpression {
                     left: name("roll", roll_symbol),
                     operator: BinaryOperator::GreaterOrEqual,
-                    right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(20)),
+                    right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(
+                        20
+                    )),
                 })),
                 operator: BinaryOperator::And,
                 right: Expression::Binary(Box::new(BinaryExpression {
                     left: name("roll", roll_symbol),
                     operator: BinaryOperator::Less,
-                    right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(30)),
+                    right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(
+                        30
+                    )),
                 })),
             }))
         );
@@ -1357,13 +1380,17 @@ mod tests {
                 left: Expression::Binary(Box::new(BinaryExpression {
                     left: name("roll", roll_symbol),
                     operator: BinaryOperator::GreaterOrEqual,
-                    right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(30)),
+                    right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(
+                        30
+                    )),
                 })),
                 operator: BinaryOperator::And,
                 right: Expression::Binary(Box::new(BinaryExpression {
                     left: name("roll", roll_symbol),
                     operator: BinaryOperator::Less,
-                    right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(60)),
+                    right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(
+                        60
+                    )),
                 })),
             }))
         );

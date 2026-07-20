@@ -836,7 +836,8 @@ fn resolve_state_call_target(
         // was invisible to state-call planning and a value-position `let n =
         // pick(..)` silently left `n` at 0.
         if !has_receiver
-            && let Some(target_machine) = resolve_free_machine(control_flow, target_symbol, target_state)
+            && let Some(target_machine) =
+                resolve_free_machine(control_flow, target_symbol, target_state)
             && target_machine.symbol != machine.symbol
         {
             // A free machine's single body state is its entry (named `entry`,

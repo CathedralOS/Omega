@@ -416,9 +416,7 @@ pub(super) fn encode_machine_instruction_bytes(
             *target_byte_offset,
             literal,
         ),
-        SelectedInstructionKind::ReadRuntimeTextLine {
-            ..
-        } => {
+        SelectedInstructionKind::ReadRuntimeTextLine { .. } => {
             let Some(read) = selected_host_text_read(kind) else {
                 return Err(Diagnostic::error(
                     "cannot encode runtime text read: missing host operation source",
@@ -606,7 +604,9 @@ pub(super) fn encode_machine_instruction_bytes(
             if input.target.architecture != omega_target::Architecture::X86_64 {
                 return Err(omega_core::diagnostics::Diagnostic::error(format!(
                     "asm instruction `{}` is x86_64-only",
-                    register.write_mnemonic().expect("writable control register")
+                    register
+                        .write_mnemonic()
+                        .expect("writable control register")
                 )));
             }
             omega_instruction_selection::encode_control_register_write_bytes(

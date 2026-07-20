@@ -282,6 +282,40 @@ fn harvest_provider_selections(
     }
 }
 
+/// PRV4c: collect the defaults declared by the selected target package(s).
+/// `target_machines` records the authoritative machine names before erasing
+/// their target markers. The declarations use the same type-per-slot marker as
+/// build overrides, but retain distinct provenance so selection can apply the
+/// precedence `build override > target default > compatibility fallback`.
+pub(crate) fn compute_target_provider_defaults(
+    typed: &TypedTrees,
+    target_default_machine_names: &[String],
+) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
+    let mut defaults = Vec::new();
+    let mut diagnostics = Vec::new();
+    for machine_name in target_default_machine_names {
+        let Some(machine) = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == machine_name)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "selected target provider-default machine `{machine_name}` did not survive lowering"
+            )));
+            continue;
+        };
+        match harvest_provider_selections(typed, machine) {
+            Ok(mut machine_defaults) => defaults.append(&mut machine_defaults),
+            Err(mut errors) => diagnostics.append(&mut errors),
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(defaults)
+    } else {
+        Err(diagnostics)
+    }
+}
+
 /// The static grant harvest: every `accept_boundary#<path>` marker call in
 /// the build machine's states (the postfix carve's desugar of
 /// `b.accept_boundary<path>();`). Order-preserving, deduplicated.

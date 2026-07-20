@@ -23,9 +23,7 @@ use super::super::writes::{
     RuntimeStaticValues, emit_runtime_frame_slot_slice_descriptor_write_in_table,
     runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,
 };
-use super::mutation::{
-    select_runtime_resolved_mutation_write_in_table_with_scratch,
-};
+use super::mutation::select_runtime_resolved_mutation_write_in_table_with_scratch;
 use super::straight_line::{
     StraightLineBranchSelectionScratch, select_assignment_value_call_result_local_copy,
     select_runtime_straight_line_nested_branch_expansions_for_operation,

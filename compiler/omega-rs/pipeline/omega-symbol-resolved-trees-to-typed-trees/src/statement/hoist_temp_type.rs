@@ -42,7 +42,12 @@ pub(super) fn infer_hoist_temp_type(
                 if !call.receiver.is_valid()
                     && matches!(call.target.as_str(), "min" | "max" | "sqrt") =>
             {
-                Some(expressions.expression_handles(call.arguments).first().copied())
+                Some(
+                    expressions
+                        .expression_handles(call.arguments)
+                        .first()
+                        .copied(),
+                )
             }
             // A USER value-machine call hoisted out of a guard comparison
             // (`let __hoist = self.dbl(5)`, syntax->symbol-resolved
@@ -71,21 +76,26 @@ pub(super) fn infer_hoist_temp_type(
                         // MP3/MP4: a call through a static machine parameter
                         // has the authored `where machine F(..) -> R` return
                         // type even before a concrete selection is known.
-                        lowerer.source_trees.roots.machines.iter().find_map(|machine| {
-                            lowerer
-                                .source_trees
-                                .machine_type_parameters(machine)
-                                .iter()
-                                .find_map(|parameter| match &parameter.kind {
-                                    resolved::data::TypeParameterKind::Machine { contract }
-                                        if parameter.symbol == target_symbol
-                                            || contract.symbol == target_symbol =>
-                                    {
-                                        contract.return_type.clone()
-                                    }
-                                    _ => None,
-                                })
-                        })
+                        lowerer
+                            .source_trees
+                            .roots
+                            .machines
+                            .iter()
+                            .find_map(|machine| {
+                                lowerer
+                                    .source_trees
+                                    .machine_type_parameters(machine)
+                                    .iter()
+                                    .find_map(|parameter| match &parameter.kind {
+                                        resolved::data::TypeParameterKind::Machine { contract }
+                                            if parameter.symbol == target_symbol
+                                                || contract.symbol == target_symbol =>
+                                        {
+                                            contract.return_type.clone()
+                                        }
+                                        _ => None,
+                                    })
+                            })
                     });
                 let Some(declared_return) = declared_return else {
                     return Err(Diagnostic::error(format!(
@@ -149,8 +159,7 @@ pub(super) fn infer_hoist_temp_type(
         let inner_collection = inner.collection;
         if let Some(collection_type) =
             collection_type_reference(lowerer, attached_data, state, inner_collection)
-            && let Some((element_type, _)) =
-                element_type_of(lowerer.source_trees, &collection_type)
+            && let Some((element_type, _)) = element_type_of(lowerer.source_trees, &collection_type)
             && let TypeReference::Named { name, .. } = &element_type
         {
             let data_name = name.clone();
@@ -215,9 +224,13 @@ pub(super) fn infer_hoist_temp_type(
                         omega_core::literals::IntegerLiteral::from_value(high),
                     ),
                 );
-                let constraints = lowerer.typed_trees.type_reference_table.insert_constraints(
-                    [typed::types::TypeConstraintNode::Range { minimum, maximum }],
-                );
+                let constraints = lowerer
+                    .typed_trees
+                    .type_reference_table
+                    .insert_constraints([typed::types::TypeConstraintNode::Range {
+                        minimum,
+                        maximum,
+                    }]);
                 return Ok(Some(lowerer.typed_trees.type_reference_table.insert(
                     typed::types::TypeReferenceNode::Constrained {
                         base_type: base_handle,
@@ -271,7 +284,8 @@ pub(super) fn infer_hoist_temp_type(
         }
     }
 
-    let Some(collection_type) = collection_type_reference(lowerer, attached_data, state, collection)
+    let Some(collection_type) =
+        collection_type_reference(lowerer, attached_data, state, collection)
     else {
         return Ok(None);
     };
@@ -300,11 +314,9 @@ pub(super) fn infer_hoist_temp_type(
                     return Ok(None);
                 };
                 let data_name = name.clone();
-                let Some(field_type) = attached_field_type(
-                    lowerer.source_trees,
-                    &data_name,
-                    field_name.as_str(),
-                ) else {
+                let Some(field_type) =
+                    attached_field_type(lowerer.source_trees, &data_name, field_name.as_str())
+                else {
                     return Ok(None);
                 };
                 element_type = field_type;
@@ -417,22 +429,19 @@ fn computed_index_interval(
     // typed-side bounded-product rule mirrored at the hoist synthesis, so
     // the temp's range carries the coupling bound and the index prover
     // discharges without an explicit ranged temp.
-    if let Some(interval) =
-        dependent_product_index_interval(lowerer, state, operator, left, right)
+    if let Some(interval) = dependent_product_index_interval(lowerer, state, operator, left, right)
     {
         return Some(interval);
     }
     let left = operand_declared_interval(lowerer, attached_data, state, left)?;
     let right = operand_declared_interval(lowerer, attached_data, state, right)?;
     match operator {
-        resolved::expression::BinaryOperator::Add => Some((
-            left.0.checked_add(right.0)?,
-            left.1.checked_add(right.1)?,
-        )),
-        resolved::expression::BinaryOperator::Subtract => Some((
-            left.0.checked_sub(right.1)?,
-            left.1.checked_sub(right.0)?,
-        )),
+        resolved::expression::BinaryOperator::Add => {
+            Some((left.0.checked_add(right.0)?, left.1.checked_add(right.1)?))
+        }
+        resolved::expression::BinaryOperator::Subtract => {
+            Some((left.0.checked_sub(right.1)?, left.1.checked_sub(right.0)?))
+        }
         resolved::expression::BinaryOperator::Multiply => {
             let products = [
                 left.0.checked_mul(right.0)?,
@@ -671,7 +680,9 @@ fn element_type_of(
             HandleSpan::empty(),
         )),
         TypeReference::Slice(slice) => Some((
-            source_trees.child_type_reference(slice.element_type).clone(),
+            source_trees
+                .child_type_reference(slice.element_type)
+                .clone(),
             HandleSpan::empty(),
         )),
         TypeReference::Reference(reference) => element_type_of(
@@ -733,19 +744,13 @@ fn dependent_product_index_interval(
     if c_field != fb {
         return None;
     }
-    let machine = lowerer
-        .source_trees
-        .machines
-        .iter()
-        .find(|machine| {
-            lowerer
-                .source_trees
-                .machine_state_handles(machine.storage.states)
-                .iter()
-                .any(|handle| {
-                    lowerer.source_trees.machine_state(*handle).symbol == state.symbol
-                })
-        })?;
+    let machine = lowerer.source_trees.machines.iter().find(|machine| {
+        lowerer
+            .source_trees
+            .machine_state_handles(machine.storage.states)
+            .iter()
+            .any(|handle| lowerer.source_trees.machine_state(*handle).symbol == state.symbol)
+    })?;
     let k = resolved_product_coupling(lowerer, machine, &fa, &fb)?;
     let high = k.checked_sub(1)?;
     (high >= 0).then_some((0, high))
@@ -802,9 +807,7 @@ fn resolved_product_coupling(
             let resolved::domain::ProofFact::Expression(expression) = fact else {
                 continue;
             };
-            if let Some(k) =
-                resolved_product_conjunct(expressions, *expression, fa, fb)
-            {
+            if let Some(k) = resolved_product_conjunct(expressions, *expression, fa, fb) {
                 return Some(k);
             }
         }
