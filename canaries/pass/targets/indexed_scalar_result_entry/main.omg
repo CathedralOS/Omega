@@ -1,0 +1,11 @@
+// A runtime-indexed local array element stages through entry-result scratch
+// before loading the normalized scalar result register.
+data Main { }
+
+boundary machine Main::run(
+    &mut self,
+    values: &[i32],
+    index: u64 [0..values.len]
+) -> i32 {
+    transition { _ -> (values[index]) }
+}

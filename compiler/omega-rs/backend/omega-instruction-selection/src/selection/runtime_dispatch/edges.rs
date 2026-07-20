@@ -224,7 +224,7 @@ pub(super) fn select_runtime_dispatch_edge(
 
 /// Deliver a terminating state's terminal value through the entry ABI.
 ///
-/// Six shapes lower, in order:
+/// Seven shapes lower, in order:
 /// 1. an INTEGER CONSTANT terminal (`70`, `state shutdown { 0 }`) writes the immediate
 ///    into the return register (the original literal-only path);
 /// 2. a FLOAT CONSTANT terminal stages its raw bits through exact-width result
@@ -236,11 +236,13 @@ pub(super) fn select_runtime_dispatch_edge(
 ///    fragments, including hidden destinations;
 /// 4. a RECORD/CASE LITERAL materializes into layout-sized result scratch,
 ///    then follows the same direct fragments or hidden destination;
-/// 5. a STORAGE-LESS local / constant arithmetic terminal (`let x = 1 + 69; x`)
+/// 5. a runtime INDEXED scalar copies into result scratch before its native
+///    result-register load;
+/// 6. a STORAGE-LESS local / constant arithmetic terminal (`let x = 1 + 69; x`)
 ///    substitutes simple local initializers and constant-folds; such locals
 ///    were culled from storage precisely because nothing mutates them, so the
 ///    initializer IS the terminal value;
-/// 6. a flat runtime scalar BINARY terminal computes through the ordinary
+/// 7. a flat runtime scalar BINARY terminal computes through the ordinary
 ///    domain-aware writer into result scratch, then loads the normalized
 ///    integer or vector result register.
 fn select_runtime_dispatch_return_value(
@@ -344,6 +346,43 @@ fn select_runtime_dispatch_return_value(
             selected_instructions,
         )
     {
+        return true;
+    }
+
+    if let Some((scratch_offset, scratch_size, register)) =
+        normalized_entry_scalar_result_scratch(input)
+        && let Some(indexed) = resolve_runtime_frame_indexed_target_in_table(
+            input,
+            source_dispatch_index,
+            source_key,
+            &input.control_flow.expressions,
+            value_expr,
+        )
+        && indexed.byte_count == scratch_size
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind: crate::selection::runtime_dispatch::copy_places_from_indexed(
+                indexed.descriptor_offset,
+                indexed.index_offset,
+                indexed.element_byte_size,
+                indexed.field_byte_offset,
+                RuntimeStorageRegion::RuntimeFrame,
+                scratch_offset,
+                scratch_size,
+            ),
+            source_key,
+            source_statement: edge.statement_index,
+        });
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+                register,
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: scratch_offset,
+                byte_size: scratch_size,
+            },
+            source_key,
+            source_statement: edge.statement_index,
+        });
         return true;
     }
 
