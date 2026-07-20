@@ -1620,6 +1620,20 @@ fn interpreter_runs_const_data_machine_call_arguments() {
 }
 
 #[test]
+fn interpreter_runs_const_data_where_facts() {
+    let main_path = pass_canary("generics/runtime_const_data_where_fact_exit").join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "const data where facts failed frontend checking:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+    let outcome = interpret(&checked, b"");
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 70);
+}
+
+#[test]
 fn interpreter_runs_const_container_methods() {
     let main_path = pass_canary("generics/runtime_const_container_methods_exit").join("main.omg");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {

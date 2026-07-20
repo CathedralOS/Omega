@@ -1,0 +1,23 @@
+// A fact over only const parameters is discharged once for the concrete
+// generic instance. It is not a runtime invariant on the synthesized record.
+use omega::language::std::console;
+
+data FixedBuffer<const N: u64>
+where
+    N > 0 && N <= 8,
+    used <= N,
+{
+    used: u64;
+    values: [u8; N];
+}
+
+data Main {
+    console: Console;
+    buffer: FixedBuffer<4>;
+}
+
+machine Main::main(&mut self) {
+    self.buffer.used = 4;
+    self.buffer.values[0] = 66;
+    self.console.exit_process(self.buffer.values[0] as i32 + self.buffer.used as i32);
+}
