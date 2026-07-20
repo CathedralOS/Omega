@@ -94,16 +94,97 @@ pub struct AccessPlan {
     pub entries: Vec<AccessFieldEntry>,
 }
 
+/// Sealed geometry and policy for one projected field.
+///
+/// The offset is intentionally private. Only plan validation can construct a
+/// descriptor, so later lowering never accepts an author-supplied byte offset.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedAccessPlan(AccessPlan);
+pub struct FieldAccessDescriptor {
+    field: String,
+    container_byte_offset: u64,
+    transfer_width_bits: u16,
+    observation: ObservationModel,
+    permissions: AccessPermissions,
+    exposure: AccessExposure,
+    service_reach: Option<BoundaryServiceReachId>,
+}
+
+impl FieldAccessDescriptor {
+    pub fn field(&self) -> &str {
+        &self.field
+    }
+
+    pub const fn container_byte_offset(&self) -> u64 {
+        self.container_byte_offset
+    }
+
+    pub const fn transfer_width_bits(&self) -> u16 {
+        self.transfer_width_bits
+    }
+
+    pub const fn observation(&self) -> ObservationModel {
+        self.observation
+    }
+
+    pub const fn permissions(&self) -> AccessPermissions {
+        self.permissions
+    }
+
+    pub const fn exposure(&self) -> AccessExposure {
+        self.exposure
+    }
+
+    pub const fn service_reach(&self) -> Option<BoundaryServiceReachId> {
+        self.service_reach
+    }
+}
+
+/// The only value accepted by primitive placed-access lowering.
+///
+/// It combines plan-derived geometry with a borrow-specific operation check.
+/// Authors can name fields and operations but cannot construct this token.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthorizedFieldAccess {
+    descriptor: FieldAccessDescriptor,
+    borrow: BorrowPolarity,
+    operation: AccessOperation,
+}
+
+impl AuthorizedFieldAccess {
+    pub const fn descriptor(&self) -> &FieldAccessDescriptor {
+        &self.descriptor
+    }
+
+    pub const fn borrow(&self) -> BorrowPolarity {
+        self.borrow
+    }
+
+    pub const fn operation(&self) -> AccessOperation {
+        self.operation
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedAccessPlan {
+    plan: AccessPlan,
+    fields: Vec<FieldAccessDescriptor>,
+}
 
 impl ValidatedAccessPlan {
     pub const fn plan(&self) -> &AccessPlan {
-        &self.0
+        &self.plan
     }
 
     pub fn field(&self, field: &str) -> Option<&AccessFieldEntry> {
-        self.0.entries.iter().find(|entry| entry.field == field)
+        self.plan.entries.iter().find(|entry| entry.field == field)
+    }
+
+    pub fn field_descriptor(&self, field: &str) -> Option<&FieldAccessDescriptor> {
+        self.fields.iter().find(|entry| entry.field == field)
+    }
+
+    pub fn field_descriptors(&self) -> &[FieldAccessDescriptor] {
+        &self.fields
     }
 
     pub fn authorize(
@@ -111,13 +192,18 @@ impl ValidatedAccessPlan {
         field: &str,
         borrow: BorrowPolarity,
         operation: AccessOperation,
-    ) -> Result<(), AccessPlanDiagnostic> {
-        let entry = self.field(field).ok_or_else(|| {
+    ) -> Result<AuthorizedFieldAccess, AccessPlanDiagnostic> {
+        let descriptor = self.field_descriptor(field).ok_or_else(|| {
             AccessPlanDiagnostic(format!(
                 "field `{field}` has no access entry in the validated plan"
             ))
         })?;
-        authorize_entry(entry, borrow, operation)
+        authorize_descriptor(descriptor, borrow, operation)?;
+        Ok(AuthorizedFieldAccess {
+            descriptor: descriptor.clone(),
+            borrow,
+            operation,
+        })
     }
 }
 
@@ -176,12 +262,25 @@ pub fn validate_access_plan(
             )));
         }
     }
+    let mut descriptors = Vec::with_capacity(plan.entries.len());
     for entry in &plan.entries {
         validate_entry_policy(entry)?;
-        validate_entry_geometry(entry, layout, layout_size)?;
+        let container_byte_offset = validate_entry_geometry(entry, layout, layout_size)?;
+        descriptors.push(FieldAccessDescriptor {
+            field: entry.field.clone(),
+            container_byte_offset,
+            transfer_width_bits: entry.transfer_width_bits,
+            observation: entry.observation,
+            permissions: entry.permissions,
+            exposure: entry.exposure,
+            service_reach: entry.service_reach,
+        });
     }
 
-    Ok(ValidatedAccessPlan(plan))
+    Ok(ValidatedAccessPlan {
+        plan,
+        fields: descriptors,
+    })
 }
 
 fn validate_entry_policy(entry: &AccessFieldEntry) -> Result<(), AccessPlanDiagnostic> {
@@ -265,7 +364,7 @@ fn validate_entry_geometry(
     access: &AccessFieldEntry,
     layout: &LayoutPlanReport,
     layout_size: u64,
-) -> Result<(), AccessPlanDiagnostic> {
+) -> Result<u64, AccessPlanDiagnostic> {
     let placements = layout
         .entries
         .iter()
@@ -288,7 +387,8 @@ fn validate_entry_geometry(
                     access.field
                 ))
             })?;
-            validate_transfer_range(access, offset, transfer_bytes, layout_size)
+            validate_transfer_range(access, offset, transfer_bytes, layout_size)?;
+            Ok(offset)
         }
         placements => {
             let mut container = None;
@@ -327,7 +427,8 @@ fn validate_entry_geometry(
                     access.field
                 ))
             })?;
-            validate_transfer_range(access, container, transfer_bytes, layout_size)
+            validate_transfer_range(access, container, transfer_bytes, layout_size)?;
+            Ok(container)
         }
     }
 }
@@ -353,28 +454,30 @@ fn validate_transfer_range(
     Ok(())
 }
 
-fn authorize_entry(
-    entry: &AccessFieldEntry,
+fn authorize_descriptor(
+    descriptor: &FieldAccessDescriptor,
     borrow: BorrowPolarity,
     operation: AccessOperation,
 ) -> Result<(), AccessPlanDiagnostic> {
     let permitted = match operation {
-        AccessOperation::Read => entry.permissions.read,
-        AccessOperation::Write => entry.permissions.write && borrow == BorrowPolarity::Exclusive,
-        AccessOperation::ReadModifyWrite => {
-            entry.permissions.read_modify_write && borrow == BorrowPolarity::Exclusive
+        AccessOperation::Read => descriptor.permissions.read,
+        AccessOperation::Write => {
+            descriptor.permissions.write && borrow == BorrowPolarity::Exclusive
         }
-        AccessOperation::AtomicLoad => entry.permissions.atomic.load,
-        AccessOperation::AtomicStore => entry.permissions.atomic.store,
-        AccessOperation::AtomicCompareExchange => entry.permissions.atomic.compare_exchange,
-        AccessOperation::AtomicReadModifyWrite => entry.permissions.atomic.read_modify_write,
+        AccessOperation::ReadModifyWrite => {
+            descriptor.permissions.read_modify_write && borrow == BorrowPolarity::Exclusive
+        }
+        AccessOperation::AtomicLoad => descriptor.permissions.atomic.load,
+        AccessOperation::AtomicStore => descriptor.permissions.atomic.store,
+        AccessOperation::AtomicCompareExchange => descriptor.permissions.atomic.compare_exchange,
+        AccessOperation::AtomicReadModifyWrite => descriptor.permissions.atomic.read_modify_write,
     };
     if permitted {
         Ok(())
     } else {
         Err(AccessPlanDiagnostic(format!(
             "field `{}` does not permit {operation:?} through a {borrow:?} borrow",
-            entry.field
+            descriptor.field
         )))
     }
 }
@@ -460,8 +563,26 @@ mod tests {
         )
         .expect("UART plan");
 
-        plan.authorize("status", BorrowPolarity::Shared, AccessOperation::Read)
+        let status = plan
+            .authorize("status", BorrowPolarity::Shared, AccessOperation::Read)
             .expect("shared snapshot read");
+        assert_eq!(status.descriptor().field(), "status");
+        assert_eq!(status.descriptor().container_byte_offset(), 0);
+        assert_eq!(status.descriptor().transfer_width_bits(), 32);
+        assert_eq!(
+            status.descriptor().observation(),
+            ObservationModel::External
+        );
+        assert_eq!(status.descriptor().service_reach(), Some(reach()));
+        assert_eq!(status.borrow(), BorrowPolarity::Shared);
+        assert_eq!(status.operation(), AccessOperation::Read);
+        assert_eq!(plan.field_descriptors().len(), 3);
+        assert_eq!(
+            plan.field_descriptor("control")
+                .expect("control descriptor")
+                .container_byte_offset(),
+            8
+        );
         assert!(
             plan.authorize("transmit", BorrowPolarity::Shared, AccessOperation::Write)
                 .is_err()

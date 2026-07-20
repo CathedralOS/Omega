@@ -221,9 +221,13 @@ future source spelling. It validates name-keyed entries against fixed
 `LayoutPlan` geometry, exact whole-byte transfer width, observation/operation
 compatibility, provider-private external RMW, and statically pinned reach. Its
 operation gate already enforces shared-read/exclusive-write polarity while
-allowing explicitly atomic shared mutation. Source-policy evaluation,
-extent-provenance agreement, sealed accessor derivation, and primitive lowering
-remain.
+allowing explicitly atomic shared mutation. Successful geometry validation
+mints a sealed field descriptor containing the plan-derived container offset;
+successful operation authorization combines that descriptor with borrow
+polarity and the selected operation. Primitive lowering accepts only this
+authorized value, never an author-supplied offset. Source-policy evaluation,
+extent-provenance agreement, source-level borrow-carrying access values, and
+the exact external/atomic lowering remain.
 
 The extent's provenance gates construction of an access capability. The
 accessor's normalized contract statically pins service reach. Runtime
@@ -580,7 +584,8 @@ and the concrete interrupt state policy remain. Remaining order:
    came from an instruction.
 3. Implement the settled `Extent` carrier, conservation rules, source-loan /
    destination-authority mapping, and authority-origin validation.
-4. Connect the implemented normalized `AccessPlan` validator to Omega-authored
+4. Connect the implemented normalized `AccessPlan` validator and its sealed
+   field/operation authorization values to Omega-authored
    policies and extent provenance, derive sealed field-access values, and lower
    exact external/atomic primitives. Geometry, policy compatibility, static
    reach, and borrow-polarity authorization are already checked.
