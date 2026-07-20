@@ -1,4 +1,6 @@
-use crate::parser::expression::parse_expression_handle_without_struct_literals;
+use crate::parser::expression::{
+    parse_const_integer_expression_handle, parse_expression_handle_without_struct_literals,
+};
 use crate::parser::input::{Input, ParseResult};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
@@ -129,10 +131,11 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
             // are available during validation/layout; literal decimal spelling
             // is canonical.
             let (argument, rest) = if input.at_integer() {
-                let (value, rest) = input.take_integer()?;
-                if value < 0 {
-                    return Err(input.error_here("const data arguments must be non-negative"));
-                }
+                let expression_start = input;
+                let (expression, rest) =
+                    parse_const_integer_expression_handle(syntax_trees, input)?;
+                let value = evaluate_closed_const_integer_expression(syntax_trees, expression)
+                    .map_err(|reason| expression_start.error_here(reason))?;
                 (
                     syntax_trees
                         .type_references
@@ -233,6 +236,67 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
 
     let (type_reference, input) = apply_in_domain_suffix(syntax_trees, type_reference, input)?;
     Ok((type_reference, input))
+}
+
+/// Fold the first richer const-argument slice before generic-instance
+/// synthesis: closed, non-negative integer expressions. The folded decimal
+/// leaf is the same representation a literal argument already used, so symbol
+/// resolution, type identity, layout, and runtime specialization remain
+/// unchanged. Symbolic expressions are intentionally left for the subsequent
+/// const-fact slice, where declaration types and parameter bindings are known.
+fn evaluate_closed_const_integer_expression(
+    syntax_trees: &SyntaxTrees,
+    expression: omega_syntax_trees::expression::ExpressionHandle,
+) -> Result<u64, String> {
+    match syntax_trees.expressions.expression(expression) {
+        ExpressionNode::Integer(value) => value.value_u64().ok_or_else(|| {
+            "const data arguments must be non-negative integers that fit `u64`".to_string()
+        }),
+        ExpressionNode::Binary(binary) => {
+            let left = evaluate_closed_const_integer_expression(syntax_trees, binary.left)?;
+            let right = evaluate_closed_const_integer_expression(syntax_trees, binary.right)?;
+            match binary.operator {
+                BinaryOperator::Add => left.checked_add(right).ok_or_else(|| {
+                    "const data argument addition overflows `u64`".to_string()
+                }),
+                BinaryOperator::Subtract => left.checked_sub(right).ok_or_else(|| {
+                    "const data argument subtraction produces a negative value".to_string()
+                }),
+                BinaryOperator::Multiply => left.checked_mul(right).ok_or_else(|| {
+                    "const data argument multiplication overflows `u64`".to_string()
+                }),
+                BinaryOperator::Divide => left.checked_div(right).ok_or_else(|| {
+                    "const data argument division by zero is invalid".to_string()
+                }),
+                BinaryOperator::Modulo => left.checked_rem(right).ok_or_else(|| {
+                    "const data argument remainder by zero is invalid".to_string()
+                }),
+                BinaryOperator::ShiftLeft => u32::try_from(right)
+                    .ok()
+                    .and_then(|amount| left.checked_shl(amount))
+                    .ok_or_else(|| {
+                        "const data argument left shift exceeds the `u64` width".to_string()
+                    }),
+                BinaryOperator::ShiftRight => u32::try_from(right)
+                    .ok()
+                    .and_then(|amount| left.checked_shr(amount))
+                    .ok_or_else(|| {
+                        "const data argument right shift exceeds the `u64` width".to_string()
+                    }),
+                BinaryOperator::BitwiseAnd => Ok(left & right),
+                BinaryOperator::BitwiseOr => Ok(left | right),
+                BinaryOperator::BitwiseXor => Ok(left ^ right),
+                _ => Err(
+                    "const data arguments currently support only non-negative integer arithmetic, shifts, and bitwise operators"
+                        .to_string(),
+                ),
+            }
+        }
+        _ => Err(
+            "const data arguments currently support only closed non-negative integer expressions"
+                .to_string(),
+        ),
+    }
 }
 
 /// Apply an optional `in <Domain>` suffix to a just-parsed type reference.

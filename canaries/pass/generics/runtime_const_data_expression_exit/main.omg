@@ -1,0 +1,21 @@
+// Closed integer expressions in const generic arguments fold before instance
+// synthesis. Distinct folded values must still select distinct layouts in both
+// engines; precedence, grouping, and shift parsing are all load-bearing here.
+use omega::language::std::console;
+
+data FixedBuffer<const N: u64> {
+    items: [i32 in Wrapping; N];
+}
+
+data Main {
+    console: Console;
+    eight: FixedBuffer<2 * (3 + 1)>;
+    four: FixedBuffer<32 >> 3 | 0>;
+}
+
+machine Main::main(&mut self) {
+    self.eight.items[7] = 30;
+    self.four.items[3] = 40;
+    let result: i32 in Wrapping = self.eight.items[7] + self.four.items[3];
+    self.console.exit_process(result);
+}

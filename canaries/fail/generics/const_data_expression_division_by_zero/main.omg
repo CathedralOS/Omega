@@ -1,0 +1,10 @@
+data FixedBuffer<const N: u64> {
+    items: [u8; N];
+}
+
+data Main {
+    value: FixedBuffer<8 / (3 - 3)>;
+}
+
+machine Main::main(&mut self) {
+}

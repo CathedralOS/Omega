@@ -42,6 +42,25 @@ pub(super) fn parse_expression_handle_without_struct_literals_or_membership<'tok
     )
 }
 
+/// Parse the operator subset that can appear in a const generic argument
+/// without consuming the closing `>` as a comparison. This intentionally
+/// stops above the comparison/equality/logical layers while retaining ordinary
+/// integer precedence, shifts, bitwise operators, unary syntax, and grouped
+/// subexpressions.
+pub(super) fn parse_const_integer_expression_handle<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+    let outer_depth = input.depth();
+    let input = input.deepen()?;
+    let (handle, rest) = parse_bitwise_or_expression_handle(
+        syntax_trees,
+        input,
+        ExpressionContext::NoStructLiteral,
+    )?;
+    Ok((handle, rest.with_depth(outer_depth)))
+}
+
 fn parse_expression_handle_in<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
