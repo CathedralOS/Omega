@@ -149,6 +149,31 @@ fn evaluate_membership(
         )
     })?;
 
+    let Some(classifier_holds) =
+        evaluate_machine_classifier(typed, effect_plan, domain.classifier, value)?
+    else {
+        return Ok(None);
+    };
+    if !classifier_holds {
+        return Ok(Some(false));
+    }
+
+    evaluate_domain_facts(typed, effect_plan, domain, value, &mut vec![domain.symbol])
+}
+
+fn evaluate_machine_classifier(
+    typed: &TypedTrees,
+    effect_plan: &omega_effects::EffectPlan,
+    classifier: ExpressionHandle,
+    self_value: i64,
+) -> Result<Option<bool>, String> {
+    let ExpressionNode::Call(call) = typed.expression_table.expression(classifier) else {
+        return Ok(None);
+    };
+    if !is_direct_self_call(typed, call) {
+        return Ok(None);
+    }
+
     let target = typed
         .machines()
         .iter()
@@ -228,7 +253,7 @@ fn evaluate_membership(
     let classifier_holds = match omega_interpreter::evaluate_build_time_machine(
         typed,
         machine_name,
-        vec![BuildTimeValue::Int(value)],
+        vec![BuildTimeValue::Int(self_value)],
     )
     .map_err(|reason| format!("evaluation of `{machine_name}` failed: {reason}"))?
     {
@@ -239,15 +264,12 @@ fn evaluate_membership(
             ));
         }
     };
-    if !classifier_holds {
-        return Ok(Some(false));
-    }
-
-    evaluate_domain_facts(typed, domain, value, &mut vec![domain.symbol])
+    Ok(Some(classifier_holds))
 }
 
 fn evaluate_domain_facts(
     typed: &TypedTrees,
+    effect_plan: &omega_effects::EffectPlan,
     domain: &omega_typed_trees::domain::DomainDefinition,
     self_value: i64,
     visiting: &mut Vec<omega_core::symbols::SymbolHandle>,
@@ -281,6 +303,7 @@ fn evaluate_domain_facts(
                     };
                 match evaluate_nested_domain_membership(
                     typed,
+                    effect_plan,
                     membership.domain_symbol,
                     nested_value,
                     visiting,
@@ -297,6 +320,7 @@ fn evaluate_domain_facts(
 
 fn evaluate_nested_domain_membership(
     typed: &TypedTrees,
+    effect_plan: &omega_effects::EffectPlan,
     domain_symbol: omega_core::symbols::SymbolHandle,
     self_value: i64,
     visiting: &mut Vec<omega_core::symbols::SymbolHandle>,
@@ -313,7 +337,12 @@ fn evaluate_nested_domain_membership(
     };
 
     if domain.classifier.is_valid() {
-        match evaluate_domain_fact_expression(typed, domain.classifier, self_value)? {
+        let classifier =
+            match evaluate_machine_classifier(typed, effect_plan, domain.classifier, self_value)? {
+                Some(value) => Some(ConstProofValue::Boolean(value)),
+                None => evaluate_domain_fact_expression(typed, domain.classifier, self_value)?,
+            };
+        match classifier {
             Some(ConstProofValue::Boolean(true)) => {}
             Some(ConstProofValue::Boolean(false)) => return Ok(Some(false)),
             Some(ConstProofValue::Integer(_)) => {
@@ -322,14 +351,12 @@ fn evaluate_nested_domain_membership(
                     domain.name
                 ));
             }
-            // Nested machine calls remain until classifier execution is
-            // generalized beyond the direct outer-domain slice.
             None => return Ok(None),
         }
     }
 
     visiting.push(domain_symbol);
-    let result = evaluate_domain_facts(typed, domain, self_value, visiting);
+    let result = evaluate_domain_facts(typed, effect_plan, domain, self_value, visiting);
     visiting.pop();
     result
 }
