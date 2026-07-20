@@ -31217,6 +31217,7 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/aarch64_small_aggregate_entry", "linux_arm64"),
     ("targets/aarch64_small_aggregate_stack_entry", "linux_arm64"),
     ("targets/aarch64_large_aggregate_entry", "linux_arm64"),
+    ("targets/aarch64_large_aggregate_stack_entry", "linux_arm64"),
 ];
 
 #[test]
@@ -31346,6 +31347,54 @@ fn aarch64_large_aggregate_entry_copies_from_the_indirect_pointer() {
             })
         }),
         "expected three x1-pointee loads copied into runtime-frame storage"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn aarch64_large_aggregate_entry_loads_a_stack_passed_pointer() {
+    let canary = pass_canary("targets/aarch64_large_aggregate_stack_entry");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-aarch64-large-aggregate-stack-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_arm64".into()),
+        write_output: true,
+    })
+    .expect("register-exhausted large aggregate should cross-compile through a stack pointer");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted AArch64 ELF");
+    let pointer_load = 0xf940_33f1u32;
+    let pointee_loads = [0xf940_022au32, 0xf940_062a, 0xf940_0a2a];
+    let store_mask = 0xffc0_03ffu32;
+    assert!(
+        image.windows(36).any(|window| {
+            u32::from_le_bytes(window[..4].try_into().expect("pointer load")) == pointer_load
+                && pointee_loads
+                    .iter()
+                    .enumerate()
+                    .all(|(fragment, expected)| {
+                        let load_offset = 12 + fragment * 8;
+                        let store_offset = load_offset + 4;
+                        let load = u32::from_le_bytes(
+                            window[load_offset..load_offset + 4]
+                                .try_into()
+                                .expect("pointee load"),
+                        );
+                        let store = u32::from_le_bytes(
+                            window[store_offset..store_offset + 4]
+                                .try_into()
+                                .expect("store instruction"),
+                        );
+                        load == *expected && store & store_mask == 0xf900_020a
+                    })
+        }),
+        "expected the incoming-stack pointer load before three pointee copies"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }

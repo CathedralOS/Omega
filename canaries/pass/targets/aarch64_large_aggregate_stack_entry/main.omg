@@ -1,0 +1,30 @@
+// Eight scalars consume x0..x7. The following large aggregate is still passed
+// indirectly, but its pointer arrives at the incoming stack base. The entry
+// prologue must load that pointer before materializing the runtime-frame base.
+data Triple {
+    first: u64;
+    second: u64;
+    third: u64;
+}
+
+data Main { observed: u64; }
+
+boundary machine Main::main(
+    &mut self,
+    a0: u64,
+    a1: u64,
+    a2: u64,
+    a3: u64,
+    a4: u64,
+    a5: u64,
+    a6: u64,
+    a7: u64,
+    value: Triple
+) -> i32 {
+    self.observed = a0 + a1 + a2 + a3 + a4 + a5 + a6 + a7
+        + value.first + value.second + value.third;
+    transition { _ -> (0) }
+}
+
+target linux_arm64 {
+}
