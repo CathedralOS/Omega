@@ -1328,20 +1328,33 @@ impl HostAbiPlan {
         };
         let plan = evaluate_call_plan(policy, signature)?;
 
-        // The compatibility syscall row still carries AArch64 encoder facts.
-        // Validate them against the normalized plan while both paths coexist.
+        // The compatibility syscall row still carries encoder facts in its
+        // historical architecture-neutral numbering (slot 8 is x8 on
+        // AArch64 and rax on x86-64). Validate them against the normalized
+        // plan on both architectures while both paths coexist.
         if let HostBindingMechanism::Syscall {
             number_register,
             supervisor_call,
             ..
         } = mechanism
-            && self.target.architecture == omega_target::Architecture::Aarch64
         {
+            let compatibility_number_register = match (self.target.architecture, number_register) {
+                (omega_target::Architecture::Aarch64, register) => {
+                    MachineRegister::Aarch64X(*register)
+                }
+                (omega_target::Architecture::X86_64, 8) => MachineRegister::X86Rax,
+                (omega_target::Architecture::X86_64, register) => {
+                    return Err(PlanDiagnostic(format!(
+                        "compatibility x86-64 syscall binding uses unknown abstract number-register slot {register}"
+                    )));
+                }
+            };
             match plan.entry_control {
                 EntryControl::SupervisorCall {
-                    number_register: MachineRegister::Aarch64X(expected_register),
+                    number_register: expected_register,
                     immediate,
-                } if expected_register == *number_register && immediate == *supervisor_call => {}
+                } if expected_register == compatibility_number_register
+                    && immediate == *supervisor_call => {}
                 _ => {
                     return Err(PlanDiagnostic(
                         "compatibility syscall binding disagrees with its normalized calling plan"
@@ -1460,5 +1473,39 @@ mod call_shape_tests {
             .evaluate_binding_call_plan(&linux_binding.mechanism, &signature)
             .expect("Linux syscall plan");
         assert_eq!(linux_plan.policy, CallingPolicy::LinuxSyscallAarch64);
+    }
+
+    #[test]
+    fn compatibility_syscall_facts_match_normalized_plans_on_both_architectures() {
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8); 3],
+            result: Some(ValueShape::integer(8, 8)),
+        };
+
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let abi = build_host_abi_plan(target);
+            for (_, binding) in abi.bindings.iter().filter(|(_, binding)| {
+                matches!(binding.mechanism, HostBindingMechanism::Syscall { .. })
+            }) {
+                abi.evaluate_binding_call_plan(&binding.mechanism, &signature)
+                    .expect("compatibility syscall facts must match the normalized target plan");
+            }
+        }
+
+        let abi = build_host_abi_plan(NativeTarget::linux_x64());
+        let incompatible = HostBindingMechanism::Syscall {
+            name: "bad".into(),
+            number: 0,
+            number_register: 7,
+            supervisor_call: 0,
+        };
+        let error = abi
+            .evaluate_binding_call_plan(&incompatible, &signature)
+            .expect_err("an unknown legacy x86 register slot must fail closed");
+        assert!(
+            error
+                .to_string()
+                .contains("unknown abstract number-register slot 7")
+        );
     }
 }
