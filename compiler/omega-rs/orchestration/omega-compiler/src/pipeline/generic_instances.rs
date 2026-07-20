@@ -45,7 +45,7 @@ use omega_syntax_trees::statement::StatementNode;
 use omega_syntax_trees::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 struct GenericData {
     parameter_names: Vec<String>,
@@ -283,7 +283,7 @@ pub(crate) fn desugar_generic_data_instances(
             let mut first: Handle<DataMember> = Handle::invalid();
             let mut count = 0u32;
             for member in members {
-                let substituted = substitute_member(syntax, member, &substitution);
+                let substituted = substitute_member(syntax, member, &substitution, &const_values);
                 let handle = syntax.tables.items.append_data_member(substituted);
                 if count == 0 {
                     first = handle;
@@ -433,7 +433,164 @@ pub(crate) fn desugar_generic_data_instances(
         }
     }
 
+    normalize_generic_template_const_expressions(syntax, &const_values)
+        .map_err(|diagnostic| vec![diagnostic])?;
     Ok(())
+}
+
+/// Generic definitions remain in the tree after their concrete records are
+/// synthesized so the normal frontend can validate the template. A symbolic
+/// const expression cannot cross that boundary yet, so reduce each template
+/// expression to either its concrete value or one declared const-parameter
+/// dependency. The concrete clones already carry the fully evaluated value;
+/// this placeholder exists only to preserve the established generic type/kind
+/// checks on the source template.
+fn normalize_generic_template_const_expressions(
+    syntax: &mut SyntaxTrees,
+    const_values: &HashMap<String, u64>,
+) -> Result<(), Diagnostic> {
+    let templates: Vec<(String, HashSet<String>, Vec<TypeReferenceHandle>)> = syntax
+        .root_items()
+        .filter_map(|item| {
+            let Item::Data(definition) = item else {
+                return None;
+            };
+            if definition.type_parameters.is_empty() {
+                return None;
+            }
+            let symbolic_parameters = syntax
+                .tables
+                .items
+                .type_parameters(definition.type_parameters)
+                .iter()
+                .filter_map(|parameter| {
+                    matches!(parameter.kind, TypeParameterKind::Const { .. })
+                        .then(|| parameter.name.as_str().to_string())
+                })
+                .collect();
+            let fields = syntax
+                .tables
+                .items
+                .data_members(definition.members)
+                .iter()
+                .filter_map(|member| match member {
+                    DataMember::Field(field) => Some(field.type_reference),
+                    DataMember::Variant(_) => None,
+                })
+                .collect();
+            Some((
+                definition.name.as_str().to_string(),
+                symbolic_parameters,
+                fields,
+            ))
+        })
+        .collect();
+
+    for (template, symbolic_parameters, fields) in templates {
+        for field in fields {
+            normalize_template_type_reference(
+                syntax,
+                field,
+                const_values,
+                &symbolic_parameters,
+            )
+            .map_err(|reason| {
+                Diagnostic::error(format!(
+                    "const argument expression in generic data `{template}` is invalid: {reason}"
+                ))
+            })?;
+        }
+    }
+    Ok(())
+}
+
+fn normalize_template_type_reference(
+    syntax: &mut SyntaxTrees,
+    type_reference: TypeReferenceHandle,
+    const_values: &HashMap<String, u64>,
+    symbolic_parameters: &HashSet<String>,
+) -> Result<(), String> {
+    let node = syntax
+        .tables
+        .type_references
+        .type_reference(type_reference)
+        .clone();
+    match node {
+        TypeReferenceNode::Reference { referee, .. } => {
+            normalize_template_type_reference(syntax, referee, const_values, symbolic_parameters)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            normalize_template_type_reference(syntax, base_type, const_values, symbolic_parameters)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => normalize_template_type_reference(
+            syntax,
+            element_type,
+            const_values,
+            symbolic_parameters,
+        ),
+        TypeReferenceNode::Generic { arguments, .. } => {
+            let arguments = syntax
+                .tables
+                .type_references
+                .type_reference_handles(arguments)
+                .to_vec();
+            for argument in arguments {
+                let node = syntax
+                    .tables
+                    .type_references
+                    .type_reference(argument)
+                    .clone();
+                if let TypeReferenceNode::ConstExpression(expression) = node {
+                    let placeholder = evaluate_const_argument_expression(
+                        syntax,
+                        expression,
+                        const_values,
+                        &HashMap::new(),
+                        symbolic_parameters,
+                    )?;
+                    let name = match placeholder {
+                        EvaluatedConst::Concrete(value) => value.to_string(),
+                        EvaluatedConst::Symbolic(name) => name,
+                    };
+                    syntax.tables.type_references.replace_type_reference(
+                        argument,
+                        TypeReferenceNode::Named(Identifier::generated(name)),
+                    );
+                } else {
+                    normalize_template_type_reference(
+                        syntax,
+                        argument,
+                        const_values,
+                        symbolic_parameters,
+                    )?;
+                }
+            }
+            Ok(())
+        }
+        TypeReferenceNode::ConstExpression(expression) => {
+            let placeholder = evaluate_const_argument_expression(
+                syntax,
+                expression,
+                const_values,
+                &HashMap::new(),
+                symbolic_parameters,
+            )?;
+            let name = match placeholder {
+                EvaluatedConst::Concrete(value) => value.to_string(),
+                EvaluatedConst::Symbolic(name) => name,
+            };
+            syntax.tables.type_references.replace_type_reference(
+                type_reference,
+                TypeReferenceNode::Named(Identifier::generated(name)),
+            );
+            Ok(())
+        }
+        TypeReferenceNode::DynamicTrait(_)
+        | TypeReferenceNode::Named(_)
+        | TypeReferenceNode::SelfType
+        | TypeReferenceNode::Unit => Ok(()),
+    }
 }
 
 /// Every TYPE-REFERENCE position a generic-data spelling can appear in: data
@@ -545,8 +702,15 @@ fn consider_generic_spelling(
                 );
             }
             TypeReferenceNode::ConstExpression(expression) => {
-                let value = evaluate_const_argument_expression(syntax, *expression, const_values)
-                    .map_err(|reason| {
+                let value = evaluate_const_argument_expression(
+                    syntax,
+                    *expression,
+                    const_values,
+                    &HashMap::new(),
+                    &HashSet::new(),
+                )
+                .and_then(EvaluatedConst::into_concrete)
+                .map_err(|reason| {
                     Diagnostic::error(format!(
                         "const argument expression for `{base}` is invalid: {reason}"
                     ))
@@ -641,10 +805,13 @@ fn evaluate_const_argument_expression(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
     const_values: &HashMap<String, u64>,
-) -> Result<u64, String> {
+    parameter_values: &HashMap<String, u64>,
+    symbolic_parameters: &HashSet<String>,
+) -> Result<EvaluatedConst, String> {
     match syntax.expressions.expression(expression) {
         ExpressionNode::Integer(value) => value
             .value_u64()
+            .map(EvaluatedConst::Concrete)
             .ok_or_else(|| "integer operand must be non-negative and fit `u64`".to_string()),
         ExpressionNode::Name(path) => {
             let name = syntax
@@ -654,41 +821,109 @@ fn evaluate_const_argument_expression(
                 .map(|member| member.as_str())
                 .collect::<Vec<_>>()
                 .join("::");
-            const_values
+            if let Some(value) = parameter_values
                 .get(&name)
-                .copied()
-                .ok_or_else(|| format!("`{name}` is not a scoped integer const"))
+                .or_else(|| const_values.get(&name))
+            {
+                Ok(EvaluatedConst::Concrete(*value))
+            } else if symbolic_parameters.contains(&name) {
+                Ok(EvaluatedConst::Symbolic(name))
+            } else {
+                Err(format!("`{name}` is not a scoped integer const"))
+            }
         }
         ExpressionNode::Binary(binary) => {
-            let left = evaluate_const_argument_expression(syntax, binary.left, const_values)?;
-            let right = evaluate_const_argument_expression(syntax, binary.right, const_values)?;
+            let left = evaluate_const_argument_expression(
+                syntax,
+                binary.left,
+                const_values,
+                parameter_values,
+                symbolic_parameters,
+            )?;
+            let right = evaluate_const_argument_expression(
+                syntax,
+                binary.right,
+                const_values,
+                parameter_values,
+                symbolic_parameters,
+            )?;
+            match (binary.operator, &right) {
+                (BinaryOperator::Divide | BinaryOperator::Modulo, EvaluatedConst::Concrete(0)) => {
+                    return Err(match binary.operator {
+                        BinaryOperator::Divide => "division by zero is invalid".to_string(),
+                        _ => "remainder by zero is invalid".to_string(),
+                    });
+                }
+                (
+                    BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight,
+                    EvaluatedConst::Concrete(amount),
+                ) if *amount >= u64::BITS as u64 => {
+                    return Err(match binary.operator {
+                        BinaryOperator::ShiftLeft => {
+                            "left shift exceeds the `u64` width".to_string()
+                        }
+                        _ => "right shift exceeds the `u64` width".to_string(),
+                    });
+                }
+                (
+                    BinaryOperator::Add
+                    | BinaryOperator::Subtract
+                    | BinaryOperator::Multiply
+                    | BinaryOperator::Divide
+                    | BinaryOperator::Modulo
+                    | BinaryOperator::ShiftLeft
+                    | BinaryOperator::ShiftRight
+                    | BinaryOperator::BitwiseAnd
+                    | BinaryOperator::BitwiseOr
+                    | BinaryOperator::BitwiseXor,
+                    _,
+                ) => {}
+                _ => {
+                    return Err(
+                        "only integer arithmetic, shifts, and bitwise operators are supported"
+                            .to_string(),
+                    );
+                }
+            }
+            let (EvaluatedConst::Concrete(left), EvaluatedConst::Concrete(right)) = (&left, &right)
+            else {
+                return Ok(left.or_symbolic(right));
+            };
+            let (left, right) = (*left, *right);
             match binary.operator {
                 BinaryOperator::Add => left
                     .checked_add(right)
+                    .map(EvaluatedConst::Concrete)
                     .ok_or_else(|| "addition overflows `u64`".to_string()),
                 BinaryOperator::Subtract => left
                     .checked_sub(right)
+                    .map(EvaluatedConst::Concrete)
                     .ok_or_else(|| "subtraction produces a negative value".to_string()),
                 BinaryOperator::Multiply => left
                     .checked_mul(right)
+                    .map(EvaluatedConst::Concrete)
                     .ok_or_else(|| "multiplication overflows `u64`".to_string()),
                 BinaryOperator::Divide => left
                     .checked_div(right)
+                    .map(EvaluatedConst::Concrete)
                     .ok_or_else(|| "division by zero is invalid".to_string()),
                 BinaryOperator::Modulo => left
                     .checked_rem(right)
+                    .map(EvaluatedConst::Concrete)
                     .ok_or_else(|| "remainder by zero is invalid".to_string()),
                 BinaryOperator::ShiftLeft => u32::try_from(right)
                     .ok()
                     .and_then(|amount| left.checked_shl(amount))
+                    .map(EvaluatedConst::Concrete)
                     .ok_or_else(|| "left shift exceeds the `u64` width".to_string()),
                 BinaryOperator::ShiftRight => u32::try_from(right)
                     .ok()
                     .and_then(|amount| left.checked_shr(amount))
+                    .map(EvaluatedConst::Concrete)
                     .ok_or_else(|| "right shift exceeds the `u64` width".to_string()),
-                BinaryOperator::BitwiseAnd => Ok(left & right),
-                BinaryOperator::BitwiseOr => Ok(left | right),
-                BinaryOperator::BitwiseXor => Ok(left ^ right),
+                BinaryOperator::BitwiseAnd => Ok(EvaluatedConst::Concrete(left & right)),
+                BinaryOperator::BitwiseOr => Ok(EvaluatedConst::Concrete(left | right)),
+                BinaryOperator::BitwiseXor => Ok(EvaluatedConst::Concrete(left ^ right)),
                 _ => Err(
                     "only integer arithmetic, shifts, and bitwise operators are supported"
                         .to_string(),
@@ -696,6 +931,30 @@ fn evaluate_const_argument_expression(
             }
         }
         _ => Err("expression is not a symbolic integer const expression".to_string()),
+    }
+}
+
+#[derive(Debug)]
+enum EvaluatedConst {
+    Concrete(u64),
+    Symbolic(String),
+}
+
+impl EvaluatedConst {
+    fn into_concrete(self) -> Result<u64, String> {
+        match self {
+            Self::Concrete(value) => Ok(value),
+            Self::Symbolic(name) => Err(format!(
+                "`{name}` is a const parameter that has no binding at this use"
+            )),
+        }
+    }
+
+    fn or_symbolic(self, other: Self) -> Self {
+        match self {
+            Self::Symbolic(_) => self,
+            Self::Concrete(_) => other,
+        }
     }
 }
 
@@ -802,6 +1061,7 @@ fn base_is_fully_monomorphizable(
                                 matches!(
                                     syntax.tables.type_references.type_reference(argument),
                                     TypeReferenceNode::Named(_)
+                                        | TypeReferenceNode::ConstExpression(_)
                                 ) || !type_reference_mentions_parameter(
                                     syntax,
                                     argument,
@@ -845,6 +1105,7 @@ fn substitute_member(
     syntax: &mut SyntaxTrees,
     member: DataMember,
     substitution: &HashMap<String, TypeReferenceHandle>,
+    const_values: &HashMap<String, u64>,
 ) -> DataMember {
     let DataMember::Field(mut field) = member else {
         return member;
@@ -871,17 +1132,49 @@ fn substitute_member(
                 .type_references
                 .type_reference_handles(arguments)
                 .to_vec();
-            let substituted_arguments: Vec<TypeReferenceHandle> = argument_handles
+            let const_bindings: HashMap<String, u64> = substitution
                 .iter()
-                .map(
-                    |&argument| match syntax.tables.type_references.type_reference(argument) {
-                        TypeReferenceNode::Named(name) => {
-                            substitution.get(name.as_str()).copied().unwrap_or(argument)
-                        }
-                        _ => argument,
-                    },
-                )
+                .filter_map(|(name, argument)| {
+                    let TypeReferenceNode::Named(value) =
+                        syntax.tables.type_references.type_reference(*argument)
+                    else {
+                        return None;
+                    };
+                    Some((name.clone(), value.as_str().parse::<u64>().ok()?))
+                })
                 .collect();
+            let mut substituted_arguments = Vec::with_capacity(argument_handles.len());
+            for argument in argument_handles {
+                let node = syntax
+                    .tables
+                    .type_references
+                    .type_reference(argument)
+                    .clone();
+                let substituted = match node {
+                    TypeReferenceNode::Named(name) => {
+                        substitution.get(name.as_str()).copied().unwrap_or(argument)
+                    }
+                    TypeReferenceNode::ConstExpression(expression) => {
+                        match evaluate_const_argument_expression(
+                            syntax,
+                            expression,
+                            const_values,
+                            &const_bindings,
+                            &HashSet::new(),
+                        )
+                        .and_then(EvaluatedConst::into_concrete)
+                        {
+                            Ok(value) => syntax
+                                .tables
+                                .type_references
+                                .insert_named(Identifier::generated(value.to_string())),
+                            Err(_) => argument,
+                        }
+                    }
+                    _ => argument,
+                };
+                substituted_arguments.push(substituted);
+            }
             let new_span = syntax
                 .tables
                 .type_references
