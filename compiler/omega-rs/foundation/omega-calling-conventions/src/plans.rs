@@ -592,10 +592,16 @@ fn validate_signature_shapes(
                 if policy != CallingPolicy::SystemVAMD64
                     || !(9..=16).contains(&shape.byte_size)
                     || shape.alignment > 8
-                    || first == second =>
+                    || matches!(
+                        (first, second),
+                        (
+                            SystemVEightbyteClass::Integer,
+                            SystemVEightbyteClass::Integer
+                        )
+                    ) =>
             {
                 return Err(PlanDiagnostic(
-                    "mixed SysV aggregates require two distinct INTEGER/SSE eightbyte classes, a 9-16 byte shape, and at most eight-byte alignment"
+                    "classified SysV aggregates require at least one SSE eightbyte, a 9-16 byte shape, and at most eight-byte alignment"
                         .into(),
                 ));
             }
@@ -2406,7 +2412,7 @@ mod tests {
     }
 
     #[test]
-    fn system_v_mixed_record_rejects_equal_eightbyte_classes() {
+    fn system_v_classified_record_rejects_all_integer_eightbytes() {
         let malformed = ValueShape::system_v_aggregate(
             16,
             8,
@@ -2421,6 +2427,6 @@ mod tests {
             },
         )
         .expect_err("equal classes must use an existing normalized aggregate class");
-        assert!(error.0.contains("two distinct INTEGER/SSE"));
+        assert!(error.0.contains("at least one SSE eightbyte"));
     }
 }

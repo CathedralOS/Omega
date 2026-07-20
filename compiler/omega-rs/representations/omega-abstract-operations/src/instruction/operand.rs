@@ -70,9 +70,9 @@ pub enum InstructionOperandKind {
         member_byte_count: usize,
         members: u8,
     },
-    /// A two-eightbyte SysV AMD64 aggregate whose eightbytes use different
-    /// INTEGER/SSE register classes. Bit 0/1 of `sse_eightbytes` identifies
-    /// the corresponding SSE-class eightbyte.
+    /// A two-eightbyte SysV AMD64 aggregate with at least one SSE-class
+    /// eightbyte. Bit 0/1 of `sse_eightbytes` identifies the corresponding
+    /// SSE-class eightbyte; all-INTEGER records use `RuntimeSmallAggregate`.
     RuntimeSystemVAggregate {
         region: RuntimeStorageRegion,
         byte_offset: usize,
