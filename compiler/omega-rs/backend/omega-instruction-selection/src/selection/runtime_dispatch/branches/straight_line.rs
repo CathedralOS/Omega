@@ -670,6 +670,7 @@ fn select_runtime_straight_line_branch_writes(
                     Some(expansion.dispatch_index),
                     alias_context,
                     operands,
+                    runtime_value_operands,
                     selected_instructions,
                 );
             }
@@ -1565,6 +1566,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
                 Some(expansion.dispatch_index),
                 alias_context,
                 operands,
+                runtime_value_operands,
                 selected_instructions,
             );
             continue;

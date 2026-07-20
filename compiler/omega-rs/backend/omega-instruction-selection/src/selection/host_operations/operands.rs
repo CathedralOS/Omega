@@ -2255,7 +2255,8 @@ fn first_scalar_argument_operand(
             region: place.region,
             byte_offset: place.byte_offset,
             byte_count: place.byte_count,
-        }),
+        })
+        .or_else(|| computed_scalar_argument_operand(input, host_call, dispatch_index, 0)),
         HostCallArgumentKind::Text(_) => Some(InstructionOperandKind::ImmediateInteger(0)),
     }
 }
@@ -2322,9 +2323,36 @@ fn scalar_argument_operand_at(
                     )
                     .and_then(scalar_place)
                 })
+                .or_else(|| {
+                    computed_scalar_argument_operand(input, host_call, dispatch_index, index)
+                })
         }
         _ => None,
     }
+}
+
+fn computed_scalar_argument_operand(
+    input: &InstructionSelectionInput<'_>,
+    host_call: &HostCall,
+    dispatch_index: Option<u32>,
+    index: usize,
+) -> Option<InstructionOperandKind> {
+    if input.runtime_storage.host_argument_scratch_size < (index + 1) * 8 {
+        return None;
+    }
+    let expression = host_call_argument_expression(input, host_call, index)?;
+    let byte_count = crate::selection::runtime_dispatch::computed_host_argument_binary_byte_size(
+        input,
+        dispatch_index.unwrap_or(0),
+        host_call.source_key,
+        &input.host_calls.expressions,
+        expression,
+    )?;
+    Some(InstructionOperandKind::RuntimeScalarInteger {
+        region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+        byte_offset: input.runtime_storage.host_argument_scratch_base + index * 8,
+        byte_count,
+    })
 }
 
 /// Like `scalar_argument_operand_at`, but for a FLOAT (`f32`/`f64`) argument: emits

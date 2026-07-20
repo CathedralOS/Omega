@@ -12,7 +12,8 @@ use omega_platform_interface::HostCall;
 
 use super::instruction_sink::SelectedInstructionSink;
 use omega_abstract_operations::{
-    InstructionOperand, InstructionOperandKind, SelectedInstruction, SelectedInstructionKind,
+    InstructionOperand, InstructionOperandKind, RuntimeValueOperand, SelectedInstruction,
+    SelectedInstructionKind,
 };
 pub(in crate::selection) use operands::system_v_record_descriptor_shape;
 use operands::{data_object_handle, operand, select_host_operation_operands};
@@ -29,8 +30,40 @@ pub(super) fn select_host_call(
     dispatch_index: Option<u32>,
     alias_context: Option<RuntimeAliasResolutionContext<'_, '_>>,
     operands: &mut Arena<InstructionOperand>,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    if input.runtime_storage.host_argument_scratch_size > 0
+        && let Some(arguments) = input.host_calls.arguments.span(host_call.arguments)
+    {
+        for (index, argument) in arguments.iter().enumerate() {
+            let omega_platform_interface::HostCallArgumentKind::Expression(expression) =
+                argument.kind
+            else {
+                continue;
+            };
+            let target_offset = input.runtime_storage.host_argument_scratch_base + index * 8;
+            if let Some((kind, _)) =
+                crate::selection::runtime_dispatch::select_computed_host_argument_binary_write(
+                    input,
+                    dispatch_index.unwrap_or(0),
+                    host_call.source_key,
+                    host_call.statement_index,
+                    &input.host_calls.expressions,
+                    expression,
+                    target_offset,
+                    runtime_value_operands,
+                )
+            {
+                selected_instructions.push(SelectedInstruction {
+                    kind,
+                    source_key: host_call.source_key,
+                    source_statement: host_call.statement_index,
+                });
+            }
+        }
+    }
+
     selected_instructions.push(SelectedInstruction {
         kind: SelectedInstructionKind::BeginPlatformCall,
         source_key: host_call.source_key,

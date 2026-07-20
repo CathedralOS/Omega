@@ -32,6 +32,11 @@ pub struct RuntimeStoragePlan {
     pub wire_scratch_base: usize,
     /// Size of the reserved wire scratch region (0 if none).
     pub wire_scratch_size: usize,
+    /// Per-argument scalar scratch used to materialize computed host-call
+    /// arguments before the platform marshaller reads them. Each slot is one
+    /// native word and the region is reused across statements.
+    pub host_argument_scratch_base: usize,
+    pub host_argument_scratch_size: usize,
     /// Byte offset of the reserved ENTRY-ARGUMENT SPILL region: the entry
     /// prologue stores the platform's four incoming argument registers here,
     /// and the entry's `args: &[u8]` slice descriptor points at it (the bytes
@@ -68,6 +73,8 @@ impl RuntimeStoragePlan {
             frame_scratch_size: 0,
             wire_scratch_base: 0,
             wire_scratch_size: 0,
+            host_argument_scratch_base: 0,
+            host_argument_scratch_size: 0,
             entry_argument_spill_base: 0,
             entry_argument_spill_size: 0,
             entry_indirect_result_pointer_base: 0,
