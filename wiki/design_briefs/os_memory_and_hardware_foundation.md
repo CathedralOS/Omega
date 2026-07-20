@@ -341,9 +341,13 @@ StatePlan
 ```
 
 A normalized boundary-entry plan carries both. The requirement cites the
-calling policy through ordinary trait composition (`Calling<C>`); `C` evaluates
-against the signature to the complete pair. The evaluated plans, not merely the
-policy symbol, enter the published contract identity.
+calling policy through ordinary trait composition (`Calling<C>`). `C` satisfies
+`CallingPolicy`; its build-time-admissible `plan` machine evaluates the
+normalized signature to `Accepted(BoundaryEntryPlan)` or a structured rejection.
+Accepted plans are compiler-validated and canonicalized. The canonical evaluated
+plans, not the policy symbol, machine source, or construction order, enter the
+published contract identity. Policy authorship is open to ordinary packages,
+while the plan vocabulary and validator remain compiler-owned and closed.
 
 Implementation evidence is firewalled from that identity. A provider artifact
 contains its emitted transitive state/register footprint and validation result.
@@ -651,8 +655,9 @@ Ordinary generic trait-parent composition for `Calling<C>` is implemented. The
 compiler also has the first normalized `CallPlan + StatePlan` model, built-in
 evaluators for the currently supported x86-64/AArch64 host and syscall
 policies, deterministic contract fingerprints, and a separate validated
-footprint-evidence carrier. Source-policy evaluation, authoritative lowering,
-and the concrete interrupt state policy remain. Remaining order:
+footprint-evidence carrier. Source-policy semantics are settled; its compiler
+integration, authoritative lowering, and the concrete interrupt state policy
+remain. Remaining order:
 
 1. Complete the checked-assembly instruction-contract catalog needed by the
    entry provider. No raw-byte shortcut.
@@ -686,9 +691,10 @@ and the concrete interrupt state policy remain. Remaining order:
    then lower exact external/atomic primitives. Geometry, provenance, space,
    rights, size, static reach, and loan-derived borrow polarity are already
    checked.
-5. Connect `Calling<C>` to evaluated boundary-plan identity, migrate lowering
-   to the normalized plans, constrain codegen, emit footprint evidence, and
-   validate final artifacts.
+5. Implement `CallingPolicy::plan` source evaluation with structured rejection
+   and accepted-plan canonicalization; connect `Calling<C>` to evaluated
+   boundary-plan identity, migrate lowering to the normalized plans, constrain
+   codegen, emit footprint evidence, and validate final artifacts.
 6. Connect the live placement constraints to admitted-artifact validation and
    scoped executable installation.
 7. Add the external-root ledger and IDT/timer vertical slice.

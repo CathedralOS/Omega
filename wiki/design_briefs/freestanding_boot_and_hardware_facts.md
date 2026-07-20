@@ -245,13 +245,16 @@ physical-Extent mint (still spelled `Region` in the bootstrap sample), port I/O,
 and `hlt` path. The timer/IDT slice is not yet specified or
 implemented end to end.
 
-Generic trait-parent composition for `Calling<C>` is implemented. The remaining
-implementation order is:
+Generic trait-parent composition for `Calling<C>` is implemented. Source policy
+semantics are settled as an open `CallingPolicy::plan` relationship over a
+closed compiler-validated plan vocabulary; compiler integration remains. The
+remaining implementation order is:
 
 1. complete the checked-assembly catalog required by the entry provider;
 2. finish IDT1 after the implemented name-keyed fragmented-layout validator:
    add symbolic relocation sources and phase-aware materialization;
-3. `CallPlan + StatePlan` entry-stub derivation and footprint validation;
+3. source policy evaluation, `CallPlan + StatePlan` entry-stub derivation, and
+   footprint validation;
 4. external-root ledger and IDT/timer slice; and
 5. placed views, external loans, and the wider driver gauntlet.
 

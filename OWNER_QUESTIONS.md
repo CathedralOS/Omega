@@ -40,34 +40,7 @@ not source attributes or a new `unsafe` escape.
 Detailed surrounding context and engineering residue are in
 [`wiki/design_briefs/os_memory_and_hardware_foundation.md`](wiki/design_briefs/os_memory_and_hardware_foundation.md).
 
-## 2. How does a source `Calling<C>` policy evaluate?
-
-Generic trait composition can now retain `Calling<X86InterruptConvention>`,
-and the compiler has normalized `CallPlan + StatePlan` records and validators.
-The source model still lacks the relationship that qualifies `C` as a policy
-and evaluates it against the satisfied requirement's signature.
-
-The decision must preserve these settled constraints:
-
-- never infer a policy from `C`'s spelling, target nickname, import library, or
-  binding mechanism;
-- validate the evaluated `BoundaryEntryPlan` before it can contribute identity;
-- hash the normalized evaluated plan, not merely `C`'s symbol, into the
-  requirement contract; and
-- keep placement and machine-state vocabularies closed/compiler-validated
-  without making Omega's internal calling convention programmable.
-
-Recommendation: make `C` satisfy one sealed core policy requirement whose
-compile-time machine computes `BoundaryEntryPlan` from the requirement
-signature. Calling layout is genuine computation, so this does not revive an
-imperative plan-builder API; the machine chooses from closed plan data and the
-compiler validates its result. A smaller alternative is a compiler-owned
-closed policy value selected explicitly by `C`, but it needs an honest source
-relationship rather than friendly-name recognition. Decide the source/core
-spelling and whether user packages may define new policies subject to the same
-validator, or only platform packages may do so.
-
-## 3. What is Cathedral's first x86 interrupt state policy?
+## 2. What is Cathedral's first x86 interrupt state policy?
 
 The normalized `CallPlan + StatePlan` vocabulary and validator are ready, but
 the first timer profile cannot be derived until Cathedral chooses the hardware
@@ -93,7 +66,7 @@ acknowledgement requirement refined by PIC/LAPIC providers. This is deliberately
 conservative and can later admit nesting or a broader state ceiling, but it is
 still an OS policy choice because it fixes stack demand and preemption edges.
 
-## 4. What is the generated post-handoff writer boundary?
+## 3. What is the generated post-handoff writer boundary?
 
 The normalized materializer can derive an atomic writer plan, and exact
 `InstalledCode` can privately resolve only entry identities admitted with that
@@ -123,7 +96,7 @@ fact. The machine may lower normally under its evaluated call/state plan; do not
 standardize a public callback ABI or let ordinary Omega code observe resolved
 addresses.
 
-## 5. What is the native boundary ABI for fixed arrays and text descriptors?
+## 4. What is the native boundary ABI for fixed arrays and text descriptors?
 
 Primitive scalars and declared `data` records/cases now have normalized entry
 result shapes across Microsoft x64, SysV AMD64, and AAPCS64. Fixed arrays and
@@ -153,7 +126,7 @@ and classify admitted fixed arrays structurally (including HFA/SSE rules) while
 requiring text to use an explicit public descriptor record after String
 retirement. Do not infer either ABI from byte size alone.
 
-## 6. What is the runtime and object-safety contract for `dyn Trait`?
+## 5. What is the runtime and object-safety contract for `dyn Trait`?
 
 Closed-world call-site specialization currently makes `&dyn Trait` parameters
 execute correctly when every concrete receiver is known at its call site. It

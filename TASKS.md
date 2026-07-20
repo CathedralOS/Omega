@@ -160,11 +160,14 @@ boundary plan with no interrupted state, no save/restore obligation, a
 provider-selected stack, non-preemptive entry semantics, and a transitive state
 ceiling derived exactly from the ABI volatile-register classes.
 
-1. **ENT2b — source policy evaluation and identity (OWNER-BLOCKED: see
-   `OWNER_QUESTIONS.md` section 2).** Evaluate the policy type
-   selected by `Calling<C>` against each requirement signature, validate the
-   resulting `BoundaryEntryPlan`, and put its normalized fingerprint—not merely
-   `C`'s symbol—into published requirement identity.
+1. **ENT2b — source policy evaluation and identity.** Implement the settled
+   `CallingPolicy::plan(BoundarySignature) -> BoundaryPlanResult` relationship.
+   Evaluate the policy type selected by `Calling<C>` at compile time, emit a
+   structured declaration-site diagnostic for `Rejected`, validate and
+   canonicalize every `Accepted(BoundaryEntryPlan)`, and put the canonical
+   evaluated fingerprint—not `C`'s symbol or source body—into published
+   requirement identity. Policy authorship is open to ordinary packages; the
+   plan vocabulary and validator remain compiler-owned and closed.
 2. **ENT2c — lowering migration and concrete entry state.** Express the
    existing MS-x64, SysV-x64, AAPCS64, Linux-syscall, and firmware lowering
    choices through the normalized plan; continue beyond the completed
@@ -269,7 +272,7 @@ ceiling derived exactly from the ABI volatile-register classes.
    callee's native result register through entry termination; the former
    compile-only free-standing `add_i32(3, 4)` canary now executes and pins exit 7.
    Fixed-array and text/slice descriptor entry results now wait on the explicit
-   native-boundary policy decision in `OWNER_QUESTIONS.md` section 5; byte size
+   native-boundary policy decision in `OWNER_QUESTIONS.md` section 4; byte size
    alone must not silently define their public ABI.
    Direct scalar binary, numeric-cast, `min`/`max`/`sqrt`, runtime-indexed
    slice-element, and fixed-array indexed expressions in host-call argument
@@ -422,7 +425,7 @@ ceiling derived exactly from the ABI volatile-register classes.
    flat HFA results through matching relocated stores.
    The concrete x86 interrupt
    `StatePlan`, stack/IST, nesting, and acknowledgement policy used by Cathedral
-   is OWNER-BLOCKED on `OWNER_QUESTIONS.md` section 3.
+   is OWNER-BLOCKED on `OWNER_QUESTIONS.md` section 2.
 3. **ENT3 — constrained entry codegen.** Derive entry stubs, specialize/codegen
    under the state ceiling, emit a checkable final footprint certificate, and
    validate after relaxation, veneers, thunks, and generated stubs.
@@ -526,6 +529,15 @@ remain contract-invisible.
    calls, with no runtime callable, dictionary, or capture inference. Still add
    the nested proof schemas used by N5/N6, task-runtime machine selection, and
    the remaining build-surface canaries.
+2. **MP7 — stale machine-parameter fence audit.** Revisit every task or brief
+   deferred on "machine parameters are unbuilt." Compile-time symbol selection
+   and direct monomorphized invocation now exist. Unblock customers needing only
+   that form, including generic orchestration. Keep separately fenced any
+   customer that needs a machine identity reified as a runtime/build-time value,
+   sealed entry reference, relocation source, or artifact record; `Entry::of<H>`
+   is not proven merely because `map<Card::power>()` works. Do not revive the
+   rejected provider-plan builder API: its duplication of `satisfies` remains a
+   semantic objection, not an implementation fence.
 
 ## Type, proof, and semantic-model work
 
@@ -694,7 +706,7 @@ remain contract-invisible.
   admission-bound sealed entry targets. Exact installed code now resolves those
   targets privately while executing the atomic writer. Lower the normalized
   provider-resolved post-handoff writer programs to generated machine code
-  (OWNER-BLOCKED: `OWNER_QUESTIONS.md` section 4).
+  (OWNER-BLOCKED: `OWNER_QUESTIONS.md` section 3).
   Writer programs already validate their
   concrete site, resolve each sealed target once, stage all writes, and publish
   atomically. Native whole-pointer actions already lower into section-qualified
@@ -790,7 +802,7 @@ remain contract-invisible.
   header parents before substitution into the synthesized signature and body.
   Reflection-driven trait generators remain under build-time evaluation below.
   Do not restore a `default` keyword.
-- **Dynamic traits (OWNER-BLOCKED: `OWNER_QUESTIONS.md` section 6).**
+- **Dynamic traits (OWNER-BLOCKED: `OWNER_QUESTIONS.md` section 5).**
   Closed-world parameter calls currently specialize per concrete call site.
   Runtime-varying construction/storage, descriptors carrying satisfier
   identity, vtable emission, true indirect dispatch, and object-safety await
