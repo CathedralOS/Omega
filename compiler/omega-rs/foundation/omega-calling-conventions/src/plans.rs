@@ -886,7 +886,11 @@ fn evaluate_linux_syscall_aarch64(signature: &CallSignature) -> Result<CallPlan,
         &registers,
         MachineRegister::Aarch64X(8),
         MachineRegister::Aarch64X(0),
-        RegisterSet::new((0..=5).map(MachineRegister::Aarch64X)),
+        RegisterSet::new(
+            (0..=5)
+                .map(MachineRegister::Aarch64X)
+                .chain([MachineRegister::Aarch64X(8)]),
+        ),
     )
 }
 
@@ -1280,6 +1284,15 @@ mod tests {
                 immediate: 0,
             }
         ));
+
+        let aarch64 = evaluate_call_plan(CallingPolicy::LinuxSyscallAarch64, &integer_signature(6))
+            .expect("AArch64 Linux syscall");
+        assert!(
+            aarch64
+                .ordinary_clobbers
+                .contains(MachineRegister::Aarch64X(8)),
+            "the number register is part of the realized syscall clobber set"
+        );
     }
 
     fn strict_x86_entry() -> BoundaryEntryPlan {

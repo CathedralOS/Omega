@@ -1008,24 +1008,24 @@ pub fn host_call_data_relocation_site<T: InstructionOperandLike>(
 
 /// A `mov <arg-reg>, imm64` is 10 bytes (2-byte REX.W+B8 prefix, then the imm64), and
 /// for both an immediate/data-address argument (`mov arg, imm64`) and a runtime-storage
-/// argument (whose first instruction is `mov r15, imm64=0` for the relocated region base)
+/// argument (whose first instruction is `mov r11, imm64=0` for the relocated region base)
 /// the relocated imm64 sits at the argument's start + 2.
 pub const SYSCALL_ARG_MOV_WIDTH: usize = 10;
 
 /// Byte width of marshalling a single syscall argument into its register. Simple
 /// arguments (immediate, byte-length, data-address) are a direct `mov arg, imm64`;
-/// runtime-storage arguments stage the value through r15/rax (see `encode_syscall_sequence`).
+/// runtime-storage arguments stage the value through r11/rax (see `encode_syscall_sequence`).
 fn syscall_arg_operand_width<T: InstructionOperandLike>(operand: &T) -> usize {
     if operand.runtime_pointee_string_pointer().is_some()
         || operand.runtime_pointee_string_length().is_some()
     {
-        // mov r15,imm64 (10) + mov r15,[r15+off] (7) + mov rax,[r15+disp] (7) + mov arg,rax (3)
+        // mov r11,imm64 (10) + mov r11,[r11+off] (7) + mov rax,[r11+disp] (7) + mov arg,rax (3)
         SYSCALL_ARG_MOV_WIDTH + 7 + 7 + 3
     } else if operand.runtime_string_pointer().is_some()
         || operand.runtime_string_length().is_some()
         || operand.runtime_scalar_integer().is_some()
     {
-        // mov r15,imm64 (10) + mov rax,[r15+disp] (7) + mov arg,rax (3)
+        // mov r11,imm64 (10) + mov rax,[r11+disp] (7) + mov arg,rax (3)
         SYSCALL_ARG_MOV_WIDTH + 7 + 3
     } else {
         // mov arg,imm64
@@ -1036,7 +1036,7 @@ fn syscall_arg_operand_width<T: InstructionOperandLike>(operand: &T) -> usize {
 /// Byte offset (within the syscall sequence) of the relocated imm64 for the argument at
 /// `operand_index`: the sum of the widths of all preceding arguments, plus the 2-byte
 /// prefix before the imm64. Applies to both data-address and runtime-storage arguments,
-/// whose relocated `mov`/`mov r15` is always the argument's first instruction.
+/// whose relocated `mov`/`mov r11` is always the argument's first instruction.
 pub fn syscall_data_relocation_byte_offset<T: InstructionOperandLike>(
     operands: &[T],
     operand_index: usize,
@@ -1066,10 +1066,11 @@ pub fn syscall_sequence_width<T: InstructionOperandLike>(operands: &[T]) -> usiz
 ///
 /// Simple arguments emit a direct `mov arg, imm64` (data-address arguments use imm64=0
 /// fixed up by an Absolute64 relocation). Runtime-storage arguments (a String descriptor
-/// in a statically-allocated frame/machine/data region) stage through r15 and rax: load
-/// the relocated region base into r15, read the pointer/length field (descriptor layout:
-/// pointer at +0, length at +8) into rax, then `mov arg, rax`. r15 is used as the scratch
-/// base because it is neither a syscall argument register nor clobbered by `syscall`.
+/// in a statically-allocated frame/machine/data region) stage through r11 and rax: load
+/// the relocated region base into r11, read the pointer/length field (descriptor layout:
+/// pointer at +0, length at +8) into rax, then `mov arg, rax`. Both scratch registers are
+/// in the normalized syscall plan's ordinary-clobber set; no callee-saved register is
+/// silently destroyed by the marshaller.
 pub fn encode_syscall_sequence<T: InstructionOperandLike>(
     operands: &[T],
     syscall_number: u32,
@@ -1092,36 +1093,36 @@ pub fn encode_syscall_sequence<T: InstructionOperandLike>(
     let mut bytes = Vec::with_capacity(syscall_sequence_width(operands));
     for (operand, register) in operands.iter().zip(argument_registers.iter().copied()) {
         if let Some((_, byte_offset)) = operand.runtime_pointee_string_pointer() {
-            append_mov_r15_imm64(&mut bytes, 0); // relocated region base
-            append_load_r15_from_r15(&mut bytes, byte_offset)?; // r15 = &descriptor
-            append_load_rax_from_r15(&mut bytes, 0)?; // rax = descriptor.pointer
+            append_mov_r11_imm64(&mut bytes, 0); // relocated region base
+            append_load_r11_qword_from_r11(&mut bytes, byte_offset)?; // r11 = &descriptor
+            append_load_rax_from_r11(&mut bytes, 0)?; // rax = descriptor.pointer
             append_mov_syscall_arg_from_rax(&mut bytes, register)?;
         } else if let Some((_, byte_offset)) = operand.runtime_pointee_string_length() {
-            append_mov_r15_imm64(&mut bytes, 0);
-            append_load_r15_from_r15(&mut bytes, byte_offset)?;
-            append_load_rax_from_r15(&mut bytes, 8)?; // rax = descriptor.length
+            append_mov_r11_imm64(&mut bytes, 0);
+            append_load_r11_qword_from_r11(&mut bytes, byte_offset)?;
+            append_load_rax_from_r11(&mut bytes, 8)?; // rax = descriptor.length
             append_mov_syscall_arg_from_rax(&mut bytes, register)?;
         } else if let Some((_, byte_offset)) = operand.runtime_string_pointer() {
-            append_mov_r15_imm64(&mut bytes, 0);
+            append_mov_r11_imm64(&mut bytes, 0);
             if operand.runtime_string_is_bounded_buffer() {
                 // Owned carrier: content pointer = base + byte_offset + pointer_size.
-                bytes.extend([0x49, 0x8d, 0x87]); // lea rax, [r15 + disp32]
+                bytes.extend([0x49, 0x8d, 0x83]); // lea rax, [r11 + disp32]
                 bytes.extend(disp32(byte_offset + 8)?.to_le_bytes());
             } else {
-                append_load_rax_from_r15(&mut bytes, byte_offset)?; // rax = descriptor.pointer
+                append_load_rax_from_r11(&mut bytes, byte_offset)?; // rax = descriptor.pointer
             }
             append_mov_syscall_arg_from_rax(&mut bytes, register)?;
         } else if let Some((_, byte_offset)) = operand.runtime_string_length() {
-            append_mov_r15_imm64(&mut bytes, 0);
+            append_mov_r11_imm64(&mut bytes, 0);
             if operand.runtime_string_is_bounded_buffer() {
-                append_load_rax_from_r15(&mut bytes, byte_offset)?; // carrier len @ offset 0
+                append_load_rax_from_r11(&mut bytes, byte_offset)?; // carrier len @ offset 0
             } else {
-                append_load_rax_from_r15(&mut bytes, byte_offset + 8)?; // rax = descriptor.length
+                append_load_rax_from_r11(&mut bytes, byte_offset + 8)?; // rax = descriptor.length
             }
             append_mov_syscall_arg_from_rax(&mut bytes, register)?;
         } else if let Some((_, byte_offset, _)) = operand.runtime_scalar_integer() {
-            append_mov_r15_imm64(&mut bytes, 0); // relocated region base
-            append_load_rax_from_r15(&mut bytes, byte_offset)?; // rax = scalar value
+            append_mov_r11_imm64(&mut bytes, 0); // relocated region base
+            append_load_rax_from_r11(&mut bytes, byte_offset)?; // rax = scalar value
             append_mov_syscall_arg_from_rax(&mut bytes, register)?;
         } else {
             let opcode = syscall_arg_mov_imm64_opcode(register)?;
@@ -1145,6 +1146,21 @@ pub fn encode_syscall_sequence<T: InstructionOperandLike>(
     bytes.extend([0x0f, 0x05]); // syscall
     debug_assert_eq!(bytes.len(), syscall_sequence_width(operands));
     Ok(bytes)
+}
+
+fn append_load_r11_qword_from_r11(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+) -> Result<(), Diagnostic> {
+    bytes.extend([0x4d, 0x8b, 0x9b]);
+    bytes.extend(disp32(byte_offset)?.to_le_bytes());
+    Ok(())
+}
+
+fn append_load_rax_from_r11(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    bytes.extend([0x49, 0x8b, 0x83]);
+    bytes.extend(disp32(byte_offset)?.to_le_bytes());
+    Ok(())
 }
 
 /// `mov <plan-selected-register>, imm64` (REX.W + B8+rd).
@@ -1223,6 +1239,30 @@ mod syscall_plan_register_tests {
         assert_eq!(&bytes[10..12], &[0x48, 0xb8], "number must target rax");
         assert_eq!(&bytes[12..20], &60u64.to_le_bytes());
         assert_eq!(&bytes[20..], &[0x0f, 0x05]);
+    }
+
+    #[test]
+    fn runtime_syscall_arguments_use_only_volatile_plan_scratch() {
+        let operands = [TargetInstructionOperand {
+            kind: InstructionOperandKind::RuntimeScalarInteger {
+                region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 24,
+                byte_count: 8,
+            },
+        }];
+        let bytes = encode_syscall_sequence(
+            &operands,
+            1,
+            &[MachineRegister::X86Rdi],
+            MachineRegister::X86Rax,
+            0,
+        )
+        .expect("runtime syscall argument");
+
+        assert_eq!(&bytes[..2], &[0x49, 0xbb], "base must use volatile r11");
+        assert_eq!(&bytes[10..13], &[0x49, 0x8b, 0x83]);
+        assert_eq!(&bytes[17..20], &[0x48, 0x89, 0xc7]);
+        assert!(!bytes.windows(2).any(|window| window == [0x49, 0xbf]));
     }
 }
 
