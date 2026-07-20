@@ -269,6 +269,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_dispatch_result_alias_read_exit", 70),
     ("calls/runtime_dispatch_second_receiver_exit", 70),
     ("calls/runtime_dispatch_sibling_value_calls_exit", 70),
+    (
+        "calls/runtime_inline_repeated_receiver_value_calls_exit",
+        70,
+    ),
     ("calls/runtime_nonentry_second_receiver_exit", 70),
     ("calls/runtime_selfcall_chain_second_receiver_exit", 70),
     ("calls/runtime_nested_inline_chain_result_exit", 70),
@@ -1576,6 +1580,24 @@ fn interpreter_runs_dispatch_sibling_value_calls() {
     assert_eq!(
         outcome.error, None,
         "interpreter should support sibling dispatched value calls"
+    );
+    assert_eq!(outcome.exit_code, 70);
+}
+
+#[test]
+fn interpreter_runs_inline_repeated_receiver_value_calls() {
+    let main_path =
+        pass_canary("calls/runtime_inline_repeated_receiver_value_calls_exit").join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "repeated inline receiver calls failed frontend checking:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+    let outcome = interpret(&checked, b"");
+    assert_eq!(
+        outcome.error, None,
+        "interpreter should support repeated inline calls on one receiver"
     );
     assert_eq!(outcome.exit_code, 70);
 }

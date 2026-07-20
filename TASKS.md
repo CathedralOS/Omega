@@ -490,17 +490,12 @@ remain contract-invisible.
 These are unblocked and should gain a focused pass/fail or differential canary
 before the fix.
 
-- **Repeated inline value calls on one receiver.** Sibling calls now retain
-  every ordinal through both inline and dispatched runtime-body lowering,
-  allocate distinct result slots, defer every sibling return write, and carry
-  occurrence identity through dispatched clone contexts, continuation returns,
-  receiver-base lookup, and final operand selection. Distinct inline receivers
-  (`small.first() + large.first()`) and distinct dispatched looping receivers
-  are pinned native and interpreted. The remaining ambiguity is two INLINE
-  calls with the same target and receiver in one expression: its operand lookup
-  still matches target + receiver rather than expression occurrence. Thread an
-  occurrence identity into inline result operand resolution and add that exact
-  repeated-call canary.
+- **Nested repeated inline calls.** Sibling calls with the same target and
+  receiver now select result slots by source-order occurrence. The nested form
+  `g.with_delta(g.with_delta(0))` still misorders or loses its inline call-result
+  dependency (native result 0 for that subtree in the local probe). Thread the
+  same occurrence identity through nested call-argument materialization and
+  order inner result production before the outer expansion.
 
 ## Type, proof, and semantic-model work
 

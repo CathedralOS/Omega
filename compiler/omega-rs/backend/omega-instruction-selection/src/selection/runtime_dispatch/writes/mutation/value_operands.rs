@@ -33,7 +33,8 @@ use super::operators::{
     supports_runtime_value_operand,
 };
 use super::{
-    resolve_runtime_table_call_result_source_place, resolve_runtime_tree_call_result_source_place,
+    resolve_runtime_table_call_result_source_place,
+    resolve_runtime_tree_call_result_source_place_in_expression,
 };
 
 /// Whether a binary value operand built from these two operand expressions is
@@ -89,6 +90,31 @@ pub(crate) fn resolve_runtime_value_operand_in_table(
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<RuntimeValueOperandHandle> {
+    resolve_runtime_value_operand_in_table_with_root(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        expressions,
+        expression,
+        expression,
+        static_values,
+        runtime_value_operands,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_runtime_value_operand_in_table_with_root(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    root_expression: ExpressionHandle,
+    expression: ExpressionHandle,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<RuntimeValueOperandHandle> {
     if let Some(value) =
         resolve_runtime_static_integer_value_in_table(input, expressions, expression, static_values)
     {
@@ -138,24 +164,26 @@ pub(crate) fn resolve_runtime_value_operand_in_table(
             right_expr,
             operator,
         );
-        let left = resolve_runtime_comparison_operand_in_table(
+        let left = resolve_runtime_comparison_operand_in_table_with_root(
             input,
             dispatch_index,
             source_key,
             statement_index,
             expressions,
+            root_expression,
             left_expr,
             Some(binary.operator),
             right_expr,
             static_values,
             runtime_value_operands,
         )?;
-        let right = resolve_runtime_comparison_operand_in_table(
+        let right = resolve_runtime_comparison_operand_in_table_with_root(
             input,
             dispatch_index,
             source_key,
             statement_index,
             expressions,
+            root_expression,
             right_expr,
             Some(binary.operator),
             left_expr,
@@ -229,12 +257,13 @@ pub(crate) fn resolve_runtime_value_operand_in_table(
         )?;
         let target_byte_size = convert_scalar_byte_size(target_primitive)?;
         let source_byte_size = convert_scalar_byte_size(source_primitive)?;
-        let source = resolve_runtime_value_operand_in_table(
+        let source = resolve_runtime_value_operand_in_table_with_root(
             input,
             dispatch_index,
             source_key,
             statement_index,
             expressions,
+            root_expression,
             source_expression,
             static_values,
             runtime_value_operands,
@@ -272,22 +301,24 @@ pub(crate) fn resolve_runtime_value_operand_in_table(
                 right_expr,
                 operator,
             );
-            let left = resolve_runtime_value_operand_in_table(
+            let left = resolve_runtime_value_operand_in_table_with_root(
                 input,
                 dispatch_index,
                 source_key,
                 statement_index,
                 expressions,
+                root_expression,
                 left_expr,
                 static_values,
                 runtime_value_operands,
             )?;
-            let right = resolve_runtime_value_operand_in_table(
+            let right = resolve_runtime_value_operand_in_table_with_root(
                 input,
                 dispatch_index,
                 source_key,
                 statement_index,
                 expressions,
+                root_expression,
                 right_expr,
                 static_values,
                 runtime_value_operands,
@@ -327,6 +358,8 @@ pub(crate) fn resolve_runtime_value_operand_in_table(
             source_key,
             statement_index,
             expressions,
+            root_expression,
+            expression,
             call,
         ) {
             return Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
@@ -598,12 +631,13 @@ pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_equals_operan
 /// would fail for sums whose payload exceeds one scalar (e.g. a two-field
 /// case, 12 bytes) and silently drop the whole write.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn resolve_runtime_comparison_operand_in_table(
+pub(super) fn resolve_runtime_comparison_operand_in_table_with_root(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
     statement_index: usize,
     expressions: &ExpressionTable,
+    root_expression: ExpressionHandle,
     expression: ExpressionHandle,
     comparison_operator: Option<omega_checked_trees::expression::BinaryOperator>,
     other_expression: ExpressionHandle,
@@ -633,12 +667,13 @@ pub(super) fn resolve_runtime_comparison_operand_in_table(
         }));
     }
 
-    resolve_runtime_value_operand_in_table(
+    resolve_runtime_value_operand_in_table_with_root(
         input,
         dispatch_index,
         source_key,
         statement_index,
         expressions,
+        root_expression,
         expression,
         static_values,
         runtime_value_operands,
@@ -653,6 +688,37 @@ pub(super) fn resolve_runtime_value_operand(
     source_machine: &str,
     source_state: &str,
     statement_index: usize,
+    expression: &Expression,
+    aliases: &[RuntimeAliasBinding],
+    alias_expressions: &ExpressionTable,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<RuntimeValueOperandHandle> {
+    resolve_runtime_value_operand_with_root(
+        input,
+        dispatch_index,
+        source_key,
+        source_machine,
+        source_state,
+        statement_index,
+        expression,
+        expression,
+        aliases,
+        alias_expressions,
+        static_values,
+        runtime_value_operands,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_runtime_value_operand_with_root(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    source_machine: &str,
+    source_state: &str,
+    statement_index: usize,
+    root_expression: &Expression,
     expression: &Expression,
     aliases: &[RuntimeAliasBinding],
     alias_expressions: &ExpressionTable,
@@ -701,26 +767,28 @@ pub(super) fn resolve_runtime_value_operand(
             &binary.right,
             operator,
         );
-        let left = resolve_runtime_value_operand(
+        let left = resolve_runtime_value_operand_with_root(
             input,
             dispatch_index,
             source_key,
             source_machine,
             source_state,
             statement_index,
+            root_expression,
             &binary.left,
             aliases,
             alias_expressions,
             static_values,
             runtime_value_operands,
         )?;
-        let right = resolve_runtime_value_operand(
+        let right = resolve_runtime_value_operand_with_root(
             input,
             dispatch_index,
             source_key,
             source_machine,
             source_state,
             statement_index,
+            root_expression,
             &binary.right,
             aliases,
             alias_expressions,
@@ -794,26 +862,28 @@ pub(super) fn resolve_runtime_value_operand(
             right,
             operator,
         );
-        let left = resolve_runtime_value_operand(
+        let left = resolve_runtime_value_operand_with_root(
             input,
             dispatch_index,
             source_key,
             source_machine,
             source_state,
             statement_index,
+            root_expression,
             left,
             aliases,
             alias_expressions,
             static_values,
             runtime_value_operands,
         )?;
-        let right = resolve_runtime_value_operand(
+        let right = resolve_runtime_value_operand_with_root(
             input,
             dispatch_index,
             source_key,
             source_machine,
             source_state,
             statement_index,
+            root_expression,
             right,
             aliases,
             alias_expressions,
@@ -857,11 +927,12 @@ pub(super) fn resolve_runtime_value_operand(
     }
 
     if let Expression::Call(call) = expression
-        && let Some(place) = resolve_runtime_tree_call_result_source_place(
+        && let Some(place) = resolve_runtime_tree_call_result_source_place_in_expression(
             input,
             dispatch_index,
             source_key,
             statement_index,
+            Some(root_expression),
             call,
         )
     {
