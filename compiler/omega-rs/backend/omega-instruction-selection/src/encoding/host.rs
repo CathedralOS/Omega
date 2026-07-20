@@ -185,7 +185,7 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
             aarch64::encode_host_call_sequence_value_returning_deref_from_operands(
                 operands.iter().map(aarch64_call_operand),
                 &arguments,
-                result.expect("integer result requested"),
+                scalar_result_register(result.as_ref(), "integer")?,
             )
         }
         // Stack-mode ops (`open_create`) also share `returns_value()` but bracket
@@ -197,7 +197,7 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
             aarch64::encode_host_call_sequence_value_returning_open_create_from_operands(
                 operands.iter().map(aarch64_call_operand),
                 &arguments,
-                result.expect("integer result requested"),
+                scalar_result_register(result.as_ref(), "integer")?,
             )
         }
         // Float-returning ops (sqrt/hypot) also share `returns_value()` but the
@@ -209,7 +209,7 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
             aarch64::encode_host_call_sequence_value_returning_float_from_operands(
                 operands.iter().map(aarch64_call_operand),
                 &arguments,
-                result.expect("float result requested"),
+                scalar_result_register(result.as_ref(), "float")?,
             )
         }
         // Constant-result ops have NO call (and no import relocation): the
@@ -227,7 +227,7 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
             aarch64::encode_host_call_sequence_value_returning_from_operands(
                 operands.iter().map(aarch64_call_operand),
                 &arguments,
-                result.expect("integer result requested"),
+                scalar_result_register(result.as_ref(), "integer")?,
             )
         }
         Architecture::Aarch64 => {
@@ -263,12 +263,26 @@ pub fn encode_authored_import_call_sequence<T: InstructionOperandLike>(
     match target.architecture {
         Architecture::Aarch64 => {
             let (arguments, result) =
-                normalized_aarch64_import_plan(operands, Aarch64ImportResult::Integer, false)?;
-            aarch64::encode_host_call_sequence_value_returning_from_operands(
-                operands.iter().map(aarch64_call_operand),
-                &arguments,
-                result.expect("integer result requested"),
-            )
+                normalized_aarch64_import_plan(operands, Aarch64ImportResult::Authored, false)?;
+            let result = result.as_ref().ok_or_else(|| {
+                Diagnostic::error("AArch64 authored import has no normalized result placement")
+            })?;
+            if matches!(
+                result.shape.class,
+                omega_calling_conventions::ValueClass::HomogeneousFloatAggregate { .. }
+            ) {
+                aarch64::encode_host_call_sequence_hfa_returning_from_operands(
+                    operands.iter().map(aarch64_call_operand),
+                    &arguments,
+                    result,
+                )
+            } else {
+                aarch64::encode_host_call_sequence_value_returning_from_operands(
+                    operands.iter().map(aarch64_call_operand),
+                    &arguments,
+                    scalar_result_register(Some(result), "authored")?,
+                )
+            }
         }
         Architecture::X86_64 => x86_64::encode_host_call_sequence(
             CallingPolicy::native_for_target(target),
@@ -283,6 +297,7 @@ enum Aarch64ImportResult {
     None,
     Integer,
     Float,
+    Authored,
 }
 
 pub fn normalized_aarch64_host_argument_placements<T: InstructionOperandLike>(
@@ -290,7 +305,9 @@ pub fn normalized_aarch64_host_argument_placements<T: InstructionOperandLike>(
     operands: &[T],
     authored_import: bool,
 ) -> Result<Vec<ValuePlacement>, Diagnostic> {
-    let result_kind = if authored_import || operation_key.dereferences_result() {
+    let result_kind = if authored_import {
+        Aarch64ImportResult::Authored
+    } else if operation_key.dereferences_result() {
         Aarch64ImportResult::Integer
     } else if operation_key.returns_float() {
         Aarch64ImportResult::Float
@@ -325,8 +342,8 @@ pub fn aarch64_host_call_stack_total_width_for_placements(placements: &[ValuePla
 /// The encoder receives exact register/stack locations and may no longer
 /// reconstruct x0../v0.. or outgoing offsets independently. Scalar integer,
 /// pointer, and float stack placements plus register-resident flat HFA
-/// fragments and contiguous HFA stack placements are supported. Fragmented
-/// results fail closed.
+/// fragments, contiguous HFA stack placements, and authored HFA results are
+/// supported.
 ///
 /// `trailing_variadic_stack` is the compatibility seam for Darwin `open`:
 /// its anonymous `mode` argument is intentionally stack-passed by Apple's
@@ -337,14 +354,16 @@ fn normalized_aarch64_import_plan<T: InstructionOperandLike>(
     operands: &[T],
     result_kind: Aarch64ImportResult,
     trailing_variadic_stack: bool,
-) -> Result<(Vec<ValuePlacement>, Option<MachineRegister>), Diagnostic> {
+) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
     let aarch64_operands = operands
         .iter()
         .map(aarch64_call_operand)
         .collect::<Vec<_>>();
     let (result_operand, mut arguments) = match result_kind {
         Aarch64ImportResult::None => (None, aarch64_operands.as_slice()),
-        Aarch64ImportResult::Integer | Aarch64ImportResult::Float => {
+        Aarch64ImportResult::Integer
+        | Aarch64ImportResult::Float
+        | Aarch64ImportResult::Authored => {
             let Some((result, arguments)) = aarch64_operands.split_first() else {
                 return Err(Diagnostic::error(
                     "AArch64 value-returning import has no result storage operand",
@@ -376,6 +395,7 @@ fn normalized_aarch64_import_plan<T: InstructionOperandLike>(
             (Aarch64ImportResult::Float, Some(operand)) => {
                 Some(aarch64_result_shape(operand, true)?)
             }
+            (Aarch64ImportResult::Authored, Some(operand)) => Some(aarch64_operand_shape(operand)?),
             _ => {
                 return Err(Diagnostic::error(
                     "AArch64 import result classification is internally inconsistent",
@@ -399,12 +419,19 @@ fn normalized_aarch64_import_plan<T: InstructionOperandLike>(
             )));
         }
     }
-    let result_register = plan
-        .result
-        .as_ref()
-        .map(|placement| one_register(&placement.locations, "result", 0))
-        .transpose()?;
-    Ok((plan.parameters, result_register))
+    if let Some(result) = plan.result.as_ref()
+        && result.locations.len() > 1
+        && !matches!(
+            result.shape.class,
+            omega_calling_conventions::ValueClass::HomogeneousFloatAggregate { .. }
+        )
+    {
+        return Err(Diagnostic::error(format!(
+            "AAPCS64 import result has unsupported fragmented placement {:?}",
+            result.locations
+        )));
+    }
+    Ok((plan.parameters, plan.result))
 }
 
 fn aarch64_operand_shape(
@@ -479,9 +506,21 @@ fn one_register(
             },
         ] => Ok(*register),
         _ => Err(Diagnostic::error(format!(
-            "AAPCS64 import {role} {index} is not a scalar register result; fragmented outbound results are not implemented yet"
+            "AAPCS64 import {role} {index} does not have one scalar register location"
         ))),
     }
+}
+
+fn scalar_result_register(
+    result: Option<&ValuePlacement>,
+    result_kind: &str,
+) -> Result<MachineRegister, Diagnostic> {
+    let result = result.ok_or_else(|| {
+        Diagnostic::error(format!(
+            "AArch64 {result_kind}-returning import has no normalized result placement"
+        ))
+    })?;
+    one_register(&result.locations, "result", 0)
 }
 
 pub fn encode_syscall_sequence<T: InstructionOperandLike>(
@@ -829,6 +868,45 @@ mod aarch64_import_plan_tests {
             ValueLocation::Register {
                 register: MachineRegister::Aarch64V(2),
                 value_byte_offset: 16,
+                byte_size: 8,
+            }
+        ));
+    }
+
+    #[test]
+    fn authored_hfa_result_keeps_its_fragmented_vector_placement() {
+        let operands = [
+            operand(
+                TargetInstructionOperandKind::RuntimeHomogeneousFloatAggregate {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 24,
+                    member_byte_count: 8,
+                    members: 2,
+                },
+            ),
+            operand(TargetInstructionOperandKind::ImmediateInteger(7)),
+        ];
+
+        let (parameters, result) =
+            normalized_aarch64_import_plan(&operands, Aarch64ImportResult::Authored, false)
+                .expect("authored HFA result plan");
+        let result = result.expect("fragmented result placement");
+
+        assert_eq!(parameters.len(), 1);
+        assert_eq!(result.locations.len(), 2);
+        assert!(matches!(
+            result.locations[0],
+            ValueLocation::Register {
+                register: MachineRegister::Aarch64V(0),
+                value_byte_offset: 0,
+                byte_size: 8,
+            }
+        ));
+        assert!(matches!(
+            result.locations[1],
+            ValueLocation::Register {
+                register: MachineRegister::Aarch64V(1),
+                value_byte_offset: 8,
                 byte_size: 8,
             }
         ));

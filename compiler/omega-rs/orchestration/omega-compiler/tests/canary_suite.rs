@@ -28140,6 +28140,42 @@ fn cross_aarch64_hfa_stack_import_copies_the_aggregate() {
     let _ = fs::remove_dir_all(&scratch);
 }
 
+#[test]
+fn cross_aarch64_hfa_result_import_spills_fragmented_result() {
+    let canary = pass_canary("capabilities/aarch64_hfa_result_import_compile");
+    let scratch =
+        std::env::temp_dir().join(format!("omega-aarch64-hfa-result-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&scratch);
+    let src_dir = scratch.join("src");
+    let out_dir = scratch.join("out");
+    fs::create_dir_all(&src_dir).expect("scratch source directory");
+    fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
+    fs::write(
+        src_dir.join("build.omg"),
+        "target macos_arm64 {\n    boundary omega::host::contracts\n    boundary omega::host::targets::darwin\n}\n",
+    )
+    .expect("write macos_arm64 target manifest");
+
+    compile(CompileOptions {
+        root_path: src_dir.join("main.omg"),
+        build_dir: Some(out_dir.clone()),
+        target_name: Some("macos_arm64".to_owned()),
+        write_output: true,
+    })
+    .expect("HFA-returning import should compile for macos_arm64");
+
+    let image = fs::read(out_dir.join("omega-program")).expect("read emitted AArch64 Mach-O");
+    let fmov_x17_d0 = (0x9e66_0000u32 | 17).to_le_bytes();
+    let fmov_x17_d1 = (0x9e66_0000u32 | (1 << 5) | 17).to_le_bytes();
+    assert!(
+        image
+            .windows(12)
+            .any(|window| { window[0..4] == fmov_x17_d0 && window[8..12] == fmov_x17_d1 }),
+        "expected consecutive d0/d1 result fragments to spill through x17"
+    );
+    let _ = fs::remove_dir_all(&scratch);
+}
+
 // An AUTHORED provides import end to end (hosted-consumption rung 2): the
 // program's own `windows_x64 provides Beeper { beep -> DllImport("msvcrt.dll",
 // "abs") }` row binds, the import table names msvcrt.dll (the binding, not

@@ -1,6 +1,6 @@
 # Design Brief: Calling And Machine-State Plans
 
-Current as of 2026-07-18. Boundary conventions are normalized policy artifacts;
+Current as of 2026-07-20. Boundary conventions are normalized policy artifacts;
 Omega's internal calling convention remains compiler-sovereign. This brief now
 includes inbound machine-state preservation, which ordinary calls do not expose.
 Engineering is incomplete. The normalized compiler model and initial policy
@@ -208,10 +208,11 @@ immediate; the current fixed x86-64 sequences fail closed when asked to realize
 a different normalized plan rather than silently overriding it.
 Register-resident AArch64 C/import emission now also evaluates AAPCS64 from the
 selected operand shapes and passes the exact planned X/V argument and result
-registers to the ISA encoder. Stack-resident and fragmented outbound placements
-fail closed until their lowering exists. The Darwin variadic `open` compatibility
-seam still handles its anonymous trailing stack argument specially, while its
-named arguments and result consume the normalized plan. The general Microsoft
+registers to the ISA encoder. Scalar stack arguments and flat HFA arguments and
+results consume normalized stack or fragmented vector placements. The Darwin
+variadic `open` compatibility seam still handles its anonymous trailing stack
+argument specially, while its named arguments and result consume the normalized
+plan. The general Microsoft
 x64 import encoder now receives its policy from the concrete target,
 evaluates selected scalar/pointer operand shapes, and consumes the plan's exact
 RCX/RDX/R8/R9, shadow-relative stack, and RAX-result placements. A non-Microsoft
@@ -232,7 +233,7 @@ shadow-relative fifth argument, and scratch-slot reservation consume that plan;
 the scratch slot itself remains an encoder materialization detail. Dedicated
 runtime line/byte Windows sequences now reuse the same file layout and validate
 the actual one-DWORD/RAX `GetStdHandle` plan without changing their fixed bytes
-or relocation sites. AArch64 fragmented calls remain.
+or relocation sites.
 
 Scalar AAPCS64 outbound stack arguments now consume normalized stack offsets:
 the encoder reserves a 16-byte-aligned outgoing area, materializes integer,
@@ -245,8 +246,11 @@ placement drives one load per member into the exact selected vector register,
 and width plus both relocation walkers account by source value rather than
 mistaking fragments for independent arguments. If the vector bank is exhausted,
 the encoder instead copies every member into the plan's one contiguous,
-16-byte-aligned outgoing stack area. Fragmented aggregate results still fail
-closed.
+16-byte-aligned outgoing stack area. An authored flat HFA result remains one
+selected aggregate result place while the evaluated result placement supplies
+each exact vector-register fragment; emission spills those fragments through
+one relocated storage base, with width and relocation accounting remaining per
+source value.
 
 Ordinary process and firmware entries now evaluate a complete validated
 `BoundaryEntryPlan`, not a detached call layout. Their concrete `StatePlan`

@@ -182,7 +182,8 @@ pub(super) fn select_host_operation_operands(
                 .span(host_call.arguments)
                 .map_or(0, |arguments| arguments.len());
             let result = if host_call.has_result {
-                first_scalar_argument_operand(input, host_call, dispatch_index)
+                aapcs_hfa_argument_operand_at(input, host_call, dispatch_index, alias_context, 0)
+                    .or_else(|| first_scalar_argument_operand(input, host_call, dispatch_index))
             } else {
                 None
             };

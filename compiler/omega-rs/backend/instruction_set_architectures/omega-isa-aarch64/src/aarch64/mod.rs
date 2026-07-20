@@ -86,6 +86,88 @@ pub fn encode_host_call_sequence_value_returning_from_operands(
     Ok(bytes)
 }
 
+/// An authored import returning a flat homogeneous floating-point aggregate.
+/// The normalized AAPCS64 result placement names every returned `v` register;
+/// spill those member fragments into the single selected aggregate result
+/// place after the call. One relocated x16 base serves every member store.
+pub fn encode_host_call_sequence_hfa_returning_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    argument_placements: &[ValuePlacement],
+    result_placement: &ValuePlacement,
+) -> Result<Vec<u8>, Diagnostic> {
+    let all = operands.collect::<Vec<_>>();
+    let Some((result, arguments)) = all.split_first() else {
+        return Err(Diagnostic::error(
+            "AArch64 HFA-returning host call has no result storage operand",
+        ));
+    };
+    let RuntimeHomogeneousFloatAggregate {
+        byte_offset,
+        member_byte_count,
+        members,
+    } = *result
+    else {
+        return Err(Diagnostic::error(
+            "AArch64 HFA-returning host call result place is not a homogeneous float aggregate",
+        ));
+    };
+    if !matches!(member_byte_count, 4 | 8)
+        || !matches!(
+            result_placement.shape.class,
+            omega_calling_conventions::ValueClass::HomogeneousFloatAggregate {
+                members: planned_members
+            } if planned_members == members
+        )
+        || usize::from(result_placement.shape.byte_size) != member_byte_count * usize::from(members)
+        || result_placement.locations.len() != usize::from(members)
+    {
+        return Err(Diagnostic::error(
+            "AAPCS64 HFA result placement disagrees with its selected storage shape",
+        ));
+    }
+
+    let mut bytes = Vec::with_capacity(host_call_sequence_width_from_operands(all.iter().copied()));
+    let stack_bytes =
+        append_call_operands(&mut bytes, arguments.iter().copied(), argument_placements)?;
+    bytes.extend(encode_branch_link_placeholder());
+    append_call_stack_restore(&mut bytes, stack_bytes)?;
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+
+    for (member, location) in result_placement.locations.iter().copied().enumerate() {
+        let member_offset = member * member_byte_count;
+        let ValueLocation::Register {
+            register: MachineRegister::Aarch64V(register),
+            value_byte_offset,
+            byte_size,
+        } = location
+        else {
+            return Err(Diagnostic::error(format!(
+                "AAPCS64 HFA result member {member} is not in a vector register: {location:?}"
+            )));
+        };
+        if usize::from(value_byte_offset) != member_offset
+            || usize::from(byte_size) != member_byte_count
+        {
+            return Err(Diagnostic::error(format!(
+                "AAPCS64 HFA result member {member} disagrees with its normalized byte range"
+            )));
+        }
+        bytes.extend(encode_float_move_to_gpr(member_byte_count, 17, register)?);
+        append_store_data_to_x_offset(
+            &mut bytes,
+            17,
+            16,
+            byte_offset.checked_add(member_offset).ok_or_else(|| {
+                Diagnostic::error("AAPCS64 HFA result storage offset overflows usize")
+            })?,
+            member_byte_count,
+            9,
+        )?;
+    }
+    Ok(bytes)
+}
+
 /// A CONSTANT-RESULT host op (`PlatformCallData::ConstantResult`; std::time's
 /// wall-clock calibration constants): NO call at all. operands[0] is the
 /// result place, operands[1] the constant. Materialize the imm64 into x0 with
@@ -619,6 +701,44 @@ mod host_call_plan_register_tests {
             &bytes[bytes.len() - 4..],
             &encode_store_x_to_x(5, 16, 0).expect("store x5")
         );
+    }
+
+    #[test]
+    fn hfa_results_spill_each_plan_selected_vector_register() {
+        let result = Aarch64CallOperand::RuntimeHomogeneousFloatAggregate {
+            byte_offset: 32,
+            member_byte_count: 8,
+            members: 2,
+        };
+        let placement = ValuePlacement {
+            shape: omega_calling_conventions::ValueShape::homogeneous_float_aggregate(8, 2),
+            locations: vec![
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64V(3),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64V(4),
+                    value_byte_offset: 8,
+                    byte_size: 8,
+                },
+            ],
+        };
+
+        let bytes = encode_host_call_sequence_hfa_returning_from_operands(
+            [result].into_iter(),
+            &[],
+            &placement,
+        )
+        .expect("fragmented HFA result should encode");
+
+        assert_eq!(&bytes[0..4], &encode_branch_link_placeholder());
+        assert_eq!(&bytes[12..16], &encode_float_move_to_gpr(8, 17, 3).unwrap());
+        assert_eq!(&bytes[16..20], &encode_store_x_to_x(17, 16, 32).unwrap());
+        assert_eq!(&bytes[20..24], &encode_float_move_to_gpr(8, 17, 4).unwrap());
+        assert_eq!(&bytes[24..28], &encode_store_x_to_x(17, 16, 40).unwrap());
+        assert_eq!(bytes.len(), crate::aarch64::operand_width(&result) + 4);
     }
 
     #[test]
