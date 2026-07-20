@@ -1,0 +1,26 @@
+// Nested domain memberships compose with a true machine-backed classifier.
+// The nested domain rejects this concrete const value.
+machine is_positive(value: u64) -> bool {
+    value > 0
+}
+
+domain u64::AtMostEight {
+    self <= 8
+}
+
+domain u64::BufferSize when is_positive(self) {
+    self in AtMostEight
+}
+
+data FixedBuffer<const N: u64>
+where
+    N in BufferSize,
+{
+    values: [u8; N];
+}
+
+data Main {
+    buffer: FixedBuffer<9>;
+}
+
+machine Main::main(&mut self) {}

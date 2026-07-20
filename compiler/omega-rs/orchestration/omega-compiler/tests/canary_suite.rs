@@ -36846,6 +36846,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "generics/const_data_where_machine_classifier_effectful",
     "generics/const_data_where_machine_classifier_fact_false",
     "generics/const_data_where_machine_classifier_false",
+    "generics/const_data_where_machine_classifier_nested_false",
     "core/task_core_scope_loss",
     "ownership/copy_linear_conflict",
     "ownership/linear_field_erased_by_affine_container",

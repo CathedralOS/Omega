@@ -243,24 +243,95 @@ fn evaluate_membership(
         return Ok(Some(false));
     }
 
+    evaluate_domain_facts(typed, domain, value, &mut vec![domain.symbol])
+}
+
+fn evaluate_domain_facts(
+    typed: &TypedTrees,
+    domain: &omega_typed_trees::domain::DomainDefinition,
+    self_value: i64,
+    visiting: &mut Vec<omega_core::symbols::SymbolHandle>,
+) -> Result<Option<bool>, String> {
     for fact in typed.proof_facts.span_or_empty(domain.facts) {
-        let ProofFact::Expression(expression) = fact else {
-            // Nested membership proof operands remain for a later rung.
-            return Ok(None);
-        };
-        match evaluate_domain_fact_expression(typed, *expression, value)? {
+        match fact {
+            ProofFact::Expression(expression) => {
+                match evaluate_domain_fact_expression(typed, *expression, self_value)? {
+                    Some(ConstProofValue::Boolean(true)) => {}
+                    Some(ConstProofValue::Boolean(false)) => return Ok(Some(false)),
+                    Some(ConstProofValue::Integer(_)) => {
+                        return Err(format!(
+                            "domain `{}` has a non-boolean proof fact",
+                            domain.name
+                        ));
+                    }
+                    None => return Ok(None),
+                }
+            }
+            ProofFact::Membership(membership) => {
+                let nested_value =
+                    match evaluate_domain_fact_expression(typed, membership.value, self_value)? {
+                        Some(ConstProofValue::Integer(value)) => value,
+                        Some(ConstProofValue::Boolean(_)) => {
+                            return Err(format!(
+                                "domain `{}` has a boolean membership operand",
+                                domain.name
+                            ));
+                        }
+                        None => return Ok(None),
+                    };
+                match evaluate_nested_domain_membership(
+                    typed,
+                    membership.domain_symbol,
+                    nested_value,
+                    visiting,
+                )? {
+                    Some(true) => {}
+                    Some(false) => return Ok(Some(false)),
+                    None => return Ok(None),
+                }
+            }
+        }
+    }
+    Ok(Some(true))
+}
+
+fn evaluate_nested_domain_membership(
+    typed: &TypedTrees,
+    domain_symbol: omega_core::symbols::SymbolHandle,
+    self_value: i64,
+    visiting: &mut Vec<omega_core::symbols::SymbolHandle>,
+) -> Result<Option<bool>, String> {
+    if visiting.contains(&domain_symbol) {
+        return Ok(None);
+    }
+    let Some(domain) = typed
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == domain_symbol)
+    else {
+        return Ok(None);
+    };
+
+    if domain.classifier.is_valid() {
+        match evaluate_domain_fact_expression(typed, domain.classifier, self_value)? {
             Some(ConstProofValue::Boolean(true)) => {}
             Some(ConstProofValue::Boolean(false)) => return Ok(Some(false)),
             Some(ConstProofValue::Integer(_)) => {
                 return Err(format!(
-                    "domain `{}` has a non-boolean proof fact",
+                    "domain `{}` has a non-boolean classifier",
                     domain.name
                 ));
             }
+            // Nested machine calls remain until classifier execution is
+            // generalized beyond the direct outer-domain slice.
             None => return Ok(None),
         }
     }
-    Ok(Some(true))
+
+    visiting.push(domain_symbol);
+    let result = evaluate_domain_facts(typed, domain, self_value, visiting);
+    visiting.pop();
+    result
 }
 
 #[derive(Clone, Copy)]
