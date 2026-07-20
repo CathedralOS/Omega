@@ -1,1 +1,1 @@
-data `Point` does not satisfy trait `Shape`: no written machine `Point::code`
+data `Point` does not satisfy trait `Shape`: no written or default machine `Point::code`

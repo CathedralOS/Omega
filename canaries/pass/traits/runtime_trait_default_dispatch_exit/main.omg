@@ -1,0 +1,47 @@
+// A trait machine body supplies a missing attached method for a standalone
+// conformance. A written method of the same name overrides the default.
+use omega::language::std::console;
+
+trait Resettable {
+    machine set(&mut self, value: i32);
+
+    machine reset(&mut self) {
+        self.set(30);
+    }
+}
+
+data DefaultCounter {
+    value: i32;
+}
+
+DefaultCounter satisfies Resettable;
+
+machine DefaultCounter::set(&mut self, value: i32) {
+    self.value = value;
+}
+
+data OverrideCounter {
+    value: i32;
+}
+
+OverrideCounter satisfies Resettable;
+
+machine OverrideCounter::set(&mut self, value: i32) {
+    self.value = value;
+}
+
+machine OverrideCounter::reset(&mut self) {
+    self.set(40);
+}
+
+data Main {
+    console: Console;
+    default_counter: DefaultCounter;
+    override_counter: OverrideCounter;
+}
+
+machine Main::main(&mut self) {
+    self.default_counter.reset();
+    self.override_counter.reset();
+    self.console.exit_process(self.default_counter.value + self.override_counter.value);
+}

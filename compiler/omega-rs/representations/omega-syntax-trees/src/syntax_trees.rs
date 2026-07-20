@@ -729,6 +729,7 @@ impl SyntaxTrees {
             return_type: self.copy_type_reference_handle(other, signature.return_type),
             effects: self.copy_item_identifier_span(other, signature.effects),
             contracts: self.copy_capability_contract_span(other, signature.contracts),
+            default_body: self.copy_statement_handle_span(other, signature.default_body),
             terminates_guarantee: signature.terminates_guarantee,
         }
     }
@@ -745,6 +746,7 @@ impl SyntaxTrees {
             return_type: self.copy_type_reference_handle(other, signature.return_type),
             effects: self.copy_item_identifier_span(other, signature.effects),
             contracts: self.copy_capability_contract_span(other, signature.contracts),
+            default_body: self.copy_statement_handle_span(other, signature.default_body),
             terminates_guarantee: signature.terminates_guarantee,
         }
     }

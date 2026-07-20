@@ -7,10 +7,10 @@
 //! member of core `Equatable` is SYNTHESIZED -- `==` expands to structural
 //! equality during resolved->typed lowering, which also enforces the
 //! structural prerequisites at the conformance item (see the lowering crate's
-//! `equatable` module). Instantiating trait `default machine` bodies for
-//! other traits is the compile-time-execution direction and is NOT
-//! implemented yet: those missing members stay errors naming the machine the
-//! type must write.
+//! `equatable` module). Trait machines with bodies are synthesized as ordinary
+//! attached machines before resolution. Written members remain authoritative;
+//! a missing bodyless requirement stays an error naming the machine the type
+//! must write.
 
 use super::shared::trait_definition_by_symbol;
 use crate::symbols::TopLevelSymbols;
@@ -83,7 +83,7 @@ fn validate_data_satisfies_trait(
                 continue;
             }
             diagnostics.push(Diagnostic::error(format!(
-                "data `{type_name}` does not satisfy trait `{}`: no written machine `{type_name}::{}` (trait default instantiation is not implemented yet -- write the member; only core `Equatable` is synthesized)",
+                "data `{type_name}` does not satisfy trait `{}`: no written or default machine `{type_name}::{}`",
                 trait_definition.name, requirement.name
             )));
             continue;

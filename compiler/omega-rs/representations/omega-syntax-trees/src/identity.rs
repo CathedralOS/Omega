@@ -396,6 +396,9 @@ fn count_state_signature(
     for contract in syntax_trees.items.capability_contracts(signature.contracts) {
         count_contract(syntax_trees, contract, counts);
     }
+    for statement in syntax_trees.items.statements(signature.default_body) {
+        count_statement_node(syntax_trees, *statement, counts);
+    }
 }
 
 fn count_state_signature_node(
@@ -418,6 +421,9 @@ fn count_state_signature_node(
     }
     for contract in syntax_trees.items.capability_contracts(signature.contracts) {
         count_contract(syntax_trees, contract, counts);
+    }
+    for statement in syntax_trees.items.statements(signature.default_body) {
+        count_statement_node(syntax_trees, *statement, counts);
     }
 }
 

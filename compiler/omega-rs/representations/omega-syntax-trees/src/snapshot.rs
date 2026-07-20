@@ -335,6 +335,7 @@ pub struct StateSignatureSnapshot {
     pub return_type: TypeReferenceSnapshot,
     pub effects: Vec<IdentifierSnapshot>,
     pub contracts: Vec<CapabilityContractSnapshot>,
+    pub default_body: Vec<StatementSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1120,6 +1121,14 @@ fn snapshot_state_signature(
                 .identifier_path_members(signature.effects),
         ),
         contracts: snapshot_capability_contracts(syntax_trees, signature.contracts),
+        default_body: syntax_trees
+            .items
+            .statements(signature.default_body)
+            .iter()
+            .map(|handle| {
+                snapshot_statement(syntax_trees, syntax_trees.statements.statement(*handle))
+            })
+            .collect(),
     }
 }
 
@@ -1145,6 +1154,14 @@ fn snapshot_state_signature_node(
                 .identifier_path_members(signature.effects),
         ),
         contracts: snapshot_capability_contracts(syntax_trees, signature.contracts),
+        default_body: syntax_trees
+            .items
+            .statements(signature.default_body)
+            .iter()
+            .map(|handle| {
+                snapshot_statement(syntax_trees, syntax_trees.statements.statement(*handle))
+            })
+            .collect(),
     }
 }
 

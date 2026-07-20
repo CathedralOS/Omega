@@ -1341,6 +1341,27 @@ fn parses_multi_instruction_asm_in_states_and_trait_defaults() {
         .tokenize()
         .expect("tokenize should succeed");
     let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let trait_definition = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Trait(definition) => Some(definition),
+            _ => None,
+        })
+        .expect("trait root item");
+    let default_signature = parsed
+        .items
+        .state_signatures(trait_definition.machines)
+        .first()
+        .map(|handle| parsed.items.state_signature(*handle))
+        .expect("default trait signature");
+    assert_eq!(
+        parsed
+            .items
+            .statements(default_signature.default_body)
+            .len(),
+        2,
+        "trait default should retain both asm instructions"
+    );
     let machine = parsed
         .root_items()
         .find_map(|item| match item {

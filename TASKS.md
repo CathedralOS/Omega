@@ -728,9 +728,11 @@ remain contract-invisible.
   domain defined by boolean `self` facts also discharges per instance; false
   membership rejects. Continue with signed/domain arithmetic semantics,
   classifier-backed const membership, and richer build-time proof operands.
-- **Trait defaults.** Implement conformance, reuse, override, and dispatch for
-  trait machines whose body supplies the default. Do not restore a `default`
-  keyword.
+- **Trait defaults.** Direct, non-generic standalone data conformances now
+  synthesize a missing attached machine from the trait's authored body before
+  resolution; ordinary calls dispatch to it in both engines, written methods
+  override it, and bodyless requirements remain strict. Continue through
+  inherited and generic trait defaults. Do not restore a `default` keyword.
 - **Dynamic traits.** Implement `dyn Trait` construction, descriptors carrying
   satisfier identity, vtable emission, dispatch lowering, and object-safety.
 - **Equatable synthesis.** Provide a callable conformance surface rather than

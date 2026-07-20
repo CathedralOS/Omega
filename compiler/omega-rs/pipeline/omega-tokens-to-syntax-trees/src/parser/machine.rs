@@ -303,6 +303,7 @@ fn parse_machine_parameter_contracts<'tokens, 'source>(
             return_type,
             effects,
             contracts,
+            default_body: HandleSpan::empty(),
             terminates_guarantee,
         };
         let parameter =
