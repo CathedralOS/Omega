@@ -156,9 +156,12 @@ that keeps the authored minimum separate from the effective derived policy.
 The parser requires a complete `[carry(...)]` product and rejects retired
 `[send]` with guidance. Transparent data and generic bounds use independent
 per-axis composition/comparison; concrete generic instantiations substitute
-their actual arguments through nested transparent wrappers. Opaque admission,
-per-mint qualification, canonical place-liveness checks, runtime admission,
-and artifact/model export remain.
+their actual arguments through nested transparent wrappers. Canonical
+place-liveness rejects forbidden values across direct or transitive `Suspend`
+reach, including persistent fields through reachable state transitions,
+arguments carried by the call itself, and later operands under left-to-right
+evaluation. Opaque admission, per-mint qualification, contained-machine
+subtrees, runtime admission, and artifact/model export remain.
 
 Executable provenance and control-flow integrity must also remain separate.
 `Artifact::AdmittedExecutable` plus linear placement states prove which bytes

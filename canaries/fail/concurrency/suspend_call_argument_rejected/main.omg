@@ -1,0 +1,21 @@
+data Cell {
+    value: i32;
+}
+
+data Message {
+    body: &Cell;
+}
+
+boundary trait Scheduler {
+    machine park(message: Message) effects Suspend;
+}
+
+data Main {
+    scheduler: Scheduler;
+    cell: Cell;
+}
+
+machine Main::main(&mut self) {
+    let message: Message = Message { body: &self.cell };
+    self.scheduler.park(message);
+}

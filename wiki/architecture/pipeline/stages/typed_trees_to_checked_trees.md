@@ -113,7 +113,11 @@ Current ownership is:
 - `checks/carry.rs` joins canonical place liveness with direct/transitive
   `Suspend` reach. Lexical roots are statement-bound; attached-data and
   compatibility machine-owned field paths additionally follow reachable state
-  transitions. CPU/thread/address demands remain provider-admission work.
+  transitions. `checks/carry/intra_statement.rs` preserves the shared
+  preorder call identity while walking actual left-to-right evaluation order:
+  restrictive call arguments are carried during a suspending call, and uses
+  in later operands keep a place live across an earlier nested call.
+  CPU/thread/address demands remain provider-admission work.
 - `omega-checked-trees/src/flow.rs` owns the published checked-flow fact model
   export surface. The model is split by semantic noun under
   `omega-checked-trees/src/flow/`: `contexts.rs` owns semantic/borrow
