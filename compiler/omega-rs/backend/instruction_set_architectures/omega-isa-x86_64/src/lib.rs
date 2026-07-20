@@ -1324,26 +1324,19 @@ fn encode_key_state_call<T: InstructionOperandLike>(operands: &[T]) -> Result<Ve
             "cannot encode X86_64 key_state: the result storage place did not lower to a              runtime scalar operand",
         ));
     };
-    let mut bytes = Vec::with_capacity(4 + 17 + 5 + 4 + 3 + 17);
-    bytes.extend([0x48, 0x83, 0xec, 0x28]); // sub rsp, 40
-    match operands.get(1) {
-        Some(operand) if operand.runtime_scalar_integer().is_some() => {
-            let (_, byte_offset, _) = operand.runtime_scalar_integer().unwrap();
-            append_mov_r15_imm64(&mut bytes, 0); // relocated to the vk region base
-            bytes.extend([0x49, 0x8b, 0x8f]); // mov rcx, [r15 + disp32]
-            let displacement: i32 = byte_offset
-                .try_into()
-                .map_err(|_| Diagnostic::error("key_state vk offset exceeds i32"))?;
-            bytes.extend(displacement.to_le_bytes());
-        }
-        _ => {
-            let vk = immediate_i32(operands, 1, "key_state virtual-key argument")?;
-            bytes.push(0xb9); // mov ecx, imm32
-            bytes.extend(vk.to_le_bytes());
-        }
+    let plan = normalized_win64_call_plan(operands, Some(0), 1)?;
+    let result_register = normalized_win64_result_register(&plan, true)?;
+    if result_register != Some(MachineRegister::X86Rax) {
+        return Err(Diagnostic::error(format!(
+            "Microsoft x64 key-state result requires rax, got {result_register:?}"
+        )));
     }
+    let reserve = win64_import_reserve(plan.parameters.len());
+    let mut bytes = Vec::with_capacity(4 + 17 + 5 + 4 + 3 + 17);
+    append_sub_rsp(&mut bytes, reserve);
+    append_win64_call_arguments(&mut bytes, operands, 1, Some(&plan.parameters))?;
     bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32 (relocated)
-    bytes.extend([0x48, 0x83, 0xc4, 0x28]); // add rsp, 40
+    append_add_rsp(&mut bytes, reserve);
     bytes.extend([0x0f, 0xb7, 0xc0]); // movzx eax, ax (zero the upper bits)
     append_mov_r15_imm64(&mut bytes, 0); // relocated to the result region base
     bytes.extend([0x49, 0x89, 0x87]); // mov [r15 + disp32], rax

@@ -27992,6 +27992,7 @@ fn cross_windows_general_imports_compile() {
     // full PE layout/emission on every development host.
     for canary_name in [
         "host/runtime_gui_window_lifecycle_exit",
+        "host/runtime_user32_key_state_exit",
         "capabilities/windows_provides_import_exit",
     ] {
         let canary = pass_canary(canary_name);

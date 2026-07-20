@@ -222,8 +222,10 @@ marshaller; receiver arguments remain on the wire, dispatch-only table pointers
 do not, and result-bearing field calls validate the plan-selected RAX placement
 before storage. `GetStdHandle`, `ExitProcess`, and `Sleep` now route through the
 same plan-driven general marshaller without changing bytes or relocation sites.
-The composite file-I/O, key-state, and time out-parameter import sequences and
-concrete firmware machine-state policy remain.
+`GetAsyncKeyState` likewise consumes planned RCX/RAX placements while retaining
+its compatibility-specific 16-bit zero-extension transform. The composite
+file-I/O and time out-parameter import sequences and concrete firmware
+machine-state policy remain.
 
 Remaining order:
 
