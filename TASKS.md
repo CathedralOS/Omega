@@ -724,8 +724,10 @@ remain contract-invisible.
   effectful calls reject loudly. Boolean `where` facts whose operands are all
   const-bound now discharge once per synthesized instance (false instances
   reject); mixed field/const facts remain standing default-domain facts with
-  their const operands specialized. Continue with signed/domain semantics,
-  const membership facts, and richer build-time proof operands.
+  their const operands specialized. Const-parameter membership in an integer
+  domain defined by boolean `self` facts also discharges per instance; false
+  membership rejects. Continue with signed/domain arithmetic semantics,
+  classifier-backed const membership, and richer build-time proof operands.
 - **Trait defaults.** Implement conformance, reuse, override, and dispatch for
   trait machines whose body supplies the default. Do not restore a `default`
   keyword.

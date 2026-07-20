@@ -1,0 +1,19 @@
+// A const parameter's membership in a fact-defined integer domain is checked
+// once for each concrete generic instance.
+domain u64::BufferSize {
+    self > 0;
+    self <= 8;
+}
+
+data FixedBuffer<const N: u64>
+where
+    N in BufferSize,
+{
+    values: [u8; N];
+}
+
+data Main {
+    buffer: FixedBuffer<9>;
+}
+
+machine Main::main(&mut self) {}
