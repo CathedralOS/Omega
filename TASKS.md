@@ -342,11 +342,13 @@ before the fix.
   schema/layout byte decoding and the closed relocation validator; implement
   admission/PCC and final-footprint validators, materializer/installer
   providers, Omega linear integration, and provider-backed
-  quiescence/replacement execution. The normalized retirement
-  path already distinguishes visibility from quiescence, requires X removal
-  and write-authority restoration, and returns the exact placement for reuse
-  only after an exact scoped receipt. PE/COFF remains only a firmware envelope;
-  no arbitrary byte-to-code path exists.
+  quiescence/replacement execution. Code-placement claims already validate the
+  actual Extent base/length against normalized range, alignment, phase, regime,
+  and installation-scope constraints before materialization. The normalized
+  retirement path already distinguishes visibility from quiescence, requires
+  X removal and write-authority restoration, and returns the exact placement
+  for reuse only after an exact scoped receipt. PE/COFF remains only a firmware
+  envelope; no arbitrary byte-to-code path exists.
 - **Wire runtime.** Implement runtime layout for wire values, additional
   encoding families, compatibility reports, and version negotiation.
 

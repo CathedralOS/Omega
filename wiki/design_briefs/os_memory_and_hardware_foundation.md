@@ -442,6 +442,13 @@ Failed linear transitions return their inputs. Container decode, actual PCC and
 final-code validators, provider execution, Omega linear integration, and live
 replacement remain.
 
+`CodePlacement` now consumes the existing placement-plan vocabulary rather
+than duplicating it. The one-shot authority carries normalized range,
+alignment, phase, machine-regime, and installation-scope constraints plus the
+provider's concrete site. Claiming the Extent checks its actual base and length
+against that site and runs the shared `PlacementConstraints` validator before
+materialization. A caller cannot substitute a friendlier placement hint.
+
 The normalized retirement path is live as well. It consumes one exact
 `InstalledCode` plus authority scoped to its artifact, placement, and scope;
 visibility evidence cannot satisfy it. The provider receipt must separately

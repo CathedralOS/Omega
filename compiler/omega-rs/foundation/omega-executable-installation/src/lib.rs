@@ -7,6 +7,7 @@
 use std::sync::Arc;
 
 use omega_extents::{AddressSpaceId, Extent, ExtentProvenanceId, ExtentRights};
+use omega_layout_plans::{PlacementConstraints, PlacementSite};
 
 macro_rules! normalized_id {
     ($name:ident, $label:literal) => {
@@ -197,9 +198,12 @@ pub struct CodePlacementAuthority {
     address_space: AddressSpaceId,
     provenance: ExtentProvenanceId,
     required_rights: ExtentRights,
+    constraints: PlacementConstraints,
+    site: PlacementSite,
 }
 
 impl CodePlacementAuthority {
+    #[allow(clippy::too_many_arguments)]
     pub fn from_admitted_provider(
         placement: CodePlacementId,
         scope: InstallationScopeId,
@@ -207,6 +211,8 @@ impl CodePlacementAuthority {
         address_space: AddressSpaceId,
         provenance: ExtentProvenanceId,
         required_rights: ExtentRights,
+        constraints: PlacementConstraints,
+        site: PlacementSite,
     ) -> Self {
         Self {
             placement,
@@ -215,24 +221,43 @@ impl CodePlacementAuthority {
             address_space,
             provenance,
             required_rights,
+            constraints,
+            site,
         }
     }
 
     pub fn claim(self, extent: Extent) -> Result<CodePlacement, Box<PlacementClaimError>> {
         let mismatch = if extent.address_space() != self.address_space {
-            Some("extent address space does not match code-placement authority")
+            Some("extent address space does not match code-placement authority".into())
         } else if extent.provenance() != self.provenance {
-            Some("extent provenance does not match code-placement authority")
+            Some("extent provenance does not match code-placement authority".into())
         } else if !extent.rights().contains(&self.required_rights) {
-            Some("extent lacks rights required by code-placement authority")
+            Some("extent lacks rights required by code-placement authority".into())
+        } else if self.site.base_address != extent.base() {
+            Some("placement site base does not match destination Extent".into())
+        } else if self
+            .site
+            .installation_scope
+            .is_none_or(|scope| scope.normalized_identity() != self.scope.normalized_identity())
+        {
+            Some("placement site does not carry the exact installation scope".into())
         } else {
-            None
+            match usize::try_from(extent.length()) {
+                Ok(length) => self
+                    .constraints
+                    .validate_site(length, self.site)
+                    .err()
+                    .map(|diagnostic| diagnostic.0),
+                Err(_) => {
+                    Some("placement length cannot be represented by the host validator".into())
+                }
+            }
         };
         if let Some(message) = mismatch {
             return Err(Box::new(PlacementClaimError {
                 authority: self,
                 extent,
-                diagnostic: InstallationDiagnostic(message.into()),
+                diagnostic: InstallationDiagnostic(message),
             }));
         }
         Ok(CodePlacement {
@@ -803,6 +828,7 @@ mod tests {
     use omega_extents::{
         ExtentDiagnostic, ExtentLineageId, ExtentRightId, ExtentRootGrant, MappingEraId,
     };
+    use omega_layout_plans::{ArtifactInstallationScopeId, PlacementAddressRange, PlacementPhase};
 
     fn id<T>(identity: u64, constructor: fn(u64) -> Result<T, InstallationDiagnostic>) -> T {
         constructor(identity).expect("normalized installation identity")
@@ -861,7 +887,9 @@ mod tests {
         .expect("placement extent")
     }
 
-    fn placement_authority(placement: u64) -> CodePlacementAuthority {
+    fn placement_authority(placement: u64, base: u64) -> CodePlacementAuthority {
+        let scope = ArtifactInstallationScopeId::from_normalized_identity(61)
+            .expect("artifact installation scope");
         CodePlacementAuthority::from_admitted_provider(
             id(placement, CodePlacementId::from_normalized_identity),
             id(61, InstallationScopeId::from_normalized_identity),
@@ -869,11 +897,25 @@ mod tests {
             extent_id(50, AddressSpaceId::from_normalized_identity),
             extent_id(52, ExtentProvenanceId::from_normalized_identity),
             rights(&[51]),
+            PlacementConstraints::new(
+                Some(PlacementAddressRange::new(0x1000, 0x1_0000).expect("placement range")),
+                4096,
+                PlacementPhase::PostHandoff,
+                None,
+                Some(scope),
+            )
+            .expect("placement constraints"),
+            PlacementSite {
+                base_address: base,
+                phase: PlacementPhase::PostHandoff,
+                machine_regime: None,
+                installation_scope: Some(scope),
+            },
         )
     }
 
     fn frozen(admitted: &AdmittedArtifact, placement_identity: u64, base: u64) -> FrozenPlacement {
-        let placement = placement_authority(placement_identity)
+        let placement = placement_authority(placement_identity, base)
             .claim(placement_extent(placement_identity, base, 4096))
             .expect("placement");
         materialize_and_freeze(
@@ -978,7 +1020,7 @@ mod tests {
     fn materialization_cannot_substitute_another_artifact() {
         let first = admit(&artifact(1));
         let second = admit(&artifact(2));
-        let placement = placement_authority(101)
+        let placement = placement_authority(101, 0x2000)
             .claim(placement_extent(101, 0x2000, 4096))
             .expect("placement");
         let error = materialize_and_freeze(
@@ -1043,7 +1085,7 @@ mod tests {
     #[test]
     fn materialization_uses_admitted_artifact_size_not_a_caller_hint() {
         let admitted = admit(&artifact(1));
-        let placement = placement_authority(105)
+        let placement = placement_authority(105, 0x5000)
             .claim(placement_extent(105, 0x5000, 32))
             .expect("qualified but undersized destination");
         let error = materialize_and_freeze(
@@ -1074,7 +1116,7 @@ mod tests {
         )
         .mint(0x6000, 4096)
         .expect("placement extent without required rights");
-        let error = placement_authority(106)
+        let error = placement_authority(106, 0x6000)
             .claim(extent)
             .expect_err("missing placement right");
         assert!(error.diagnostic().0.contains("lacks rights"));
@@ -1147,5 +1189,15 @@ mod tests {
             ),
         )
         .expect("placement reusable only after quiescent retirement");
+    }
+
+    #[test]
+    fn placement_claim_validates_actual_extent_site_against_plan_constraints() {
+        let error = placement_authority(108, 0x7101)
+            .claim(placement_extent(108, 0x7101, 4096))
+            .expect_err("misaligned site rejects before materialization");
+        assert!(error.diagnostic().0.contains("not aligned"));
+        let (_authority, extent) = (*error).into_parts();
+        assert_eq!(extent.base(), 0x7101);
     }
 }
