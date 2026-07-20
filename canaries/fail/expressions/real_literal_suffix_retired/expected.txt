@@ -1,0 +1,1 @@
+the `real` literal suffix is retired

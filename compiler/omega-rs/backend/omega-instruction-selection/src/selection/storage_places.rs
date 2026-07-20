@@ -2609,9 +2609,8 @@ pub(super) fn resolve_runtime_pointee_slot_offset_in_table(
             matches!(descriptor, omega_layout::TypeLayoutDescriptor::Named { .. })
         })
         .map(|descriptor| descriptor_layout(input, descriptor).size);
-    let wide_referee_slot = recast_referee_size.is_some_and(|size| {
-        size > input.runtime_abi.pointer_size && slot.byte_size == size
-    });
+    let wide_referee_slot = recast_referee_size
+        .is_some_and(|size| size > input.runtime_abi.pointer_size && slot.byte_size == size);
     if slot.byte_size != input.runtime_abi.pointer_size && !wide_referee_slot {
         return None;
     }
@@ -3728,13 +3727,6 @@ fn builtin_type_layout(
         return Some(TypeLayout {
             size: input.runtime_abi.pointer_size,
             alignment: input.runtime_abi.pointer_alignment,
-        });
-    }
-
-    if Some(type_symbol) == input.program.symbols.builtin_type_symbol(BuiltinType::Real) {
-        return Some(TypeLayout {
-            size: 8,
-            alignment: 8,
         });
     }
 

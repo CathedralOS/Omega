@@ -86,6 +86,92 @@ machine Main::main(&mut self) {
 }
 
 #[test]
+fn claim_free_boundary_symbols_do_not_consume_trust() {
+    let project =
+        std::env::temp_dir().join(format!("omega-trust-claim-free-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project dir");
+    std::fs::write(
+        project.join("main.omg"),
+        r#"boundary data Carrier;
+boundary machine Carrier::combine(a: Carrier, b: Carrier) -> Carrier;
+boundary machine combine_commutative(a: Carrier, b: Carrier)
+ensures Carrier::combine(a, b) == Carrier::combine(b, a);
+
+data Main {}
+machine Main::main(&mut self) {}
+"#,
+    )
+    .expect("write main.omg");
+
+    let build_dir = project.join("build");
+    compile(CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: false,
+    })
+    .expect("claim-free boundary symbol program should compile");
+
+    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
+        .expect("trust report should be written");
+    assert!(
+        report.contains("admitted commitments: 1"),
+        "only the authored axiom is a commitment:\n{report}"
+    );
+    assert!(
+        report.contains("accepted fact: combine_commutative"),
+        "the authored axiom remains visible:\n{report}"
+    );
+    assert!(
+        !report.contains("accepted fact: Carrier::combine"),
+        "a claim-free symbol asserts nothing and needs no grant:\n{report}"
+    );
+
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn claim_free_boundary_symbols_are_not_runtime_providers() {
+    let project = std::env::temp_dir().join(format!(
+        "omega-trust-claim-free-runtime-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project dir");
+    std::fs::write(
+        project.join("main.omg"),
+        r#"boundary machine unexplained_runtime_operation();
+
+data Main {}
+machine Main::main(&mut self) {
+    unexplained_runtime_operation();
+}
+"#,
+    )
+    .expect("write main.omg");
+
+    let diagnostics = compile(CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(project.join("build")),
+        target_name: None,
+        write_output: false,
+    })
+    .expect_err("a claim-free symbol has no executable provider");
+    let rendered = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("has no executable realization"),
+        "expected the bodyless-boundary runtime fence:\n{rendered}"
+    );
+
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
 fn root_grant_flips_domain_row_and_retires_warning() {
     // GR3: `b.accept_boundary<Meters>();` in build.omg harvests as a root
     // grant; the granted domain's trust row flips provenance and drops the

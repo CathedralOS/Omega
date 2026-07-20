@@ -1,0 +1,7 @@
+// Mathematical Real is ordinary language-core proof data. A float token may
+// land only in an explicit runtime format; proof embeddings are machine calls.
+data Main {}
+
+machine Main::main(&mut self) {
+    let value: f64 = 3.0real;
+}

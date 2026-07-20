@@ -3,13 +3,13 @@ data Main {
 
 machine Main::main(
     &mut self
-    ) -> Real {
+    ) -> f64 {
     
 
     state answer(
         &mut self,
         raw: u32
     ) {
-        Real::from(raw) / Real::from(u32::MAX)
+        (raw as f64) / (u32::MAX as f64)
     }
 }

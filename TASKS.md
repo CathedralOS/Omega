@@ -255,15 +255,6 @@ before the fix.
 
 ### Mathematical and float libraries
 
-- **N5 — Real boundary package.** The general opaque `boundary data` carrier
-  surface is implemented and fails closed. Retire the legacy compiler-builtin
-  `Real`/`Real::from` carrier first (it currently shadows the settled ordinary
-  declaration), migrate the two float-era canaries to explicit `f64` or proof
-  embeddings, then build the concrete `boundary data Real` package and
-  accepted axiom package. Claim-free boundary symbols need no grant, while
-  accepted axioms use the ordinary trust carrier. Excluded middle remains an
-  ungranted core boundary machine. Consecutive accepted declarations now parse
-  correctly; their `boundary` prefix no longer gets swallowed as a clause.
 - **N6 — quotients.** Implement the settled
   `data Real = CauchySeq % converges_together` type expression, carrier-only
   `as` construction, respect/congruence obligations, and equivalence laws.

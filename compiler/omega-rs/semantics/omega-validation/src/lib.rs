@@ -199,11 +199,15 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
                     .machine_specializations
                     .iter()
                     .any(|specialization| specialization.template == machine.symbol)
-                // CH10 ACCEPTED machines (bodyless `boundary machine`
-                // axioms) have no body BY DESIGN: their meaning is their
-                // ensures, admitted through the trust carrier, never
-                // produced by execution.
-                && machine.supply_mode != omega_core::semantics::MachineSupplyMode::Accepted
+                // Bodyless boundary declarations have no Omega body by
+                // design. ACCEPTED declarations mean their ensures through
+                // the trust carrier; claim-free BOUNDARY declarations merely
+                // introduce a symbol and assert nothing.
+                && !matches!(
+                    machine.supply_mode,
+                    omega_core::semantics::MachineSupplyMode::Accepted
+                        | omega_core::semantics::MachineSupplyMode::Boundary
+                )
                 // PRV4: an EXTERNAL LEAF's body IS its binding -- the
                 // realization produces the value at the seam.
                 && !matches!(

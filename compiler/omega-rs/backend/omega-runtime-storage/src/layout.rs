@@ -16,8 +16,7 @@ pub(super) fn recast_view_layout(
     table: &TypeReferenceTable,
     type_reference: TypeReferenceHandle,
 ) -> Option<TypeLayout> {
-    let TypeReferenceNode::Reference { referee, .. } = table.type_reference(type_reference)
-    else {
+    let TypeReferenceNode::Reference { referee, .. } = table.type_reference(type_reference) else {
         return None;
     };
     let mut referee = *referee;
@@ -166,18 +165,6 @@ fn builtin_type_layout(
         return Some(TypeLayout {
             size: context.target.pointer_size,
             alignment: context.target.pointer_alignment,
-        });
-    }
-
-    if Some(type_symbol)
-        == context
-            .program
-            .symbols
-            .builtin_type_symbol(BuiltinType::Real)
-    {
-        return Some(TypeLayout {
-            size: 8,
-            alignment: 8,
         });
     }
 

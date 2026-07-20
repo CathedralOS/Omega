@@ -960,13 +960,6 @@ impl<'program> LayoutBuilder<'program> {
             });
         }
 
-        if Some(symbol) == self.program.symbols.builtin_type_symbol(BuiltinType::Real) {
-            return Some(TypeLayout {
-                size: 8,
-                alignment: 8,
-            });
-        }
-
         None
     }
 

@@ -231,11 +231,6 @@ fn strip_float_literal_suffix(source: &str) -> (&str, Option<FloatFormat>) {
     if let Some(body) = source.strip_suffix("f64") {
         return (body, Some(FloatFormat::F64));
     }
-    for suffix in ["real", "Real"] {
-        if let Some(body) = source.strip_suffix(suffix) {
-            return (body, None);
-        }
-    }
     (source.trim_end_matches(['f', 'F']), None)
 }
 

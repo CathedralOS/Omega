@@ -1,7 +1,8 @@
-// Chapter 5 "Literals": real literals carry a suffix, e.g. `3.0real`.
+// Runtime float formats are explicit. Mathematical Real is the proof-only
+// carrier in omega::language::core::real, never a runtime literal format.
 data Main {
 }
 
 machine Main::main(&mut self) {
-    let real_value: Real = 3.0real;
+    let machine_value: f64 = 3.0f64;
 }
