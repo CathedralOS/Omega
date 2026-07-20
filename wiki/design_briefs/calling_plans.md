@@ -215,8 +215,7 @@ named arguments and result consume the normalized plan. The general Microsoft
 x64 import encoder now receives its policy from the concrete target,
 evaluates selected scalar/pointer operand shapes, and consumes the plan's exact
 RCX/RDX/R8/R9, shadow-relative stack, and RAX-result placements. A non-Microsoft
-x86 target fails closed at this Win64 compatibility encoder. Bespoke/composite
-x86 imports and AArch64 stack/fragmented calls remain to migrate. Microsoft x64
+x86 target fails closed at this Win64 compatibility encoder. Microsoft x64
 vtable and firmware service-table calls now reuse the same plan-driven
 marshaller; receiver arguments remain on the wire, dispatch-only table pointers
 do not, and result-bearing field calls validate the plan-selected RAX placement
@@ -227,8 +226,12 @@ its compatibility-specific 16-bit zero-extension transform. The composite
 Windows time calls now plan their actual native one-pointer signatures: QPC/QPF
 also carry an ignored RAX `BOOL` result, while `GetSystemTimePreciseAsFileTime`
 is void. Their temporary out slot remains an encoder materialization detail.
-Composite file-I/O import sequences and concrete firmware machine-state policy
-remain.
+Composite `ReadFile`/`WriteFile` sequences now evaluate their actual five-value
+native signature and ignored RAX `BOOL` result. Their four register arguments,
+shadow-relative fifth argument, and scratch-slot reservation consume that plan;
+the scratch slot itself remains an encoder materialization detail. Dedicated
+runtime line/byte Windows sequences, AArch64 stack/fragmented calls, and
+concrete firmware machine-state policy remain.
 
 Remaining order:
 
