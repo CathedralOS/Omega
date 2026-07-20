@@ -1,0 +1,15 @@
+data Sizes {
+}
+
+const Sizes::TOO_LARGE: u64 = 300;
+
+data TinyBuffer<const N: u8> {
+    items: [u8; N];
+}
+
+data Main {
+    buffer: TinyBuffer<Sizes::TOO_LARGE>;
+}
+
+machine Main::main(&mut self) {
+}

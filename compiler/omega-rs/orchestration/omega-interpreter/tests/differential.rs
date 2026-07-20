@@ -1551,6 +1551,23 @@ fn interpreter_runs_multiple_const_data_instances() {
 }
 
 #[test]
+fn interpreter_runs_named_const_data_arguments() {
+    let main_path = pass_canary("generics/runtime_const_data_named_value_exit").join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "named const data arguments failed frontend checking:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+    let outcome = interpret(&checked, b"");
+    assert_eq!(
+        outcome.error, None,
+        "interpreter should support named const data arguments"
+    );
+    assert_eq!(outcome.exit_code, 70);
+}
+
+#[test]
 fn interpreter_runs_const_container_methods() {
     let main_path = pass_canary("generics/runtime_const_container_methods_exit").join("main.omg");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {

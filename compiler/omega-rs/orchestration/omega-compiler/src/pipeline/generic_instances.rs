@@ -38,6 +38,7 @@ use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::literals::{IntegerLiteral, IntegerRadix};
 use omega_syntax_trees::SyntaxTrees;
+use omega_syntax_trees::expression::ExpressionNode;
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{DataDefinition, DataMember, Item, TypeParameterKind};
 use omega_syntax_trees::statement::StatementNode;
@@ -206,6 +207,35 @@ pub(crate) fn desugar_generic_data_instances(
         return Ok(());
     }
 
+    // Const-v0 declarations disappear during symbol resolution, but generic
+    // data instances are selected before that stage. Resolve their literal
+    // integer values here so `Buffer<Limits::WIDTH>` follows the same path as
+    // `Buffer<4>` while leaving non-integer and negative consts to the normal
+    // declaration/use diagnostics.
+    let const_values: HashMap<String, String> = syntax
+        .root_items()
+        .filter_map(|item| {
+            let Item::Const(definition) = item else {
+                return None;
+            };
+            let ExpressionNode::Integer(value) = syntax.expressions.expression(definition.value)
+            else {
+                return None;
+            };
+            let value = value.value_u64()?;
+            let qualified_name = if definition.scope.as_str().is_empty() {
+                definition.name.as_str().to_string()
+            } else {
+                format!(
+                    "{}::{}",
+                    definition.scope.as_str(),
+                    definition.name.as_str()
+                )
+            };
+            Some((qualified_name, value.to_string()))
+        })
+        .collect();
+
     // FIXPOINT. Each round scans every type-reference position for a
     // `Base<Args..>` spelling, synthesizes one concrete record per new distinct
     // spelling, and rewrites the spellings to the instances' plain names. A
@@ -223,6 +253,7 @@ pub(crate) fn desugar_generic_data_instances(
             consider_generic_spelling(
                 syntax,
                 &generic_data,
+                &const_values,
                 position,
                 &mut rewrites,
                 &mut instantiations,
@@ -459,8 +490,9 @@ fn collect_type_reference_positions(syntax: &SyntaxTrees) -> Vec<TypeReferenceHa
 /// whose fields are each exactly the parameter or parameter-free -- is left
 /// UNTOUCHED for the existing type-check-only path (skip, never reject).
 fn consider_generic_spelling(
-    syntax: &SyntaxTrees,
+    syntax: &mut SyntaxTrees,
     generic_data: &HashMap<String, GenericData>,
+    const_values: &HashMap<String, String>,
     type_reference: TypeReferenceHandle,
     rewrites: &mut Vec<PendingRewrite>,
     instantiations: &mut Vec<Instantiation>,
@@ -484,6 +516,27 @@ fn consider_generic_spelling(
         .to_vec();
     if argument_handles.len() != base_info.parameter_names.len() {
         return;
+    }
+    for (parameter_type, argument) in base_info
+        .const_parameter_types
+        .iter()
+        .zip(&argument_handles)
+    {
+        if parameter_type.is_none() {
+            continue;
+        }
+        let TypeReferenceNode::Named(name) =
+            syntax.tables.type_references.type_reference(*argument)
+        else {
+            continue;
+        };
+        let Some(value) = const_values.get(name.as_str()) else {
+            continue;
+        };
+        syntax.tables.type_references.replace_type_reference(
+            *argument,
+            TypeReferenceNode::Named(Identifier::generated(value.as_str())),
+        );
     }
     let Some(argument_names) = monomorphizable_argument_slugs(syntax, &argument_handles) else {
         return;

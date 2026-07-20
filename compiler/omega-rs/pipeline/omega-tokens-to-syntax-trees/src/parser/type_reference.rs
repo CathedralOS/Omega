@@ -124,9 +124,10 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
 
         loop {
             // Const data arguments share the generic argument list with type
-            // arguments. Keep literal values as symbol-free named leaves until
-            // the declaration's parameter kinds are available during
-            // validation/layout; their decimal spelling is canonical.
+            // arguments. Keep literal values and scoped const paths as
+            // symbol-free named leaves until the declaration's parameter kinds
+            // are available during validation/layout; literal decimal spelling
+            // is canonical.
             let (argument, rest) = if input.at_integer() {
                 let (value, rest) = input.take_integer()?;
                 if value < 0 {
@@ -138,6 +139,25 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                         .insert_named(Identifier::generated(value.to_string())),
                     rest,
                 )
+            } else if input
+                .tokens
+                .first()
+                .is_some_and(crate::parser::input::is_identifier_token_for_parser)
+            {
+                let (scope, after_scope) = input.take_identifier()?;
+                if after_scope.at_punctuation(PunctuationKind::ColonColon) {
+                    let after_separator =
+                        after_scope.take_punctuation(PunctuationKind::ColonColon, "::")?;
+                    let (name, rest) = after_separator.take_identifier()?;
+                    (
+                        syntax_trees
+                            .type_references
+                            .insert_named(Identifier::generated(format!("{scope}::{name}"))),
+                        rest,
+                    )
+                } else {
+                    parse_type_reference_handle(syntax_trees, input)?
+                }
             } else {
                 parse_type_reference_handle(syntax_trees, input)?
             };
