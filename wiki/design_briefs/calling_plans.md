@@ -195,8 +195,8 @@ exact result register through abstract/target operations and x86-64/AArch64
 emission; ISA encoders no longer invent `rax` or `x0`. On AAPCS64, flat records
 of one to four contiguous, same-width `f32` or `f64` members classify as HFAs
 from the normalized data layout and arrive through the plan-selected vector
-register fragments. Nested and general aggregate entry classification, general
-outbound calls/results, and source-selected policies remain. Generic Linux
+register fragments. Nested and general aggregate entry classification and
+source-selected policies remain. Generic Linux
 syscall leaves are the first outbound path to make the normalized plan
 authoritative: emission evaluates the x86-64 or AArch64 syscall policy for the
 operand signature, then passes its exact parameter registers, number register,
@@ -206,6 +206,13 @@ path. Composite runtime-text byte and line syscalls now use the same evaluated
 placements. AArch64 emits the plan-selected registers and supervisor-call
 immediate; the current fixed x86-64 sequences fail closed when asked to realize
 a different normalized plan rather than silently overriding it.
+Register-resident AArch64 C/import emission now also evaluates AAPCS64 from the
+selected operand shapes and passes the exact planned X/V argument and result
+registers to the ISA encoder. Stack-resident and fragmented outbound placements
+fail closed until their lowering exists. The Darwin variadic `open` compatibility
+seam still handles its anonymous trailing stack argument specially, while its
+named arguments and result consume the normalized plan. General x86-64 and
+firmware outbound calls and AArch64 stack/fragmented calls remain.
 
 Remaining order:
 

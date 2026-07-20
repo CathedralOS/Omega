@@ -49,10 +49,14 @@ that path. Composite
 runtime-text byte and line syscalls now consume the same normalized placements:
 the AArch64 encoders honor the plan-selected registers and supervisor-call
 immediate, while the fixed x86-64 sequences reject plans they cannot realize
-instead of silently choosing an ABI. General C/firmware outbound calls and
-results and source-selected policies remain below.
+instead of silently choosing an ABI. Register-resident AArch64 C/import calls
+and their integer/float results now evaluate AAPCS64 from selected operand
+shapes and pass the plan's exact X/V registers to the ISA encoder; stack or
+fragmented placements fail closed. General x86-64 and firmware outbound calls,
+AArch64 stack/fragmented calls, and source-selected policies remain below.
 
-1. **ENT2b — source policy evaluation and identity.** Evaluate the policy type
+1. **ENT2b — source policy evaluation and identity (OWNER-BLOCKED: see
+   `OWNER_QUESTIONS.md` section 2).** Evaluate the policy type
    selected by `Calling<C>` against each requirement signature, validate the
    resulting `BoundaryEntryPlan`, and put its normalized fingerprint—not merely
    `C`'s symbol—into published requirement identity.
@@ -61,8 +65,11 @@ results and source-selected policies remain below.
    choices through the normalized plan; continue beyond the completed
    register- and stack-resident process-entry argument paths and integer entry
    results and generic and runtime-text Linux syscall paths to C/firmware
-   outbound calls/results and compatibility-binding differential
-   checks, then make the plan authoritative. Add the concrete x86 interrupt
+   outbound calls/results and compatibility-binding differential checks; the
+   register-resident AArch64 C/import slice is complete, including exact
+   plan-selected argument/result registers and fail-closed unsupported
+   placements. Continue through AArch64 stack/fragmented calls, x86-64 and
+   firmware calls, then make the plan authoritative. Add the concrete x86 interrupt
    `StatePlan`, stack/IST, nesting, and acknowledgement policy used by Cathedral.
 3. **ENT3 — constrained entry codegen.** Derive entry stubs, specialize/codegen
    under the state ceiling, emit a checkable final footprint certificate, and

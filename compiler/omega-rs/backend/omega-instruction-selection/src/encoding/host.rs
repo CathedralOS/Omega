@@ -1,7 +1,7 @@
 use crate::aarch64_call_operand;
 use omega_calling_conventions::{
-    CallSignature, CallingPolicy, EntryControl, HostOperationKey, ValueLocation, ValueShape,
-    evaluate_call_plan,
+    CallSignature, CallingPolicy, EntryControl, HostOperationKey, MachineRegister, ValueLocation,
+    ValueShape, evaluate_call_plan,
 };
 use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
@@ -159,24 +159,36 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
         // value-returning arm: they share `returns_value()` but insert an extra
         // `ldr` to deref the returned pointer.
         Architecture::Aarch64 if operation_key.dereferences_result() => {
+            let (arguments, result) =
+                normalized_aarch64_import_registers(operands, Aarch64ImportResult::Integer, false)?;
             aarch64::encode_host_call_sequence_value_returning_deref_from_operands(
                 operands.iter().map(aarch64_call_operand),
+                &arguments,
+                result.expect("integer result requested"),
             )
         }
         // Stack-mode ops (`open_create`) also share `returns_value()` but bracket
         // the call with `sub sp`/`str [sp]`/`add sp` to pass the variadic `mode`
         // on the stack; checked before the plain value-returning arm.
         Architecture::Aarch64 if operation_key.passes_trailing_mode_on_stack() => {
+            let (arguments, result) =
+                normalized_aarch64_import_registers(operands, Aarch64ImportResult::Integer, true)?;
             aarch64::encode_host_call_sequence_value_returning_open_create_from_operands(
                 operands.iter().map(aarch64_call_operand),
+                &arguments,
+                result.expect("integer result requested"),
             )
         }
         // Float-returning ops (sqrt/hypot) also share `returns_value()` but the
         // result comes back in `d0`; the encoder inserts `fmov x0, d0` before the
         // result store. Checked before the plain value-returning arm.
         Architecture::Aarch64 if operation_key.returns_float() => {
+            let (arguments, result) =
+                normalized_aarch64_import_registers(operands, Aarch64ImportResult::Float, false)?;
             aarch64::encode_host_call_sequence_value_returning_float_from_operands(
                 operands.iter().map(aarch64_call_operand),
+                &arguments,
+                result.expect("float result requested"),
             )
         }
         // Constant-result ops have NO call (and no import relocation): the
@@ -189,13 +201,23 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
             )
         }
         Architecture::Aarch64 if operation_key.returns_value() => {
+            let (arguments, result) =
+                normalized_aarch64_import_registers(operands, Aarch64ImportResult::Integer, false)?;
             aarch64::encode_host_call_sequence_value_returning_from_operands(
                 operands.iter().map(aarch64_call_operand),
+                &arguments,
+                result.expect("integer result requested"),
             )
         }
-        Architecture::Aarch64 => aarch64::encode_host_call_sequence_from_operands(
-            operands.iter().map(aarch64_call_operand),
-        ),
+        Architecture::Aarch64 => {
+            let (arguments, result) =
+                normalized_aarch64_import_registers(operands, Aarch64ImportResult::None, false)?;
+            debug_assert!(result.is_none());
+            aarch64::encode_host_call_sequence_from_operands(
+                operands.iter().map(aarch64_call_operand),
+                &arguments,
+            )
+        }
         Architecture::X86_64 => x86_64::encode_host_call_sequence(operation_key, operands),
     }
 }
@@ -214,10 +236,164 @@ pub fn encode_authored_import_call_sequence<T: InstructionOperandLike>(
     operands: &[T],
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => aarch64::encode_host_call_sequence_value_returning_from_operands(
-            operands.iter().map(aarch64_call_operand),
-        ),
+        Architecture::Aarch64 => {
+            let (arguments, result) =
+                normalized_aarch64_import_registers(operands, Aarch64ImportResult::Integer, false)?;
+            aarch64::encode_host_call_sequence_value_returning_from_operands(
+                operands.iter().map(aarch64_call_operand),
+                &arguments,
+                result.expect("integer result requested"),
+            )
+        }
         Architecture::X86_64 => x86_64::encode_host_call_sequence(operation_key, operands),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Aarch64ImportResult {
+    None,
+    Integer,
+    Float,
+}
+
+/// ENT2c: evaluate the register-resident AAPCS64 call surface from the actual
+/// selected operands. The encoder receives these exact registers and may no
+/// longer reconstruct x0../v0.. or the result bank independently.
+///
+/// `trailing_variadic_stack` is the compatibility seam for Darwin `open`:
+/// its anonymous `mode` argument is intentionally stack-passed by Apple's
+/// variadic ABI and is not yet representable in `CallSignature`. The named
+/// arguments and result still consume the normalized plan here; the final
+/// stack operand remains with the existing checked special-case encoder.
+fn normalized_aarch64_import_registers<T: InstructionOperandLike>(
+    operands: &[T],
+    result_kind: Aarch64ImportResult,
+    trailing_variadic_stack: bool,
+) -> Result<(Vec<MachineRegister>, Option<MachineRegister>), Diagnostic> {
+    let aarch64_operands = operands
+        .iter()
+        .map(aarch64_call_operand)
+        .collect::<Vec<_>>();
+    let (result_operand, mut arguments) = match result_kind {
+        Aarch64ImportResult::None => (None, aarch64_operands.as_slice()),
+        Aarch64ImportResult::Integer | Aarch64ImportResult::Float => {
+            let Some((result, arguments)) = aarch64_operands.split_first() else {
+                return Err(Diagnostic::error(
+                    "AArch64 value-returning import has no result storage operand",
+                ));
+            };
+            (Some(*result), arguments)
+        }
+    };
+    if trailing_variadic_stack {
+        let Some((_, named_arguments)) = arguments.split_last() else {
+            return Err(Diagnostic::error(
+                "AArch64 variadic import is missing its stack argument",
+            ));
+        };
+        arguments = named_arguments;
+    }
+
+    let signature = CallSignature {
+        parameters: arguments
+            .iter()
+            .copied()
+            .map(aarch64_operand_shape)
+            .collect::<Result<Vec<_>, _>>()?,
+        result: match (result_kind, result_operand) {
+            (Aarch64ImportResult::None, None) => None,
+            (Aarch64ImportResult::Integer, Some(operand)) => {
+                Some(aarch64_result_shape(operand, false)?)
+            }
+            (Aarch64ImportResult::Float, Some(operand)) => {
+                Some(aarch64_result_shape(operand, true)?)
+            }
+            _ => {
+                return Err(Diagnostic::error(
+                    "AArch64 import result classification is internally inconsistent",
+                ));
+            }
+        },
+    };
+    let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature).map_err(|error| {
+        Diagnostic::error(format!("cannot evaluate AAPCS64 import plan: {error}"))
+    })?;
+    let parameter_registers = plan
+        .parameters
+        .iter()
+        .enumerate()
+        .map(|(index, placement)| one_register(&placement.locations, "parameter", index))
+        .collect::<Result<Vec<_>, _>>()?;
+    let result_register = plan
+        .result
+        .as_ref()
+        .map(|placement| one_register(&placement.locations, "result", 0))
+        .transpose()?;
+    Ok((parameter_registers, result_register))
+}
+
+fn aarch64_operand_shape(
+    operand: omega_isa_aarch64::Aarch64CallOperand,
+) -> Result<ValueShape, Diagnostic> {
+    use omega_isa_aarch64::Aarch64CallOperand;
+    match operand {
+        Aarch64CallOperand::RuntimeScalarFloat { byte_count, .. } => {
+            let byte_count = u16::try_from(byte_count)
+                .map_err(|_| Diagnostic::error("AArch64 float import operand width exceeds u16"))?;
+            Ok(ValueShape::float(byte_count))
+        }
+        Aarch64CallOperand::RuntimeScalarInteger { byte_count, .. } => {
+            let byte_count = u16::try_from(byte_count).map_err(|_| {
+                Diagnostic::error("AArch64 integer import operand width exceeds u16")
+            })?;
+            Ok(ValueShape::integer(byte_count, byte_count.max(1)))
+        }
+        Aarch64CallOperand::DataAddress
+        | Aarch64CallOperand::RuntimeStringPointer { .. }
+        | Aarch64CallOperand::RuntimeStringLength { .. }
+        | Aarch64CallOperand::RuntimePointeeStringPointer { .. }
+        | Aarch64CallOperand::RuntimePointeeStringLength { .. }
+        | Aarch64CallOperand::RuntimeStorageAddress { .. }
+        | Aarch64CallOperand::ImmediateInteger(_)
+        | Aarch64CallOperand::ByteLength(_) => Ok(ValueShape::integer(8, 8)),
+    }
+}
+
+fn aarch64_result_shape(
+    operand: omega_isa_aarch64::Aarch64CallOperand,
+    float: bool,
+) -> Result<ValueShape, Diagnostic> {
+    let omega_isa_aarch64::Aarch64CallOperand::RuntimeScalarInteger { byte_count, .. } = operand
+    else {
+        return Err(Diagnostic::error(
+            "AArch64 import result place did not lower to scalar storage",
+        ));
+    };
+    let byte_count = u16::try_from(byte_count)
+        .map_err(|_| Diagnostic::error("AArch64 import result width exceeds u16"))?;
+    Ok(if float {
+        ValueShape::float(byte_count)
+    } else {
+        ValueShape::integer(byte_count, byte_count.max(1))
+    })
+}
+
+fn one_register(
+    locations: &[ValueLocation],
+    role: &str,
+    index: usize,
+) -> Result<MachineRegister, Diagnostic> {
+    match locations {
+        [
+            ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                ..
+            },
+        ] => Ok(*register),
+        _ => Err(Diagnostic::error(format!(
+            "AAPCS64 import {role} {index} is not register-resident; stack and fragmented outbound C calls are not implemented yet"
+        ))),
     }
 }
 
@@ -436,5 +612,61 @@ mod result_register_architecture_tests {
                 .message
                 .contains("does not belong to target architecture")
         );
+    }
+}
+
+#[cfg(test)]
+mod aarch64_import_plan_tests {
+    use super::*;
+    use omega_target_operations::{
+        RuntimeStorageRegion, TargetInstructionOperand, TargetInstructionOperandKind,
+    };
+
+    fn operand(kind: TargetInstructionOperandKind) -> TargetInstructionOperand {
+        TargetInstructionOperand { kind }
+    }
+
+    #[test]
+    fn mixed_import_arguments_use_independent_aapcs_register_banks() {
+        let operands = [
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::RuntimeScalarFloat {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 8,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::ImmediateInteger(3)),
+        ];
+
+        let (parameters, result) =
+            normalized_aarch64_import_registers(&operands, Aarch64ImportResult::None, false)
+                .expect("register-resident mixed AAPCS call");
+
+        assert_eq!(
+            parameters,
+            [
+                MachineRegister::Aarch64X(0),
+                MachineRegister::Aarch64V(0),
+                MachineRegister::Aarch64X(1),
+            ]
+        );
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn outbound_stack_arguments_fail_before_the_register_only_encoder() {
+        let operands = (0..9)
+            .map(|value| operand(TargetInstructionOperandKind::ImmediateInteger(value)))
+            .collect::<Vec<_>>();
+
+        let error =
+            normalized_aarch64_import_registers(&operands, Aarch64ImportResult::None, false)
+                .expect_err("ninth AAPCS integer argument is stack-resident");
+
+        assert!(error.message.contains("not register-resident"));
     }
 }
