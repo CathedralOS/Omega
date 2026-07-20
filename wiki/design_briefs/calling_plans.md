@@ -250,17 +250,17 @@ AArch64 `VtableSlot` and `VtableField` compatibility calls now consume the
 same normalized AAPCS64 argument and stack placements as direct imports. The
 receiver must be the plan's full-width `x0` argument; emission reads the slot
 or layout-resolved field into caller-saved `x16` and uses `blr x16`, with no
-import relocation. A field call may carry a separate leading scalar result
-place; its plan-selected GPR result store is reflected in layout and page-fixup
-offsets. Floating and aggregate field-model results remain a future slice.
+import relocation. A field call may carry a separate leading result place;
+plan-selected scalar GPR/vector and flat HFA results use matching stores, with
+layout and page-fixup offsets accounting for each result tail.
 
 AArch64 `TableFunction` compatibility calls use the same plan consumer while
 excluding their dispatch-only table pointer from the AAPCS64 signature. The
 declared arguments therefore begin in `x0`/`v0`; after marshalling, emission
 loads the table from its relocated runtime scalar, reads the layout-resolved
-function into `x16`, and uses `blr x16`. Scalar GPR result stores, layout, and
-argument/table/result page-fixup offsets share the same accounting. Floating
-and aggregate field-model results remain a future slice.
+function into `x16`, and uses `blr x16`. Scalar GPR/vector and flat HFA result
+stores, layout, and argument/table/result page-fixup offsets share the same
+accounting.
 
 Scalar AAPCS64 outbound stack arguments now consume normalized stack offsets:
 the encoder reserves a 16-byte-aligned outgoing area, materializes integer,

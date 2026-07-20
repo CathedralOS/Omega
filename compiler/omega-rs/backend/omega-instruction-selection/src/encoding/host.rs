@@ -176,12 +176,35 @@ pub fn encode_vtable_call_sequence_at_offset<T: InstructionOperandLike>(
         Architecture::Aarch64 => {
             let (arguments, result) = normalized_aarch64_vtable_plan(operands, result_present)?;
             if result_present {
-                aarch64::encode_vtable_call_sequence_at_offset_value_returning_from_operands(
-                    operands.iter().map(aarch64_call_operand),
-                    &arguments,
-                    scalar_result_register(result.as_ref(), "vtable")?,
-                    byte_offset,
-                )
+                let result = result.as_ref().ok_or_else(|| {
+                    Diagnostic::error("AAPCS64 vtable plan omitted its required result")
+                })?;
+                match result.shape.class {
+                    omega_calling_conventions::ValueClass::Integer => {
+                        aarch64::encode_vtable_call_sequence_at_offset_value_returning_from_operands(
+                            operands.iter().map(aarch64_call_operand),
+                            &arguments,
+                            scalar_result_register(Some(result), "vtable")?,
+                            byte_offset,
+                        )
+                    }
+                    omega_calling_conventions::ValueClass::Float => {
+                        aarch64::encode_vtable_call_sequence_at_offset_float_returning_from_operands(
+                            operands.iter().map(aarch64_call_operand),
+                            &arguments,
+                            scalar_result_register(Some(result), "vtable float")?,
+                            byte_offset,
+                        )
+                    }
+                    omega_calling_conventions::ValueClass::HomogeneousFloatAggregate { .. } => {
+                        aarch64::encode_vtable_call_sequence_at_offset_hfa_returning_from_operands(
+                            operands.iter().map(aarch64_call_operand),
+                            &arguments,
+                            result,
+                            byte_offset,
+                        )
+                    }
+                }
             } else {
                 debug_assert!(result.is_none());
                 aarch64::encode_vtable_call_sequence_at_offset_from_operands(
@@ -220,15 +243,38 @@ pub fn encode_table_function_call_sequence<T: InstructionOperandLike>(
         Architecture::Aarch64 => {
             let (arguments, result) =
                 normalized_aarch64_table_function_plan(operands, result_present)?;
-            aarch64::encode_table_function_call_sequence_from_operands(
-                operands.iter().map(aarch64_call_operand),
-                &arguments,
-                result
-                    .as_ref()
-                    .map(|result| scalar_result_register(Some(result), "table-function"))
-                    .transpose()?,
-                byte_offset,
-            )
+            match result.as_ref().map(|result| result.shape.class) {
+                None => aarch64::encode_table_function_call_sequence_from_operands(
+                    operands.iter().map(aarch64_call_operand),
+                    &arguments,
+                    None,
+                    byte_offset,
+                ),
+                Some(omega_calling_conventions::ValueClass::Integer) => {
+                    aarch64::encode_table_function_call_sequence_from_operands(
+                        operands.iter().map(aarch64_call_operand),
+                        &arguments,
+                        Some(scalar_result_register(result.as_ref(), "table-function")?),
+                        byte_offset,
+                    )
+                }
+                Some(omega_calling_conventions::ValueClass::Float) => {
+                    aarch64::encode_table_function_call_sequence_float_returning_from_operands(
+                        operands.iter().map(aarch64_call_operand),
+                        &arguments,
+                        scalar_result_register(result.as_ref(), "table-function float")?,
+                        byte_offset,
+                    )
+                }
+                Some(omega_calling_conventions::ValueClass::HomogeneousFloatAggregate {
+                    ..
+                }) => aarch64::encode_table_function_call_sequence_hfa_returning_from_operands(
+                    operands.iter().map(aarch64_call_operand),
+                    &arguments,
+                    result.as_ref().expect("matched present result"),
+                    byte_offset,
+                ),
+            }
         }
         Architecture::X86_64
             if CallingPolicy::native_for_target(target) == CallingPolicy::MicrosoftX64 =>
@@ -434,20 +480,8 @@ pub fn normalized_aarch64_vtable_plan<T: InstructionOperandLike>(
             "AAPCS64 vtable call requires one full-width receiver in x0",
         ));
     }
-    if let Some(result) = result.as_ref()
-        && !matches!(
-            result.locations.as_slice(),
-            [ValueLocation::Register {
-                register: MachineRegister::Aarch64X(_),
-                value_byte_offset: 0,
-                ..
-            }]
-        )
-    {
-        return Err(Diagnostic::error(format!(
-            "AAPCS64 scalar vtable result is not in one general-purpose register: {:?}",
-            result.locations
-        )));
+    if let Some(result) = result.as_ref() {
+        validate_aarch64_field_result(result, "vtable")?;
     }
     Ok((placements, result))
 }
@@ -490,22 +524,50 @@ pub fn normalized_aarch64_table_function_plan<T: InstructionOperandLike>(
         false,
     )?;
     debug_assert_eq!(result.is_some(), result_present);
-    if let Some(result) = result.as_ref()
-        && !matches!(
+    if let Some(result) = result.as_ref() {
+        validate_aarch64_field_result(result, "table-function")?;
+    }
+    Ok((placements, result))
+}
+
+fn validate_aarch64_field_result(result: &ValuePlacement, label: &str) -> Result<(), Diagnostic> {
+    let locations_match = match result.shape.class {
+        omega_calling_conventions::ValueClass::Integer => matches!(
             result.locations.as_slice(),
             [ValueLocation::Register {
                 register: MachineRegister::Aarch64X(_),
                 value_byte_offset: 0,
                 ..
             }]
-        )
-    {
+        ),
+        omega_calling_conventions::ValueClass::Float => matches!(
+            result.locations.as_slice(),
+            [ValueLocation::Register {
+                register: MachineRegister::Aarch64V(_),
+                value_byte_offset: 0,
+                ..
+            }]
+        ),
+        omega_calling_conventions::ValueClass::HomogeneousFloatAggregate { members } => {
+            result.locations.len() == usize::from(members)
+                && result.locations.iter().all(|location| {
+                    matches!(
+                        location,
+                        ValueLocation::Register {
+                            register: MachineRegister::Aarch64V(_),
+                            ..
+                        }
+                    )
+                })
+        }
+    };
+    if !locations_match {
         return Err(Diagnostic::error(format!(
-            "AAPCS64 scalar table-function result is not in one general-purpose register: {:?}",
-            result.locations
+            "AAPCS64 {label} result shape {:?} has unsupported placement {:?}",
+            result.shape, result.locations
         )));
     }
-    Ok((placements, result))
+    Ok(())
 }
 
 pub fn aarch64_host_call_stack_prefix_width_for_placements(
@@ -1112,32 +1174,6 @@ mod aarch64_import_plan_tests {
                 byte_size: 8,
             }]
         ));
-
-        let bytes = encode_vtable_call_sequence_at_offset(
-            omega_target::NativeTarget::linux_arm64(),
-            &operands,
-            24,
-            true,
-        )
-        .expect("encode AAPCS64 vtable field result");
-        assert_eq!(
-            bytes.len(),
-            crate::vtable_call_sequence_width_at_offset(
-                omega_target::NativeTarget::linux_arm64(),
-                &operands,
-                24,
-                true,
-            )
-        );
-        assert_eq!(
-            crate::vtable_call_sequence_width_at_offset(
-                omega_target::NativeTarget::linux_arm64(),
-                &operands,
-                32_768,
-                true,
-            ),
-            0
-        );
     }
 
     #[test]
@@ -1182,6 +1218,32 @@ mod aarch64_import_plan_tests {
                 byte_size: 8,
             }]
         ));
+
+        let bytes = encode_vtable_call_sequence_at_offset(
+            omega_target::NativeTarget::linux_arm64(),
+            &operands,
+            24,
+            true,
+        )
+        .expect("encode AAPCS64 vtable field result");
+        assert_eq!(
+            bytes.len(),
+            crate::vtable_call_sequence_width_at_offset(
+                omega_target::NativeTarget::linux_arm64(),
+                &operands,
+                24,
+                true,
+            )
+        );
+        assert_eq!(
+            crate::vtable_call_sequence_width_at_offset(
+                omega_target::NativeTarget::linux_arm64(),
+                &operands,
+                32_768,
+                true,
+            ),
+            0
+        );
     }
 
     #[test]
@@ -1254,6 +1316,73 @@ mod aarch64_import_plan_tests {
             crate::table_function_call_sequence_width(
                 omega_target::NativeTarget::linux_arm64(),
                 &operands,
+                24,
+                true,
+            )
+        );
+    }
+
+    #[test]
+    fn field_model_vector_results_match_layout_widths() {
+        let vtable_operands = [
+            operand(TargetInstructionOperandKind::RuntimeScalarFloat {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 32,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 8,
+            }),
+        ];
+        let vtable_bytes = encode_vtable_call_sequence_at_offset(
+            omega_target::NativeTarget::linux_arm64(),
+            &vtable_operands,
+            24,
+            true,
+        )
+        .expect("encode float-returning AAPCS64 vtable field");
+        assert_eq!(vtable_bytes.len(), 36);
+        assert_eq!(
+            vtable_bytes.len(),
+            crate::vtable_call_sequence_width_at_offset(
+                omega_target::NativeTarget::linux_arm64(),
+                &vtable_operands,
+                24,
+                true,
+            )
+        );
+
+        let table_operands = [
+            operand(
+                TargetInstructionOperandKind::RuntimeHomogeneousFloatAggregate {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 64,
+                    member_byte_count: 8,
+                    members: 2,
+                },
+            ),
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 40,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::ImmediateInteger(7)),
+        ];
+        let table_bytes = encode_table_function_call_sequence(
+            omega_target::NativeTarget::linux_arm64(),
+            &table_operands,
+            24,
+            true,
+        )
+        .expect("encode HFA-returning AAPCS64 table function");
+        assert_eq!(table_bytes.len(), 48);
+        assert_eq!(
+            table_bytes.len(),
+            crate::table_function_call_sequence_width(
+                omega_target::NativeTarget::linux_arm64(),
+                &table_operands,
                 24,
                 true,
             )
