@@ -1,0 +1,42 @@
+// RUN CANARY (exit 70) + interpreter differential. Multi-subject case
+// exhaustiveness is a CARTESIAN proof: these three boxes cover every
+// (Direction, Outcome, bool) triple without a `_` arm. A pure case-union
+// domain is a finite subset on one axis; the held triple selects its SECOND
+// member, pinning mixed-domain lowering as well as the proof.
+use omega::language::std::console;
+
+data Direction {
+    case Left;
+    case Right;
+    case Up;
+}
+
+domain Direction::Horizontal when self in Direction::Left | Direction::Right;
+
+data Outcome {
+    case Miss;
+    case Hit;
+}
+
+data Main {
+    console: Console;
+    direction: Direction;
+    result: Outcome;
+    approved: bool;
+}
+
+machine Main::main(&mut self) {
+    self.direction = Direction::Right;
+    self.result = Outcome::Hit;
+    self.approved = false;
+    transition (self.direction, self.result, self.approved) {
+        (Direction::Horizontal, _, _) -> right()
+        (Direction::Up, Outcome::Hit, true) -> wrong()
+        (Direction::Up, Outcome::Hit, false) -> wrong()
+        (Direction::Up, Outcome::Miss, true) -> wrong()
+        (Direction::Up, Outcome::Miss, false) -> wrong()
+    }
+
+    state right(&mut self) { self.console.exit_process(70); }
+    state wrong(&mut self) { self.console.exit_process(71); }
+}
