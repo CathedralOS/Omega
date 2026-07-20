@@ -91,8 +91,11 @@ The normalized validator is live in `omega-access-plans`: entries are keyed by
 layout field name; exact-width accesses must fit one fixed placement/container;
 external access must pin reach; exported external RMW rejects; atomic and
 ordinary permissions cannot be conflated; and operation authorization preserves
-shared-read/exclusive-write polarity. Omega source records, extent-provenance
-agreement, and sealed accessor/lowering consumers remain.
+shared-read/exclusive-write polarity. Validation now produces sealed,
+offset-bearing field descriptors, and borrow-specific authorization produces
+the only values primitive lowering may accept. Omega source records,
+extent-provenance agreement, source-level borrow-carrying access values, and
+the exact primitive lowering remain.
 
 ## Codecs are hand-written and proved
 
