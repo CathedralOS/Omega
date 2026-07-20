@@ -1,0 +1,17 @@
+// N5: Real is an ordinary opaque core package. Claim-free operations create
+// symbolic terms; separately accepted laws are cited explicitly.
+
+use omega::language::core::real;
+use omega::language::std::console;
+
+data Main { console: Console; }
+
+machine commute_real_add(a: Real, b: Real)
+ensures Real::add(a, b) == Real::add(b, a)
+{
+    real_add_commutative(a, b);
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}

@@ -12,12 +12,16 @@ Numeric literals are typed by suffix or context.
 ```omega
 let machine_value: i32 = 3i32;
 let proof_value: Nat = 3nat;
-let real_value: Real = 3.0real;
+let machine_float: f64 = 3.0f64;
 ```
 
-Machine numeric types such as `i32` and `u64` carry representation and overflow
-obligations. Proof numeric types such as `Nat`, `Int`, and `Real` are
-mathematical values.
+Machine numeric types such as `i32`, `u64`, `f32`, and `f64` carry
+representation, rounding, and overflow obligations. Proof numeric types such
+as `Nat`, `Int`, and `Real` are mathematical values. `Real` is an ordinary
+opaque `omega::core` declaration, currently supplied by
+`omega::language::core::real` during the axiomatic N5 stage. It is neither a
+compiler numeric primitive nor a standard-library/runtime literal format;
+values and laws enter through that package's explicit proof surface.
 
 ## Assignment
 
@@ -282,7 +286,7 @@ Working categories:
 
 - `UInt` is a proof-level natural number.
 - `Int` is a proof-level integer.
-- `Real` is a proof-level real number.
+- `Real` is the ordinary core package's proof-level real-number carrier.
 - `i32`, `u64`, `f32`, and similar types are concrete machine representations.
 
 Proof-level numbers are useful for specifications, constraints, and generic

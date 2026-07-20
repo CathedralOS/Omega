@@ -430,12 +430,14 @@ the claim outright; one that cannot accepts the narrow execution claim
 above and lifts it by theorem.
 
 Trust has a data face too. `boundary data` declares a type with no
-definition, as `boundary machine` declares a contract with no body:
+definition, as `boundary machine` declares a contract with no body. The N5
+`omega::language::core::real` package is an ordinary core declaration built
+from this surface; its relevant contents are:
 
 ```omega
 boundary data Real;                                    // opaque proof-only carrier
 boundary machine Real::add(a: Real, b: Real) -> Real;  // no ensures: a symbol — claims nothing
-boundary machine add_comm(a: Real, b: Real)
+boundary machine real_add_commutative(a: Real, b: Real)
 ensures Real::add(a, b) == Real::add(b, a);            // an axiom: one trust row
 ```
 

@@ -1,0 +1,20 @@
+// Core Real, N5's temporary axiomatic surface.
+//
+// Real is deliberately an ORDINARY omega::core declaration, not a compiler
+// numeric primitive, standard-library convenience, or runtime float format.
+// The opaque carrier has no layout.
+// Its claim-free operations merely introduce proof symbols; each law is a
+// separate accepted declaration and therefore a separate trust row.  N6/N8
+// can replace this package with the constructive Cauchy quotient without
+// changing consumers' contracts.
+
+boundary data Real;
+
+boundary machine Real::add(a: Real, b: Real) -> Real;
+boundary machine Real::multiply(a: Real, b: Real) -> Real;
+
+boundary machine real_add_commutative(a: Real, b: Real)
+ensures Real::add(a, b) == Real::add(b, a);
+
+boundary machine real_multiply_commutative(a: Real, b: Real)
+ensures Real::multiply(a, b) == Real::multiply(b, a);

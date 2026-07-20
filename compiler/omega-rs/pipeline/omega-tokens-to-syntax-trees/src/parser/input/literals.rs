@@ -61,6 +61,11 @@ pub(super) fn validate_float_literal(
     if kind.empty_exponent {
         return Err("invalid float literal");
     }
+    if text.ends_with("real") || text.ends_with("Real") {
+        return Err(
+            "the `real` literal suffix is retired; use an explicit f32/f64 format or a core Real embedding machine",
+        );
+    }
     if kind.has_suffix {
         strip_float_suffix(text)?;
     }
@@ -103,4 +108,23 @@ const INTEGER_SUFFIXES: &[(&str, Option<LandedIntegerType>)] = &[
     ("u64", Some(LandedIntegerType::U64)),
 ];
 
-const FLOAT_SUFFIXES: &[&str] = &["real", "Real", "f32", "f64"];
+const FLOAT_SUFFIXES: &[&str] = &["f32", "f64"];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn real_float_suffix_is_retired_with_a_directed_diagnostic() {
+        let error = validate_float_literal(
+            "3.0real",
+            FloatLiteralKind {
+                has_suffix: true,
+                ..FloatLiteralKind::default()
+            },
+        )
+        .expect_err("Real is an ordinary core carrier, not a literal landing");
+
+        assert!(error.contains("`real` literal suffix is retired"));
+    }
+}

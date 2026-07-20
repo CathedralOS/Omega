@@ -1,17 +1,16 @@
 use super::{SymbolKind, SymbolNameRef};
 
-pub const BUILTIN_TYPE_COUNT: usize = 25;
+pub const BUILTIN_TYPE_COUNT: usize = 24;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuiltinType {
     UInt,
     Int,
-    Real,
 }
 
 impl BuiltinType {
     pub fn from_name(name: &str) -> Option<Self> {
-        [Self::UInt, Self::Int, Self::Real]
+        [Self::UInt, Self::Int]
             .into_iter()
             .find(|builtin_type| builtin_type.name() == name)
     }
@@ -20,7 +19,6 @@ impl BuiltinType {
         match self {
             Self::UInt => "UInt",
             Self::Int => "Int",
-            Self::Real => "Real",
         }
     }
 
@@ -33,7 +31,6 @@ impl BuiltinType {
         match self {
             Self::UInt => 18,
             Self::Int => 19,
-            Self::Real => 20,
         }
     }
 }
@@ -258,10 +255,6 @@ pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BUILTIN_
             SymbolKind::BuiltinType,
             SymbolNameRef::Static(BuiltinType::Int.name()),
         ),
-        (
-            SymbolKind::BuiltinType,
-            SymbolNameRef::Static(BuiltinType::Real.name()),
-        ),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("string")),
         // Atomic types (chapter 17, concurrency stage 1). Layout matches the
         // underlying primitive; the type name is retained so atomic method
@@ -367,37 +360,10 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
     ]
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuiltinTypeMember {
-    RealFrom,
-}
-
-impl BuiltinTypeMember {
-    pub fn owner(self) -> BuiltinType {
-        match self {
-            Self::RealFrom => BuiltinType::Real,
-        }
-    }
-
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::RealFrom => "from",
-        }
-    }
-}
-
 pub fn builtin_type_member_symbols(
-    builtin_type: BuiltinType,
+    _builtin_type: BuiltinType,
 ) -> impl Iterator<Item = (SymbolKind, SymbolNameRef<'static>)> {
-    [BuiltinTypeMember::RealFrom]
-        .into_iter()
-        .filter(move |member| member.owner() == builtin_type)
-        .map(|member| {
-            (
-                SymbolKind::BuiltinFunction,
-                SymbolNameRef::Static(member.name()),
-            )
-        })
+    std::iter::empty()
 }
 
 #[cfg(test)]
@@ -410,9 +376,10 @@ mod builtin_ordinal_tests {
         // BuiltinType::ordinal() hardcodes positions and silently breaks
         // when the table gains or loses entries (the usize retirement
         // shifted UInt/Int/Real by two and layout resolution failed with
-        // "unknown layout-bearing type `UInt`").
+        // "unknown layout-bearing type `UInt`"). `Real` is deliberately an
+        // ordinary core package, not part of this table.
         let table = builtin_type_symbols();
-        for builtin_type in [BuiltinType::UInt, BuiltinType::Int, BuiltinType::Real] {
+        for builtin_type in [BuiltinType::UInt, BuiltinType::Int] {
             assert_eq!(
                 table[builtin_type.ordinal()].1.as_str(),
                 builtin_type.name(),

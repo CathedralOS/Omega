@@ -1292,6 +1292,22 @@ fn validate_machine_call_type_parameter_bounds(
     current_state: Option<&State>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // A claim-free bodyless boundary declaration is a SYMBOL for contracts,
+    // not an executable provider.  It has neither checked code nor a `via`
+    // realization, so allowing an ordinary body call would turn "introduces
+    // no fact" into a hidden runtime implementation hole.  Contract
+    // expressions are not body call sites and remain free to name the symbol.
+    if callee_machine.supply_mode == omega_core::semantics::MachineSupplyMode::Boundary
+        && program
+            .statement_table
+            .statements(callee_state.statement_nodes)
+            .is_empty()
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "bodyless boundary symbol `{target_name}` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider"
+        )));
+    }
+
     let type_parameters = program.machine_type_parameters(callee_machine);
     if type_parameters.is_empty() {
         return;

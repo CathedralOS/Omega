@@ -73,7 +73,25 @@ pub(crate) fn lower_machine_into(
             .find_map(|clause| clause.via.as_ref())
             .map(|binding| binding.normalized_rendering());
         if machine.bodyless && machine.boundary {
-            omega_core::semantics::MachineSupplyMode::Accepted
+            // A bodyless boundary declaration is ACCEPTED only when it
+            // actually authors a fact. Claim-free symbols such as the
+            // axiomatic Real package's operations assert nothing and need no
+            // grant; they remain ordinary boundary supply.
+            let authors_fact = syntax_trees
+                .items
+                .capability_contracts(machine.contracts)
+                .iter()
+                .any(|contract| {
+                    matches!(
+                        contract.kind,
+                        omega_syntax_trees::item::CapabilityContractKind::Ensures
+                    ) && !contract.facts.is_empty()
+                });
+            if authors_fact {
+                omega_core::semantics::MachineSupplyMode::Accepted
+            } else {
+                omega_core::semantics::MachineSupplyMode::Boundary
+            }
         } else if let (true, Some(rendering)) = (machine.bodyless, &via_rendering) {
             omega_core::semantics::MachineSupplyMode::ExternalRealization {
                 binding: lowerer
@@ -140,11 +158,11 @@ fn build_termination_plan(
 ) -> omega_core::semantics::MachineTerminationPlan {
     use omega_core::semantics::{MachineTerminationPlan, RankingWitness, TerminationGuarantee};
 
-    let published = machine.terminates_guarantee.then(|| {
-        TerminationGuarantee::EventualTerminal {
+    let published = machine
+        .terminates_guarantee
+        .then(|| TerminationGuarantee::EventualTerminal {
             premises: Vec::new(),
-        }
-    });
+        });
 
     let subjects = syntax_trees
         .expressions
