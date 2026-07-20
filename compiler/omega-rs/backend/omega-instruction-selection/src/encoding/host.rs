@@ -43,6 +43,7 @@ pub(super) fn normalized_syscall_registers(
     let plan = evaluate_call_plan(policy, &signature).map_err(|error| {
         Diagnostic::error(format!("cannot evaluate syscall call plan: {error}"))
     })?;
+    let (number, immediate) = validate_normalized_syscall_plan(architecture, &plan)?;
     let parameters = plan
         .parameters
         .iter()
@@ -54,6 +55,22 @@ pub(super) fn normalized_syscall_registers(
         .as_ref()
         .map(|placement| full_width_register(&placement.locations, "result", 0))
         .transpose()?;
+    Ok(NormalizedSyscallRegisters {
+        parameters,
+        result,
+        number,
+        immediate,
+    })
+}
+
+fn validate_normalized_syscall_plan(
+    architecture: Architecture,
+    plan: &CallPlan,
+) -> Result<(MachineRegister, u16), Diagnostic> {
+    let expected_policy = match architecture {
+        Architecture::Aarch64 => CallingPolicy::LinuxSyscallAarch64,
+        Architecture::X86_64 => CallingPolicy::LinuxSyscallX86_64,
+    };
     let EntryControl::SupervisorCall {
         number_register,
         immediate,
@@ -63,12 +80,42 @@ pub(super) fn normalized_syscall_registers(
             "normalized syscall plan did not select supervisor-call entry control",
         ));
     };
-    Ok(NormalizedSyscallRegisters {
-        parameters,
-        result,
-        number: number_register,
-        immediate,
-    })
+    if plan.policy != expected_policy
+        || plan.stack_alignment != 16
+        || plan.shadow_bytes != 0
+        || (architecture == Architecture::X86_64 && immediate != 0)
+    {
+        return Err(Diagnostic::error(format!(
+            "syscall encoder cannot realize plan policy={:?}, control={:?}, alignment={}, shadow_bytes={}",
+            plan.policy, plan.entry_control, plan.stack_alignment, plan.shadow_bytes
+        )));
+    }
+
+    let fixed_scratch = match architecture {
+        Architecture::Aarch64 => &[][..],
+        Architecture::X86_64 => &[MachineRegister::X86Rax, MachineRegister::X86R11][..],
+    };
+    for scratch in fixed_scratch.iter().copied().chain([number_register]) {
+        if !plan.ordinary_clobbers.contains(scratch) {
+            return Err(Diagnostic::error(format!(
+                "syscall encoder scratch register {scratch:?} exceeds the plan's ordinary-clobber ceiling"
+            )));
+        }
+    }
+    if plan.parameters.iter().any(|placement| {
+        placement.locations.iter().any(|location| {
+            matches!(
+                location,
+                ValueLocation::Register { register, .. } if *register == number_register
+            )
+        })
+    }) {
+        return Err(Diagnostic::error(format!(
+            "syscall number register {number_register:?} overlaps a parameter placement"
+        )));
+    }
+
+    Ok((number_register, immediate))
 }
 
 fn full_width_register(
@@ -752,6 +799,58 @@ pub fn encode_return_register_integer_write_bytes(
             let byte_count = bytes.len();
             Ok((bytes, byte_count))
         }
+    }
+}
+
+#[cfg(test)]
+mod syscall_plan_contract_tests {
+    use super::*;
+    use omega_calling_conventions::RegisterSet;
+
+    #[test]
+    fn normalized_syscall_plans_cover_their_encoder_scratch() {
+        for (architecture, policy) in [
+            (Architecture::X86_64, CallingPolicy::LinuxSyscallX86_64),
+            (Architecture::Aarch64, CallingPolicy::LinuxSyscallAarch64),
+        ] {
+            let plan = evaluate_call_plan(policy, &CallSignature::default())
+                .expect("baseline syscall plan");
+            validate_normalized_syscall_plan(architecture, &plan)
+                .expect("encoder scratch is inside the plan ceiling");
+        }
+    }
+
+    #[test]
+    fn syscall_plan_rejects_scratch_above_its_clobber_ceiling() {
+        let mut plan = evaluate_call_plan(
+            CallingPolicy::LinuxSyscallAarch64,
+            &CallSignature::default(),
+        )
+        .expect("baseline AArch64 syscall plan");
+        plan.ordinary_clobbers = RegisterSet::new(
+            plan.ordinary_clobbers
+                .as_slice()
+                .iter()
+                .copied()
+                .filter(|register| *register != MachineRegister::Aarch64X(8)),
+        );
+
+        let error = validate_normalized_syscall_plan(Architecture::Aarch64, &plan)
+            .expect_err("number-register scratch above ceiling must reject");
+        assert!(error.message.contains("Aarch64X(8)"));
+        assert!(error.message.contains("ordinary-clobber ceiling"));
+    }
+
+    #[test]
+    fn syscall_plan_rejects_an_incompatible_stack_contract() {
+        let mut plan =
+            evaluate_call_plan(CallingPolicy::LinuxSyscallX86_64, &CallSignature::default())
+                .expect("baseline x86 syscall plan");
+        plan.stack_alignment = 32;
+
+        let error = validate_normalized_syscall_plan(Architecture::X86_64, &plan)
+            .expect_err("unsupported stack alignment must reject");
+        assert!(error.message.contains("alignment=32"));
     }
 }
 

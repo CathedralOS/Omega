@@ -424,13 +424,13 @@ pub fn encode_syscall_sequence_from_operands(
         operands.clone(),
         syscall_number,
     ));
-    append_syscall_operands(&mut bytes, operands, argument_registers)?;
     let omega_calling_conventions::MachineRegister::Aarch64X(number_register) = number_register
     else {
         return Err(Diagnostic::error(format!(
             "AArch64 syscall plan selected non-GPR number register {number_register:?}"
         )));
     };
+    append_syscall_operands(&mut bytes, operands, argument_registers, number_register)?;
     append_unsigned_immediate(&mut bytes, number_register, u64::from(syscall_number));
     bytes.extend(encode_svc(supervisor_call));
     Ok(bytes)
@@ -440,6 +440,7 @@ fn append_syscall_operands(
     bytes: &mut Vec<u8>,
     operands: impl Iterator<Item = Aarch64CallOperand>,
     argument_registers: &[omega_calling_conventions::MachineRegister],
+    number_register: u8,
 ) -> Result<(), Diagnostic> {
     let operands = operands.collect::<Vec<_>>();
     if operands.len() != argument_registers.len() {
@@ -514,13 +515,13 @@ fn append_syscall_operands(
                     register,
                     byte_offset,
                     byte_count,
-                    9,
+                    number_register,
                 )?;
             }
             RuntimeStorageAddress { byte_offset } => {
                 bytes.extend(encode_adrp_placeholder(register));
                 bytes.extend(encode_add_page_offset_placeholder(register));
-                append_add_x_constant(bytes, register, register, byte_offset, 9)?;
+                append_add_x_constant(bytes, register, register, byte_offset, number_register)?;
             }
             ByteLength(value) => append_unsigned_immediate(bytes, register, value as u64),
             RuntimeScalarFloat { .. } => {
@@ -557,6 +558,34 @@ mod syscall_plan_register_tests {
         assert_eq!(&bytes[0..4], &0xd280_00e3u32.to_le_bytes());
         assert_eq!(&bytes[4..8], &0xd280_080cu32.to_le_bytes());
         assert_eq!(&bytes[8..12], &0xd400_00a1u32.to_le_bytes());
+    }
+
+    #[test]
+    fn large_syscall_operand_offsets_reuse_the_number_register_as_scratch() {
+        let bytes = encode_syscall_sequence(
+            &[Aarch64CallOperand::RuntimeScalarInteger {
+                byte_offset: 0x1_0000,
+                byte_count: 8,
+            }],
+            64,
+            &[MachineRegister::Aarch64X(0)],
+            MachineRegister::Aarch64X(12),
+            0,
+        )
+        .expect("large-offset syscall argument");
+
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == 0xf2a0_002cu32.to_le_bytes()),
+            "the large offset must materialize in plan-selected x12"
+        );
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == 0x8b0c_000cu32.to_le_bytes()),
+            "the address add must remain in plan-selected x12"
+        );
     }
 }
 

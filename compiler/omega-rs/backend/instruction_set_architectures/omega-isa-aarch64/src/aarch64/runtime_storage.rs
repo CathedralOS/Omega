@@ -5317,7 +5317,20 @@ pub(in crate::aarch64) fn append_load_data_from_x_offset(
         }
     } else {
         bytes.extend(encode_move_x_register(scratch_register, base_register));
-        append_add_constant_to_x_register(bytes, scratch_register, byte_offset)?;
+        if scratch_register == base_register || byte_offset <= 4095 {
+            append_add_constant_to_x_register(bytes, scratch_register, byte_offset)?;
+        } else {
+            // Preserve the historical leading-move width, but keep the actual
+            // address formation inside the caller-supplied scratch contract.
+            // The base is still intact, so the scratch may hold the constant
+            // directly; no hidden x19/x26 register enters boundary marshalling.
+            append_unsigned_immediate(bytes, scratch_register, byte_offset as u64);
+            bytes.extend(encode_add_x_register(
+                scratch_register,
+                base_register,
+                scratch_register,
+            ));
+        }
         match byte_size {
             1 | 2 | 4 => bytes.extend(encode_load_w_from_x(
                 destination_register,

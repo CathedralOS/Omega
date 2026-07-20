@@ -45,8 +45,13 @@ the compatibility path without panicking the compiler. Generic Linux syscall
 leaves now evaluate the normalized syscall policy at emission and pass its
 exact parameter registers, number register, and supervisor-call immediate into
 both ISA encoders; the legacy binding fields no longer choose those facts on
-that path. Composite
-runtime-text byte and line syscalls now consume the same normalized placements:
+that path. The normalization seam also enforces policy, supervisor-call control,
+stack/shadow facts, and the encoder scratch/clobber ceiling. Runtime-storage
+x86-64 syscall arguments now stage through volatile `r11`/`rax` instead of
+silently destroying callee-saved `r15`; AArch64 large-offset marshalling reuses
+the plan-selected `x8` number register, which the plan now declares clobbered.
+Composite runtime-text byte and line syscalls now consume the same normalized
+placements:
 the AArch64 encoders honor the plan-selected registers and supervisor-call
 immediate, while the fixed x86-64 sequences reject plans they cannot realize
 instead of silently choosing an ABI. AArch64 C/import calls and their results
@@ -100,7 +105,10 @@ ceiling derived exactly from the ABI volatile-register classes.
    x86-64 host operations are now plan-checked through their actual foreign
    signatures, as are the dedicated runtime line/byte Windows sequences.
    Compatibility syscall rows are differentially checked against normalized
-   number-register and supervisor-call facts on both Linux architectures.
+   number-register and supervisor-call facts on both Linux architectures; the
+   generic encoders additionally reject incompatible policy/control/stack/
+   shadow/clobber contracts and keep all marshalling scratch inside the
+   normalized ordinary-clobber ceiling.
    Scalar AAPCS64 outbound stack placements now reserve aligned outgoing space,
    materialize integer/pointer or float values through caller-saved scratch
    registers, store at plan-selected offsets, restore SP after the call, and
