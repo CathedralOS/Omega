@@ -235,8 +235,17 @@ mints a sealed field descriptor containing the plan-derived container offset;
 successful operation authorization combines that descriptor with borrow
 polarity and the selected operation. Primitive lowering accepts only this
 authorized value, never an author-supplied offset. Source-policy evaluation,
-extent-provenance agreement, source-level borrow-carrying access values, and
-the exact external/atomic lowering remain.
+source-level borrow-carrying access values, and the exact external/atomic
+lowering remain.
+
+The normalized Extent/AccessPlan join is also live. A reusable
+provider-admitted placed-view grant pins address space, provenance, required
+open-set rights, and permitted static reaches. Derivation checks those facts
+and layout size against an actual borrow-carrying Extent loan. Field operation
+authorization then derives shared/exclusive polarity from that loan rather
+than accepting a caller claim, and its sealed lowering value remains borrowed
+from the view. Omega source projection and target-specific primitive emission
+remain.
 
 The extent's provenance gates construction of an access capability. The
 accessor's normalized contract statically pins service reach. Runtime
@@ -596,11 +605,11 @@ and the concrete interrupt state policy remain. Remaining order:
    destination-authority mapping and provider reclamation. Root admission,
    exact split geometry, open-set attenuation, common-split-lineage merge, and
    borrow-polarity loans are already checked.
-4. Connect the implemented normalized `AccessPlan` validator and its sealed
-   field/operation authorization values to Omega-authored
-   policies and extent provenance, derive sealed field-access values, and lower
-   exact external/atomic primitives. Geometry, policy compatibility, static
-   reach, and borrow-polarity authorization are already checked.
+4. Connect the implemented normalized `AccessPlan`/Extent join and sealed
+   field-operation values to Omega-authored policies and source projections,
+   then lower exact external/atomic primitives. Geometry, provenance, space,
+   rights, size, static reach, and loan-derived borrow polarity are already
+   checked.
 5. Connect `Calling<C>` to evaluated boundary-plan identity, migrate lowering
    to the normalized plans, constrain codegen, emit footprint evidence, and
    validate final artifacts.

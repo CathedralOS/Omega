@@ -7,6 +7,7 @@
 
 use std::collections::BTreeSet;
 
+use omega_extents::{AddressSpaceId, ExtentLoan, ExtentProvenanceId, ExtentRights, LoanPolarity};
 use omega_layout_plans::{LayoutPlacementReport, LayoutPlanReport};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -168,6 +169,7 @@ impl AuthorizedFieldAccess {
 pub struct ValidatedAccessPlan {
     plan: AccessPlan,
     fields: Vec<FieldAccessDescriptor>,
+    layout_size_bytes: u64,
 }
 
 impl ValidatedAccessPlan {
@@ -185,6 +187,10 @@ impl ValidatedAccessPlan {
 
     pub fn field_descriptors(&self) -> &[FieldAccessDescriptor] {
         &self.fields
+    }
+
+    pub const fn layout_size_bytes(&self) -> u64 {
+        self.layout_size_bytes
     }
 
     pub fn authorize(
@@ -280,6 +286,171 @@ pub fn validate_access_plan(
     Ok(ValidatedAccessPlan {
         plan,
         fields: descriptors,
+        layout_size_bytes: layout_size,
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PlacedViewGrantId(u64);
+
+impl PlacedViewGrantId {
+    pub fn from_normalized_identity(identity: u64) -> Result<Self, AccessPlanDiagnostic> {
+        if identity == 0 {
+            return Err(AccessPlanDiagnostic(
+                "placed-view grant identity cannot be zero".into(),
+            ));
+        }
+        Ok(Self(identity))
+    }
+
+    pub const fn normalized_identity(self) -> u64 {
+        self.0
+    }
+}
+
+/// Provider-admitted agreement between an extent provenance and a static
+/// access policy. It is reusable; the borrow-carrying extent loan supplies the
+/// per-view lifetime and polarity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlacedViewGrant {
+    identity: PlacedViewGrantId,
+    address_space: AddressSpaceId,
+    provenance: ExtentProvenanceId,
+    required_rights: ExtentRights,
+    permitted_reaches: BTreeSet<BoundaryServiceReachId>,
+}
+
+impl PlacedViewGrant {
+    pub fn from_admitted_provider(
+        identity: PlacedViewGrantId,
+        address_space: AddressSpaceId,
+        provenance: ExtentProvenanceId,
+        required_rights: ExtentRights,
+        permitted_reaches: impl IntoIterator<Item = BoundaryServiceReachId>,
+    ) -> Self {
+        Self {
+            identity,
+            address_space,
+            provenance,
+            required_rights,
+            permitted_reaches: permitted_reaches.into_iter().collect(),
+        }
+    }
+
+    pub const fn identity(&self) -> PlacedViewGrantId {
+        self.identity
+    }
+}
+
+/// A plan-qualified interpretation of one borrowed concrete range.
+#[derive(Debug)]
+pub struct PlacedView<'extent, 'plan> {
+    loan: ExtentLoan<'extent>,
+    plan: &'plan ValidatedAccessPlan,
+    grant: PlacedViewGrantId,
+}
+
+impl<'extent, 'plan> PlacedView<'extent, 'plan> {
+    pub const fn grant(&self) -> PlacedViewGrantId {
+        self.grant
+    }
+
+    pub const fn base(&self) -> u64 {
+        self.loan.base()
+    }
+
+    pub const fn length(&self) -> u64 {
+        self.loan.length()
+    }
+
+    pub fn authorize<'view>(
+        &'view self,
+        field: &str,
+        operation: AccessOperation,
+    ) -> Result<PlacedFieldAccess<'view, 'extent>, AccessPlanDiagnostic> {
+        let borrow = match self.loan.polarity() {
+            LoanPolarity::Shared => BorrowPolarity::Shared,
+            LoanPolarity::Exclusive => BorrowPolarity::Exclusive,
+        };
+        let access = self.plan.authorize(field, borrow, operation)?;
+        let primitive_address = self
+            .loan
+            .base()
+            .checked_add(access.descriptor().container_byte_offset())
+            .ok_or_else(|| {
+                AccessPlanDiagnostic(format!(
+                    "field `{field}` primitive address overflows address width"
+                ))
+            })?;
+        Ok(PlacedFieldAccess {
+            access,
+            primitive_address,
+            _loan: &self.loan,
+        })
+    }
+}
+
+/// Sealed lowering input carrying both authorized field geometry and the
+/// actual extent borrow from which its polarity was derived.
+#[derive(Debug)]
+pub struct PlacedFieldAccess<'view, 'extent> {
+    access: AuthorizedFieldAccess,
+    primitive_address: u64,
+    _loan: &'view ExtentLoan<'extent>,
+}
+
+impl PlacedFieldAccess<'_, '_> {
+    pub const fn access(&self) -> &AuthorizedFieldAccess {
+        &self.access
+    }
+
+    pub const fn primitive_address(&self) -> u64 {
+        self.primitive_address
+    }
+}
+
+pub fn derive_placed_view<'extent, 'plan>(
+    loan: ExtentLoan<'extent>,
+    plan: &'plan ValidatedAccessPlan,
+    grant: &PlacedViewGrant,
+) -> Result<PlacedView<'extent, 'plan>, AccessPlanDiagnostic> {
+    if loan.address_space() != grant.address_space {
+        return Err(AccessPlanDiagnostic(
+            "extent address space does not match placed-view grant".into(),
+        ));
+    }
+    if loan.provenance() != grant.provenance {
+        return Err(AccessPlanDiagnostic(
+            "extent provenance does not match placed-view grant".into(),
+        ));
+    }
+    if !loan.rights().contains(&grant.required_rights) {
+        return Err(AccessPlanDiagnostic(
+            "extent lacks rights required by placed-view grant".into(),
+        ));
+    }
+    if loan.length() < plan.layout_size_bytes {
+        return Err(AccessPlanDiagnostic(format!(
+            "{}-byte placed layout exceeds {}-byte extent loan",
+            plan.layout_size_bytes,
+            loan.length()
+        )));
+    }
+    for field in plan.field_descriptors() {
+        if let Some(reach) = field.service_reach()
+            && !grant.permitted_reaches.contains(&reach)
+        {
+            return Err(AccessPlanDiagnostic(format!(
+                "field `{}` reaches a service not admitted for this extent provenance",
+                field.field()
+            )));
+        }
+    }
+
+    Ok(PlacedView {
+        loan,
+        plan,
+        grant: grant.identity,
     })
 }
 
@@ -528,9 +699,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn uart_access_plan_validates_geometry_reach_and_borrow_polarity() {
-        let plan = validate_access_plan(
+    fn uart_access_plan() -> ValidatedAccessPlan {
+        validate_access_plan(
             AccessPlan {
                 entries: vec![
                     AccessFieldEntry {
@@ -561,7 +731,12 @@ mod tests {
             },
             &uart_layout(),
         )
-        .expect("UART plan");
+        .expect("UART plan")
+    }
+
+    #[test]
+    fn uart_access_plan_validates_geometry_reach_and_borrow_polarity() {
+        let plan = uart_access_plan();
 
         let status = plan
             .authorize("status", BorrowPolarity::Shared, AccessOperation::Read)
@@ -754,5 +929,99 @@ mod tests {
         )
         .expect_err("unknown field rejects");
         assert!(error.0.contains("does not exist"));
+    }
+
+    fn extent_id<T>(
+        identity: u64,
+        constructor: fn(u64) -> Result<T, omega_extents::ExtentDiagnostic>,
+    ) -> T {
+        constructor(identity).expect("normalized extent identity")
+    }
+
+    fn extent_rights(identities: &[u64]) -> ExtentRights {
+        ExtentRights::from_normalized_identities(identities.iter().copied().map(|identity| {
+            extent_id(
+                identity,
+                omega_extents::ExtentRightId::from_normalized_identity,
+            )
+        }))
+    }
+
+    fn uart_extent(base: u64, length: u64) -> omega_extents::Extent {
+        omega_extents::ExtentRootGrant::from_admitted_provider(
+            extent_id(1, omega_extents::ExtentLineageId::from_normalized_identity),
+            extent_id(2, AddressSpaceId::from_normalized_identity),
+            extent_rights(&[3, 4]),
+            extent_id(5, ExtentProvenanceId::from_normalized_identity),
+            extent_id(6, omega_extents::MappingEraId::from_normalized_identity),
+        )
+        .mint(base, length)
+        .expect("UART extent")
+    }
+
+    fn uart_view_grant() -> PlacedViewGrant {
+        PlacedViewGrant::from_admitted_provider(
+            PlacedViewGrantId::from_normalized_identity(8).expect("view grant"),
+            extent_id(2, AddressSpaceId::from_normalized_identity),
+            extent_id(5, ExtentProvenanceId::from_normalized_identity),
+            extent_rights(&[3]),
+            [reach()],
+        )
+    }
+
+    #[test]
+    fn placed_view_derives_access_from_extent_provenance_and_actual_borrow() {
+        let plan = uart_access_plan();
+        let grant = uart_view_grant();
+
+        let mut shared_extent = uart_extent(0x1000, 64);
+        let shared_loan = shared_extent.loan(0, 12).expect("shared UART loan");
+        let shared_view =
+            derive_placed_view(shared_loan, &plan, &grant).expect("admitted shared view");
+        let status = shared_view
+            .authorize("status", AccessOperation::Read)
+            .expect("shared read");
+        assert_eq!(status.primitive_address(), 0x1000);
+        assert_eq!(status.access().borrow(), BorrowPolarity::Shared);
+        assert!(
+            shared_view
+                .authorize("transmit", AccessOperation::Write)
+                .is_err()
+        );
+        drop(status);
+        drop(shared_view);
+
+        let exclusive_loan = shared_extent.loan_mut(4, 12).expect("exclusive UART loan");
+        let exclusive_view =
+            derive_placed_view(exclusive_loan, &plan, &grant).expect("admitted exclusive view");
+        let transmit = exclusive_view
+            .authorize("transmit", AccessOperation::Write)
+            .expect("exclusive write");
+        assert_eq!(transmit.primitive_address(), 0x1008);
+        assert_eq!(transmit.access().borrow(), BorrowPolarity::Exclusive);
+    }
+
+    #[test]
+    fn placed_view_rejects_unqualified_extent_or_unadmitted_reach() {
+        let plan = uart_access_plan();
+        let grant = uart_view_grant();
+        let short = uart_extent(0x1000, 8);
+        let short_loan = short.loan(0, 8).expect("short loan");
+        let error =
+            derive_placed_view(short_loan, &plan, &grant).expect_err("layout must fit extent loan");
+        assert!(error.0.contains("exceeds"));
+
+        let extent = uart_extent(0x1000, 64);
+        let loan = extent.loan(0, 12).expect("UART loan");
+        let wrong_reach = PlacedViewGrant::from_admitted_provider(
+            PlacedViewGrantId::from_normalized_identity(9).expect("view grant"),
+            extent_id(2, AddressSpaceId::from_normalized_identity),
+            extent_id(5, ExtentProvenanceId::from_normalized_identity),
+            extent_rights(&[3]),
+            [],
+        );
+        let error = derive_placed_view(loan, &plan, &wrong_reach)
+            .expect_err("service reach must agree with provenance grant");
+        assert!(error.0.contains("not admitted"));
     }
 }

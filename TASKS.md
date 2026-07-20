@@ -301,10 +301,11 @@ before the fix.
   provider-private access, and static service reach. Validation checks fixed
   layout geometry, rejects multi-container one-access laundering and public
   external RMW, and enforces borrow polarity at operation authorization. Add
-  the Omega-authored policy surface, extent-provenance agreement, source-level
-  borrow-carrying access values, and exact external/atomic lowering. Validated
-  geometry now mints sealed offset-bearing field descriptors, and operation
-  authorization mints the only tokens primitive lowering may accept. Never
+  the Omega-authored policy surface, source-level borrow-carrying access
+  values, and exact external/atomic lowering. Provider-admitted placed-view
+  grants now check an actual Extent loan's space, provenance, open-set rights,
+  size, and permitted static reaches; field authorization derives polarity
+  from that loan and mints the only token primitive lowering may accept. Never
   expose arbitrary-offset access or per-access revocation probes.
 - **L6c — symbolic materializer.** The normalized source/action plan and
   loader-versus-post-handoff validation are live. Range/alignment/phase/regime/

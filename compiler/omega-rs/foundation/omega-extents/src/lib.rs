@@ -440,6 +440,20 @@ impl<'a> ExtentLoan<'a> {
             LoanBacking::Exclusive(extent) => &extent.rights,
         }
     }
+
+    pub const fn provenance(&self) -> ExtentProvenanceId {
+        match &self.backing {
+            LoanBacking::Shared(extent) => extent.provenance,
+            LoanBacking::Exclusive(extent) => extent.provenance,
+        }
+    }
+
+    pub const fn era(&self) -> MappingEraId {
+        match &self.backing {
+            LoanBacking::Shared(extent) => extent.era,
+            LoanBacking::Exclusive(extent) => extent.era,
+        }
+    }
 }
 
 impl std::fmt::Debug for ExtentLoan<'_> {

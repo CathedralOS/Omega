@@ -94,8 +94,11 @@ ordinary permissions cannot be conflated; and operation authorization preserves
 shared-read/exclusive-write polarity. Validation now produces sealed,
 offset-bearing field descriptors, and borrow-specific authorization produces
 the only values primitive lowering may accept. Omega source records,
-extent-provenance agreement, source-level borrow-carrying access values, and
-the exact primitive lowering remain.
+source-level borrow-carrying access values, and the exact primitive lowering
+remain. The normalized Extent join is live: provider-admitted grants validate
+space, provenance, open-set rights, loan size, and permitted static reaches;
+operation polarity derives from the actual Extent loan rather than a caller
+argument.
 
 ## Codecs are hand-written and proved
 
