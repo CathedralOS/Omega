@@ -84,15 +84,36 @@ fn vtable_call_sequence_width_with_dispatch<T: InstructionOperandLike>(
 pub fn table_function_call_sequence_width<T: InstructionOperandLike>(
     target: NativeTarget,
     operands: &[T],
+    byte_offset: usize,
     result_present: bool,
 ) -> usize {
     match target.architecture {
-        Architecture::Aarch64 => 0,
+        Architecture::Aarch64 => {
+            let Ok((placements, _)) =
+                crate::normalized_aarch64_table_function_plan(operands, result_present)
+            else {
+                return 0;
+            };
+            let Some(dispatch_width) = aarch64::vtable_call_dispatch_width_at_offset(byte_offset)
+            else {
+                return 0;
+            };
+            operands
+                .iter()
+                .map(|operand| crate::operand_width(Architecture::Aarch64, operand))
+                .sum::<usize>()
+                + aarch64::host_call_stack_total_width_for_placements(&placements)
+                + dispatch_width
+        }
         Architecture::X86_64
             if omega_calling_conventions::CallingPolicy::native_for_target(target)
                 == omega_calling_conventions::CallingPolicy::MicrosoftX64 =>
         {
-            x86_64::win64_table_function_call_width(operands, 0, result_present)
+            x86_64::win64_table_function_call_width(
+                operands,
+                i64::try_from(byte_offset).unwrap_or(i64::MAX),
+                result_present,
+            )
         }
         Architecture::X86_64 => 0,
     }

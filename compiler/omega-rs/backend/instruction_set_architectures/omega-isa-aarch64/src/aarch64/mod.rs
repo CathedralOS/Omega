@@ -125,6 +125,79 @@ pub fn encode_vtable_call_sequence_at_offset_value_returning_from_operands(
     Ok(bytes)
 }
 
+/// AAPCS64 service-table dispatch. The table pointer is a storage operand used
+/// only to find the callee; it is excluded from `argument_placements`, so the
+/// first declared function argument still consumes x0/v0. Operand roles are
+/// `[result?][table][arguments...]`.
+pub fn encode_table_function_call_sequence_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    argument_placements: &[ValuePlacement],
+    result_register: Option<MachineRegister>,
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let all = operands.collect::<Vec<_>>();
+    let table_index = usize::from(result_register.is_some());
+    let Some(table) = all.get(table_index) else {
+        return Err(Diagnostic::error(
+            "AArch64 table-function call has no dispatch table operand",
+        ));
+    };
+    let RuntimeScalarInteger {
+        byte_offset: table_byte_offset,
+        byte_count: 8,
+    } = *table
+    else {
+        return Err(Diagnostic::error(
+            "AArch64 table-function dispatch table did not lower to an eight-byte runtime scalar",
+        ));
+    };
+    let arguments = &all[table_index + 1..];
+    let mut bytes = Vec::with_capacity(
+        host_call_sequence_width_from_operands(all.iter().copied())
+            + host_call_stack_total_width_for_placements(argument_placements)
+            + 4,
+    );
+    let stack_bytes =
+        append_call_operands(&mut bytes, arguments.iter().copied(), argument_placements)?;
+
+    // Materialize the storage region, read its table pointer, then read and
+    // call the layout-selected function pointer. x16/x17 are caller-saved and
+    // already required by the normalized compatibility-plan ceiling.
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_load_data_from_x_offset(&mut bytes, 16, 16, table_byte_offset, 8, 17)?;
+    append_vtable_dispatch_from_register(&mut bytes, 16, byte_offset)?;
+    append_call_stack_restore(&mut bytes, stack_bytes)?;
+
+    if let Some(result_register) = result_register {
+        let Some(RuntimeScalarInteger {
+            byte_offset: result_byte_offset,
+            byte_count,
+        }) = all.first().copied()
+        else {
+            return Err(Diagnostic::error(
+                "AArch64 value-returning table-function result place did not lower to a runtime scalar",
+            ));
+        };
+        let MachineRegister::Aarch64X(result_register) = result_register else {
+            return Err(Diagnostic::error(format!(
+                "AArch64 integer-returning table-function plan selected non-GPR result register {result_register:?}"
+            )));
+        };
+        bytes.extend(encode_adrp_placeholder(16));
+        bytes.extend(encode_add_page_offset_placeholder(16));
+        append_store_data_to_x_offset(
+            &mut bytes,
+            result_register,
+            16,
+            result_byte_offset,
+            byte_count,
+            17,
+        )?;
+    }
+    Ok(bytes)
+}
+
 fn validate_vtable_receiver(argument_placements: &[ValuePlacement]) -> Result<(), Diagnostic> {
     let Some(receiver) = argument_placements.first() else {
         return Err(Diagnostic::error(
@@ -148,7 +221,15 @@ fn validate_vtable_receiver(argument_placements: &[ValuePlacement]) -> Result<()
 }
 
 fn append_vtable_dispatch(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
-    bytes.extend(encode_load_x_from_x(16, 0, byte_offset)?);
+    append_vtable_dispatch_from_register(bytes, 0, byte_offset)
+}
+
+fn append_vtable_dispatch_from_register(
+    bytes: &mut Vec<u8>,
+    table_register: u8,
+    byte_offset: usize,
+) -> Result<(), Diagnostic> {
+    bytes.extend(encode_load_x_from_x(16, table_register, byte_offset)?);
     bytes.extend(encode_instruction(0xd63f_0000 | (16 << 5))); // blr x16
     Ok(())
 }
@@ -916,6 +997,39 @@ mod host_call_plan_register_tests {
         assert_eq!(&bytes[20..24], &encode_instruction(0xd63f_0200));
         assert_eq!(&bytes[24..28], &encode_adrp_placeholder(16));
         assert_eq!(bytes.len(), 36);
+    }
+
+    #[test]
+    fn table_function_keeps_its_table_pointer_out_of_x0() {
+        let operands = [
+            Aarch64CallOperand::RuntimeScalarInteger {
+                byte_offset: 40,
+                byte_count: 8,
+            },
+            Aarch64CallOperand::ImmediateInteger(7),
+        ];
+        let placements = [placement(
+            omega_calling_conventions::ValueShape::integer(8, 8),
+            ValueLocation::Register {
+                register: MachineRegister::Aarch64X(0),
+                value_byte_offset: 0,
+                byte_size: 8,
+            },
+        )];
+        let bytes = encode_table_function_call_sequence_from_operands(
+            operands.into_iter(),
+            &placements,
+            None,
+            24,
+        )
+        .expect("AAPCS64 table-function call");
+
+        assert_eq!(&bytes[0..4], &encode_movz(0, 7));
+        assert_eq!(&bytes[4..8], &encode_adrp_placeholder(16));
+        assert_eq!(&bytes[12..16], &encode_load_x_from_x(16, 16, 40).unwrap());
+        assert_eq!(&bytes[16..20], &encode_load_x_from_x(16, 16, 24).unwrap());
+        assert_eq!(&bytes[20..24], &encode_instruction(0xd63f_0200));
+        assert_eq!(bytes.len(), 24);
     }
 
     #[test]

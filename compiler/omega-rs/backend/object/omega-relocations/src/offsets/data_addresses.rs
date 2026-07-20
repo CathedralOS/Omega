@@ -85,6 +85,53 @@ pub(crate) fn data_address_relocation_offset(
                 );
         }
     }
+
+    // AArch64 dispatch-only service tables marshal only the declared
+    // arguments first, then materialize the table storage operand and read the
+    // function field. The table itself never consumes an AAPCS64 parameter.
+    if architecture == Architecture::Aarch64
+        && let Some(shape) = field_model_shape
+        && !shape.passes_receiver
+        && let Ok((argument_placements, _)) =
+            omega_instruction_selection::normalized_aarch64_table_function_plan(
+                operands,
+                shape.result_present,
+            )
+    {
+        let table_index = usize::from(shape.result_present);
+        let argument_start = table_index + 1;
+        let argument_width = |end: usize| {
+            operands[argument_start..end]
+                .iter()
+                .map(|operand| omega_instruction_selection::operand_width(architecture, operand))
+                .sum::<usize>()
+        };
+        if shape.result_present && operand_index == 0 {
+            return selected_text_offset
+                + argument_width(operands.len())
+                + omega_instruction_selection::operand_width(architecture, &operands[table_index])
+                + omega_instruction_selection::aarch64_host_call_stack_total_width_for_placements(
+                    &argument_placements,
+                )
+                + 8;
+        }
+        if operand_index == table_index {
+            return selected_text_offset
+                + argument_width(operands.len())
+                + omega_instruction_selection::aarch64_host_call_stack_prefix_width_for_placements(
+                    &argument_placements,
+                    argument_placements.len(),
+                );
+        }
+        if operand_index >= argument_start {
+            return selected_text_offset
+                + argument_width(operand_index)
+                + omega_instruction_selection::aarch64_host_call_stack_prefix_width_for_placements(
+                    &argument_placements,
+                    operand_index - argument_start,
+                );
+        }
+    }
     // x86_64 Linux syscalls marshal each argument into its register independently, so
     // the data-address/runtime-storage fixup is the sum of the preceding arguments'
     // marshalling widths plus 2 -- a different layout than the win32 import sequence.
@@ -313,6 +360,60 @@ mod tests {
                 false,
             ),
             20
+        );
+    }
+
+    #[test]
+    fn aarch64_table_pointer_relocation_follows_only_wire_arguments() {
+        let operands = [
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeScalarInteger {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 32,
+                    byte_count: 4,
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeScalarInteger {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 40,
+                    byte_count: 8,
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::ImmediateInteger(7),
+            },
+        ];
+        let shape = Some(FieldModelCallShape {
+            passes_receiver: false,
+            result_present: true,
+        });
+
+        assert_eq!(
+            data_address_relocation_offset(
+                Architecture::Aarch64,
+                None,
+                &operands,
+                20,
+                1,
+                false,
+                shape,
+                false,
+            ),
+            24
+        );
+        assert_eq!(
+            data_address_relocation_offset(
+                Architecture::Aarch64,
+                None,
+                &operands,
+                20,
+                0,
+                false,
+                shape,
+                false,
+            ),
+            44
         );
     }
 }

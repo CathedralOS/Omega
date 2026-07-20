@@ -131,10 +131,13 @@ fn machine_instruction_width(
                 operands.len() > *parameter_count,
             ),
             Some(HostBindingMechanism::TableFunction {
-                parameter_count, ..
+                byte_offset,
+                parameter_count,
+                ..
             }) => table_function_call_sequence_width(
                 input.target,
                 operands,
+                *byte_offset,
                 operands.len() > *parameter_count,
             ),
             _ => host_call_sequence_width(input.target, host_operation.operation_key, operands),
