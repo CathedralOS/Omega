@@ -1,0 +1,24 @@
+use omega::language::std::console;
+
+data Sizes {
+}
+
+const Sizes::SMALL: u64 = 2;
+const Sizes::LARGE: u64 = 4;
+
+data FixedBuffer<const N: u64> {
+    items: [i32 in Wrapping; N];
+}
+
+data Main {
+    console: Console;
+    small: FixedBuffer<Sizes::SMALL>;
+    large: FixedBuffer<Sizes::LARGE>;
+}
+
+machine Main::main(&mut self) {
+    self.small.items[1] = 30;
+    self.large.items[3] = 40;
+    let result: i32 in Wrapping = self.small.items[1] + self.large.items[3];
+    self.console.exit_process(result);
+}

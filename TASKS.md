@@ -697,9 +697,10 @@ No currently isolated correctness bugs are queued here.
 
 - **Lifetimes.** Implement the decision-15 `'name` lifetime arc and borrow-
   carrying data needed by placed views and task storage.
-- **Const data parameters.** Literal arguments now parse in generic type
-  position, validate against the declared integer kind/range, and substitute
-  into fixed-array layout, descriptors, runtime storage, and interpreter
+- **Const data parameters.** Literal and scoped named-integer-const arguments
+  now parse in generic type position, validate against the declared integer
+  kind/range, and substitute into fixed-array layout, descriptors, runtime
+  storage, and interpreter
   defaults; differential canaries pin direct and same-name, symbol-resolved
   forwarded const arguments through indexed storage. Const-specialized plain
   records now give distinct literal instances independent layout identity, and
