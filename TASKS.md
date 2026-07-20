@@ -231,7 +231,7 @@ ceiling derived exactly from the ABI volatile-register classes.
    Fixed-array and text/slice descriptor entry results now wait on the explicit
    native-boundary policy decision in `OWNER_QUESTIONS.md` section 5; byte size
    alone must not silently define their public ABI.
-   Direct scalar binary expressions in host-call argument position now
+   Direct scalar binary and numeric-cast expressions in host-call argument position now
    materialize into bounded per-argument frame scratch before marshalling; a
    native canary pins `exit_process(self.a + self.b)` as exit 70, while nested
    value-call arguments remain fail-closed until call sequencing reaches them.

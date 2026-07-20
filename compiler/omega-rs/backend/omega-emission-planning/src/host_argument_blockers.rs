@@ -105,6 +105,7 @@ fn collect_computed_scalar_argument_blockers(
             if !matches!(
                 input.host_calls.expressions.expression(expression),
                 omega_checked_trees::expression::ExpressionNode::Binary(_)
+                    | omega_checked_trees::expression::ExpressionNode::Cast(_)
             ) {
                 continue;
             }
@@ -119,6 +120,16 @@ fn collect_computed_scalar_argument_blockers(
                                 if target.region
                                     == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
                                     && target.const_offset() == Some(target_offset)
+                        )
+                        || matches!(
+                            instruction.kind,
+                            SelectedInstructionKind::WriteRuntimeStorageConvert {
+                                target_region,
+                                target_offset: actual_offset,
+                                ..
+                            } if target_region
+                                == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                                && actual_offset == target_offset
                         )
                 },
             );
