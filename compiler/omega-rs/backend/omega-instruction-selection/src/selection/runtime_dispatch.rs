@@ -25,6 +25,7 @@ use super::instruction_sink::SelectedInstructionSink;
 use super::lookups::host_call_for_statement;
 use super::storage_places::{
     classify_scalar_value_type_in_table, resolve_runtime_frame_indexed_target_in_table,
+    resolve_runtime_storage_place_in_table,
 };
 use crate::selection::bindings::{RuntimeAliasBuffer, RuntimeAliasResolutionContext};
 pub(super) use branches::{
@@ -394,25 +395,43 @@ pub(in crate::selection) fn select_computed_host_argument_write(
             )?
         }
         ExpressionNode::Indexed(_) => {
-            let indexed = resolve_runtime_frame_indexed_target_in_table(
+            if let Some(place) = resolve_runtime_storage_place_in_table(
                 input,
                 dispatch_index,
                 source_key,
                 expressions,
                 value,
-            )?;
-            if indexed.byte_count != byte_size {
-                return None;
-            }
-            copy_places_from_indexed(
-                indexed.descriptor_offset,
-                indexed.index_offset,
-                indexed.element_byte_size,
-                indexed.field_byte_offset,
-                RuntimeStorageRegion::RuntimeFrame,
-                target_offset,
-                byte_size,
             )
+            .filter(|place| place.byte_count == byte_size)
+            {
+                copy_places_direct(
+                    place.region,
+                    place.byte_offset,
+                    RuntimeStorageRegion::RuntimeFrame,
+                    target_offset,
+                    byte_size,
+                )
+            } else {
+                let indexed = resolve_runtime_frame_indexed_target_in_table(
+                    input,
+                    dispatch_index,
+                    source_key,
+                    expressions,
+                    value,
+                )?;
+                if indexed.byte_count != byte_size {
+                    return None;
+                }
+                copy_places_from_indexed(
+                    indexed.descriptor_offset,
+                    indexed.index_offset,
+                    indexed.element_byte_size,
+                    indexed.field_byte_offset,
+                    RuntimeStorageRegion::RuntimeFrame,
+                    target_offset,
+                    byte_size,
+                )
+            }
         }
         _ => return None,
     };
@@ -464,14 +483,25 @@ pub(in crate::selection) fn computed_host_argument_byte_size(
                 right,
             ))
         }
-        ExpressionNode::Indexed(_) => resolve_runtime_frame_indexed_target_in_table(
+        ExpressionNode::Indexed(_) => resolve_runtime_storage_place_in_table(
             input,
             dispatch_index,
             source_key,
             expressions,
             value,
         )
-        .map(|indexed| indexed.byte_count),
+        .map(|place| place.byte_count)
+        .or_else(|| {
+            resolve_runtime_frame_indexed_target_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                value,
+            )
+            .map(|indexed| indexed.byte_count)
+        })
+        .filter(|byte_count| matches!(byte_count, 1 | 2 | 4 | 8)),
         _ => None,
     }
 }

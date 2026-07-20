@@ -2243,29 +2243,34 @@ fn first_scalar_argument_operand(
         HostCallArgumentKind::Integer(value) => {
             Some(InstructionOperandKind::ImmediateInteger(*value))
         }
-        HostCallArgumentKind::Expression(expression) => resolve_runtime_storage_place_in_table(
-            input,
-            dispatch_index.unwrap_or(0),
-            host_call.source_key,
-            &input.host_calls.expressions,
-            *expression,
-        )
-        .filter(|place| matches!(place.byte_count, 1 | 2 | 4 | 8))
-        .map(|place| InstructionOperandKind::RuntimeScalarInteger {
-            region: place.region,
-            byte_offset: place.byte_offset,
-            byte_count: place.byte_count,
-        })
-        .or_else(|| {
-            machine_value_call_argument_result_place(input, host_call, dispatch_index, 0).map(
-                |place| InstructionOperandKind::RuntimeScalarInteger {
-                    region: place.region,
-                    byte_offset: place.byte_offset,
-                    byte_count: place.byte_count,
-                },
-            )
-        })
-        .or_else(|| computed_scalar_argument_operand(input, host_call, dispatch_index, 0)),
+        HostCallArgumentKind::Expression(expression) => {
+            computed_scalar_argument_operand(input, host_call, dispatch_index, 0)
+                .or_else(|| {
+                    resolve_runtime_storage_place_in_table(
+                        input,
+                        dispatch_index.unwrap_or(0),
+                        host_call.source_key,
+                        &input.host_calls.expressions,
+                        *expression,
+                    )
+                    .filter(|place| matches!(place.byte_count, 1 | 2 | 4 | 8))
+                    .map(|place| {
+                        InstructionOperandKind::RuntimeScalarInteger {
+                            region: place.region,
+                            byte_offset: place.byte_offset,
+                            byte_count: place.byte_count,
+                        }
+                    })
+                })
+                .or_else(|| {
+                    machine_value_call_argument_result_place(input, host_call, dispatch_index, 0)
+                        .map(|place| InstructionOperandKind::RuntimeScalarInteger {
+                            region: place.region,
+                            byte_offset: place.byte_offset,
+                            byte_count: place.byte_count,
+                        })
+                })
+        }
         HostCallArgumentKind::Text(_) => Some(InstructionOperandKind::ImmediateInteger(0)),
     }
 }
@@ -2323,6 +2328,9 @@ fn scalar_argument_operand_at(
                         .map(InstructionOperandKind::ImmediateInteger)
                 })
                 .or_else(|| {
+                    computed_scalar_argument_operand(input, host_call, dispatch_index, index)
+                })
+                .or_else(|| {
                     resolve_runtime_storage_place_in_table(
                         input,
                         dispatch_index.unwrap_or(0),
@@ -2340,9 +2348,6 @@ fn scalar_argument_operand_at(
                         index,
                     )
                     .and_then(scalar_place)
-                })
-                .or_else(|| {
-                    computed_scalar_argument_operand(input, host_call, dispatch_index, index)
                 })
         }
         _ => None,

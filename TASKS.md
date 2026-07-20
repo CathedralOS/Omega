@@ -231,10 +231,12 @@ ceiling derived exactly from the ABI volatile-register classes.
    Fixed-array and text/slice descriptor entry results now wait on the explicit
    native-boundary policy decision in `OWNER_QUESTIONS.md` section 5; byte size
    alone must not silently define their public ABI.
-   Direct scalar binary, numeric-cast, `min`/`max`/`sqrt`, and runtime-indexed
-   slice-element expressions in host-call argument position now materialize
-   into bounded per-argument frame scratch before marshalling, preserving the
-   scalar integer-versus-float register class; a
+   Direct scalar binary, numeric-cast, `min`/`max`/`sqrt`, runtime-indexed
+   slice-element, and fixed-array indexed expressions in host-call argument
+   position now materialize into bounded per-argument frame scratch before
+   marshalling, preserving the scalar integer-versus-float register class.
+   Indexed range expressions remain slice/address arguments and are checked by
+   their descriptor-aware lowering rather than the scalar scratch blocker; a
    native canary pins `exit_process(self.a + self.b)` as exit 70. Direct nested
    authored value calls now participate in call-argument sequencing, execute
    their callee body before the host operation, and marshal from the resulting
@@ -484,14 +486,6 @@ remain contract-invisible.
    calls, with no runtime callable, dictionary, or capture inference. Still add
    the nested proof schemas used by N5/N6, task-runtime machine selection, and
    the remaining build-surface canaries.
-
-## Correctness bugs and missing lowering
-
-- **Computed scalar host arguments.** The aggregate pass corpus currently
-  rejects `collections/runtime_dual_indexed_copy_exit` plus computed path/index
-  operands in `filesystem/repeated_dir_walk_scan_exit` because their scalar
-  arguments do not materialize before platform calls. Restore those lowering
-  paths without weakening the fail-closed host-argument diagnostic.
 
 ## Type, proof, and semantic-model work
 
