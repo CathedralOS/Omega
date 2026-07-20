@@ -20201,6 +20201,32 @@ fn runtime_const_data_multiple_instances_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_const_container_methods_exit_canary_runs() {
+    let canary = pass_canary("generics/runtime_const_container_methods_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-const-container-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("const-specialized container methods should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("const container method canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected const-specialized methods to sum to 70, got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_generic_two_instantiations_exit_canary_runs() {
     // Phase 1: TWO distinct instantiations of `Box<T>` (`Box<i32>` + `Box<bool>`)
     // coexist in one program with native field access on both -- the
@@ -36432,6 +36458,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/runtime_const_data_array_length_exit",
     "generics/runtime_const_data_forwarded_length_exit",
     "generics/runtime_const_data_multiple_instances_exit",
+    "generics/runtime_const_container_methods_exit",
     "generics/runtime_generic_record_instance_exit",
     "generics/runtime_generic_two_instantiations_exit",
     "generics/runtime_generic_enum_payload_exit",

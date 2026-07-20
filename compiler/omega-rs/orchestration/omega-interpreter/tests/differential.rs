@@ -453,6 +453,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("generics/runtime_const_data_array_length_exit", 70),
     ("generics/runtime_const_data_forwarded_length_exit", 70),
     ("generics/runtime_const_data_multiple_instances_exit", 70),
+    ("generics/runtime_const_container_methods_exit", 70),
     ("generics/runtime_generic_two_instantiations_exit", 30),
     ("generics/runtime_generic_domain_instantiations_exit", 42),
     ("generics/runtime_generic_let_local_instantiations_exit", 30),
@@ -1540,6 +1541,23 @@ fn interpreter_runs_multiple_const_data_instances() {
     assert_eq!(
         outcome.error, None,
         "interpreter should support multiple const data instances"
+    );
+    assert_eq!(outcome.exit_code, 70);
+}
+
+#[test]
+fn interpreter_runs_const_container_methods() {
+    let main_path = pass_canary("generics/runtime_const_container_methods_exit").join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "const container methods failed frontend checking:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+    let outcome = interpret(&checked, b"");
+    assert_eq!(
+        outcome.error, None,
+        "interpreter should support const-specialized container methods"
     );
     assert_eq!(outcome.exit_code, 70);
 }
