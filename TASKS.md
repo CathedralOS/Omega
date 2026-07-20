@@ -147,9 +147,12 @@ ceiling derived exactly from the ABI volatile-register classes.
    Nondirect record widths now use the Microsoft hidden-result convention at
    entry: the destination arrives in `rcx`, declared arguments shift by one
    slot, the terminal copies through the preserved pointer, and returns it in
-   `rax`. A 16-byte source canary pins the complete handoff; by-reference
-   Microsoft aggregate parameters remain fail-closed pending their x86 entry
-   copier.
+   `rax`. A 16-byte source canary pins the complete handoff. By-reference
+   Microsoft aggregate entry parameters now consume their positional pointer
+   from `rcx`/`rdx`/`r8`/`r9` or the shadow-relative stack slot and copy the
+   complete pointee into runtime storage. Source-to-PE canaries pin both a
+   register pointer between scalar arguments and the fifth-position stack
+   pointer after the return address and 32-byte shadow space.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
    complete import/vtable/service-table compatibility mechanism matrix is

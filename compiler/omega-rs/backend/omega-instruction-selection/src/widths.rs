@@ -462,7 +462,7 @@ pub fn entry_indirect_argument_write_width(
         Architecture::Aarch64 => {
             aarch64::entry_indirect_argument_write_width(pointer, byte_offset, byte_size)
         }
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::entry_indirect_argument_write_width(pointer, byte_size),
     }
 }
 
@@ -472,7 +472,7 @@ pub fn entry_indirect_argument_frame_base_offset(
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::entry_indirect_argument_frame_base_offset(pointer),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::entry_indirect_argument_frame_base_offset(pointer),
     }
 }
 

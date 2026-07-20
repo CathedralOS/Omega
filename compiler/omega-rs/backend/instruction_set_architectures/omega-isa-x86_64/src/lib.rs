@@ -9,8 +9,8 @@ pub use place_copy::{
 
 use omega_calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, EntryControl, HostCapability, HostOperation,
-    HostOperationKey, MachineRegister, SystemVEightbyteClass, ValueClass, ValueLocation,
-    ValuePlacement, ValueShape, evaluate_call_plan,
+    HostOperationKey, IndirectPointerLocation, MachineRegister, SystemVEightbyteClass, ValueClass,
+    ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan,
 };
 use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::diagnostics::Diagnostic;
@@ -517,6 +517,118 @@ pub fn encode_entry_stack_argument_write_bytes(
     Ok(bytes)
 }
 
+pub fn entry_indirect_argument_write_width(
+    pointer: IndirectPointerLocation,
+    byte_size: usize,
+) -> usize {
+    let pointer_setup = match pointer {
+        IndirectPointerLocation::Register(_) => 3,
+        IndirectPointerLocation::Stack { .. } => 8,
+    };
+    let mut width = pointer_setup + 10;
+    let mut copied = 0usize;
+    while copied < byte_size {
+        let fragment = [8, 4, 2, 1]
+            .into_iter()
+            .find(|fragment| byte_size - copied >= *fragment)
+            .expect("indirect entry copy has bytes remaining");
+        width += 14 + usize::from(fragment == 2) * 2;
+        copied += fragment;
+    }
+    width
+}
+
+pub fn entry_indirect_argument_frame_base_offset(pointer: IndirectPointerLocation) -> usize {
+    match pointer {
+        IndirectPointerLocation::Register(_) => 3,
+        IndirectPointerLocation::Stack { .. } => 8,
+    }
+}
+
+/// Copy one indirectly passed Microsoft x64 aggregate into its runtime-frame
+/// slot. The ABI pointer occupies the argument's positional GPR or stack slot;
+/// r11 preserves it while r10 moves one naturally sized fragment at a time.
+pub fn encode_entry_indirect_argument_write_bytes(
+    pointer: IndirectPointerLocation,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if matches!(byte_size, 0 | 1 | 2 | 4 | 8) {
+        return Err(Diagnostic::error(
+            "Microsoft x64 indirect entry aggregate must have a nondirect record width",
+        ));
+    }
+    let mut bytes = Vec::with_capacity(entry_indirect_argument_write_width(pointer, byte_size));
+    match pointer {
+        IndirectPointerLocation::Register(
+            register @ (MachineRegister::X86Rcx
+            | MachineRegister::X86Rdx
+            | MachineRegister::X86R8
+            | MachineRegister::X86R9),
+        ) => {
+            let register_number = x86_gpr_number(register).expect("matched x86 GPR");
+            bytes.extend([
+                0x4c | u8::from(register_number >= 8),
+                0x8b,
+                0xd8 | (register_number & 7),
+            ]); // mov r11, selected pointer register
+        }
+        IndirectPointerLocation::Register(register) => {
+            return Err(Diagnostic::error(format!(
+                "Microsoft x64 indirect entry aggregate uses unsupported pointer register {register:?}"
+            )));
+        }
+        IndirectPointerLocation::Stack {
+            stack_byte_offset, ..
+        } => {
+            let source_offset = stack_byte_offset
+                .checked_add(8)
+                .ok_or_else(|| Diagnostic::error("x86-64 incoming pointer offset overflow"))?;
+            let source_offset = i32::try_from(source_offset)
+                .map_err(|_| Diagnostic::error("x86-64 incoming pointer offset exceeds disp32"))?;
+            bytes.extend([0x4c, 0x8b, 0x9c, 0x24]); // mov r11, [rsp+disp32]
+            bytes.extend(source_offset.to_le_bytes());
+        }
+    }
+    append_mov_r15_imm64(&mut bytes, 0); // runtime-frame base, relocated
+    let mut copied = 0usize;
+    while copied < byte_size {
+        let fragment = [8, 4, 2, 1]
+            .into_iter()
+            .find(|fragment| byte_size - copied >= *fragment)
+            .expect("indirect entry copy has bytes remaining");
+        if fragment == 2 {
+            bytes.push(0x66);
+        }
+        bytes.extend([
+            if fragment == 8 { 0x4d } else { 0x45 },
+            if fragment == 1 { 0x8a } else { 0x8b },
+            0x93,
+        ]); // mov r10{b,w,d,q}, [r11+disp32]
+        bytes.extend(disp32(copied)?.to_le_bytes());
+        if fragment == 2 {
+            bytes.push(0x66);
+        }
+        bytes.extend([
+            if fragment == 8 { 0x4d } else { 0x45 },
+            if fragment == 1 { 0x88 } else { 0x89 },
+            0x97,
+        ]); // mov [r15+disp32], r10{b,w,d,q}
+        bytes.extend(
+            disp32(byte_offset.checked_add(copied).ok_or_else(|| {
+                Diagnostic::error("x86-64 indirect entry destination offset overflow")
+            })?)?
+            .to_le_bytes(),
+        );
+        copied += fragment;
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        entry_indirect_argument_write_width(pointer, byte_size)
+    );
+    Ok(bytes)
+}
+
 #[cfg(test)]
 mod entry_argument_register_tests {
     use super::*;
@@ -545,6 +657,42 @@ mod entry_argument_register_tests {
         assert_eq!(bytes.len(), 25);
         assert_eq!(&bytes[10..18], &[0x4c, 0x8b, 0x94, 0x24, 40, 0, 0, 0]);
         assert_eq!(&bytes[18..25], &[0x4d, 0x89, 0x97, 24, 0, 0, 0]);
+    }
+
+    #[test]
+    fn indirect_entry_aggregate_copies_from_a_pointer_register() {
+        let pointer = IndirectPointerLocation::Register(MachineRegister::X86Rcx);
+        let bytes = encode_entry_indirect_argument_write_bytes(pointer, 64, 16)
+            .expect("two-fragment indirect entry copy");
+
+        assert_eq!(
+            bytes.len(),
+            entry_indirect_argument_write_width(pointer, 16)
+        );
+        assert_eq!(entry_indirect_argument_frame_base_offset(pointer), 3);
+        assert_eq!(&bytes[..3], &[0x4c, 0x8b, 0xd9]);
+        assert_eq!(&bytes[13..20], &[0x4d, 0x8b, 0x93, 0, 0, 0, 0]);
+        assert_eq!(&bytes[20..27], &[0x4d, 0x89, 0x97, 64, 0, 0, 0]);
+        assert_eq!(&bytes[27..34], &[0x4d, 0x8b, 0x93, 8, 0, 0, 0]);
+        assert_eq!(&bytes[34..41], &[0x4d, 0x89, 0x97, 72, 0, 0, 0]);
+    }
+
+    #[test]
+    fn indirect_entry_aggregate_loads_a_stack_passed_pointer() {
+        let pointer = IndirectPointerLocation::Stack {
+            stack_byte_offset: 32,
+            alignment: 8,
+        };
+        let bytes = encode_entry_indirect_argument_write_bytes(pointer, 64, 16)
+            .expect("stack-pointer indirect entry copy");
+
+        assert_eq!(
+            bytes.len(),
+            entry_indirect_argument_write_width(pointer, 16)
+        );
+        assert_eq!(entry_indirect_argument_frame_base_offset(pointer), 8);
+        assert_eq!(&bytes[..8], &[0x4c, 0x8b, 0x9c, 0x24, 40, 0, 0, 0]);
+        assert_eq!(&bytes[8..10], &[0x49, 0xbf]);
     }
 }
 
