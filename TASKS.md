@@ -153,8 +153,10 @@ ceiling derived exactly from the ABI volatile-register classes.
    then `x1`/`x2`. Provides-authored outbound calls now preserve the same
    non-HFA records as one by-value operand, load every plan-selected `x`
    fragment, or copy the whole value into aligned outgoing stack fragments;
-   cross-target canaries pin both realizations. Small aggregate result stores
-   and aggregates above 16 bytes still require result/copy lowering.
+   cross-target canaries pin both realizations. Authored imports and indirect
+   field calls now spill small aggregate results from their plan-selected
+   `x0`/`x1` fragments through one relocated result base. Aggregates above 16
+   bytes still require caller-copy and indirect-result lowering.
    Ordinary AArch64 `VtableSlot` and `VtableField` calls now evaluate AAPCS64
    from their selected operands, require the full-width receiver in planned
    `x0`, marshal every argument/stack slot through the shared plan consumer,
