@@ -1,0 +1,30 @@
+trait LeftReset {
+    machine set(&mut self, value: i32);
+
+    machine reset(&mut self) {
+        self.set(10);
+    }
+}
+
+trait RightReset {
+    machine set(&mut self, value: i32);
+
+    machine reset(&mut self) {
+        self.set(20);
+    }
+}
+
+trait Resettable {
+    requires LeftReset;
+    requires RightReset;
+}
+
+data Counter {
+    value: i32;
+}
+
+Counter satisfies Resettable;
+
+machine Counter::set(&mut self, value: i32) {
+    self.value = value;
+}

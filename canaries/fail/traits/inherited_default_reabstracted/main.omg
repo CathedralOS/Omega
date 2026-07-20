@@ -1,0 +1,14 @@
+trait BaseReset {
+    machine reset(&mut self) {
+    }
+}
+
+trait ExplicitReset {
+    requires BaseReset;
+    machine reset(&mut self);
+}
+
+data Counter {
+}
+
+Counter satisfies ExplicitReset;

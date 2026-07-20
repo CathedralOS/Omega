@@ -1,0 +1,90 @@
+// Defaults flow through both body-level `requires` and header-parent
+// composition. A conformance to the child trait alone receives the inherited
+// machine.
+use omega::language::std::console;
+
+trait Resettable {
+    machine set(&mut self, value: i32);
+
+    machine reset(&mut self) {
+        self.set(30);
+    }
+}
+
+trait RequiredCounter {
+    requires Resettable;
+}
+
+trait ParentCounter: Resettable {
+}
+
+trait LeftReset {
+    machine set(&mut self, value: i32);
+
+    machine reset(&mut self) {
+        self.set(1);
+    }
+}
+
+trait RightReset {
+    machine set(&mut self, value: i32);
+
+    machine reset(&mut self) {
+        self.set(2);
+    }
+}
+
+trait ResolvedCounter {
+    requires LeftReset;
+    requires RightReset;
+}
+
+data RequiredValue {
+    value: i32;
+}
+
+RequiredValue satisfies RequiredCounter;
+
+machine RequiredValue::set(&mut self, value: i32) {
+    self.value = value;
+}
+
+data ParentValue {
+    value: i32;
+}
+
+ParentValue satisfies ParentCounter;
+
+machine ParentValue::set(&mut self, value: i32) {
+    self.value = value;
+}
+
+data ResolvedValue {
+    value: i32;
+}
+
+ResolvedValue satisfies ResolvedCounter;
+
+machine ResolvedValue::set(&mut self, value: i32) {
+    self.value = value;
+}
+
+machine ResolvedValue::reset(&mut self) {
+    self.set(10);
+}
+
+data Main {
+    console: Console;
+    required_value: RequiredValue;
+    parent_value: ParentValue;
+    resolved_value: ResolvedValue;
+}
+
+machine Main::main(&mut self) {
+    self.required_value.reset();
+    self.parent_value.reset();
+    self.resolved_value.reset();
+    self.console.exit_process(
+        self.required_value.value + self.parent_value.value + self.resolved_value.value,
+    );
+}
