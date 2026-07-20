@@ -316,9 +316,14 @@ before the fix.
   concrete site, resolve each sealed target once, stage all writes, and publish
   atomically. Native whole-pointer actions already lower into section-qualified
   object relocations with materialization provenance.
-- **External loans.** Represent DMA/device borrowing with linear proxy tokens,
-  completion/fence/cache obligations, and CPU-access exclusion through the
-  ordinary permission context.
+- **External loans.** The normalized `omega-extents` model is live: a token
+  borrow-carries the real Extent loan; device-read requires shared polarity;
+  device-write requires exclusive polarity; admitted grants pin borrower,
+  space, provenance, open-set rights, and an open set of completion facts; an
+  exact provider receipt must establish borrower release plus every required
+  fence/cache/provider fact. Connect it to Omega linearity/permission contexts
+  and provider execution, then build the DMA slice. Bidirectional sharing
+  remains an explicit atomic/coherence protocol, not ordinary lending.
 - **EXI1–EXI5 — admitted executable installation.** Add reusable admitted
   artifact identity, extent-backed linear `CodePlacement`, materialization,
   write freeze, final-byte/footprint validation, scoped installation,

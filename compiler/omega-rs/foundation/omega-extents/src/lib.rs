@@ -467,6 +467,278 @@ impl std::fmt::Debug for ExtentLoan<'_> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ExternalBorrowerId(u64);
+
+impl ExternalBorrowerId {
+    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
+        nonzero_identity(identity, "external-borrower")?;
+        Ok(Self(identity))
+    }
+
+    pub const fn normalized_identity(self) -> u64 {
+        self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ExternalLoanId(u64);
+
+impl ExternalLoanId {
+    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
+        nonzero_identity(identity, "external-loan")?;
+        Ok(Self(identity))
+    }
+
+    pub const fn normalized_identity(self) -> u64 {
+        self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExternalLoanDirection {
+    /// The external borrower observes memory. CPU reads remain compatible, but
+    /// ordinary CPU mutation is excluded by the carried shared borrow.
+    DeviceReads,
+    /// The external borrower may mutate memory. The carried exclusive borrow
+    /// excludes all CPU access until completion.
+    DeviceWrites,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ExternalCompletionFactId(u64);
+
+impl ExternalCompletionFactId {
+    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
+        nonzero_identity(identity, "external-completion-fact")?;
+        Ok(Self(identity))
+    }
+
+    pub const fn normalized_identity(self) -> u64 {
+        self.0
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CompletionObligations(BTreeSet<ExternalCompletionFactId>);
+
+impl CompletionObligations {
+    pub fn from_normalized_facts(
+        facts: impl IntoIterator<Item = ExternalCompletionFactId>,
+    ) -> Self {
+        Self(facts.into_iter().collect())
+    }
+
+    pub fn facts(&self) -> impl Iterator<Item = ExternalCompletionFactId> + '_ {
+        self.0.iter().copied()
+    }
+}
+
+/// Reusable admitted policy for lending matching extents to one external
+/// borrower. The per-transfer `ExternalLoanId` distinguishes completions.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalLoanGrant {
+    borrower: ExternalBorrowerId,
+    direction: ExternalLoanDirection,
+    address_space: AddressSpaceId,
+    provenance: ExtentProvenanceId,
+    required_rights: ExtentRights,
+    completion: CompletionObligations,
+}
+
+impl ExternalLoanGrant {
+    pub fn from_admitted_provider(
+        borrower: ExternalBorrowerId,
+        direction: ExternalLoanDirection,
+        address_space: AddressSpaceId,
+        provenance: ExtentProvenanceId,
+        required_rights: ExtentRights,
+        completion: CompletionObligations,
+    ) -> Self {
+        Self {
+            borrower,
+            direction,
+            address_space,
+            provenance,
+            required_rights,
+            completion,
+        }
+    }
+}
+
+/// Linear proxy for a borrower the Omega checker cannot inspect.
+///
+/// The token owns the Rust loan that excludes incompatible CPU access. Omega's
+/// `[linear]` rule makes completion mandatory in the source language.
+#[derive(Debug)]
+pub struct ExternalLoan<'extent> {
+    identity: ExternalLoanId,
+    borrower: ExternalBorrowerId,
+    direction: ExternalLoanDirection,
+    completion: CompletionObligations,
+    loan: ExtentLoan<'extent>,
+}
+
+impl<'extent> ExternalLoan<'extent> {
+    pub const fn identity(&self) -> ExternalLoanId {
+        self.identity
+    }
+
+    pub const fn borrower(&self) -> ExternalBorrowerId {
+        self.borrower
+    }
+
+    pub const fn direction(&self) -> ExternalLoanDirection {
+        self.direction
+    }
+
+    pub const fn base(&self) -> u64 {
+        self.loan.base()
+    }
+
+    pub const fn length(&self) -> u64 {
+        self.loan.length()
+    }
+
+    pub fn complete(
+        self,
+        receipt: ExternalCompletionReceipt,
+    ) -> Result<ExternalLoanCompletion, Box<ExternalCompletionError<'extent>>> {
+        let mismatch = if receipt.loan != self.identity {
+            Some("completion receipt names a different external loan")
+        } else if receipt.borrower != self.borrower {
+            Some("completion receipt names a different external borrower")
+        } else if !receipt.borrow_released {
+            Some("completion receipt does not establish external-borrow release")
+        } else if !self.completion.0.is_subset(&receipt.established_facts) {
+            Some("completion receipt lacks facts required by the external-loan grant")
+        } else {
+            None
+        };
+
+        if let Some(message) = mismatch {
+            return Err(Box::new(ExternalCompletionError {
+                loan: self,
+                receipt,
+                diagnostic: ExtentDiagnostic(message.into()),
+            }));
+        }
+
+        Ok(ExternalLoanCompletion {
+            loan: self.identity,
+            borrower: self.borrower,
+            base: self.loan.base(),
+            length: self.loan.length(),
+        })
+    }
+}
+
+pub fn begin_external_loan<'extent>(
+    loan: ExtentLoan<'extent>,
+    identity: ExternalLoanId,
+    grant: &ExternalLoanGrant,
+) -> Result<ExternalLoan<'extent>, Box<ExternalLoanStartError<'extent>>> {
+    let mismatch = if loan.address_space() != grant.address_space {
+        Some("extent address space does not match external-loan grant")
+    } else if loan.provenance() != grant.provenance {
+        Some("extent provenance does not match external-loan grant")
+    } else if !loan.rights().contains(&grant.required_rights) {
+        Some("extent lacks rights required by external-loan grant")
+    } else if grant.direction == ExternalLoanDirection::DeviceReads
+        && loan.polarity() != LoanPolarity::Shared
+    {
+        Some("device-read lending requires a shared extent loan")
+    } else if grant.direction == ExternalLoanDirection::DeviceWrites
+        && loan.polarity() != LoanPolarity::Exclusive
+    {
+        Some("device-write lending requires an exclusive extent loan")
+    } else {
+        None
+    };
+
+    if let Some(message) = mismatch {
+        return Err(Box::new(ExternalLoanStartError {
+            loan,
+            diagnostic: ExtentDiagnostic(message.into()),
+        }));
+    }
+
+    Ok(ExternalLoan {
+        identity,
+        borrower: grant.borrower,
+        direction: grant.direction,
+        completion: grant.completion.clone(),
+        loan,
+    })
+}
+
+/// Provider-authored evidence that the invisible borrower released its loan.
+/// Construction belongs to the admitted boundary provider, never the borrower.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ExternalCompletionReceipt {
+    loan: ExternalLoanId,
+    borrower: ExternalBorrowerId,
+    borrow_released: bool,
+    established_facts: BTreeSet<ExternalCompletionFactId>,
+}
+
+impl ExternalCompletionReceipt {
+    pub fn from_admitted_provider(
+        loan: ExternalLoanId,
+        borrower: ExternalBorrowerId,
+        borrow_released: bool,
+        established_facts: impl IntoIterator<Item = ExternalCompletionFactId>,
+    ) -> Self {
+        Self {
+            loan,
+            borrower,
+            borrow_released,
+            established_facts: established_facts.into_iter().collect(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExternalLoanCompletion {
+    pub loan: ExternalLoanId,
+    pub borrower: ExternalBorrowerId,
+    pub base: u64,
+    pub length: u64,
+}
+
+#[derive(Debug)]
+pub struct ExternalLoanStartError<'extent> {
+    loan: ExtentLoan<'extent>,
+    diagnostic: ExtentDiagnostic,
+}
+
+impl<'extent> ExternalLoanStartError<'extent> {
+    pub const fn diagnostic(&self) -> &ExtentDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_loan(self) -> ExtentLoan<'extent> {
+        self.loan
+    }
+}
+
+#[derive(Debug)]
+pub struct ExternalCompletionError<'extent> {
+    loan: ExternalLoan<'extent>,
+    receipt: ExternalCompletionReceipt,
+    diagnostic: ExtentDiagnostic,
+}
+
+impl<'extent> ExternalCompletionError<'extent> {
+    pub const fn diagnostic(&self) -> &ExtentDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (ExternalLoan<'extent>, ExternalCompletionReceipt) {
+        (self.loan, self.receipt)
+    }
+}
+
 fn validate_subrange(extent: &Extent, offset: u64, length: u64) -> Result<u64, ExtentDiagnostic> {
     if length == 0 {
         return Err(ExtentDiagnostic("extent loan cannot be empty".into()));
@@ -699,5 +971,104 @@ mod tests {
         assert!(error.diagnostic().0.contains("overflows"));
         let extent = error.into_grant().mint(0, 64).expect("retry valid mint");
         assert_eq!(extent.length(), 64);
+    }
+
+    fn external_grant(
+        direction: ExternalLoanDirection,
+        completion: CompletionObligations,
+    ) -> ExternalLoanGrant {
+        ExternalLoanGrant::from_admitted_provider(
+            id(500, ExternalBorrowerId::from_normalized_identity),
+            direction,
+            id(10, AddressSpaceId::from_normalized_identity),
+            id(20, ExtentProvenanceId::from_normalized_identity),
+            rights(&[100]),
+            completion,
+        )
+    }
+
+    fn loan_id(identity: u64) -> ExternalLoanId {
+        id(identity, ExternalLoanId::from_normalized_identity)
+    }
+
+    fn completion_fact(identity: u64) -> ExternalCompletionFactId {
+        id(identity, ExternalCompletionFactId::from_normalized_identity)
+    }
+
+    #[test]
+    fn external_read_loan_requires_completion_facts_before_releasing_borrow() {
+        let extent = grant(1, 0x1000, 64);
+        let loan = extent.loan(0, 32).expect("shared DMA source");
+        let transfer = begin_external_loan(
+            loan,
+            loan_id(600),
+            &external_grant(
+                ExternalLoanDirection::DeviceReads,
+                CompletionObligations::from_normalized_facts([
+                    completion_fact(700),
+                    completion_fact(701),
+                ]),
+            ),
+        )
+        .expect("admitted external read");
+        assert_eq!(transfer.direction(), ExternalLoanDirection::DeviceReads);
+
+        let incomplete = ExternalCompletionReceipt::from_admitted_provider(
+            loan_id(600),
+            id(500, ExternalBorrowerId::from_normalized_identity),
+            true,
+            [completion_fact(701)],
+        );
+        let error = transfer
+            .complete(incomplete)
+            .expect_err("required device fence is missing");
+        assert!(error.diagnostic().0.contains("lacks facts"));
+        let (transfer, _) = (*error).into_parts();
+
+        let complete = ExternalCompletionReceipt::from_admitted_provider(
+            loan_id(600),
+            id(500, ExternalBorrowerId::from_normalized_identity),
+            true,
+            [completion_fact(700), completion_fact(701)],
+        );
+        let completion = transfer.complete(complete).expect("completed DMA read");
+        assert_eq!((completion.base, completion.length), (0x1000, 32));
+    }
+
+    #[test]
+    fn external_write_loan_derives_exclusive_cpu_exclusion() {
+        let mut extent = grant(1, 0x2000, 64);
+        let shared = extent.loan(0, 16).expect("shared loan");
+        let error = begin_external_loan(
+            shared,
+            loan_id(601),
+            &external_grant(
+                ExternalLoanDirection::DeviceWrites,
+                CompletionObligations::default(),
+            ),
+        )
+        .expect_err("device mutation needs exclusive custody");
+        assert!(error.diagnostic().0.contains("exclusive"));
+        drop((*error).into_loan());
+
+        let exclusive = extent.loan_mut(0, 16).expect("exclusive loan");
+        let transfer = begin_external_loan(
+            exclusive,
+            loan_id(602),
+            &external_grant(
+                ExternalLoanDirection::DeviceWrites,
+                CompletionObligations::default(),
+            ),
+        )
+        .expect("admitted external write");
+        let completion = transfer
+            .complete(ExternalCompletionReceipt::from_admitted_provider(
+                loan_id(602),
+                id(500, ExternalBorrowerId::from_normalized_identity),
+                true,
+                [],
+            ))
+            .expect("completed DMA write");
+        assert_eq!(completion.borrower.normalized_identity(), 500);
     }
 }
