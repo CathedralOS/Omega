@@ -3,7 +3,7 @@ use omega_calling_conventions::HostBindingMechanism;
 use omega_calling_conventions::HostOperationKey;
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
-use omega_target::Architecture;
+use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::{
     InstructionOperandLike, RuntimeValueOperandHandle, RuntimeValueOperandSource,
     StateGuardOperator,
@@ -35,11 +35,11 @@ pub fn table_function_call_sequence_width<T: InstructionOperandLike>(
 }
 
 pub fn host_call_sequence_width<T: InstructionOperandLike>(
-    architecture: Architecture,
+    target: NativeTarget,
     operation_key: HostOperationKey,
     operands: &[T],
 ) -> usize {
-    match architecture {
+    match target.architecture {
         Architecture::Aarch64 => {
             // Selection signals an UNRESOLVABLE argument (or buffer) with an
             // EMPTY operand span so the architecture encoder hard-errors (see
@@ -84,7 +84,11 @@ pub fn host_call_sequence_width<T: InstructionOperandLike>(
             };
             base + deref + float_return + stack_mode
         }
-        Architecture::X86_64 => x86_64::host_call_sequence_width(operation_key, operands),
+        Architecture::X86_64 => x86_64::host_call_sequence_width(
+            omega_calling_conventions::CallingPolicy::native_for_target(target),
+            operation_key,
+            operands,
+        ),
     }
 }
 

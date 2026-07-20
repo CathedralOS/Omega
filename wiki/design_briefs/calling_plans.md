@@ -211,8 +211,12 @@ selected operand shapes and passes the exact planned X/V argument and result
 registers to the ISA encoder. Stack-resident and fragmented outbound placements
 fail closed until their lowering exists. The Darwin variadic `open` compatibility
 seam still handles its anonymous trailing stack argument specially, while its
-named arguments and result consume the normalized plan. General x86-64 and
-firmware outbound calls and AArch64 stack/fragmented calls remain.
+named arguments and result consume the normalized plan. The general Microsoft
+x64 import encoder now receives its policy from the concrete target,
+evaluates selected scalar/pointer operand shapes, and consumes the plan's exact
+RCX/RDX/R8/R9, shadow-relative stack, and RAX-result placements. A non-Microsoft
+x86 target fails closed at this Win64 compatibility encoder. Bespoke/composite
+x86 imports, firmware calls, and AArch64 stack/fragmented calls remain to migrate.
 
 Remaining order:
 

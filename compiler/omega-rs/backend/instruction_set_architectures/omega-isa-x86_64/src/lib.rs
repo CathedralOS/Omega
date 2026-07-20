@@ -7,7 +7,11 @@ pub use place_copy::{
     place_binary_index_base_positions, place_binary_operand_start_width,
 };
 
-use omega_calling_conventions::{HostCapability, HostOperation, HostOperationKey};
+use omega_calling_conventions::{
+    CallPlan, CallSignature, CallingPolicy, EntryControl, HostCapability, HostOperation,
+    HostOperationKey, MachineRegister, ValueLocation, ValuePlacement, ValueShape,
+    evaluate_call_plan,
+};
 use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{
@@ -969,10 +973,11 @@ pub fn encode_dispatch_guard_compare_static_bytes(
 }
 
 pub fn host_call_sequence_width<T: InstructionOperandLike>(
+    policy: CallingPolicy,
     operation_key: HostOperationKey,
     operands: &[T],
 ) -> usize {
-    match encode_host_call_sequence(operation_key, operands) {
+    match encode_host_call_sequence(policy, operation_key, operands) {
         Ok(bytes) => bytes.len(),
         Err(error) => {
             if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
@@ -1231,9 +1236,20 @@ pub fn host_call_external_relocation_site<T: InstructionOperandLike>(
 }
 
 pub fn encode_host_call_sequence<T: InstructionOperandLike>(
+    policy: CallingPolicy,
     operation_key: HostOperationKey,
     operands: &[T],
 ) -> Result<Vec<u8>, Diagnostic> {
+    // Target calibration constants do not cross a call boundary. Keep their
+    // architecture-local materialization available under every x86 policy.
+    if operation_key.lowers_to_constant_result() {
+        return encode_constant_result(operands);
+    }
+    if policy != CallingPolicy::MicrosoftX64 {
+        return Err(Diagnostic::error(format!(
+            "X86_64 compatibility host encoder implements Microsoft x64, not {policy:?}"
+        )));
+    }
     match (operation_key.capability, operation_key.operation) {
         (
             HostCapability::Stdin | HostCapability::Stdout | HostCapability::Stderr,
@@ -1264,13 +1280,6 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
             | HostOperation::MonotonicTicksPerSecond
             | HostOperation::WallClockRaw,
         ) => encode_win64_out_param_call(operands),
-        // Per-target calibration CONSTANTS (D11: the lowering layer never does
-        // arithmetic): no call at all, just the immediate through the result
-        // store tail.
-        (
-            HostCapability::Clock,
-            HostOperation::WallClockUnitsPerSecond | HostOperation::WallClockEpochOffsetSeconds,
-        ) => encode_constant_result(operands),
         (HostCapability::Input, HostOperation::KeyState) => encode_key_state_call(operands),
         // Every Gui import is value-returning and encodes through the GENERAL
         // import call: operands[0] = result place, then the full ABI argument
@@ -1778,12 +1787,36 @@ fn append_win64_call_arguments<T: InstructionOperandLike>(
     bytes: &mut Vec<u8>,
     operands: &[T],
     arg_start: usize,
+    planned_parameters: Option<&[ValuePlacement]>,
 ) -> Result<(), Diagnostic> {
     let arg_count = operands.len() - arg_start;
+    if let Some(parameters) = planned_parameters
+        && parameters.len() != arg_count
+    {
+        return Err(Diagnostic::error(format!(
+            "Microsoft x64 call plan supplied {} parameter placements for {arg_count} operands",
+            parameters.len()
+        )));
+    }
     for index in 0..arg_count {
         let operand = &operands[arg_start + index];
-        if index < 4 {
-            let (imm_opcode, load_opcode) = WIN64_ARG_REGISTERS[index];
+        let planned_location = planned_parameters
+            .map(|parameters| win64_argument_location(&parameters[index], index))
+            .transpose()?;
+        let register_slot = match planned_location {
+            Some(Win64ArgumentLocation::Register(register)) => Some(
+                win64_argument_register_slot(register).ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "Microsoft x64 import parameter {index} uses unsupported register {register:?}"
+                    ))
+                })?,
+            ),
+            Some(Win64ArgumentLocation::Stack(_)) => None,
+            None if index < 4 => Some(index),
+            None => None,
+        };
+        if let Some(register_slot) = register_slot {
+            let (imm_opcode, load_opcode) = WIN64_ARG_REGISTERS[register_slot];
             if let Some((_, byte_offset, _)) = operand.runtime_scalar_integer() {
                 append_mov_r15_imm64(bytes, 0); // relocated to the argument's region base
                 bytes.extend_from_slice(load_opcode);
@@ -1797,7 +1830,7 @@ fn append_win64_call_arguments<T: InstructionOperandLike>(
                 // syscall encoder's string-pointer staging.
                 append_mov_r15_imm64(bytes, 0); // relocated to the argument's region base
                 if operand.runtime_string_is_bounded_buffer() {
-                    bytes.extend_from_slice(WIN64_ARG_LEA_OPCODES[index]);
+                    bytes.extend_from_slice(WIN64_ARG_LEA_OPCODES[register_slot]);
                     bytes.extend(disp32(byte_offset + 8)?.to_le_bytes());
                 } else {
                     bytes.extend_from_slice(load_opcode);
@@ -1805,12 +1838,12 @@ fn append_win64_call_arguments<T: InstructionOperandLike>(
                 }
             } else if let Some((_, byte_offset)) = operand.runtime_storage_address() {
                 append_mov_r15_imm64(bytes, 0); // relocated to the argument's region base
-                bytes.extend_from_slice(WIN64_ARG_LEA_OPCODES[index]);
+                bytes.extend_from_slice(WIN64_ARG_LEA_OPCODES[register_slot]);
                 bytes.extend(disp32(byte_offset)?.to_le_bytes());
             } else if operand.data_address().is_some() {
                 // A data-object address (string-literal path): the imm64 is
                 // relocated Absolute64 to the symbol's address.
-                bytes.extend_from_slice(WIN64_ARG_MOV_IMM64_OPCODES[index]);
+                bytes.extend_from_slice(WIN64_ARG_MOV_IMM64_OPCODES[register_slot]);
                 bytes.extend(0u64.to_le_bytes());
             } else if let Some(length) = operand.byte_length() {
                 // A literal payload's byte length rides as a plain integer.
@@ -1828,7 +1861,15 @@ fn append_win64_call_arguments<T: InstructionOperandLike>(
                 bytes.extend(argument.to_le_bytes());
             }
         } else {
-            let stack_offset = WIN64_STACK_ARG_HOME + 8 * (index - 4);
+            let stack_offset = match planned_location {
+                Some(Win64ArgumentLocation::Stack(stack_offset)) => stack_offset,
+                Some(Win64ArgumentLocation::Register(register)) => {
+                    return Err(Diagnostic::error(format!(
+                        "Microsoft x64 import parameter {index} could not marshal planned register {register:?}"
+                    )));
+                }
+                None => (WIN64_STACK_ARG_HOME + 8 * (index - 4)) as u32,
+            };
             let stack_disp8 = u8::try_from(stack_offset)
                 .ok()
                 .filter(|_| stack_offset <= 127)
@@ -1866,6 +1907,52 @@ fn append_win64_call_arguments<T: InstructionOperandLike>(
     Ok(())
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Win64ArgumentLocation {
+    Register(MachineRegister),
+    Stack(u32),
+}
+
+fn win64_argument_location(
+    placement: &ValuePlacement,
+    index: usize,
+) -> Result<Win64ArgumentLocation, Diagnostic> {
+    match placement.locations.as_slice() {
+        [
+            ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                byte_size,
+            },
+        ] if *byte_size == placement.shape.byte_size => {
+            Ok(Win64ArgumentLocation::Register(*register))
+        }
+        [
+            ValueLocation::Stack {
+                stack_byte_offset,
+                value_byte_offset: 0,
+                byte_size,
+                ..
+            },
+        ] if *byte_size == placement.shape.byte_size => {
+            Ok(Win64ArgumentLocation::Stack(*stack_byte_offset))
+        }
+        locations => Err(Diagnostic::error(format!(
+            "Microsoft x64 import parameter {index} has unsupported fragmented placement {locations:?}"
+        ))),
+    }
+}
+
+fn win64_argument_register_slot(register: MachineRegister) -> Option<usize> {
+    match register {
+        MachineRegister::X86Rcx => Some(0),
+        MachineRegister::X86Rdx => Some(1),
+        MachineRegister::X86R8 => Some(2),
+        MachineRegister::X86R9 => Some(3),
+        _ => None,
+    }
+}
+
 fn encode_win64_import_call<T: InstructionOperandLike>(
     operands: &[T],
     returns_value: bool,
@@ -1879,6 +1966,8 @@ fn encode_win64_import_call<T: InstructionOperandLike>(
     }
     let arg_start = usize::from(returns_value);
     let arg_count = operands.len() - arg_start;
+    let plan = normalized_win64_import_plan(operands, returns_value)?;
+    let result_register = normalized_win64_result_register(&plan, returns_value)?;
     let reserve = win64_import_reserve(arg_count);
     let mut bytes = Vec::with_capacity(win64_import_call_width(
         operands,
@@ -1886,15 +1975,25 @@ fn encode_win64_import_call<T: InstructionOperandLike>(
         dereferences_result,
     ));
     append_sub_rsp(&mut bytes, reserve);
-    append_win64_call_arguments(&mut bytes, operands, arg_start)?;
+    append_win64_call_arguments(&mut bytes, operands, arg_start, Some(&plan.parameters))?;
     bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32 (relocated)
     append_add_rsp(&mut bytes, reserve);
     if dereferences_result {
+        if result_register != Some(MachineRegister::X86Rax) {
+            return Err(Diagnostic::error(format!(
+                "Microsoft x64 pointer-result dereference requires rax, got {result_register:?}"
+            )));
+        }
         // The callee returned a POINTER to the real result (`_errno()` returns
         // `&errno`); deref once so the store tail writes the integer.
         bytes.extend([0x8b, 0x00]); // mov eax, [rax]
     }
     if returns_value {
+        if result_register != Some(MachineRegister::X86Rax) {
+            return Err(Diagnostic::error(format!(
+                "Microsoft x64 result store requires rax, got {result_register:?}"
+            )));
+        }
         let Some((_, byte_offset, byte_count)) = operands[0].runtime_scalar_integer() else {
             return Err(Diagnostic::error(
                 "cannot encode X86_64 import call: the result storage place did not lower to a \
@@ -1918,6 +2017,202 @@ fn encode_win64_import_call<T: InstructionOperandLike>(
         win64_import_call_width(operands, returns_value, dereferences_result)
     );
     Ok(bytes)
+}
+
+/// ENT2c compatibility seam: evaluate the Microsoft x64 plan from the selected
+/// operands before the general import encoder marshals anything. Register and
+/// shadow-relative stack placements are passed into the marshaller verbatim;
+/// unsupported vector/fragmented shapes fail closed.
+fn normalized_win64_import_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    returns_value: bool,
+) -> Result<CallPlan, Diagnostic> {
+    let arg_start = usize::from(returns_value);
+    let result = if returns_value {
+        let Some((_, _, byte_count)) = operands
+            .first()
+            .and_then(InstructionOperandLike::runtime_scalar_integer)
+        else {
+            return Err(Diagnostic::error(
+                "Microsoft x64 import result place did not lower to scalar storage",
+            ));
+        };
+        Some(win64_integer_shape(byte_count, "result")?)
+    } else {
+        None
+    };
+    let signature = CallSignature {
+        parameters: operands[arg_start..]
+            .iter()
+            .map(win64_operand_shape)
+            .collect::<Result<Vec<_>, _>>()?,
+        result,
+    };
+    let plan = evaluate_call_plan(CallingPolicy::MicrosoftX64, &signature).map_err(|error| {
+        Diagnostic::error(format!(
+            "cannot evaluate Microsoft x64 import plan: {error}"
+        ))
+    })?;
+    if plan.entry_control != EntryControl::CallReturn
+        || plan.stack_alignment != 16
+        || plan.shadow_bytes != WIN64_STACK_ARG_HOME as u16
+    {
+        return Err(Diagnostic::error(format!(
+            "Microsoft x64 import encoder cannot realize plan control={:?}, alignment={}, shadow_bytes={}",
+            plan.entry_control, plan.stack_alignment, plan.shadow_bytes
+        )));
+    }
+    Ok(plan)
+}
+
+fn win64_operand_shape<T: InstructionOperandLike>(operand: &T) -> Result<ValueShape, Diagnostic> {
+    if let Some((_, _, byte_count)) = operand.runtime_scalar_float() {
+        let byte_count = u16::try_from(byte_count)
+            .map_err(|_| Diagnostic::error("Microsoft x64 float operand width exceeds u16"))?;
+        return Ok(ValueShape::float(byte_count));
+    }
+    if let Some((_, _, byte_count)) = operand.runtime_scalar_integer() {
+        return win64_integer_shape(byte_count, "integer operand");
+    }
+    if operand.data_address().is_some()
+        || operand.runtime_string_pointer().is_some()
+        || operand.runtime_storage_address().is_some()
+        || operand.immediate_integer().is_some()
+        || operand.byte_length().is_some()
+    {
+        return Ok(ValueShape::integer(8, 8));
+    }
+    Err(Diagnostic::error(
+        "Microsoft x64 import operand has no normalized scalar/pointer shape",
+    ))
+}
+
+fn win64_integer_shape(byte_count: usize, label: &str) -> Result<ValueShape, Diagnostic> {
+    let byte_count = u16::try_from(byte_count)
+        .map_err(|_| Diagnostic::error(format!("Microsoft x64 {label} width exceeds u16")))?;
+    Ok(ValueShape::integer(byte_count, byte_count.max(1)))
+}
+
+fn normalized_win64_result_register(
+    plan: &CallPlan,
+    returns_value: bool,
+) -> Result<Option<MachineRegister>, Diagnostic> {
+    match (returns_value, plan.result.as_ref()) {
+        (false, None) => Ok(None),
+        (true, Some(placement)) => match placement.locations.as_slice() {
+            [
+                ValueLocation::Register {
+                    register,
+                    value_byte_offset: 0,
+                    byte_size,
+                },
+            ] if *byte_size == placement.shape.byte_size => Ok(Some(*register)),
+            locations => Err(Diagnostic::error(format!(
+                "Microsoft x64 import result has unsupported placement {locations:?}"
+            ))),
+        },
+        _ => Err(Diagnostic::error(
+            "Microsoft x64 import plan/result shape is internally inconsistent",
+        )),
+    }
+}
+
+#[cfg(test)]
+mod win64_import_plan_tests {
+    use super::*;
+    use omega_target_operations::{
+        RuntimeStorageRegion, TargetInstructionOperand, TargetInstructionOperandKind,
+    };
+
+    fn operand(kind: TargetInstructionOperandKind) -> TargetInstructionOperand {
+        TargetInstructionOperand { kind }
+    }
+
+    #[test]
+    fn general_import_plan_carries_register_stack_and_result_placements() {
+        let operands = std::iter::once(operand(
+            TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 8,
+            },
+        ))
+        .chain((0..6).map(|value| operand(TargetInstructionOperandKind::ImmediateInteger(value))))
+        .collect::<Vec<_>>();
+
+        let plan = normalized_win64_import_plan(&operands, true).expect("Microsoft x64 plan");
+
+        assert_eq!(
+            plan.parameters[0].locations,
+            [ValueLocation::Register {
+                register: MachineRegister::X86Rcx,
+                value_byte_offset: 0,
+                byte_size: 8,
+            }]
+        );
+        assert_eq!(
+            plan.parameters[4].locations,
+            [ValueLocation::Stack {
+                stack_byte_offset: 32,
+                value_byte_offset: 0,
+                byte_size: 8,
+                alignment: 8,
+            }]
+        );
+        assert_eq!(
+            plan.parameters[5].locations,
+            [ValueLocation::Stack {
+                stack_byte_offset: 40,
+                value_byte_offset: 0,
+                byte_size: 8,
+                alignment: 8,
+            }]
+        );
+        assert_eq!(
+            normalized_win64_result_register(&plan, true).expect("result placement"),
+            Some(MachineRegister::X86Rax)
+        );
+        encode_win64_import_call(&operands, true, false)
+            .expect("the general encoder must consume the evaluated placements");
+    }
+
+    #[test]
+    fn compatibility_host_encoder_rejects_a_sysv_target_policy() {
+        let key = HostOperationKey::new(HostCapability::Clock, HostOperation::TickCount);
+        let operands = [operand(
+            TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 8,
+            },
+        )];
+
+        let error = encode_host_call_sequence(CallingPolicy::SystemVAMD64, key, &operands)
+            .expect_err("the Win64 compatibility encoder must not silently choose its ABI");
+
+        assert!(error.message.contains("not SystemVAMD64"));
+    }
+
+    #[test]
+    fn non_boundary_constant_results_remain_policy_independent() {
+        let key = HostOperationKey::new(
+            HostCapability::Clock,
+            HostOperation::WallClockUnitsPerSecond,
+        );
+        let operands = [
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::ImmediateInteger(
+                1_000_000_000,
+            )),
+        ];
+
+        encode_host_call_sequence(CallingPolicy::SystemVAMD64, key, &operands)
+            .expect("constant materialization does not apply a calling policy");
+    }
 }
 
 /// Relocation sites for a `encode_win64_import_call` sequence: one Absolute64
@@ -2171,7 +2466,7 @@ pub fn encode_win64_vtable_call_at_offset<T: InstructionOperandLike>(
         result_present,
     ));
     append_sub_rsp(&mut bytes, reserve);
-    append_win64_call_arguments(&mut bytes, operands, arg_start)?;
+    append_win64_call_arguments(&mut bytes, operands, arg_start, None)?;
     // Read the callee from the receiver (still in RCX) and call it.
     let slot_disp = i32::try_from(byte_offset)
         .map_err(|_| Diagnostic::error("vtable field offset exceeds an imm32"))?;
@@ -2243,7 +2538,7 @@ pub fn encode_win64_table_function_call<T: InstructionOperandLike>(
         result_present,
     ));
     append_sub_rsp(&mut bytes, reserve);
-    append_win64_call_arguments(&mut bytes, operands, arg_start)?;
+    append_win64_call_arguments(&mut bytes, operands, arg_start, None)?;
     // Load the table pointer (dispatch-only, never a wire argument), read the
     // fn-ptr field, call it.
     append_mov_r15_imm64(&mut bytes, 0); // relocated to the table's region base

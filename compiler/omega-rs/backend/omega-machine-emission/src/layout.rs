@@ -134,11 +134,7 @@ fn machine_instruction_width(
                 operands,
                 operands.len() > *parameter_count,
             ),
-            _ => host_call_sequence_width(
-                input.target.architecture,
-                host_operation.operation_key,
-                operands,
-            ),
+            _ => host_call_sequence_width(input.target, host_operation.operation_key, operands),
         };
         // A host call is never legitimately empty: a zero width means the
         // encoder rejected the operands (e.g. an argument that failed to
