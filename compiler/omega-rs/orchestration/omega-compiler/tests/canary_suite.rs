@@ -31218,6 +31218,7 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/aarch64_small_aggregate_stack_entry", "linux_arm64"),
     ("targets/aarch64_large_aggregate_entry", "linux_arm64"),
     ("targets/aarch64_large_aggregate_stack_entry", "linux_arm64"),
+    ("targets/aarch64_wide_aggregate_entry", "linux_arm64"),
 ];
 
 #[test]
@@ -31395,6 +31396,55 @@ fn aarch64_large_aggregate_entry_loads_a_stack_passed_pointer() {
                     })
         }),
         "expected the incoming-stack pointer load before three pointee copies"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn aarch64_wide_aggregate_entry_uses_general_indirect_classification() {
+    let canary = pass_canary("targets/aarch64_wide_aggregate_entry");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-aarch64-wide-aggregate-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_arm64".into()),
+        write_output: true,
+    })
+    .expect("record beyond the boundary handoff ceiling should use AAPCS64 indirect passing");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted AArch64 ELF");
+    let loads = [
+        0xf940_0011u32,
+        0xf940_0411,
+        0xf940_0811,
+        0xf940_0c11,
+        0xf940_1011,
+    ];
+    let store_mask = 0xffc0_03ffu32;
+    assert!(
+        image.windows(48).any(|window| {
+            loads.iter().enumerate().all(|(fragment, expected)| {
+                let load_offset = 8 + fragment * 8;
+                let store_offset = load_offset + 4;
+                let load = u32::from_le_bytes(
+                    window[load_offset..load_offset + 4]
+                        .try_into()
+                        .expect("load instruction"),
+                );
+                let store = u32::from_le_bytes(
+                    window[store_offset..store_offset + 4]
+                        .try_into()
+                        .expect("store instruction"),
+                );
+                load == *expected && store & store_mask == 0xf900_0211
+            })
+        }),
+        "expected all five x0-pointee words copied into runtime-frame storage"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }

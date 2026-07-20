@@ -163,7 +163,8 @@ ceiling derived exactly from the ABI volatile-register classes.
    register or stack slot, and materialize large result destinations in `x8`;
    entry prologues load register- or stack-passed pointers and copy the complete
    pointee into its runtime-frame slot. Source-to-object and ISA tests pin both
-   register and stack-pointer paths, relocation position, and fragment stores.
+   register and stack-pointer paths, records beyond the special 32-byte boundary
+   handoff ceiling, relocation position, and fragment stores.
    Ordinary AArch64 `VtableSlot` and `VtableField` calls now evaluate AAPCS64
    from their selected operands, require the full-width receiver in planned
    `x0`, marshal every argument/stack slot through the shared plan consumer,
