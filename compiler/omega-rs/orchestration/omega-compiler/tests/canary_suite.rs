@@ -32794,6 +32794,65 @@ fn efi_float_entry_result_round_trips_through_xmm0() {
 }
 
 #[test]
+fn float_literal_entry_result_uses_native_vector_registers() {
+    let canary = pass_canary("targets/efi_float_literal_result_entry");
+    for target in ["uefi_x64", "linux_arm64"] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-{target}-float-literal-result-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let src_dir = scratch.join("src");
+        let out_dir = scratch.join("out");
+        fs::create_dir_all(&src_dir).expect("scratch source directory");
+        fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
+        fs::write(
+            src_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write target manifest");
+
+        compile(CompileOptions {
+            root_path: src_dir.join("main.omg"),
+            build_dir: Some(out_dir.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .expect("float-literal entry result should cross-compile");
+
+        let output_name = if target == "uefi_x64" {
+            "omega-program.exe"
+        } else {
+            "omega-program"
+        };
+        let image = fs::read(out_dir.join(output_name)).expect("read emitted image");
+        if target == "uefi_x64" {
+            assert!(
+                image
+                    .windows(5)
+                    .any(|window| window == [0xf2, 0x41, 0x0f, 0x10, 0x87]),
+                "UEFI x64 float-literal entry missing terminal XMM0 scratch load"
+            );
+            assert!(
+                image
+                    .windows(8)
+                    .any(|window| { window == 1.5f64.to_bits().to_le_bytes() }),
+                "UEFI x64 float-literal entry missing the f64 bit pattern"
+            );
+        } else {
+            assert!(
+                image.windows(4).any(|window| {
+                    let instruction = u32::from_le_bytes(window.try_into().expect("word"));
+                    instruction & !0x003f_fc00 == 0xfd40_0200
+                }),
+                "Linux ARM64 float-literal entry missing terminal d0 scratch load"
+            );
+        }
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
 fn scalar_float_entry_result_uses_native_vector_registers_on_linux() {
     let canary = pass_canary("targets/efi_float_result_entry");
     for target in ["linux_x64", "linux_arm64"] {

@@ -316,7 +316,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     );
     reserve_entry_scalar_result_scratch(
         &mut backend_plan.runtime_storage,
-        entry_native_scalar_binary_result_size(&program, &control_flow, backend_plan.entry_key),
+        entry_native_scalar_expression_result_size(&program, &control_flow, backend_plan.entry_key),
     );
     // Observability: dump the absolute frame-slot layout (which logical slot lives
     // at which runtime byte offset) to stderr when OMEGA_DUMP_SLOTS is set. Inert
@@ -528,12 +528,12 @@ fn entry_may_need_native_indirect_result_pointer(
     })
 }
 
-fn entry_native_scalar_binary_result_size(
+fn entry_native_scalar_expression_result_size(
     program: &CheckedTrees,
     control_flow: &ControlFlowPlan,
     entry_key: omega_control_flow::StateKey,
 ) -> Option<usize> {
-    let has_binary_terminal = control_flow.transitions.iter().any(|(_, transition)| {
+    let has_scratch_terminal = control_flow.transitions.iter().any(|(_, transition)| {
         transition.expressions.target_value.is_valid()
             && matches!(
                 transition.target,
@@ -544,9 +544,10 @@ fn entry_native_scalar_binary_result_size(
                     .expressions
                     .expression(transition.expressions.target_value),
                 omega_checked_trees::expression::ExpressionNode::Binary(_)
+                    | omega_checked_trees::expression::ExpressionNode::Float(_)
             )
     });
-    if !has_binary_terminal {
+    if !has_scratch_terminal {
         return None;
     }
     let machine = program
