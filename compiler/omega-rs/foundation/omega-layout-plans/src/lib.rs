@@ -404,6 +404,80 @@ pub enum MaterializationAction {
     RuntimeWriter(MaterializationWrite),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PostHandoffWriterSource {
+    Resolved(u64),
+    Resolve(RelocationTarget),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PostHandoffWriterStep {
+    pub write: MaterializationWrite,
+    pub source: PostHandoffWriterSource,
+}
+
+/// Provider-consumable writer program derived from symbolic materialization
+/// actions. It contains no source-callable address operation: only the
+/// provider resolver may turn a sealed relocation target into address bits.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PostHandoffWriterPlan {
+    pub byte_len: usize,
+    pub byte_order: ByteOrder,
+    pub placement: PlacementConstraints,
+    pub steps: Vec<PostHandoffWriterStep>,
+}
+
+impl PostHandoffWriterPlan {
+    /// Validates the concrete placement, resolves every target, and stages all
+    /// writes before changing the destination. Repeated fragments of one
+    /// target resolve once so a provider cannot observe inconsistent address
+    /// values within one materialization.
+    pub fn execute(
+        &self,
+        destination: &mut [u8],
+        site: PlacementSite,
+        mut resolve: impl FnMut(RelocationTarget) -> Option<u64>,
+    ) -> Result<(), MaterializationDiagnostic> {
+        self.placement.validate_site(self.byte_len, site)?;
+        if destination.len() < self.byte_len {
+            return Err(MaterializationDiagnostic(format!(
+                "post-handoff writer needs {} bytes, destination has {}",
+                self.byte_len,
+                destination.len()
+            )));
+        }
+
+        let mut resolved_targets = std::collections::BTreeMap::new();
+        let mut values = Vec::with_capacity(self.steps.len());
+        for step in &self.steps {
+            let value = match step.source {
+                PostHandoffWriterSource::Resolved(value) => value,
+                PostHandoffWriterSource::Resolve(target) => {
+                    if let Some(value) = resolved_targets.get(&target) {
+                        *value
+                    } else {
+                        let value = resolve(target).ok_or_else(|| {
+                            MaterializationDiagnostic(format!(
+                                "post-handoff writer could not resolve symbolic target {target:?}"
+                            ))
+                        })?;
+                        resolved_targets.insert(target, value);
+                        value
+                    }
+                }
+            };
+            values.push(value);
+        }
+
+        let mut staged = destination[..self.byte_len].to_vec();
+        for (step, value) in self.steps.iter().zip(values) {
+            apply_write(&mut staged, self.byte_order, &step.write, value)?;
+        }
+        destination[..self.byte_len].copy_from_slice(&staged);
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SymbolicMaterializationPlan {
     pub byte_len: usize,
@@ -413,6 +487,40 @@ pub struct SymbolicMaterializationPlan {
 }
 
 impl SymbolicMaterializationPlan {
+    pub fn derive_post_handoff_writer(
+        &self,
+    ) -> Result<PostHandoffWriterPlan, MaterializationDiagnostic> {
+        let mut steps = Vec::with_capacity(self.actions.len());
+        for action in &self.actions {
+            let step = match action {
+                MaterializationAction::ResolvedWrite {
+                    write,
+                    source_value,
+                } => PostHandoffWriterStep {
+                    write: write.clone(),
+                    source: PostHandoffWriterSource::Resolved(*source_value),
+                },
+                MaterializationAction::RuntimeWriter(write) => PostHandoffWriterStep {
+                    write: write.clone(),
+                    source: PostHandoffWriterSource::Resolve(write.target),
+                },
+                MaterializationAction::NativePointerRelocation { .. } => {
+                    return Err(MaterializationDiagnostic(
+                        "loader-native relocation cannot enter a post-handoff writer program"
+                            .into(),
+                    ));
+                }
+            };
+            steps.push(step);
+        }
+        Ok(PostHandoffWriterPlan {
+            byte_len: self.byte_len,
+            byte_order: self.byte_order,
+            placement: self.placement,
+            steps,
+        })
+    }
+
     /// Applies a fully resolved plan atomically with respect to the destination
     /// slice: unresolved actions reject before any output byte changes.
     pub fn materialize_resolved_into(
@@ -790,6 +898,32 @@ mod tests {
                 .iter()
                 .all(|action| matches!(action, MaterializationAction::RuntimeWriter(_)))
         );
+
+        let writer = plan
+            .derive_post_handoff_writer()
+            .expect("runtime actions form a writer program");
+        let mut bytes = [0_u8; 16];
+        let mut resolutions = 0;
+        writer
+            .execute(
+                &mut bytes,
+                PlacementSite {
+                    base_address: 0,
+                    phase: PlacementPhase::PostHandoff,
+                    machine_regime: None,
+                    installation_scope: None,
+                },
+                |target| {
+                    assert_eq!(target, entry());
+                    resolutions += 1;
+                    Some(0x1122_3344_5566_7788)
+                },
+            )
+            .expect("provider resolves and executes the writer");
+
+        assert_eq!(resolutions, 1, "three fragments share one resolution");
+        assert_eq!(&bytes[0..4], &[0x88, 0x77, 0x66, 0x55]);
+        assert_eq!(&bytes[8..12], &[0x44, 0x33, 0x22, 0x11]);
     }
 
     #[test]
@@ -867,6 +1001,12 @@ mod tests {
                 ..
             }]
         ));
+        assert!(
+            plan.derive_post_handoff_writer()
+                .expect_err("loader relocation is not a writer instruction")
+                .0
+                .contains("loader-native")
+        );
     }
 
     #[test]
@@ -887,6 +1027,26 @@ mod tests {
         let mut bytes = [0xa5_u8; 16];
         assert!(plan.materialize_resolved_into(&mut bytes).is_err());
         assert_eq!(bytes, [0xa5; 16]);
+
+        let writer = plan
+            .derive_post_handoff_writer()
+            .expect("runtime actions form a writer program");
+        let mut missing = [0xa5_u8; 16];
+        assert!(
+            writer
+                .execute(
+                    &mut missing,
+                    PlacementSite {
+                        base_address: 0,
+                        phase: PlacementPhase::PostHandoff,
+                        machine_regime: None,
+                        installation_scope: None,
+                    },
+                    |_| None,
+                )
+                .is_err()
+        );
+        assert_eq!(missing, [0xa5; 16]);
     }
 
     #[test]
@@ -944,6 +1104,16 @@ mod tests {
                 .0
                 .contains("phase")
         );
+        let writer = plan
+            .derive_post_handoff_writer()
+            .expect("runtime actions form a writer program");
+        let mut unchanged = [0xa5_u8; 16];
+        assert!(
+            writer
+                .execute(&mut unchanged, wrong_phase, |_| Some(1))
+                .is_err()
+        );
+        assert_eq!(unchanged, [0xa5; 16]);
 
         let misaligned = PlacementSite {
             base_address: 0x8001,

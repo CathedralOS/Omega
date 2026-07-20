@@ -82,8 +82,8 @@ results and source-selected policies remain below.
    permitted address range, build/load/post-handoff phase, machine-regime
    identity, and artifact-installation scope, and validate concrete sites. Wire
    entry identities from selected artifacts, propagate placement constraints
-   through artifact construction, and emit generated post-handoff code for
-   fragmented writer actions.
+   through artifact construction, and lower the now-derived atomic
+   post-handoff writer programs to generated machine code.
 5. **IDT2 — installed-root ledger.** Add `lidt` only as an installation path
    that consumes scoped IDT
    authority and records every installed entry as an external analysis root
@@ -300,9 +300,11 @@ before the fix.
   loader-versus-post-handoff validation are live. Range/alignment/phase/regime/
   installation-scope constraints are normalized and concrete-site validated.
   Add source identity derivation/integration, propagate those constraints into
-  artifact construction, and generate writer code. Native whole-pointer
-  actions already lower into section-qualified object relocations with
-  materialization provenance.
+  artifact construction, and lower the provider-resolved post-handoff writer
+  programs to generated machine code. Writer programs already validate their
+  concrete site, resolve each sealed target once, stage all writes, and publish
+  atomically. Native whole-pointer actions already lower into section-qualified
+  object relocations with materialization provenance.
 - **External loans.** Represent DMA/device borrowing with linear proxy tokens,
   completion/fence/cache obligations, and CPU-access exclusion through the
   ordinary permission context.
