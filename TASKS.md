@@ -53,7 +53,9 @@ the stack without consuming the remaining argument register; normalized result
 plans select `rax`/`rdx`. Provides-authored SysV integer imports now preserve
 those records through selection, marshal their planned register or stack
 fragments, spill small aggregate results from `rax`/`rdx`, and keep layout plus
-data/call relocation walkers in lockstep. Generic Linux syscall
+data/call relocation walkers in lockstep. Authored scalar floats retain their
+class from the selected storage descriptor; SysV calls marshal the independent
+XMM bank or planned stack slot and spill results from `xmm0`. Generic Linux syscall
 leaves now evaluate the normalized syscall policy at emission and pass its
 exact parameter registers, number register, and supervisor-call immediate into
 both ISA encoders; the legacy binding fields no longer choose those facts on
@@ -144,8 +146,10 @@ ceiling derived exactly from the ABI volatile-register classes.
    selection and consume every plan-selected vector-register fragment; grouped
    placements also drive layout and relocation accounting. When the vector bank
    is exhausted, the same operand copies each member into its contiguous planned
-   stack area. Authored scalar-float imports now spill the plan-selected vector
-   result through a matching relocated scalar store; authored flat HFA results
+   stack area. Authored scalar-float arguments now retain their class from the
+   selected storage descriptor rather than collapsing into same-width integers,
+   and imports spill the plan-selected vector result through a matching relocated
+   scalar store; a source-to-Mach-O canary pins both `d0` directions. Authored flat HFA results
    preserve one aggregate result place and spill every plan-selected
    vector-register fragment through one relocated base. The AArch64 import
    normalization seam now also rejects plans whose
@@ -178,15 +182,16 @@ ceiling derived exactly from the ABI volatile-register classes.
    aligned stack fragments and the rolled-back register remains available to a
    following scalar; normalized small-aggregate result plans select
    `rax`/`rdx`. Linux x64 source-to-object canaries pin both the register and
-   stack/rollback entry paths. Provides-authored outbound SysV integer calls now
-   preserve small records as one operand, consume the plan-selected GPR or
-   whole-value stack fragments, and spill small record results from
-   `rax`/`rdx`; ISA and relocation tests pin the register, stack/rollback,
-   result, alignment, clobber-ceiling, and fixup paths. A source-level Linux x64
+   stack/rollback entry paths. Provides-authored outbound SysV integer and scalar
+   float calls now preserve small records as one operand, consume the
+   plan-selected GPR/XMM or whole-value stack fragments, spill small record
+   results from `rax`/`rdx`, and spill scalar float results from `xmm0`; ISA and
+   relocation tests pin the independent register banks, stack/rollback, result,
+   alignment, clobber-ceiling, and fixup paths. A source-level Linux x64
    probe reaches that lowering and stops only at the existing ELF direct-image
    dynamic-binding gap. End-to-end import image/run acceptance is therefore
-   platform-blocked until ELF dynamic imports exist; SysV float, mixed-class,
-   large/indirect aggregates, and indirect field calls remain to migrate.
+   platform-blocked until ELF dynamic imports exist; SysV vector/mixed-class and
+   large/indirect aggregates plus indirect field calls remain to migrate.
    Ordinary AArch64 `VtableSlot` and `VtableField` calls now evaluate AAPCS64
    from their selected operands, require the full-width receiver in planned
    `x0`, marshal every argument/stack slot through the shared plan consumer,
