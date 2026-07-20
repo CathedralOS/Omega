@@ -229,10 +229,7 @@ pub(super) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
             // unconsumed for parse_machine's bodyless path. Only the
             // machine-contract call site opts in.
             if machine_final_semicolon
-                && (after.at_keyword(omega_tokens::KeywordKind::Machine)
-                    || after.at_keyword(omega_tokens::KeywordKind::Data)
-                    || after.at_keyword(omega_tokens::KeywordKind::Use)
-                    || after.tokens.is_empty())
+                && (starts_machine_contract_following_item(after) || after.tokens.is_empty())
             {
                 break;
             }
@@ -254,6 +251,29 @@ pub(super) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
     };
 
     Ok(((facts, token_count), input))
+}
+
+/// A bodyless accepted declaration owns its final semicolon even when the
+/// following root item carries the `boundary` prefix.  Looking only for a
+/// direct `machine`/`data` keyword made two consecutive accepted declarations
+/// parse as one machine whose clauses continued with the second `boundary`.
+fn starts_machine_contract_following_item(input: Input<'_, '_>) -> bool {
+    if input.at_keyword(omega_tokens::KeywordKind::Machine)
+        || input.at_keyword(omega_tokens::KeywordKind::Data)
+        || input.at_keyword(omega_tokens::KeywordKind::Use)
+    {
+        return true;
+    }
+
+    if !input.at_contextual("boundary") {
+        return false;
+    }
+
+    let after_boundary = Input::new(input.source_id, input.tokens.get(1..).unwrap_or_default());
+    after_boundary.at_keyword(omega_tokens::KeywordKind::Machine)
+        || after_boundary.at_keyword(omega_tokens::KeywordKind::Data)
+        || after_boundary.at_contextual("operator")
+        || after_boundary.at_contextual("trait")
 }
 
 fn range_membership_expression(
