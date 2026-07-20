@@ -3647,19 +3647,26 @@ fn scan_expression_calls(
 /// Other receiver shapes (member chains, indexed, etc.) are beyond this
 /// scope and stand down silently, consistent with the statement-path's
 /// handling of unrecognised receivers.
-/// A VALUE-position call to a GENERIC machine is not lowered natively yet: the
-/// monomorphized result slot is never materialized, so the call silently yields
-/// zero (#40). Reject it cleanly until machine monomorphization lands.
-/// Statement-position calls to generic machines (which lower and run when the
-/// body touches only concrete storage) are NOT affected -- this fence is only
-/// reached from expression positions.
+/// A VALUE-position call from emitted concrete code may not retain a GENERIC
+/// callee: its result slot has no concrete layout. Uninstantiated generic
+/// templates are different—they are checked modularly but never emitted, and
+/// their symbolic calls are resolved by fixed-point specialization once a
+/// concrete outer call selects them.
 fn fence_generic_value_callee(
     program: &TypedTrees,
+    caller_machine: &Machine,
     callee_machine: &Machine,
     target: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if program.machine_type_parameters(callee_machine).is_empty() {
+    // An uninstantiated generic template is checked modularly but is never
+    // emitted. Its symbolic value calls become concrete when an outer call
+    // specializes the template. Keep the fence for concrete callers whose
+    // selected callee somehow remains generic: that is still an incomplete
+    // lowering and must fail loudly.
+    if !program.machine_type_parameters(caller_machine).is_empty()
+        || program.machine_type_parameters(callee_machine).is_empty()
+    {
         return;
     }
     diagnostics.push(Diagnostic::error(format!(
@@ -3829,7 +3836,13 @@ fn validate_expression_call_bounds(
                 call.target.as_str(),
                 diagnostics,
             );
-            fence_generic_value_callee(program, callee_machine, call.target.as_str(), diagnostics);
+            fence_generic_value_callee(
+                program,
+                current_machine,
+                callee_machine,
+                call.target.as_str(),
+                diagnostics,
+            );
             validate_machine_call_type_parameter_bounds(
                 program,
                 symbols,
@@ -3911,7 +3924,13 @@ fn validate_expression_call_bounds(
                 call.target.as_str(),
                 diagnostics,
             );
-            fence_generic_value_callee(program, callee_machine, call.target.as_str(), diagnostics);
+            fence_generic_value_callee(
+                program,
+                current_machine,
+                callee_machine,
+                call.target.as_str(),
+                diagnostics,
+            );
             validate_machine_call_type_parameter_bounds(
                 program,
                 symbols,
@@ -3948,7 +3967,13 @@ fn validate_expression_call_bounds(
                 call.target.as_str(),
                 diagnostics,
             );
-            fence_generic_value_callee(program, callee_machine, call.target.as_str(), diagnostics);
+            fence_generic_value_callee(
+                program,
+                current_machine,
+                callee_machine,
+                call.target.as_str(),
+                diagnostics,
+            );
             validate_machine_call_type_parameter_bounds(
                 program,
                 symbols,
@@ -4028,7 +4053,13 @@ fn validate_expression_call_bounds(
                 call.target.as_str(),
                 diagnostics,
             );
-            fence_generic_value_callee(program, callee_machine, call.target.as_str(), diagnostics);
+            fence_generic_value_callee(
+                program,
+                current_machine,
+                callee_machine,
+                call.target.as_str(),
+                diagnostics,
+            );
             validate_machine_call_type_parameter_bounds(
                 program,
                 symbols,
@@ -4077,7 +4108,13 @@ fn validate_expression_call_bounds(
             call.target.as_str(),
             diagnostics,
         );
-        fence_generic_value_callee(program, callee_machine, call.target.as_str(), diagnostics);
+        fence_generic_value_callee(
+            program,
+            current_machine,
+            callee_machine,
+            call.target.as_str(),
+            diagnostics,
+        );
         validate_machine_call_type_parameter_bounds(
             program,
             symbols,
