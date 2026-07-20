@@ -108,10 +108,7 @@ fn u64_blessed_literals(program: &TypedTrees) -> Vec<ExpressionHandle> {
             let Some(primitive) = program.primitive_type_reference(unwrapped) else {
                 continue;
             };
-            if matches!(
-                primitive,
-                PrimitiveType::U64 | PrimitiveType::Addr
-            ) {
+            if matches!(primitive, PrimitiveType::U64 | PrimitiveType::Addr) {
                 blessed.push(field.value);
             }
         }
@@ -135,10 +132,9 @@ fn u64_blessed_literals(program: &TypedTrees) -> Vec<ExpressionHandle> {
                         if !oversize_literal(program, local.initial_value) {
                             continue;
                         }
-                        let Some(unwrapped) = crate::places::unwrapped_type_reference(
-                            program,
-                            local.type_reference,
-                        ) else {
+                        let Some(unwrapped) =
+                            crate::places::unwrapped_type_reference(program, local.type_reference)
+                        else {
                             continue;
                         };
                         if primitive_is_u64_classed(program, unwrapped) {
@@ -156,7 +152,11 @@ fn u64_blessed_literals(program: &TypedTrees) -> Vec<ExpressionHandle> {
                             transition.guard
                         {
                             bless_equality_guard_literals(
-                                program, machine, state, guard, &mut blessed,
+                                program,
+                                machine,
+                                state,
+                                guard,
+                                &mut blessed,
                             );
                         }
                         // Fire H (2026-07-16, the CR3 remaining face): a
@@ -185,9 +185,7 @@ fn u64_blessed_literals(program: &TypedTrees) -> Vec<ExpressionHandle> {
                             let Some(target_state) = program
                                 .machine_states(machine)
                                 .iter()
-                                .find(|candidate| {
-                                    candidate.name.as_str() == target_name.as_str()
-                                })
+                                .find(|candidate| candidate.name.as_str() == target_name.as_str())
                             else {
                                 continue;
                             };
@@ -229,7 +227,10 @@ fn u64_blessed_literals(program: &TypedTrees) -> Vec<ExpressionHandle> {
                 }
             }
         }
-        for measure in program.expression_table.expression_handles(machine.decreases) {
+        for measure in program
+            .expression_table
+            .expression_handles(machine.decreases)
+        {
             bless_fact_literals(program, *measure, &mut blessed);
         }
     }
@@ -488,9 +489,8 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                                 continue;
                             }
                             let target_node = program.statement_table.transition_target(target);
-                            if let omega_typed_trees::statement::TransitionTargetNode::Value(
-                                value,
-                            ) = target_node
+                            if let omega_typed_trees::statement::TransitionTargetNode::Value(value) =
+                                target_node
                                 && state.return_type.is_valid()
                             {
                                 pairs.push((*value, state.return_type));
@@ -711,19 +711,13 @@ fn collect_guard_float_comparison_pairs(
         | BinaryOperator::LessOrEqual
         | BinaryOperator::Greater
         | BinaryOperator::GreaterOrEqual => {
-            if let Some(declared) = crate::places::declared_place_type_raw(
-                program,
-                machine,
-                Some(state),
-                binary.left,
-            ) {
+            if let Some(declared) =
+                crate::places::declared_place_type_raw(program, machine, Some(state), binary.left)
+            {
                 pairs.push((binary.right, declared));
-            } else if let Some(declared) = crate::places::declared_place_type_raw(
-                program,
-                machine,
-                Some(state),
-                binary.right,
-            ) {
+            } else if let Some(declared) =
+                crate::places::declared_place_type_raw(program, machine, Some(state), binary.right)
+            {
                 pairs.push((binary.left, declared));
             }
             collect_guard_float_comparison_pairs(program, machine, state, binary.left, pairs);
@@ -791,23 +785,21 @@ pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut V
         })
     };
 
-    let literal_landing = |expression: ExpressionHandle| -> Option<(
-        ExpressionHandle,
-        LandedIntegerType,
-    )> {
-        let mut current = expression;
-        loop {
-            match program.expression_table.expression(current) {
-                ExpressionNode::Mutable(inner) => current = *inner,
-                ExpressionNode::Integer(literal) => {
-                    return literal
-                        .landing()
-                        .map(|landing| (current, landing.landed_type));
+    let literal_landing =
+        |expression: ExpressionHandle| -> Option<(ExpressionHandle, LandedIntegerType)> {
+            let mut current = expression;
+            loop {
+                match program.expression_table.expression(current) {
+                    ExpressionNode::Mutable(inner) => current = *inner,
+                    ExpressionNode::Integer(literal) => {
+                        return literal
+                            .landing()
+                            .map(|landing| (current, landing.landed_type));
+                    }
+                    _ => return None,
                 }
-                _ => return None,
             }
-        }
-    };
+        };
 
     // The FLOAT twin (F2a): a width-suffixed float literal landed its FORMAT
     // at the spelling; a destination declaring the other format is the same
@@ -982,10 +974,7 @@ fn bless_equality_guard_literals(
             bless_equality_guard_literals(program, machine, state, binary.right, blessed);
         }
         BinaryOperator::Equal | BinaryOperator::NotEqual => {
-            for (literal, other) in [
-                (binary.left, binary.right),
-                (binary.right, binary.left),
-            ] {
+            for (literal, other) in [(binary.left, binary.right), (binary.right, binary.left)] {
                 if oversize_literal(program, literal)
                     && place_is_u64_classed(program, machine, state, other)
                 {

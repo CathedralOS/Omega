@@ -415,7 +415,11 @@ impl IntegerLiteral {
         };
         let (base, digits) = split_radix(unsigned);
         let magnitude = crate::bignum::BigInt::from_str_radix(digits, base)?;
-        Some(if negative { magnitude.negate() } else { magnitude })
+        Some(if negative {
+            magnitude.negate()
+        } else {
+            magnitude
+        })
     }
 
     /// The value, IF it is non-negative and fits u64 — the u64-target window

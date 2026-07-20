@@ -358,14 +358,26 @@ const MSR_WRITE_OPERANDS: &[AsmOperandConstraint] = &[
     AsmOperandConstraint::read("MSR index", "ecx", "u32", u32::MAX as u64),
     AsmOperandConstraint::read("value", "edx:eax", "u64", u64::MAX),
 ];
-const CR0_READ_OPERANDS: &[AsmOperandConstraint] =
-    &[AsmOperandConstraint::write_place("destination", "cr0", "u64")];
-const CR2_READ_OPERANDS: &[AsmOperandConstraint] =
-    &[AsmOperandConstraint::write_place("destination", "cr2", "u64")];
-const CR3_READ_OPERANDS: &[AsmOperandConstraint] =
-    &[AsmOperandConstraint::write_place("destination", "cr3", "u64")];
-const CR4_READ_OPERANDS: &[AsmOperandConstraint] =
-    &[AsmOperandConstraint::write_place("destination", "cr4", "u64")];
+const CR0_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
+    "destination",
+    "cr0",
+    "u64",
+)];
+const CR2_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
+    "destination",
+    "cr2",
+    "u64",
+)];
+const CR3_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
+    "destination",
+    "cr3",
+    "u64",
+)];
+const CR4_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
+    "destination",
+    "cr4",
+    "u64",
+)];
 const CR0_WRITE_OPERANDS: &[AsmOperandConstraint] =
     &[AsmOperandConstraint::read("value", "cr0", "u64", u64::MAX)];
 const CR3_WRITE_OPERANDS: &[AsmOperandConstraint] =
@@ -634,9 +646,9 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
 mod tests {
     use super::{
         AsmAuthorityRequirement, AsmCatalogEntry, AsmControlRegister, AsmFenceKind,
-        AsmFlagsDataFlow, AsmInstructionAvailability, AsmInstructionRefusal,
-        AsmInstructionShape, AsmInterruptFlagEffect, AsmMemoryOrdering, AsmOperandAccess,
-        AsmTargetApplicability, asm_catalog_entry,
+        AsmFlagsDataFlow, AsmInstructionAvailability, AsmInstructionRefusal, AsmInstructionShape,
+        AsmInterruptFlagEffect, AsmMemoryOrdering, AsmOperandAccess, AsmTargetApplicability,
+        asm_catalog_entry,
     };
 
     #[test]
@@ -747,27 +759,26 @@ mod tests {
             panic!("rdmsr must be contracted");
         };
         assert_eq!(read.target, AsmTargetApplicability::X86_64);
-        assert_eq!(read.required_authority, AsmAuthorityRequirement::MachineOwner);
+        assert_eq!(
+            read.required_authority,
+            AsmAuthorityRequirement::MachineOwner
+        );
         assert_eq!(read.operands[0].access, AsmOperandAccess::Write);
         assert_eq!(read.operands[0].target_register, "edx:eax");
         assert_eq!(read.operands[1].expected_type_name, "u32");
-        assert_eq!(
-            read.clobbers,
-            &["rax", "rcx", "rdx", "r10", "r11", "r15"]
-        );
+        assert_eq!(read.clobbers, &["rax", "rcx", "rdx", "r10", "r11", "r15"]);
 
-        let AsmCatalogEntry::Contract(write) =
-            asm_catalog_entry("wrmsr").expect("wrmsr contract")
+        let AsmCatalogEntry::Contract(write) = asm_catalog_entry("wrmsr").expect("wrmsr contract")
         else {
             panic!("wrmsr must be contracted");
         };
-        assert_eq!(write.required_authority, AsmAuthorityRequirement::MachineOwner);
+        assert_eq!(
+            write.required_authority,
+            AsmAuthorityRequirement::MachineOwner
+        );
         assert_eq!(write.operands[0].target_register, "ecx");
         assert_eq!(write.operands[1].expected_type_name, "u64");
-        assert_eq!(
-            write.clobbers,
-            &["rax", "rcx", "rdx", "r10", "r11", "r15"]
-        );
+        assert_eq!(write.clobbers, &["rax", "rcx", "rdx", "r10", "r11", "r15"]);
     }
 
     #[test]
@@ -778,14 +789,20 @@ mod tests {
             AsmControlRegister::Cr3,
             AsmControlRegister::Cr4,
         ] {
-            let AsmCatalogEntry::Contract(read) =
-                asm_catalog_entry(register.read_mnemonic()).expect("control-register read contract")
+            let AsmCatalogEntry::Contract(read) = asm_catalog_entry(register.read_mnemonic())
+                .expect("control-register read contract")
             else {
                 panic!("control-register read must be contracted");
             };
-            assert_eq!(read.shape, AsmInstructionShape::ControlRegisterRead(register));
+            assert_eq!(
+                read.shape,
+                AsmInstructionShape::ControlRegisterRead(register)
+            );
             assert_eq!(read.target, AsmTargetApplicability::X86_64);
-            assert_eq!(read.required_authority, AsmAuthorityRequirement::MachineOwner);
+            assert_eq!(
+                read.required_authority,
+                AsmAuthorityRequirement::MachineOwner
+            );
             assert_eq!(read.operands[0].access, AsmOperandAccess::Write);
             assert_eq!(read.operands[0].target_register, register.name());
             assert_eq!(read.operands[0].expected_type_name, "u64");
@@ -797,14 +814,22 @@ mod tests {
             AsmControlRegister::Cr3,
             AsmControlRegister::Cr4,
         ] {
-            let mnemonic = register.write_mnemonic().expect("writable control register");
+            let mnemonic = register
+                .write_mnemonic()
+                .expect("writable control register");
             let AsmCatalogEntry::Contract(write) =
                 asm_catalog_entry(mnemonic).expect("control-register write contract")
             else {
                 panic!("control-register write must be contracted");
             };
-            assert_eq!(write.shape, AsmInstructionShape::ControlRegisterWrite(register));
-            assert_eq!(write.required_authority, AsmAuthorityRequirement::MachineOwner);
+            assert_eq!(
+                write.shape,
+                AsmInstructionShape::ControlRegisterWrite(register)
+            );
+            assert_eq!(
+                write.required_authority,
+                AsmAuthorityRequirement::MachineOwner
+            );
             assert_eq!(write.operands[0].access, AsmOperandAccess::Read);
             assert_eq!(write.operands[0].target_register, register.name());
             assert_eq!(write.operands[0].expected_type_name, "u64");

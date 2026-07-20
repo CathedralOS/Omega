@@ -573,9 +573,9 @@ fn walk_state(
         .collect();
     if !poisoned_all {
         for (spelling, fields) in entry_valuations {
-            let poisoned = poisoned_paths.iter().any(|written| {
-                crate::calls::frame_paths_overlap(spelling, written)
-            });
+            let poisoned = poisoned_paths
+                .iter()
+                .any(|written| crate::calls::frame_paths_overlap(spelling, written));
             if !poisoned && !exit_valuations.iter().any(|(name, _)| name == spelling) {
                 exit_valuations.push((spelling.clone(), fields.clone()));
             }
@@ -606,10 +606,7 @@ fn walk_state(
 /// invalidate establishment: every accepted write in every checked callee must
 /// leave the default domain true. Preserve that monotone fact before clearing
 /// the more precise tracked valuation.
-fn preserve_proven_establishment(
-    tracked: &[TrackedPlace<'_>],
-    established: &mut Vec<String>,
-) {
+fn preserve_proven_establishment(tracked: &[TrackedPlace<'_>], established: &mut Vec<String>) {
     established.extend(
         tracked
             .iter()
@@ -754,9 +751,7 @@ fn handle_assignment<'program>(
             .iter()
             .filter_map(|field| {
                 expression_sequence_measures(program, field.value)
-                    .map(|(length, capacity)| {
-                        (field.name.as_str().to_string(), length, capacity)
-                    })
+                    .map(|(length, capacity)| (field.name.as_str().to_string(), length, capacity))
             })
             .collect();
         tracked.retain(|place| place.spelling != spelling);
@@ -806,9 +801,9 @@ fn handle_assignment<'program>(
         // valuation unless an opaque call, or a known overlapping write,
         // poisoned this place's view.
         let poisoned = poisoned_all
-            || poisoned_paths.iter().any(|written| {
-                crate::calls::frame_paths_overlap(&receiver_spelling, written)
-            });
+            || poisoned_paths
+                .iter()
+                .any(|written| crate::calls::frame_paths_overlap(&receiver_spelling, written));
         let seeded_fields = if poisoned {
             Vec::new()
         } else {
@@ -846,9 +841,7 @@ fn handle_assignment<'program>(
     }
     place.measures.retain(|(name, _, _)| *name != field_name);
     if let Some((length, capacity)) = expression_sequence_measures(program, value) {
-        place
-            .measures
-            .push((field_name.clone(), length, capacity));
+        place.measures.push((field_name.clone(), length, capacity));
     }
 
     // Obligation: a field participating in either an authored `where` fact or
@@ -1620,9 +1613,7 @@ fn expression_mentions_name(
             expression_mentions_name(program, binary.left, name)
                 || expression_mentions_name(program, binary.right, name)
         }
-        ExpressionNode::Member(member) => {
-            expression_mentions_name(program, member.receiver, name)
-        }
+        ExpressionNode::Member(member) => expression_mentions_name(program, member.receiver, name),
         _ => false,
     }
 }
@@ -1685,12 +1676,13 @@ fn fold_with_valuation(
             }
         }
         ExpressionNode::Binary(binary) => {
-            if matches!(binary.operator, BinaryOperator::Equal | BinaryOperator::NotEqual)
-                && let (Some(left), Some(right)) = (
-                    symbolic_operand(program, symbols, binary.left),
-                    symbolic_operand(program, symbols, binary.right),
-                )
-                && left == right
+            if matches!(
+                binary.operator,
+                BinaryOperator::Equal | BinaryOperator::NotEqual
+            ) && let (Some(left), Some(right)) = (
+                symbolic_operand(program, symbols, binary.left),
+                symbolic_operand(program, symbols, binary.right),
+            ) && left == right
             {
                 return Some(i128::from(matches!(binary.operator, BinaryOperator::Equal)));
             }
@@ -1809,7 +1801,11 @@ fn symbolic_sort_key(value: &SymbolicValue) -> String {
                 .join(",")
         ),
         SymbolicValue::Subtract(left, right) => {
-            format!("-({},{})", symbolic_sort_key(left), symbolic_sort_key(right))
+            format!(
+                "-({},{})",
+                symbolic_sort_key(left),
+                symbolic_sort_key(right)
+            )
         }
     }
 }
@@ -1831,7 +1827,11 @@ fn symbolic_operand(
                 .iter()
                 .find(|(name, _)| name == field)
                 .map(|(_, value)| value.clone())
-                .or_else(|| path.symbol.is_valid().then_some(SymbolicValue::Atom(path.symbol)))
+                .or_else(|| {
+                    path.symbol
+                        .is_valid()
+                        .then_some(SymbolicValue::Atom(path.symbol))
+                })
         }
         ExpressionNode::Integer(value) => value
             .text()

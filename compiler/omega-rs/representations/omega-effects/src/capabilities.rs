@@ -1,7 +1,7 @@
 pub mod analysis;
 pub mod host_authority;
-pub mod providers;
 pub mod provider_plan;
+pub mod providers;
 
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;

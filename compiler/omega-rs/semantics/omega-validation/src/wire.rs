@@ -608,9 +608,9 @@ fn validate_wire_encode_call(
             };
             let _ = max_count;
             max_field_number = max_field_number.max(field.number);
-            worst_case_bytes +=
-                omega_typed_trees::wire::wire_varint_bytes(field.number as u64).len()
-                    + repeated.worst_case_payload_bytes();
+            worst_case_bytes += omega_typed_trees::wire::wire_varint_bytes(field.number as u64)
+                .len()
+                + repeated.worst_case_payload_bytes();
             repeated_fields.push((field, repeated));
             continue;
         }
@@ -629,9 +629,9 @@ fn validate_wire_encode_call(
                 continue;
             }
             max_field_number = max_field_number.max(field.number);
-            worst_case_bytes +=
-                omega_typed_trees::wire::wire_varint_bytes(field.number as u64).len()
-                    + omega_typed_trees::wire::WIRE_TEXT_LENGTH_MAX_VARINT_LENGTH;
+            worst_case_bytes += omega_typed_trees::wire::wire_varint_bytes(field.number as u64)
+                .len()
+                + omega_typed_trees::wire::WIRE_TEXT_LENGTH_MAX_VARINT_LENGTH;
             text_fields.push(field);
             byte_slice_fields.push(field);
             continue;
@@ -775,17 +775,18 @@ fn validate_wire_encode_call(
         }
         // A `&[u8]` schema field encodes a `&[u8]` value field (its raw bytes).
         for field in &byte_slice_fields {
-            let Some(value_field) = program
-                .data_members(value_data)
-                .iter()
-                .find_map(|member| match member {
-                    omega_typed_trees::data::DataMember::Field(data_field)
-                        if data_field.name == field.name =>
-                    {
-                        Some(data_field)
-                    }
-                    _ => None,
-                })
+            let Some(value_field) =
+                program
+                    .data_members(value_data)
+                    .iter()
+                    .find_map(|member| match member {
+                        omega_typed_trees::data::DataMember::Field(data_field)
+                            if data_field.name == field.name =>
+                        {
+                            Some(data_field)
+                        }
+                        _ => None,
+                    })
             else {
                 diagnostics.push(Diagnostic::error(format!(
                     "`{}::encode` value type `{}` has no field `{}` to encode (schema field {})",
@@ -861,9 +862,7 @@ fn validate_wire_encode_call(
         declared_place_type(program, current_machine, current_state, arguments[2])
         && !matches!(
             program.primitive_type_reference(written_type),
-            Some(
-                omega_typed_trees::types::PrimitiveType::U64
-            )
+            Some(omega_typed_trees::types::PrimitiveType::U64)
         )
     {
         diagnostics.push(Diagnostic::error(format!(
@@ -968,8 +967,7 @@ fn validate_wire_decode_call(
             continue;
         }
         let primitive = program.primitive_type_reference(field.type_reference);
-        let scalar =
-            primitive.and_then(omega_typed_trees::wire::WireScalarEncoding::for_primitive);
+        let scalar = primitive.and_then(omega_typed_trees::wire::WireScalarEncoding::for_primitive);
         let nested = program.wire_field_nested_schema(field);
         if scalar.is_none() && nested.is_none() {
             // An owned `String` decode is gated on a missing PREREQUISITE, not a
@@ -1050,17 +1048,18 @@ fn validate_wire_decode_call(
             return;
         }
         for (field, schema_primitive) in &current_fields {
-            let Some(value_field) = program
-                .data_members(value_data)
-                .iter()
-                .find_map(|member| match member {
-                    omega_typed_trees::data::DataMember::Field(data_field)
-                        if data_field.name == field.name =>
-                    {
-                        Some(data_field)
-                    }
-                    _ => None,
-                })
+            let Some(value_field) =
+                program
+                    .data_members(value_data)
+                    .iter()
+                    .find_map(|member| match member {
+                        omega_typed_trees::data::DataMember::Field(data_field)
+                            if data_field.name == field.name =>
+                        {
+                            Some(data_field)
+                        }
+                        _ => None,
+                    })
             else {
                 diagnostics.push(Diagnostic::error(format!(
                     "`{}::decode` value type `{}` has no field `{}` to decode into (schema field {})",
@@ -1104,17 +1103,18 @@ fn validate_wire_decode_call(
         // A `&[u8]` schema field decodes into a `&[u8]` value field (a zero-copy
         // view of the buffer); the value's data field must match.
         for field in &byte_slice_fields {
-            let Some(value_field) = program
-                .data_members(value_data)
-                .iter()
-                .find_map(|member| match member {
-                    omega_typed_trees::data::DataMember::Field(data_field)
-                        if data_field.name == field.name =>
-                    {
-                        Some(data_field)
-                    }
-                    _ => None,
-                })
+            let Some(value_field) =
+                program
+                    .data_members(value_data)
+                    .iter()
+                    .find_map(|member| match member {
+                        omega_typed_trees::data::DataMember::Field(data_field)
+                            if data_field.name == field.name =>
+                        {
+                            Some(data_field)
+                        }
+                        _ => None,
+                    })
             else {
                 diagnostics.push(Diagnostic::error(format!(
                     "`{}::decode` value type `{}` has no field `{}` to decode into (schema field {})",
@@ -1182,9 +1182,7 @@ fn validate_wire_decode_call(
         declared_place_type(program, current_machine, current_state, arguments[2])
         && !matches!(
             program.primitive_type_reference(read_type),
-            Some(
-                omega_typed_trees::types::PrimitiveType::U64
-            )
+            Some(omega_typed_trees::types::PrimitiveType::U64)
         )
     {
         diagnostics.push(Diagnostic::error(format!(
@@ -1235,9 +1233,7 @@ fn type_is_wire_verdict(program: &TypedTrees, type_reference: TypeReferenceHandl
     let case_names: Vec<&str> = members
         .iter()
         .filter_map(|member| match member {
-            omega_typed_trees::data::DataMember::Variant(variant)
-                if variant.payload.is_empty() =>
-            {
+            omega_typed_trees::data::DataMember::Variant(variant) if variant.payload.is_empty() => {
                 Some(variant.name.as_str())
             }
             _ => None,
@@ -1259,17 +1255,18 @@ fn validate_nested_value_field(
     child: &WireSchema,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(value_field) = program
-        .data_members(value_data)
-        .iter()
-        .find_map(|member| match member {
-            omega_typed_trees::data::DataMember::Field(data_field)
-                if data_field.name == field.name =>
-            {
-                Some(data_field)
-            }
-            _ => None,
-        })
+    let Some(value_field) =
+        program
+            .data_members(value_data)
+            .iter()
+            .find_map(|member| match member {
+                omega_typed_trees::data::DataMember::Field(data_field)
+                    if data_field.name == field.name =>
+                {
+                    Some(data_field)
+                }
+                _ => None,
+            })
     else {
         diagnostics.push(Diagnostic::error(format!(
             "`{}::{machine_name}` value type `{}` has no field `{}` (schema field {} nests wire schema `{}`)",
@@ -1309,17 +1306,18 @@ fn validate_nested_value_field(
         let WireMember::Field(child_field) = member else {
             continue;
         };
-        let Some(child_value_field) = program
-            .data_members(child_value_data)
-            .iter()
-            .find_map(|member| match member {
-                omega_typed_trees::data::DataMember::Field(data_field)
-                    if data_field.name == child_field.name =>
-                {
-                    Some(data_field)
-                }
-                _ => None,
-            })
+        let Some(child_value_field) =
+            program
+                .data_members(child_value_data)
+                .iter()
+                .find_map(|member| match member {
+                    omega_typed_trees::data::DataMember::Field(data_field)
+                        if data_field.name == child_field.name =>
+                    {
+                        Some(data_field)
+                    }
+                    _ => None,
+                })
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "`{}::{machine_name}` nested value type `{}` has no field `{}` (wire schema `{}` field {})",
@@ -1438,9 +1436,7 @@ fn validate_repeated_value_field(
         Some(count_field) => {
             if !matches!(
                 program.primitive_type_reference(count_field.type_reference),
-                Some(
-                    omega_typed_trees::types::PrimitiveType::U64
-                )
+                Some(omega_typed_trees::types::PrimitiveType::U64)
             ) {
                 diagnostics.push(Diagnostic::error(format!(
                     "`{}::{machine_name}` value field `{}.{count_name}` must be `u64` (the repeated field's count companion), got `{}`",

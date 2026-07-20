@@ -43,9 +43,7 @@ impl<'program> CallFrameResolver<'program> {
     pub fn new(program: &'program TypedTrees) -> Option<Self> {
         let mut diagnostics = Vec::new();
         let symbols = TopLevelSymbols::build(program, &mut diagnostics);
-        diagnostics
-            .is_empty()
-            .then_some(Self { program, symbols })
+        diagnostics.is_empty().then_some(Self { program, symbols })
     }
 
     pub fn may_write_paths(
@@ -67,12 +65,7 @@ impl<'program> CallFrameResolver<'program> {
             &self.symbols,
         )
         .or_else(|| {
-            known_boundary_call_written_paths(
-                self.program,
-                &machine_symbols,
-                &self.symbols,
-                call,
-            )
+            known_boundary_call_written_paths(self.program, &machine_symbols, &self.symbols, call)
         })
     }
 
@@ -250,9 +243,7 @@ fn collect_expression_call_written_paths(
             // caller-visible floor: it cannot mutate an unpassed caller local.
             // Conservatively poison the whole receiver (`self` for an implicit
             // receiver) plus every explicit mutable argument.
-            .or_else(|| {
-                syntactic_call_written_paths(program, &receiver_members, arguments)
-            })?;
+            .or_else(|| syntactic_call_written_paths(program, &receiver_members, arguments))?;
             for path in paths {
                 if !written.contains(&path) {
                     written.push(path);
@@ -800,19 +791,18 @@ pub(crate) fn validate_asm_value_destination(
     let ExpressionNode::Call(call) = program.expression_table.expression(assignment.value) else {
         return;
     };
-    let instruction = match
-        omega_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(
+    let instruction =
+        match omega_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(
             call.target.as_str(),
-        )
-    {
-        Some(register) => register.read_mnemonic(),
-        None => match call.target.as_str() {
-            "asm#port_in" => "in",
-            "asm#pushfq" => "pushfq",
-            "asm#rdmsr" => "rdmsr",
-            _ => return,
-        },
-    };
+        ) {
+            Some(register) => register.read_mnemonic(),
+            None => match call.target.as_str() {
+                "asm#port_in" => "in",
+                "asm#pushfq" => "pushfq",
+                "asm#rdmsr" => "rdmsr",
+                _ => return,
+            },
+        };
     let contract = user_asm_contract(instruction);
     validate_asm_operand_constraint(
         program,
@@ -1039,11 +1029,7 @@ fn known_call_written_paths_for_parts(
                     .attached_data
                     .as_ref()
                     .and_then(|attached_data| {
-                        symbols.attached_machine_state(
-                            program,
-                            attached_data.as_str(),
-                            target,
-                        )
+                        symbols.attached_machine_state(program, attached_data.as_str(), target)
                     })
             })
             .or_else(|| free_machine_entry_state(program, symbols, target))?
@@ -1089,7 +1075,12 @@ fn summarize_resolved_call(
 ) -> Option<Vec<String>> {
     let receiver_base = (!receiver_members.is_empty())
         .then(|| receiver_members.join("."))
-        .or_else(|| callee_machine.attached_data.as_ref().map(|_| "self".to_owned()));
+        .or_else(|| {
+            callee_machine
+                .attached_data
+                .as_ref()
+                .map(|_| "self".to_owned())
+        });
     let parameters = program.state_parameters(callee_state);
     let mut locals = Vec::new();
     let mut written = Vec::new();
@@ -2481,8 +2472,7 @@ fn guarded_integer_predecessor_call(
             };
             let guard = match program.expression_table.expression(guard) {
                 ExpressionNode::Binary(wrapper)
-                    if wrapper.operator
-                        == omega_typed_trees::expression::BinaryOperator::Equal
+                    if wrapper.operator == omega_typed_trees::expression::BinaryOperator::Equal
                         && matches!(
                             program.expression_table.expression(wrapper.right),
                             ExpressionNode::Boolean(true)
@@ -3737,9 +3727,7 @@ fn validate_expression_call_bounds(
         return;
     }
 
-    if matches!(call.target.as_str(), "asm#port_in" | "asm#rdmsr")
-        && !call.receiver.is_valid()
-    {
+    if matches!(call.target.as_str(), "asm#port_in" | "asm#rdmsr") && !call.receiver.is_valid() {
         let (intrinsic, instruction, operand_index) = if call.target.as_str() == "asm#port_in" {
             ("asm#port_in", "in", 1)
         } else {
@@ -4506,9 +4494,8 @@ fn report_unresolved_value_call(
         if matches!(
             target,
             "min" | "max" | "sqrt" | "asm#port_in" | "asm#pushfq" | "asm#rdmsr"
-        )
-            || omega_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(target)
-                .is_some()
+        ) || omega_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(target)
+            .is_some()
         {
             return;
         }

@@ -60,10 +60,7 @@ mod tests {
         let generated = symbols.insert_generated_root(SymbolKind::Machine, "map$specialized");
         let children = symbols.insert_generated_children(
             generated,
-            [
-                (SymbolKind::State, "entry"),
-                (SymbolKind::State, "next"),
-            ],
+            [(SymbolKind::State, "entry"), (SymbolKind::State, "next")],
         );
         let generated_children = symbols
             .child_handles(generated)

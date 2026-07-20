@@ -32,9 +32,12 @@ pub(crate) fn validate_machine_trait_conformances(
         // Data-attached machines with a bare trait name keep the whole-trait
         // semantics below, unchanged.
         let named_requirement = conformance.requirement.clone();
-        let single_requirement = named_requirement
-            .clone()
-            .or_else(|| machine.attached_data.is_none().then(|| machine.name.clone()));
+        let single_requirement = named_requirement.clone().or_else(|| {
+            machine
+                .attached_data
+                .is_none()
+                .then(|| machine.name.clone())
+        });
         if let Some(requirement_name) = single_requirement {
             validate_machine_single_requirement(
                 program,
@@ -262,7 +265,11 @@ fn validate_machine_state_satisfies_trait_signature_with_arguments(
         && actual_parameters.len() == required_parameters.len() + 1
         && actual_parameters.first().is_some_and(|parameter| {
             let label = type_reference_label(program, parameter.type_reference);
-            let leaf = label.rsplit("::").next().unwrap_or(label.as_str()).to_owned();
+            let leaf = label
+                .rsplit("::")
+                .next()
+                .unwrap_or(label.as_str())
+                .to_owned();
             let trait_leaf = trait_definition
                 .name
                 .as_str()
@@ -443,10 +450,9 @@ fn type_references_match_with_trait_bindings(
     // requirements are Self-shaped -- `machine add(a: Self, b: Self) -> Self`
     // -- and the carrier type is INFERRED from the satisfier's signature).
     if required_is_self_type(program, required) {
-        if let Some(binding) = bindings
-            .iter()
-            .find(|binding| !binding.parameter_symbol.is_valid() && binding.parameter_name == "Self")
-        {
+        if let Some(binding) = bindings.iter().find(|binding| {
+            !binding.parameter_symbol.is_valid() && binding.parameter_name == "Self"
+        }) {
             return type_references_match(program, actual, binding.actual);
         }
 

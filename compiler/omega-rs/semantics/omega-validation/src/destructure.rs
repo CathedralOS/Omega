@@ -74,9 +74,7 @@ pub(crate) fn validate_destructure_exhaustiveness(
                     )));
                     continue;
                 };
-                let Some(data) =
-                    crate::places::data_definition_for_type(program, resolved)
-                else {
+                let Some(data) = crate::places::data_definition_for_type(program, resolved) else {
                     diagnostics.push(Diagnostic::error(format!(
                         "record pattern in machine `{}` state `{}` destructures a value that is not a data record -- only plain data definitions destructure",
                         machine.name, state.name,
@@ -148,18 +146,14 @@ fn validate_arm_pattern_marker(
         spelled.pop();
     }
 
-    let declared = crate::places::declared_place_type_raw(
-        program,
-        machine,
-        Some(state),
-        local.initial_value,
-    )
-    .or_else(|| {
-        local
-            .type_reference
-            .is_valid()
-            .then_some(local.type_reference)
-    });
+    let declared =
+        crate::places::declared_place_type_raw(program, machine, Some(state), local.initial_value)
+            .or_else(|| {
+                local
+                    .type_reference
+                    .is_valid()
+                    .then_some(local.type_reference)
+            });
     let Some(declared) = declared else {
         // The parse-time place gate admitted the subject but the declared
         // type is unresolvable here (e.g. a shape places.rs does not walk).
@@ -208,16 +202,18 @@ fn validate_arm_pattern_marker(
         }
         fields
     } else {
-        let Some(case) = program.data_members(data).iter().find_map(|member| {
-            match member {
+        let Some(case) = program
+            .data_members(data)
+            .iter()
+            .find_map(|member| match member {
                 omega_typed_trees::data::DataMember::Variant(case)
                     if case.name.as_str() == variant =>
                 {
                     Some(case)
                 }
                 _ => None,
-            }
-        }) else {
+            })
+        else {
             // An unknown case name already refuses at the tag-membership
             // guard; do not double-report here.
             return;
