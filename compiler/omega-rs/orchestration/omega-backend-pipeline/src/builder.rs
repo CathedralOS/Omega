@@ -480,10 +480,10 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     Ok(backend_plan)
 }
 
-/// Conservatively reserve a word for native aggregate results above the normal
-/// two-register ceiling. AAPCS64 HFAs may still use vector registers above 16
-/// bytes; normalized instruction selection recognizes those and simply leaves
-/// this reservation unused.
+/// Conservatively reserve a word for native indirect aggregate results.
+/// AAPCS64 HFAs may still use vector registers above 16 bytes; normalized
+/// instruction selection recognizes those and simply leaves this reservation
+/// unused.
 fn entry_may_need_native_indirect_result_pointer(
     program: &CheckedTrees,
     layouts: &omega_layout::LayoutPlan,
@@ -493,6 +493,7 @@ fn entry_may_need_native_indirect_result_pointer(
     if !matches!(
         omega_calling_conventions::CallingPolicy::native_for_target(target),
         omega_calling_conventions::CallingPolicy::Aapcs64
+            | omega_calling_conventions::CallingPolicy::MicrosoftX64
             | omega_calling_conventions::CallingPolicy::SystemVAMD64
     ) {
         return false;
@@ -512,10 +513,15 @@ fn entry_may_need_native_indirect_result_pointer(
         return false;
     };
     let result_symbol = program.type_reference_symbol(state.return_type);
-    layouts
-        .data_layouts
-        .iter()
-        .any(|(_, layout)| layout.symbol == result_symbol && layout.layout.size > 16)
+    let policy = omega_calling_conventions::CallingPolicy::native_for_target(target);
+    layouts.data_layouts.iter().any(|(_, layout)| {
+        layout.symbol == result_symbol
+            && if policy == omega_calling_conventions::CallingPolicy::MicrosoftX64 {
+                !matches!(layout.layout.size, 1 | 2 | 4 | 8)
+            } else {
+                layout.layout.size > 16
+            }
+    })
 }
 
 /// Give each call-context (specialized clone) -- and each STATE within a context

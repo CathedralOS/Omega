@@ -143,9 +143,13 @@ ceiling derived exactly from the ABI volatile-register classes.
    Direct 1-, 2-, 4-, and 8-byte Microsoft x64 entry records now consume the
    normalized boundary plan in both directions: declared parameters store from
    the plan-selected integer register or stack slot and terminal records load
-   into `rax`. A source-to-PE UEFI canary pins the eight-byte `rcx`/`rax` path;
-   wider hidden-`rcx` result records remain fail-closed pending the x86 indirect
-   entry copier.
+   into `rax`. A source-to-PE UEFI canary pins the eight-byte `rcx`/`rax` path.
+   Nondirect record widths now use the Microsoft hidden-result convention at
+   entry: the destination arrives in `rcx`, declared arguments shift by one
+   slot, the terminal copies through the preserved pointer, and returns it in
+   `rax`. A 16-byte source canary pins the complete handoff; by-reference
+   Microsoft aggregate parameters remain fail-closed pending their x86 entry
+   copier.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
    complete import/vtable/service-table compatibility mechanism matrix is
