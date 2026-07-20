@@ -878,7 +878,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
 /// those would corrupt them, so this must not touch them. Recurses through a nested
 /// Binary operand expression in lockstep with the operand tree so a float literal
 /// inside an inner sub-expression is narrowed too. No-op for non-literal operands.
-pub(in crate::selection::runtime_dispatch) fn narrow_f32_literal_operands(
+fn narrow_f32_literal_operands(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     expressions: &ExpressionTable,
     operand_expression: ExpressionHandle,

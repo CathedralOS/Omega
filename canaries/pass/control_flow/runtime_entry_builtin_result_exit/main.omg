@@ -1,0 +1,9 @@
+// Scalar builtins at an entry terminal compute through the same pre-resolved
+// result-scratch writer as arithmetic expressions.
+data Main { a: i32; b: i32; }
+
+machine Main::main(&mut self) -> i32 {
+    self.a = 30;
+    self.b = 70;
+    transition { _ -> (max(self.a, self.b)) }
+}
