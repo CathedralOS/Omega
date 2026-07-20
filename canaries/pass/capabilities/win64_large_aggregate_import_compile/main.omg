@@ -1,0 +1,30 @@
+// Microsoft x64 passes fixed records larger than eight bytes by reference to
+// a 16-byte-aligned caller copy. The declared position still selects the
+// pointer register, so the record between two scalars occupies RDX.
+data Triple {
+    first: u64;
+    second: u64;
+    third: u64;
+}
+
+boundary trait LargeAggregateImport {
+    machine send(before: u64, value: Triple, after: u64) -> i32;
+}
+
+windows_x64 provides LargeAggregateImport {
+    send -> DllImport("omega_abi_probe.dll", "omega_win64_large_aggregate_probe")
+}
+
+data Main {
+    foreign: LargeAggregateImport;
+    before: u64;
+    input: Triple;
+    after: u64;
+    status: i32;
+}
+machine Main::main(&mut self) {
+    self.before = 7;
+    self.input = Triple { first: 1, second: 2, third: 3 };
+    self.after = 9;
+    self.status = self.foreign.send(self.before, self.input, self.after);
+}

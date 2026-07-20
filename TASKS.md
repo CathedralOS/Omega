@@ -153,6 +153,14 @@ ceiling derived exactly from the ABI volatile-register classes.
    complete pointee into runtime storage. Source-to-PE canaries pin both a
    register pointer between scalar arguments and the fifth-position stack
    pointer after the return address and 32-byte shadow space.
+   Provides-authored outbound Microsoft records above eight bytes now allocate
+   16-byte-aligned caller copies beyond shadow space and outgoing pointer slots,
+   copy every record fragment, and place the pointer in the normalized
+   positional GPR or stack slot. General imports, vtable calls, and firmware
+   service-table calls share the same reservation, width, and relocation
+   accounting; a source-to-PE canary pins a 24-byte record between scalar
+   arguments. Direct outbound records of at most eight bytes and aggregate
+   call results remain fail-closed.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
    complete import/vtable/service-table compatibility mechanism matrix is
