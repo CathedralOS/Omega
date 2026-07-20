@@ -1,0 +1,8 @@
+// A small INTEGER/SSE entry result returns from runtime storage in rax/xmm0.
+data MixedPair { integer: u64; floating: f64; }
+data Main { output: MixedPair; }
+boundary machine Main::run(&self) -> MixedPair {
+    transition { _ -> (self.output) }
+}
+target linux_x64 {
+}

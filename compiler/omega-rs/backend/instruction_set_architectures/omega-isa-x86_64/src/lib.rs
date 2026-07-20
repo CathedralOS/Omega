@@ -350,12 +350,20 @@ pub fn return_register_integer_write_width(
 }
 
 pub fn runtime_storage_copy_to_return_register_width(
+    register: omega_calling_conventions::MachineRegister,
     byte_offset: usize,
     byte_size: usize,
 ) -> usize {
-    // mov r15,imm64(region base, relocated) (10) + load into eax/rax (7; the
-    // sign-extending movsx forms for 1/2-byte operands carry an 0F prefix, 8).
+    // mov r15,imm64(region base, relocated) (10) + either a scalar XMM load
+    // (9) or a GPR load (7; sign-extending 1/2-byte forms carry an 0F prefix,
+    // 8).
     let _ = byte_offset;
+    if matches!(
+        register,
+        omega_calling_conventions::MachineRegister::X86Xmm(_)
+    ) {
+        return 19;
+    }
     let load_width = if matches!(byte_size, 1 | 2) { 8 } else { 7 };
     10 + load_width
 }
@@ -773,11 +781,28 @@ pub fn encode_runtime_storage_copy_to_return_register_bytes(
     byte_size: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_storage_copy_to_return_register_width(
+        register,
         byte_offset,
         byte_size,
     ));
     append_mov_r15_imm64(&mut bytes, 0);
     let displacement = disp32(byte_offset)?;
+    if let omega_calling_conventions::MachineRegister::X86Xmm(register_index) = register {
+        if register_index > 15 || !matches!(byte_size, 4 | 8) {
+            return Err(Diagnostic::error(format!(
+                "X86_64 MVP encoder cannot copy {byte_size} bytes into XMM{register_index}"
+            )));
+        }
+        bytes.push(if byte_size == 4 { 0xf3 } else { 0xf2 });
+        bytes.push(0x41 | if register_index >= 8 { 0x04 } else { 0 });
+        bytes.extend([0x0f, 0x10, 0x87 | ((register_index & 7) << 3)]);
+        bytes.extend(displacement.to_le_bytes());
+        debug_assert_eq!(
+            bytes.len(),
+            runtime_storage_copy_to_return_register_width(register, byte_offset, byte_size)
+        );
+        return Ok(bytes);
+    }
     let register_number = x86_gpr_number(register).ok_or_else(|| {
         Diagnostic::error(format!(
             "X86_64 MVP encoder cannot use {register:?} as an integer result register"
@@ -799,7 +824,7 @@ pub fn encode_runtime_storage_copy_to_return_register_bytes(
     bytes.extend(displacement.to_le_bytes());
     debug_assert_eq!(
         bytes.len(),
-        runtime_storage_copy_to_return_register_width(byte_offset, byte_size)
+        runtime_storage_copy_to_return_register_width(register, byte_offset, byte_size)
     );
     Ok(bytes)
 }
@@ -822,6 +847,14 @@ mod result_register_tests {
             encode_runtime_storage_copy_to_return_register_bytes(MachineRegister::X86R10, 16, 4)
                 .expect("r10d result load");
         assert_eq!(&bytes[10..17], &[0x45, 0x8b, 0x97, 16, 0, 0, 0]);
+    }
+
+    #[test]
+    fn runtime_result_load_uses_the_plan_selected_xmm_register() {
+        let bytes =
+            encode_runtime_storage_copy_to_return_register_bytes(MachineRegister::X86Xmm(2), 24, 8)
+                .expect("xmm2 result load");
+        assert_eq!(&bytes[10..19], &[0xf2, 0x41, 0x0f, 0x10, 0x97, 24, 0, 0, 0]);
     }
 }
 

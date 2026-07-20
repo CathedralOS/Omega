@@ -53,7 +53,9 @@ the stack without consuming the remaining argument register; normalized result
 plans select `rax`/`rdx`. SysV entry parameters now also classify flat HFA and
 recursive INTEGER/SSE records, consume the independent GPR/XMM banks
 atomically, and fall wholly to their planned stack fragments on either-bank
-exhaustion. Provides-authored SysV integer imports now preserve
+exhaustion. Small SysV entry results now load terminal record fragments into
+their normalized `rax`/`rdx` and/or `xmm0`/`xmm1` locations.
+Provides-authored SysV integer imports now preserve
 those records through selection, marshal their planned register or stack
 fragments, spill small aggregate results from `rax`/`rdx`, and keep layout plus
 data/call relocation walkers in lockstep. Authored scalar floats retain their
@@ -239,6 +241,13 @@ ceiling derived exactly from the ABI volatile-register classes.
    in either bank rolls the whole record to incoming stack fragments without
    consuming the other bank. Source-to-ELF canaries pin all three paths and
    the following scalar's rolled-back `xmm0` placement.
+   Small record terminals now consume the same normalized result placement:
+   INTEGER/INTEGER, SSE/SSE, and INTEGER/SSE entries load runtime storage into
+   `rax`/`rdx`, `xmm0`/`xmm1`, and `rax`/`xmm0`, respectively. The shared
+   return-copy operation now realizes scalar XMM loads with matching width and
+   relocation accounting. Three source-to-ELF canaries pin those result
+   combinations, while a 24-byte homogeneous-float canary proves the SysV
+   two-eightbyte ceiling still selects the existing hidden-pointer MEMORY path.
    Ordinary AArch64 `VtableSlot` and `VtableField` calls now evaluate AAPCS64
    from their selected operands, require the full-width receiver in planned
    `x0`, marshal every argument/stack slot through the shared plan consumer,
