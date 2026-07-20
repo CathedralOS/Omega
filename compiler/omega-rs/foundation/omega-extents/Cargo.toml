@@ -1,0 +1,9 @@
+[package]
+name = "omega-extents"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_extents"
+path = "src/lib.rs"

@@ -287,10 +287,14 @@ before the fix.
   complete non-scalar and mutable recast views, validate tiling beyond
   fact-free shapes, enforce validate/materialize mint exclusivity, and prove
   codec conformance through ordinary policy machines.
-- **L6a — Extent.** Implement the opaque linear concrete-range carrier with
-  sealed space/rights/provenance/era facts, move-split, common-origin merge,
-  borrow-carrying subranges, and provider-backed map/unmap plus
-  shootdown/quiescence.
+- **L6a — Extent.** The normalized conservation foundation is live in
+  `omega-extents`: admitted one-shot root grants mint nonempty ranges;
+  move-split preserves exact geometry; only compatible siblings from one
+  split lineage merge; attenuation cannot add open-set rights; failed
+  consuming operations return their authority; and one borrow-carrying loan
+  derives shared/exclusive polarity from its parent. Connect this model to the
+  opaque Omega `[linear]` carrier, sealed fact establishment, provider-backed
+  map/unmap, and shootdown/quiescence.
 - **L6b — AccessPlan and placed views.** The separate normalized validator is
   live: name-keyed entries pin exact transfer width, stable/external/atomic
   observation, ordinary and atomic permissions, exported versus

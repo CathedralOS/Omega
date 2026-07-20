@@ -105,6 +105,15 @@ borrow: shared loans permit only shared operations; exclusive loans permit
 ordinary mutation. Loans are not linear cleanup obligations. The owned extent,
 DMA tokens, shootdown tokens, and similar authority/debt values remain linear.
 
+The normalized conservation model is live in `omega-extents`. Its opaque Rust
+carrier is non-clonable; an admitted one-shot root grant is the only mint;
+space, provenance, era, and lineage identities are normalized; rights are an
+open set of normalized identities rather than a compiler-blessed enumeration;
+and split, attenuation, sibling merge, and bounded shared/exclusive loans are
+validated. Failed consuming operations return every input authority. The
+remaining work is connection to the Omega `[linear]` carrier and sealed domain
+facts, followed by provider mapping and reclamation.
+
 ### Mapping and reclamation
 
 Mapping requires authority on both sides. A requested `addr` may be a placement
@@ -582,8 +591,11 @@ and the concrete interrupt state policy remain. Remaining order:
    provider-resolved writer program are already live. Native symbolic actions
    lower with tagged materialization origin rather than pretending those sites
    came from an instruction.
-3. Implement the settled `Extent` carrier, conservation rules, source-loan /
-   destination-authority mapping, and authority-origin validation.
+3. Connect the implemented normalized `Extent` conservation model to the Omega
+   linear carrier and sealed facts, then implement source-loan /
+   destination-authority mapping and provider reclamation. Root admission,
+   exact split geometry, open-set attenuation, common-split-lineage merge, and
+   borrow-polarity loans are already checked.
 4. Connect the implemented normalized `AccessPlan` validator and its sealed
    field/operation authorization values to Omega-authored
    policies and extent provenance, derive sealed field-access values, and lower
