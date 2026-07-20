@@ -3,25 +3,27 @@
 // both runtimes.
 use omega::language::std::console;
 
-domain i64::Negative when self < 0 {}
+domain i8::Negative when self < 0 {}
 
-data SignedValue<const N: i64>
+data SignedValue<const N: i8>
 where
     N in Negative,
 {
-    marker: i64;
+    marker: i8;
 }
 
-machine SignedValue::value<const N: i64>(&self) -> i64 in Wrapping {
+machine SignedValue::value<const N: i8>(&self) -> i8 in Wrapping {
     N
 }
 
 data Main {
     console: Console;
-    signed: SignedValue<-2 - 2>;
+    signed: SignedValue<-2 ^ 7>;
+    shifted_left: SignedValue<-2 << 2>;
+    shifted_right: SignedValue<-2 >> 1>;
 }
 
 machine Main::main(&mut self) {
-    let value: i64 in Wrapping = self.signed.value();
-    self.console.exit_process((value + 74) as i32);
+    let value: i8 in Wrapping = self.signed.value();
+    self.console.exit_process((value as i32) + 77);
 }

@@ -1,0 +1,11 @@
+// Signed const shifts use the parameter's declared width and exact overflow
+// semantics instead of host or unsigned-64 folding.
+data SignedValue<const N: i8> {
+    marker: i8;
+}
+
+data Main {
+    value: SignedValue<-128 << 1>;
+}
+
+machine Main::main(&mut self) {}

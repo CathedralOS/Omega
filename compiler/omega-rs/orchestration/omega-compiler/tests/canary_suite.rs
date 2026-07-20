@@ -36843,6 +36843,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "generics/negative_const_data_argument_unsigned",
     "generics/signed_const_data_argument_out_of_range",
+    "generics/signed_const_data_shift_overflow",
     "generics/const_data_where_machine_classifier_effectful",
     "generics/const_data_where_machine_classifier_fact_false",
     "generics/const_data_where_machine_classifier_false",
