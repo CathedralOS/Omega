@@ -16,10 +16,13 @@
 //!   else (predicates, intersections, nested domains, extra body facts) is a
 //!   predicate domain.
 //! - `_` (an Always guard) satisfies coverage outright.
+//! - conjunctions produced by tuple patterns form finite boxes over case-tag
+//!   and boolean axes; exhaustiveness is the Cartesian union of those boxes,
+//!   never the independent marginal coverage of each subject.
 //!
 //! Everything else -- predicate-domain arms, destructure arms with `if`
-//! guards, value compares -- relies on facts the counter cannot decide, so a
-//! run that needs them must close with `_`.
+//! guards, and non-complementary value compares -- relies on facts the counter
+//! cannot decide, so a run that needs them must close with `_`.
 //!
 //! This pass runs on the RESOLVED trees, like `crate::equality`, and for the
 //! same reason: `in` is still a distinct `Membership` node here (typed
@@ -49,7 +52,12 @@ pub(crate) fn validate_case_dispatch_exhaustiveness(
                 .bodies
                 .statements
                 .statements(state.statement_nodes);
-            let location = format!("{}::{}", machine.name, state.name);
+            let location = if machine.name.as_str().rsplit("::").next() == Some(state.name.as_str())
+            {
+                machine.name.as_str().to_owned()
+            } else {
+                format!("{}::{}", machine.name, state.name)
+            };
 
             // Maximal runs of consecutive transitions: the statement-level
             // shape every transition block desugars into. A transition
@@ -82,15 +90,14 @@ pub(crate) fn validate_case_dispatch_exhaustiveness(
 enum ArmShape {
     /// `_` -- always satisfied, closes any dispatch.
     Default,
-    /// A classification over a case-bearing subject.
-    Claim(CaseClaim),
-    /// A boolean compare against a literal (`subject == true` -- the desugar
-    /// of a `true ->` arm, or user-written). A `true` arm and a `false` arm
-    /// over ONE subject cover the whole boolean and close the dispatch.
-    Bool {
-        subject: ExpressionHandle,
-        value: bool,
-    },
+    /// A decidable conjunction of finite-domain constraints. A tuple pattern
+    /// is one such conjunction; missing axes are wildcards. Keeping the whole
+    /// arm intact is essential: independently pooling each subject's marginal
+    /// coverage would incorrectly accept a diagonal of a Cartesian matrix.
+    Finite(Vec<FiniteConstraint>),
+    /// The arm touches a case-bearing subject but contains a predicate domain
+    /// or another conjunct which prevents the whole arm from being counted.
+    UncountedCase(CaseClaim),
     /// An equality compare (`x == k` / `x != k`). A complementary PAIR over
     /// one subject and one value (`x == k ->` plus `x != k ->`) is total and
     /// closes the dispatch.
@@ -104,6 +111,14 @@ enum ArmShape {
     Opaque,
 }
 
+enum FiniteConstraint {
+    Case(CaseClaim),
+    Bool {
+        subject: ExpressionHandle,
+        value: bool,
+    },
+}
+
 struct CaseClaim {
     /// Index into `program.data_definitions` of the subject's sum type.
     data_index: usize,
@@ -111,7 +126,7 @@ struct CaseClaim {
     subject: ExpressionHandle,
     /// Variant indexes (declaration order) the arm decidably covers, or
     /// `None` when the arm touches the sum but cannot be counted (predicate
-    /// domain, `if`-guarded pattern, mixed-subject conjunction).
+    /// domain or an otherwise opaque guarded pattern).
     covered: Option<Vec<usize>>,
 }
 
@@ -139,9 +154,12 @@ fn check_dispatch_run(
     if run.is_empty() {
         return Ok(());
     }
+    if has_continuation {
+        return Ok(());
+    }
 
-    let mut claims: Vec<CaseClaim> = Vec::new();
-    let mut bool_arms: Vec<(ExpressionHandle, bool)> = Vec::new();
+    let mut finite_arms: Vec<Vec<FiniteConstraint>> = Vec::new();
+    let mut uncounted_claims: Vec<CaseClaim> = Vec::new();
     let mut compare_arms: Vec<(ExpressionHandle, ExpressionHandle, bool)> = Vec::new();
     let mut has_opaque_arm = false;
 
@@ -150,8 +168,8 @@ fn check_dispatch_run(
             // A `_` arm catches every fallthrough: the dispatch is closed no
             // matter what the other arms rely on.
             ArmShape::Default => return Ok(()),
-            ArmShape::Claim(claim) => claims.push(claim),
-            ArmShape::Bool { subject, value } => bool_arms.push((subject, value)),
+            ArmShape::Finite(constraints) => finite_arms.push(constraints),
+            ArmShape::UncountedCase(claim) => uncounted_claims.push(claim),
             ArmShape::Compare {
                 left,
                 right,
@@ -160,14 +178,6 @@ fn check_dispatch_run(
             ArmShape::Opaque => has_opaque_arm = true,
         }
     }
-
-    // A `true` arm AND a `false` arm over one subject cover the boolean.
-    let bool_pair_closes = bool_arms.iter().any(|(subject, value)| {
-        *value
-            && bool_arms.iter().any(|(other, other_value)| {
-                !*other_value && expressions_structurally_equal(program, *subject, *other)
-            })
-    });
 
     // `x == k ->` plus `x != k ->` over one subject and value is total.
     let compare_pair_closes = compare_arms.iter().any(|(left, right, negated)| {
@@ -180,59 +190,82 @@ fn check_dispatch_run(
                         && expressions_structurally_equal(program, *right, *other_right)
                 })
     });
+    if compare_pair_closes {
+        return Ok(());
+    }
 
-    // Check coverage per claimed sum type (one dispatch normally classifies
-    // one subject; tuple dispatches can touch several).
-    let mut checked: Vec<usize> = Vec::new();
-    for claim in &claims {
-        if checked.contains(&claim.data_index) {
-            continue;
-        }
-        checked.push(claim.data_index);
-
-        let data_definition = &program.data_definitions[claim.data_index];
-        let mut covered = vec![false; case_count(program, data_definition)];
-        let mut has_uncounted_arm = false;
-
-        for other in &claims {
-            if other.data_index != claim.data_index {
-                continue;
+    let axes = finite_axes(program, &finite_arms, &uncounted_claims);
+    if !axes.is_empty() {
+        match first_uncovered_assignment(program, &axes, &finite_arms) {
+            MatrixCoverage::Complete => return Ok(()),
+            MatrixCoverage::TooLarge => {
+                return Err(Diagnostic::error(format!(
+                    "transition pattern matrix in `{location}` is too large for the exhaustiveness proof; add a `_` arm"
+                )));
             }
-            // All counted arms must classify the SAME subject; a second
-            // subject of the same sum type cannot pool coverage with it.
-            if !expressions_structurally_equal(program, claim.subject, other.subject) {
-                has_uncounted_arm = true;
-                continue;
-            }
-            match &other.covered {
-                Some(variants) => {
-                    for variant in variants {
-                        covered[*variant] = true;
-                    }
+            MatrixCoverage::Uncovered(assignment) => {
+                // Preserve the established boolean-only fall-through
+                // diagnostic. Case matrices can name the missing Cartesian
+                // cell; an incomplete boolean guard dispatch is clearer in
+                // the language's general no-match terms.
+                if axes
+                    .iter()
+                    .all(|axis| matches!(axis.kind, FiniteAxisKind::Bool))
+                {
+                    return Err(Diagnostic::error(format!(
+                        "transition dispatch in `{location}` can fall through: no arm matches when every guard is false, and no `_` arm exists; add a `_ ->` arm (or complete the `true`/`false` pair)"
+                    )));
                 }
-                None => has_uncounted_arm = true,
+                if axes.len() == 1
+                    && let FiniteAxisKind::Case { data_index } = axes[0].kind
+                {
+                    let data_definition = &program.data_definitions[data_index];
+                    let mut covered = vec![false; case_count(program, data_definition)];
+                    for constraints in &finite_arms {
+                        for constraint in constraints {
+                            if let FiniteConstraint::Case(claim) = constraint
+                                && claim.data_index == data_index
+                                && expressions_structurally_equal(
+                                    program,
+                                    axes[0].subject,
+                                    claim.subject,
+                                )
+                                && let Some(variants) = &claim.covered
+                            {
+                                for variant in variants {
+                                    covered[*variant] = true;
+                                }
+                            }
+                        }
+                    }
+                    let type_name = data_definition.name.as_str();
+                    if !uncounted_claims.is_empty() || has_opaque_arm {
+                        return Err(Diagnostic::error(format!(
+                            "match over `{type_name}` is not exhaustive: it relies on arms the compiler cannot count (predicate domains, guarded patterns, or value compares); add a `_` arm"
+                        )));
+                    }
+                    let uncovered = uncovered_case_names(program, data_definition, &covered);
+                    return Err(Diagnostic::error(format!(
+                        "match over `{type_name}` does not cover {}; add an arm or `_`",
+                        uncovered
+                            .iter()
+                            .map(|case| format!("`{type_name}::{case}`"))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )));
+                }
+
+                if !uncounted_claims.is_empty() || has_opaque_arm {
+                    return Err(Diagnostic::error(format!(
+                        "transition pattern matrix in `{location}` is not exhaustive: it relies on arms the compiler cannot count (predicate domains, guarded patterns, or value compares); add a `_` arm"
+                    )));
+                }
+                return Err(Diagnostic::error(format!(
+                    "transition pattern matrix in `{location}` does not cover {}; add an arm or `_`",
+                    format_assignment(program, &axes, &assignment)
+                )));
             }
         }
-
-        let uncovered = uncovered_case_names(program, data_definition, &covered);
-        if uncovered.is_empty() {
-            continue;
-        }
-
-        let type_name = data_definition.name.as_str();
-        if has_uncounted_arm || has_opaque_arm {
-            return Err(Diagnostic::error(format!(
-                "match over `{type_name}` is not exhaustive: it relies on arms the compiler cannot count (predicate domains, guarded patterns, or value compares); add a `_` arm"
-            )));
-        }
-        return Err(Diagnostic::error(format!(
-            "match over `{type_name}` does not cover {}; add an arm or `_`",
-            uncovered
-                .iter()
-                .map(|case| format!("`{type_name}::{case}`"))
-                .collect::<Vec<_>>()
-                .join(", ")
-        )));
     }
 
     // NO SILENT FALL-THROUGH (settled 2026-07-02): a dispatch with no `_`
@@ -241,16 +274,194 @@ fn check_dispatch_run(
     // runtime with no matching arm, and a no-match dispatch falls off the
     // machine with an undefined exit (probed: the process exits with a
     // leftover register value). That is a compile error, never a behavior.
-    let case_closes = !claims.is_empty();
-    if !case_closes && !bool_pair_closes && !compare_pair_closes && !has_continuation {
-        return Err(Diagnostic::error(format!(
-            "transition dispatch in `{location}` can fall through: no arm matches when every \
-             guard is false, and no `_` arm exists; add a `_ ->` arm (or complete the \
-             `true`/`false` pair)"
-        )));
+    Err(Diagnostic::error(format!(
+        "transition dispatch in `{location}` can fall through: no arm matches when every \
+         guard is false, and no `_` arm exists; add a `_ ->` arm (or complete the \
+         `true`/`false` pair)"
+    )))
+}
+
+struct FiniteAxis {
+    subject: ExpressionHandle,
+    kind: FiniteAxisKind,
+}
+
+#[derive(Clone, Copy)]
+enum FiniteAxisKind {
+    Case { data_index: usize },
+    Bool,
+}
+
+enum MatrixCoverage {
+    Complete,
+    Uncovered(Vec<usize>),
+    TooLarge,
+}
+
+fn finite_axes(
+    program: &SymbolResolvedTrees,
+    arms: &[Vec<FiniteConstraint>],
+    uncounted_claims: &[CaseClaim],
+) -> Vec<FiniteAxis> {
+    let mut axes = Vec::new();
+    for constraint in arms.iter().flatten() {
+        match constraint {
+            FiniteConstraint::Case(claim) => push_axis(
+                program,
+                &mut axes,
+                claim.subject,
+                FiniteAxisKind::Case {
+                    data_index: claim.data_index,
+                },
+            ),
+            FiniteConstraint::Bool { subject, .. } => {
+                push_axis(program, &mut axes, *subject, FiniteAxisKind::Bool)
+            }
+        }
+    }
+    for claim in uncounted_claims {
+        push_axis(
+            program,
+            &mut axes,
+            claim.subject,
+            FiniteAxisKind::Case {
+                data_index: claim.data_index,
+            },
+        );
+    }
+    axes
+}
+
+fn push_axis(
+    program: &SymbolResolvedTrees,
+    axes: &mut Vec<FiniteAxis>,
+    subject: ExpressionHandle,
+    kind: FiniteAxisKind,
+) {
+    if axes.iter().any(|axis| {
+        axis_kinds_equal(axis.kind, kind)
+            && expressions_structurally_equal(program, axis.subject, subject)
+    }) {
+        return;
+    }
+    axes.push(FiniteAxis { subject, kind });
+}
+
+fn axis_kinds_equal(left: FiniteAxisKind, right: FiniteAxisKind) -> bool {
+    match (left, right) {
+        (FiniteAxisKind::Bool, FiniteAxisKind::Bool) => true,
+        (FiniteAxisKind::Case { data_index: left }, FiniteAxisKind::Case { data_index: right }) => {
+            left == right
+        }
+        _ => false,
+    }
+}
+
+fn first_uncovered_assignment(
+    program: &SymbolResolvedTrees,
+    axes: &[FiniteAxis],
+    arms: &[Vec<FiniteConstraint>],
+) -> MatrixCoverage {
+    const MAX_MATRIX_CELLS: usize = 65_536;
+
+    let arities: Vec<usize> = axes
+        .iter()
+        .map(|axis| match axis.kind {
+            FiniteAxisKind::Case { data_index } => {
+                case_count(program, &program.data_definitions[data_index])
+            }
+            FiniteAxisKind::Bool => 2,
+        })
+        .collect();
+    let Some(cell_count) = arities
+        .iter()
+        .try_fold(1usize, |product, arity| product.checked_mul(*arity))
+    else {
+        return MatrixCoverage::TooLarge;
+    };
+    if cell_count > MAX_MATRIX_CELLS {
+        return MatrixCoverage::TooLarge;
     }
 
-    Ok(())
+    for ordinal in 0..cell_count {
+        let mut remainder = ordinal;
+        let mut assignment = Vec::with_capacity(axes.len());
+        for arity in &arities {
+            assignment.push(remainder % arity);
+            remainder /= arity;
+        }
+        if !arms
+            .iter()
+            .any(|arm| arm_matches(program, axes, &assignment, arm))
+        {
+            return MatrixCoverage::Uncovered(assignment);
+        }
+    }
+    MatrixCoverage::Complete
+}
+
+fn arm_matches(
+    program: &SymbolResolvedTrees,
+    axes: &[FiniteAxis],
+    assignment: &[usize],
+    constraints: &[FiniteConstraint],
+) -> bool {
+    constraints.iter().all(|constraint| {
+        let (subject, kind) = match constraint {
+            FiniteConstraint::Case(claim) => (
+                claim.subject,
+                FiniteAxisKind::Case {
+                    data_index: claim.data_index,
+                },
+            ),
+            FiniteConstraint::Bool { subject, .. } => (*subject, FiniteAxisKind::Bool),
+        };
+        let Some(axis_index) = axes.iter().position(|axis| {
+            axis_kinds_equal(axis.kind, kind)
+                && expressions_structurally_equal(program, axis.subject, subject)
+        }) else {
+            return false;
+        };
+        match constraint {
+            FiniteConstraint::Case(claim) => claim
+                .covered
+                .as_ref()
+                .is_some_and(|variants| variants.contains(&assignment[axis_index])),
+            FiniteConstraint::Bool { value, .. } => assignment[axis_index] == usize::from(*value),
+        }
+    })
+}
+
+fn format_assignment(
+    program: &SymbolResolvedTrees,
+    axes: &[FiniteAxis],
+    assignment: &[usize],
+) -> String {
+    let cells = axes
+        .iter()
+        .zip(assignment)
+        .map(|(axis, value)| match axis.kind {
+            FiniteAxisKind::Bool => format!("`{}`", value != &0),
+            FiniteAxisKind::Case { data_index } => {
+                let definition = &program.data_definitions[data_index];
+                let case = program
+                    .data_members(definition.members)
+                    .iter()
+                    .filter_map(|member| match member {
+                        DataMember::Variant(variant) => Some(variant.name.as_str()),
+                        DataMember::Field(_) => None,
+                    })
+                    .nth(*value)
+                    .unwrap_or("<unknown>");
+                format!("`{}::{case}`", definition.name.as_str())
+            }
+        })
+        .collect::<Vec<_>>();
+    if cells.len() == 1 {
+        cells[0].clone()
+    } else {
+        format!("({})", cells.join(", "))
+    }
 }
 
 fn classify_arm(program: &SymbolResolvedTrees, guard: &TransitionGuardNode) -> ArmShape {
@@ -263,7 +474,11 @@ fn classify_arm(program: &SymbolResolvedTrees, guard: &TransitionGuardNode) -> A
 
     if let [conjunct] = conjuncts[..] {
         if let Some(claim) = classify_membership_union(program, conjunct) {
-            return ArmShape::Claim(claim);
+            return if claim.covered.is_some() {
+                ArmShape::Finite(vec![FiniteConstraint::Case(claim)])
+            } else {
+                ArmShape::UncountedCase(claim)
+            };
         }
         // A literal `true` guard is always satisfied (`transition { true ->
         // main() }`); it closes the dispatch like `_`. A literal `false`
@@ -299,18 +514,18 @@ fn classify_arm(program: &SymbolResolvedTrees, guard: &TransitionGuardNode) -> A
                 if let ExpressionNode::Boolean(value) =
                     program.tables.bodies.expressions.expression(binary.right)
                 {
-                    return ArmShape::Bool {
+                    return ArmShape::Finite(vec![FiniteConstraint::Bool {
                         subject: binary.left,
                         value: *value,
-                    };
+                    }]);
                 }
                 if let ExpressionNode::Boolean(value) =
                     program.tables.bodies.expressions.expression(binary.left)
                 {
-                    return ArmShape::Bool {
+                    return ArmShape::Finite(vec![FiniteConstraint::Bool {
                         subject: binary.right,
                         value: *value,
-                    };
+                    }]);
                 }
             }
             if matches!(
@@ -327,18 +542,60 @@ fn classify_arm(program: &SymbolResolvedTrees, guard: &TransitionGuardNode) -> A
         return ArmShape::Opaque;
     }
 
-    // A conjunction (destructure arm with an `if` guard, or a tuple arm
-    // pairing a case test with other subjects): any case classification
-    // inside it is real but not countable -- the extra conjunct narrows it.
+    // A conjunction is countable exactly when every non-constant conjunct is
+    // a finite case-domain membership or a boolean-literal equality. This is
+    // the resolved shape of tuple patterns, including mixed bool/case tuples.
+    let mut constraints = Vec::new();
+    let mut first_case_claim = None;
+    let mut countable = true;
     for conjunct in conjuncts {
         if let Some(claim) = classify_membership_union(program, conjunct) {
-            return ArmShape::Claim(CaseClaim {
-                covered: None,
-                ..claim
-            });
+            if first_case_claim.is_none() {
+                first_case_claim = Some(CaseClaim {
+                    data_index: claim.data_index,
+                    subject: claim.subject,
+                    covered: None,
+                });
+            }
+            if claim.covered.is_none() {
+                countable = false;
+            }
+            constraints.push(FiniteConstraint::Case(claim));
+            continue;
+        }
+        match program.tables.bodies.expressions.expression(conjunct) {
+            ExpressionNode::Boolean(true) => continue,
+            ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Equal => {
+                if let ExpressionNode::Boolean(value) =
+                    program.tables.bodies.expressions.expression(binary.right)
+                {
+                    constraints.push(FiniteConstraint::Bool {
+                        subject: binary.left,
+                        value: *value,
+                    });
+                    continue;
+                }
+                if let ExpressionNode::Boolean(value) =
+                    program.tables.bodies.expressions.expression(binary.left)
+                {
+                    constraints.push(FiniteConstraint::Bool {
+                        subject: binary.right,
+                        value: *value,
+                    });
+                    continue;
+                }
+                countable = false;
+            }
+            _ => countable = false,
         }
     }
-    ArmShape::Opaque
+    if countable && !constraints.is_empty() {
+        ArmShape::Finite(constraints)
+    } else if let Some(claim) = first_case_claim {
+        ArmShape::UncountedCase(claim)
+    } else {
+        ArmShape::Opaque
+    }
 }
 
 /// Classify a guard that is exactly an or-union of membership tests over one

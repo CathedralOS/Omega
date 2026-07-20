@@ -20650,6 +20650,34 @@ fn runtime_tuple_matrix_exhaustive_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_sum_tuple_matrix_exhaustive_exit_canary_runs() {
+    // Multi-subject case patterns are proved over the Cartesian product; a
+    // pure case-union domain contributes its finite subset to one axis.
+    let canary = pass_canary("control_flow/runtime_sum_tuple_matrix_exhaustive_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-sum-tuple-matrix-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("sum-tuple transition canary should compile without a `_` arm");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("sum-tuple transition canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the (Horizontal, _) arm for its second member (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_dependent_param_range_exit_canary_runs() {
     // R1a: a state parameter ranged by a self FIELD (`i: u32
     // [0..=self.count]`) -- caller-proved at every transition, callee index
@@ -35982,6 +36010,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_hoisted_index_write_exit",
     "calls/runtime_let_mut_reassign_exit",
     "control_flow/runtime_tuple_matrix_exhaustive_exit",
+    "control_flow/runtime_sum_tuple_matrix_exhaustive_exit",
     "dependent/runtime_dependent_param_range_exit",
     "dependent/runtime_dependent_product_index_exit",
     "dependent/runtime_dependent_subtract_exit",
@@ -36515,6 +36544,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "recast/symbolic_stride_footprint_rejected",
     "calls/plain_let_reassign_rejected",
     "control_flow/tuple_transition_uncovered_rejected",
+    "control_flow/sum_tuple_matrix_uncovered_rejected",
     "control_flow/transition_fall_through_bool",
     "control_flow/transition_fall_through_value_match",
     "calls/abs_call_argument_rejected",

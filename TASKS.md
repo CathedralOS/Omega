@@ -697,8 +697,11 @@ before the fix.
   carrying data needed by placed views and task storage.
 - **Transition patterns.** Record and case-payload binding, renaming/waiving,
   exhaustive field spelling, and `field: value` equality patterns are live
-  with single subject evaluation. Finish multi-subject validation,
-  domain-pattern proofs, and diagnostics.
+  with single subject evaluation. Finite multi-subject exhaustiveness now
+  proves the Cartesian product of case tags, pure case-union domains, boolean
+  literals, and wildcards (and diagnoses the first uncovered cell rather than
+  pooling marginal coverage). Finish multi-subject destructure binding and
+  the remaining domain-pattern diagnostics.
 - **Const data parameters.** Add instantiation-time substitution, validation,
   layout diagnostics, and const-fact proof integration.
 - **Trait defaults.** Implement conformance, reuse, override, and dispatch for

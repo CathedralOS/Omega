@@ -1,0 +1,29 @@
+// FAIL CANARY: marginal coverage is not Cartesian coverage. Every Direction
+// and every Outcome appears, but the off-diagonal pairs are absent; accepting
+// this matrix would permit a silent runtime fall-through.
+use omega::language::std::console;
+
+data Direction {
+    case Left;
+    case Right;
+}
+
+data Outcome {
+    case Miss;
+    case Hit;
+}
+
+data Main {
+    console: Console;
+    direction: Direction;
+    result: Outcome;
+}
+
+machine Main::main(&mut self) {
+    transition (self.direction, self.result) {
+        (Direction::Left, Outcome::Miss) -> done()
+        (Direction::Right, Outcome::Hit) -> done()
+    }
+
+    state done(&mut self) { self.console.exit_process(70); }
+}
