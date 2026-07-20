@@ -114,9 +114,16 @@ fn lower_statement_node(
                     machine_arguments: call
                         .machine_arguments
                         .iter()
-                        .map(|argument| omega_symbol_resolved_trees::expression::StaticMachineArgument {
-                            path: argument.path.iter().map(crate::name::lower_name).collect::<Vec<_>>().into_boxed_slice(),
-                            symbol: SymbolHandle::invalid(),
+                        .map(|argument| {
+                            omega_symbol_resolved_trees::expression::StaticMachineArgument {
+                                path: argument
+                                    .path
+                                    .iter()
+                                    .map(crate::name::lower_name)
+                                    .collect::<Vec<_>>()
+                                    .into_boxed_slice(),
+                                symbol: SymbolHandle::invalid(),
+                            }
                         })
                         .collect::<Vec<_>>()
                         .into_boxed_slice(),
@@ -533,11 +540,13 @@ fn index_is_hoistable_computed(lowerer: &Lowerer, index: ExpressionHandle) -> bo
         match expressions.expression(operand) {
             ExpressionNode::Integer(_) => false,
             ExpressionNode::Binary(inner) => {
-                !matches!(expressions.expression(inner.left), ExpressionNode::Integer(_))
-                    || !matches!(
-                        expressions.expression(inner.right),
-                        ExpressionNode::Integer(_)
-                    )
+                !matches!(
+                    expressions.expression(inner.left),
+                    ExpressionNode::Integer(_)
+                ) || !matches!(
+                    expressions.expression(inner.right),
+                    ExpressionNode::Integer(_)
+                )
             }
             _ => true,
         }
@@ -732,7 +741,11 @@ fn hoist_scalar_value_call_comparison(
     if !call_is_left && !call_is_right {
         return;
     }
-    let call_side = if call_is_left { binary.left } else { binary.right };
+    let call_side = if call_is_left {
+        binary.left
+    } else {
+        binary.right
+    };
 
     // The memo key is the CALL's SYNTAX handle: a match over a call subject
     // (`transition self.roll(t) { 1 -> .. 2 -> .. }`) lowers one comparison
@@ -1060,7 +1073,7 @@ fn hoist_into_temp(
             type_reference: TypeReference::Unit,
             initial_value: indexed_value,
             is_mutable: false,
-                },
+        },
     }));
 
     let mut members = HandleSpan::empty();
@@ -1083,11 +1096,7 @@ fn hoist_into_temp(
         }))
 }
 
-fn set_expression(
-    lowerer: &mut Lowerer,
-    handle: ExpressionHandle,
-    node: ExpressionNode,
-) {
+fn set_expression(lowerer: &mut Lowerer, handle: ExpressionHandle, node: ExpressionNode) {
     *lowerer
         .symbol_resolved_trees
         .tables
@@ -1095,7 +1104,6 @@ fn set_expression(
         .expressions
         .expression_mut(handle) = node;
 }
-
 
 fn lower_statement_expression(
     lowerer: &mut Lowerer,
@@ -1186,9 +1194,8 @@ fn hoist_membership_match_subject(
     let syntax::statement::TransitionGuardNode::When(syntax_expression) = syntax_guard else {
         return;
     };
-    let syntax::expression::ExpressionNode::Membership(syntax_membership) = syntax_trees
-        .expressions
-        .expression(syntax_expression)
+    let syntax::expression::ExpressionNode::Membership(syntax_membership) =
+        syntax_trees.expressions.expression(syntax_expression)
     else {
         return;
     };
@@ -1544,8 +1551,7 @@ fn lower_transition_target_node(
                     .bodies
                     .expressions
                     .expression_handles(arguments)[offset as usize];
-                let rewritten =
-                    hoist_operand_indexed_reads(lowerer, argument, hoisted, false);
+                let rewritten = hoist_operand_indexed_reads(lowerer, argument, hoisted, false);
                 if rewritten != argument {
                     lowerer
                         .symbol_resolved_trees

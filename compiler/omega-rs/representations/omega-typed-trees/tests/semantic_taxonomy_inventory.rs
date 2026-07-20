@@ -60,7 +60,7 @@ fn machine_record_carries_the_termination_plan_beside_the_compat_bools() {
             symbol: _,
             name: _,
             attached_data: _,
-            boundary: _,     // the compatibility bool (STR7 retires it)
+            boundary: _, // the compatibility bool (STR7 retires it)
             // STR3 slice 2 (2026-07-16): the first-class supply mode landed,
             // populated once at the syntax->resolved lowering (Boundary |
             // CheckedBody today; Requirement/Accepted when their spellings
@@ -74,12 +74,12 @@ fn machine_record_carries_the_termination_plan_beside_the_compat_bools() {
             contains: _,
             owned_data: _,
             satisfies: _,
-            terminates: _,   // compatibility: the checker's input until TPR3
-            decreases: _,    // compatibility witness material until TPR3
+            terminates: _, // compatibility: the checker's input until TPR3
+            decreases: _,  // compatibility witness material until TPR3
             decrease_order: _,
             decrease_view_arguments: _, // TPR3: argumented-view arguments
             decrease_range: _,          // TPR3: the rank-range constraint
-            effects: _,      // STILL decision 22's kinded rows, as a flat name span
+            effects: _,                 // STILL decision 22's kinded rows, as a flat name span
             contracts: _,
             states: _,
         } = machine;
@@ -182,9 +182,7 @@ fn effect_set_is_still_a_flat_bitset() {
 #[test]
 fn downstream_ownership_summary_carries_qualified_permission_events() {
     use omega_control_flow::{StateOwnershipSummary, StatePermissionEvent};
-    use omega_core::semantics::{
-        Multiplicity, PermissionAccess, PermissionProvenance,
-    };
+    use omega_core::semantics::{Multiplicity, PermissionAccess, PermissionProvenance};
     let StateOwnershipSummary {
         moves: _,
         drops: _,

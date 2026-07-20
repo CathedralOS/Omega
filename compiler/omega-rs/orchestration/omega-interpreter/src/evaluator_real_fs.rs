@@ -736,15 +736,13 @@ impl<'program> super::Evaluator<'program> {
                     self.authorized_path(&existing, false),
                     self.authorized_path(&link, true),
                 ) {
-                    (Some(existing), Some(link)) => {
-                        match std::fs::hard_link(existing, link) {
-                            Ok(()) => 1,
-                            Err(error) => {
-                                self.real_fs_mut().errno = win32_error_code(&error);
-                                0
-                            }
+                    (Some(existing), Some(link)) => match std::fs::hard_link(existing, link) {
+                        Ok(()) => 1,
+                        Err(error) => {
+                            self.real_fs_mut().errno = win32_error_code(&error);
+                            0
                         }
-                    }
+                    },
                     _ => 0,
                 }
             }

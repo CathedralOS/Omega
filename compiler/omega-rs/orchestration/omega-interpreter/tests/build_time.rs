@@ -11,10 +11,7 @@ use std::fs;
 use std::path::PathBuf;
 
 fn write_program(name: &str, source: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "omega-build-time-{name}-{}",
-        std::process::id()
-    ));
+    let dir = std::env::temp_dir().join(format!("omega-build-time-{name}-{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).expect("create temp program dir");
     let main_path = dir.join("main.omg");

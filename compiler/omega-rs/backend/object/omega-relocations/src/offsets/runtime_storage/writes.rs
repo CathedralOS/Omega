@@ -69,7 +69,13 @@ mod tests {
         // mov r15,imm64 (10) + mov r11d,[r15+idx] (7, 32-bit ZX) + imul (7)
         // + add r15,r11 (3) + mov r14,r15 (3).
         assert_eq!(
-            runtime_frame_base_indexed_binary_left_operand_offset(Architecture::X86_64, 4, 8, 12, 0),
+            runtime_frame_base_indexed_binary_left_operand_offset(
+                Architecture::X86_64,
+                4,
+                8,
+                12,
+                0
+            ),
             30
         );
     }

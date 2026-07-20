@@ -2,19 +2,18 @@ use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::StateGuardOperator;
 
 use super::primitives::{
-    append_add_x_constant, encode_add_x_immediate, append_unsigned_immediate_padded, append_unsigned_immediate_w_padded,
-    encode_add_page_offset_placeholder, encode_adrp_placeholder, encode_compare_w_immediate,
-    encode_compare_w_register, encode_compare_x_register, encode_conditional_branch_equal,
-    encode_conditional_branch_greater, encode_conditional_branch_greater_or_equal,
-    encode_conditional_branch_higher, encode_conditional_branch_higher_or_same,
-    encode_conditional_branch_less, encode_conditional_branch_less_or_equal,
-    encode_conditional_branch_lower, encode_conditional_branch_lower_or_same,
-    encode_conditional_branch_not_equal, encode_conditional_branch_plus, encode_float_compare,
-    encode_float_move_from_gpr,
-    encode_instruction, encode_load_w_from_x, encode_load_x_from_x, encode_move_x_register, encode_movz_w,
-    encode_sign_extend_byte_to_w, encode_sign_extend_halfword_to_w, encode_store_w_to_x,
-    encode_store_x_to_x,
-    encode_unconditional_branch,
+    append_add_x_constant, append_unsigned_immediate_padded, append_unsigned_immediate_w_padded,
+    encode_add_page_offset_placeholder, encode_add_x_immediate, encode_adrp_placeholder,
+    encode_compare_w_immediate, encode_compare_w_register, encode_compare_x_register,
+    encode_conditional_branch_equal, encode_conditional_branch_greater,
+    encode_conditional_branch_greater_or_equal, encode_conditional_branch_higher,
+    encode_conditional_branch_higher_or_same, encode_conditional_branch_less,
+    encode_conditional_branch_less_or_equal, encode_conditional_branch_lower,
+    encode_conditional_branch_lower_or_same, encode_conditional_branch_not_equal,
+    encode_conditional_branch_plus, encode_float_compare, encode_float_move_from_gpr,
+    encode_instruction, encode_load_w_from_x, encode_load_x_from_x, encode_move_x_register,
+    encode_movz_w, encode_sign_extend_byte_to_w, encode_sign_extend_halfword_to_w,
+    encode_store_w_to_x, encode_store_x_to_x, encode_unconditional_branch,
 };
 use super::widths::dispatch_guard_compare_static_width;
 
@@ -159,9 +158,7 @@ pub fn encode_dispatch_guard_compare_static_bytes(
         StateGuardOperator::GreaterOrEqual => encode_conditional_branch_less(skip_byte_distance)?,
         // Float `<`/`<=` skip on PL/HI, true on unordered (IEEE: comparisons
         // with NaN are false) -- see encode_conditional_branch_for_operator_bytes.
-        StateGuardOperator::Less if is_float => {
-            encode_conditional_branch_plus(skip_byte_distance)?
-        }
+        StateGuardOperator::Less if is_float => encode_conditional_branch_plus(skip_byte_distance)?,
         StateGuardOperator::LessOrEqual if is_float => {
             encode_conditional_branch_higher(skip_byte_distance)?
         }
@@ -377,31 +374,22 @@ mod entry_argument_register_tests {
 
     #[test]
     fn scalar_float_entry_arguments_store_from_the_selected_v_register() {
-        let bytes = encode_entry_argument_register_write_bytes(
-            MachineRegister::Aarch64V(3),
-            8,
-            8,
-        )
-        .expect("str d3 entry store");
+        let bytes = encode_entry_argument_register_write_bytes(MachineRegister::Aarch64V(3), 8, 8)
+            .expect("str d3 entry store");
         assert_eq!(bytes.len(), 12);
         assert_eq!(&bytes[8..12], &0xfd00_0603u32.to_le_bytes());
     }
 
     #[test]
     fn scalar_float_entry_arguments_reject_non_scalar_widths() {
-        let error = encode_entry_argument_register_write_bytes(
-            MachineRegister::Aarch64V(0),
-            0,
-            16,
-        )
-        .expect_err("unclassified vector argument must reject");
+        let error = encode_entry_argument_register_write_bytes(MachineRegister::Aarch64V(0), 0, 16)
+            .expect_err("unclassified vector argument must reject");
         assert!(error.message.contains("cannot store 16 bytes"));
     }
 
     #[test]
     fn ninth_aapcs64_argument_loads_above_the_function_frame() {
-        let bytes = encode_entry_stack_argument_write_bytes(0, 0, 8)
-            .expect("incoming stack copy");
+        let bytes = encode_entry_stack_argument_write_bytes(0, 0, 8).expect("incoming stack copy");
         assert_eq!(bytes.len(), 16);
         assert_eq!(&bytes[8..12], &0xf940_33f1u32.to_le_bytes());
         assert_eq!(&bytes[12..16], &0xf900_0211u32.to_le_bytes());
@@ -418,9 +406,8 @@ pub fn encode_entry_arguments_slice_descriptor_write_bytes(
     spill_offset: usize,
     byte_length: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let length = u32::try_from(byte_length).map_err(|_| {
-        Diagnostic::error("entry-argument slice length exceeds a 32-bit immediate")
-    })?;
+    let length = u32::try_from(byte_length)
+        .map_err(|_| Diagnostic::error("entry-argument slice length exceeds a 32-bit immediate"))?;
     let mut bytes =
         Vec::with_capacity(super::widths::entry_arguments_slice_descriptor_write_width());
     bytes.extend(encode_adrp_placeholder(16)); // frame base [reloc @ start]
@@ -480,7 +467,11 @@ pub fn encode_runtime_storage_copy_to_return_register_bytes(
     };
     let load_offset = if direct { byte_offset } else { 0 };
     match byte_size {
-        8 => bytes.extend(encode_load_x_from_x(register_index, base_register, load_offset)?),
+        8 => bytes.extend(encode_load_x_from_x(
+            register_index,
+            base_register,
+            load_offset,
+        )?),
         _ => bytes.extend(encode_load_w_from_x(
             register_index,
             base_register,
@@ -490,7 +481,10 @@ pub fn encode_runtime_storage_copy_to_return_register_bytes(
     }
     match byte_size {
         1 => bytes.extend(encode_sign_extend_byte_to_w(register_index, register_index)),
-        2 => bytes.extend(encode_sign_extend_halfword_to_w(register_index, register_index)),
+        2 => bytes.extend(encode_sign_extend_halfword_to_w(
+            register_index,
+            register_index,
+        )),
         _ => {}
     }
     debug_assert_eq!(

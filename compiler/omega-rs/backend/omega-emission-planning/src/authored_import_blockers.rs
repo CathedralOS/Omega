@@ -31,11 +31,10 @@ pub(crate) fn collect_authored_import_blockers(
                 matches!(
                     operation.operation_key.capability,
                     HostCapability::Unknown | HostCapability::Custom(_)
-                )
-                    && input.host_abi.bindings.iter().any(|(_, binding)| {
-                        binding.operation_key == operation.operation_key
-                            && matches!(binding.mechanism, HostBindingMechanism::Import { .. })
-                    })
+                ) && input.host_abi.bindings.iter().any(|(_, binding)| {
+                    binding.operation_key == operation.operation_key
+                        && matches!(binding.mechanism, HostBindingMechanism::Import { .. })
+                })
             });
         if !authored_import {
             continue;

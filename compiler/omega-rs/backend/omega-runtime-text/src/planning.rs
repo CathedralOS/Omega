@@ -48,7 +48,11 @@ pub fn build_runtime_text_plan(
 fn collect_runtime_text_writes(state_storage: &StateStoragePlan, plan: &mut RuntimeTextPlan) {
     for (_, mutation) in state_storage.mutations.iter() {
         if !is_known_runtime_text_place(plan, &state_storage.expressions, mutation.target)
-            && !is_prior_runtime_text_write_target(plan, &state_storage.expressions, mutation.target)
+            && !is_prior_runtime_text_write_target(
+                plan,
+                &state_storage.expressions,
+                mutation.target,
+            )
             && !is_obvious_runtime_text_value(&state_storage.expressions, mutation.value)
         {
             continue;
@@ -93,10 +97,7 @@ fn copy_text_value_folding_static_concat(
     plan_expressions.copy_from(source_expressions, value)
 }
 
-fn fold_static_text_value(
-    table: &ExpressionTable,
-    expression: ExpressionHandle,
-) -> Option<String> {
+fn fold_static_text_value(table: &ExpressionTable, expression: ExpressionHandle) -> Option<String> {
     match table.expression(expression) {
         ExpressionNode::String(value) => Some(value.to_string()),
         ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Add => {
@@ -132,9 +133,13 @@ fn collect_runtime_text_local_initializer_writes(
 
         // The write target is the local by name, matching how later reads
         // (guards, host-call arguments) spell it.
-        let target = plan.expressions.insert_tree(&Expression::Name(
-            NamePath::resolved(vec![local.name.clone()], local.symbol, local.symbol),
-        ));
+        let target = plan
+            .expressions
+            .insert_tree(&Expression::Name(NamePath::resolved(
+                vec![local.name.clone()],
+                local.symbol,
+                local.symbol,
+            )));
         let value = copy_text_value_folding_static_concat(
             &state_storage.expressions,
             local.initial_value,

@@ -444,15 +444,13 @@ fn nested_place_key(expression: &Expression) -> Option<PlaceKey> {
             {
                 return nested_place_key(&indexed.collection);
             }
-            PlaceKey::from_expression(expression)
-                .or_else(|| nested_place_key(&indexed.collection))
+            PlaceKey::from_expression(expression).or_else(|| nested_place_key(&indexed.collection))
         }
         Expression::Member(member) => {
             if place_chain_has_runtime_index(&member.receiver) {
                 return nested_place_key(&member.receiver);
             }
-            PlaceKey::from_expression(expression)
-                .or_else(|| nested_place_key(&member.receiver))
+            PlaceKey::from_expression(expression).or_else(|| nested_place_key(&member.receiver))
         }
         _ => PlaceKey::from_expression(expression),
     }
@@ -480,7 +478,10 @@ fn runtime_indexed_write_collection_in_table(
             runtime_indexed_write_collection_in_table(expressions, *inner)
         }
         ExpressionNode::Indexed(indexed) => {
-            if matches!(expressions.expression(indexed.index), ExpressionNode::Integer(_)) {
+            if matches!(
+                expressions.expression(indexed.index),
+                ExpressionNode::Integer(_)
+            ) {
                 return None;
             }
             // See `nested_place_key` -- descend to the deepest resolvable

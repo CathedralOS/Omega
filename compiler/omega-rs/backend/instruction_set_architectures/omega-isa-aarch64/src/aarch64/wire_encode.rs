@@ -49,14 +49,7 @@ fn append_wire_append_prologue(
     append_add_x_constant(bytes, 16, 16, out_offset, 19)?;
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
-    super::runtime_storage::append_load_data_from_x_offset(
-        bytes,
-        17,
-        20,
-        written_offset,
-        8,
-        19,
-    )?;
+    super::runtime_storage::append_load_data_from_x_offset(bytes, 17, 20, written_offset, 8, 19)?;
     bytes.extend(encode_add_x_register(16, 16, 17));
     Ok(())
 }
@@ -66,14 +59,7 @@ fn append_wire_append_epilogue(
     bytes: &mut Vec<u8>,
     written_offset: usize,
 ) -> Result<(), Diagnostic> {
-    super::runtime_storage::append_store_data_to_x_offset(
-        bytes,
-        17,
-        20,
-        written_offset,
-        8,
-        19,
-    )
+    super::runtime_storage::append_store_data_to_x_offset(bytes, 17, 20, written_offset, 8, 19)
 }
 
 /// One compile-time framing byte (era/tag varint bytes): store it at the

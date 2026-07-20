@@ -112,9 +112,7 @@ fn free_const_shadowing_walk(
                                 data.name.as_str(),
                             ));
                         }
-                        DataMember::Variant(variant)
-                            if variant.name.as_str() == const_name =>
-                        {
+                        DataMember::Variant(variant) if variant.name.as_str() == const_name => {
                             return collision(format!(
                                 "case `{}` of data `{}` (case constants are spelled bare)",
                                 variant.name.as_str(),
@@ -138,9 +136,7 @@ fn free_const_shadowing_walk(
                             machine.name.as_str(),
                         ));
                     }
-                    for parameter_handle in
-                        syntax_trees.items.state_parameters(state.parameters)
-                    {
+                    for parameter_handle in syntax_trees.items.state_parameters(state.parameters) {
                         let parameter = syntax_trees.items.state_parameter(*parameter_handle);
                         if parameter.name.as_str() == const_name {
                             return collision(format!(
@@ -199,7 +195,8 @@ pub(crate) fn try_lower_const_reference(
     // Item order is source order, so a use can lower before its declaration
     // validates -- re-check the initializer shape here (cheap) so an invalid
     // const can never substitute garbage.
-    if let Err(diagnostic) = validate_literal_initializer(syntax_trees, definition, definition.value)
+    if let Err(diagnostic) =
+        validate_literal_initializer(syntax_trees, definition, definition.value)
     {
         return Some(Err(diagnostic));
     }

@@ -21,14 +21,22 @@ use sections::plan_elf_sections;
 const EM_X86_64: u16 = 62;
 const EM_AARCH64: u16 = 183;
 
-pub fn emit_elf_aarch64_executable(
-    image: FinalImage,
-) -> Result<ExecutableImageOutput, Diagnostic> {
-    emit_elf_executable(image, EM_AARCH64, "elf64-aarch64-executable", apply_aarch64_relocations)
+pub fn emit_elf_aarch64_executable(image: FinalImage) -> Result<ExecutableImageOutput, Diagnostic> {
+    emit_elf_executable(
+        image,
+        EM_AARCH64,
+        "elf64-aarch64-executable",
+        apply_aarch64_relocations,
+    )
 }
 
 pub fn emit_elf_x86_64_executable(image: FinalImage) -> Result<ExecutableImageOutput, Diagnostic> {
-    emit_elf_executable(image, EM_X86_64, "elf64-x86-64-executable", apply_x86_64_relocations)
+    emit_elf_executable(
+        image,
+        EM_X86_64,
+        "elf64-x86-64-executable",
+        apply_x86_64_relocations,
+    )
 }
 
 /// Shared ELF64 executable emitter. The ELF container is architecture-agnostic

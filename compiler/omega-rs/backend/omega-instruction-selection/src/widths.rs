@@ -71,7 +71,11 @@ pub fn host_call_sequence_width<T: InstructionOperandLike>(
             // A stack-mode op (`open_create`) brackets the call with `sub sp` +
             // `str [sp]` + `add sp` = 12 bytes beyond counting the mode immediate
             // as a register arg (same lockstep discipline).
-            let deref = if operation_key.dereferences_result() { 4 } else { 0 };
+            let deref = if operation_key.dereferences_result() {
+                4
+            } else {
+                0
+            };
             let float_return = if operation_key.returns_float() { 4 } else { 0 };
             let stack_mode = if operation_key.passes_trailing_mode_on_stack() {
                 12
@@ -257,9 +261,7 @@ pub fn return_register_integer_write_width(
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::return_register_integer_write_width(),
-        Architecture::X86_64 => {
-            x86_64::return_register_integer_write_width(register, byte_size)
-        }
+        Architecture::X86_64 => x86_64::return_register_integer_write_width(register, byte_size),
     }
 }
 
@@ -288,17 +290,12 @@ pub fn entry_argument_register_write_width(
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::entry_argument_register_write_width(),
-        Architecture::X86_64 => {
-            x86_64::entry_argument_register_write_width(register, byte_size)
-        }
+        Architecture::X86_64 => x86_64::entry_argument_register_write_width(register, byte_size),
     }
 }
 
 /// Width of one incoming stack-fragment copy into entry-frame storage.
-pub fn entry_stack_argument_write_width(
-    architecture: Architecture,
-    byte_size: usize,
-) -> usize {
+pub fn entry_stack_argument_write_width(architecture: Architecture, byte_size: usize) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::entry_stack_argument_write_width(),
         Architecture::X86_64 => x86_64::entry_stack_argument_write_width(byte_size),
@@ -1558,7 +1555,8 @@ pub fn runtime_storage_copy_to_runtime_machine_indexed_frame_source_machine_base
     match architecture {
         Architecture::Aarch64 => 0,
         Architecture::X86_64 => {
-            x86_64::runtime_storage_copy_to_runtime_machine_indexed_frame_source_machine_base_offset()
+            x86_64::runtime_storage_copy_to_runtime_machine_indexed_frame_source_machine_base_offset(
+            )
         }
     }
 }
@@ -1818,7 +1816,8 @@ pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_o
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => {
-            aarch64::runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset()
+            aarch64::runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset(
+            )
         }
         Architecture::X86_64 => {
             x86_64::runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset()

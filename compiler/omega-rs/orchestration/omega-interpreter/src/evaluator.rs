@@ -4025,11 +4025,7 @@ impl<'program> Evaluator<'program> {
         // its entry point. The descriptor stores the RESOLVED path, so
         // handle-keyed consumers (final_path_name_by_handle) report the final
         // target exactly like Win32.
-        let path = self
-            .virtual_symlinks
-            .get(&path)
-            .cloned()
-            .unwrap_or(path);
+        let path = self.virtual_symlinks.get(&path).cloned().unwrap_or(path);
         let exists = self.virtual_files.contains_key(&path);
         let o_creat = host_open_flags::o_creat(flags);
         let o_trunc = host_open_flags::o_trunc(flags);
@@ -5586,9 +5582,7 @@ impl<'program> Evaluator<'program> {
         // position the view starts at.
         let offset_value = match self.program.expression_table.expression(indexed.index) {
             ExpressionNode::Integer(literal) => literal.value_i64(),
-            _ => self
-                .eval_expression(indexed.index, frame)?
-                .as_int(),
+            _ => self.eval_expression(indexed.index, frame)?.as_int(),
         };
         let Some(offset) = offset_value.and_then(|value| usize::try_from(value).ok()) else {
             return Ok(None);
@@ -5650,9 +5644,7 @@ impl<'program> Evaluator<'program> {
             let omega_typed_trees::data::DataMember::Field(field) = member else {
                 return Ok(None);
             };
-            let Some(primitive) = self
-                .program
-                .primitive_type_reference(field.type_reference)
+            let Some(primitive) = self.program.primitive_type_reference(field.type_reference)
             else {
                 return Ok(None);
             };
@@ -5832,9 +5824,7 @@ impl<'program> Evaluator<'program> {
                         let right_width = integer_primitive_byte_width(right.0).unwrap_or(8);
                         Some(if right_width > left_width {
                             right
-                        } else if left_width > right_width
-                            || left.1 != ArithmeticDomain::Exact
-                        {
+                        } else if left_width > right_width || left.1 != ArithmeticDomain::Exact {
                             left
                         } else {
                             // Equal widths, left Exact: prefer the side that
@@ -6005,8 +5995,7 @@ impl<'program> Evaluator<'program> {
                 ty @ (PrimitiveType::I8
                 | PrimitiveType::I16
                 | PrimitiveType::I32
-                | PrimitiveType::I64
-               ),
+                | PrimitiveType::I64),
                 domain @ (ArithmeticDomain::Wrapping
                 | ArithmeticDomain::Saturating
                 | ArithmeticDomain::Trapping),
@@ -6030,9 +6019,7 @@ impl<'program> Evaluator<'program> {
                     ArithmeticDomain::Saturating => {
                         Ok(Value::Int(wide.clamp(min as i128, max as i128) as i64))
                     }
-                    ArithmeticDomain::Trapping
-                        if wide < min as i128 || wide > max as i128 =>
-                    {
+                    ArithmeticDomain::Trapping if wide < min as i128 || wide > max as i128 => {
                         trap(format!(
                             "arithmetic overflow in Trapping domain: {wide} is out of range for {ty:?}"
                         ))
@@ -6088,9 +6075,7 @@ impl<'program> Evaluator<'program> {
             // result). Saturating cannot reach an out-of-range count (the
             // F8a validation obligation rejects it), so its floor/clamp arms
             // below only ever see in-range counts.
-            if domain == ArithmeticDomain::Trapping
-                && (r as u64) >= primitive_bit_width(ty)
-            {
+            if domain == ArithmeticDomain::Trapping && (r as u64) >= primitive_bit_width(ty) {
                 return trap(format!(
                     "shift count out of range in Trapping domain: the count is not below \
                      the operand width for {ty:?}"
@@ -6319,9 +6304,7 @@ impl<'program> Evaluator<'program> {
             Subtract => return arith(l - r),
             Multiply => return arith(l * r),
             Divide => {
-                if matches!(domain, Some(ArithmeticDomain::Saturating))
-                    && r == 0.0
-                {
+                if matches!(domain, Some(ArithmeticDomain::Saturating)) && r == 0.0 {
                     // Division by zero does NOT clamp (the brief's ruling);
                     // the IEEE non-finite passes through.
                     return Ok(Value::Float(land(l / r)));
@@ -6767,9 +6750,7 @@ fn wrap_to_width(raw: i64, ty: PrimitiveType) -> i64 {
         PrimitiveType::U32 => raw as u32 as i64,
         // 64-bit and pointer-width types keep the full value (unsigned reinterpretation of a
         // u64 is still represented by the same bit pattern in i64).
-        PrimitiveType::I64
-        | PrimitiveType::U64
-        | PrimitiveType::Addr => raw,
+        PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::Addr => raw,
         // Non-integer primitives do not reach this path.
         PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
             raw
@@ -6799,9 +6780,7 @@ fn integer_primitive_byte_width(ty: PrimitiveType) -> Option<usize> {
         PrimitiveType::I8 | PrimitiveType::U8 => Some(1),
         PrimitiveType::I16 | PrimitiveType::U16 => Some(2),
         PrimitiveType::I32 | PrimitiveType::U32 => Some(4),
-        PrimitiveType::I64
-        | PrimitiveType::U64
-        | PrimitiveType::Addr => Some(8),
+        PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::Addr => Some(8),
         PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
             None
         }
@@ -6809,10 +6788,7 @@ fn integer_primitive_byte_width(ty: PrimitiveType) -> Option<usize> {
 }
 
 fn primitive_is_unsigned64(primitive: Option<PrimitiveType>) -> bool {
-    matches!(
-        primitive,
-        Some(PrimitiveType::U64 | PrimitiveType::Addr)
-    )
+    matches!(primitive, Some(PrimitiveType::U64 | PrimitiveType::Addr))
 }
 
 impl Frame {

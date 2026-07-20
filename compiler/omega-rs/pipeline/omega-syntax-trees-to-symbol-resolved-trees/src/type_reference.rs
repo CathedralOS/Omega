@@ -56,15 +56,13 @@ pub(crate) fn lower_type_reference_handle(
         syntax::types::TypeReferenceNode::Generic {
             base_name,
             arguments,
-        } => {
-            Ok(TypeReference::Generic(GenericTypeReference {
-                storage: GenericTypeReferenceStorage {
-                    base_symbol: SymbolHandle::invalid(),
-                    base_name: crate::name::lower_name(base_name),
-                    arguments: lower_child_type_references(lowerer, syntax_trees, *arguments)?,
-                },
-            }))
-        }
+        } => Ok(TypeReference::Generic(GenericTypeReference {
+            storage: GenericTypeReferenceStorage {
+                base_symbol: SymbolHandle::invalid(),
+                base_name: crate::name::lower_name(base_name),
+                arguments: lower_child_type_references(lowerer, syntax_trees, *arguments)?,
+            },
+        })),
         syntax::types::TypeReferenceNode::DynamicTrait(name) => Ok(TypeReference::DynamicTrait {
             symbol: SymbolHandle::invalid(),
             name: crate::name::lower_name(name),

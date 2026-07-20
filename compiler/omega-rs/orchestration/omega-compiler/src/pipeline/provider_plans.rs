@@ -334,12 +334,15 @@ pub(crate) fn validate_adapter_refinement(
 }
 
 /// PRV4c: select one fully covering provider type per applicable boundary
-/// slot. An explicit build-root declaration wins; without one, a unique
-/// covering candidate is the conservative default. Rows are never selected
-/// individually and partial candidates never combine.
+/// slot. An explicit build-root declaration wins over the selected target
+/// package's ordinary default declaration. Without either, a unique covering
+/// candidate remains the compatibility fallback until PRV4f removes the
+/// legacy provider surfaces. Rows are never selected individually and partial
+/// candidates never combine.
 pub(crate) fn select_provider_plan_names(
     plans: &[omega_effects::provider_plan::ProviderPlan],
     selected_target: omega_target::NativeTarget,
+    defaults: &[crate::pipeline::build_config::ProviderSelection],
     requested: &[crate::pipeline::build_config::ProviderSelection],
 ) -> Result<Vec<String>, Vec<omega_core::diagnostics::Diagnostic>> {
     // Target inertness (the fail-canary host-portability convention): a
@@ -378,6 +381,17 @@ pub(crate) fn select_provider_plan_names(
             )));
         }
     }
+    for default in defaults {
+        if !slot_names
+            .iter()
+            .any(|slot| name_matches(&default.boundary_trait, slot))
+        {
+            diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                "target package defaults provider `{}` for unknown boundary slot `{}`; the slot must exist in the loaded dependency closure",
+                default.provider_type, default.boundary_trait,
+            )));
+        }
+    }
     slot_names.sort_unstable();
     slot_names.dedup();
 
@@ -385,6 +399,10 @@ pub(crate) fn select_provider_plan_names(
         let explicit = requested
             .iter()
             .find(|selection| name_matches(&selection.boundary_trait, slot_name));
+        let slot_defaults: Vec<_> = defaults
+            .iter()
+            .filter(|selection| name_matches(&selection.boundary_trait, slot_name))
+            .collect();
         let candidates: Vec<&ProviderPlan> = plans
             .iter()
             .filter(|plan| plan.schema.trait_name == slot_name && applies(&plan.target))
@@ -395,17 +413,45 @@ pub(crate) fn select_provider_plan_names(
             .filter(|plan| plan.covers_schema())
             .collect();
 
-        if let Some(explicit) = explicit {
+        let selected_declaration = if let Some(explicit) = explicit {
+            // A slot-owner override intentionally replaces every target
+            // default for this slot, including a default whose provider is
+            // absent from the selected dependency closure.
+            Some(("build", explicit))
+        } else if let Some(first) = slot_defaults.first().copied() {
+            let mut distinct_provider_types: Vec<&str> = slot_defaults
+                .iter()
+                .map(|selection| selection.provider_type.as_str())
+                .collect();
+            distinct_provider_types.sort_unstable();
+            distinct_provider_types.dedup();
+            if distinct_provider_types.len() > 1 {
+                diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                    "slot `{slot_name}` has conflicting target-package defaults: {} -- a target supplies at most one default provider type per slot",
+                    distinct_provider_types
+                        .iter()
+                        .map(|provider| format!("`{provider}`"))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                )));
+                continue;
+            }
+            Some(("target package", first))
+        } else {
+            None
+        };
+
+        if let Some((owner, declaration)) = selected_declaration {
             let matching: Vec<&ProviderPlan> = candidates
                 .iter()
                 .copied()
-                .filter(|plan| name_matches(&explicit.provider_type, &plan.provider_type))
+                .filter(|plan| name_matches(&declaration.provider_type, &plan.provider_type))
                 .collect();
             match matching.as_slice() {
                 [plan] if plan.covers_schema() => selected.push(plan.name.clone()),
                 [plan] => diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
-                    "build selects provider `{}` for slot `{slot_name}`, but candidate `{}` is partial ({}/{}) and cannot be selected",
-                    explicit.provider_type,
+                    "{owner} selects provider `{}` for slot `{slot_name}`, but candidate `{}` is partial ({}/{}) and cannot be selected",
+                    declaration.provider_type,
                     plan.name,
                     plan.rows.len(),
                     plan.schema.methods.len(),
@@ -413,17 +459,17 @@ pub(crate) fn select_provider_plan_names(
                 [] => {
                     let wrong_target = plans.iter().any(|plan| {
                         plan.schema.trait_name == slot_name
-                            && name_matches(&explicit.provider_type, &plan.provider_type)
+                            && name_matches(&declaration.provider_type, &plan.provider_type)
                     });
                     diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
-                        "build selects provider `{}` for slot `{slot_name}`, but no {}candidate exists in the loaded dependency closure",
-                        explicit.provider_type,
+                        "{owner} selects provider `{}` for slot `{slot_name}`, but no {}candidate exists in the loaded dependency closure",
+                        declaration.provider_type,
                         if wrong_target { "selected-target " } else { "" },
                     )));
                 }
                 _ => diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
-                    "build selection `{}` for slot `{slot_name}` resolves to multiple provider candidates; qualify the provider type",
-                    explicit.provider_type,
+                    "{owner} selection `{}` for slot `{slot_name}` resolves to multiple provider candidates; qualify the provider type",
+                    declaration.provider_type,
                 ))),
             }
             continue;
@@ -589,7 +635,7 @@ mod tests {
             selection_plan("SecondProvider", &["first", "second"], &["second"]),
         ];
         assert_eq!(
-            select_provider_plan_names(&plans, omega_target::NativeTarget::host(), &[])
+            select_provider_plan_names(&plans, omega_target::NativeTarget::host(), &[], &[])
                 .expect("partial candidates are reportable, not ambiguous"),
             Vec::<String>::new(),
             "two partial candidates are not one provider"
@@ -607,7 +653,7 @@ mod tests {
             selection_plan("PartialProvider", &["first", "second"], &["first"]),
         ];
         assert_eq!(
-            select_provider_plan_names(&plans, omega_target::NativeTarget::host(), &[])
+            select_provider_plan_names(&plans, omega_target::NativeTarget::host(), &[], &[])
                 .expect("one covering candidate selects"),
             vec!["CompleteProvider".to_owned()]
         );
@@ -622,6 +668,7 @@ mod tests {
         let selected = select_provider_plan_names(
             &plans,
             omega_target::NativeTarget::host(),
+            &[],
             &[crate::pipeline::build_config::ProviderSelection {
                 boundary_trait: "Pair".to_owned(),
                 provider_type: "SecondProvider".to_owned(),
@@ -641,6 +688,7 @@ mod tests {
         let diagnostics = select_provider_plan_names(
             &plans,
             omega_target::NativeTarget::host(),
+            &[],
             &[crate::pipeline::build_config::ProviderSelection {
                 boundary_trait: "Pair".to_owned(),
                 provider_type: "PartialProvider".to_owned(),
@@ -648,6 +696,76 @@ mod tests {
         )
         .expect_err("selection never manufactures missing rows");
         assert!(diagnostics[0].message.contains("is partial"));
+    }
+
+    #[test]
+    fn target_default_resolves_covering_ambiguity() {
+        let plans = vec![
+            selection_plan("FirstProvider", &["first"], &["first"]),
+            selection_plan("SecondProvider", &["first"], &["first"]),
+        ];
+        let selected = select_provider_plan_names(
+            &plans,
+            omega_target::NativeTarget::host(),
+            &[crate::pipeline::build_config::ProviderSelection {
+                boundary_trait: "Pair".to_owned(),
+                provider_type: "FirstProvider".to_owned(),
+            }],
+            &[],
+        )
+        .expect("the selected target package supplies the slot default");
+        assert_eq!(selected, vec!["FirstProvider".to_owned()]);
+    }
+
+    #[test]
+    fn build_override_wins_over_target_default() {
+        let plans = vec![
+            selection_plan("FirstProvider", &["first"], &["first"]),
+            selection_plan("SecondProvider", &["first"], &["first"]),
+        ];
+        let selected = select_provider_plan_names(
+            &plans,
+            omega_target::NativeTarget::host(),
+            &[crate::pipeline::build_config::ProviderSelection {
+                boundary_trait: "Pair".to_owned(),
+                provider_type: "FirstProvider".to_owned(),
+            }],
+            &[crate::pipeline::build_config::ProviderSelection {
+                boundary_trait: "Pair".to_owned(),
+                provider_type: "SecondProvider".to_owned(),
+            }],
+        )
+        .expect("the build root owns the final slot choice");
+        assert_eq!(selected, vec!["SecondProvider".to_owned()]);
+    }
+
+    #[test]
+    fn conflicting_target_defaults_are_loud() {
+        let plans = vec![
+            selection_plan("FirstProvider", &["first"], &["first"]),
+            selection_plan("SecondProvider", &["first"], &["first"]),
+        ];
+        let diagnostics = select_provider_plan_names(
+            &plans,
+            omega_target::NativeTarget::host(),
+            &[
+                crate::pipeline::build_config::ProviderSelection {
+                    boundary_trait: "Pair".to_owned(),
+                    provider_type: "FirstProvider".to_owned(),
+                },
+                crate::pipeline::build_config::ProviderSelection {
+                    boundary_trait: "Pair".to_owned(),
+                    provider_type: "SecondProvider".to_owned(),
+                },
+            ],
+            &[],
+        )
+        .expect_err("a target has one default provider per slot");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("conflicting target-package defaults")
+        );
     }
 
     #[test]

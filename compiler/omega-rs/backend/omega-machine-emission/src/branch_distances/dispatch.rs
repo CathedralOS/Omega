@@ -49,10 +49,8 @@ pub(crate) fn byte_distance_to_next_dispatch_action_end(
     // and `is_zeroish(inf)`'s NaN compare routed straight to the caller's
     // failure exit.
     let branch_program_counter = current.offset + current.byte_width.saturating_sub(4);
-    let branch_scope_id = enclosing_branch_scope_id(
-        machine_instructions,
-        machine_instruction_index,
-    );
+    let branch_scope_id =
+        enclosing_branch_scope_id(machine_instructions, machine_instruction_index);
     for instruction in machine_instructions
         .iter()
         .skip(machine_instruction_index + 1)

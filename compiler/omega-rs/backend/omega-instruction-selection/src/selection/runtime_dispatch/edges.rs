@@ -464,9 +464,7 @@ fn select_runtime_dispatch_call_result_return(
     // (the callee's return type fixed the slot as a float), narrowed to f32
     // bits for a 4-byte result slot -- the integer write stores raw bytes, so
     // the pattern lands verbatim.
-    if let ExpressionNode::Float(literal) =
-        input.control_flow.expressions.expression(value_expr)
-    {
+    if let ExpressionNode::Float(literal) = input.control_flow.expressions.expression(value_expr) {
         let value = if byte_size == 4 {
             i64::from(literal.f32_bits())
         } else {
@@ -511,7 +509,13 @@ fn select_runtime_dispatch_call_result_return(
             );
         }
         selected_instructions.push(SelectedInstruction {
-            kind: crate::selection::runtime_dispatch::copy_places_direct(place.region, place.byte_offset, target_region, target_offset, byte_size),
+            kind: crate::selection::runtime_dispatch::copy_places_direct(
+                place.region,
+                place.byte_offset,
+                target_region,
+                target_offset,
+                byte_size,
+            ),
             source_key,
             source_statement: edge.statement_index,
         });
@@ -890,7 +894,13 @@ fn select_dispatch_case_literal_terminal_return(
             }
             FieldWrite::Copy(offset, region, source_offset, size) => {
                 selected_instructions.push(SelectedInstruction {
-                    kind: crate::selection::runtime_dispatch::copy_places_direct(region, source_offset, target_region, target_offset + offset, size),
+                    kind: crate::selection::runtime_dispatch::copy_places_direct(
+                        region,
+                        source_offset,
+                        target_region,
+                        target_offset + offset,
+                        size,
+                    ),
                     source_key,
                     source_statement: edge.statement_index,
                 });

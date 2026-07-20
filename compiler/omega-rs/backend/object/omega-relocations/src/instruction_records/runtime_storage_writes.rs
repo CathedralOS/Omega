@@ -2,8 +2,8 @@ use super::context::InstructionRelocationContext;
 use super::runtime_values::collect_runtime_value_operand_relocations;
 use crate::offsets::{
     runtime_frame_base_indexed_binary_left_operand_offset,
-    runtime_frame_indexed_binary_left_operand_offset,
-    runtime_pointee_binary_left_operand_offset, runtime_storage_binary_left_operand_offset,
+    runtime_frame_indexed_binary_left_operand_offset, runtime_pointee_binary_left_operand_offset,
+    runtime_storage_binary_left_operand_offset,
 };
 use omega_target::Architecture;
 use omega_target_operations::SelectedInstructionKind;
@@ -72,8 +72,7 @@ pub(super) fn collect_runtime_storage_write_relocations(
                         context.storage_region_symbol_handle(target.region),
                     );
                     let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
-                    let shape =
-                        omega_instruction_selection::classify_write_place_shape(target);
+                    let shape = omega_instruction_selection::classify_write_place_shape(target);
                     let mut operand_start = match shape {
                         omega_instruction_selection::WritePlaceShape::Direct { .. } => {
                             runtime_storage_binary_left_operand_offset(

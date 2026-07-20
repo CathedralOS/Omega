@@ -10,7 +10,9 @@ use super::super::super::storage_places::{
 };
 use super::fixed_array_slices::{FixedArraySliceSource, literal_fixed_array_slice_source_in_table};
 use crate::selection::instruction_sink::SelectedInstructionSink;
-use omega_abstract_operations::{RuntimeStorageRegion, SelectedInstruction, SelectedInstructionKind};
+use omega_abstract_operations::{
+    RuntimeStorageRegion, SelectedInstruction, SelectedInstructionKind,
+};
 
 /// Materialize a RANGE subslice of a literal fixed array (`arr[a..b]` /
 /// `arr.as_slice()[a..b]`) as a fat `{ptr, len}` descriptor written into a
@@ -119,7 +121,13 @@ pub(in crate::selection::runtime_dispatch) fn runtime_fixed_array_subslice_index
         return None;
     }
 
-    Some(crate::selection::runtime_dispatch::copy_places_direct(source.region, source.byte_offset, target_place.region, target_place.byte_offset, target_place.byte_count))
+    Some(crate::selection::runtime_dispatch::copy_places_direct(
+        source.region,
+        source.byte_offset,
+        target_place.region,
+        target_place.byte_offset,
+        target_place.byte_count,
+    ))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -154,7 +162,13 @@ pub(in crate::selection::runtime_dispatch) fn runtime_fixed_array_subslice_index
         return None;
     }
 
-    Some(crate::selection::runtime_dispatch::copy_places_direct(source.region, source.byte_offset, target_place.region, target_place.byte_offset, target_place.byte_count))
+    Some(crate::selection::runtime_dispatch::copy_places_direct(
+        source.region,
+        source.byte_offset,
+        target_place.region,
+        target_place.byte_offset,
+        target_place.byte_count,
+    ))
 }
 
 #[allow(clippy::too_many_arguments)]

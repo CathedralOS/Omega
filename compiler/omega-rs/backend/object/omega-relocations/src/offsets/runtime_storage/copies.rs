@@ -1,4 +1,4 @@
-use crate::offsets::runtime_frame::{runtime_frame_index_setup_width};
+use crate::offsets::runtime_frame::runtime_frame_index_setup_width;
 use omega_target::Architecture;
 
 pub(crate) fn runtime_storage_copy_target_address_offset(architecture: Architecture) -> usize {

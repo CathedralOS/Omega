@@ -40,8 +40,9 @@ pub(super) fn normalized_syscall_registers(
         parameters: vec![word; parameter_count],
         result: has_result.then_some(word),
     };
-    let plan = evaluate_call_plan(policy, &signature)
-        .map_err(|error| Diagnostic::error(format!("cannot evaluate syscall call plan: {error}")))?;
+    let plan = evaluate_call_plan(policy, &signature).map_err(|error| {
+        Diagnostic::error(format!("cannot evaluate syscall call plan: {error}"))
+    })?;
     let parameters = plan
         .parameters
         .iter()
@@ -76,11 +77,13 @@ fn full_width_register(
     index: usize,
 ) -> Result<omega_calling_conventions::MachineRegister, Diagnostic> {
     match locations {
-        [ValueLocation::Register {
-            register,
-            value_byte_offset: 0,
-            byte_size: 8,
-        }] => Ok(*register),
+        [
+            ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                byte_size: 8,
+            },
+        ] => Ok(*register),
         locations => Err(Diagnostic::error(format!(
             "normalized syscall {role} {index} did not resolve to one full-width register: {locations:?}"
         ))),
@@ -211,11 +214,9 @@ pub fn encode_authored_import_call_sequence<T: InstructionOperandLike>(
     operands: &[T],
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => {
-            aarch64::encode_host_call_sequence_value_returning_from_operands(
-                operands.iter().map(aarch64_call_operand),
-            )
-        }
+        Architecture::Aarch64 => aarch64::encode_host_call_sequence_value_returning_from_operands(
+            operands.iter().map(aarch64_call_operand),
+        ),
         Architecture::X86_64 => x86_64::encode_host_call_sequence(operation_key, operands),
     }
 }
@@ -299,9 +300,7 @@ pub fn encode_interrupt_control_bytes(
 ) -> Option<Vec<u8>> {
     match architecture {
         Architecture::Aarch64 => None,
-        Architecture::X86_64 => {
-            Some(x86_64::encode_interrupt_control_bytes(kind).to_vec())
-        }
+        Architecture::X86_64 => Some(x86_64::encode_interrupt_control_bytes(kind).to_vec()),
     }
 }
 
@@ -317,20 +316,16 @@ pub fn encode_runtime_storage_copy_to_return_register_bytes(
         )));
     }
     match architecture {
-        Architecture::Aarch64 => {
-            aarch64::encode_runtime_storage_copy_to_return_register_bytes(
-                register,
-                byte_offset,
-                byte_size,
-            )
-        }
-        Architecture::X86_64 => {
-            x86_64::encode_runtime_storage_copy_to_return_register_bytes(
-                register,
-                byte_offset,
-                byte_size,
-            )
-        }
+        Architecture::Aarch64 => aarch64::encode_runtime_storage_copy_to_return_register_bytes(
+            register,
+            byte_offset,
+            byte_size,
+        ),
+        Architecture::X86_64 => x86_64::encode_runtime_storage_copy_to_return_register_bytes(
+            register,
+            byte_offset,
+            byte_size,
+        ),
     }
 }
 
@@ -342,16 +337,12 @@ pub fn encode_entry_argument_register_write_bytes(
     byte_size: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     match register.architecture() {
-        Architecture::Aarch64 => aarch64::encode_entry_argument_register_write_bytes(
-            register,
-            byte_offset,
-            byte_size,
-        ),
-        Architecture::X86_64 => x86_64::encode_entry_argument_register_write_bytes(
-            register,
-            byte_offset,
-            byte_size,
-        ),
+        Architecture::Aarch64 => {
+            aarch64::encode_entry_argument_register_write_bytes(register, byte_offset, byte_size)
+        }
+        Architecture::X86_64 => {
+            x86_64::encode_entry_argument_register_write_bytes(register, byte_offset, byte_size)
+        }
     }
 }
 
@@ -411,21 +402,15 @@ pub fn encode_return_register_integer_write_bytes(
     }
     match architecture {
         Architecture::Aarch64 => {
-            let bytes = aarch64::encode_return_register_integer_write_bytes(
-                register,
-                byte_size,
-                value,
-            )?
-            .to_vec();
+            let bytes =
+                aarch64::encode_return_register_integer_write_bytes(register, byte_size, value)?
+                    .to_vec();
             let byte_count = bytes.len();
             Ok((bytes, byte_count))
         }
         Architecture::X86_64 => {
-            let bytes = x86_64::encode_return_register_integer_write_bytes(
-                register,
-                byte_size,
-                value,
-            )?;
+            let bytes =
+                x86_64::encode_return_register_integer_write_bytes(register, byte_size, value)?;
             let byte_count = bytes.len();
             Ok((bytes, byte_count))
         }
@@ -446,6 +431,10 @@ mod result_register_architecture_tests {
             0,
         )
         .expect_err("foreign result register must reject");
-        assert!(error.message.contains("does not belong to target architecture"));
+        assert!(
+            error
+                .message
+                .contains("does not belong to target architecture")
+        );
     }
 }

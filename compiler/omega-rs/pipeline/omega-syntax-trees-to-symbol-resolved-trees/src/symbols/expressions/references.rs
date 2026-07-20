@@ -25,8 +25,12 @@ fn spelled_receiver_chain(
     match expression_table.expression(receiver) {
         omega_symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
             let members = expression_table.name_path_members(path.members);
-            (!members.is_empty())
-                .then(|| members.iter().map(|member| member.as_str().to_string()).collect())
+            (!members.is_empty()).then(|| {
+                members
+                    .iter()
+                    .map(|member| member.as_str().to_string())
+                    .collect()
+            })
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
             let mut chain = spelled_receiver_chain(expression_table, member.receiver)?;
@@ -145,11 +149,8 @@ pub(super) fn assign_call_symbol(
     {
         call.target_symbol = target_symbol;
         for argument in &mut call.machine_arguments {
-            argument.symbol = resolve_static_machine_argument_symbol(
-                symbols,
-                machine.symbol,
-                &argument.path,
-            );
+            argument.symbol =
+                resolve_static_machine_argument_symbol(symbols, machine.symbol, &argument.path);
         }
     }
 }

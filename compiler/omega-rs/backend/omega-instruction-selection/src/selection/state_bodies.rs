@@ -407,8 +407,11 @@ pub(super) fn select_state_body_instructions(
                 )
             {
                 let dest = crate::selection::storage_places::resolve_runtime_storage_place_in_table(
-                    input, storage_dispatch_index, state.key,
-                    &input.state_storage.expressions, dest_expr,
+                    input,
+                    storage_dispatch_index,
+                    state.key,
+                    &input.state_storage.expressions,
+                    dest_expr,
                 );
                 if let Some(dest) = dest {
                     selected_instructions.push(SelectedInstruction {
@@ -425,18 +428,19 @@ pub(super) fn select_state_body_instructions(
                 continue;
             }
 
-            if let Some((index_expr, dest_expr)) = super::lookups::asm_msr_read_operands(
-                input,
-                state.key,
-                operation.statement_index,
-            ) {
+            if let Some((index_expr, dest_expr)) =
+                super::lookups::asm_msr_read_operands(input, state.key, operation.statement_index)
+            {
                 let index = crate::selection::runtime_dispatch::writes::mutation::resolve_runtime_value_operand_in_table(
                     input, storage_dispatch_index, state.key, operation.statement_index,
                     &input.state_storage.expressions, index_expr, &static_values, runtime_value_operands,
                 );
                 let dest = crate::selection::storage_places::resolve_runtime_storage_place_in_table(
-                    input, storage_dispatch_index, state.key,
-                    &input.state_storage.expressions, dest_expr,
+                    input,
+                    storage_dispatch_index,
+                    state.key,
+                    &input.state_storage.expressions,
+                    dest_expr,
                 );
                 if let (Some(index), Some(dest)) = (index, dest) {
                     selected_instructions.push(SelectedInstruction {
@@ -459,8 +463,11 @@ pub(super) fn select_state_body_instructions(
                 operation.statement_index,
             ) {
                 let dest = crate::selection::storage_places::resolve_runtime_storage_place_in_table(
-                    input, storage_dispatch_index, state.key,
-                    &input.state_storage.expressions, dest_expr,
+                    input,
+                    storage_dispatch_index,
+                    state.key,
+                    &input.state_storage.expressions,
+                    dest_expr,
                 );
                 if let Some(dest) = dest {
                     selected_instructions.push(SelectedInstruction {

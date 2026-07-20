@@ -1,0 +1,32 @@
+// The build root owns the final slot choice and may replace a target package's
+// ordinary default without reconstructing any provider rows.
+boundary trait Pick {
+    machine choose() -> i32;
+}
+
+data FirstProvider { }
+machine FirstProvider::choose() -> i32 satisfies Pick::choose {
+    transition { _ -> (1) }
+}
+
+data SecondProvider { }
+machine SecondProvider::choose() -> i32 satisfies Pick::choose {
+    transition { _ -> (2) }
+}
+
+data CanaryTargetProviders { }
+windows_x64 machine CanaryTargetProviders::provider_defaults(defaults: &mut CanaryTargetProviders) {
+    defaults.select_provider<Pick, FirstProvider>();
+}
+linux_x64 machine CanaryTargetProviders::provider_defaults(defaults: &mut CanaryTargetProviders) {
+    defaults.select_provider<Pick, FirstProvider>();
+}
+linux_arm64 machine CanaryTargetProviders::provider_defaults(defaults: &mut CanaryTargetProviders) {
+    defaults.select_provider<Pick, FirstProvider>();
+}
+macos_arm64 machine CanaryTargetProviders::provider_defaults(defaults: &mut CanaryTargetProviders) {
+    defaults.select_provider<Pick, FirstProvider>();
+}
+
+data Main { }
+machine Main::main(&mut self) { }

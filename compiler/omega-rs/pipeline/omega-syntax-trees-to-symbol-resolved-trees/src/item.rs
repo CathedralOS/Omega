@@ -76,7 +76,10 @@ pub(crate) fn lower_item(
             let data_definition =
                 crate::wire::data_definition_from_wire_schema(lowerer, &wire_schema);
             lowerer.symbol_resolved_trees.wire_schemas.push(wire_schema);
-            lowerer.symbol_resolved_trees.data_definitions.push(data_definition);
+            lowerer
+                .symbol_resolved_trees
+                .data_definitions
+                .push(data_definition);
         }
         // Consts exist only until symbol resolution: validated here, then
         // every `Type::NAME` use substitutes the initializer at expression

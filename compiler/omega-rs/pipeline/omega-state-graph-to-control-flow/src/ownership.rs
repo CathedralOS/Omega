@@ -6,9 +6,7 @@ use omega_core::arena::Arena;
 use omega_state_graph::StateGraph;
 
 use crate::arena_remap::remap_arena;
-use crate::handles::{
-    remap_drop_event_span, remap_move_event_span, remap_permission_event_span,
-};
+use crate::handles::{remap_drop_event_span, remap_move_event_span, remap_permission_event_span};
 
 pub(crate) fn remap_move_event_owned(event: omega_state_graph::StateMoveEvent) -> StateMoveEvent {
     StateMoveEvent {

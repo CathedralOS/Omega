@@ -69,7 +69,12 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("Filesystem", "link", "_link", &policy),
         darwin_import("Filesystem", "symlink", "_symlink", &policy),
         darwin_import("Filesystem", "readlink", "_readlink", &policy),
-        darwin_import("Filesystem", "getdirentries64", "___getdirentries64", &policy),
+        darwin_import(
+            "Filesystem",
+            "getdirentries64",
+            "___getdirentries64",
+            &policy,
+        ),
         darwin_import("Filesystem", "stat", "_stat", &policy),
         darwin_import("Filesystem", "fstat", "_fstat", &policy),
         darwin_import("Filesystem", "lstat", "_lstat", &policy),
@@ -105,7 +110,12 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         // ordinal 2. (The binding's `library` string below is unused on darwin —
         // the Mach-O backend derives the dylib from the symbol name.)
         darwin_import("ObjectiveC", "get_class", "_objc_getClass", &policy),
-        darwin_import("ObjectiveC", "register_selector", "_sel_registerName", &policy),
+        darwin_import(
+            "ObjectiveC",
+            "register_selector",
+            "_sel_registerName",
+            &policy,
+        ),
         // `send`/`send_scalar`/`send_string` share the `_objc_msgSend` symbol; the
         // op arm decides how many args to marshal (`[recv, sel, …]`).
         darwin_import("ObjectiveC", "send", "_objc_msgSend", &policy),
@@ -124,8 +134,18 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("ObjectiveC", "send_byte_string", "_objc_msgSend", &policy),
         // The pump's autorelease-pool scope: dequeued NSEvents are autoreleased and
         // the pump runs outside any Cocoa-managed pool, so without a pool they leak.
-        darwin_import("ObjectiveC", "pool_push", "_objc_autoreleasePoolPush", &policy),
-        darwin_import("ObjectiveC", "pool_pop", "_objc_autoreleasePoolPop", &policy),
+        darwin_import(
+            "ObjectiveC",
+            "pool_push",
+            "_objc_autoreleasePoolPush",
+            &policy,
+        ),
+        darwin_import(
+            "ObjectiveC",
+            "pool_pop",
+            "_objc_autoreleasePoolPop",
+            &policy,
+        ),
         // CoreGraphics geometry: a `CGRect` (4 doubles) is passed as an HFA in
         // v0–v3 (`_CG*` routes to CoreGraphics via `darwin_import_library`). The
         // run-verified proof that 4 doubles land in v0–v3.
@@ -133,16 +153,41 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("CoreGraphics", "rect_max_y", "_CGRectGetMaxY", &policy),
         // The blit path: framebuffer → CGImage via a bitmap context (all
         // integer/pointer args, no stack spill — vs `CGImageCreate`'s 11).
-        darwin_import("CoreGraphics", "color_space_rgb", "_CGColorSpaceCreateDeviceRGB", &policy),
-        darwin_import("CoreGraphics", "bitmap_context", "_CGBitmapContextCreate", &policy),
-        darwin_import("CoreGraphics", "bitmap_context_image", "_CGBitmapContextCreateImage", &policy),
+        darwin_import(
+            "CoreGraphics",
+            "color_space_rgb",
+            "_CGColorSpaceCreateDeviceRGB",
+            &policy,
+        ),
+        darwin_import(
+            "CoreGraphics",
+            "bitmap_context",
+            "_CGBitmapContextCreate",
+            &policy,
+        ),
+        darwin_import(
+            "CoreGraphics",
+            "bitmap_context_image",
+            "_CGBitmapContextCreateImage",
+            &policy,
+        ),
         darwin_import("CoreGraphics", "image_width", "_CGImageGetWidth", &policy),
         // Blit-lifecycle releases: the per-frame context and CGImage snapshot are
         // Create-rule owned; without these every presented frame leaks both.
-        darwin_import("CoreGraphics", "context_release", "_CGContextRelease", &policy),
+        darwin_import(
+            "CoreGraphics",
+            "context_release",
+            "_CGContextRelease",
+            &policy,
+        ),
         darwin_import("CoreGraphics", "image_release", "_CGImageRelease", &policy),
         // `Input.key_state` backing: `CGEventSourceKeyState(state_id, keycode) -> bool`.
-        darwin_import("CoreGraphics", "event_source_key_state", "_CGEventSourceKeyState", &policy),
+        darwin_import(
+            "CoreGraphics",
+            "event_source_key_state",
+            "_CGEventSourceKeyState",
+            &policy,
+        ),
         // `Clock::sleep(milliseconds)` → libc `poll(NULL, 0, milliseconds)`: with
         // zero fds, `poll`'s timeout IS a millisecond sleep (correct units, no
         // <1s cap — unlike `usleep`). Bound under the distinct `sleep_poll` op so
@@ -154,7 +199,12 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         // monotonic and wall reads; the clockid argument comes from each
         // lowering row's ConstantArgument. The calibration ops are
         // ConstantResult rows (no import at all): POSIX nanosecond units.
-        darwin_import("Clock", "monotonic_ticks", "_clock_gettime_nsec_np", &policy),
+        darwin_import(
+            "Clock",
+            "monotonic_ticks",
+            "_clock_gettime_nsec_np",
+            &policy,
+        ),
         darwin_import("Clock", "wall_clock_raw", "_clock_gettime_nsec_np", &policy),
         // The inline-Clock `tick_count()` spelling (the pre-std samples/
         // canaries): same symbol, same CLOCK_UPTIME_RAW clockid. RAW HOST

@@ -163,8 +163,7 @@ pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> P
     let mut iat_rvas = vec![0u32; imports.len()];
     for (library_index, (_, members)) in libraries.iter().enumerate() {
         for (slot, import_index) in members.iter().enumerate() {
-            iat_rvas[*import_index] =
-                rdata_rva + (iat_offsets[library_index] + slot * 8) as u32;
+            iat_rvas[*import_index] = rdata_rva + (iat_offsets[library_index] + slot * 8) as u32;
         }
     }
     for (index, import) in imports.iter().enumerate() {

@@ -2,27 +2,27 @@ use crate::InstructionSelectionInput;
 use crate::selection::runtime_dispatch::text_writes::string_literal_data_handle;
 use crate::selection::runtime_dispatch::writes::mutation::operators::supports_scalar_integer_write;
 use crate::selection::storage_places::{
-    enum_variant_value_in_table, resolve_runtime_frame_base_indexed_target_in_table,
+    enum_variant_value_in_table, resolve_runtime_frame_base_double_indexed_source_in_table,
+    resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_near_slot_in_table,
-    resolve_runtime_frame_base_double_indexed_source_in_table,
     resolve_runtime_machine_double_indexed_source_in_table,
     resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
-    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_arithmetic_domain_in_table,
-    resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
-    static_fixed_array_len_in_table,
+    resolve_runtime_pointee_slot_offset_in_table,
+    resolve_runtime_storage_arithmetic_domain_in_table, resolve_runtime_storage_place_in_table,
+    resolve_runtime_storage_primitive_type_in_table, static_fixed_array_len_in_table,
 };
 use omega_abstract_operations::{
     RuntimeStorageRegion, RuntimeValueOperand, SelectedInstructionKind, StateGuardOperator,
 };
-use omega_layout::ENUM_TAG_BYTES;
 use omega_checked_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableNamePath,
 };
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
+use omega_layout::ENUM_TAG_BYTES;
 
 use super::super::static_values::{
     RuntimeStaticValues, resolve_runtime_static_integer_value_in_table,
@@ -94,17 +94,19 @@ fn trapping_frame_slot_constant_overflow_write(
     };
     let left = runtime_value_operands.insert(RuntimeValueOperand::Immediate(bound));
     let right = runtime_value_operands.insert(RuntimeValueOperand::Immediate(1));
-    Some(crate::selection::runtime_dispatch::write_place_binary_direct(
-        RuntimeStorageRegion::RuntimeFrame,
-        slot.byte_offset,
-        slot.byte_size,
-        left,
-        operator,
-        right,
-        false,
-        omega_core::arithmetic::ArithmeticDomain::Trapping,
-        primitive.is_signed_integer(),
-    ))
+    Some(
+        crate::selection::runtime_dispatch::write_place_binary_direct(
+            RuntimeStorageRegion::RuntimeFrame,
+            slot.byte_offset,
+            slot.byte_size,
+            left,
+            operator,
+            right,
+            false,
+            omega_core::arithmetic::ArithmeticDomain::Trapping,
+            primitive.is_signed_integer(),
+        ),
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -164,12 +166,14 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
             value,
         )
     {
-        return Some(crate::selection::runtime_dispatch::write_place_integer_direct(
-            RuntimeStorageRegion::RuntimeFrame,
-            slot.byte_offset,
-            length,
-            slot.byte_size,
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::write_place_integer_direct(
+                RuntimeStorageRegion::RuntimeFrame,
+                slot.byte_offset,
+                length,
+                slot.byte_size,
+            ),
+        );
     }
 
     if slot.byte_size == input.runtime_abi.pointer_size
@@ -201,12 +205,14 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
                 4 => i64::from(literal.f32_bits()),
                 _ => literal.landed_f64().to_bits() as i64,
             };
-            return Some(crate::selection::runtime_dispatch::write_place_integer_direct(
-                RuntimeStorageRegion::RuntimeFrame,
-                slot.byte_offset,
-                bits,
-                slot.byte_size,
-            ));
+            return Some(
+                crate::selection::runtime_dispatch::write_place_integer_direct(
+                    RuntimeStorageRegion::RuntimeFrame,
+                    slot.byte_offset,
+                    bits,
+                    slot.byte_size,
+                ),
+            );
         }
     }
 
@@ -226,12 +232,14 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         ) {
             return Some(kind);
         }
-        return Some(crate::selection::runtime_dispatch::write_place_integer_direct(
-            RuntimeStorageRegion::RuntimeFrame,
-            slot.byte_offset,
-            value,
-            slot.byte_size,
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::write_place_integer_direct(
+                RuntimeStorageRegion::RuntimeFrame,
+                slot.byte_offset,
+                value,
+                slot.byte_size,
+            ),
+        );
     }
 
     // A NULLARY enum variant (`PairResult::Err`, a bare `Type::Case` Name) written
@@ -246,12 +254,14 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
     if !supports_scalar_integer_write(slot.byte_size)
         && let Some(tag) = enum_variant_value_in_table(&input.layouts, expressions, value)
     {
-        return Some(crate::selection::runtime_dispatch::write_place_integer_direct(
-            RuntimeStorageRegion::RuntimeFrame,
-            slot.byte_offset,
-            tag,
-            ENUM_TAG_BYTES,
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::write_place_integer_direct(
+                RuntimeStorageRegion::RuntimeFrame,
+                slot.byte_offset,
+                tag,
+                ENUM_TAG_BYTES,
+            ),
+        );
     }
 
     if slot.byte_size == input.runtime_abi.string_descriptor_size()
@@ -259,12 +269,14 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
     {
         let data = string_literal_data_handle(input, value_source_key, statement_index, &value);
         if data.is_valid() {
-            return Some(crate::selection::runtime_dispatch::write_place_string_direct(
-                omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
-                slot.byte_offset,
-                data,
-                value.len(),
-            ));
+            return Some(
+                crate::selection::runtime_dispatch::write_place_string_direct(
+                    omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                    slot.byte_offset,
+                    data,
+                    value.len(),
+                ),
+            );
         }
     }
 
@@ -278,7 +290,15 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         && pointee.pointee_byte_size > 0
         && !matches!(expressions.expression(value), ExpressionNode::Mutable(_))
     {
-        return Some(crate::selection::runtime_dispatch::copy_places_from_pointee(pointee.pointer_byte_offset, pointee.field_byte_offset, RuntimeStorageRegion::RuntimeFrame, slot.byte_offset, slot.byte_size));
+        return Some(
+            crate::selection::runtime_dispatch::copy_places_from_pointee(
+                pointee.pointer_byte_offset,
+                pointee.field_byte_offset,
+                RuntimeStorageRegion::RuntimeFrame,
+                slot.byte_offset,
+                slot.byte_size,
+            ),
+        );
     }
 
     // `let d = rooms[2].depth` where `rooms: &[Room]` is a slice DESCRIPTOR local:
@@ -298,7 +318,15 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
     ) && pointee.pointee_byte_size == slot.byte_size
         && pointee.pointee_byte_size > 0
     {
-        return Some(crate::selection::runtime_dispatch::copy_places_from_pointee(pointee.pointer_byte_offset, pointee.field_byte_offset, RuntimeStorageRegion::RuntimeFrame, slot.byte_offset, slot.byte_size));
+        return Some(
+            crate::selection::runtime_dispatch::copy_places_from_pointee(
+                pointee.pointer_byte_offset,
+                pointee.field_byte_offset,
+                RuntimeStorageRegion::RuntimeFrame,
+                slot.byte_offset,
+                slot.byte_size,
+            ),
+        );
     }
 
     // `let n: usize = s.len` where `s` is a runtime slice DESCRIPTOR whose length
@@ -327,7 +355,13 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         && source_place.byte_count == 4
         && slot.byte_size <= input.runtime_abi.slice_descriptor().len_size()
     {
-        return Some(crate::selection::runtime_dispatch::copy_places_direct(source_place.region, source_place.byte_offset, RuntimeStorageRegion::RuntimeFrame, slot.byte_offset, slot.byte_size));
+        return Some(crate::selection::runtime_dispatch::copy_places_direct(
+            source_place.region,
+            source_place.byte_offset,
+            RuntimeStorageRegion::RuntimeFrame,
+            slot.byte_offset,
+            slot.byte_size,
+        ));
     }
 
     if let Some(source_place) = resolve_runtime_storage_place_in_table(
@@ -339,7 +373,13 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
     ) && source_place.byte_count == slot.byte_size
         && source_place.byte_count > 0
     {
-        return Some(crate::selection::runtime_dispatch::copy_places_direct(source_place.region, source_place.byte_offset, RuntimeStorageRegion::RuntimeFrame, slot.byte_offset, slot.byte_size));
+        return Some(crate::selection::runtime_dispatch::copy_places_direct(
+            source_place.region,
+            source_place.byte_offset,
+            RuntimeStorageRegion::RuntimeFrame,
+            slot.byte_offset,
+            slot.byte_size,
+        ));
     }
 
     if let Some(indexed_source) = resolve_runtime_frame_fixed_indexed_target_in_table(
@@ -351,15 +391,17 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
     ) && indexed_source.byte_count == slot.byte_size
         && indexed_source.byte_count > 0
     {
-        return Some(crate::selection::runtime_dispatch::copy_places_from_fixed_indexed(
-            indexed_source.descriptor_offset,
-            indexed_source.element_index,
-            indexed_source.element_byte_size,
-            indexed_source.field_byte_offset,
-            RuntimeStorageRegion::RuntimeFrame,
-            slot.byte_offset,
-            slot.byte_size,
-        ));
+        return Some(
+            crate::selection::runtime_dispatch::copy_places_from_fixed_indexed(
+                indexed_source.descriptor_offset,
+                indexed_source.element_index,
+                indexed_source.element_byte_size,
+                indexed_source.field_byte_offset,
+                RuntimeStorageRegion::RuntimeFrame,
+                slot.byte_offset,
+                slot.byte_size,
+            ),
+        );
     }
 
     if let Some(indexed_source) = resolve_runtime_frame_indexed_target_near_slot_in_table(
@@ -381,7 +423,15 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         && indexed_source.byte_count > 0
     {
         return Some(
-            crate::selection::runtime_dispatch::copy_places_from_indexed(indexed_source.descriptor_offset, indexed_source.index_offset, indexed_source.element_byte_size, indexed_source.field_byte_offset, RuntimeStorageRegion::RuntimeFrame, slot.byte_offset, slot.byte_size),
+            crate::selection::runtime_dispatch::copy_places_from_indexed(
+                indexed_source.descriptor_offset,
+                indexed_source.index_offset,
+                indexed_source.element_byte_size,
+                indexed_source.field_byte_offset,
+                RuntimeStorageRegion::RuntimeFrame,
+                slot.byte_offset,
+                slot.byte_size,
+            ),
         );
     }
 
@@ -402,7 +452,16 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         && machine_source.byte_count > 0
     {
         return Some(
-            crate::selection::runtime_dispatch::copy_places_from_machine_indexed(machine_source.base_byte_offset, machine_source.index_region, machine_source.index_offset, machine_source.element_byte_size, machine_source.field_byte_offset, RuntimeStorageRegion::RuntimeFrame, slot.byte_offset, slot.byte_size),
+            crate::selection::runtime_dispatch::copy_places_from_machine_indexed(
+                machine_source.base_byte_offset,
+                machine_source.index_region,
+                machine_source.index_offset,
+                machine_source.element_byte_size,
+                machine_source.field_byte_offset,
+                RuntimeStorageRegion::RuntimeFrame,
+                slot.byte_offset,
+                slot.byte_size,
+            ),
         );
     }
 

@@ -90,8 +90,7 @@ pub(super) fn parse_state<'tokens, 'source>(
         // RECORD PATTERNS IN LET POSITION (owner spec 2026-07-18):
         // `let { x, y as h, z as _ } = place;` expands to the marker +
         // per-field lets.
-        } else if let Some((new_statements, rest)) =
-            try_parse_destructure_let(syntax_trees, input)
+        } else if let Some((new_statements, rest)) = try_parse_destructure_let(syntax_trees, input)
         {
             if statement_count == 0 {
                 statement_start = new_statements.start();

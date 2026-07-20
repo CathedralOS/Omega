@@ -107,9 +107,7 @@ impl ExpressionTable {
     }
 
     /// Iterate every expression with its handle (the desugar passes' walk).
-    pub fn iter_expressions(
-        &self,
-    ) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
+    pub fn iter_expressions(&self) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
         self.expressions.iter()
     }
 

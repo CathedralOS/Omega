@@ -314,17 +314,15 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
                         ),
                     });
                 } else if let Some(target) = target.pointee.as_ref() {
-                    emit(
-                        SelectedInstructionKind::AppendTextStoredToPlace {
-                            buffer,
-                            source_region: source_place.region,
-                            source_offset: source_place.byte_offset,
-                            target: crate::selection::runtime_dispatch::text_place_pointee(
-                                target.pointer_byte_offset,
-                                target.field_byte_offset,
-                            ),
-                        },
-                    );
+                    emit(SelectedInstructionKind::AppendTextStoredToPlace {
+                        buffer,
+                        source_region: source_place.region,
+                        source_offset: source_place.byte_offset,
+                        target: crate::selection::runtime_dispatch::text_place_pointee(
+                            target.pointer_byte_offset,
+                            target.field_byte_offset,
+                        ),
+                    });
                 } else if let Some(target) = target.indexed.as_ref() {
                     emit(SelectedInstructionKind::AppendTextStoredToPlace {
                         buffer,
@@ -649,17 +647,15 @@ fn emit_runtime_text_builder_segments_with_handle_resolver(
                         ),
                     });
                 } else if let Some(target) = target.pointee.as_ref() {
-                    emit(
-                        SelectedInstructionKind::AppendTextStoredToPlace {
-                            buffer,
-                            source_region: source_place.region,
-                            source_offset: source_place.byte_offset,
-                            target: crate::selection::runtime_dispatch::text_place_pointee(
-                                target.pointer_byte_offset,
-                                target.field_byte_offset,
-                            ),
-                        },
-                    );
+                    emit(SelectedInstructionKind::AppendTextStoredToPlace {
+                        buffer,
+                        source_region: source_place.region,
+                        source_offset: source_place.byte_offset,
+                        target: crate::selection::runtime_dispatch::text_place_pointee(
+                            target.pointer_byte_offset,
+                            target.field_byte_offset,
+                        ),
+                    });
                 } else if let Some(target) = target.indexed.as_ref() {
                     emit(SelectedInstructionKind::AppendTextStoredToPlace {
                         buffer,
@@ -739,46 +735,47 @@ fn append_runtime_text_literal_to_target(
     if let Some(target_place) = target_place {
         emit(SelectedInstructionKind::AppendTextLiteralToPlace {
             buffer,
-            target: crate::selection::runtime_dispatch::text_place_direct(target_place.region, target_place.byte_offset),
+            target: crate::selection::runtime_dispatch::text_place_direct(
+                target_place.region,
+                target_place.byte_offset,
+            ),
             literal,
         });
     } else if let Some(target) = target_pointee {
-        emit(
-            SelectedInstructionKind::AppendTextLiteralToPlace {
-                buffer,
-                target: crate::selection::runtime_dispatch::text_place_pointee(
-                    target.pointer_byte_offset,
-                    target.field_byte_offset,
-                ),
-                literal,
-            },
-        );
+        emit(SelectedInstructionKind::AppendTextLiteralToPlace {
+            buffer,
+            target: crate::selection::runtime_dispatch::text_place_pointee(
+                target.pointer_byte_offset,
+                target.field_byte_offset,
+            ),
+            literal,
+        });
     } else if let Some(target) = target_indexed {
-        emit(
-            SelectedInstructionKind::AppendTextLiteralToPlace {
-                buffer,
-                target: crate::selection::runtime_dispatch::text_place_frame_indexed(
-                    target.descriptor_offset,
-                    target.index_offset,
-                    target.element_byte_size,
-                    target.field_byte_offset,
-                ),
-                literal,
-            },
-        );
+        emit(SelectedInstructionKind::AppendTextLiteralToPlace {
+            buffer,
+            target: crate::selection::runtime_dispatch::text_place_frame_indexed(
+                target.descriptor_offset,
+                target.index_offset,
+                target.element_byte_size,
+                target.field_byte_offset,
+            ),
+            literal,
+        });
     } else if let Some(target) = target_machine_indexed {
         let data = string_literal_data_handle(input, source_key, statement_index, &literal);
         if !data.is_valid() {
             return false;
         }
-        emit(crate::selection::runtime_dispatch::write_place_string_machine_indexed(
-            target.base_byte_offset,
-            target.index_offset,
-            target.element_byte_size,
-            target.field_byte_offset,
-            data,
-            literal.len(),
-        ));
+        emit(
+            crate::selection::runtime_dispatch::write_place_string_machine_indexed(
+                target.base_byte_offset,
+                target.index_offset,
+                target.element_byte_size,
+                target.field_byte_offset,
+                data,
+                literal.len(),
+            ),
+        );
     } else {
         return false;
     }
@@ -823,37 +820,45 @@ fn initialize_runtime_text_target_with_first_literal_segment(
         if target_place.region != RuntimeStorageRegion::Machine {
             return false;
         }
-        emit(crate::selection::runtime_dispatch::write_place_string_direct(
-            omega_abstract_operations::RuntimeStorageRegion::Machine,
-            target_place.byte_offset,
-            data,
-            literal.len(),
-        ));
+        emit(
+            crate::selection::runtime_dispatch::write_place_string_direct(
+                omega_abstract_operations::RuntimeStorageRegion::Machine,
+                target_place.byte_offset,
+                data,
+                literal.len(),
+            ),
+        );
     } else if let Some(target) = target.pointee.as_ref() {
-        emit(crate::selection::runtime_dispatch::write_place_string_pointee(
-            target.pointer_byte_offset,
-            target.field_byte_offset,
-            data,
-            literal.len(),
-        ));
+        emit(
+            crate::selection::runtime_dispatch::write_place_string_pointee(
+                target.pointer_byte_offset,
+                target.field_byte_offset,
+                data,
+                literal.len(),
+            ),
+        );
     } else if let Some(target) = target.indexed.as_ref() {
-        emit(crate::selection::runtime_dispatch::write_place_string_frame_indexed(
-            target.descriptor_offset,
-            target.index_offset,
-            target.element_byte_size,
-            target.field_byte_offset,
-            data,
-            literal.len(),
-        ));
+        emit(
+            crate::selection::runtime_dispatch::write_place_string_frame_indexed(
+                target.descriptor_offset,
+                target.index_offset,
+                target.element_byte_size,
+                target.field_byte_offset,
+                data,
+                literal.len(),
+            ),
+        );
     } else if let Some(target) = target.machine_indexed.as_ref() {
-        emit(crate::selection::runtime_dispatch::write_place_string_machine_indexed(
-            target.base_byte_offset,
-            target.index_offset,
-            target.element_byte_size,
-            target.field_byte_offset,
-            data,
-            literal.len(),
-        ));
+        emit(
+            crate::selection::runtime_dispatch::write_place_string_machine_indexed(
+                target.base_byte_offset,
+                target.index_offset,
+                target.element_byte_size,
+                target.field_byte_offset,
+                data,
+                literal.len(),
+            ),
+        );
     } else {
         return false;
     }

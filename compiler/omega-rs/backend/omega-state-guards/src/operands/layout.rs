@@ -207,7 +207,6 @@ fn runtime_frame_operand_layout(
     };
     let source_context = context_of(source_dispatch_index);
 
-
     let slot = runtime_storage
         .frame_slots
         .iter()
@@ -354,8 +353,8 @@ fn reference_scalar_referee_layout(
     let TypeLayoutDescriptor::Named { name, .. } = referee else {
         return None;
     };
-    let size = omega_checked_trees::types::PrimitiveType::from_name(name.as_str())?
-        .scalar_byte_size()?;
+    let size =
+        omega_checked_trees::types::PrimitiveType::from_name(name.as_str())?.scalar_byte_size()?;
     Some(TypeLayout {
         size,
         alignment: root_layout.alignment,

@@ -95,7 +95,11 @@ pub(crate) fn data_address_relocation_offset(
             // brackets the call with `sub sp` (before BL) + `str [sp]` (before BL)
             // + `add sp` (after BL) = 12 bytes beyond counting the mode immediate
             // as a register arg.
-            let deref_bytes = if operation_key.dereferences_result() { 4 } else { 0 };
+            let deref_bytes = if operation_key.dereferences_result() {
+                4
+            } else {
+                0
+            };
             let float_return_bytes = if operation_key.returns_float() { 4 } else { 0 };
             let stack_mode_bytes = if operation_key.passes_trailing_mode_on_stack() {
                 12
@@ -138,16 +142,43 @@ mod tests {
         ];
 
         assert_eq!(
-            data_address_relocation_offset(Architecture::Aarch64, None, &operands, 20, 1, false, None, false),
+            data_address_relocation_offset(
+                Architecture::Aarch64,
+                None,
+                &operands,
+                20,
+                1,
+                false,
+                None,
+                false
+            ),
             24
         );
         assert_eq!(
-            data_address_relocation_offset(Architecture::X86_64, None, &operands, 20, 1, false, None, false),
+            data_address_relocation_offset(
+                Architecture::X86_64,
+                None,
+                &operands,
+                20,
+                1,
+                false,
+                None,
+                false
+            ),
             28
         );
         // x86_64 Linux syscall layout: arg 1's data-address fixup is at 20 + 1*10 + 2.
         assert_eq!(
-            data_address_relocation_offset(Architecture::X86_64, None, &operands, 20, 1, true, None, false),
+            data_address_relocation_offset(
+                Architecture::X86_64,
+                None,
+                &operands,
+                20,
+                1,
+                true,
+                None,
+                false
+            ),
             32
         );
     }

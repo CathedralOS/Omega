@@ -1,16 +1,15 @@
 use crate::EmissionPlanningInput;
-use crate::contained_receiver_blockers::collect_contained_receiver_blockers;
-use crate::host_argument_blockers::collect_host_argument_blockers;
 use crate::authored_import_blockers::collect_authored_import_blockers;
-use crate::reentrant_value_call_blockers::collect_reentrant_value_call_blockers;
-use crate::value_call_arm_effect_blockers::collect_value_call_arm_effect_blockers;
+use crate::contained_receiver_blockers::collect_contained_receiver_blockers;
+use crate::descriptor_argument_blockers::collect_descriptor_argument_blockers;
+use crate::host_argument_blockers::collect_host_argument_blockers;
 use crate::host_binding_blockers::collect_host_binding_blockers;
+use crate::reentrant_value_call_blockers::collect_reentrant_value_call_blockers;
+use crate::required_emission_verification::verify_required_items_emitted;
 use crate::runtime_dispatch_blockers::{
     collect_runtime_dispatch_blockers, runtime_and_required_states, runtime_dispatch_loop_blocker,
     runtime_dispatch_loop_can_emit,
 };
-use crate::descriptor_argument_blockers::collect_descriptor_argument_blockers;
-use crate::required_emission_verification::verify_required_items_emitted;
 use crate::runtime_text_blockers::collect_state_value_blockers;
 use crate::semantic_scope::{proof_scope_suffix, state_name};
 use crate::state_call_blockers::collect_state_call_blockers;
@@ -18,6 +17,7 @@ use crate::state_codegen_blockers::collect_state_codegen_blockers;
 use crate::state_guard_blockers::collect_state_guard_blockers;
 use crate::storage_blockers::collect_state_storage_blockers;
 use crate::unlowered_guard_blockers::collect_unlowered_guard_blockers;
+use crate::value_call_arm_effect_blockers::collect_value_call_arm_effect_blockers;
 use omega_backend_report_types::{EmissionPlan, emission_blocker};
 use omega_core::arena::Arena;
 use omega_image_emission::can_emit_executable_image;

@@ -1003,11 +1003,7 @@ machine Main::main(&mut self) {{
             }),
         },
     );
-    assert!(
-        !real.is_error(),
-        "refusal probe errored: {:?}",
-        real.error
-    );
+    assert!(!real.is_error(), "refusal probe errored: {:?}", real.error);
     assert_eq!(
         real.exit_code, 70,
         "each unix-gated op must refuse with rc -1 + errno ENOTSUP(45) \

@@ -73,7 +73,6 @@ fn self_field_name(table: &ExpressionTable, expression: ExpressionHandle) -> Opt
     (only.as_str() == "self").then(|| member.member.clone())
 }
 
-
 /// The recognized sibling-length maximum: `<sibling>.len + offset`, where
 /// `sibling` is a bare name the POLICIES must resolve to a same-state
 /// parameter of slice/array type (`[0..items.len]` -> (items, -1) after the

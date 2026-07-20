@@ -27,9 +27,7 @@ pub(crate) fn external_call_relocation_offset<T: InstructionOperandLike>(
     // rides the value-returning layout -- the blocker enforces the
     // result-binding shape and the encoder routes it there; the catalog
     // cannot know authored operations.
-    if architecture == Architecture::Aarch64
-        && (operation_key.returns_value() || authored_import)
-    {
+    if architecture == Architecture::Aarch64 && (operation_key.returns_value() || authored_import) {
         let stack_mode_bytes = if operation_key.passes_trailing_mode_on_stack() {
             8
         } else {

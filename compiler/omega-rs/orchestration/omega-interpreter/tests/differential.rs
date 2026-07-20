@@ -72,7 +72,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     // F4 Saturating float->int (NaN -> 0, OOR clamp): aarch64 FCVTZS is
     // natively these semantics; x86 supplies the cvttsd2si policy fixup.
     ("arithmetic/float_to_int_saturating_exit", 70),
-    ("arithmetic/float_to_int_unsigned_narrow_saturating_exit", 70),
+    (
+        "arithmetic/float_to_int_unsigned_narrow_saturating_exit",
+        70,
+    ),
     // F5 Saturating float arithmetic is native on both backends.
     ("arithmetic/float_saturating_overflow_exit", 70),
     ("providers/runtime_adapter_dispatch_exit", 70),

@@ -20,10 +20,7 @@ pub enum ProofOnlyReason {
     /// The definition reaches itself through inline fields.
     Recursive,
     /// A field (or case payload field) holds a proof-only type inline.
-    Contains {
-        field: Identifier,
-        held: Identifier,
-    },
+    Contains { field: Identifier, held: Identifier },
 }
 
 #[derive(Debug, Default)]
@@ -68,9 +65,9 @@ impl ProofOnlyClassification {
             return None;
         }
         match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Named { symbol, name } => self
-                .is_proof_only(*symbol)
-                .then(|| name.clone()),
+            TypeReferenceNode::Named { symbol, name } => {
+                self.is_proof_only(*symbol).then(|| name.clone())
+            }
             TypeReferenceNode::Reference { referee, .. } => {
                 self.proof_only_mention(program, *referee)
             }
@@ -120,15 +117,13 @@ impl ProofOnlyClassification {
             return false;
         }
         program.machine_states(machine).iter().any(|state| {
-            program
-                .state_parameters(state)
-                .iter()
-                .any(|parameter| {
-                    self.proof_only_mention(program, parameter.type_reference)
-                        .is_some()
-                })
-                || (state.return_type.is_valid()
-                    && self.proof_only_mention(program, state.return_type).is_some())
+            program.state_parameters(state).iter().any(|parameter| {
+                self.proof_only_mention(program, parameter.type_reference)
+                    .is_some()
+            }) || (state.return_type.is_valid()
+                && self
+                    .proof_only_mention(program, state.return_type)
+                    .is_some())
                 || program
                     .statement_table
                     .statements(state.statement_nodes)

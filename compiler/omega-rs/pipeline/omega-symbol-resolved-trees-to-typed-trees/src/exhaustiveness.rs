@@ -172,11 +172,13 @@ fn check_dispatch_run(
     // `x == k ->` plus `x != k ->` over one subject and value is total.
     let compare_pair_closes = compare_arms.iter().any(|(left, right, negated)| {
         !*negated
-            && compare_arms.iter().any(|(other_left, other_right, other_negated)| {
-                *other_negated
-                    && expressions_structurally_equal(program, *left, *other_left)
-                    && expressions_structurally_equal(program, *right, *other_right)
-            })
+            && compare_arms
+                .iter()
+                .any(|(other_left, other_right, other_negated)| {
+                    *other_negated
+                        && expressions_structurally_equal(program, *left, *other_left)
+                        && expressions_structurally_equal(program, *right, *other_right)
+                })
     });
 
     // Check coverage per claimed sum type (one dispatch normally classifies
@@ -240,11 +242,7 @@ fn check_dispatch_run(
     // machine with an undefined exit (probed: the process exits with a
     // leftover register value). That is a compile error, never a behavior.
     let case_closes = !claims.is_empty();
-    if !case_closes
-        && !bool_pair_closes
-        && !compare_pair_closes
-        && !has_continuation
-    {
+    if !case_closes && !bool_pair_closes && !compare_pair_closes && !has_continuation {
         return Err(Diagnostic::error(format!(
             "transition dispatch in `{location}` can fall through: no arm matches when every \
              guard is false, and no `_` arm exists; add a `_ ->` arm (or complete the \

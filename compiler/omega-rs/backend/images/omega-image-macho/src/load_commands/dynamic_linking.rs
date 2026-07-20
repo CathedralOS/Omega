@@ -140,7 +140,10 @@ mod tests {
                 dylib.command_size()
             );
             // LC_LOAD_DYLIB and the install name is present + NUL-terminated.
-            assert_eq!(u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]), 0xc);
+            assert_eq!(
+                u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
+                0xc
+            );
             assert!(bytes[24..].starts_with(dylib.path.as_bytes()));
             assert_eq!(bytes[24 + dylib.path.len()], 0);
         }

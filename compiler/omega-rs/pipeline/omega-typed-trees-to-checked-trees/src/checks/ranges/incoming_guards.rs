@@ -150,8 +150,7 @@ pub(in crate::checks) fn collect_incoming_guard_facts(
                         state: state.symbol,
                         guard,
                         negated,
-                        direct_arguments: (edge.target == state.symbol)
-                            .then_some(edge.arguments),
+                        direct_arguments: (edge.target == state.symbol).then_some(edge.arguments),
                     });
                 }
             }

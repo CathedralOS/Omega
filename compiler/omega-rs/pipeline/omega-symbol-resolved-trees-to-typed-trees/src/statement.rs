@@ -21,29 +21,25 @@ pub(crate) fn lower_statement_node(
     statement: &resolved::statement::StatementNode,
 ) -> Result<typed::statement::StatementNode, Diagnostic> {
     match statement {
-        resolved::statement::StatementNode::AssemblyFact(fact) => {
-            Ok(typed::statement::StatementNode::AssemblyFact(
-                typed::statement::TableAssemblyFact {
-                    kind: match fact.kind {
-                        resolved::statement::AssemblyFactKind::Requires => {
-                            typed::statement::AssemblyFactKind::Requires
-                        }
-                        resolved::statement::AssemblyFactKind::Ensures => {
-                            typed::statement::AssemblyFactKind::Ensures
-                        }
-                    },
-                    expression: lower_statement_expression(lowerer, fact.expression)?,
+        resolved::statement::StatementNode::AssemblyFact(fact) => Ok(
+            typed::statement::StatementNode::AssemblyFact(typed::statement::TableAssemblyFact {
+                kind: match fact.kind {
+                    resolved::statement::AssemblyFactKind::Requires => {
+                        typed::statement::AssemblyFactKind::Requires
+                    }
+                    resolved::statement::AssemblyFactKind::Ensures => {
+                        typed::statement::AssemblyFactKind::Ensures
+                    }
                 },
-            ))
-        }
-        resolved::statement::StatementNode::Assignment(assignment) => {
-            Ok(typed::statement::StatementNode::Assignment(
-                typed::statement::TableAssignment {
-                    target: lower_statement_expression(lowerer, assignment.target)?,
-                    value: lower_statement_expression(lowerer, assignment.value)?,
-                },
-            ))
-        }
+                expression: lower_statement_expression(lowerer, fact.expression)?,
+            }),
+        ),
+        resolved::statement::StatementNode::Assignment(assignment) => Ok(
+            typed::statement::StatementNode::Assignment(typed::statement::TableAssignment {
+                target: lower_statement_expression(lowerer, assignment.target)?,
+                value: lower_statement_expression(lowerer, assignment.value)?,
+            }),
+        ),
         resolved::statement::StatementNode::Call(call) => Ok(
             typed::statement::StatementNode::Call(lower_call_statement(lowerer, call)?),
         ),
@@ -76,10 +72,7 @@ pub(crate) fn lower_statement_node(
             };
             let type_reference = match type_reference {
                 Some(type_reference) => type_reference,
-                None => lower_type_reference_handle_from_table(
-                    lowerer,
-                    local_data.type_reference,
-                )?,
+                None => lower_type_reference_handle_from_table(lowerer, local_data.type_reference)?,
             };
             Ok(typed::statement::StatementNode::LocalData(
                 typed::statement::TableLocalData {

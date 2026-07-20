@@ -374,7 +374,12 @@ fn check_bounded_call_argument(
             arg_field.as_str() == max_field.as_str()
                 && arg_offset <= max_offset
                 && arg_min >= minimum
-        }) && state_preserves_field(proof_plan, obligation.machine.as_str(), obligation.state.as_str(), max_field);
+        }) && state_preserves_field(
+            proof_plan,
+            obligation.machine.as_str(),
+            obligation.state.as_str(),
+            max_field,
+        );
         let proven = self_receiver
             && (atom_proves
                 || argument_range.is_some_and(|range| {
@@ -480,7 +485,12 @@ fn check_bounded_transition_argument(
             arg_field.as_str() == max_field.as_str()
                 && arg_offset <= max_offset
                 && arg_min >= minimum
-        }) && state_preserves_field(proof_plan, obligation.machine.as_str(), obligation.state.as_str(), max_field);
+        }) && state_preserves_field(
+            proof_plan,
+            obligation.machine.as_str(),
+            obligation.state.as_str(),
+            max_field,
+        );
         let lower_proven = atom_proves || argument_range.minimum >= BigInt::from_i64(minimum);
         let upper_proven = atom_proves
             || guard_proves_dependent_upper(proof_plan, obligation, max_field, max_offset)
@@ -575,8 +585,8 @@ fn guarded_integer_range_for_transition_argument(
     proof_plan: &ProofPlan,
     obligation: &BoundedTransitionArgumentObligation,
 ) -> IntegerRange {
-    let base = integer_range_for_transition_argument(proof_plan, obligation)
-        .unwrap_or_else(neutral_range);
+    let base =
+        integer_range_for_transition_argument(proof_plan, obligation).unwrap_or_else(neutral_range);
 
     // Co-located: the arm's guard and its arguments evaluate at the SAME
     // dispatch, so the guard fact needs no stability gate here (collection
@@ -953,8 +963,7 @@ fn guarded_integer_range_for_assignment(
                 );
                 // R4: an ensures-witnessed OPERAND place clamps here; an
                 // unsigned place's type floor supplies the lower end.
-                let operand_display =
-                    proof_plan.program.expression_table.display_name(handle);
+                let operand_display = proof_plan.program.expression_table.display_name(handle);
                 for (place, bound) in &obligation.ensures_witness_bounds {
                     if place == &operand_display {
                         let bound = BigInt::from_i64(*bound);
@@ -1049,11 +1058,9 @@ fn operand_declared_primitive(
         else {
             continue;
         };
-        if let Some(field_type) = crate::obligations::data_field_type_by_name(
-            program,
-            data,
-            member.member.as_str(),
-        ) {
+        if let Some(field_type) =
+            crate::obligations::data_field_type_by_name(program, data, member.member.as_str())
+        {
             return program.primitive_type_reference(field_type);
         }
     }
@@ -1110,9 +1117,7 @@ fn assignment_guard_is_stable(
     for statement in program.statement_table.statements(state.statement_nodes) {
         match statement {
             StatementNode::Assignment(assignment) => {
-                if assignment.target == obligation.target
-                    && assignment.value == obligation.value
-                {
+                if assignment.target == obligation.target && assignment.value == obligation.value {
                     // Reached the obligation's own assignment: everything
                     // before it was transparent and disjoint.
                     return true;
@@ -1162,10 +1167,7 @@ fn assignment_guard_is_stable(
 /// collection's path (a write anywhere inside the collection aliases the whole
 /// collection, nothing else). `None` for shapes the walk cannot name (treated
 /// as opaque by callers).
-fn written_place_path(
-    proof_plan: &ProofPlan,
-    expression: ExpressionHandle,
-) -> Option<Vec<String>> {
+fn written_place_path(proof_plan: &ProofPlan, expression: ExpressionHandle) -> Option<Vec<String>> {
     match proof_plan.program.expression_table.expression(expression) {
         ExpressionNode::Mutable(inner) => written_place_path(proof_plan, *inner),
         ExpressionNode::Indexed(indexed) => written_place_path(proof_plan, indexed.collection),
@@ -1674,7 +1676,12 @@ fn apply_source_condition(
             ExpressionNode::Boolean(true)
         ) {
             return apply_source_condition(
-                proof_plan, range, argument, binary.left, machine_symbol, source_state,
+                proof_plan,
+                range,
+                argument,
+                binary.left,
+                machine_symbol,
+                source_state,
             );
         }
         if matches!(
@@ -1682,17 +1689,32 @@ fn apply_source_condition(
             ExpressionNode::Boolean(true)
         ) {
             return apply_source_condition(
-                proof_plan, range, argument, binary.right, machine_symbol, source_state,
+                proof_plan,
+                range,
+                argument,
+                binary.right,
+                machine_symbol,
+                source_state,
             );
         }
     }
 
     if binary.operator == BinaryOperator::And {
         let range = apply_source_condition(
-            proof_plan, range, argument, binary.left, machine_symbol, source_state,
+            proof_plan,
+            range,
+            argument,
+            binary.left,
+            machine_symbol,
+            source_state,
         );
         return apply_source_condition(
-            proof_plan, range, argument, binary.right, machine_symbol, source_state,
+            proof_plan,
+            range,
+            argument,
+            binary.right,
+            machine_symbol,
+            source_state,
         );
     }
 
@@ -1827,7 +1849,10 @@ fn expressions_equivalent_for_proof(
 /// A pure member place flattened to its name segments (`self.k` ->
 /// ["self", "k"]), through `Mutable`. `None` for anything indexed, called, or
 /// non-place -- those compare structurally.
-fn flat_place_segments(proof_plan: &ProofPlan, expression: ExpressionHandle) -> Option<Vec<String>> {
+fn flat_place_segments(
+    proof_plan: &ProofPlan,
+    expression: ExpressionHandle,
+) -> Option<Vec<String>> {
     match proof_plan.program.expression_table.expression(expression) {
         ExpressionNode::Mutable(inner) => flat_place_segments(proof_plan, *inner),
         ExpressionNode::Name(path) => Some(
@@ -2129,11 +2154,11 @@ fn initializer_satisfies_named_constraint(
         ("finite", ExpressionNode::Float(value)) => finite_float_literal(value).is_some(),
         ("exact", ExpressionNode::Integer(_)) => true,
         ("non_negative", ExpressionNode::Integer(value)) => {
-                value.value_i64().is_some_and(|value| value >= 0)
-            }
+            value.value_i64().is_some_and(|value| value >= 0)
+        }
         ("positive", ExpressionNode::Integer(value)) => {
-                value.value_i64().is_some_and(|value| value > 0)
-            }
+            value.value_i64().is_some_and(|value| value > 0)
+        }
         ("wrapping", ExpressionNode::Integer(_)) => true,
         _ => false,
     }
@@ -2158,9 +2183,8 @@ fn constraints_satisfy_named_constraint(constraints: &[ProofConstraint], constra
         }
         "non_negative" => integer_range_from_constraints(constraints)
             .is_some_and(|range| !range.minimum.is_negative()),
-        "positive" => integer_range_from_constraints(constraints).is_some_and(|range| {
-            !range.minimum.is_negative() && !range.minimum.is_zero()
-        }),
+        "positive" => integer_range_from_constraints(constraints)
+            .is_some_and(|range| !range.minimum.is_negative() && !range.minimum.is_zero()),
         "wrapping" => false,
         _ => false,
     }
@@ -2197,13 +2221,7 @@ fn guard_proves_dependent_upper(
         return false;
     };
     let argument_label = expression_display_name(proof_plan, obligation.argument);
-    guard_conjunct_proves_dependent_upper(
-        proof_plan,
-        guard,
-        &argument_label,
-        max_field,
-        max_offset,
-    )
+    guard_conjunct_proves_dependent_upper(proof_plan, guard, &argument_label, max_field, max_offset)
 }
 
 fn guard_conjunct_proves_dependent_upper(
@@ -2448,9 +2466,7 @@ fn expression_mentions_field(
     }
 }
 
-fn sibling_len_from_constraints(
-    constraints: &[ProofConstraint],
-) -> Option<(i64, i64)> {
+fn sibling_len_from_constraints(constraints: &[ProofConstraint]) -> Option<(i64, i64)> {
     constraints.iter().find_map(|constraint| match constraint {
         ProofConstraint::IntegerRangeSiblingLenMax {
             minimum,
@@ -2478,8 +2494,10 @@ fn guard_proves_sibling_len_upper(
         return false;
     };
     let argument_label = expression_display_name(proof_plan, argument);
-    let sibling_label =
-        expression_display_name(proof_plan, strip_mutable_handle(proof_plan, sibling_argument));
+    let sibling_label = expression_display_name(
+        proof_plan,
+        strip_mutable_handle(proof_plan, sibling_argument),
+    );
     sibling_conjunct_proves(
         proof_plan,
         *guard,
@@ -2501,7 +2519,13 @@ fn sibling_conjunct_proves(
         return false;
     };
     let recurse = |handle: ExpressionHandle| {
-        sibling_conjunct_proves(proof_plan, handle, argument_label, sibling_label, max_offset)
+        sibling_conjunct_proves(
+            proof_plan,
+            handle,
+            argument_label,
+            sibling_label,
+            max_offset,
+        )
     };
     let normalized = match binary.operator {
         BinaryOperator::And => return recurse(binary.left) || recurse(binary.right),

@@ -109,13 +109,14 @@ fn parse_match_expression_handle<'tokens, 'source>(
                     operator: BinaryOperator::Equal,
                     right: pattern,
                 }));
-        let delta = syntax_trees
-            .expressions
-            .insert(ExpressionNode::Binary(TableBinaryExpression {
-                left: *value,
-                operator: BinaryOperator::Subtract,
-                right: default_value,
-            }));
+        let delta =
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: *value,
+                    operator: BinaryOperator::Subtract,
+                    right: default_value,
+                }));
         let term = syntax_trees
             .expressions
             .insert(ExpressionNode::Binary(TableBinaryExpression {
@@ -214,11 +215,9 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
         let units: Vec<_> = value
             .encode_utf16()
             .map(|unit| {
-                syntax_trees
-                    .expressions
-                    .insert(ExpressionNode::Integer(IntegerLiteral::from_value(
-                        i64::from(unit),
-                    )))
+                syntax_trees.expressions.insert(ExpressionNode::Integer(
+                    IntegerLiteral::from_value(i64::from(unit)),
+                ))
             })
             .collect();
         let units = syntax_trees.expressions.insert_expression_handles(units);

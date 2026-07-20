@@ -22,9 +22,24 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     // std::time TimeHost seam (rung 5): out-param u64 reads (the constants
     // wall_clock_units_per_second / wall_clock_epoch_offset_seconds have NO
     // import row -- they lower as ConstantResult, no call at all).
-    ("Clock", "monotonic_ticks", "Kernel32.dll", "QueryPerformanceCounter"),
-    ("Clock", "monotonic_ticks_per_second", "Kernel32.dll", "QueryPerformanceFrequency"),
-    ("Clock", "wall_clock_raw", "Kernel32.dll", "GetSystemTimePreciseAsFileTime"),
+    (
+        "Clock",
+        "monotonic_ticks",
+        "Kernel32.dll",
+        "QueryPerformanceCounter",
+    ),
+    (
+        "Clock",
+        "monotonic_ticks_per_second",
+        "Kernel32.dll",
+        "QueryPerformanceFrequency",
+    ),
+    (
+        "Clock",
+        "wall_clock_raw",
+        "Kernel32.dll",
+        "GetSystemTimePreciseAsFileTime",
+    ),
     ("Input", "key_state", "User32.dll", "GetAsyncKeyState"),
     ("Gui", "dc_create", "Gdi32.dll", "CreateCompatibleDC"),
     ("Gui", "get_dc", "User32.dll", "GetDC"),
@@ -35,7 +50,12 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     ("Gui", "msg_dispatch", "User32.dll", "DispatchMessageW"),
     ("Gui", "is_window", "User32.dll", "IsWindow"),
     ("Gui", "window_destroy", "User32.dll", "DestroyWindow"),
-    ("Gui", "foreground_window", "User32.dll", "GetForegroundWindow"),
+    (
+        "Gui",
+        "foreground_window",
+        "User32.dll",
+        "GetForegroundWindow",
+    ),
     // std::fs raw seam (the windows_x64 mirror of darwin's libSystem rows):
     // msvcrt's POSIX-shaped CRT calls match the raw seam's value-returning
     // fd/count/rc surface directly (same arg shapes as the darwin libc calls),
@@ -81,18 +101,38 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     // CreateHardLinkA takes (NEW link, existing, NULL security attrs) --
     // the designed seam op mirrors that exact shape (BOOL return) and the
     // windows Filesystem::hard_link impl swaps the portable arg order.
-    ("Filesystem", "create_hard_link", "Kernel32.dll", "CreateHardLinkA"),
+    (
+        "Filesystem",
+        "create_hard_link",
+        "Kernel32.dll",
+        "CreateHardLinkA",
+    ),
     // Direct kernel HANDLE open/close. Unlike msvcrt `_open`, CreateFileA
     // with FILE_FLAG_BACKUP_SEMANTICS can open directories for metadata and
     // final-path queries.
-    ("Filesystem", "open_path_handle", "Kernel32.dll", "CreateFileA"),
+    (
+        "Filesystem",
+        "open_path_handle",
+        "Kernel32.dll",
+        "CreateFileA",
+    ),
     ("Filesystem", "close_handle", "Kernel32.dll", "CloseHandle"),
     // The handle bridge (session slice 4a): _get_osfhandle surfaces the OS
     // HANDLE behind a CRT fd; GetFinalPathNameByHandleA resolves an open
     // handle to its final DOS path (the honest windows canonicalize --
     // GetFullPathNameA is lexical-only and never left the ledger).
-    ("Filesystem", "get_osfhandle", "msvcrt.dll", "_get_osfhandle"),
-    ("Filesystem", "final_path_name_by_handle", "Kernel32.dll", "GetFinalPathNameByHandleA"),
+    (
+        "Filesystem",
+        "get_osfhandle",
+        "msvcrt.dll",
+        "_get_osfhandle",
+    ),
+    (
+        "Filesystem",
+        "final_path_name_by_handle",
+        "Kernel32.dll",
+        "GetFinalPathNameByHandleA",
+    ),
     // The set_times leg over the bridge (slice 4b): stamp an open handle's
     // access/write times from wrapper-composed FILETIME buffers.
     ("Filesystem", "set_file_time", "Kernel32.dll", "SetFileTime"),
@@ -101,7 +141,12 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     // immediately after non-blocking contention.
     ("Filesystem", "lock_file_ex", "Kernel32.dll", "LockFileEx"),
     ("Filesystem", "unlock_file", "Kernel32.dll", "UnlockFile"),
-    ("Filesystem", "get_last_error", "Kernel32.dll", "GetLastError"),
+    (
+        "Filesystem",
+        "get_last_error",
+        "Kernel32.dll",
+        "GetLastError",
+    ),
     // set_len -> `_chsize_s(fd, __int64 size)` (ftruncate's msvcrt analogue). The
     // 64-bit variant so the i64 length is not truncated to `_chsize`'s 32-bit
     // `long`; returns 0 on success like ftruncate (the wrapper checks rc == 0 and
@@ -127,13 +172,11 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         checked: true,
     });
 
-    plan.bindings.insert_many(
-        WINDOWS_IMPORT_ROWS
-            .iter()
-            .map(|(capability, operation, library, symbol)| {
-                windows_import(capability, operation, library, symbol, &policy)
-            }),
-    );
+    plan.bindings.insert_many(WINDOWS_IMPORT_ROWS.iter().map(
+        |(capability, operation, library, symbol)| {
+            windows_import(capability, operation, library, symbol, &policy)
+        },
+    ));
 
     insert_platform_lowering(
         plan,
@@ -261,9 +304,7 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "*",
         "wall_clock_epoch_offset_seconds",
         [host_operation("Clock", "wall_clock_epoch_offset_seconds")],
-        PlatformCallData::ConstantResult {
-            value: 11644473600,
-        },
+        PlatformCallData::ConstantResult { value: 11644473600 },
     );
     insert_platform_lowering(
         plan,

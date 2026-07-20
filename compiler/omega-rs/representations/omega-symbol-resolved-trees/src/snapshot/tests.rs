@@ -16,7 +16,9 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
         .tables
         .bodies
         .expressions
-        .insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(1)));
+        .insert(ExpressionNode::Integer(
+            omega_core::literals::IntegerLiteral::from_value(1),
+        ));
     let statements =
         program
             .tables

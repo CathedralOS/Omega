@@ -227,9 +227,13 @@ mod tests {
         let mut expressions = ExpressionTable::new();
         let path_start = statements.append_identifier_path_member(Identifier::generated("next"));
         let path = HandleSpan::from_parts(path_start, 1);
-        let argument_one = expressions.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(1)));
+        let argument_one = expressions.insert(ExpressionNode::Integer(
+            omega_core::literals::IntegerLiteral::from_value(1),
+        ));
         let argument_one = statements.append_expression_handle(argument_one);
-        let argument_two = expressions.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(2)));
+        let argument_two = expressions.insert(ExpressionNode::Integer(
+            omega_core::literals::IntegerLiteral::from_value(2),
+        ));
         let _argument_two = statements.append_expression_handle(argument_two);
         let arguments = HandleSpan::from_parts(argument_one, 2);
         let target = statements.insert_transition_target(TransitionTargetNode::Named {

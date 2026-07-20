@@ -76,7 +76,9 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansi
     order_return_value_fallbacks_last(&mut matching_expansions);
 
     let multi_arm = matching_expansions.len() > 1;
-    let scope_id = matching_expansions.first().map_or(0, |expansion| expansion.scope_id);
+    let scope_id = matching_expansions
+        .first()
+        .map_or(0, |expansion| expansion.scope_id);
     for expansion in matching_expansions {
         select_runtime_leaf_branch_expansion(
             input,
@@ -117,10 +119,14 @@ fn operation_has_straight_line_expansions(
                 && expansion.statement_index == operation.statement_index
                 && match operation.kind {
                     RuntimeDispatchBodyOperationKind::InlineLeafStateCall {
-                        role, call_ordinal, ..
+                        role,
+                        call_ordinal,
+                        ..
                     }
                     | RuntimeDispatchBodyOperationKind::InlineStateCall {
-                        role, call_ordinal, ..
+                        role,
+                        call_ordinal,
+                        ..
                     }
                     | RuntimeDispatchBodyOperationKind::StateCall {
                         role, call_ordinal, ..
@@ -1315,7 +1321,13 @@ fn select_runtime_leaf_assignment_value_target_copy(
         && source_slot.byte_size > 0
     {
         selected_instructions.push(SelectedInstruction {
-            kind: crate::selection::runtime_dispatch::copy_places_to_pointee(RuntimeStorageRegion::RuntimeFrame, source_slot.byte_offset, pointer_target.pointer_byte_offset, pointer_target.field_byte_offset, source_slot.byte_size),
+            kind: crate::selection::runtime_dispatch::copy_places_to_pointee(
+                RuntimeStorageRegion::RuntimeFrame,
+                source_slot.byte_offset,
+                pointer_target.pointer_byte_offset,
+                pointer_target.field_byte_offset,
+                source_slot.byte_size,
+            ),
             source_key: expansion.source_key,
             source_statement: expansion.statement_index,
         });
@@ -1335,7 +1347,13 @@ fn select_runtime_leaf_assignment_value_target_copy(
     }
 
     selected_instructions.push(SelectedInstruction {
-        kind: crate::selection::runtime_dispatch::copy_places_direct(RuntimeStorageRegion::RuntimeFrame, source_slot.byte_offset, target_place.region, target_place.byte_offset, source_slot.byte_size),
+        kind: crate::selection::runtime_dispatch::copy_places_direct(
+            RuntimeStorageRegion::RuntimeFrame,
+            source_slot.byte_offset,
+            target_place.region,
+            target_place.byte_offset,
+            source_slot.byte_size,
+        ),
         source_key: expansion.source_key,
         source_statement: expansion.statement_index,
     });
@@ -1391,7 +1409,9 @@ fn select_runtime_leaf_local_initializer_writes(
         if std::env::var_os("OMEGA_DEBUG_CALL_RESULT").is_some() {
             eprintln!(
                 "LEAFINIT:   slot? {}",
-                slot_lookup.map(|slot| slot.byte_offset as i64).unwrap_or(-1),
+                slot_lookup
+                    .map(|slot| slot.byte_offset as i64)
+                    .unwrap_or(-1),
             );
         }
         let Some(slot) = slot_lookup else {

@@ -886,7 +886,11 @@ fn statement_label(program: &SymbolResolvedTrees, statement: &Statement) -> Stri
                 omega_symbol_resolved_trees::statement::AssemblyFactKind::Requires => "requires",
                 omega_symbol_resolved_trees::statement::AssemblyFactKind::Ensures => "ensures",
             },
-            program.tables.bodies.expressions.display_name(fact.expression),
+            program
+                .tables
+                .bodies
+                .expressions
+                .display_name(fact.expression),
         ),
         Statement::Assignment(assignment) => format!(
             "{} = {}",

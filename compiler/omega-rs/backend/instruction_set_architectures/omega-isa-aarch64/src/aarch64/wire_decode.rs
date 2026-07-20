@@ -30,13 +30,12 @@ use omega_target_operations::RuntimeStorageRegion;
 use super::primitives::{
     append_add_x_constant, append_unsigned_immediate, encode_add_page_offset_placeholder,
     encode_add_x_immediate, encode_add_x_register, encode_adrp_placeholder,
-    encode_and_x_immediate_low_seven, encode_and_x_register, encode_asr_x_immediate,
-    encode_cbnz_x, encode_compare_w_immediate, encode_compare_x_register,
-    encode_conditional_branch_equal, encode_conditional_branch_higher,
-    encode_conditional_branch_lower, encode_conditional_branch_not_equal,
-    encode_conditional_branch_higher_or_same, encode_eor_x_register,
-    encode_load_byte_w_post_increment, encode_lslv_x_register, encode_lsr_x_immediate,
-    encode_movz, encode_orr_x_register, encode_unconditional_branch,
+    encode_and_x_immediate_low_seven, encode_and_x_register, encode_asr_x_immediate, encode_cbnz_x,
+    encode_compare_w_immediate, encode_compare_x_register, encode_conditional_branch_equal,
+    encode_conditional_branch_higher, encode_conditional_branch_higher_or_same,
+    encode_conditional_branch_lower, encode_conditional_branch_not_equal, encode_eor_x_register,
+    encode_load_byte_w_post_increment, encode_lslv_x_register, encode_lsr_x_immediate, encode_movz,
+    encode_orr_x_register, encode_unconditional_branch,
 };
 use super::widths::{
     read_wire_byte_slice_width, read_wire_expected_byte_width, read_wire_nested_close_width,
@@ -147,7 +146,6 @@ pub fn encode_read_wire_byte_slice(
     target_offset: usize,
     predicate_mask: u8,
 ) -> Result<Vec<u8>, Diagnostic> {
-
     // The region only picks the relocation symbol; the encoded shape is identical.
     let _ = target_region;
 
@@ -420,9 +418,8 @@ fn append_wire_utf8_validation(bytes: &mut Vec<u8>) -> Result<(), Diagnostic> {
     positions.insert(Done, program.len());
     // Pass 2: emit with resolved byte offsets.
     for (index, (_, instruction)) in program.iter().enumerate() {
-        let offset = |target: &Label| -> isize {
-            (positions[target] as isize - index as isize) * 4
-        };
+        let offset =
+            |target: &Label| -> isize { (positions[target] as isize - index as isize) * 4 };
         match instruction {
             Fixed(word) => bytes.extend(word),
             BHs(target) => bytes.extend(encode_conditional_branch_higher_or_same(offset(target))?),
@@ -670,14 +667,7 @@ pub fn encode_read_wire_repeated_scalar_varint(
         22,
     )?;
     bytes.extend(encode_add_x_immediate(19, 19, 1)?);
-    super::runtime_storage::append_store_data_to_x_offset(
-        &mut bytes,
-        19,
-        25,
-        count_offset,
-        8,
-        22,
-    )?;
+    super::runtime_storage::append_store_data_to_x_offset(&mut bytes, 19, 25, count_offset, 8, 22)?;
 
     append_wire_decode_epilogue(&mut bytes, read_offset, ok_offset)?;
     debug_assert_eq!(
@@ -872,9 +862,14 @@ mod tests {
                             );
                         assert!(
                             target_page + 8 <= bytes.len(),
-                            "target-page offset {target_page} past end {} ", bytes.len()
+                            "target-page offset {target_page} past end {} ",
+                            bytes.len()
                         );
-                        assert_eq!(target_page % 4, 0, "aarch64 instructions are 4-byte aligned");
+                        assert_eq!(
+                            target_page % 4,
+                            0,
+                            "aarch64 instructions are 4-byte aligned"
+                        );
                     }
                 }
             }

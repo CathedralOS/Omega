@@ -202,8 +202,10 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
         })
         && subject.len() <= 8
     {
-        let matrices: Vec<&Vec<Option<bool>>> =
-            arm_bool_tuples.iter().map(|t| t.as_ref().unwrap()).collect();
+        let matrices: Vec<&Vec<Option<bool>>> = arm_bool_tuples
+            .iter()
+            .map(|t| t.as_ref().unwrap())
+            .collect();
         let covered = (0u32..(1u32 << subject.len())).all(|combo| {
             matrices.iter().any(|arm| {
                 arm.iter().enumerate().all(|(bit, pattern)| match pattern {

@@ -44,9 +44,7 @@ pub(super) fn resolve_backend_entry_point(
         return Ok(entry_point);
     }
 
-    Err(Diagnostic::error(
-        "unknown runtime entry point `Main::run`",
-    ))
+    Err(Diagnostic::error("unknown runtime entry point `Main::run`"))
 }
 
 fn find_entry_point(

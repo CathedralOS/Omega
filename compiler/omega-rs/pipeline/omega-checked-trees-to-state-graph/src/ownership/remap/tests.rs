@@ -43,9 +43,7 @@ fn remaps_ownership_summary_from_source_roots_into_target_roots() {
     permissions.append_to_span(
         &mut permission_span,
         StatePermissionEvent {
-            source: omega_core::semantics::PermissionEventSource::Statement {
-                statement_index: 7,
-            },
+            source: omega_core::semantics::PermissionEventSource::Statement { statement_index: 7 },
             kind: omega_core::semantics::PermissionEventKind::Consume,
             multiplicity: omega_core::semantics::Multiplicity::Linear,
             access: omega_core::semantics::PermissionAccess::Owned,

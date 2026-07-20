@@ -883,11 +883,10 @@ fn compute_receiver_bases(
         let Some(parent_base) = context_bases.get(parent.0 as usize).copied().flatten() else {
             continue;
         };
-        let Some(state_call) = state_calls
-            .calls
-            .iter()
-            .map(|(_, call)| call)
-            .find(|call| call.source_key == call_key && call.statement_index == statement_index)
+        let Some(state_call) =
+            state_calls.calls.iter().map(|(_, call)| call).find(|call| {
+                call.source_key == call_key && call.statement_index == statement_index
+            })
         else {
             continue;
         };
@@ -902,8 +901,8 @@ fn compute_receiver_bases(
             // (`holder.run()` -> `self.step()` -> `second.drain()`) keep
             // composing. Only when the attached data genuinely matches;
             // anything else keeps the by-type fallback.
-            let same_data = machine_layout_of(state_call.target_key.machine)
-                .is_some_and(|callee_layout| {
+            let same_data =
+                machine_layout_of(state_call.target_key.machine).is_some_and(|callee_layout| {
                     callee_layout.attached_data.is_some()
                         && callee_layout.attached_data == caller_layout.attached_data
                 });
@@ -978,7 +977,11 @@ fn compute_receiver_bases(
         if index >= bases.len() {
             bases.resize(index + 1, None);
         }
-        let Some(base) = context_bases.get(state.context.0 as usize).copied().flatten() else {
+        let Some(base) = context_bases
+            .get(state.context.0 as usize)
+            .copied()
+            .flatten()
+        else {
             continue;
         };
         let Some(machine_layout) = machine_layout_of(state.key.machine) else {
@@ -1050,15 +1053,11 @@ fn resolve_vtable_field_offsets(
                  fn-ptr fields (case-bearing data cannot be a foreign vtable)",
             ));
         };
-        let Some(field_layout) = layouts
-            .fields
-            .span(*fields)
-            .and_then(|candidates| {
-                candidates
-                    .iter()
-                    .find(|candidate| candidate.name.as_str() == field.as_ref())
-            })
-        else {
+        let Some(field_layout) = layouts.fields.span(*fields).and_then(|candidates| {
+            candidates
+                .iter()
+                .find(|candidate| candidate.name.as_str() == field.as_ref())
+        }) else {
             return Err(format!(
                 "provides `over {table}`: no field `{field}` in the vtable struct -- the \
                  arm's RHS must name one of its declared fn-ptr fields",

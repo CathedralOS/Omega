@@ -200,7 +200,11 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
     fn text_equals_literal(
         &self,
         handle: omega_target_operations::RuntimeValueOperandHandle,
-    ) -> Option<(omega_target_operations::RuntimeValueOperandHandle, String, bool)> {
+    ) -> Option<(
+        omega_target_operations::RuntimeValueOperandHandle,
+        String,
+        bool,
+    )> {
         match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
             AssignedValueOperandKind::TextEqualsLiteral {
                 place,
@@ -243,10 +247,7 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
         }
     }
 
-    fn convert_trapping(
-        &self,
-        handle: omega_target_operations::RuntimeValueOperandHandle,
-    ) -> bool {
+    fn convert_trapping(&self, handle: omega_target_operations::RuntimeValueOperandHandle) -> bool {
         matches!(
             AssignedTargetOperationPlan::runtime_value_operand(self, handle).map(|op| &op.kind),
             Some(AssignedValueOperandKind::Convert { trapping: true, .. })

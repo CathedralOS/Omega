@@ -39,8 +39,12 @@ fn type_reference_table_stores_nested_typed_references_as_handles() {
 #[test]
 fn type_reference_table_stores_typed_constraints_as_expression_handles() {
     let mut expressions = ExpressionTable::new();
-    let minimum = expressions.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
-    let maximum = expressions.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(10)));
+    let minimum = expressions.insert(ExpressionNode::Integer(
+        omega_core::literals::IntegerLiteral::from_value(0),
+    ));
+    let maximum = expressions.insert(ExpressionNode::Integer(
+        omega_core::literals::IntegerLiteral::from_value(10),
+    ));
     let mut types = TypeReferenceTable::new();
     let base_type = types.insert(TypeReferenceNode::Named {
         symbol: SymbolHandle::invalid(),
@@ -75,8 +79,12 @@ fn type_reference_table_stores_typed_constraints_as_expression_handles() {
 #[test]
 fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
     let mut source_expressions = ExpressionTable::new();
-    let minimum = source_expressions.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(1)));
-    let maximum = source_expressions.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(8)));
+    let minimum = source_expressions.insert(ExpressionNode::Integer(
+        omega_core::literals::IntegerLiteral::from_value(1),
+    ));
+    let maximum = source_expressions.insert(ExpressionNode::Integer(
+        omega_core::literals::IntegerLiteral::from_value(8),
+    ));
     let mut source_types = TypeReferenceTable::new();
     let u8_reference = source_types.insert(TypeReferenceNode::Named {
         symbol: SymbolHandle::from_arena_index(11),

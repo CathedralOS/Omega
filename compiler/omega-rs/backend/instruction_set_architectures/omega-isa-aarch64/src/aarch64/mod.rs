@@ -309,10 +309,7 @@ fn append_syscall_operands(
         )));
     }
 
-    for (operand, register) in operands
-        .into_iter()
-        .zip(argument_registers.iter().copied())
-    {
+    for (operand, register) in operands.into_iter().zip(argument_registers.iter().copied()) {
         let omega_calling_conventions::MachineRegister::Aarch64X(register) = register else {
             return Err(Diagnostic::error(format!(
                 "AArch64 syscall plan selected non-GPR argument register {register:?}"
@@ -331,17 +328,9 @@ fn append_syscall_operands(
                 bytes.extend(encode_adrp_placeholder(register));
                 bytes.extend(encode_add_page_offset_placeholder(register));
                 if is_bounded_buffer {
-                    bytes.extend(encode_add_x_immediate(
-                        register,
-                        register,
-                        byte_offset + 8,
-                    )?);
+                    bytes.extend(encode_add_x_immediate(register, register, byte_offset + 8)?);
                 } else {
-                    bytes.extend(encode_load_x_from_x(
-                        register,
-                        register,
-                        byte_offset,
-                    )?);
+                    bytes.extend(encode_load_x_from_x(register, register, byte_offset)?);
                 }
             }
             RuntimeStringLength {
@@ -499,12 +488,8 @@ mod result_register_tests {
 
     #[test]
     fn constant_result_uses_the_plan_selected_x_register() {
-        let bytes = encode_return_register_integer_write_bytes(
-            MachineRegister::Aarch64X(3),
-            4,
-            7,
-        )
-        .expect("w3 result write");
+        let bytes = encode_return_register_integer_write_bytes(MachineRegister::Aarch64X(3), 4, 7)
+            .expect("w3 result write");
         assert_eq!(bytes, 0x5280_00e3u32.to_le_bytes());
     }
 }

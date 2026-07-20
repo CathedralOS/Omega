@@ -1,6 +1,5 @@
 use crate::name::lower_name;
 use omega_core::arena::HandleSpan;
-use omega_symbol_resolved_trees::name::DiagnosticName;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_symbol_resolved_trees::expression::{
@@ -9,6 +8,7 @@ use omega_symbol_resolved_trees::expression::{
     TableMemberExpression, TableMembershipExpression, TableNamePath, TableRangeExpression,
     TableStructLiteral, TableStructLiteralField, TableUnaryExpression, UnaryOperator,
 };
+use omega_symbol_resolved_trees::name::DiagnosticName;
 use omega_syntax_trees as syntax;
 use omega_syntax_trees::SyntaxTrees;
 
@@ -126,13 +126,15 @@ fn lower_expression_node_into_table(
                 let arguments = expressions.reserve_expression_handles(2);
                 expressions.set_expression_handle_at_offset(arguments, 0, x);
                 expressions.set_expression_handle_at_offset(arguments, 1, negated);
-                return Ok(expressions.insert(ExpressionNode::Call(TableCallExpression {
-                    receiver: ExpressionHandle::invalid(),
-                    target_symbol: SymbolHandle::invalid(),
-                    target: DiagnosticName::new("max", call.target.source_span()),
-                    machine_arguments: Box::default(),
-                    arguments,
-                })));
+                return Ok(
+                    expressions.insert(ExpressionNode::Call(TableCallExpression {
+                        receiver: ExpressionHandle::invalid(),
+                        target_symbol: SymbolHandle::invalid(),
+                        target: DiagnosticName::new("max", call.target.source_span()),
+                        machine_arguments: Box::default(),
+                        arguments,
+                    })),
+                );
             }
             // `clamp(x, lo, hi)` desugars to `min(max(x, lo), hi)` -- also
             // pure min/max reuse. Each argument appears EXACTLY ONCE (no
@@ -147,7 +149,8 @@ fn lower_expression_node_into_table(
                     .expressions
                     .expression_handles(call.arguments)
                     .to_vec();
-                let x = lower_expression_into_table(syntax_trees, expressions, argument_handles[0])?;
+                let x =
+                    lower_expression_into_table(syntax_trees, expressions, argument_handles[0])?;
                 let lo =
                     lower_expression_into_table(syntax_trees, expressions, argument_handles[1])?;
                 let hi =
@@ -165,13 +168,15 @@ fn lower_expression_node_into_table(
                 let min_arguments = expressions.reserve_expression_handles(2);
                 expressions.set_expression_handle_at_offset(min_arguments, 0, max_call);
                 expressions.set_expression_handle_at_offset(min_arguments, 1, hi);
-                return Ok(expressions.insert(ExpressionNode::Call(TableCallExpression {
-                    receiver: ExpressionHandle::invalid(),
-                    target_symbol: SymbolHandle::invalid(),
-                    target: DiagnosticName::new("min", call.target.source_span()),
-                    machine_arguments: Box::default(),
-                    arguments: min_arguments,
-                })));
+                return Ok(
+                    expressions.insert(ExpressionNode::Call(TableCallExpression {
+                        receiver: ExpressionHandle::invalid(),
+                        target_symbol: SymbolHandle::invalid(),
+                        target: DiagnosticName::new("min", call.target.source_span()),
+                        machine_arguments: Box::default(),
+                        arguments: min_arguments,
+                    })),
+                );
             }
 
             let receiver = if call.receiver.is_valid() {
@@ -203,9 +208,16 @@ fn lower_expression_node_into_table(
                     machine_arguments: call
                         .machine_arguments
                         .iter()
-                        .map(|argument| omega_symbol_resolved_trees::expression::StaticMachineArgument {
-                            path: argument.path.iter().map(lower_name).collect::<Vec<_>>().into_boxed_slice(),
-                            symbol: SymbolHandle::invalid(),
+                        .map(|argument| {
+                            omega_symbol_resolved_trees::expression::StaticMachineArgument {
+                                path: argument
+                                    .path
+                                    .iter()
+                                    .map(lower_name)
+                                    .collect::<Vec<_>>()
+                                    .into_boxed_slice(),
+                                symbol: SymbolHandle::invalid(),
+                            }
                         })
                         .collect::<Vec<_>>()
                         .into_boxed_slice(),

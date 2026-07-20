@@ -1,0 +1,33 @@
+// PRV4c: target packages declare ordinary type-per-slot defaults. Every
+// supported target contributes the same package-owned defaults machine here so
+// this canary is host-independent; target selection keeps exactly one.
+boundary trait Pick {
+    machine choose() -> i32;
+}
+
+data FirstProvider { }
+machine FirstProvider::choose() -> i32 satisfies Pick::choose {
+    transition { _ -> (1) }
+}
+
+data SecondProvider { }
+machine SecondProvider::choose() -> i32 satisfies Pick::choose {
+    transition { _ -> (2) }
+}
+
+data CanaryTargetProviders { }
+windows_x64 machine CanaryTargetProviders::provider_defaults(defaults: &mut CanaryTargetProviders) {
+    defaults.select_provider<Pick, SecondProvider>();
+}
+linux_x64 machine CanaryTargetProviders::provider_defaults(defaults: &mut CanaryTargetProviders) {
+    defaults.select_provider<Pick, SecondProvider>();
+}
+linux_arm64 machine CanaryTargetProviders::provider_defaults(defaults: &mut CanaryTargetProviders) {
+    defaults.select_provider<Pick, SecondProvider>();
+}
+macos_arm64 machine CanaryTargetProviders::provider_defaults(defaults: &mut CanaryTargetProviders) {
+    defaults.select_provider<Pick, SecondProvider>();
+}
+
+data Main { }
+machine Main::main(&mut self) { }

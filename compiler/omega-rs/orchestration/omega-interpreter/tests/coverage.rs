@@ -152,7 +152,10 @@ machine Main::main(&mut self) {
         "interpreter should support payload construction + binding, got {:?}",
         outcome.error
     );
-    assert_eq!(outcome.exit_code, 70, "bound payload should reach the target state");
+    assert_eq!(
+        outcome.exit_code, 70,
+        "bound payload should reach the target state"
+    );
 }
 
 /// A case-pattern arm whose tag does NOT match must fall through; equality between case
@@ -258,8 +261,9 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
-        .unwrap_or_else(|d| panic!("multi-field payload program should reach checked trees: {d:?}"));
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|d| {
+        panic!("multi-field payload program should reach checked trees: {d:?}")
+    });
     let outcome = interpret(&checked, b"");
     assert!(
         !outcome.is_error(),
@@ -385,17 +389,16 @@ machine Main::dispatch(&mut self, s: &mut dyn Shape) -> i32 {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
-        .unwrap_or_else(|diagnostics| {
-            panic!(
-                "two-impl dyn program should compile to checked trees:\n{}",
-                diagnostics
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            )
-        });
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "two-impl dyn program should compile to checked trees:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
     let outcome = interpret(&checked, b"");
     assert_eq!(outcome.error, None, "interpreter declined the program");
     assert_eq!(
@@ -485,7 +488,10 @@ machine Main::main(&mut self) -> i32 {
     let checked = compile_to_checked(&main_path, None).expect("terminal-local program compiles");
     let outcome = interpret(&checked, b"");
     assert_eq!(outcome.error, None, "interpreter declined the program");
-    assert_eq!(outcome.exit_code, 70, "terminal local read must become the exit code");
+    assert_eq!(
+        outcome.exit_code, 70,
+        "terminal local read must become the exit code"
+    );
 }
 
 /// Same shape, terminal FIELD read-back after a straight-line field write.
@@ -507,7 +513,10 @@ machine Main::main(&mut self) -> i32 {
     let checked = compile_to_checked(&main_path, None).expect("terminal-field program compiles");
     let outcome = interpret(&checked, b"");
     assert_eq!(outcome.error, None, "interpreter declined the program");
-    assert_eq!(outcome.exit_code, 70, "terminal field read-back must become the exit code");
+    assert_eq!(
+        outcome.exit_code, 70,
+        "terminal field read-back must become the exit code"
+    );
 }
 
 /// Same shape, terminal ARITHMETIC over a local.
@@ -524,10 +533,14 @@ machine Main::main(&mut self) -> i32 {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None).expect("terminal-arithmetic program compiles");
+    let checked =
+        compile_to_checked(&main_path, None).expect("terminal-arithmetic program compiles");
     let outcome = interpret(&checked, b"");
     assert_eq!(outcome.error, None, "interpreter declined the program");
-    assert_eq!(outcome.exit_code, 70, "terminal arithmetic must become the exit code");
+    assert_eq!(
+        outcome.exit_code, 70,
+        "terminal arithmetic must become the exit code"
+    );
 }
 
 // ---- wire zero-copy `&[u8]` borrowed-bytes field (#43) -----------------------
@@ -602,8 +615,9 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
-        .unwrap_or_else(|d| panic!("borrowed-byte-slice wire program should reach checked trees: {d:?}"));
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|d| {
+        panic!("borrowed-byte-slice wire program should reach checked trees: {d:?}")
+    });
     let outcome = interpret(&checked, b"");
     assert_eq!(
         outcome.error, None,
@@ -1062,7 +1076,6 @@ machine Main::main(&mut self) {
         "create_dir + rename A->B (read 5) + remove_dir must all succeed",
     );
 }
-
 
 /// The ERGONOMIC `Filesystem` wrapper (Rust-like): value-RETURNING machines
 /// (`create(path) -> OpenResult`) hide flags/mode/fd behind `File`/result enums
@@ -2073,7 +2086,11 @@ machine Main::main(&mut self) {
     let checked = compile_to_checked(&main_path, None)
         .unwrap_or_else(|d| panic!("metadata_ctime_dev program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
-    assert!(!outcome.is_error(), "metadata_ctime_dev: {:?}", outcome.error);
+    assert!(
+        !outcome.is_error(),
+        "metadata_ctime_dev: {:?}",
+        outcome.error
+    );
     assert_eq!(
         outcome.exit_code, 70,
         "MetadataExt: modeled changed() == 1000000050, dev() == 16777220"
@@ -3076,10 +3093,15 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
-        .unwrap_or_else(|d| panic!("metadata-permissions program should reach checked trees: {d:?}"));
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|d| {
+        panic!("metadata-permissions program should reach checked trees: {d:?}")
+    });
     let outcome = interpret(&checked, b"");
-    assert!(!outcome.is_error(), "metadata_permissions: {:?}", outcome.error);
+    assert!(
+        !outcome.is_error(),
+        "metadata_permissions: {:?}",
+        outcome.error
+    );
     assert_eq!(
         outcome.exit_code, 70,
         "fresh file: is_file & writable; after chmod 0o444: readonly & permissions().mode == 292"
@@ -3123,7 +3145,11 @@ machine Main::main(&mut self) {
     let checked = compile_to_checked(&main_path, None)
         .unwrap_or_else(|d| panic!("metadata-modified program should reach checked trees: {d:?}"));
     let outcome = interpret(&checked, b"");
-    assert!(!outcome.is_error(), "metadata_modified: {:?}", outcome.error);
+    assert!(
+        !outcome.is_error(),
+        "metadata_modified: {:?}",
+        outcome.error
+    );
     assert_eq!(
         outcome.exit_code, 70,
         "metadata_path.modified() must decode the modeled st_mtime (1_000_000_000)"
@@ -3214,10 +3240,15 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
-        .unwrap_or_else(|d| panic!("permissions-set-readonly program should reach checked trees: {d:?}"));
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|d| {
+        panic!("permissions-set-readonly program should reach checked trees: {d:?}")
+    });
     let outcome = interpret(&checked, b"");
-    assert!(!outcome.is_error(), "permissions_set_readonly: {:?}", outcome.error);
+    assert!(
+        !outcome.is_error(),
+        "permissions_set_readonly: {:?}",
+        outcome.error
+    );
     assert_eq!(
         outcome.exit_code, 70,
         "readonly()/set_readonly round-trip: writable -> readonly -> writable"
@@ -3270,10 +3301,15 @@ machine Main::main(&mut self) {
 }
 "#,
     );
-    let checked = compile_to_checked(&main_path, None)
-        .unwrap_or_else(|d| panic!("set-file-permissions program should reach checked trees: {d:?}"));
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|d| {
+        panic!("set-file-permissions program should reach checked trees: {d:?}")
+    });
     let outcome = interpret(&checked, b"");
-    assert!(!outcome.is_error(), "set_file_permissions: {:?}", outcome.error);
+    assert!(
+        !outcome.is_error(),
+        "set_file_permissions: {:?}",
+        outcome.error
+    );
     assert_eq!(
         outcome.exit_code, 70,
         "fchmod an open file read-only -> a fresh write-open is PermissionDenied"
