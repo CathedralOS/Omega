@@ -122,3 +122,33 @@ with the plan, and return a receipt establishing one target-specific publication
 fact. The machine may lower normally under its evaluated call/state plan; do not
 standardize a public callback ABI or let ordinary Omega code observe resolved
 addresses.
+
+## 5. What is the native boundary ABI for fixed arrays and text descriptors?
+
+Primitive scalars and declared `data` records/cases now have normalized entry
+result shapes across Microsoft x64, SysV AMD64, and AAPCS64. Fixed arrays and
+the current builtin `String` descriptor do not: neither has a declared-data
+layout symbol, and C-family ABIs do not provide one uniform source-level rule
+for returning arrays by value. Treating both as anonymous integer aggregates
+would be mechanically possible, but would silently establish a public ABI and
+would interact with the planned retirement of builtin `String` in favor of
+domain-qualified `[u8]` values.
+
+Decide:
+
+- whether fixed arrays are legal ordinary-boundary parameters/results by value,
+  and if so whether their ABI class is structural (including float HFA/SSE
+  classification) or always opaque/in-memory;
+- whether `{ptr, len}` text/slice descriptors are stable public ABI values or
+  must cross only through explicit admitted record types;
+- whether process-entry `main` may declare any native result shape, or must be
+  restricted to the platform's exit-status scalar even though callable/firmware
+  entries may return aggregates; and
+- whether the answer belongs in `Calling<C>` policy evaluation so custom
+  policies can reject or classify these shapes explicitly.
+
+Recommendation: keep process `main` restricted to an exit-status integer, make
+fixed-array/text boundary legality explicit in the evaluated calling policy,
+and classify admitted fixed arrays structurally (including HFA/SSE rules) while
+requiring text to use an explicit public descriptor record after String
+retirement. Do not infer either ABI from byte size alone.
