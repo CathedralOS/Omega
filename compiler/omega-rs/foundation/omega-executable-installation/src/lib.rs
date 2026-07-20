@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use omega_extents::{AddressSpaceId, Extent, ExtentProvenanceId, ExtentRights};
-use omega_layout_plans::{PlacementConstraints, PlacementSite};
+use omega_layout_plans::{EntryStubId, PlacementConstraints, PlacementSite, RelocationTarget};
 
 macro_rules! normalized_id {
     ($name:ident, $label:literal) => {
@@ -37,6 +37,7 @@ normalized_id!(ArtifactContentId, "artifact-content");
 normalized_id!(MachineContractSetId, "machine-contract-set");
 normalized_id!(MachineFootprintId, "machine-footprint");
 normalized_id!(PlacementPlanId, "placement-plan");
+normalized_id!(EntrySetId, "entry-set");
 normalized_id!(AdmissionReceiptId, "admission-receipt");
 normalized_id!(CodePlacementId, "code-placement");
 normalized_id!(InstallationScopeId, "installation-scope");
@@ -61,6 +62,34 @@ struct ArtifactRecord {
     declared_footprint: MachineFootprintId,
     placement_plan: PlacementPlanId,
     placement_constraints: PlacementConstraints,
+    entry_set: EntrySetId,
+    entries: Vec<ArtifactEntry>,
+}
+
+/// Canonically decoded entry in one executable artifact. The offset remains
+/// sealed inside the installation/provider layer; ordinary Omega code sees at
+/// most the compiler-issued [`EntryStubId`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ArtifactEntry {
+    identity: EntryStubId,
+    code_offset: u64,
+}
+
+impl ArtifactEntry {
+    pub const fn from_canonical_decode(identity: EntryStubId, code_offset: u64) -> Self {
+        Self {
+            identity,
+            code_offset,
+        }
+    }
+
+    pub const fn identity(self) -> EntryStubId {
+        self.identity
+    }
+
+    pub const fn code_offset(self) -> u64 {
+        self.code_offset
+    }
 }
 
 /// Immutable canonical decode result. Construction grants no executable
@@ -77,10 +106,34 @@ impl Artifact {
         declared_footprint: MachineFootprintId,
         placement_plan: PlacementPlanId,
         placement_constraints: PlacementConstraints,
+        entry_set: EntrySetId,
+        mut entries: Vec<ArtifactEntry>,
     ) -> Result<Self, InstallationDiagnostic> {
         if byte_length == 0 {
             return Err(InstallationDiagnostic(
                 "executable artifact cannot have empty content".into(),
+            ));
+        }
+        if entries.is_empty() {
+            return Err(InstallationDiagnostic(
+                "executable artifact must publish at least one selected entry".into(),
+            ));
+        }
+        entries.sort_unstable_by_key(|entry| entry.identity);
+        for entry in &entries {
+            if entry.code_offset >= byte_length {
+                return Err(InstallationDiagnostic(format!(
+                    "artifact entry {:?} offset {} lies outside {} code bytes",
+                    entry.identity, entry.code_offset, byte_length
+                )));
+            }
+        }
+        if entries
+            .windows(2)
+            .any(|pair| pair[0].identity == pair[1].identity)
+        {
+            return Err(InstallationDiagnostic(
+                "artifact entry identities must be unique".into(),
             ));
         }
         Ok(Self(Arc::new(ArtifactRecord {
@@ -91,6 +144,8 @@ impl Artifact {
             declared_footprint,
             placement_plan,
             placement_constraints,
+            entry_set,
+            entries,
         })))
     }
 
@@ -109,6 +164,22 @@ impl Artifact {
     pub fn placement_constraints(&self) -> PlacementConstraints {
         self.0.placement_constraints
     }
+
+    pub fn entry_set(&self) -> EntrySetId {
+        self.0.entry_set
+    }
+
+    pub fn entries(&self) -> &[ArtifactEntry] {
+        &self.0.entries
+    }
+
+    fn entry(&self, identity: EntryStubId) -> Option<ArtifactEntry> {
+        self.0
+            .entries
+            .binary_search_by_key(&identity, |entry| entry.identity)
+            .ok()
+            .map(|index| self.0.entries[index])
+    }
 }
 
 /// Validator-authored evidence for the reusable executable qualification.
@@ -123,6 +194,7 @@ pub struct ArtifactAdmissionEvidence {
     footprint: MachineFootprintId,
     placement_plan: PlacementPlanId,
     placement_constraints: PlacementConstraints,
+    entry_set: EntrySetId,
     accepted: bool,
 }
 
@@ -136,6 +208,7 @@ impl ArtifactAdmissionEvidence {
         footprint: MachineFootprintId,
         placement_plan: PlacementPlanId,
         placement_constraints: PlacementConstraints,
+        entry_set: EntrySetId,
         accepted: bool,
     ) -> Self {
         Self {
@@ -146,6 +219,7 @@ impl ArtifactAdmissionEvidence {
             footprint,
             placement_plan,
             placement_constraints,
+            entry_set,
             accepted,
         }
     }
@@ -166,6 +240,25 @@ impl AdmittedArtifact {
     pub const fn admission(&self) -> AdmissionReceiptId {
         self.admission
     }
+
+    /// Selects a sealed materialization target only when the requested entry
+    /// belongs to this admitted artifact's canonical, admission-bound entry
+    /// set. Numeric address resolution remains deferred until materialization
+    /// has bound the artifact to one exact placement.
+    pub fn selected_entry_target(
+        &self,
+        identity: EntryStubId,
+    ) -> Result<RelocationTarget, InstallationDiagnostic> {
+        self.artifact
+            .entry(identity)
+            .map(|_| RelocationTarget::Entry(identity))
+            .ok_or_else(|| {
+                InstallationDiagnostic(format!(
+                    "entry {identity:?} is not present in admitted artifact {:?}",
+                    self.artifact.0.identity
+                ))
+            })
+    }
 }
 
 pub fn admit_executable(
@@ -183,6 +276,7 @@ pub fn admit_executable(
         || evidence.footprint != artifact.0.declared_footprint
         || evidence.placement_plan != artifact.0.placement_plan
         || evidence.placement_constraints != artifact.0.placement_constraints
+        || evidence.entry_set != artifact.0.entry_set
     {
         return Err(InstallationDiagnostic(
             "artifact admission evidence does not match canonical candidate".into(),
@@ -853,6 +947,10 @@ mod tests {
         constructor(identity).expect("normalized extent identity")
     }
 
+    fn entry_id(identity: u64) -> EntryStubId {
+        EntryStubId::from_normalized_identity(identity).expect("normalized entry identity")
+    }
+
     fn rights(identities: &[u64]) -> ExtentRights {
         ExtentRights::from_normalized_identities(
             identities
@@ -884,6 +982,11 @@ mod tests {
             id(31, MachineFootprintId::from_normalized_identity),
             id(32, PlacementPlanId::from_normalized_identity),
             artifact_placement_constraints(),
+            id(33, EntrySetId::from_normalized_identity),
+            vec![ArtifactEntry::from_canonical_decode(
+                entry_id(identity + 1000),
+                16,
+            )],
         )
         .expect("artifact")
     }
@@ -899,6 +1002,7 @@ mod tests {
                 candidate.0.declared_footprint,
                 candidate.0.placement_plan,
                 candidate.0.placement_constraints,
+                candidate.0.entry_set,
                 true,
             ),
         )
@@ -1086,11 +1190,48 @@ mod tests {
                 candidate.0.declared_footprint,
                 candidate.0.placement_plan,
                 weaker,
+                candidate.0.entry_set,
                 true,
             ),
         )
         .expect_err("admission evidence must pin the decoded placement constraints");
         assert!(error.0.contains("does not match canonical candidate"));
+    }
+
+    #[test]
+    fn admission_evidence_cannot_substitute_the_selected_entry_set() {
+        let candidate = artifact(1);
+        let error = admit_executable(
+            &candidate,
+            ArtifactAdmissionEvidence::from_validator(
+                id(40, AdmissionReceiptId::from_normalized_identity),
+                candidate.0.identity,
+                candidate.0.content,
+                candidate.0.contracts,
+                candidate.0.declared_footprint,
+                candidate.0.placement_plan,
+                candidate.0.placement_constraints,
+                id(34, EntrySetId::from_normalized_identity),
+                true,
+            ),
+        )
+        .expect_err("admission evidence must pin the decoded entry set");
+        assert!(error.0.contains("does not match canonical candidate"));
+    }
+
+    #[test]
+    fn admitted_artifact_selects_only_its_canonical_entry_targets() {
+        let candidate = artifact(1);
+        let selected = entry_id(1001);
+        let admitted = admit(&candidate);
+        assert_eq!(
+            admitted
+                .selected_entry_target(selected)
+                .expect("selected entry target"),
+            RelocationTarget::Entry(selected)
+        );
+        let foreign = entry_id(1002);
+        assert!(admitted.selected_entry_target(foreign).is_err());
     }
 
     #[test]

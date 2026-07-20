@@ -222,8 +222,14 @@ section-qualified generic `Absolute64` relocations can patch initialized data,
 including PE base-rebase records. Materialized-data origin/provenance must get
 an honest record rather than borrowing instruction-index sentinels; that
 tagged `Instruction | Materialization` origin and native-action lowering are
-now implemented. Selected-artifact identity integration, artifact propagation,
-and target-machine emission of the post-handoff writer remain.
+now implemented. Selected-artifact entry integration now reaches canonical
+executable-container v2, which carries one required entry-set section. It
+validates unique compiler-issued entry identities and in-code offsets, binds
+the entry-set identity through artifact admission, and allows an admitted
+artifact to yield only a sealed target present in that set. Source-level data
+identity derivation, final artifact propagation, numeric resolution after an
+artifact is bound to one exact placement, and target-machine emission of the
+resulting writer remain.
 
 ## Still open
 

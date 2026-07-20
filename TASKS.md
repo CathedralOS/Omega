@@ -155,8 +155,13 @@ ceiling derived exactly from the ABI volatile-register classes.
    decoded constraint record is now bound into artifact admission and must match
    the exact record carried by the claimed placement at materialization, so a
    provider cannot substitute weaker constraints behind the admitted placement
-   plan identity. Wire entry identities from selected artifacts and lower the
-   now-derived atomic post-handoff writer programs to generated machine code.
+   plan identity. Canonical executable-container v2 now requires a bounded entry
+   set: unique compiler-issued `EntryStubId` values and in-code offsets are
+   validated, the entry-set identity is bound into admission, and only an
+   admitted artifact can yield a sealed entry materialization target from that
+   set. Bind numeric resolution to the future artifact-plus-placement
+   materialization state and lower the now-derived atomic post-handoff writer
+   programs to generated machine code.
 5. **IDT2 — installed-root ledger.** Add `lidt` only as an installation path
    that consumes scoped IDT
    authority and records every installed entry as an external analysis root
@@ -395,9 +400,12 @@ before the fix.
   loader-versus-post-handoff validation are live. Range/alignment/phase/regime/
   installation-scope constraints are normalized, concrete-site validated, and
   bound through decoded artifact construction, admission evidence, placement,
-  and materialization without permitting constraint substitution. Add source
-  identity derivation/integration and lower the provider-resolved post-handoff
-  writer programs to generated machine code. Writer programs already validate their
+  and materialization without permitting constraint substitution. Entry-source
+  integration now reaches canonical executable entry-set decoding and
+  admission-bound sealed entry targets. Bind numeric entry resolution to an
+  exact artifact-plus-placement materialization state and lower the
+  provider-resolved post-handoff writer programs to generated machine code.
+  Writer programs already validate their
   concrete site, resolve each sealed target once, stage all writes, and publish
   atomically. Native whole-pointer actions already lower into section-qualified
   object relocations with materialization provenance.
