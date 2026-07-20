@@ -234,7 +234,9 @@ ceiling derived exactly from the ABI volatile-register classes.
    array members now recurse element-by-element with their canonical packed
    stride; an `{ [u32; 2], [f32; 2] }` source canary pins the resulting
    INTEGER/SSE class pair and completes the scalar/named-record/fixed-array
-   leaf family.
+   leaf family. The same recursive classifier now covers a single occupied
+   eightbyte: a nested f64 wrapper preserves SSE class through outbound
+   argument/result selection instead of collapsing to INTEGER.
    SysV entry prologues now reuse those shapes: flat HFA parameters store
    their packed SSE eightbytes from consecutive `xmm` registers, mixed
    INTEGER/SSE parameters store from both independent banks, and exhaustion
@@ -248,6 +250,8 @@ ceiling derived exactly from the ABI volatile-register classes.
    relocation accounting. Three source-to-ELF canaries pin those result
    combinations, while a 24-byte homogeneous-float canary proves the SysV
    two-eightbyte ceiling still selects the existing hidden-pointer MEMORY path.
+   One-eightbyte nested SSE entry parameters and results likewise store from
+   and load to `xmm0`; a source-to-ELF round-trip canary pins both directions.
    Ordinary AArch64 `VtableSlot` and `VtableField` calls now evaluate AAPCS64
    from their selected operands, require the full-width receiver in planned
    `x0`, marshal every argument/stack slot through the shared plan consumer,

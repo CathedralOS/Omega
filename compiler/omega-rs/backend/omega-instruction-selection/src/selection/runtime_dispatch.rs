@@ -1464,6 +1464,9 @@ fn normalized_entry_record_result_shape(
     if let Some((_, _, sse_eightbytes)) = system_v_record_descriptor_shape(input, &descriptor)
         && sse_eightbytes != 0
     {
+        if byte_size <= 8 {
+            return Some(ValueShape::float(byte_size));
+        }
         let class = |mask| {
             if sse_eightbytes & mask == 0 {
                 SystemVEightbyteClass::Integer
@@ -1558,6 +1561,9 @@ fn entry_slot_value_shape(
             system_v_record_descriptor_shape(input, &slot.type_descriptor)
         && sse_eightbytes != 0
     {
+        if byte_size <= 8 {
+            return Some(ValueShape::float(byte_size));
+        }
         let class = |mask| {
             if sse_eightbytes & mask == 0 {
                 SystemVEightbyteClass::Integer
