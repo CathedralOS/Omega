@@ -50,7 +50,10 @@ mixed/general entry signatures retain the compatibility path without panicking
 the compiler. Pure-integer SysV AMD64 records up to 16 bytes now use
 consecutive GPR fragments when the whole value fits, otherwise roll wholly to
 the stack without consuming the remaining argument register; normalized result
-plans select `rax`/`rdx`. Generic Linux syscall
+plans select `rax`/`rdx`. Provides-authored SysV integer imports now preserve
+those records through selection, marshal their planned register or stack
+fragments, spill small aggregate results from `rax`/`rdx`, and keep layout plus
+data/call relocation walkers in lockstep. Generic Linux syscall
 leaves now evaluate the normalized syscall policy at emission and pass its
 exact parameter registers, number register, and supervisor-call immediate into
 both ISA encoders; the legacy binding fields no longer choose those facts on
@@ -175,8 +178,15 @@ ceiling derived exactly from the ABI volatile-register classes.
    aligned stack fragments and the rolled-back register remains available to a
    following scalar; normalized small-aggregate result plans select
    `rax`/`rdx`. Linux x64 source-to-object canaries pin both the register and
-   stack/rollback entry paths. Outbound SysV aggregate call/result lowering
-   remains to be migrated to the normalized plan.
+   stack/rollback entry paths. Provides-authored outbound SysV integer calls now
+   preserve small records as one operand, consume the plan-selected GPR or
+   whole-value stack fragments, and spill small record results from
+   `rax`/`rdx`; ISA and relocation tests pin the register, stack/rollback,
+   result, alignment, clobber-ceiling, and fixup paths. A source-level Linux x64
+   probe reaches that lowering and stops only at the existing ELF direct-image
+   dynamic-binding gap. End-to-end import image/run acceptance is therefore
+   platform-blocked until ELF dynamic imports exist; SysV float, mixed-class,
+   large/indirect aggregates, and indirect field calls remain to migrate.
    Ordinary AArch64 `VtableSlot` and `VtableField` calls now evaluate AAPCS64
    from their selected operands, require the full-width receiver in planned
    `x0`, marshal every argument/stack slot through the shared plan consumer,

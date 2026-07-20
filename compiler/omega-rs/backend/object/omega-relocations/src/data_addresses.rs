@@ -2,7 +2,7 @@ use crate::RelocationPlanningInput;
 use crate::data_address_records::insert_data_address_relocations;
 use crate::lookups::find_host_binding;
 use crate::offsets::FieldModelCallShape;
-use crate::offsets::data_address_relocation_offset;
+use crate::offsets::data_address_relocation_offset_for_target;
 use omega_calling_conventions::{HostBindingMechanism, HostOperationKey};
 use omega_object_file::{
     ObjectSymbolHandle, RelocationPlan, object_symbol_handle_by_name, storage_region_symbol_name,
@@ -81,8 +81,8 @@ pub(super) fn collect_data_address_relocations(
                 relocation_plan,
                 function_symbol_handle,
                 selected_instruction_index,
-                data_address_relocation_offset(
-                    input.target.architecture,
+                data_address_relocation_offset_for_target(
+                    input.target,
                     operation_key,
                     operands,
                     selected_text_offset,
@@ -141,8 +141,8 @@ pub(super) fn collect_data_address_relocations(
                 relocation_plan,
                 function_symbol_handle,
                 selected_instruction_index,
-                data_address_relocation_offset(
-                    input.target.architecture,
+                data_address_relocation_offset_for_target(
+                    input.target,
                     operation_key,
                     operands,
                     selected_text_offset,

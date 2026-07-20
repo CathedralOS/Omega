@@ -9,7 +9,7 @@ pub use place_copy::{
 
 use omega_calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, EntryControl, HostCapability, HostOperation,
-    HostOperationKey, MachineRegister, ValueLocation, ValuePlacement, ValueShape,
+    HostOperationKey, MachineRegister, ValueClass, ValueLocation, ValuePlacement, ValueShape,
     evaluate_call_plan,
 };
 use omega_core::arithmetic::ArithmeticDomain;
@@ -998,7 +998,21 @@ pub fn host_call_data_relocation_site<T: InstructionOperandLike>(
     operands: &[T],
     operand_index: usize,
 ) -> Option<X86_64RelocationSite> {
-    host_call_relocation_sites(operation_key, operands)
+    host_call_data_relocation_site_for_policy(
+        CallingPolicy::MicrosoftX64,
+        operation_key,
+        operands,
+        operand_index,
+    )
+}
+
+pub fn host_call_data_relocation_site_for_policy<T: InstructionOperandLike>(
+    policy: CallingPolicy,
+    operation_key: HostOperationKey,
+    operands: &[T],
+    operand_index: usize,
+) -> Option<X86_64RelocationSite> {
+    host_call_relocation_sites_for_policy(policy, operation_key, operands)
         .into_iter()
         .find(|site| {
             site.operand_index == Some(operand_index)
@@ -1270,7 +1284,19 @@ pub fn host_call_external_relocation_site<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     operands: &[T],
 ) -> Option<X86_64RelocationSite> {
-    host_call_relocation_sites(operation_key, operands)
+    host_call_external_relocation_site_for_policy(
+        CallingPolicy::MicrosoftX64,
+        operation_key,
+        operands,
+    )
+}
+
+pub fn host_call_external_relocation_site_for_policy<T: InstructionOperandLike>(
+    policy: CallingPolicy,
+    operation_key: HostOperationKey,
+    operands: &[T],
+) -> Option<X86_64RelocationSite> {
+    host_call_relocation_sites_for_policy(policy, operation_key, operands)
         .into_iter()
         .find(|site| site.kind == X86_64RelocationSiteKind::Relative32)
 }
@@ -1290,6 +1316,14 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
         )
     ) {
         return encode_constant_result(operands);
+    }
+    if policy == CallingPolicy::SystemVAMD64
+        && matches!(
+            operation_key.capability,
+            HostCapability::Unknown | HostCapability::Custom(_)
+        )
+    {
+        return encode_sysv_import_call(operands, true);
     }
     if policy != CallingPolicy::MicrosoftX64 {
         return Err(Diagnostic::error(format!(
@@ -2039,6 +2073,561 @@ fn encode_win64_import_call<T: InstructionOperandLike>(
     Ok(bytes)
 }
 
+#[derive(Debug)]
+struct SysvImportLayout {
+    bytes: Vec<u8>,
+    relocation_sites: Vec<X86_64RelocationSite>,
+}
+
+/// The first normalized SysV AMD64 import slice. Provides-authored integer
+/// calls may carry four/eight-byte scalar or pointer operands and pure-INTEGER
+/// records of at most two eightbytes whose fragments are four/eight bytes. The
+/// evaluated plan owns register allocation, whole-value
+/// stack rollback, and `rax`/`rdx` results; this encoder only realizes those
+/// locations. Float, mixed-class, and indirect aggregate cases stay closed.
+fn encode_sysv_import_call<T: InstructionOperandLike>(
+    operands: &[T],
+    returns_value: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    Ok(sysv_import_layout(operands, returns_value)?.bytes)
+}
+
+fn sysv_import_layout<T: InstructionOperandLike>(
+    operands: &[T],
+    returns_value: bool,
+) -> Result<SysvImportLayout, Diagnostic> {
+    if returns_value && operands.is_empty() {
+        return Err(Diagnostic::error(
+            "cannot encode SysV AMD64 import call without its result storage operand",
+        ));
+    }
+    let arg_start = usize::from(returns_value);
+    let plan = normalized_sysv_import_plan(operands, returns_value)?;
+    let stack_bytes = plan
+        .parameters
+        .iter()
+        .flat_map(|placement| placement.locations.iter())
+        .filter_map(|location| match location {
+            ValueLocation::Stack {
+                stack_byte_offset,
+                byte_size,
+                ..
+            } => Some(usize::try_from(*stack_byte_offset).ok()? + usize::from(*byte_size)),
+            _ => None,
+        })
+        .max()
+        .unwrap_or(0);
+    let reserve = sysv_import_reserve(stack_bytes);
+    let mut bytes = Vec::new();
+    let mut relocation_sites = Vec::new();
+    append_sub_rsp(&mut bytes, reserve);
+
+    for (parameter_index, placement) in plan.parameters.iter().enumerate() {
+        append_sysv_parameter(
+            &mut bytes,
+            &mut relocation_sites,
+            &operands[arg_start + parameter_index],
+            arg_start + parameter_index,
+            placement,
+        )?;
+    }
+
+    relocation_sites.push(X86_64RelocationSite {
+        operand_index: None,
+        byte_offset: bytes.len() + 1,
+        byte_width: 4,
+        kind: X86_64RelocationSiteKind::Relative32,
+    });
+    bytes.extend([0xe8, 0, 0, 0, 0]);
+    append_add_rsp(&mut bytes, reserve);
+
+    if returns_value {
+        append_sysv_result(
+            &mut bytes,
+            &mut relocation_sites,
+            &operands[0],
+            plan.result.as_ref().ok_or_else(|| {
+                Diagnostic::error("SysV AMD64 import plan omitted its required result")
+            })?,
+        )?;
+    }
+
+    Ok(SysvImportLayout {
+        bytes,
+        relocation_sites,
+    })
+}
+
+fn sysv_import_reserve(stack_bytes: usize) -> usize {
+    // Emitted Omega call sites enter with rsp == 8 (mod 16). Reserve the
+    // smallest area that covers every outgoing stack slot and leaves rsp
+    // 16-byte aligned immediately before CALL.
+    (stack_bytes + 8).next_multiple_of(16) - 8
+}
+
+fn append_sysv_parameter<T: InstructionOperandLike>(
+    bytes: &mut Vec<u8>,
+    relocation_sites: &mut Vec<X86_64RelocationSite>,
+    operand: &T,
+    operand_index: usize,
+    placement: &ValuePlacement,
+) -> Result<(), Diagnostic> {
+    if let Some((_, byte_offset, byte_count, _)) = operand.runtime_small_aggregate() {
+        if byte_count != usize::from(placement.shape.byte_size) {
+            return Err(Diagnostic::error(format!(
+                "SysV AMD64 aggregate operand {operand_index} width {byte_count} disagrees with plan width {}",
+                placement.shape.byte_size
+            )));
+        }
+        append_sysv_runtime_base(bytes, relocation_sites, operand_index);
+        for location in &placement.locations {
+            match *location {
+                ValueLocation::Register {
+                    register,
+                    value_byte_offset,
+                    byte_size,
+                } => append_sysv_load_register_from_r11(
+                    bytes,
+                    register,
+                    byte_offset + usize::from(value_byte_offset),
+                    byte_size,
+                )?,
+                ValueLocation::Stack {
+                    stack_byte_offset,
+                    value_byte_offset,
+                    byte_size,
+                    ..
+                } => {
+                    append_sysv_load_rax_from_r11(
+                        bytes,
+                        byte_offset + usize::from(value_byte_offset),
+                        byte_size,
+                    )?;
+                    append_sysv_store_rax_to_rsp(bytes, stack_byte_offset)?;
+                }
+                ValueLocation::Indirect { .. } => {
+                    return Err(Diagnostic::error(
+                        "SysV AMD64 small-aggregate import received an indirect placement",
+                    ));
+                }
+            }
+        }
+        return Ok(());
+    }
+
+    let [location] = placement.locations.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "SysV AMD64 scalar import operand {operand_index} has fragmented placement {:?}",
+            placement.locations
+        )));
+    };
+    match *location {
+        ValueLocation::Register { register, .. } => append_sysv_scalar_to_register(
+            bytes,
+            relocation_sites,
+            operand,
+            operand_index,
+            register,
+        ),
+        ValueLocation::Stack {
+            stack_byte_offset, ..
+        } => append_sysv_scalar_to_stack(
+            bytes,
+            relocation_sites,
+            operand,
+            operand_index,
+            stack_byte_offset,
+        ),
+        ValueLocation::Indirect { .. } => Err(Diagnostic::error(
+            "SysV AMD64 scalar import received an indirect placement",
+        )),
+    }
+}
+
+fn append_sysv_scalar_to_register<T: InstructionOperandLike>(
+    bytes: &mut Vec<u8>,
+    relocation_sites: &mut Vec<X86_64RelocationSite>,
+    operand: &T,
+    operand_index: usize,
+    register: MachineRegister,
+) -> Result<(), Diagnostic> {
+    if let Some((_, byte_offset, byte_count)) = operand.runtime_scalar_integer() {
+        append_sysv_runtime_base(bytes, relocation_sites, operand_index);
+        return append_sysv_load_register_from_r11(
+            bytes,
+            register,
+            byte_offset,
+            u16::try_from(byte_count)
+                .map_err(|_| Diagnostic::error("SysV AMD64 scalar width exceeds u16"))?,
+        );
+    }
+    if let Some((_, byte_offset)) = operand.runtime_storage_address() {
+        append_sysv_runtime_base(bytes, relocation_sites, operand_index);
+        return append_sysv_lea_register_from_r11(bytes, register, byte_offset);
+    }
+    if let Some((_, byte_offset)) = operand.runtime_string_pointer() {
+        append_sysv_runtime_base(bytes, relocation_sites, operand_index);
+        return if operand.runtime_string_is_bounded_buffer() {
+            append_sysv_lea_register_from_r11(bytes, register, byte_offset + 8)
+        } else {
+            append_sysv_load_register_from_r11(bytes, register, byte_offset, 8)
+        };
+    }
+    if operand.data_address().is_some() {
+        relocation_sites.push(X86_64RelocationSite {
+            operand_index: Some(operand_index),
+            byte_offset: bytes.len() + 2,
+            byte_width: 8,
+            kind: X86_64RelocationSiteKind::Absolute64,
+        });
+        return append_sysv_mov_register_imm64(bytes, register, 0);
+    }
+    if let Some(value) = operand.immediate_integer().or_else(|| {
+        operand
+            .byte_length()
+            .and_then(|value| i64::try_from(value).ok())
+    }) {
+        return append_sysv_mov_register_imm64(bytes, register, value as u64);
+    }
+    Err(Diagnostic::error(format!(
+        "SysV AMD64 import operand {operand_index} has no supported integer representation"
+    )))
+}
+
+fn append_sysv_scalar_to_stack<T: InstructionOperandLike>(
+    bytes: &mut Vec<u8>,
+    relocation_sites: &mut Vec<X86_64RelocationSite>,
+    operand: &T,
+    operand_index: usize,
+    stack_byte_offset: u32,
+) -> Result<(), Diagnostic> {
+    if let Some((_, byte_offset, byte_count)) = operand.runtime_scalar_integer() {
+        append_sysv_runtime_base(bytes, relocation_sites, operand_index);
+        append_sysv_load_rax_from_r11(
+            bytes,
+            byte_offset,
+            u16::try_from(byte_count)
+                .map_err(|_| Diagnostic::error("SysV AMD64 scalar width exceeds u16"))?,
+        )?;
+        return append_sysv_store_rax_to_rsp(bytes, stack_byte_offset);
+    }
+    if let Some((_, byte_offset)) = operand.runtime_storage_address() {
+        append_sysv_runtime_base(bytes, relocation_sites, operand_index);
+        append_sysv_lea_register_from_r11(bytes, MachineRegister::X86Rax, byte_offset)?;
+        return append_sysv_store_rax_to_rsp(bytes, stack_byte_offset);
+    }
+    if operand.data_address().is_some() {
+        relocation_sites.push(X86_64RelocationSite {
+            operand_index: Some(operand_index),
+            byte_offset: bytes.len() + 2,
+            byte_width: 8,
+            kind: X86_64RelocationSiteKind::Absolute64,
+        });
+        append_mov_rax_imm64(bytes, 0);
+        return append_sysv_store_rax_to_rsp(bytes, stack_byte_offset);
+    }
+    if let Some(value) = operand.immediate_integer().or_else(|| {
+        operand
+            .byte_length()
+            .and_then(|value| i64::try_from(value).ok())
+    }) {
+        append_mov_rax_imm64(bytes, value as u64);
+        return append_sysv_store_rax_to_rsp(bytes, stack_byte_offset);
+    }
+    Err(Diagnostic::error(format!(
+        "SysV AMD64 stack operand {operand_index} has no supported integer representation"
+    )))
+}
+
+fn append_sysv_result<T: InstructionOperandLike>(
+    bytes: &mut Vec<u8>,
+    relocation_sites: &mut Vec<X86_64RelocationSite>,
+    operand: &T,
+    placement: &ValuePlacement,
+) -> Result<(), Diagnostic> {
+    let (byte_offset, byte_count, aggregate) =
+        if let Some((_, offset, count, _)) = operand.runtime_small_aggregate() {
+            (offset, count, true)
+        } else if let Some((_, offset, count)) = operand.runtime_scalar_integer() {
+            (offset, count, false)
+        } else {
+            return Err(Diagnostic::error(
+                "SysV AMD64 import result did not lower to integer runtime storage",
+            ));
+        };
+    if byte_count != usize::from(placement.shape.byte_size) {
+        return Err(Diagnostic::error(
+            "SysV AMD64 import result storage disagrees with the normalized result width",
+        ));
+    }
+    if !aggregate && placement.locations.len() != 1 {
+        return Err(Diagnostic::error(
+            "SysV AMD64 scalar import result has fragmented placement",
+        ));
+    }
+    append_sysv_runtime_base(bytes, relocation_sites, 0);
+    for location in &placement.locations {
+        let ValueLocation::Register {
+            register,
+            value_byte_offset,
+            byte_size,
+        } = *location
+        else {
+            return Err(Diagnostic::error(
+                "SysV AMD64 import result is not register-resident",
+            ));
+        };
+        append_sysv_store_result_register_to_r11(
+            bytes,
+            register,
+            byte_offset + usize::from(value_byte_offset),
+            byte_size,
+        )?;
+    }
+    Ok(())
+}
+
+fn append_sysv_runtime_base(
+    bytes: &mut Vec<u8>,
+    relocation_sites: &mut Vec<X86_64RelocationSite>,
+    operand_index: usize,
+) {
+    relocation_sites.push(X86_64RelocationSite {
+        operand_index: Some(operand_index),
+        byte_offset: bytes.len() + 2,
+        byte_width: 8,
+        kind: X86_64RelocationSiteKind::Absolute64,
+    });
+    append_mov_r11_imm64(bytes, 0);
+}
+
+fn normalized_sysv_import_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    returns_value: bool,
+) -> Result<CallPlan, Diagnostic> {
+    let arg_start = usize::from(returns_value);
+    let signature = CallSignature {
+        parameters: operands[arg_start..]
+            .iter()
+            .map(sysv_operand_shape)
+            .collect::<Result<Vec<_>, _>>()?,
+        result: returns_value
+            .then(|| sysv_operand_shape(&operands[0]))
+            .transpose()?,
+    };
+    let plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature).map_err(|error| {
+        Diagnostic::error(format!("cannot evaluate SysV AMD64 import plan: {error}"))
+    })?;
+    validate_sysv_import_plan(&plan)?;
+    Ok(plan)
+}
+
+fn sysv_operand_shape<T: InstructionOperandLike>(operand: &T) -> Result<ValueShape, Diagnostic> {
+    if let Some((_, _, byte_count, alignment)) = operand.runtime_small_aggregate() {
+        let byte_count = u16::try_from(byte_count)
+            .map_err(|_| Diagnostic::error("SysV AMD64 aggregate width exceeds u16"))?;
+        let alignment = u16::try_from(alignment)
+            .map_err(|_| Diagnostic::error("SysV AMD64 aggregate alignment exceeds u16"))?;
+        if !(9..=16).contains(&byte_count) {
+            return Err(Diagnostic::error(
+                "SysV AMD64 authored aggregate imports currently require 9..=16 bytes",
+            ));
+        }
+        return Ok(ValueShape::integer(byte_count, alignment));
+    }
+    if let Some((_, _, byte_count)) = operand.runtime_scalar_integer() {
+        let byte_count = u16::try_from(byte_count)
+            .map_err(|_| Diagnostic::error("SysV AMD64 integer width exceeds u16"))?;
+        return Ok(ValueShape::integer(byte_count, byte_count.max(1)));
+    }
+    if operand.data_address().is_some()
+        || operand.runtime_string_pointer().is_some()
+        || operand.runtime_storage_address().is_some()
+        || operand.immediate_integer().is_some()
+        || operand.byte_length().is_some()
+    {
+        return Ok(ValueShape::integer(8, 8));
+    }
+    Err(Diagnostic::error(
+        "SysV AMD64 authored import operand has no supported integer/pointer shape",
+    ))
+}
+
+fn validate_sysv_import_plan(plan: &CallPlan) -> Result<(), Diagnostic> {
+    if plan.policy != CallingPolicy::SystemVAMD64
+        || plan.entry_control != EntryControl::CallReturn
+        || plan.stack_alignment != 16
+        || plan.shadow_bytes != 0
+    {
+        return Err(Diagnostic::error(format!(
+            "SysV AMD64 import encoder cannot realize plan policy={:?}, control={:?}, alignment={}, shadow_bytes={}",
+            plan.policy, plan.entry_control, plan.stack_alignment, plan.shadow_bytes
+        )));
+    }
+    for scratch in [MachineRegister::X86Rax, MachineRegister::X86R11] {
+        if !plan.ordinary_clobbers.contains(scratch) {
+            return Err(Diagnostic::error(format!(
+                "SysV AMD64 encoder scratch register {scratch:?} exceeds the plan's ordinary-clobber ceiling"
+            )));
+        }
+    }
+    if plan
+        .parameters
+        .iter()
+        .chain(plan.result.iter())
+        .any(|placement| {
+            !matches!(placement.shape.class, ValueClass::Integer)
+                || placement.shape.byte_size > 16
+                || placement
+                    .locations
+                    .iter()
+                    .any(|location| matches!(location, ValueLocation::Indirect { .. }))
+        })
+    {
+        return Err(Diagnostic::error(
+            "SysV AMD64 import plan contains an unsupported non-integer or indirect placement",
+        ));
+    }
+    Ok(())
+}
+
+fn append_sysv_mov_register_imm64(
+    bytes: &mut Vec<u8>,
+    register: MachineRegister,
+    value: u64,
+) -> Result<(), Diagnostic> {
+    let opcode = match register {
+        MachineRegister::X86Rax => [0x48, 0xb8],
+        MachineRegister::X86Rcx => [0x48, 0xb9],
+        MachineRegister::X86Rdx => [0x48, 0xba],
+        MachineRegister::X86Rsi => [0x48, 0xbe],
+        MachineRegister::X86Rdi => [0x48, 0xbf],
+        MachineRegister::X86R8 => [0x49, 0xb8],
+        MachineRegister::X86R9 => [0x49, 0xb9],
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "SysV AMD64 import cannot materialize argument register {register:?}"
+            )));
+        }
+    };
+    bytes.extend(opcode);
+    bytes.extend(value.to_le_bytes());
+    Ok(())
+}
+
+fn append_sysv_load_register_from_r11(
+    bytes: &mut Vec<u8>,
+    register: MachineRegister,
+    byte_offset: usize,
+    byte_size: u16,
+) -> Result<(), Diagnostic> {
+    let modrm = match register {
+        MachineRegister::X86Rax => 0x83,
+        MachineRegister::X86Rcx => 0x8b,
+        MachineRegister::X86Rdx => 0x93,
+        MachineRegister::X86Rsi => 0xb3,
+        MachineRegister::X86Rdi => 0xbb,
+        MachineRegister::X86R8 => 0x83,
+        MachineRegister::X86R9 => 0x8b,
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "SysV AMD64 import cannot load argument register {register:?}"
+            )));
+        }
+    };
+    let rex = match (byte_size, register) {
+        (8, MachineRegister::X86R8 | MachineRegister::X86R9) => 0x4d,
+        (8, _) => 0x49,
+        (4, MachineRegister::X86R8 | MachineRegister::X86R9) => 0x45,
+        (4, _) => 0x41,
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "SysV AMD64 integer fragment width {byte_size} is not yet encodable"
+            )));
+        }
+    };
+    bytes.extend([rex, 0x8b, modrm]);
+    bytes.extend(disp32(byte_offset)?.to_le_bytes());
+    Ok(())
+}
+
+fn append_sysv_lea_register_from_r11(
+    bytes: &mut Vec<u8>,
+    register: MachineRegister,
+    byte_offset: usize,
+) -> Result<(), Diagnostic> {
+    let modrm = match register {
+        MachineRegister::X86Rax => 0x83,
+        MachineRegister::X86Rcx => 0x8b,
+        MachineRegister::X86Rdx => 0x93,
+        MachineRegister::X86Rsi => 0xb3,
+        MachineRegister::X86Rdi => 0xbb,
+        MachineRegister::X86R8 => 0x83,
+        MachineRegister::X86R9 => 0x8b,
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "SysV AMD64 import cannot address argument register {register:?}"
+            )));
+        }
+    };
+    let rex = if matches!(register, MachineRegister::X86R8 | MachineRegister::X86R9) {
+        0x4d
+    } else {
+        0x49
+    };
+    bytes.extend([rex, 0x8d, modrm]);
+    bytes.extend(disp32(byte_offset)?.to_le_bytes());
+    Ok(())
+}
+
+fn append_sysv_load_rax_from_r11(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+    byte_size: u16,
+) -> Result<(), Diagnostic> {
+    append_sysv_load_register_from_r11(bytes, MachineRegister::X86Rax, byte_offset, byte_size)
+}
+
+fn append_sysv_store_rax_to_rsp(
+    bytes: &mut Vec<u8>,
+    stack_byte_offset: u32,
+) -> Result<(), Diagnostic> {
+    let displacement = i32::try_from(stack_byte_offset)
+        .map_err(|_| Diagnostic::error("SysV AMD64 stack offset exceeds i32"))?;
+    bytes.extend([0x48, 0x89, 0x84, 0x24]);
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_sysv_store_result_register_to_r11(
+    bytes: &mut Vec<u8>,
+    register: MachineRegister,
+    byte_offset: usize,
+    byte_size: u16,
+) -> Result<(), Diagnostic> {
+    let modrm = match register {
+        MachineRegister::X86Rax => 0x83,
+        MachineRegister::X86Rdx => 0x93,
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "SysV AMD64 import cannot store result register {register:?}"
+            )));
+        }
+    };
+    let rex = match byte_size {
+        8 => 0x49,
+        4 => 0x41,
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "SysV AMD64 result fragment width {byte_size} is not yet encodable"
+            )));
+        }
+    };
+    bytes.extend([rex, 0x89, modrm]);
+    bytes.extend(disp32(byte_offset)?.to_le_bytes());
+    Ok(())
+}
+
 /// ENT2c compatibility seam: evaluate the Microsoft x64 plan from the selected
 /// operands before the general import encoder marshals anything. Register and
 /// shadow-relative stack placements are passed into the marshaller verbatim;
@@ -2167,7 +2756,7 @@ fn normalized_win64_result_register(
 }
 
 #[cfg(test)]
-mod win64_import_plan_tests {
+mod x86_import_plan_tests {
     use super::*;
     use omega_target_operations::{
         RuntimeStorageRegion, TargetInstructionOperand, TargetInstructionOperandKind,
@@ -2269,6 +2858,142 @@ mod win64_import_plan_tests {
             .expect_err("the Win64 compatibility encoder must not silently choose its ABI");
 
         assert!(error.message.contains("not SystemVAMD64"));
+    }
+
+    #[test]
+    fn authored_sysv_small_aggregates_use_planned_registers_and_results() {
+        let operands = [
+            operand(TargetInstructionOperandKind::RuntimeSmallAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 16,
+                alignment: 8,
+            }),
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 32,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::RuntimeSmallAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 40,
+                byte_count: 16,
+                alignment: 8,
+            }),
+        ];
+        let key = HostOperationKey::new(HostCapability::Unknown, HostOperation::Unknown);
+        let layout = sysv_import_layout(&operands, true).expect("SysV aggregate import layout");
+
+        assert_eq!(&layout.bytes[..4], &[0x48, 0x83, 0xec, 8]);
+        assert!(
+            layout
+                .bytes
+                .windows(7)
+                .any(|window| window == [0x49, 0x8b, 0xbb, 32, 0, 0, 0]),
+            "tag must load into planned rdi"
+        );
+        assert!(
+            layout
+                .bytes
+                .windows(14)
+                .any(|window| window
+                    == [0x49, 0x8b, 0xb3, 40, 0, 0, 0, 0x49, 0x8b, 0x93, 48, 0, 0, 0]),
+            "aggregate fragments must load into planned rsi/rdx"
+        );
+        assert!(
+            layout.bytes.windows(14).any(
+                |window| window == [0x49, 0x89, 0x83, 0, 0, 0, 0, 0x49, 0x89, 0x93, 8, 0, 0, 0]
+            ),
+            "result fragments must store from planned rax/rdx"
+        );
+        assert_eq!(
+            layout
+                .relocation_sites
+                .iter()
+                .map(|site| site.operand_index)
+                .collect::<Vec<_>>(),
+            [Some(1), Some(2), None, Some(0)]
+        );
+        assert_eq!(
+            encode_host_call_sequence(CallingPolicy::SystemVAMD64, key, &operands)
+                .expect("routed SysV authored import"),
+            layout.bytes
+        );
+    }
+
+    #[test]
+    fn authored_sysv_register_exhausted_aggregate_rolls_wholly_to_stack() {
+        let mut operands = vec![operand(
+            TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 8,
+            },
+        )];
+        operands.extend((0..5).map(|index| {
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 32 + index * 8,
+                byte_count: 8,
+            })
+        }));
+        operands.push(operand(
+            TargetInstructionOperandKind::RuntimeSmallAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 80,
+                byte_count: 16,
+                alignment: 8,
+            },
+        ));
+        operands.push(operand(
+            TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 96,
+                byte_count: 8,
+            },
+        ));
+
+        let layout = sysv_import_layout(&operands, true).expect("SysV rollback import layout");
+        assert_eq!(&layout.bytes[..4], &[0x48, 0x83, 0xec, 24]);
+        assert!(
+            layout.bytes.windows(30).any(|window| window
+                == [
+                    0x49, 0x8b, 0x83, 80, 0, 0, 0, 0x48, 0x89, 0x84, 0x24, 0, 0, 0, 0, 0x49, 0x8b,
+                    0x83, 88, 0, 0, 0, 0x48, 0x89, 0x84, 0x24, 8, 0, 0, 0,
+                ]),
+            "the complete aggregate must occupy outgoing stack offsets 0 and 8"
+        );
+        assert!(
+            layout
+                .bytes
+                .windows(7)
+                .any(|window| window == [0x4d, 0x8b, 0x8b, 96, 0, 0, 0]),
+            "the trailing scalar must retain the rolled-back r9 register"
+        );
+    }
+
+    #[test]
+    fn authored_sysv_encoder_rejects_scratch_above_the_plan_clobber_ceiling() {
+        let mut plan = evaluate_call_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(16, 8)],
+                result: Some(ValueShape::integer(16, 8)),
+            },
+        )
+        .expect("baseline SysV aggregate plan");
+        plan.ordinary_clobbers = omega_calling_conventions::RegisterSet::new(
+            plan.ordinary_clobbers
+                .as_slice()
+                .iter()
+                .copied()
+                .filter(|register| *register != MachineRegister::X86R11),
+        );
+
+        let error = validate_sysv_import_plan(&plan)
+            .expect_err("missing volatile staging scratch must reject");
+        assert!(error.message.contains("X86R11"));
+        assert!(error.message.contains("ordinary-clobber ceiling"));
     }
 
     #[test]
@@ -2926,6 +3651,27 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     operands: &[T],
 ) -> Vec<X86_64RelocationSite> {
+    host_call_relocation_sites_for_policy(CallingPolicy::MicrosoftX64, operation_key, operands)
+}
+
+fn host_call_relocation_sites_for_policy<T: InstructionOperandLike>(
+    policy: CallingPolicy,
+    operation_key: HostOperationKey,
+    operands: &[T],
+) -> Vec<X86_64RelocationSite> {
+    if policy == CallingPolicy::SystemVAMD64
+        && matches!(
+            operation_key.capability,
+            HostCapability::Unknown | HostCapability::Custom(_)
+        )
+    {
+        return sysv_import_layout(operands, true)
+            .map(|layout| layout.relocation_sites)
+            .unwrap_or_default();
+    }
+    if policy != CallingPolicy::MicrosoftX64 {
+        return Vec::new();
+    }
     match (operation_key.capability, operation_key.operation) {
         (
             HostCapability::Stdin | HostCapability::Stdout | HostCapability::Stderr,

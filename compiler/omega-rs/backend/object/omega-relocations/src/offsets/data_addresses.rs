@@ -1,6 +1,6 @@
 use omega_assigned_target_operations::InstructionOperand;
 use omega_calling_conventions::HostOperationKey;
-use omega_target::Architecture;
+use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::InstructionOperandLike;
 
 /// The fixup-relevant shape of a field-model (vtable/table-function) call:
@@ -10,6 +10,42 @@ use omega_target_operations::InstructionOperandLike;
 pub(crate) struct FieldModelCallShape {
     pub passes_receiver: bool,
     pub result_present: bool,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn data_address_relocation_offset_for_target(
+    target: NativeTarget,
+    operation_key: Option<HostOperationKey>,
+    operands: &[InstructionOperand],
+    selected_text_offset: usize,
+    operand_index: usize,
+    is_syscall: bool,
+    field_model_shape: Option<FieldModelCallShape>,
+    authored_import: bool,
+) -> usize {
+    if target.architecture == Architecture::X86_64
+        && field_model_shape.is_none()
+        && !is_syscall
+        && let Some(operation_key) = operation_key
+        && let Some(site) = omega_isa_x86_64::host_call_data_relocation_site_for_policy(
+            omega_calling_conventions::CallingPolicy::native_for_target(target),
+            operation_key,
+            operands,
+            operand_index,
+        )
+    {
+        return selected_text_offset + site.byte_offset;
+    }
+    data_address_relocation_offset(
+        target.architecture,
+        operation_key,
+        operands,
+        selected_text_offset,
+        operand_index,
+        is_syscall,
+        field_model_shape,
+        authored_import,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -326,9 +362,12 @@ pub(crate) fn data_address_relocation_offset(
 
 #[cfg(test)]
 mod tests {
-    use super::{FieldModelCallShape, data_address_relocation_offset};
+    use super::{
+        FieldModelCallShape, data_address_relocation_offset,
+        data_address_relocation_offset_for_target,
+    };
     use omega_assigned_target_operations::{InstructionOperand, InstructionOperandKind};
-    use omega_target::Architecture;
+    use omega_target::{Architecture, NativeTarget};
     use omega_target_operations::RuntimeStorageRegion;
 
     #[test]
@@ -442,6 +481,76 @@ mod tests {
                 true,
             ),
             28
+        );
+    }
+
+    #[test]
+    fn authored_sysv_aggregate_relocations_follow_the_plan_driven_layout() {
+        let operands = [
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeSmallAggregate {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 0,
+                    byte_count: 16,
+                    alignment: 8,
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeScalarInteger {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 32,
+                    byte_count: 8,
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeSmallAggregate {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 40,
+                    byte_count: 16,
+                    alignment: 8,
+                },
+            },
+        ];
+        let operation = Some(omega_calling_conventions::HostOperationKey::default());
+
+        assert_eq!(
+            data_address_relocation_offset_for_target(
+                NativeTarget::linux_x64(),
+                operation,
+                &operands,
+                20,
+                1,
+                false,
+                None,
+                true,
+            ),
+            26
+        );
+        assert_eq!(
+            data_address_relocation_offset_for_target(
+                NativeTarget::linux_x64(),
+                operation,
+                &operands,
+                20,
+                2,
+                false,
+                None,
+                true,
+            ),
+            43
+        );
+        assert_eq!(
+            data_address_relocation_offset_for_target(
+                NativeTarget::linux_x64(),
+                operation,
+                &operands,
+                20,
+                0,
+                false,
+                None,
+                true,
+            ),
+            76
         );
     }
 

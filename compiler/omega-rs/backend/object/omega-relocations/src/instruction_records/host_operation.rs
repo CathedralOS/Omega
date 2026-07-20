@@ -59,7 +59,7 @@ fn collect_host_operation_call_relocation(
             },
             section: omega_object_file::SectionKind::Text,
             offset: external_call_relocation_offset(
-                context.input.target.architecture,
+                context.input.target,
                 operation_key,
                 context.selected_text_offset,
                 context
