@@ -35986,6 +35986,13 @@ fn sysv_vtable_field_call_emits_indirect_dispatch() {
             .any(|window| window == nested_needle),
         "expected layout-resolved +56 dispatch for the nested INTEGER/SSE record call"
     );
+    let array_needle = [0x48u8, 0x8b, 0x87, 0x40, 0x00, 0x00, 0x00, 0xff, 0xd0];
+    assert!(
+        bytes
+            .windows(array_needle.len())
+            .any(|window| window == array_needle),
+        "expected layout-resolved +64 dispatch for the array-member INTEGER/SSE record call"
+    );
     let _ = fs::remove_dir_all(&build_dir);
 }
 

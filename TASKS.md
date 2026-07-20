@@ -226,7 +226,10 @@ ceiling derived exactly from the ABI volatile-register classes.
    eightbytes with INTEGER dominance, so a nested `{ u64, { f64 } }` record
    follows the same atomic mixed-bank parameter and result path. The indirect
    field-dispatch canary pins that recursive source-to-ELF selection. Fixed
-   array members remain to migrate into the recursive classifier.
+   array members now recurse element-by-element with their canonical packed
+   stride; an `{ [u32; 2], [f32; 2] }` source canary pins the resulting
+   INTEGER/SSE class pair and completes the scalar/named-record/fixed-array
+   leaf family.
    Ordinary AArch64 `VtableSlot` and `VtableField` calls now evaluate AAPCS64
    from their selected operands, require the full-width receiver in planned
    `x0`, marshal every argument/stack slot through the shared plan consumer,

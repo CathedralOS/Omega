@@ -1,7 +1,7 @@
 // Source-to-ELF pin for normalized SysV AMD64 indirect field dispatch. The
 // ordinary receiver is the first wire argument (rdi), while a MEMORY-class
 // result takes hidden rdi and shifts the receiver to rsi. Layout resolves the
-// seven functions from +8 through +56 behind the leading field.
+// eight functions from +8 through +64 behind the leading field.
 data Triple { first: u64; second: u64; third: u64; }
 data FloatPair { first: f64; second: f64; }
 data FloatTriple { first: f32; second: f32; third: f32; }
@@ -9,6 +9,7 @@ data MixedPair { integer: u64; floating: f64; }
 data SplitFloatPair { wide: f64; narrow: f32; }
 data NestedFloat { value: f64; }
 data NestedMixedPair { integer: u64; floating: NestedFloat; }
+data ArrayMixedPair { integers: [u32; 2]; floats: [f32; 2]; }
 boundary trait FieldDispatch {
     machine invoke(this: addr, value: u64);
     machine transform(this: addr, value: Triple) -> Triple;
@@ -17,6 +18,7 @@ boundary trait FieldDispatch {
     machine mix(this: addr, value: MixedPair) -> MixedPair;
     machine split(this: addr, value: SplitFloatPair) -> SplitFloatPair;
     machine nest(this: addr, value: NestedMixedPair) -> NestedMixedPair;
+    machine array_mix(this: addr, value: ArrayMixedPair) -> ArrayMixedPair;
 }
 data NativeVtable {
     header: addr;
@@ -27,6 +29,7 @@ data NativeVtable {
     mix: addr;
     split: addr;
     nest: addr;
+    array_mix: addr;
 }
 linux_x64 provides FieldDispatch over NativeVtable {
     invoke -> invoke;
@@ -36,6 +39,7 @@ linux_x64 provides FieldDispatch over NativeVtable {
     mix -> mix;
     split -> split;
     nest -> nest;
+    array_mix -> array_mix;
 }
 data Main {
     dispatch: FieldDispatch; receiver: addr;
@@ -45,6 +49,7 @@ data Main {
     mixed_input: MixedPair; mixed_output: MixedPair;
     split_input: SplitFloatPair; split_output: SplitFloatPair;
     nested_input: NestedMixedPair; nested_output: NestedMixedPair;
+    array_input: ArrayMixedPair; array_output: ArrayMixedPair;
 }
 boundary machine Main::run(&self) -> i32 {
     self.dispatch.invoke(self.receiver, 7);
@@ -54,5 +59,6 @@ boundary machine Main::run(&self) -> i32 {
     self.mixed_output = self.dispatch.mix(self.receiver, self.mixed_input);
     self.split_output = self.dispatch.split(self.receiver, self.split_input);
     self.nested_output = self.dispatch.nest(self.receiver, self.nested_input);
+    self.array_output = self.dispatch.array_mix(self.receiver, self.array_input);
     transition { _ -> (0) }
 }

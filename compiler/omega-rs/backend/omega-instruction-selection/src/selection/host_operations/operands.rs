@@ -2524,8 +2524,8 @@ fn hfa_descriptor_shape(
         .then_some((member_byte_count, members))
 }
 
-/// Preserve the currently normalized classified SysV record family. Each flat
-/// scalar field contributes INTEGER or SSE to its containing eightbyte;
+/// Preserve the currently normalized classified SysV record family. Each
+/// scalar leaf contributes INTEGER or SSE to its containing eightbyte;
 /// INTEGER dominates within an eightbyte. All-INTEGER records keep using the
 /// native small-aggregate operand; HFA selection runs before this classifier.
 fn system_v_classified_aggregate_operand_at(
@@ -2802,6 +2802,9 @@ fn classify_system_v_field(
     classes: &mut [Option<bool>; 2],
     depth: usize,
 ) -> Option<()> {
+    if depth > 8 {
+        return None;
+    }
     match descriptor {
         TypeLayoutDescriptor::Constrained { base_type, .. } => classify_system_v_field(
             input,
@@ -2849,8 +2852,35 @@ fn classify_system_v_field(
                 depth + 1,
             )
         }
-        TypeLayoutDescriptor::FixedArray { .. }
-        | TypeLayoutDescriptor::BoundedByteBuffer { .. }
+        TypeLayoutDescriptor::FixedArray {
+            element_type,
+            length,
+        } => {
+            if *length == 0 || layout.size % length != 0 {
+                return None;
+            }
+            let element_layout = omega_layout::TypeLayout {
+                size: layout.size / length,
+                alignment: layout.alignment,
+            };
+            if element_layout.size == 0 {
+                return None;
+            }
+            for index in 0..*length {
+                let element_offset = element_layout.size.checked_mul(index)?;
+                classify_system_v_field(
+                    input,
+                    element_type,
+                    element_layout,
+                    absolute_offset.checked_add(element_offset)?,
+                    outer_size,
+                    classes,
+                    depth + 1,
+                )?;
+            }
+            Some(())
+        }
+        TypeLayoutDescriptor::BoundedByteBuffer { .. }
         | TypeLayoutDescriptor::Slice { .. }
         | TypeLayoutDescriptor::DynamicTrait { .. }
         | TypeLayoutDescriptor::Unit => None,
@@ -2864,7 +2894,8 @@ fn merge_system_v_scalar_class(
     is_sse: bool,
 ) -> Option<()> {
     let eightbyte = absolute_offset / 8;
-    if byte_size == 0 || eightbyte > 1 || eightbyte != (absolute_offset + byte_size - 1) / 8 {
+    let last_byte = absolute_offset.checked_add(byte_size)?.checked_sub(1)?;
+    if byte_size == 0 || eightbyte > 1 || eightbyte != last_byte / 8 {
         return None;
     }
     classes[eightbyte] = Some(match classes[eightbyte] {
