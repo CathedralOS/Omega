@@ -1,0 +1,16 @@
+// A flat f64 pair occupies two SysV SSE eightbytes and arrives packed through
+// xmm0/xmm1; the source-to-object test pins both runtime-frame stores.
+data FloatPair {
+    first: f64;
+    second: f64;
+}
+
+data Main { observed: f64; }
+
+boundary machine Main::main(&mut self, pair: FloatPair) -> i32 {
+    self.observed = pair.first + pair.second;
+    transition { _ -> (0) }
+}
+
+target linux_x64 {
+}

@@ -50,7 +50,10 @@ mixed/general entry signatures retain the compatibility path without panicking
 the compiler. Pure-integer SysV AMD64 records up to 16 bytes now use
 consecutive GPR fragments when the whole value fits, otherwise roll wholly to
 the stack without consuming the remaining argument register; normalized result
-plans select `rax`/`rdx`. Provides-authored SysV integer imports now preserve
+plans select `rax`/`rdx`. SysV entry parameters now also classify flat HFA and
+recursive INTEGER/SSE records, consume the independent GPR/XMM banks
+atomically, and fall wholly to their planned stack fragments on either-bank
+exhaustion. Provides-authored SysV integer imports now preserve
 those records through selection, marshal their planned register or stack
 fragments, spill small aggregate results from `rax`/`rdx`, and keep layout plus
 data/call relocation walkers in lockstep. Authored scalar floats retain their
@@ -230,6 +233,12 @@ ceiling derived exactly from the ABI volatile-register classes.
    stride; an `{ [u32; 2], [f32; 2] }` source canary pins the resulting
    INTEGER/SSE class pair and completes the scalar/named-record/fixed-array
    leaf family.
+   SysV entry prologues now reuse those shapes: flat HFA parameters store
+   their packed SSE eightbytes from consecutive `xmm` registers, mixed
+   INTEGER/SSE parameters store from both independent banks, and exhaustion
+   in either bank rolls the whole record to incoming stack fragments without
+   consuming the other bank. Source-to-ELF canaries pin all three paths and
+   the following scalar's rolled-back `xmm0` placement.
    Ordinary AArch64 `VtableSlot` and `VtableField` calls now evaluate AAPCS64
    from their selected operands, require the full-width receiver in planned
    `x0`, marshal every argument/stack slot through the shared plan consumer,

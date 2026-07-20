@@ -1,0 +1,27 @@
+// Six scalars exhaust the SysV GPR bank. Although xmm0 remains free, the
+// INTEGER/SSE record rolls wholly to the stack; the trailing float keeps xmm0.
+data MixedPair {
+    integer: u64;
+    floating: f64;
+}
+
+data Main { observed_integer: u64; observed_float: f64; }
+
+boundary machine Main::main(
+    &mut self,
+    a0: u64,
+    a1: u64,
+    a2: u64,
+    a3: u64,
+    a4: u64,
+    a5: u64,
+    pair: MixedPair,
+    tail: f64
+) -> i32 {
+    self.observed_integer = a0 + a1 + a2 + a3 + a4 + a5 + pair.integer;
+    self.observed_float = pair.floating + tail;
+    transition { _ -> (0) }
+}
+
+target linux_x64 {
+}

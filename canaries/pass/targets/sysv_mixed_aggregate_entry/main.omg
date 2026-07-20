@@ -1,0 +1,22 @@
+// One scalar consumes rdi. The following INTEGER/SSE record consumes rsi and
+// xmm0 atomically; the trailing scalar float independently advances to xmm1.
+data MixedPair {
+    integer: u64;
+    floating: f64;
+}
+
+data Main { observed_integer: u64; observed_float: f64; }
+
+boundary machine Main::main(
+    &mut self,
+    tag: u64,
+    pair: MixedPair,
+    tail: f64
+) -> i32 {
+    self.observed_integer = tag + pair.integer;
+    self.observed_float = pair.floating + tail;
+    transition { _ -> (0) }
+}
+
+target linux_x64 {
+}

@@ -19,6 +19,7 @@ pub(crate) mod writes;
 
 use super::host_operations::{
     runtime_string_descriptor_place, runtime_text_literal_write_for_host_call, select_host_call,
+    system_v_record_descriptor_shape,
 };
 use super::instruction_sink::SelectedInstructionSink;
 use super::lookups::host_call_for_statement;
@@ -37,8 +38,8 @@ use omega_abstract_operations::{
     SelectedInstructionKind,
 };
 use omega_calling_conventions::{
-    CallSignature, CallingPolicy, MachineRegister, ValueClass, ValueLocation, ValueShape,
-    evaluate_ordinary_boundary_entry_plan,
+    CallSignature, CallingPolicy, MachineRegister, SystemVEightbyteClass, ValueClass,
+    ValueLocation, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
 use omega_layout::DataShape;
 use operation_aliases::bind_runtime_operation_aliases;
@@ -1489,11 +1490,32 @@ fn entry_slot_value_shape(
         return None;
     };
 
-    if CallingPolicy::native_for_target(input.target) == CallingPolicy::Aapcs64
+    let policy = CallingPolicy::native_for_target(input.target);
+    if matches!(policy, CallingPolicy::Aapcs64 | CallingPolicy::SystemVAMD64)
         && let Some(shape) =
             flat_homogeneous_float_aggregate_shape(input, fields, data_layout.layout)
     {
         return Some(shape);
+    }
+
+    if policy == CallingPolicy::SystemVAMD64
+        && let Some((_, _, sse_eightbytes)) =
+            system_v_record_descriptor_shape(input, &slot.type_descriptor)
+        && sse_eightbytes != 0
+    {
+        let class = |mask| {
+            if sse_eightbytes & mask == 0 {
+                SystemVEightbyteClass::Integer
+            } else {
+                SystemVEightbyteClass::Sse
+            }
+        };
+        return Some(ValueShape::system_v_aggregate(
+            byte_size,
+            alignment,
+            class(0b01),
+            class(0b10),
+        ));
     }
 
     // Small records classify as one integer value. The boundary handoff's
@@ -1506,7 +1528,6 @@ fn entry_slot_value_shape(
         .iter()
         .find(|machine| machine.symbol == input.entry_key.machine)
         .is_some_and(|machine| machine.boundary);
-    let policy = CallingPolicy::native_for_target(input.target);
     if byte_size <= 8
         || policy == CallingPolicy::Aapcs64
         || (policy == CallingPolicy::SystemVAMD64 && byte_size <= 16)

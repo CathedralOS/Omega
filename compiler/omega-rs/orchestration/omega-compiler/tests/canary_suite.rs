@@ -31287,6 +31287,9 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/aarch64_large_aggregate_stack_entry", "linux_arm64"),
     ("targets/aarch64_wide_aggregate_entry", "linux_arm64"),
     ("targets/sysv_small_aggregate_entry", "linux_x64"),
+    ("targets/sysv_hfa_entry_argument", "linux_x64"),
+    ("targets/sysv_mixed_aggregate_entry", "linux_x64"),
+    ("targets/sysv_mixed_aggregate_stack_entry", "linux_x64"),
     ("targets/sysv_small_aggregate_stack_entry", "linux_x64"),
     ("targets/sysv_large_aggregate_entry", "linux_x64"),
 ];
@@ -31542,6 +31545,96 @@ fn sysv_small_aggregate_entry_spreads_consecutive_gprs() {
             window[10..13] == [0x49, 0x89, 0xb7] && window[27..30] == [0x49, 0x89, 0x97]
         }),
         "expected consecutive runtime-frame stores from rsi and rdx"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn sysv_hfa_entry_argument_packs_eightbytes_into_xmm_registers() {
+    let canary = pass_canary("targets/sysv_hfa_entry_argument");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-sysv-hfa-entry-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("SysV f64 pair entry should cross-compile through xmm0/xmm1");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86-64 ELF");
+    assert!(
+        image.windows(38).any(|window| {
+            window[10..15] == [0xf2, 0x41, 0x0f, 0x11, 0x87]
+                && window[29..34] == [0xf2, 0x41, 0x0f, 0x11, 0x8f]
+        }),
+        "expected packed entry stores from xmm0 and xmm1"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn sysv_mixed_aggregate_entry_uses_independent_register_banks() {
+    let canary = pass_canary("targets/sysv_mixed_aggregate_entry");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-sysv-mixed-aggregate-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("SysV INTEGER/SSE entry record should cross-compile through rsi/xmm0");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86-64 ELF");
+    assert!(
+        image.windows(55).any(|window| {
+            window[10..13] == [0x49, 0x89, 0xb7]
+                && window[27..32] == [0xf2, 0x41, 0x0f, 0x11, 0x87]
+                && window[46..51] == [0xf2, 0x41, 0x0f, 0x11, 0x8f]
+        }),
+        "expected mixed entry stores from rsi/xmm0 followed by scalar xmm1"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn sysv_mixed_aggregate_entry_rolls_wholly_to_stack() {
+    let canary = pass_canary("targets/sysv_mixed_aggregate_stack_entry");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-sysv-mixed-aggregate-stack-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("register-exhausted SysV mixed record should cross-compile wholly from the stack");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86-64 ELF");
+    let first_load = [0x4c, 0x8b, 0x94, 0x24, 8, 0, 0, 0];
+    let second_load = [0x4c, 0x8b, 0x94, 0x24, 16, 0, 0, 0];
+    assert!(
+        image
+            .windows(43)
+            .any(|window| { window[10..18] == first_load && window[35..43] == second_load }),
+        "expected both mixed-record fragments loaded from the incoming stack"
+    );
+    assert!(
+        image
+            .windows(5)
+            .any(|window| window == [0xf2, 0x41, 0x0f, 0x11, 0x87]),
+        "expected the trailing float to retain xmm0 after aggregate rollback"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
