@@ -216,7 +216,11 @@ x64 import encoder now receives its policy from the concrete target,
 evaluates selected scalar/pointer operand shapes, and consumes the plan's exact
 RCX/RDX/R8/R9, shadow-relative stack, and RAX-result placements. A non-Microsoft
 x86 target fails closed at this Win64 compatibility encoder. Bespoke/composite
-x86 imports, firmware calls, and AArch64 stack/fragmented calls remain to migrate.
+x86 imports and AArch64 stack/fragmented calls remain to migrate. Microsoft x64
+vtable and firmware service-table calls now reuse the same plan-driven
+marshaller; receiver arguments remain on the wire, dispatch-only table pointers
+do not, and result-bearing field calls validate the plan-selected RAX placement
+before storage. Concrete firmware machine-state policy remains.
 
 Remaining order:
 

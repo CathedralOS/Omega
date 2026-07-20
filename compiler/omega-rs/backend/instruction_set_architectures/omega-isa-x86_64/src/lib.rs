@@ -2028,13 +2028,21 @@ fn normalized_win64_import_plan<T: InstructionOperandLike>(
     returns_value: bool,
 ) -> Result<CallPlan, Diagnostic> {
     let arg_start = usize::from(returns_value);
-    let result = if returns_value {
+    normalized_win64_call_plan(operands, returns_value.then_some(0), arg_start)
+}
+
+fn normalized_win64_call_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    result_index: Option<usize>,
+    arg_start: usize,
+) -> Result<CallPlan, Diagnostic> {
+    let result = if let Some(result_index) = result_index {
         let Some((_, _, byte_count)) = operands
-            .first()
+            .get(result_index)
             .and_then(InstructionOperandLike::runtime_scalar_integer)
         else {
             return Err(Diagnostic::error(
-                "Microsoft x64 import result place did not lower to scalar storage",
+                "Microsoft x64 call result place did not lower to scalar storage",
             ));
         };
         Some(win64_integer_shape(byte_count, "result")?)
@@ -2042,7 +2050,9 @@ fn normalized_win64_import_plan<T: InstructionOperandLike>(
         None
     };
     let signature = CallSignature {
-        parameters: operands[arg_start..]
+        parameters: operands
+            .get(arg_start..)
+            .ok_or_else(|| Diagnostic::error("Microsoft x64 call argument start is out of range"))?
             .iter()
             .map(win64_operand_shape)
             .collect::<Result<Vec<_>, _>>()?,
@@ -2416,7 +2426,13 @@ fn append_win64_result_store<T: InstructionOperandLike>(
     bytes: &mut Vec<u8>,
     operands: &[T],
     label: &str,
+    result_register: MachineRegister,
 ) -> Result<(), Diagnostic> {
+    if result_register != MachineRegister::X86Rax {
+        return Err(Diagnostic::error(format!(
+            "X86_64 {label} result store cannot realize planned register {result_register:?}"
+        )));
+    }
     let Some((_, byte_offset, byte_count)) = operands
         .first()
         .and_then(InstructionOperandLike::runtime_scalar_integer)
@@ -2459,6 +2475,8 @@ pub fn encode_win64_vtable_call_at_offset<T: InstructionOperandLike>(
         ));
     }
     let arg_count = operands.len() - arg_start;
+    let plan = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start)?;
+    let result_register = normalized_win64_result_register(&plan, result_present)?;
     let reserve = win64_import_reserve(arg_count);
     let mut bytes = Vec::with_capacity(win64_vtable_call_width(
         operands,
@@ -2466,7 +2484,7 @@ pub fn encode_win64_vtable_call_at_offset<T: InstructionOperandLike>(
         result_present,
     ));
     append_sub_rsp(&mut bytes, reserve);
-    append_win64_call_arguments(&mut bytes, operands, arg_start, None)?;
+    append_win64_call_arguments(&mut bytes, operands, arg_start, Some(&plan.parameters))?;
     // Read the callee from the receiver (still in RCX) and call it.
     let slot_disp = i32::try_from(byte_offset)
         .map_err(|_| Diagnostic::error("vtable field offset exceeds an imm32"))?;
@@ -2475,7 +2493,10 @@ pub fn encode_win64_vtable_call_at_offset<T: InstructionOperandLike>(
     append_call_register(&mut bytes, 0); // call rax
     append_add_rsp(&mut bytes, reserve);
     if result_present {
-        append_win64_result_store(&mut bytes, operands, "vtable call")?;
+        let result_register = result_register.ok_or_else(|| {
+            Diagnostic::error("Microsoft x64 vtable plan omitted its required result")
+        })?;
+        append_win64_result_store(&mut bytes, operands, "vtable call", result_register)?;
     }
     debug_assert_eq!(
         bytes.len(),
@@ -2531,6 +2552,8 @@ pub fn encode_win64_table_function_call<T: InstructionOperandLike>(
     };
     let arg_start = table_index + 1;
     let arg_count = operands.len() - arg_start;
+    let plan = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start)?;
+    let result_register = normalized_win64_result_register(&plan, result_present)?;
     let reserve = win64_import_reserve(arg_count);
     let mut bytes = Vec::with_capacity(win64_table_function_call_width(
         operands,
@@ -2538,7 +2561,7 @@ pub fn encode_win64_table_function_call<T: InstructionOperandLike>(
         result_present,
     ));
     append_sub_rsp(&mut bytes, reserve);
-    append_win64_call_arguments(&mut bytes, operands, arg_start, None)?;
+    append_win64_call_arguments(&mut bytes, operands, arg_start, Some(&plan.parameters))?;
     // Load the table pointer (dispatch-only, never a wire argument), read the
     // fn-ptr field, call it.
     append_mov_r15_imm64(&mut bytes, 0); // relocated to the table's region base
@@ -2551,7 +2574,10 @@ pub fn encode_win64_table_function_call<T: InstructionOperandLike>(
     append_call_register(&mut bytes, 0); // call rax
     append_add_rsp(&mut bytes, reserve);
     if result_present {
-        append_win64_result_store(&mut bytes, operands, "table-function call")?;
+        let result_register = result_register.ok_or_else(|| {
+            Diagnostic::error("Microsoft x64 table-function plan omitted its required result")
+        })?;
+        append_win64_result_store(&mut bytes, operands, "table-function call", result_register)?;
     }
     debug_assert_eq!(
         bytes.len(),

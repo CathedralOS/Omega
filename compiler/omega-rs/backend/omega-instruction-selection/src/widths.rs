@@ -10,27 +10,37 @@ use omega_target_operations::{
 };
 
 pub fn vtable_call_sequence_width<T: InstructionOperandLike>(
-    architecture: Architecture,
+    target: NativeTarget,
     operands: &[T],
     index: i64,
     result_present: bool,
 ) -> usize {
-    match architecture {
+    match target.architecture {
         Architecture::Aarch64 => 0,
-        Architecture::X86_64 => x86_64::win64_vtable_call_width(operands, index, result_present),
+        Architecture::X86_64
+            if omega_calling_conventions::CallingPolicy::native_for_target(target)
+                == omega_calling_conventions::CallingPolicy::MicrosoftX64 =>
+        {
+            x86_64::win64_vtable_call_width(operands, index, result_present)
+        }
+        Architecture::X86_64 => 0,
     }
 }
 
 pub fn table_function_call_sequence_width<T: InstructionOperandLike>(
-    architecture: Architecture,
+    target: NativeTarget,
     operands: &[T],
     result_present: bool,
 ) -> usize {
-    match architecture {
+    match target.architecture {
         Architecture::Aarch64 => 0,
-        Architecture::X86_64 => {
+        Architecture::X86_64
+            if omega_calling_conventions::CallingPolicy::native_for_target(target)
+                == omega_calling_conventions::CallingPolicy::MicrosoftX64 =>
+        {
             x86_64::win64_table_function_call_width(operands, 0, result_present)
         }
+        Architecture::X86_64 => 0,
     }
 }
 

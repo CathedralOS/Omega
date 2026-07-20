@@ -93,15 +93,22 @@ fn full_width_register(
 /// A VtableSlot call (provides-sourced, per-object dispatch). x86_64 only; an
 /// aarch64 vtable call awaits its stub.
 pub fn encode_vtable_call_sequence<T: InstructionOperandLike>(
-    architecture: Architecture,
+    target: NativeTarget,
     operands: &[T],
     index: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
+    match target.architecture {
         Architecture::Aarch64 => Err(Diagnostic::error(
             "AArch64 vtable-slot dispatch is not implemented (x86_64 only)",
         )),
-        Architecture::X86_64 => x86_64::encode_win64_vtable_call(operands, index),
+        Architecture::X86_64
+            if CallingPolicy::native_for_target(target) == CallingPolicy::MicrosoftX64 =>
+        {
+            x86_64::encode_win64_vtable_call(operands, index)
+        }
+        Architecture::X86_64 => Err(Diagnostic::error(
+            "x86-64 vtable compatibility encoder requires the Microsoft x64 policy",
+        )),
     }
 }
 
@@ -109,21 +116,28 @@ pub fn encode_vtable_call_sequence<T: InstructionOperandLike>(
 /// the vtable struct's layout via the backend's vtable-field pass. When
 /// `result_present`, operand 0 is the RESULT place and the store tail runs.
 pub fn encode_vtable_call_sequence_at_offset<T: InstructionOperandLike>(
-    architecture: Architecture,
+    target: NativeTarget,
     operands: &[T],
     byte_offset: usize,
     result_present: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
+    match target.architecture {
         Architecture::Aarch64 => Err(Diagnostic::error(
             "AArch64 vtable-field dispatch is not implemented (x86_64 only)",
         )),
-        Architecture::X86_64 => x86_64::encode_win64_vtable_call_at_offset(
-            operands,
-            i64::try_from(byte_offset)
-                .map_err(|_| Diagnostic::error("vtable field offset overflows i64"))?,
-            result_present,
-        ),
+        Architecture::X86_64
+            if CallingPolicy::native_for_target(target) == CallingPolicy::MicrosoftX64 =>
+        {
+            x86_64::encode_win64_vtable_call_at_offset(
+                operands,
+                i64::try_from(byte_offset)
+                    .map_err(|_| Diagnostic::error("vtable field offset overflows i64"))?,
+                result_present,
+            )
+        }
+        Architecture::X86_64 => Err(Diagnostic::error(
+            "x86-64 vtable-field compatibility encoder requires the Microsoft x64 policy",
+        )),
     }
 }
 
@@ -131,21 +145,28 @@ pub fn encode_vtable_call_sequence_at_offset<T: InstructionOperandLike>(
 /// pointer is dispatch-only, never a wire argument (EFI table services take
 /// no This; protocol/COM methods do).
 pub fn encode_table_function_call_sequence<T: InstructionOperandLike>(
-    architecture: Architecture,
+    target: NativeTarget,
     operands: &[T],
     byte_offset: usize,
     result_present: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
+    match target.architecture {
         Architecture::Aarch64 => Err(Diagnostic::error(
             "AArch64 table-function dispatch is not implemented (x86_64 only)",
         )),
-        Architecture::X86_64 => x86_64::encode_win64_table_function_call(
-            operands,
-            i64::try_from(byte_offset)
-                .map_err(|_| Diagnostic::error("service table field offset overflows i64"))?,
-            result_present,
-        ),
+        Architecture::X86_64
+            if CallingPolicy::native_for_target(target) == CallingPolicy::MicrosoftX64 =>
+        {
+            x86_64::encode_win64_table_function_call(
+                operands,
+                i64::try_from(byte_offset)
+                    .map_err(|_| Diagnostic::error("service table field offset overflows i64"))?,
+                result_present,
+            )
+        }
+        Architecture::X86_64 => Err(Diagnostic::error(
+            "x86-64 table-function compatibility encoder requires the Microsoft x64 policy",
+        )),
     }
 }
 

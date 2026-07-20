@@ -54,11 +54,14 @@ and their integer/float results now evaluate AAPCS64 from selected operand
 shapes and pass the plan's exact X/V registers to the ISA encoder; stack or
 fragmented placements fail closed. The general Microsoft x64 import path now
 derives its policy from the concrete target, evaluates argument/result shapes,
-consumes the plan's register and
-shadow-relative stack placements, and rejects non-Microsoft x86 policies
-instead of silently applying Win64. Bespoke/composite x86-64 and firmware
-outbound calls, AArch64 stack/fragmented calls, and source-selected policies
-remain below.
+consumes the plan's register and shadow-relative stack placements, and rejects
+non-Microsoft x86 policies
+instead of silently applying Win64. Microsoft x64 vtable and firmware
+service-table calls now use the same plan-driven register/stack marshaller,
+with dispatch-only table pointers excluded from the wire signature and
+plan-selected results checked before storage. Bespoke/composite Windows
+imports, AArch64 stack/fragmented calls, concrete firmware state policy, and
+source-selected policies remain below.
 
 1. **ENT2b — source policy evaluation and identity (OWNER-BLOCKED: see
    `OWNER_QUESTIONS.md` section 2).** Evaluate the policy type
@@ -74,10 +77,12 @@ remain below.
    register-resident AArch64 C/import slice is complete, including exact
    plan-selected argument/result registers and fail-closed unsupported
    placements. The general Microsoft x64 import path likewise consumes exact
-   planned register/stack/result placements and target-derived policy. Continue
-   through bespoke/composite x86-64 imports, AArch64 stack/fragmented calls,
-   and firmware calls, then make the plan authoritative. Add the concrete x86 interrupt
-   `StatePlan`, stack/IST, nesting, and acknowledgement policy used by Cathedral.
+   planned register/stack/result placements and target-derived policy, as do
+   Microsoft vtable and firmware service-table calls. Continue through
+   bespoke/composite x86-64 imports, AArch64 stack/fragmented calls, and
+   remaining firmware state policy, then make the plan authoritative. Add the
+   concrete x86 interrupt `StatePlan`, stack/IST, nesting, and acknowledgement
+   policy used by Cathedral.
 3. **ENT3 — constrained entry codegen.** Derive entry stubs, specialize/codegen
    under the state ceiling, emit a checkable final footprint certificate, and
    validate after relaxation, veneers, thunks, and generated stubs.
