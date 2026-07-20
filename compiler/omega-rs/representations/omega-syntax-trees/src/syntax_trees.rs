@@ -146,6 +146,21 @@ impl SyntaxTrees {
         self.copy_item(other, item)
     }
 
+    /// Deep-copy one proof fact from another syntax tree. Generic-instance
+    /// synthesis uses this to retain field-dependent default-domain facts
+    /// while discharging facts that depend only on concrete const arguments.
+    pub fn copy_proof_fact_from(&mut self, other: &SyntaxTrees, fact: &ProofFact) -> ProofFact {
+        match fact {
+            ProofFact::Expression(expression) => {
+                ProofFact::Expression(self.copy_expression_handle(other, *expression))
+            }
+            ProofFact::Membership(membership) => ProofFact::Membership(ProofMembershipFact {
+                value: self.copy_expression_handle(other, membership.value),
+                domain: self.copy_item_identifier_span(other, membership.domain),
+            }),
+        }
+    }
+
     fn copy_item(&mut self, other: &SyntaxTrees, item: &Item) -> Item {
         match item {
             Item::Capability(capability) => {
@@ -595,15 +610,7 @@ impl SyntaxTrees {
     ) -> HandleSpan<ProofFact> {
         self.copy_mapped_span(
             other.items.proof_facts(span),
-            |this, fact| match fact {
-                ProofFact::Expression(expression) => {
-                    ProofFact::Expression(this.copy_expression_handle(other, *expression))
-                }
-                ProofFact::Membership(membership) => ProofFact::Membership(ProofMembershipFact {
-                    value: this.copy_expression_handle(other, membership.value),
-                    domain: this.copy_item_identifier_span(other, membership.domain),
-                }),
-            },
+            |this, fact| this.copy_proof_fact_from(other, fact),
             |this, fact| this.items.append_proof_fact(fact),
         )
     }

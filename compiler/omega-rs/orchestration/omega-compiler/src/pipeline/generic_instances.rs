@@ -40,7 +40,7 @@ use omega_core::literals::{IntegerLiteral, IntegerRadix};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::{DataDefinition, DataMember, Item, TypeParameterKind};
+use omega_syntax_trees::item::{DataDefinition, DataMember, Item, ProofFact, TypeParameterKind};
 use omega_syntax_trees::statement::StatementNode;
 use omega_syntax_trees::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
@@ -50,6 +50,7 @@ use std::collections::{HashMap, HashSet};
 struct GenericData {
     parameter_names: Vec<String>,
     const_parameter_types: Vec<Option<TypeReferenceHandle>>,
+    where_facts: HandleSpan<ProofFact>,
     members: HandleSpan<DataMember>,
     properties: omega_syntax_trees::item::DataProperties,
     supply_mode: omega_core::semantics::DataSupplyMode,
@@ -197,6 +198,7 @@ pub(crate) fn desugar_generic_data_instances(
             GenericData {
                 parameter_names,
                 const_parameter_types,
+                where_facts: definition.where_facts,
                 members: definition.members,
                 properties: definition.properties,
                 supply_mode: definition.supply_mode,
@@ -276,6 +278,74 @@ pub(crate) fn desugar_generic_data_instances(
                 .cloned()
                 .zip(instance.argument_handles.iter().copied())
                 .collect();
+            let const_parameter_values: HashMap<String, u64> = base_info
+                .parameter_names
+                .iter()
+                .zip(&base_info.const_parameter_types)
+                .filter_map(|(name, parameter_type)| {
+                    parameter_type.as_ref()?;
+                    let argument = substitution.get(name)?;
+                    let TypeReferenceNode::Named(value) =
+                        syntax.tables.type_references.type_reference(*argument)
+                    else {
+                        return None;
+                    };
+                    Some((name.clone(), value.as_str().parse().ok()?))
+                })
+                .collect();
+            let const_literals: HashMap<String, IntegerLiteral> = const_parameter_values
+                .iter()
+                .map(|(name, value)| {
+                    let literal = IntegerLiteral::from_parts(
+                        false,
+                        IntegerRadix::Decimal,
+                        value.to_string().as_str(),
+                    )
+                    .expect("a concrete const argument is a valid decimal integer literal");
+                    (name.clone(), literal)
+                })
+                .collect();
+
+            // A fact whose operands are all const-bound is an instantiation
+            // obligation, not a standing runtime invariant. Prove it now and
+            // omit it from the concrete record. Mixed facts retain their field
+            // operands and receive the same const substitution as members.
+            let snapshot = syntax.clone();
+            let fact_expression_watermark = syntax.expressions.expression_count() as u32;
+            let mut first_fact = Handle::invalid();
+            let mut fact_count = 0u32;
+            for fact in snapshot.tables.items.proof_facts(base_info.where_facts) {
+                if let ProofFact::Expression(expression) = fact
+                    && let Some(ConstFactValue::Boolean(value)) = evaluate_const_fact_expression(
+                        &snapshot,
+                        *expression,
+                        &const_values,
+                        &const_parameter_values,
+                    )
+                    .map_err(|reason| {
+                        vec![Diagnostic::error(format!(
+                            "const fact for generic instance `{}` is invalid: {reason}",
+                            instance.synthetic_name
+                        ))]
+                    })?
+                {
+                    if value {
+                        continue;
+                    }
+                    return Err(vec![Diagnostic::error(format!(
+                        "const fact for generic instance `{}` is false",
+                        instance.synthetic_name
+                    ))]);
+                }
+                let copied = syntax.copy_proof_fact_from(&snapshot, fact);
+                let handle = syntax.tables.items.append_proof_fact(copied);
+                if fact_count == 0 {
+                    first_fact = handle;
+                }
+                fact_count += 1;
+            }
+            replace_const_expression_names_from(syntax, fact_expression_watermark, &const_literals);
+            let where_facts = HandleSpan::from_parts(first_fact, fact_count);
 
             let members: Vec<DataMember> =
                 syntax.tables.items.data_members(base_info.members).to_vec();
@@ -295,7 +365,7 @@ pub(crate) fn desugar_generic_data_instances(
                 supply_mode: base_info.supply_mode,
                 type_parameters: HandleSpan::default(),
                 properties,
-                where_facts: omega_core::arena::HandleSpan::empty(),
+                where_facts,
                 members: HandleSpan::from_parts(first, count),
             }));
 
@@ -375,51 +445,7 @@ pub(crate) fn desugar_generic_data_instances(
                         },
                     );
                 }
-                let const_literals: HashMap<String, IntegerLiteral> = base_info
-                    .parameter_names
-                    .iter()
-                    .zip(&base_info.const_parameter_types)
-                    .filter_map(|(name, parameter_type)| {
-                        parameter_type.as_ref()?;
-                        let argument = substitution.get(name)?;
-                        let TypeReferenceNode::Named(value) =
-                            syntax.tables.type_references.type_reference(*argument)
-                        else {
-                            return None;
-                        };
-                        let literal = IntegerLiteral::from_parts(
-                            false,
-                            IntegerRadix::Decimal,
-                            value.as_str(),
-                        )
-                        .ok()?;
-                        Some((name.clone(), literal))
-                    })
-                    .collect();
-                let expression_replacements = syntax
-                    .expressions
-                    .iter_expressions()
-                    .filter(|(handle, _)| handle.arena_index() >= expression_watermark)
-                    .filter_map(|(handle, expression)| {
-                        let omega_syntax_trees::expression::ExpressionNode::Name(path) = expression
-                        else {
-                            return None;
-                        };
-                        let [name] = syntax.expressions.identifier_path_members(*path) else {
-                            return None;
-                        };
-                        const_literals
-                            .get(name.as_str())
-                            .cloned()
-                            .map(|literal| (handle, literal))
-                    })
-                    .collect::<Vec<_>>();
-                for (handle, literal) in expression_replacements {
-                    syntax.expressions.replace_expression(
-                        handle,
-                        omega_syntax_trees::expression::ExpressionNode::Integer(literal),
-                    );
-                }
+                replace_const_expression_names_from(syntax, expression_watermark, &const_literals);
                 syntax.push_root_item(Item::Machine(clone));
             }
         }
@@ -436,6 +462,156 @@ pub(crate) fn desugar_generic_data_instances(
     normalize_generic_template_const_expressions(syntax, &const_values)
         .map_err(|diagnostic| vec![diagnostic])?;
     Ok(())
+}
+
+#[derive(Clone, Copy)]
+enum ConstFactValue {
+    Integer(u64),
+    Boolean(bool),
+}
+
+/// Evaluate a proof expression exactly when every operand is known at generic
+/// instantiation time. `None` means the fact still depends on a runtime field
+/// and must remain on the synthesized record.
+fn evaluate_const_fact_expression(
+    syntax: &SyntaxTrees,
+    expression: ExpressionHandle,
+    const_values: &HashMap<String, u64>,
+    parameter_values: &HashMap<String, u64>,
+) -> Result<Option<ConstFactValue>, String> {
+    match syntax.expressions.expression(expression) {
+        ExpressionNode::Integer(value) => value
+            .value_u64()
+            .map(ConstFactValue::Integer)
+            .map(Some)
+            .ok_or_else(|| "integer operand must be non-negative and fit `u64`".to_string()),
+        ExpressionNode::Boolean(value) => Ok(Some(ConstFactValue::Boolean(*value))),
+        ExpressionNode::Name(path) => {
+            let name = syntax
+                .expressions
+                .identifier_path_members(*path)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            Ok(parameter_values
+                .get(&name)
+                .or_else(|| const_values.get(&name))
+                .copied()
+                .map(ConstFactValue::Integer))
+        }
+        ExpressionNode::Binary(binary) => {
+            let Some(left) = evaluate_const_fact_expression(
+                syntax,
+                binary.left,
+                const_values,
+                parameter_values,
+            )?
+            else {
+                return Ok(None);
+            };
+            let Some(right) = evaluate_const_fact_expression(
+                syntax,
+                binary.right,
+                const_values,
+                parameter_values,
+            )?
+            else {
+                return Ok(None);
+            };
+            evaluate_const_fact_binary(binary.operator, left, right).map(Some)
+        }
+        _ => Ok(None),
+    }
+}
+
+fn evaluate_const_fact_binary(
+    operator: BinaryOperator,
+    left: ConstFactValue,
+    right: ConstFactValue,
+) -> Result<ConstFactValue, String> {
+    use BinaryOperator::*;
+    match (left, right) {
+        (ConstFactValue::Integer(left), ConstFactValue::Integer(right)) => match operator {
+            Add => left
+                .checked_add(right)
+                .map(ConstFactValue::Integer)
+                .ok_or_else(|| "addition overflows `u64`".to_string()),
+            Subtract => left
+                .checked_sub(right)
+                .map(ConstFactValue::Integer)
+                .ok_or_else(|| "subtraction produces a negative value".to_string()),
+            Multiply => left
+                .checked_mul(right)
+                .map(ConstFactValue::Integer)
+                .ok_or_else(|| "multiplication overflows `u64`".to_string()),
+            Divide => left
+                .checked_div(right)
+                .map(ConstFactValue::Integer)
+                .ok_or_else(|| "division by zero is invalid".to_string()),
+            Modulo => left
+                .checked_rem(right)
+                .map(ConstFactValue::Integer)
+                .ok_or_else(|| "remainder by zero is invalid".to_string()),
+            ShiftLeft => u32::try_from(right)
+                .ok()
+                .and_then(|amount| left.checked_shl(amount))
+                .map(ConstFactValue::Integer)
+                .ok_or_else(|| "left shift exceeds the `u64` width".to_string()),
+            ShiftRight => u32::try_from(right)
+                .ok()
+                .and_then(|amount| left.checked_shr(amount))
+                .map(ConstFactValue::Integer)
+                .ok_or_else(|| "right shift exceeds the `u64` width".to_string()),
+            BitwiseAnd => Ok(ConstFactValue::Integer(left & right)),
+            BitwiseOr => Ok(ConstFactValue::Integer(left | right)),
+            BitwiseXor => Ok(ConstFactValue::Integer(left ^ right)),
+            Equal => Ok(ConstFactValue::Boolean(left == right)),
+            NotEqual => Ok(ConstFactValue::Boolean(left != right)),
+            Greater => Ok(ConstFactValue::Boolean(left > right)),
+            GreaterOrEqual => Ok(ConstFactValue::Boolean(left >= right)),
+            Less => Ok(ConstFactValue::Boolean(left < right)),
+            LessOrEqual => Ok(ConstFactValue::Boolean(left <= right)),
+            And | Or => Err("logical operators require boolean operands".to_string()),
+        },
+        (ConstFactValue::Boolean(left), ConstFactValue::Boolean(right)) => match operator {
+            And => Ok(ConstFactValue::Boolean(left && right)),
+            Or => Ok(ConstFactValue::Boolean(left || right)),
+            Equal => Ok(ConstFactValue::Boolean(left == right)),
+            NotEqual => Ok(ConstFactValue::Boolean(left != right)),
+            _ => Err("arithmetic and ordering operators require integer operands".to_string()),
+        },
+        _ => Err("const fact operands have incompatible types".to_string()),
+    }
+}
+
+fn replace_const_expression_names_from(
+    syntax: &mut SyntaxTrees,
+    expression_watermark: u32,
+    const_literals: &HashMap<String, IntegerLiteral>,
+) {
+    let replacements = syntax
+        .expressions
+        .iter_expressions()
+        .filter(|(handle, _)| handle.arena_index() >= expression_watermark)
+        .filter_map(|(handle, expression)| {
+            let ExpressionNode::Name(path) = expression else {
+                return None;
+            };
+            let [name] = syntax.expressions.identifier_path_members(*path) else {
+                return None;
+            };
+            const_literals
+                .get(name.as_str())
+                .cloned()
+                .map(|literal| (handle, literal))
+        })
+        .collect::<Vec<_>>();
+    for (handle, literal) in replacements {
+        syntax
+            .expressions
+            .replace_expression(handle, ExpressionNode::Integer(literal));
+    }
 }
 
 /// Generic definitions remain in the tree after their concrete records are

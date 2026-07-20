@@ -1,0 +1,14 @@
+// A default-domain fact that depends only on const parameters is an
+// instantiation-time obligation. The false specialization must not synthesize.
+data FixedBuffer<const N: u64>
+where
+    N > 0,
+{
+    values: [u8; N];
+}
+
+data Main {
+    buffer: FixedBuffer<0>;
+}
+
+machine Main::main(&mut self) {}
