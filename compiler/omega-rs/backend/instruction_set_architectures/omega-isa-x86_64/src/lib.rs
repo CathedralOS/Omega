@@ -1863,7 +1863,7 @@ fn win64_import_reserve_for_plan(plan: &CallPlan) -> usize {
                 stack_byte_offset,
                 byte_size,
                 ..
-            } => *stack_byte_offset as usize + usize::from(*byte_size),
+            } => *stack_byte_offset as usize + usize::from((*byte_size).max(8)),
             ValueLocation::Indirect {
                 pointer,
                 copy_stack_byte_offset,
@@ -1889,11 +1889,10 @@ fn win64_import_reserve_for_plan(plan: &CallPlan) -> usize {
 }
 
 fn win64_import_reserve_bytes(stack_bytes: usize) -> usize {
-    let mut reserve = stack_bytes;
-    if reserve % 16 == 0 {
-        reserve += 8;
-    }
-    reserve
+    // Emitted Omega call sites enter with rsp == 8 (mod 16). Reserve the
+    // smallest area that covers every slot/copy and leaves rsp 16-byte aligned
+    // immediately before CALL, including odd-sized indirect record copies.
+    (stack_bytes + 8).next_multiple_of(16) - 8
 }
 
 /// `sub/add rsp, imm` width: the imm8 form (4 bytes) up to 127, else imm32 (7).
@@ -1975,20 +1974,32 @@ fn win64_import_arg_width<T: InstructionOperandLike>(
     let operand = operands.get(arg_start + index);
     if let Some((_, _, byte_count, _)) = operand.and_then(win64_aggregate_operand)
         && let Some(placement) = placement
-        && let [
-            ValueLocation::Indirect {
-                pointer,
-                copy_stack_byte_offset: Some(_),
-                ..
-            },
-        ] = placement.locations.as_slice()
     {
-        return 10
-            + win64_indirect_aggregate_copy_width(byte_count)
-            + match pointer {
-                IndirectPointerLocation::Register(_) => 8,
-                IndirectPointerLocation::Stack { .. } => 16,
-            };
+        match placement.locations.as_slice() {
+            [
+                ValueLocation::Indirect {
+                    pointer,
+                    copy_stack_byte_offset: Some(_),
+                    ..
+                },
+            ] => {
+                return 10
+                    + win64_indirect_aggregate_copy_width(byte_count)
+                    + match pointer {
+                        IndirectPointerLocation::Register(_) => 8,
+                        IndirectPointerLocation::Stack { .. } => 16,
+                    };
+            }
+            [ValueLocation::Register { .. }] => {
+                return 10 + win64_direct_aggregate_load_width(byte_count);
+            }
+            [ValueLocation::Stack { .. }] => {
+                return 10
+                    + win64_direct_aggregate_load_width(byte_count)
+                    + win64_direct_aggregate_stack_store_width(byte_count);
+            }
+            _ => {}
+        }
     }
     let data_address = win64_import_arg_is_data_address(operand);
     let staged = win64_import_arg_is_staged(operand);
@@ -2007,6 +2018,18 @@ fn win64_import_arg_width<T: InstructionOperandLike>(
         10 + 7 + 5
     } else {
         9
+    }
+}
+
+fn win64_direct_aggregate_load_width(byte_count: usize) -> usize {
+    7 + usize::from(byte_count == 2)
+}
+
+fn win64_direct_aggregate_stack_store_width(byte_count: usize) -> usize {
+    match byte_count {
+        8 | 2 => 8,
+        4 | 1 => 7,
+        _ => 0,
     }
 }
 
@@ -2118,6 +2141,138 @@ fn immediate_imm32<T: InstructionOperandLike>(
 /// immediates) and the shadow-space stack home for args past the fourth.
 /// Shared by the import call and the vtable call (their only difference is how
 /// the callee address is obtained: a relocated `call rel32` vs `call rax`).
+fn append_win64_aggregate_argument<T: InstructionOperandLike>(
+    bytes: &mut Vec<u8>,
+    operand: &T,
+    parameter_index: usize,
+    placement: &ValuePlacement,
+) -> Result<(), Diagnostic> {
+    match placement.locations.as_slice() {
+        [ValueLocation::Register { .. } | ValueLocation::Stack { .. }] => {
+            append_win64_direct_aggregate_argument(bytes, operand, parameter_index, placement)
+        }
+        [ValueLocation::Indirect { .. }] => {
+            append_win64_indirect_aggregate_argument(bytes, operand, parameter_index, placement)
+        }
+        locations => Err(Diagnostic::error(format!(
+            "Microsoft x64 aggregate parameter {parameter_index} has unsupported placement {locations:?}"
+        ))),
+    }
+}
+
+fn append_win64_direct_aggregate_argument<T: InstructionOperandLike>(
+    bytes: &mut Vec<u8>,
+    operand: &T,
+    parameter_index: usize,
+    placement: &ValuePlacement,
+) -> Result<(), Diagnostic> {
+    let Some((_, byte_offset, byte_count, alignment)) = win64_aggregate_operand(operand) else {
+        return Err(Diagnostic::error(format!(
+            "Microsoft x64 direct parameter {parameter_index} is not an aggregate operand"
+        )));
+    };
+    if !matches!(byte_count, 1 | 2 | 4 | 8)
+        || usize::from(placement.shape.byte_size) != byte_count
+        || usize::from(placement.shape.alignment) != alignment
+    {
+        return Err(Diagnostic::error(format!(
+            "Microsoft x64 direct aggregate parameter {parameter_index} has inconsistent shape"
+        )));
+    }
+
+    append_mov_r11_imm64(bytes, 0); // relocated to the aggregate's region base
+    match placement.locations.as_slice() {
+        [
+            ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                byte_size,
+            },
+        ] if usize::from(*byte_size) == byte_count => {
+            append_win64_load_register_from_r11(bytes, *register, byte_offset, byte_count)
+        }
+        [
+            ValueLocation::Stack {
+                stack_byte_offset,
+                value_byte_offset: 0,
+                byte_size,
+                ..
+            },
+        ] if usize::from(*byte_size) == byte_count => {
+            append_win64_load_register_from_r11(
+                bytes,
+                MachineRegister::X86Rax,
+                byte_offset,
+                byte_count,
+            )?;
+            append_win64_store_rax_to_rsp(bytes, *stack_byte_offset, byte_count)
+        }
+        locations => Err(Diagnostic::error(format!(
+            "Microsoft x64 direct aggregate parameter {parameter_index} has unsupported placement {locations:?}"
+        ))),
+    }
+}
+
+fn append_win64_load_register_from_r11(
+    bytes: &mut Vec<u8>,
+    register: MachineRegister,
+    byte_offset: usize,
+    byte_count: usize,
+) -> Result<(), Diagnostic> {
+    let register_number = x86_gpr_number(register).ok_or_else(|| {
+        Diagnostic::error(format!(
+            "Microsoft x64 direct aggregate uses unsupported register {register:?}"
+        ))
+    })?;
+    if !matches!(
+        register,
+        MachineRegister::X86Rax
+            | MachineRegister::X86Rcx
+            | MachineRegister::X86Rdx
+            | MachineRegister::X86R8
+            | MachineRegister::X86R9
+    ) || !matches!(byte_count, 1 | 2 | 4 | 8)
+    {
+        return Err(Diagnostic::error(format!(
+            "Microsoft x64 direct aggregate cannot load {byte_count} bytes into {register:?}"
+        )));
+    }
+    if byte_count == 2 {
+        bytes.push(0x66);
+    }
+    bytes.extend([
+        0x40 | u8::from(byte_count == 8) * 0x08 | u8::from(register_number >= 8) * 0x04 | 0x01,
+        if byte_count == 1 { 0x8a } else { 0x8b },
+        0x83 | ((register_number & 7) << 3),
+    ]); // mov selected register, [r11+disp32]
+    bytes.extend(disp32(byte_offset)?.to_le_bytes());
+    Ok(())
+}
+
+fn append_win64_store_rax_to_rsp(
+    bytes: &mut Vec<u8>,
+    stack_byte_offset: u32,
+    byte_count: usize,
+) -> Result<(), Diagnostic> {
+    match byte_count {
+        8 => bytes.extend([0x48, 0x89, 0x84, 0x24]),
+        4 => bytes.extend([0x89, 0x84, 0x24]),
+        2 => bytes.extend([0x66, 0x89, 0x84, 0x24]),
+        1 => bytes.extend([0x88, 0x84, 0x24]),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "Microsoft x64 direct aggregate stack width {byte_count} is unsupported"
+            )));
+        }
+    }
+    bytes.extend(
+        i32::try_from(stack_byte_offset)
+            .map_err(|_| Diagnostic::error("Microsoft x64 stack offset exceeds disp32"))?
+            .to_le_bytes(),
+    );
+    Ok(())
+}
+
 fn append_win64_indirect_aggregate_argument<T: InstructionOperandLike>(
     bytes: &mut Vec<u8>,
     operand: &T,
@@ -2142,7 +2297,7 @@ fn append_win64_indirect_aggregate_argument<T: InstructionOperandLike>(
             "Microsoft x64 aggregate parameter {parameter_index} has no caller-copy placement"
         )));
     };
-    if byte_count <= 8
+    if matches!(byte_count, 1 | 2 | 4 | 8)
         || usize::from(*byte_size) != byte_count
         || usize::from(*planned_alignment) != alignment
         || !alignment.is_power_of_two()
@@ -2270,7 +2425,7 @@ fn append_win64_call_arguments<T: InstructionOperandLike>(
                         "Microsoft x64 aggregate parameter {index} has no normalized placement"
                     ))
                 })?;
-            append_win64_indirect_aggregate_argument(bytes, operand, index, placement)?;
+            append_win64_aggregate_argument(bytes, operand, index, placement)?;
             continue;
         }
         let planned_location = planned_parameters
@@ -3782,11 +3937,6 @@ fn validate_win64_encoder_plan(plan: &CallPlan) -> Result<(), Diagnostic> {
 
 fn win64_operand_shape<T: InstructionOperandLike>(operand: &T) -> Result<ValueShape, Diagnostic> {
     if let Some((_, _, byte_count, alignment)) = win64_aggregate_operand(operand) {
-        if byte_count <= 8 {
-            return Err(Diagnostic::error(
-                "direct Microsoft x64 aggregate call operands are not normalized yet",
-            ));
-        }
         let byte_count = u16::try_from(byte_count)
             .map_err(|_| Diagnostic::error("Microsoft x64 aggregate width exceeds u16"))?;
         let alignment = u16::try_from(alignment)
@@ -3979,19 +4129,109 @@ mod x86_import_plan_tests {
     }
 
     #[test]
-    fn win64_direct_aggregate_arguments_remain_fail_closed() {
+    fn win64_odd_width_record_uses_an_indirect_copy_without_breaking_stack_alignment() {
         let operands = [operand(
             TargetInstructionOperandKind::RuntimeSmallAggregate {
                 region: RuntimeStorageRegion::RuntimeFrame,
-                byte_offset: 0,
-                byte_count: 8,
-                alignment: 8,
+                byte_offset: 7,
+                byte_count: 3,
+                alignment: 1,
             },
         )];
+        let plan = normalized_win64_import_plan(&operands, false)
+            .expect("odd-width Microsoft x64 aggregate plan");
+        assert!(matches!(
+            plan.parameters[0].locations.as_slice(),
+            [ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Register(MachineRegister::X86Rcx),
+                copy_stack_byte_offset: Some(32),
+                ..
+            }]
+        ));
 
-        let error = normalized_win64_import_plan(&operands, false)
-            .expect_err("direct Microsoft x64 records are the next separate lowering slice");
-        assert!(error.message.contains("direct Microsoft x64 aggregate"));
+        let bytes = encode_win64_import_call(&operands, false, false)
+            .expect("odd-width Microsoft x64 aggregate call");
+        assert_eq!(&bytes[..4], &[0x48, 0x83, 0xec, 40]);
+        assert_eq!(
+            bytes.len(),
+            win64_import_call_width(&operands, false, false)
+        );
+        assert!(
+            bytes
+                .windows(8)
+                .any(|window| window == [0x48, 0x8d, 0x8c, 0x24, 32, 0, 0, 0]),
+            "RCX must point at the three-byte caller copy"
+        );
+    }
+
+    #[test]
+    fn win64_direct_aggregate_arguments_use_positional_registers_and_stack_slots() {
+        let aggregate = |byte_offset, byte_count| {
+            operand(TargetInstructionOperandKind::RuntimeSmallAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset,
+                byte_count,
+                alignment: byte_count,
+            })
+        };
+        let operands = [
+            aggregate(0, 1),
+            aggregate(8, 2),
+            aggregate(16, 4),
+            aggregate(24, 8),
+            aggregate(32, 4),
+        ];
+        let plan = normalized_win64_import_plan(&operands, false)
+            .expect("direct Microsoft x64 aggregate plan");
+        assert!(matches!(
+            plan.parameters[0].locations.as_slice(),
+            [ValueLocation::Register {
+                register: MachineRegister::X86Rcx,
+                byte_size: 1,
+                ..
+            }]
+        ));
+        assert!(matches!(
+            plan.parameters[4].locations.as_slice(),
+            [ValueLocation::Stack {
+                stack_byte_offset: 32,
+                byte_size: 4,
+                ..
+            }]
+        ));
+
+        let bytes = encode_win64_import_call(&operands, false, false)
+            .expect("direct Microsoft x64 aggregate call");
+        assert_eq!(
+            bytes.len(),
+            win64_import_call_width(&operands, false, false)
+        );
+        assert_eq!(&bytes[..4], &[0x48, 0x83, 0xec, 40]);
+        for load in [
+            &[0x41, 0x8a, 0x8b, 0, 0, 0, 0][..],
+            &[0x66, 0x41, 0x8b, 0x93, 8, 0, 0, 0],
+            &[0x45, 0x8b, 0x83, 16, 0, 0, 0],
+            &[0x4d, 0x8b, 0x8b, 24, 0, 0, 0],
+        ] {
+            assert!(
+                bytes.windows(load.len()).any(|window| window == load),
+                "missing direct aggregate register load {load:02x?}"
+            );
+        }
+        assert!(
+            bytes
+                .windows(14)
+                .any(|window| window
+                    == [0x41, 0x8b, 0x83, 32, 0, 0, 0, 0x89, 0x84, 0x24, 32, 0, 0, 0,]),
+            "the fifth direct record must occupy the low bytes of stack slot 32"
+        );
+        assert_eq!(
+            win64_import_call_relocation_sites(&operands, false, false)
+                .iter()
+                .map(|site| site.operand_index)
+                .collect::<Vec<_>>(),
+            [Some(0), Some(1), Some(2), Some(3), Some(4), None]
+        );
     }
 
     #[test]
