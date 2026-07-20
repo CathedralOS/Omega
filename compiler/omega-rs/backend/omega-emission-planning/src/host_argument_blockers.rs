@@ -104,8 +104,11 @@ fn collect_computed_scalar_argument_blockers(
             };
             let is_computed_scalar = match input.host_calls.expressions.expression(expression) {
                 omega_checked_trees::expression::ExpressionNode::Binary(_)
-                | omega_checked_trees::expression::ExpressionNode::Cast(_)
-                | omega_checked_trees::expression::ExpressionNode::Indexed(_) => true,
+                | omega_checked_trees::expression::ExpressionNode::Cast(_) => true,
+                omega_checked_trees::expression::ExpressionNode::Indexed(indexed) => !matches!(
+                    input.host_calls.expressions.expression(indexed.index),
+                    omega_checked_trees::expression::ExpressionNode::Range(_)
+                ),
                 // Selection admits only the scalar builtin symbols. An
                 // authored nested call reaches this blocker too and stays
                 // fail-closed until explicit call sequencing exists.
