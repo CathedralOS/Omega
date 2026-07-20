@@ -562,6 +562,7 @@ fn entry_native_expression_result_layout(
             .expression(transition.expressions.target_value)
         {
             omega_checked_trees::expression::ExpressionNode::Binary(_)
+            | omega_checked_trees::expression::ExpressionNode::Cast(_)
             | omega_checked_trees::expression::ExpressionNode::Float(_)
             | omega_checked_trees::expression::ExpressionNode::Indexed(_)
             | omega_checked_trees::expression::ExpressionNode::StructLiteral(_)

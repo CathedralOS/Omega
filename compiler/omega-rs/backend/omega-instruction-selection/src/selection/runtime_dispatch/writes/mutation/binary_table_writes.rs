@@ -1012,7 +1012,7 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_frame_slot_
 /// the converting store. The target place (region + offset + primitive) is supplied
 /// by the caller -- from a target expression or a pre-resolved frame slot.
 #[allow(clippy::too_many_arguments)]
-fn build_runtime_convert_write(
+pub(in crate::selection::runtime_dispatch) fn build_runtime_convert_write(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     value_source_key: StateKey,
