@@ -153,6 +153,17 @@ unreclaimed loans is deferred to provider quiescence/lifecycle machinery when a
 customer requires it; page-table edits, shootdowns, and process teardown remain
 ordinary runtime provider work.
 
+The provider-neutral mapping lifecycle is live in `omega-extents`. An admitted
+mapping grant pins source custody, source/destination spaces and required
+rights, provider-established mapped facts, and an open set of translation
+release facts. Fixed mapping consumes the destination Extent and independently
+owns, shared-borrows, or exclusive-borrows its source. Shared source custody
+cannot expose mutable mapped loans. `begin_unmap` retains every authority until
+an exact provider receipt establishes that stale translations are released and
+all target completion facts hold; only then are the destination and any owned
+source returned. Provider page-table operations, `Suspend`/`Block` reach, the
+Omega source carrier, and automatic destination allocation remain.
+
 Zero-filled storage does not establish a linear extent and creates no
 must-consume obligation. A zero-usable pool uses the ordinary debt-free sum:
 
@@ -610,11 +621,11 @@ and the concrete interrupt state policy remain. Remaining order:
    provider-resolved writer program are already live. Native symbolic actions
    lower with tagged materialization origin rather than pretending those sites
    came from an instruction.
-3. Connect the implemented normalized `Extent` conservation model to the Omega
-   linear carrier and sealed facts, then implement source-loan /
-   destination-authority mapping and provider reclamation. Root admission,
-   exact split geometry, open-set attenuation, common-split-lineage merge, and
-   borrow-polarity loans are already checked.
+3. Connect the implemented normalized `Extent` conservation/mapping model to
+   the Omega linear carrier and sealed facts, then implement provider execution
+   and source APIs. Root admission, split/merge/attenuation, borrow polarity,
+   owned-versus-borrowed source custody, destination consumption, and
+   receipt-gated translation reclamation are already checked.
 4. Connect the implemented normalized `AccessPlan`/Extent join and sealed
    field-operation values to Omega-authored policies and source projections,
    then lower exact external/atomic primitives. Geometry, provenance, space,

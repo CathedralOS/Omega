@@ -292,9 +292,13 @@ before the fix.
   move-split preserves exact geometry; only compatible siblings from one
   split lineage merge; attenuation cannot add open-set rights; failed
   consuming operations return their authority; and one borrow-carrying loan
-  derives shared/exclusive polarity from its parent. Connect this model to the
-  opaque Omega `[linear]` carrier, sealed fact establishment, provider-backed
-  map/unmap, and shootdown/quiescence.
+  derives shared/exclusive polarity from its parent. Fixed-destination mapping
+  now consumes virtual authority while independently owning, shared-borrowing,
+  or exclusive-borrowing its source; unmap returns reusable ranges only after
+  an exact provider receipt releases stale translations and establishes its
+  open completion facts. Connect these models to the opaque Omega `[linear]`
+  carrier, sealed fact establishment, provider execution/effects, and source
+  APIs.
 - **L6b — AccessPlan and placed views.** The separate normalized validator is
   live: name-keyed entries pin exact transfer width, stable/external/atomic
   observation, ordinary and atomic permissions, exported versus

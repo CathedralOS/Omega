@@ -62,6 +62,10 @@ impl ExtentLineageId {
 
 use std::collections::BTreeSet;
 
+mod mapping;
+
+pub use mapping::*;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ExtentRightId(u64);
 
