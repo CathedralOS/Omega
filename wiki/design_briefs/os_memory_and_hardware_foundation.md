@@ -281,6 +281,16 @@ The token may remain live across suspension; waiting for completion is normal.
 The provider receipt is the accepted claim that completion really means the
 device has stopped using the range.
 
+This conservation model is live in `omega-extents`. A reusable admitted grant
+pins the borrower, direction, space, provenance, required open-set rights, and
+an open set of completion facts (including target fence/cache facts where
+needed). Starting a transfer accepts an actual Extent loan and
+derives CPU exclusion from its polarity. The non-clonable proxy holds that
+borrow until a matching provider receipt establishes completion and every
+required ordering/coherence fact; failed starts and completions return their
+borrow-carrying inputs. Omega `[linear]` integration, permission-context events,
+provider execution, and the DMA vertical slice remain.
+
 ## Checked assembly is the low-level operation surface
 
 `asm { ... }` is parsed target assembly, not an opaque byte blob. Every accepted
@@ -616,7 +626,9 @@ and the concrete interrupt state policy remain. Remaining order:
 6. Connect the live placement constraints to admitted-artifact validation and
    scoped executable installation.
 7. Add the external-root ledger and IDT/timer vertical slice.
-8. Add external loans and DMA/hostile-IPC vertical slices.
+8. Connect the implemented normalized external-loan proxy to Omega linearity,
+   permission contexts, and provider receipts; then build the DMA/hostile-IPC
+   vertical slices.
 9. Add carry/runtime admission and the Arena-backed Cathedral task profile.
 
 ## Gauntlet
