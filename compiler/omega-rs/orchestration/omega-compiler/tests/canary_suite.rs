@@ -31288,6 +31288,7 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/aarch64_wide_aggregate_entry", "linux_arm64"),
     ("targets/sysv_small_aggregate_entry", "linux_x64"),
     ("targets/sysv_small_aggregate_stack_entry", "linux_x64"),
+    ("targets/sysv_large_aggregate_entry", "linux_x64"),
 ];
 
 #[test]
@@ -31575,6 +31576,34 @@ fn sysv_small_aggregate_entry_rolls_wholly_to_stack() {
         image.windows(3).any(|window| window == [0x4d, 0x89, 0x8f]),
         "expected the trailing scalar to retain the rolled-back r9 slot"
     );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn sysv_large_aggregate_entry_copies_the_memory_class_stack_value() {
+    let canary = pass_canary("targets/sysv_large_aggregate_entry");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-sysv-large-aggregate-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("SysV MEMORY-class entry record should copy from the incoming stack");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86-64 ELF");
+    for source_offset in [8u8, 16, 24] {
+        let load = [0x4c, 0x8b, 0x94, 0x24, source_offset, 0, 0, 0];
+        assert!(
+            image.windows(load.len()).any(|window| window == load),
+            "expected MEMORY-class fragment load from incoming rsp+{source_offset}"
+        );
+    }
     let _ = fs::remove_dir_all(&build_dir);
 }
 
