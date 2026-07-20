@@ -1,0 +1,62 @@
+// Core floating-point format records.
+//
+// A format is semantic DATA, not grammar and not a target instruction.  The
+// exact-arithmetic engine consumes this record to model an operation as
+// `round(format, exact_rational_result)`; target packages separately prove or
+// accept that their selected implementation realizes the same record.
+//
+// The exponent fields deliberately avoid the overloaded `emin`/`emax`
+// shorthand.  They name the exponent of the leading radix digit for normal
+// values, plus the least exponent representable by a subnormal.  This makes
+// the constants readable without importing a particular proof library's
+// convention.
+
+data FloatSpecialValues [copy, zero_init] {
+    signed_zero: bool;
+    subnormals: bool;
+    infinity: bool;
+    nan: bool;
+}
+
+data FloatFormat [copy] {
+    radix: u32;
+    precision: u32;
+    minimum_normal_exponent: i32;
+    maximum_normal_exponent: i32;
+    minimum_subnormal_exponent: i32;
+    specials: FloatSpecialValues;
+    rounds_to_nearest_ties_to_even: bool;
+}
+
+// Permanent semantic identities for the language's f32 and f64 carriers.
+// Targets may realize these records in hardware or software; they may not
+// reinterpret the names as a different format.
+const FloatFormat::BINARY32: FloatFormat = FloatFormat {
+    radix: 2,
+    precision: 24,
+    minimum_normal_exponent: -126,
+    maximum_normal_exponent: 127,
+    minimum_subnormal_exponent: -149,
+    specials: FloatSpecialValues {
+        signed_zero: true,
+        subnormals: true,
+        infinity: true,
+        nan: true,
+    },
+    rounds_to_nearest_ties_to_even: true,
+};
+
+const FloatFormat::BINARY64: FloatFormat = FloatFormat {
+    radix: 2,
+    precision: 53,
+    minimum_normal_exponent: -1022,
+    maximum_normal_exponent: 1023,
+    minimum_subnormal_exponent: -1074,
+    specials: FloatSpecialValues {
+        signed_zero: true,
+        subnormals: true,
+        infinity: true,
+        nan: true,
+    },
+    rounds_to_nearest_ties_to_even: true,
+};

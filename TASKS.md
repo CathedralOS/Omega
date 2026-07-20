@@ -272,9 +272,11 @@ before the fix.
   well-definedness, retiring axioms through the normal boundary-upgrade path.
 - **F6 — total float order.** Add named `TotalOrder` satisfiers for f32/f64
   using sign-magnitude integer comparison once satisfier dispatch serves.
-- **F7 — float format providers.** Move IEEE format records into
-  `omega::core` and express their lowering through checked provider plans and
-  checked assembly; there is no instruction-binding compatibility path.
+- **F7 — float format providers.** `FloatFormat::BINARY32` and
+  `FloatFormat::BINARY64` now live in `omega::core` as ordinary semantic data.
+  Replace the hardcoded IEEE lowering bootstrap with checked target
+  conformances, derived provider plans, and checked assembly; there is no
+  instruction-binding compatibility path.
 
 ## Layout, memory, and artifact foundation
 
