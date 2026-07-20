@@ -16,6 +16,21 @@ pub fn vtable_call_sequence_width<T: InstructionOperandLike>(
     result_present: bool,
 ) -> usize {
     match target.architecture {
+        Architecture::Aarch64 if !result_present => {
+            let Ok(placements) = crate::normalized_aarch64_vtable_argument_placements(operands)
+            else {
+                return 0;
+            };
+            let Some(dispatch_width) = aarch64::vtable_call_dispatch_width(index) else {
+                return 0;
+            };
+            operands
+                .iter()
+                .map(|operand| crate::operand_width(Architecture::Aarch64, operand))
+                .sum::<usize>()
+                + aarch64::host_call_stack_total_width_for_placements(&placements)
+                + dispatch_width
+        }
         Architecture::Aarch64 => 0,
         Architecture::X86_64
             if omega_calling_conventions::CallingPolicy::native_for_target(target)
