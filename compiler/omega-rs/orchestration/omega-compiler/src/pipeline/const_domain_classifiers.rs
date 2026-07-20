@@ -171,8 +171,7 @@ fn evaluate_membership(
                 .machines()
                 .iter()
                 .find(|machine| {
-                    machine.attached_data.is_none()
-                        && machine.name.as_str() == call.target.as_str()
+                    machine.attached_data.is_none() && machine.name.as_str() == call.target.as_str()
                 })
                 .and_then(|machine| {
                     typed
