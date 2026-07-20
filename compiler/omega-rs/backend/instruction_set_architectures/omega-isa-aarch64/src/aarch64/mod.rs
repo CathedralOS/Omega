@@ -37,6 +37,61 @@ pub fn encode_host_call_sequence_from_operands(
     Ok(bytes)
 }
 
+/// AAPCS64 per-object vtable dispatch. Arguments are materialized from the
+/// normalized placements exactly like an import call; the first planned
+/// argument must be the receiver in x0. The callee is loaded from its slot into
+/// caller-saved x16 and invoked with `blr x16`, so there is no import fixup.
+pub fn encode_vtable_call_sequence_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    argument_placements: &[ValuePlacement],
+    index: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    let Some(receiver) = argument_placements.first() else {
+        return Err(Diagnostic::error(
+            "AArch64 vtable call has no receiver placement",
+        ));
+    };
+    if !matches!(
+        receiver.locations.as_slice(),
+        [ValueLocation::Register {
+            register: MachineRegister::Aarch64X(0),
+            value_byte_offset: 0,
+            byte_size: 8,
+        }]
+    ) {
+        return Err(Diagnostic::error(format!(
+            "AAPCS64 vtable receiver requires x0, got {:?}",
+            receiver.locations
+        )));
+    }
+    let slot_offset = vtable_slot_byte_offset(index)?;
+    let mut bytes = Vec::with_capacity(
+        host_call_sequence_width_from_operands(operands.clone())
+            + host_call_stack_total_width_for_placements(argument_placements)
+            + 4,
+    );
+    let stack_bytes = append_call_operands(&mut bytes, operands, argument_placements)?;
+    bytes.extend(encode_load_x_from_x(16, 0, slot_offset)?);
+    bytes.extend(encode_instruction(0xd63f_0000 | (16 << 5))); // blr x16
+    append_call_stack_restore(&mut bytes, stack_bytes)?;
+    Ok(bytes)
+}
+
+pub fn vtable_call_dispatch_width(index: i64) -> Option<usize> {
+    vtable_slot_byte_offset(index)
+        .ok()
+        .and_then(|offset| encode_load_x_from_x(16, 0, offset).ok())
+        .map(|_| 8)
+}
+
+fn vtable_slot_byte_offset(index: i64) -> Result<usize, Diagnostic> {
+    let index = usize::try_from(index)
+        .map_err(|_| Diagnostic::error("AArch64 vtable slot index cannot be negative"))?;
+    index
+        .checked_mul(8)
+        .ok_or_else(|| Diagnostic::error("AArch64 vtable slot offset overflows usize"))
+}
+
 /// A VALUE-RETURNING host call: `operands[0]` is the result storage place, the
 /// rest are the call arguments. Marshal the args into x0.., branch-link to the
 /// callee (relocated to the import symbol), then store the return register into
@@ -700,6 +755,43 @@ mod host_call_plan_register_tests {
 
         assert_eq!(&bytes[0..4], &0xd280_00e3u32.to_le_bytes());
         assert_eq!(&bytes[4..8], &encode_branch_link_placeholder());
+    }
+
+    #[test]
+    fn vtable_call_loads_the_planned_x0_receiver_and_dispatches_indirectly() {
+        let operands = [
+            Aarch64CallOperand::RuntimeScalarInteger {
+                byte_offset: 0,
+                byte_count: 8,
+            },
+            Aarch64CallOperand::ImmediateInteger(7),
+        ];
+        let placements = [
+            placement(
+                omega_calling_conventions::ValueShape::integer(8, 8),
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(0),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+            ),
+            placement(
+                omega_calling_conventions::ValueShape::integer(8, 8),
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(1),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+            ),
+        ];
+        let bytes = encode_vtable_call_sequence_from_operands(operands.into_iter(), &placements, 1)
+            .expect("AAPCS64 vtable call");
+
+        assert_eq!(&bytes[8..12], &encode_load_x_from_x(0, 0, 0).unwrap());
+        assert_eq!(&bytes[16..20], &encode_load_x_from_x(16, 0, 8).unwrap());
+        assert_eq!(&bytes[20..24], &encode_instruction(0xd63f_0200));
+        assert_eq!(bytes.len(), 24);
+        assert_eq!(vtable_call_dispatch_width(1), Some(8));
     }
 
     #[test]

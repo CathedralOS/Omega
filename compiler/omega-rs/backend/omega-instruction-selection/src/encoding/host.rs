@@ -137,17 +137,21 @@ fn full_width_register(
     }
 }
 
-/// A VtableSlot call (provides-sourced, per-object dispatch). x86_64 only; an
-/// aarch64 vtable call awaits its stub.
+/// A VtableSlot call (provides-sourced, per-object dispatch).
 pub fn encode_vtable_call_sequence<T: InstructionOperandLike>(
     target: NativeTarget,
     operands: &[T],
     index: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
     match target.architecture {
-        Architecture::Aarch64 => Err(Diagnostic::error(
-            "AArch64 vtable-slot dispatch is not implemented (x86_64 only)",
-        )),
+        Architecture::Aarch64 => {
+            let placements = normalized_aarch64_vtable_argument_placements(operands)?;
+            aarch64::encode_vtable_call_sequence_from_operands(
+                operands.iter().map(aarch64_call_operand),
+                &placements,
+                index,
+            )
+        }
         Architecture::X86_64
             if CallingPolicy::native_for_target(target) == CallingPolicy::MicrosoftX64 =>
         {
@@ -369,6 +373,29 @@ pub fn normalized_aarch64_host_argument_placements<T: InstructionOperandLike>(
         operation_key.passes_trailing_mode_on_stack(),
     )
     .map(|(placements, _)| placements)
+}
+
+pub fn normalized_aarch64_vtable_argument_placements<T: InstructionOperandLike>(
+    operands: &[T],
+) -> Result<Vec<ValuePlacement>, Diagnostic> {
+    let (placements, result) =
+        normalized_aarch64_import_plan(operands, Aarch64ImportResult::None, false)?;
+    debug_assert!(result.is_none());
+    if !matches!(
+        placements
+            .first()
+            .map(|placement| placement.locations.as_slice()),
+        Some([ValueLocation::Register {
+            register: MachineRegister::Aarch64X(0),
+            value_byte_offset: 0,
+            byte_size: 8,
+        }])
+    ) {
+        return Err(Diagnostic::error(
+            "AAPCS64 vtable call requires one full-width receiver in x0",
+        ));
+    }
+    Ok(placements)
 }
 
 pub fn aarch64_host_call_stack_prefix_width_for_placements(
@@ -932,6 +959,37 @@ mod aarch64_import_plan_tests {
             ]
         );
         assert_eq!(result, None);
+    }
+
+    #[test]
+    fn vtable_receiver_is_selected_as_the_aapcs_x0_argument() {
+        let operands = [
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::ImmediateInteger(7)),
+        ];
+
+        let placements = normalized_aarch64_vtable_argument_placements(&operands)
+            .expect("AAPCS64 vtable placements");
+        assert!(matches!(
+            placements[0].locations.as_slice(),
+            [ValueLocation::Register {
+                register: MachineRegister::Aarch64X(0),
+                value_byte_offset: 0,
+                byte_size: 8,
+            }]
+        ));
+        assert!(matches!(
+            placements[1].locations.as_slice(),
+            [ValueLocation::Register {
+                register: MachineRegister::Aarch64X(1),
+                value_byte_offset: 0,
+                byte_size: 8,
+            }]
+        ));
     }
 
     #[test]
