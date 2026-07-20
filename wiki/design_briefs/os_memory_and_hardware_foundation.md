@@ -662,7 +662,11 @@ and the concrete interrupt state policy remain. Remaining order:
    fragment placement, exact tiling, phase-aware action derivation,
    fixed-address resolution, early-consumption rejection, section-qualified
    absolute data relocation/rebasing, concrete-site validation, and the atomic
-   provider-resolved writer program are already live. Native symbolic actions
+   provider-resolved writer program are already live. Decoded placement
+   constraints are bound into artifact admission and rechecked against the exact
+   claimed placement before materialization, preventing a provider from
+   substituting a weaker range/alignment/phase/regime/scope record behind the
+   admitted plan identity. Native symbolic actions
    lower with tagged materialization origin rather than pretending those sites
    came from an instruction.
 3. Connect the implemented normalized `Extent` conservation/mapping model to
