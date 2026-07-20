@@ -111,9 +111,9 @@ ceiling derived exactly from the ABI volatile-register classes.
    is exhausted, the same operand copies each member into its contiguous planned
    stack area. Authored flat HFA results now preserve one aggregate result place
    and spill every plan-selected vector-register fragment through one relocated
-   base. Make the plan authoritative next. Add the
-   concrete x86 interrupt `StatePlan`, stack/IST, nesting, and acknowledgement
-   policy used by Cathedral.
+   base. Make the plan authoritative next. The concrete x86 interrupt
+   `StatePlan`, stack/IST, nesting, and acknowledgement policy used by Cathedral
+   is OWNER-BLOCKED on `OWNER_QUESTIONS.md` section 3.
 3. **ENT3 — constrained entry codegen.** Derive entry stubs, specialize/codegen
    under the state ceiling, emit a checkable final footprint certificate, and
    validate after relaxation, veneers, thunks, and generated stubs.
