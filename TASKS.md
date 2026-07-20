@@ -714,9 +714,11 @@ remain contract-invisible.
   canaries pin distinct expression-derived layouts. Arithmetic expressions may
   now also use scoped literal integer const operands; the transient expression
   representation is eliminated before symbol resolution, and unknown symbolic
-  operands reject loudly. Continue with expressions over forwarded const
-  parameters, const-evaluated machine-call arguments, signed/domain semantics,
-  and const-fact proof integration.
+  operands reject loudly. Expressions over forwarded const parameters now
+  evaluate for each concrete clone while the surviving generic template keeps
+  a validated const-parameter dependency placeholder for its ordinary kind/type
+  checks. Continue with const-evaluated machine-call arguments, signed/domain
+  semantics, and const-fact proof integration.
 - **Trait defaults.** Implement conformance, reuse, override, and dispatch for
   trait machines whose body supplies the default. Do not restore a `default`
   keyword.

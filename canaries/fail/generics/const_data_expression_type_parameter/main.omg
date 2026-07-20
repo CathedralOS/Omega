@@ -1,0 +1,14 @@
+data FixedBuffer<const N: u64> {
+    items: [u8; N];
+}
+
+data InvalidForwarder<T> {
+    buffer: FixedBuffer<T + 1>;
+}
+
+data Main {
+    value: InvalidForwarder<u8>;
+}
+
+machine Main::main(&mut self) {
+}

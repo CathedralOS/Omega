@@ -37009,6 +37009,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "generics/colon_bound_rejected",
     "generics/const_data_argument_out_of_range",
     "generics/const_data_expression_division_by_zero",
+    "generics/const_data_expression_type_parameter",
     "generics/const_data_symbolic_expression_unknown",
     "generics/const_data_named_value_out_of_range",
     "generics/const_data_forwarded_type_mismatch",
