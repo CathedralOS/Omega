@@ -447,6 +447,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-executable-installation"
+version = "0.1.0"
+dependencies = [
+ "omega-extents",
+]
+
+[[package]]
 name = "omega-extents"
 version = "0.1.0"
 

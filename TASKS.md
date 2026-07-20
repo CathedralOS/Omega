@@ -328,12 +328,17 @@ before the fix.
   fence/cache/provider fact. Connect it to Omega linearity/permission contexts
   and provider execution, then build the DMA slice. Bidirectional sharing
   remains an explicit atomic/coherence protocol, not ordinary lending.
-- **EXI1–EXI5 — admitted executable installation.** Add reusable admitted
-  artifact identity, extent-backed linear `CodePlacement`, materialization,
-  write freeze, final-byte/footprint validation, scoped installation,
-  synchronous visibility, W^X reporting, and replacement/quiescence for live
-  code. Use the minimal checked Omega container internally; PE/COFF is only a
-  firmware envelope. No arbitrary byte-to-code path exists.
+- **EXI1–EXI5 — admitted executable installation.** The normalized
+  `omega-executable-installation` ladder is live: immutable artifacts gain a
+  reusable sealed admission only from exact evidence; one-shot extent-backed
+  placement authority advances through frozen and exact-final-byte validated
+  states; installation consumes artifact/placement/scope/audience-specific
+  authority plus synchronous visibility evidence; W^X enforcement is reported;
+  and every failed linear transition returns its inputs. Implement the minimal
+  checked container, actual admission/PCC and final-footprint validators,
+  materializer/installer providers, Omega linear integration, and
+  uninstall/replacement quiescence. PE/COFF remains only a firmware envelope;
+  no arbitrary byte-to-code path exists.
 - **Wire runtime.** Implement runtime layout for wire values, additional
   encoding families, compatibility reports, and version negotiation.
 

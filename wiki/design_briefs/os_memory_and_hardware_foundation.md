@@ -429,6 +429,19 @@ certificate to different bytes; linear placement ownership prevents spending
 one destination twice. The certificate may remain reusable/reportable while
 `ValidatedPlacement` is consumed.
 
+This normalized ladder is live in `omega-executable-installation`. Canonically
+decoded artifacts are immutable and reusable; exact admission evidence checks
+content, contracts, declared footprint, and placement plan before establishing
+the executable qualification. A one-shot authority claims an Extent-backed
+placement, materialization checks the admitted artifact's real size and freezes
+writes, the final certificate is bound to artifact + placement + final bytes +
+realized footprint, and installation consumes an authority scoped to that
+artifact, admission, placement, scope, and audience. Synchronous visibility and
+`HardwareEnforced | ConventionOnly | Unsupported` W^X reporting are checked.
+Failed linear transitions return their inputs. Container decode, actual PCC and
+final-code validators, provider execution, Omega linear integration, and live
+replacement remain.
+
 This invariant covers every route to execute permission. Correct-by-construction
 page-table APIs require admitted-artifact provenance before deriving an
 executable mapping, and checked assembly emits the same installation authority
