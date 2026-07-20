@@ -224,7 +224,7 @@ pub(super) fn select_runtime_dispatch_edge(
 
 /// Deliver a terminating state's terminal value through the entry ABI.
 ///
-/// Seven shapes lower, in order:
+/// Eight shapes lower, in order:
 /// 1. an INTEGER CONSTANT terminal (`70`, `state shutdown { 0 }`) writes the immediate
 ///    into the return register (the original literal-only path);
 /// 2. a FLOAT CONSTANT terminal stages its raw bits through exact-width result
@@ -242,7 +242,9 @@ pub(super) fn select_runtime_dispatch_edge(
 ///    substitutes simple local initializers and constant-folds; such locals
 ///    were culled from storage precisely because nothing mutates them, so the
 ///    initializer IS the terminal value;
-/// 7. a flat runtime scalar BINARY terminal computes through the ordinary
+/// 7. a runtime logical-NOT terminal compares its byte-sized operand with zero
+///    into result scratch, then loads the normalized integer result register;
+/// 8. a flat runtime scalar BINARY terminal computes through the ordinary
 ///    domain-aware writer into result scratch, then loads the normalized
 ///    integer or vector result register.
 fn select_runtime_dispatch_return_value(
@@ -396,6 +398,33 @@ fn select_runtime_dispatch_return_value(
                 register,
                 byte_size,
                 value,
+            },
+            source_key,
+            source_statement: edge.statement_index,
+        });
+        return true;
+    }
+
+    if let Some((scratch_offset, scratch_size, register)) =
+        normalized_entry_scalar_result_scratch(input)
+        && select_dispatch_unary_terminal_return(
+            input,
+            edge,
+            source_key,
+            source_dispatch_index,
+            scratch_offset,
+            scratch_size,
+            value_expr,
+            runtime_value_operands,
+            selected_instructions,
+        )
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+                register,
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: scratch_offset,
+                byte_size: scratch_size,
             },
             source_key,
             source_statement: edge.statement_index,
@@ -1173,6 +1202,61 @@ fn dispatch_terminal_binary_operator(operator: BinaryOperator) -> Option<StateGu
         BinaryOperator::ShiftRight => Some(StateGuardOperator::ShiftRight),
         _ => None,
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_dispatch_unary_terminal_return(
+    input: &InstructionSelectionInput<'_>,
+    edge: &RuntimeDispatchLoopEdge,
+    source_key: StateKey,
+    source_dispatch_index: u32,
+    target_offset: usize,
+    byte_size: usize,
+    value_expr: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    let expressions = &input.control_flow.expressions;
+    let ExpressionNode::Unary(unary) = expressions.expression(value_expr) else {
+        return false;
+    };
+    if byte_size != 1 {
+        return false;
+    }
+    let Some(place) = resolve_runtime_storage_place_in_table(
+        input,
+        source_dispatch_index,
+        source_key,
+        expressions,
+        unary.operand,
+    ) else {
+        return false;
+    };
+    if place.byte_count != 1 {
+        return false;
+    }
+    let left = runtime_value_operands.insert(RuntimeValueOperand::Storage {
+        region: place.region,
+        byte_offset: place.byte_offset,
+        byte_size: place.byte_count,
+    });
+    let right = runtime_value_operands.insert(RuntimeValueOperand::Immediate(0));
+    selected_instructions.push(SelectedInstruction {
+        kind: crate::selection::runtime_dispatch::write_place_binary_direct(
+            RuntimeStorageRegion::RuntimeFrame,
+            target_offset,
+            byte_size,
+            left,
+            StateGuardOperator::Equal,
+            right,
+            false,
+            omega_core::arithmetic::ArithmeticDomain::Exact,
+            false,
+        ),
+        source_key,
+        source_statement: edge.statement_index,
+    });
+    true
 }
 
 #[allow(clippy::too_many_arguments)]

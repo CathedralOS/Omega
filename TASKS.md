@@ -207,6 +207,10 @@ ceiling derived exactly from the ABI volatile-register classes.
    call-result indexed-copy shape to stage the selected element in result
    scratch, then load the normalized scalar register. A dependent-bound slice
    source canary pins `eax` and `w0` delivery on Linux x64 and ARM64.
+   Runtime logical-NOT entry terminals now compare their byte-sized runtime
+   operand with zero into result scratch before loading the normalized boolean
+   result register. A native execution canary pins `!false` as process exit 1
+   instead of the former silent natural-termination zero.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
    complete import/vtable/service-table compatibility mechanism matrix is
