@@ -1,5 +1,6 @@
 use crate::Aarch64CallOperand;
 use crate::Aarch64CallOperand::*;
+use omega_calling_conventions::MachineRegister;
 use omega_core::diagnostics::Diagnostic;
 
 mod dispatch;
@@ -18,15 +19,19 @@ pub use widths::*;
 pub use wire_decode::*;
 pub use wire_encode::*;
 
-pub fn encode_host_call_sequence(operands: &[Aarch64CallOperand]) -> Result<Vec<u8>, Diagnostic> {
-    encode_host_call_sequence_from_operands(operands.iter().copied())
+pub fn encode_host_call_sequence(
+    operands: &[Aarch64CallOperand],
+    argument_registers: &[MachineRegister],
+) -> Result<Vec<u8>, Diagnostic> {
+    encode_host_call_sequence_from_operands(operands.iter().copied(), argument_registers)
 }
 
 pub fn encode_host_call_sequence_from_operands(
     operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    argument_registers: &[MachineRegister],
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(host_call_sequence_width_from_operands(operands.clone()));
-    append_call_operands(&mut bytes, operands)?;
+    append_call_operands(&mut bytes, operands, argument_registers)?;
     bytes.extend(encode_branch_link_placeholder());
     Ok(bytes)
 }
@@ -41,6 +46,8 @@ pub fn encode_host_call_sequence_from_operands(
 /// width (adrp+add+ldr = 12) is the same as its store (adrp+add+str = 12).
 pub fn encode_host_call_sequence_value_returning_from_operands(
     operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    argument_registers: &[MachineRegister],
+    result_register: MachineRegister,
 ) -> Result<Vec<u8>, Diagnostic> {
     let all: Vec<Aarch64CallOperand> = operands.collect();
     let Some((result, args)) = all.split_first() else {
@@ -58,16 +65,22 @@ pub fn encode_host_call_sequence_value_returning_from_operands(
         ));
     };
     let mut bytes = Vec::with_capacity(host_call_sequence_width_from_operands(all.iter().copied()));
-    append_call_operands(&mut bytes, args.iter().copied())?;
+    append_call_operands(&mut bytes, args.iter().copied(), argument_registers)?;
     bytes.extend(encode_branch_link_placeholder());
+    let MachineRegister::Aarch64X(result_register) = result_register else {
+        return Err(Diagnostic::error(format!(
+            "AArch64 integer-returning call plan selected non-GPR result register {result_register:?}"
+        )));
+    };
     // Result store: x16 <- result region base (adrp/add relocated), then store
     // the return register at the field's offset.
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     // Materialize a large result-field offset (a scalar after a big array) via scratch
-    // x17 (caller-saved; x0 holds the result, x16 the region base). Kept in lockstep
+    // x17 (caller-saved; the planned register holds the result, x16 the region base).
+    // Kept in lockstep
     // with operand_width's store_data_offset_width accounting + the relocation planner.
-    append_store_data_to_x_offset(&mut bytes, 0, 16, byte_offset, byte_count, 17)?;
+    append_store_data_to_x_offset(&mut bytes, result_register, 16, byte_offset, byte_count, 17)?;
     Ok(bytes)
 }
 
@@ -119,6 +132,8 @@ pub fn encode_host_call_sequence_constant_result_from_operands(
 /// relocation (which precedes the load) is unaffected.
 pub fn encode_host_call_sequence_value_returning_deref_from_operands(
     operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    argument_registers: &[MachineRegister],
+    result_register: MachineRegister,
 ) -> Result<Vec<u8>, Diagnostic> {
     let all: Vec<Aarch64CallOperand> = operands.collect();
     let Some((result, args)) = all.split_first() else {
@@ -137,17 +152,28 @@ pub fn encode_host_call_sequence_value_returning_deref_from_operands(
     };
     let mut bytes =
         Vec::with_capacity(host_call_sequence_width_from_operands(all.iter().copied()) + 4);
-    append_call_operands(&mut bytes, args.iter().copied())?;
+    append_call_operands(&mut bytes, args.iter().copied(), argument_registers)?;
     bytes.extend(encode_branch_link_placeholder());
-    // Deref the returned pointer: `ldr w0, [x0]` (load errno through &errno).
-    bytes.extend(encode_instruction(0xB940_0000));
+    let MachineRegister::Aarch64X(result_register) = result_register else {
+        return Err(Diagnostic::error(format!(
+            "AArch64 pointer-returning call plan selected non-GPR result register {result_register:?}"
+        )));
+    };
+    // Deref the returned pointer through the plan-selected result register.
+    bytes.extend(encode_load_w_from_x(
+        result_register,
+        result_register,
+        0,
+        4,
+    )?);
     // Result store: x16 <- result region base (adrp/add relocated), then store.
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     // Materialize a large result-field offset (a scalar after a big array) via scratch
-    // x17 (caller-saved; x0 holds the result, x16 the region base). Kept in lockstep
+    // x17 (caller-saved; the planned register holds the result, x16 the region base).
+    // Kept in lockstep
     // with operand_width's store_data_offset_width accounting + the relocation planner.
-    append_store_data_to_x_offset(&mut bytes, 0, 16, byte_offset, byte_count, 17)?;
+    append_store_data_to_x_offset(&mut bytes, result_register, 16, byte_offset, byte_count, 17)?;
     Ok(bytes)
 }
 
@@ -165,6 +191,8 @@ pub fn encode_host_call_sequence_value_returning_deref_from_operands(
 /// `BL` relocation is unaffected.
 pub fn encode_host_call_sequence_value_returning_float_from_operands(
     operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    argument_registers: &[MachineRegister],
+    result_register: MachineRegister,
 ) -> Result<Vec<u8>, Diagnostic> {
     let all: Vec<Aarch64CallOperand> = operands.collect();
     let Some((result, args)) = all.split_first() else {
@@ -183,16 +211,26 @@ pub fn encode_host_call_sequence_value_returning_float_from_operands(
     };
     let mut bytes =
         Vec::with_capacity(host_call_sequence_width_from_operands(all.iter().copied()) + 4);
-    append_call_operands(&mut bytes, args.iter().copied())?;
+    append_call_operands(&mut bytes, args.iter().copied(), argument_registers)?;
     bytes.extend(encode_branch_link_placeholder());
-    // Move the float return (`d0`/`s0`) into `x0` so the integer result-store can
-    // spill the raw bits: `fmov x0, d0` (double) / `fmov w0, s0` (single).
-    bytes.extend(encode_float_move_to_gpr(byte_count.max(4), 0, 0)?);
+    let MachineRegister::Aarch64V(result_register) = result_register else {
+        return Err(Diagnostic::error(format!(
+            "AArch64 float-returning call plan selected non-vector result register {result_register:?}"
+        )));
+    };
+    // Move the float return from the plan-selected vector register into `x0` so
+    // the integer result-store can spill the raw bits.
+    bytes.extend(encode_float_move_to_gpr(
+        byte_count.max(4),
+        0,
+        result_register,
+    )?);
     // Result store: x16 <- result region base (adrp/add relocated), then store.
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     // Materialize a large result-field offset (a scalar after a big array) via scratch
-    // x17 (caller-saved; x0 holds the result, x16 the region base). Kept in lockstep
+    // x17 (caller-saved; the planned vector register was copied to x0, x16 holds
+    // the region base). Kept in lockstep
     // with operand_width's store_data_offset_width accounting + the relocation planner.
     append_store_data_to_x_offset(&mut bytes, 0, 16, byte_offset, byte_count, 17)?;
     Ok(bytes)
@@ -209,6 +247,8 @@ pub fn encode_host_call_sequence_value_returning_float_from_operands(
 /// sits AFTER the BL) — MUST stay in lockstep with those sites.
 pub fn encode_host_call_sequence_value_returning_open_create_from_operands(
     operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    argument_registers: &[MachineRegister],
+    result_register: MachineRegister,
 ) -> Result<Vec<u8>, Diagnostic> {
     let all: Vec<Aarch64CallOperand> = operands.collect();
     let Some((result, args)) = all.split_first() else {
@@ -239,20 +279,30 @@ pub fn encode_host_call_sequence_value_returning_open_create_from_operands(
     let mut bytes =
         Vec::with_capacity(host_call_sequence_width_from_operands(all.iter().copied()) + 12);
     // `path` -> x0, `flags` -> x1 (the named register args).
-    append_call_operands(&mut bytes, register_args.iter().copied())?;
+    append_call_operands(
+        &mut bytes,
+        register_args.iter().copied(),
+        argument_registers,
+    )?;
     // `mode` -> [sp,#0]: reserve a 16-byte-aligned slot, materialize into w9, store.
     bytes.extend(encode_instruction(0xD100_43FF)); // sub sp, sp, #16
     append_immediate(&mut bytes, 9, mode)?; // movz w9, #mode (+ movk if wide)
     bytes.extend(encode_instruction(0xB900_03E9)); // str w9, [sp]
     bytes.extend(encode_branch_link_placeholder());
     bytes.extend(encode_instruction(0x9100_43FF)); // add sp, sp, #16
+    let MachineRegister::Aarch64X(result_register) = result_register else {
+        return Err(Diagnostic::error(format!(
+            "AArch64 open_create call plan selected non-GPR result register {result_register:?}"
+        )));
+    };
     // Result store: x16 <- result region base (adrp/add relocated), then store.
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     // Materialize a large result-field offset (a scalar after a big array) via scratch
-    // x17 (caller-saved; x0 holds the result, x16 the region base). Kept in lockstep
+    // x17 (caller-saved; the planned register holds the result, x16 the region base).
+    // Kept in lockstep
     // with operand_width's store_data_offset_width accounting + the relocation planner.
-    append_store_data_to_x_offset(&mut bytes, 0, 16, byte_offset, byte_count, 17)?;
+    append_store_data_to_x_offset(&mut bytes, result_register, 16, byte_offset, byte_count, 17)?;
     Ok(bytes)
 }
 
@@ -494,96 +544,138 @@ mod result_register_tests {
     }
 }
 
+#[cfg(test)]
+mod host_call_plan_register_tests {
+    use super::*;
+
+    #[test]
+    fn import_arguments_use_the_plan_selected_registers() {
+        let bytes = encode_host_call_sequence(
+            &[Aarch64CallOperand::ImmediateInteger(7)],
+            &[MachineRegister::Aarch64X(3)],
+        )
+        .expect("noncanonical AAPCS register should encode");
+
+        assert_eq!(&bytes[0..4], &0xd280_00e3u32.to_le_bytes());
+        assert_eq!(&bytes[4..8], &encode_branch_link_placeholder());
+    }
+
+    #[test]
+    fn import_results_use_the_plan_selected_register() {
+        let bytes = encode_host_call_sequence_value_returning_from_operands(
+            [
+                Aarch64CallOperand::RuntimeScalarInteger {
+                    byte_offset: 0,
+                    byte_count: 8,
+                },
+                Aarch64CallOperand::ImmediateInteger(7),
+            ]
+            .into_iter(),
+            &[MachineRegister::Aarch64X(3)],
+            MachineRegister::Aarch64X(5),
+        )
+        .expect("noncanonical AAPCS result register should encode");
+
+        assert_eq!(&bytes[0..4], &0xd280_00e3u32.to_le_bytes());
+        assert_eq!(
+            &bytes[bytes.len() - 4..],
+            &encode_store_x_to_x(5, 16, 0).expect("store x5")
+        );
+    }
+
+    #[test]
+    fn import_register_bank_mismatches_are_rejected() {
+        let error = encode_host_call_sequence(
+            &[Aarch64CallOperand::ImmediateInteger(7)],
+            &[MachineRegister::Aarch64V(0)],
+        )
+        .expect_err("integer operand in vector register must reject");
+
+        assert!(error.message.contains("non-GPR"));
+    }
+}
+
 fn append_call_operands(
     bytes: &mut Vec<u8>,
     operands: impl Iterator<Item = Aarch64CallOperand>,
+    argument_registers: &[MachineRegister],
 ) -> Result<(), Diagnostic> {
-    let mut next_register = 0u8;
-    // arm64 passes float/double args in the SEPARATE v0.. vector-register sequence.
-    let mut next_vreg = 0u8;
+    let operands = operands.collect::<Vec<_>>();
+    if operands.len() != argument_registers.len() {
+        return Err(Diagnostic::error(format!(
+            "AArch64 call plan supplied {} argument registers for {} operands",
+            argument_registers.len(),
+            operands.len()
+        )));
+    }
 
-    for operand in operands {
+    for (operand, planned_register) in operands.into_iter().zip(argument_registers.iter().copied())
+    {
         match &operand {
             ImmediateInteger(value) => {
-                append_immediate(bytes, next_register, *value)?;
-                next_register += 1;
+                append_immediate(bytes, integer_argument_register(planned_register)?, *value)?;
             }
             DataAddress { .. } => {
-                bytes.extend(encode_adrp_placeholder(next_register));
-                bytes.extend(encode_add_page_offset_placeholder(next_register));
-                next_register += 1;
+                let register = integer_argument_register(planned_register)?;
+                bytes.extend(encode_adrp_placeholder(register));
+                bytes.extend(encode_add_page_offset_placeholder(register));
             }
             RuntimeStringPointer {
                 byte_offset,
                 is_bounded_buffer,
             } => {
-                bytes.extend(encode_adrp_placeholder(next_register));
-                bytes.extend(encode_add_page_offset_placeholder(next_register));
+                let register = integer_argument_register(planned_register)?;
+                bytes.extend(encode_adrp_placeholder(register));
+                bytes.extend(encode_add_page_offset_placeholder(register));
                 if *is_bounded_buffer {
                     // Owned carrier: the content pointer is the COMPUTED
                     // inline-bytes address `base + offset + 8`, not a stored
                     // descriptor pointer. Same width as the load (12 total).
-                    bytes.extend(encode_add_x_immediate(
-                        next_register,
-                        next_register,
-                        byte_offset + 8,
-                    )?);
+                    bytes.extend(encode_add_x_immediate(register, register, byte_offset + 8)?);
                 } else {
-                    bytes.extend(encode_load_x_from_x(
-                        next_register,
-                        next_register,
-                        *byte_offset,
-                    )?);
+                    bytes.extend(encode_load_x_from_x(register, register, *byte_offset)?);
                 }
-                next_register += 1;
             }
             RuntimeStringLength {
                 byte_offset,
                 is_bounded_buffer,
             } => {
-                bytes.extend(encode_adrp_placeholder(next_register));
-                bytes.extend(encode_add_page_offset_placeholder(next_register));
+                let register = integer_argument_register(planned_register)?;
+                bytes.extend(encode_adrp_placeholder(register));
+                bytes.extend(encode_add_page_offset_placeholder(register));
                 // Carrier length lives at offset 0 (the leading len word);
                 // a descriptor's len word sits at +8 behind the pointer.
                 bytes.extend(encode_load_x_from_x(
-                    next_register,
-                    next_register,
+                    register,
+                    register,
                     if *is_bounded_buffer {
                         *byte_offset
                     } else {
                         byte_offset + 8
                     },
                 )?);
-                next_register += 1;
             }
             RuntimePointeeStringPointer { byte_offset } => {
-                bytes.extend(encode_adrp_placeholder(next_register));
-                bytes.extend(encode_add_page_offset_placeholder(next_register));
-                bytes.extend(encode_load_x_from_x(
-                    next_register,
-                    next_register,
-                    *byte_offset,
-                )?);
-                bytes.extend(encode_load_x_from_x(next_register, next_register, 0)?);
-                next_register += 1;
+                let register = integer_argument_register(planned_register)?;
+                bytes.extend(encode_adrp_placeholder(register));
+                bytes.extend(encode_add_page_offset_placeholder(register));
+                bytes.extend(encode_load_x_from_x(register, register, *byte_offset)?);
+                bytes.extend(encode_load_x_from_x(register, register, 0)?);
             }
             RuntimePointeeStringLength { byte_offset } => {
-                bytes.extend(encode_adrp_placeholder(next_register));
-                bytes.extend(encode_add_page_offset_placeholder(next_register));
-                bytes.extend(encode_load_x_from_x(
-                    next_register,
-                    next_register,
-                    *byte_offset,
-                )?);
-                bytes.extend(encode_load_x_from_x(next_register, next_register, 8)?);
-                next_register += 1;
+                let register = integer_argument_register(planned_register)?;
+                bytes.extend(encode_adrp_placeholder(register));
+                bytes.extend(encode_add_page_offset_placeholder(register));
+                bytes.extend(encode_load_x_from_x(register, register, *byte_offset)?);
+                bytes.extend(encode_load_x_from_x(register, register, 8)?);
             }
             RuntimeScalarInteger {
                 byte_offset,
                 byte_count,
             } => {
-                bytes.extend(encode_adrp_placeholder(next_register));
-                bytes.extend(encode_add_page_offset_placeholder(next_register));
+                let register = integer_argument_register(planned_register)?;
+                bytes.extend(encode_adrp_placeholder(register));
+                bytes.extend(encode_add_page_offset_placeholder(register));
                 // Load the scalar at its OWN width (LDR x for 8-byte, LDR w for <=4),
                 // materializing a large field offset (a scalar declared after a big
                 // array, offset > the LDR scaled-immediate range) via scratch x9 — x9
@@ -593,18 +685,18 @@ fn append_call_operands(
                 // self-check and the relocation planner.
                 append_load_data_from_x_offset(
                     bytes,
-                    next_register,
-                    next_register,
+                    register,
+                    register,
                     *byte_offset,
                     *byte_count,
                     9,
                 )?;
-                next_register += 1;
             }
             RuntimeScalarFloat {
                 byte_offset,
                 byte_count,
             } => {
+                let register = float_argument_register(planned_register)?;
                 // A float/double arg goes in the VECTOR-register sequence (v0..),
                 // independent of the x-register (integer) sequence. Load the bits
                 // into a scratch GPR (x16/IP0, caller-saved), then `fmov` them into
@@ -618,26 +710,46 @@ fn append_call_operands(
                 } else {
                     bytes.extend(encode_load_w_from_x(16, 16, *byte_offset, *byte_count)?);
                 }
-                bytes.extend(encode_float_move_from_gpr(*byte_count, next_vreg, 16)?);
-                next_vreg += 1;
+                bytes.extend(encode_float_move_from_gpr(*byte_count, register, 16)?);
             }
             RuntimeStorageAddress { byte_offset } => {
+                let register = integer_argument_register(planned_register)?;
                 // The place's ADDRESS: adrp/add to the region base (relocated), then add
                 // the field offset. No load — the pointer is the arg. `append_add_x_constant`
                 // materializes a large offset (a field after a big array, offset > 4095)
                 // via scratch x9 (not an arg register); `add_constant_width` tracks it in
                 // lockstep for the width self-check + the relocation planner.
-                bytes.extend(encode_adrp_placeholder(next_register));
-                bytes.extend(encode_add_page_offset_placeholder(next_register));
-                append_add_x_constant(bytes, next_register, next_register, *byte_offset, 9)?;
-                next_register += 1;
+                bytes.extend(encode_adrp_placeholder(register));
+                bytes.extend(encode_add_page_offset_placeholder(register));
+                append_add_x_constant(bytes, register, register, *byte_offset, 9)?;
             }
             ByteLength(value) => {
-                append_unsigned_immediate(bytes, next_register, *value as u64);
-                next_register += 1;
+                append_unsigned_immediate(
+                    bytes,
+                    integer_argument_register(planned_register)?,
+                    *value as u64,
+                );
             }
         }
     }
 
     Ok(())
+}
+
+fn integer_argument_register(register: MachineRegister) -> Result<u8, Diagnostic> {
+    let MachineRegister::Aarch64X(register) = register else {
+        return Err(Diagnostic::error(format!(
+            "AArch64 call plan selected non-GPR register {register:?} for an integer argument"
+        )));
+    };
+    Ok(register)
+}
+
+fn float_argument_register(register: MachineRegister) -> Result<u8, Diagnostic> {
+    let MachineRegister::Aarch64V(register) = register else {
+        return Err(Diagnostic::error(format!(
+            "AArch64 call plan selected non-vector register {register:?} for a float argument"
+        )));
+    };
+    Ok(register)
 }
