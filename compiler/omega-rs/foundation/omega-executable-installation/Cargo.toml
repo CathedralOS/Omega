@@ -10,3 +10,4 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-extents = { path = "../omega-extents" }
+omega-layout-plans = { path = "../omega-layout-plans" }

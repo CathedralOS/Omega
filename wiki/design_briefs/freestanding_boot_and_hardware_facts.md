@@ -176,6 +176,10 @@ transition returns its authority inputs. The native container, real PCC and
 final-code validators, target materializer/installer operations, Omega
 linearity, and live replacement remain implementation work.
 
+Extent-backed placement claims are also connected to the normalized placement
+plan: actual destination base/length must satisfy its range, alignment, phase,
+machine-regime, and installation-scope constraints before materialization.
+
 Normalized retirement also enforces the opposite lifecycle edge: exact scoped
 authority and a provider receipt must prove executors quiesced, X removed,
 write authority restored, and target completion facts before the placement can
