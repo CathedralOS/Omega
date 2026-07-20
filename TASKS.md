@@ -726,9 +726,11 @@ remain contract-invisible.
   reject); mixed field/const facts remain standing default-domain facts with
   their const operands specialized. Const-parameter membership in an integer
   domain defined by boolean `self` facts and/or an evaluable boolean `when`
-  classifier also discharges per instance; false membership rejects. Continue
-  with signed/domain arithmetic semantics, machine-call classifiers, and
-  richer build-time proof operands.
+  classifier also discharges per instance; false membership rejects. Direct
+  effect-free `machine(self)` classifiers now evaluate after typing with
+  inferred transitive-effect checks; true results ungate the concrete record,
+  while false or effectful classifiers reject. Continue with signed/domain
+  arithmetic semantics and richer build-time proof operands.
 - **Trait defaults (authored bodies complete).** Standalone data conformances synthesize a
   missing attached machine from the trait's authored body before resolution,
   including defaults inherited through `requires` and header parents. Ordinary

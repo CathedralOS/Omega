@@ -62,6 +62,7 @@ pub fn compile_to_checked(
     // COMPTIME STAGE 1: substitute const-evaluated fixed-array lengths before
     // checking, exactly as the full `compile` pipeline does.
     crate::pipeline::const_lengths::evaluate_const_array_lengths(&mut typed)?;
+    crate::pipeline::const_domain_classifiers::evaluate_const_domain_classifiers(&mut typed)?;
     // PLAN-LAID VALUE TYPES, plan half: evaluate + validate + record.
     crate::pipeline::plan_laid::compute_plan_laid_layouts(&mut typed, &plan_laid_records)?;
     // WIRE PLANS (mint arc rung 2a): mirror the full pipeline so tests see
