@@ -141,7 +141,7 @@ pub(crate) fn collect_contained_receiver_blockers(
             let mut minted_any = false;
             let mut all_composed = true;
             for (handle, state) in input.runtime_flow.states.iter() {
-                let Some((call_key, statement_index, _)) = input
+                let Some((call_key, statement_index, call_ordinal, _)) = input
                     .runtime_flow
                     .context_call_sites
                     .get(state.context.0 as usize)
@@ -150,6 +150,7 @@ pub(crate) fn collect_contained_receiver_blockers(
                 };
                 if *call_key != state_call.source_key
                     || *statement_index != state_call.statement_index
+                    || *call_ordinal != state_call.call_ordinal
                 {
                     continue;
                 }

@@ -21,6 +21,7 @@ use omega_checked_trees::types::PrimitiveType;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_runtime_dispatch_loop::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
+use omega_state_graph::CallResultReturn;
 use omega_state_guards::{StateGuardOperandStorage, lower_guard_conjunction};
 use omega_state_values::simplify_state_expression;
 
@@ -651,6 +652,50 @@ fn simplified_static_terminal_value(
 /// (`source_dispatch_index`) but shares the frame, so the slot offset resolved
 /// across dispatch indices is valid here. Handles a static literal terminal
 /// (`-> 99`) and a runtime place terminal (`-> acc`, resolved in the callee).
+fn runtime_dispatch_call_result_slot<'a>(
+    input: &'a InstructionSelectionInput<'_>,
+    edge: &RuntimeDispatchLoopEdge,
+    call_result: CallResultReturn,
+) -> Option<&'a omega_runtime_storage::RuntimeFrameSlot> {
+    input
+        .runtime_storage
+        .state_call_result_slot_for_dispatch_by_ordinal(
+            edge.target_dispatch_index,
+            call_result.call_source_key,
+            call_result.statement_index,
+            call_result.call_ordinal,
+        )
+        .or_else(|| {
+            input
+                .runtime_storage
+                .state_call_result_slot_any_role_by_ordinal(
+                    call_result.call_source_key,
+                    call_result.statement_index,
+                    call_result.call_ordinal,
+                )
+        })
+        .or_else(|| {
+            // A bare `let value = self.call()` may use the local's ordinary
+            // LocalStorage slot directly instead of allocating a tagged
+            // StateCallResult slot. That legacy fallback is safe only when
+            // this statement contains one value call: with siblings, the
+            // ordinal-specific scratch slots above must remain distinct.
+            let mut value_calls = input
+                .state_calls
+                .calls_for_statement(call_result.call_source_key, call_result.statement_index)
+                .filter(|call| call.role != omega_state_calls::StateCallRole::Statement);
+            let only_call = value_calls.next()?;
+            (only_call.call_ordinal == call_result.call_ordinal && value_calls.next().is_none())
+                .then(|| {
+                    input.runtime_storage.state_call_result_slot_any_role(
+                        call_result.call_source_key,
+                        call_result.statement_index,
+                    )
+                })
+                .flatten()
+        })
+}
+
 fn select_runtime_dispatch_call_result_return(
     input: &InstructionSelectionInput<'_>,
     edge: &RuntimeDispatchLoopEdge,
@@ -672,19 +717,7 @@ fn select_runtime_dispatch_call_result_return(
     // a frame-place target under the callee's dispatch context would resolve
     // against the wrong frame, and the frame case is the slot path's job.
     if std::env::var_os("OMEGA_DEBUG_CALL_RESULT").is_some() {
-        let found = input
-            .runtime_storage
-            .state_call_result_slot_for_dispatch(
-                edge.target_dispatch_index,
-                call_result.call_source_key,
-                call_result.statement_index,
-            )
-            .or_else(|| {
-                input.runtime_storage.state_call_result_slot_any_role(
-                    call_result.call_source_key,
-                    call_result.statement_index,
-                )
-            });
+        let found = runtime_dispatch_call_result_slot(input, edge, call_result);
         eprintln!(
             "call-result WRITE (return-target dispatch {}): caller m{} s{} stmt {} -> slot {:?}",
             edge.target_dispatch_index,
@@ -699,38 +732,23 @@ fn select_runtime_dispatch_call_result_return(
             )),
         );
     }
-    let (target_region, target_offset, byte_size) = if let Some(slot) = input
-        .runtime_storage
-        .state_call_result_slot_for_dispatch(
-            // The return edge ENTERS the caller's next segment: that segment's
-            // dispatch case is the edge TARGET (continuation is None on a
-            // clone-terminal return edge), and it is the context the caller's
-            // argument materialization reads the slot under.
+    let (target_region, target_offset, byte_size) =
+        if let Some(slot) = runtime_dispatch_call_result_slot(input, edge, call_result) {
+            (
+                RuntimeStorageRegion::RuntimeFrame,
+                slot.byte_offset,
+                slot.byte_size,
+            )
+        } else if let Some(place) = assignment_target_machine_place(
+            input,
             edge.target_dispatch_index,
             call_result.call_source_key,
             call_result.statement_index,
-        )
-        .or_else(|| {
-            input.runtime_storage.state_call_result_slot_any_role(
-                call_result.call_source_key,
-                call_result.statement_index,
-            )
-        }) {
-        (
-            RuntimeStorageRegion::RuntimeFrame,
-            slot.byte_offset,
-            slot.byte_size,
-        )
-    } else if let Some(place) = assignment_target_machine_place(
-        input,
-        edge.target_dispatch_index,
-        call_result.call_source_key,
-        call_result.statement_index,
-    ) {
-        (place.region, place.byte_offset, place.byte_count)
-    } else {
-        return;
-    };
+        ) {
+            (place.region, place.byte_offset, place.byte_count)
+        } else {
+            return;
+        };
     if byte_size == 0 {
         return;
     }

@@ -896,6 +896,7 @@ fn dispatch_state_call_edges(
             .then_some(RuntimeStateCallEdge {
                 source_key: state_call.source_key,
                 statement_index: state_call.statement_index,
+                call_ordinal: state_call.call_ordinal,
                 target_key: state_call.target_key,
                 is_value: state_call.role != StateCallRole::Statement,
             })
@@ -1058,15 +1059,15 @@ fn compute_receiver_bases(
         *root = Some(0); // ROOT: the entry machine's own region.
     }
     for index in 1..sites.len() {
-        let (call_key, statement_index, parent) = sites[index];
+        let (call_key, statement_index, call_ordinal, parent) = sites[index];
         let Some(parent_base) = context_bases.get(parent.0 as usize).copied().flatten() else {
             continue;
         };
-        let Some(state_call) =
-            state_calls.calls.iter().map(|(_, call)| call).find(|call| {
-                call.source_key == call_key && call.statement_index == statement_index
-            })
-        else {
+        let Some(state_call) = state_calls.calls.iter().map(|(_, call)| call).find(|call| {
+            call.source_key == call_key
+                && call.statement_index == statement_index
+                && call.call_ordinal == call_ordinal
+        }) else {
             continue;
         };
         let receiver_name = state_call.receiver_name.as_str();
@@ -1132,9 +1133,10 @@ fn compute_receiver_bases(
     if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
         for index in 1..sites.len() {
             if context_bases[index].is_none() {
-                let (call_key, statement_index, parent) = sites[index];
+                let (call_key, statement_index, call_ordinal, parent) = sites[index];
                 eprintln!(
                     "CTXBASE: ctx {index} UNRESOLVED site m{} s{} seg{} stmt {statement_index} \
+                     call {call_ordinal} \
                      parent {}",
                     call_key.machine.arena_index(),
                     call_key.state.arena_index(),

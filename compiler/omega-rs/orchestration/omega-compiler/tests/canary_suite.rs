@@ -25308,6 +25308,34 @@ fn runtime_dispatch_second_receiver_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn runtime_dispatch_sibling_value_calls_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_dispatch_sibling_value_calls_exit");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-dispatch-sibling-value-calls-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("sibling dispatched value calls should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("sibling dispatched value calls should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected both dispatched calls to retain receiver/result identity (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // RECEIVER SLICE 2: the second-receiver dispatch shape with a NON-ENTRY
 // caller (Holder under Main). The per-dispatch base composes through the
 // parent-context chain (Main->holder@0, +second@4); also pins the

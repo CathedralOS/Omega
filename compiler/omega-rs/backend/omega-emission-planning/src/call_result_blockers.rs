@@ -47,21 +47,44 @@ pub(crate) fn collect_call_result_return_blockers(
             //       a let-bound caller's delivery must hit the frame slot,
             //       so an arm's unrelated machine effect cannot false-serve
             //       a dropped result.
-            let slot_ranges: Vec<(bool, usize, usize)> = [
-                input.runtime_storage.state_call_result_slot_for_dispatch(
-                    edge.target_dispatch_index,
+            let mut slots = vec![
+                input
+                    .runtime_storage
+                    .state_call_result_slot_for_dispatch_by_ordinal(
+                        edge.target_dispatch_index,
+                        call_result.call_source_key,
+                        call_result.statement_index,
+                        call_result.call_ordinal,
+                    ),
+                input
+                    .runtime_storage
+                    .state_call_result_slot_any_role_by_ordinal(
+                        call_result.call_source_key,
+                        call_result.statement_index,
+                        call_result.call_ordinal,
+                    ),
+            ];
+            let mut value_calls = input
+                .state_calls
+                .calls_for_statement(call_result.call_source_key, call_result.statement_index)
+                .filter(|call| call.role != omega_state_calls::StateCallRole::Statement);
+            let only_call = value_calls.next();
+            if only_call.is_some_and(|call| {
+                call.call_ordinal == call_result.call_ordinal && value_calls.next().is_none()
+            }) {
+                // Bare single-call local initializers can deliver straight to
+                // LocalStorage. Never apply this ordinal-less fallback to a
+                // sibling-call statement: each result must serve its own slot.
+                slots.push(input.runtime_storage.state_call_result_slot_any_role(
                     call_result.call_source_key,
                     call_result.statement_index,
-                ),
-                input.runtime_storage.state_call_result_slot_any_role(
-                    call_result.call_source_key,
-                    call_result.statement_index,
-                ),
-            ]
-            .into_iter()
-            .flatten()
-            .map(|slot| (true, slot.byte_offset, slot.byte_offset + slot.byte_size))
-            .collect();
+                ));
+            }
+            let slot_ranges: Vec<(bool, usize, usize)> = slots
+                .into_iter()
+                .flatten()
+                .map(|slot| (true, slot.byte_offset, slot.byte_offset + slot.byte_size))
+                .collect();
             let caller_binds_field = caller_statement_assigns_member(
                 input,
                 call_result.call_source_key,
