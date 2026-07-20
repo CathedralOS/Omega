@@ -194,8 +194,14 @@ ceiling derived exactly from the ABI volatile-register classes.
    alignment, clobber-ceiling, and fixup paths. A source-level Linux x64
    probe reaches that lowering and stops only at the existing ELF direct-image
    dynamic-binding gap. End-to-end import image/run acceptance is therefore
-   platform-blocked until ELF dynamic imports exist; SysV vector/mixed-class and
-   large/indirect aggregates plus indirect field calls remain to migrate.
+   platform-blocked until ELF dynamic imports exist. Ordinary SysV AMD64
+   `VtableSlot`/`VtableField` and dispatch-only `TableFunction` calls now reuse
+   the normalized integer/float/small-record marshaller and result spills; the
+   receiver is required in planned `rdi`, service-table pointers stay outside
+   the wire signature, and width plus data-relocation walkers consume the same
+   layout. A freestanding source-to-ELF canary pins layout-resolved vtable
+   dispatch. SysV vector/mixed-class and large/indirect aggregates remain to
+   migrate.
    Ordinary AArch64 `VtableSlot` and `VtableField` calls now evaluate AAPCS64
    from their selected operands, require the full-width receiver in planned
    `x0`, marshal every argument/stack slot through the shared plan consumer,

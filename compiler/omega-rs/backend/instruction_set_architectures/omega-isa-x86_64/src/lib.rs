@@ -2079,12 +2079,216 @@ struct SysvImportLayout {
     relocation_sites: Vec<X86_64RelocationSite>,
 }
 
-/// The first normalized SysV AMD64 import slice. Provides-authored integer
-/// calls may carry four/eight-byte integer/float scalar or pointer operands and
-/// pure-INTEGER records of at most two eightbytes whose fragments are
-/// four/eight bytes. The evaluated plan owns register allocation, whole-value
-/// stack rollback, and `rax`/`rdx` results; this encoder only realizes those
-/// locations. Float, mixed-class, and indirect aggregate cases stay closed.
+/// Encode a SysV AMD64 indirect call through a function pointer field on the
+/// receiver. The receiver is the first wire argument and therefore must be
+/// placed in `rdi` by the normalized plan.
+pub fn encode_sysv_vtable_call<T: InstructionOperandLike>(
+    operands: &[T],
+    byte_offset: i64,
+    result_present: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    Ok(sysv_field_call_layout(operands, byte_offset, result_present, true)?.bytes)
+}
+
+pub fn sysv_vtable_call_width<T: InstructionOperandLike>(
+    operands: &[T],
+    byte_offset: i64,
+    result_present: bool,
+) -> usize {
+    sysv_field_call_layout(operands, byte_offset, result_present, true)
+        .map(|layout| layout.bytes.len())
+        .unwrap_or(0)
+}
+
+pub fn sysv_vtable_call_data_relocation_byte_offset<T: InstructionOperandLike>(
+    operands: &[T],
+    byte_offset: i64,
+    result_present: bool,
+    operand_index: usize,
+) -> usize {
+    sysv_field_call_layout(operands, byte_offset, result_present, true)
+        .ok()
+        .and_then(|layout| {
+            layout
+                .relocation_sites
+                .into_iter()
+                .find(|site| site.operand_index == Some(operand_index))
+        })
+        .map(|site| site.byte_offset)
+        .unwrap_or(0)
+}
+
+/// Encode a SysV AMD64 service-table call. The table operand is used only to
+/// find the callee; it is deliberately excluded from the wire signature.
+pub fn encode_sysv_table_function_call<T: InstructionOperandLike>(
+    operands: &[T],
+    byte_offset: i64,
+    result_present: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    Ok(sysv_field_call_layout(operands, byte_offset, result_present, false)?.bytes)
+}
+
+pub fn sysv_table_function_call_width<T: InstructionOperandLike>(
+    operands: &[T],
+    byte_offset: i64,
+    result_present: bool,
+) -> usize {
+    sysv_field_call_layout(operands, byte_offset, result_present, false)
+        .map(|layout| layout.bytes.len())
+        .unwrap_or(0)
+}
+
+pub fn sysv_table_function_call_data_relocation_byte_offset<T: InstructionOperandLike>(
+    operands: &[T],
+    byte_offset: i64,
+    result_present: bool,
+    operand_index: usize,
+) -> usize {
+    sysv_field_call_layout(operands, byte_offset, result_present, false)
+        .ok()
+        .and_then(|layout| {
+            layout
+                .relocation_sites
+                .into_iter()
+                .find(|site| site.operand_index == Some(operand_index))
+        })
+        .map(|site| site.byte_offset)
+        .unwrap_or(0)
+}
+
+fn sysv_field_call_layout<T: InstructionOperandLike>(
+    operands: &[T],
+    byte_offset: i64,
+    result_present: bool,
+    passes_receiver: bool,
+) -> Result<SysvImportLayout, Diagnostic> {
+    let result_index = result_present.then_some(0);
+    let dispatch_index = usize::from(result_present);
+    let argument_start = if passes_receiver {
+        dispatch_index
+    } else {
+        dispatch_index + 1
+    };
+    if operands.len() <= dispatch_index {
+        return Err(Diagnostic::error(if passes_receiver {
+            "cannot encode SysV AMD64 vtable call without its receiver"
+        } else {
+            "cannot encode SysV AMD64 table-function call without its dispatch table"
+        }));
+    }
+    if !passes_receiver
+        && !matches!(
+            operands[dispatch_index].runtime_scalar_integer(),
+            Some((_, _, 8))
+        )
+    {
+        return Err(Diagnostic::error(
+            "SysV AMD64 table-function dispatch table must be an eight-byte runtime scalar",
+        ));
+    }
+
+    let signature = CallSignature {
+        parameters: operands[argument_start..]
+            .iter()
+            .map(sysv_operand_shape)
+            .collect::<Result<Vec<_>, _>>()?,
+        result: result_index
+            .map(|index| sysv_operand_shape(&operands[index]))
+            .transpose()?,
+    };
+    let plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature).map_err(|error| {
+        Diagnostic::error(format!(
+            "cannot evaluate SysV AMD64 field-call plan: {error}"
+        ))
+    })?;
+    validate_sysv_import_plan(&plan)?;
+
+    if passes_receiver
+        && !matches!(
+            plan.parameters
+                .first()
+                .map(|placement| placement.locations.as_slice()),
+            Some([ValueLocation::Register {
+                register: MachineRegister::X86Rdi,
+                value_byte_offset: 0,
+                byte_size: 8,
+            }])
+        )
+    {
+        return Err(Diagnostic::error(
+            "SysV AMD64 vtable call requires one full-width receiver in rdi",
+        ));
+    }
+
+    let stack_bytes = plan
+        .parameters
+        .iter()
+        .flat_map(|placement| placement.locations.iter())
+        .filter_map(|location| match location {
+            ValueLocation::Stack {
+                stack_byte_offset,
+                byte_size,
+                ..
+            } => Some(usize::try_from(*stack_byte_offset).ok()? + usize::from(*byte_size)),
+            _ => None,
+        })
+        .max()
+        .unwrap_or(0);
+    let reserve = sysv_import_reserve(stack_bytes);
+    let mut bytes = Vec::new();
+    let mut relocation_sites = Vec::new();
+    append_sub_rsp(&mut bytes, reserve);
+    for (parameter_index, placement) in plan.parameters.iter().enumerate() {
+        let operand_index = argument_start + parameter_index;
+        append_sysv_parameter(
+            &mut bytes,
+            &mut relocation_sites,
+            &operands[operand_index],
+            operand_index,
+            placement,
+        )?;
+    }
+
+    let field_disp = i32::try_from(byte_offset)
+        .map_err(|_| Diagnostic::error("indirect field offset exceeds an imm32"))?;
+    if passes_receiver {
+        bytes.extend([0x48, 0x8b, 0x87]); // mov rax, [rdi + disp32]
+        bytes.extend(field_disp.to_le_bytes());
+    } else {
+        let (_, table_slot_offset, _) = operands[dispatch_index]
+            .runtime_scalar_integer()
+            .expect("validated table operand");
+        append_sysv_runtime_base(&mut bytes, &mut relocation_sites, dispatch_index);
+        bytes.extend([0x49, 0x8b, 0x83]); // mov rax, [r11 + disp32]
+        bytes.extend(disp32(table_slot_offset)?.to_le_bytes());
+        bytes.extend([0x48, 0x8b, 0x80]); // mov rax, [rax + disp32]
+        bytes.extend(field_disp.to_le_bytes());
+    }
+    append_call_register(&mut bytes, 0);
+    append_add_rsp(&mut bytes, reserve);
+
+    if let Some(result_index) = result_index {
+        append_sysv_result(
+            &mut bytes,
+            &mut relocation_sites,
+            &operands[result_index],
+            plan.result.as_ref().ok_or_else(|| {
+                Diagnostic::error("SysV AMD64 field-call plan omitted its required result")
+            })?,
+        )?;
+    }
+    Ok(SysvImportLayout {
+        bytes,
+        relocation_sites,
+    })
+}
+
+/// The normalized SysV AMD64 import slice. Provides-authored calls may carry
+/// four/eight-byte integer or float scalars, pointers, and pure-INTEGER records
+/// of at most two eightbytes whose fragments are four/eight bytes. The
+/// evaluated plan owns the independent GPR/XMM banks, whole-value stack
+/// rollback, and `rax`/`rdx`/`xmm0` results; this encoder only realizes those
+/// locations. Vector/mixed-class and indirect aggregate cases stay closed.
 fn encode_sysv_import_call<T: InstructionOperandLike>(
     operands: &[T],
     returns_value: bool,
@@ -3186,6 +3390,130 @@ mod x86_import_plan_tests {
                 .windows(7)
                 .any(|window| window == [0x4d, 0x8b, 0x8b, 96, 0, 0, 0]),
             "the trailing scalar must retain the rolled-back r9 register"
+        );
+    }
+
+    #[test]
+    fn sysv_vtable_field_marshals_wire_arguments_and_small_result() {
+        let operands = [
+            operand(TargetInstructionOperandKind::RuntimeSmallAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 16,
+                alignment: 8,
+            }),
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 32,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 40,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::RuntimeSmallAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 48,
+                byte_count: 16,
+                alignment: 8,
+            }),
+        ];
+        let layout =
+            sysv_field_call_layout(&operands, 24, true, true).expect("SysV vtable field call");
+
+        assert!(
+            layout
+                .bytes
+                .windows(7)
+                .any(|window| window == [0x49, 0x8b, 0xbb, 32, 0, 0, 0]),
+            "receiver must load into planned rdi"
+        );
+        assert!(
+            layout
+                .bytes
+                .windows(9)
+                .any(|window| window == [0x48, 0x8b, 0x87, 24, 0, 0, 0, 0xff, 0xd0]),
+            "dispatch must read the field from the receiver and call rax"
+        );
+        assert!(
+            layout.bytes.windows(14).any(
+                |window| window == [0x49, 0x89, 0x83, 0, 0, 0, 0, 0x49, 0x89, 0x93, 8, 0, 0, 0]
+            ),
+            "small result must spill from planned rax/rdx fragments"
+        );
+        assert_eq!(
+            layout
+                .relocation_sites
+                .iter()
+                .map(|site| site.operand_index)
+                .collect::<Vec<_>>(),
+            [Some(1), Some(2), Some(3), Some(0)]
+        );
+    }
+
+    #[test]
+    fn sysv_table_function_excludes_dispatch_table_from_wire_signature() {
+        let operands = [
+            operand(TargetInstructionOperandKind::RuntimeScalarFloat {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 8,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::RuntimeScalarFloat {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 16,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 24,
+                byte_count: 8,
+            }),
+        ];
+        let layout =
+            sysv_field_call_layout(&operands, 40, true, false).expect("SysV table-function call");
+
+        assert!(
+            layout
+                .bytes
+                .windows(9)
+                .any(|window| window == [0xf2, 0x41, 0x0f, 0x10, 0x83, 16, 0, 0, 0]),
+            "first wire float must use xmm0"
+        );
+        assert!(
+            layout
+                .bytes
+                .windows(7)
+                .any(|window| window == [0x49, 0x8b, 0xbb, 24, 0, 0, 0]),
+            "first wire integer must use rdi, proving the table consumed no slot"
+        );
+        assert!(
+            layout.bytes.windows(16).any(|window| window
+                == [
+                    0x49, 0x8b, 0x83, 8, 0, 0, 0, 0x48, 0x8b, 0x80, 40, 0, 0, 0, 0xff, 0xd0,
+                ]),
+            "dispatch must load the table slot, then the function field"
+        );
+        assert!(
+            layout
+                .bytes
+                .windows(9)
+                .any(|window| window == [0xf2, 0x41, 0x0f, 0x11, 0x83, 0, 0, 0, 0]),
+            "float result must spill from xmm0"
+        );
+        assert_eq!(
+            layout
+                .relocation_sites
+                .iter()
+                .map(|site| site.operand_index)
+                .collect::<Vec<_>>(),
+            [Some(2), Some(3), Some(1), Some(0)]
         );
     }
 
