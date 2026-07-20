@@ -333,6 +333,10 @@ reconstructed by user arithmetic.
 Each target also declares its consumption phase. A field the loader consumes
 before the first Omega instruction must fit the object format's native
 relocation vocabulary. Post-handoff structures may use the generated writer.
+The normalized writer program is now derived from the same actions: it
+validates the concrete placement, resolves each sealed target once through the
+provider, stages every fragment, and publishes only after the entire write can
+succeed. Target-machine emission of that program remains engineering work.
 Placement plans may constrain range, alignment, phase, machine regime, and
 scoped artifact-installation authority. The normalized materialization
 foundation now carries those five facts: policy alignment is joined with the
