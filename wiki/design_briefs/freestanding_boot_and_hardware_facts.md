@@ -167,6 +167,15 @@ linear `InstalledCode` claim. The provider owns final validation, W^X
 transition, target-specific cache maintenance, ordering, and instruction-fetch
 synchronization. Callers never reproduce an architecture maintenance sequence.
 
+The compiler foundation now has an executable form of that state machine in
+`omega-executable-installation`: reusable exact-evidence admission; one-shot
+Extent-backed placement; frozen materialization; artifact/placement/final-byte/
+footprint-bound validation; scoped installation authority; synchronous
+visibility; and explicit W^X enforcement reporting. Every failed consuming
+transition returns its authority inputs. The native container, real PCC and
+final-code validators, target materializer/installer operations, Omega
+linearity, and live replacement remain implementation work.
+
 AP trampoline installation consumes a compiler-produced admitted artifact and
 is followed by a target boot protocol; it is not runtime code generation. A
 dormant/local target needs local completion, while a future remote fetcher needs
