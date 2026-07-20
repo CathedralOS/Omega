@@ -440,6 +440,8 @@ slot owner may override by type. The migration order remains load-bearing.
    and empty-line cases run differentially; the checked-tree canary pins both
    calls to their adapters, and the lossless built-in plan oracle remains green.
    More than 1,300 exact duplicate Console declarations now import that package.
+   The compiler's dungeon lattice snapshot now shares the same standard import
+   as the runnable sample instead of retaining a second String-based boundary.
    The remaining local declarations are intentionally different carrier,
    effect, or proof fixtures; migrate those with their owning surfaces, then
    remove the composite compatibility rows under PRV4f.

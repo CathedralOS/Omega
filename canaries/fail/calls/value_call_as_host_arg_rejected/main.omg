@@ -5,12 +5,11 @@
 // a field/local first, then pass the place: `self.r = self.dbl(35);
 // self.console.exit_process(self.r)` (verified to exit 70).
 //
-// This is a #40 boundary guard: a SIBLING value-call position -- a scalar/bool value-call in a
-// guard subject -- DOES slip past its blocker and silently always takes the true arm (see
-// memory value-call-in-guard-always-true). So locking the value-call positions that ARE
-// cleanly rejected guards against any regressing into that silent-miscompile failure mode: if
-// a value-call as a direct host arg ever compiles, this test fails. Remove/repurpose when
-// nested value-call host arguments are supported.
+// This is a #40 boundary guard. Sibling scalar/bool value-call guard subjects are now sequenced
+// and pinned separately, so locking this remaining unsupported position prevents it from
+// regressing into a silent miscompile: if a value call as a direct host arg ever compiles, this
+// test fails. Remove or repurpose it when boundary-call argument planning collects nested
+// authored calls.
 use omega::language::std::console;
 
 data Main {
