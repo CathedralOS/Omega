@@ -1,0 +1,8 @@
+// A two-member AAPCS64 HFA result returns from runtime storage in d0/d1.
+data FloatPair { first: f64; second: f64; }
+data Main { output: FloatPair; }
+boundary machine Main::run(&self) -> FloatPair {
+    transition { _ -> (self.output) }
+}
+target linux_arm64 {
+}

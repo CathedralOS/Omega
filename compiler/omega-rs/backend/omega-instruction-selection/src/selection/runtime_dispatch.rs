@@ -1423,7 +1423,8 @@ pub(super) fn normalized_entry_record_result_placement(
 fn normalized_entry_record_result_shape(
     input: &InstructionSelectionInput<'_>,
 ) -> Option<ValueShape> {
-    if CallingPolicy::native_for_target(input.target) != CallingPolicy::SystemVAMD64 {
+    let policy = CallingPolicy::native_for_target(input.target);
+    if !matches!(policy, CallingPolicy::Aapcs64 | CallingPolicy::SystemVAMD64) {
         return None;
     }
     let machine = input
@@ -1448,6 +1449,14 @@ fn normalized_entry_record_result_shape(
     };
     let byte_size = u16::try_from(data_layout.layout.size).ok()?;
     let alignment = u16::try_from(data_layout.layout.alignment).ok()?;
+
+    if policy == CallingPolicy::Aapcs64 {
+        if byte_size > 16 {
+            return None;
+        }
+        return flat_homogeneous_float_aggregate_shape(input, fields, data_layout.layout)
+            .or_else(|| Some(ValueShape::integer(byte_size, alignment)));
+    }
 
     if byte_size > 16 {
         return Some(ValueShape::integer(byte_size, alignment));

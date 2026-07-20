@@ -550,10 +550,20 @@ pub fn encode_runtime_storage_copy_to_return_register_bytes(
             "AArch64 MVP encoder cannot copy {byte_size}-byte terminal values to the return register yet"
         )));
     }
-    let omega_calling_conventions::MachineRegister::Aarch64X(register_index) = register else {
-        return Err(Diagnostic::error(format!(
-            "AArch64 MVP encoder cannot use {register:?} as an integer result register"
-        )));
+    let (register_index, is_float) = match register {
+        omega_calling_conventions::MachineRegister::Aarch64X(register_index) => {
+            (register_index, false)
+        }
+        omega_calling_conventions::MachineRegister::Aarch64V(register_index)
+            if matches!(byte_size, 4 | 8) =>
+        {
+            (register_index, true)
+        }
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 MVP encoder cannot use {register:?} as a {byte_size}-byte result register"
+            )));
+        }
     };
     if register_index > 30 {
         return Err(Diagnostic::error(format!(
@@ -583,22 +593,42 @@ pub fn encode_runtime_storage_copy_to_return_register_bytes(
         26
     };
     let load_offset = if direct { byte_offset } else { 0 };
-    match byte_size {
-        8 => bytes.extend(encode_load_x_from_x(
-            register_index,
-            base_register,
-            load_offset,
-        )?),
-        _ => bytes.extend(encode_load_w_from_x(
-            register_index,
-            base_register,
-            load_offset,
-            byte_size,
-        )?),
+    if is_float {
+        let scale = byte_size;
+        let immediate = load_offset / scale;
+        if !load_offset.is_multiple_of(scale) || immediate > 4095 {
+            return Err(Diagnostic::error(
+                "AArch64 floating result load offset is not encodable",
+            ));
+        }
+        let base = if byte_size == 4 {
+            0xbd40_0000
+        } else {
+            0xfd40_0000
+        };
+        bytes.extend(encode_instruction(
+            base | ((immediate as u32) << 10)
+                | (u32::from(base_register) << 5)
+                | u32::from(register_index),
+        ));
+    } else {
+        match byte_size {
+            8 => bytes.extend(encode_load_x_from_x(
+                register_index,
+                base_register,
+                load_offset,
+            )?),
+            _ => bytes.extend(encode_load_w_from_x(
+                register_index,
+                base_register,
+                load_offset,
+                byte_size,
+            )?),
+        }
     }
-    match byte_size {
-        1 => bytes.extend(encode_sign_extend_byte_to_w(register_index, register_index)),
-        2 => bytes.extend(encode_sign_extend_halfword_to_w(
+    match (is_float, byte_size) {
+        (false, 1) => bytes.extend(encode_sign_extend_byte_to_w(register_index, register_index)),
+        (false, 2) => bytes.extend(encode_sign_extend_halfword_to_w(
             register_index,
             register_index,
         )),
@@ -625,6 +655,17 @@ mod result_register_tests {
         )
         .expect("w5 result load");
         assert_eq!(&bytes[8..12], &0xb940_0205u32.to_le_bytes());
+    }
+
+    #[test]
+    fn runtime_result_load_uses_the_plan_selected_v_register() {
+        let bytes = encode_runtime_storage_copy_to_return_register_bytes(
+            MachineRegister::Aarch64V(3),
+            8,
+            8,
+        )
+        .expect("d3 result load");
+        assert_eq!(&bytes[8..12], &0xfd40_0603u32.to_le_bytes());
     }
 }
 
