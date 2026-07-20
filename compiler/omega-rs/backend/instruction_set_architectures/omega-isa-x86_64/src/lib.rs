@@ -1363,39 +1363,10 @@ fn encode_file_operation<T: InstructionOperandLike>(
             "cannot encode X86_64 file operation: missing pointer/length operands",
         ));
     }
-    let plan = normalized_win64_file_io_plan()?;
-    let handle_location = win64_argument_location(&plan.parameters[0], 0)?;
-    let pointer_location = win64_argument_location(&plan.parameters[1], 1)?;
-    let length_location = win64_argument_location(&plan.parameters[2], 2)?;
-    let transferred_location = win64_argument_location(&plan.parameters[3], 3)?;
-    let overlapped_location = win64_argument_location(&plan.parameters[4], 4)?;
-    let native_result = normalized_win64_result_register(&plan, true)?;
-    if native_result != Some(MachineRegister::X86Rax) {
-        return Err(Diagnostic::error(format!(
-            "Win64 file-I/O encoder requires its native BOOL result in rax, got {native_result:?}"
-        )));
-    }
-    let Win64ArgumentLocation::Stack(overlapped_offset) = overlapped_location else {
-        return Err(Diagnostic::error(format!(
-            "Win64 file-I/O encoder requires OVERLAPPED on the stack, got {overlapped_location:?}"
-        )));
-    };
-    let transferred_offset = overlapped_offset
-        .checked_add(8)
-        .ok_or_else(|| Diagnostic::error("Win64 file-I/O temporary stack offset overflowed"))?;
-    let reserve = win64_composite_reserve(transferred_offset + 8)?;
-    let transferred_disp = u8::try_from(transferred_offset)
-        .map_err(|_| Diagnostic::error("Win64 file-I/O transferred-count slot exceeds disp8"))?;
-    let overlapped_disp = u8::try_from(overlapped_offset)
-        .map_err(|_| Diagnostic::error("Win64 file-I/O OVERLAPPED slot exceeds disp8"))?;
+    let layout = normalized_win64_file_io_layout()?;
 
     let mut bytes = Vec::new();
-    append_sub_rsp(&mut bytes, reserve);
-    if handle_location != Win64ArgumentLocation::Register(MachineRegister::X86Rcx) {
-        return Err(Diagnostic::error(format!(
-            "Win64 file-I/O encoder requires HANDLE in rcx, got {handle_location:?}"
-        )));
-    }
+    append_sub_rsp(&mut bytes, layout.reserve);
     if pointer_index == 1 {
         let handle = immediate_i32(operands, 0, "file handle")?;
         bytes.push(0xb9); // mov ecx, imm32
@@ -1403,32 +1374,17 @@ fn encode_file_operation<T: InstructionOperandLike>(
     } else {
         bytes.extend([0x48, 0x89, 0xc1]); // mov rcx, rax
     }
-    if pointer_location != Win64ArgumentLocation::Register(MachineRegister::X86Rdx) {
-        return Err(Diagnostic::error(format!(
-            "Win64 file-I/O encoder requires the buffer pointer in rdx, got {pointer_location:?}"
-        )));
-    }
     append_file_pointer_operand(&mut bytes, &operands[pointer_index])?;
     if operation_key.capability == HostCapability::Stdin
         && operation_key.operation == HostOperation::ReadFile
     {
         bytes.extend([0xc6, 0x02, 0]); // mov byte ptr [rdx], 0
     }
-    if length_location != Win64ArgumentLocation::Register(MachineRegister::X86R8) {
-        return Err(Diagnostic::error(format!(
-            "Win64 file-I/O encoder requires the byte count in r8, got {length_location:?}"
-        )));
-    }
     append_file_length_operand(&mut bytes, &operands[length_index])?;
-    if transferred_location != Win64ArgumentLocation::Register(MachineRegister::X86R9) {
-        return Err(Diagnostic::error(format!(
-            "Win64 file-I/O encoder requires the transferred-count pointer in r9, got {transferred_location:?}"
-        )));
-    }
-    bytes.extend([0x4c, 0x8d, 0x4c, 0x24, transferred_disp]); // lea r9, [rsp + temporary]
-    bytes.extend([0x48, 0xc7, 0x44, 0x24, overlapped_disp, 0, 0, 0, 0]);
+    bytes.extend([0x4c, 0x8d, 0x4c, 0x24, layout.transferred_disp]);
+    bytes.extend([0x48, 0xc7, 0x44, 0x24, layout.overlapped_disp, 0, 0, 0, 0]);
     bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32
-    append_add_rsp(&mut bytes, reserve);
+    append_add_rsp(&mut bytes, layout.reserve);
     Ok(bytes)
 }
 
@@ -1447,6 +1403,73 @@ fn normalized_win64_file_io_plan() -> Result<CallPlan, Diagnostic> {
         ],
         result: Some(ValueShape::integer(4, 4)),
     })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Win64FileIoLayout {
+    reserve: usize,
+    overlapped_disp: u8,
+    transferred_disp: u8,
+}
+
+fn normalized_win64_file_io_layout() -> Result<Win64FileIoLayout, Diagnostic> {
+    let plan = normalized_win64_file_io_plan()?;
+    for (index, expected) in [
+        MachineRegister::X86Rcx,
+        MachineRegister::X86Rdx,
+        MachineRegister::X86R8,
+        MachineRegister::X86R9,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let actual = win64_argument_location(&plan.parameters[index], index)?;
+        if actual != Win64ArgumentLocation::Register(expected) {
+            return Err(Diagnostic::error(format!(
+                "Win64 file-I/O parameter {index} requires {expected:?}, got {actual:?}"
+            )));
+        }
+    }
+    let overlapped_location = win64_argument_location(&plan.parameters[4], 4)?;
+    let Win64ArgumentLocation::Stack(overlapped_offset) = overlapped_location else {
+        return Err(Diagnostic::error(format!(
+            "Win64 file-I/O encoder requires OVERLAPPED on the stack, got {overlapped_location:?}"
+        )));
+    };
+    let native_result = normalized_win64_result_register(&plan, true)?;
+    if native_result != Some(MachineRegister::X86Rax) {
+        return Err(Diagnostic::error(format!(
+            "Win64 file-I/O encoder requires its native BOOL result in rax, got {native_result:?}"
+        )));
+    }
+    let transferred_offset = overlapped_offset
+        .checked_add(8)
+        .ok_or_else(|| Diagnostic::error("Win64 file-I/O temporary stack offset overflowed"))?;
+    Ok(Win64FileIoLayout {
+        reserve: win64_composite_reserve(transferred_offset + 8)?,
+        transferred_disp: u8::try_from(transferred_offset).map_err(|_| {
+            Diagnostic::error("Win64 file-I/O transferred-count slot exceeds disp8")
+        })?,
+        overlapped_disp: u8::try_from(overlapped_offset)
+            .map_err(|_| Diagnostic::error("Win64 file-I/O OVERLAPPED slot exceeds disp8"))?,
+    })
+}
+
+fn validate_normalized_win64_get_std_handle_plan() -> Result<(), Diagnostic> {
+    let plan = evaluate_normalized_win64_plan(&CallSignature {
+        parameters: vec![ValueShape::integer(4, 4)],
+        result: Some(ValueShape::integer(8, 8)),
+    })?;
+    let argument = win64_argument_location(&plan.parameters[0], 0)?;
+    let result = normalized_win64_result_register(&plan, true)?;
+    if argument != Win64ArgumentLocation::Register(MachineRegister::X86Rcx)
+        || result != Some(MachineRegister::X86Rax)
+    {
+        return Err(Diagnostic::error(format!(
+            "Win64 GetStdHandle encoder cannot realize argument={argument:?}, result={result:?}"
+        )));
+    }
+    Ok(())
 }
 
 /// Reserve through a composite call's final local byte while preserving the
@@ -3978,6 +4001,8 @@ fn build_runtime_text_line_read(
     capacity: u32,
     is_bounded_buffer: bool,
 ) -> Result<(Vec<u8>, RuntimeTextLineReadLayout), Diagnostic> {
+    validate_normalized_win64_get_std_handle_plan()?;
+    let file_layout = normalized_win64_file_io_layout()?;
     let target_ptr_disp = disp32(target_offset)?;
     let target_len_disp = disp32(target_offset + 8)?;
     // Owned carrier: r14 must point at the inline bytes (`region + target_offset +
@@ -3995,8 +4020,7 @@ fn build_runtime_text_line_read(
         bytes.extend([0x49, 0x81, 0xc6]);
         bytes.extend(carrier_bytes_disp.to_le_bytes());
     }
-    // sub rsp, 56.
-    bytes.extend([0x48, 0x83, 0xec, 0x38]);
+    append_sub_rsp(&mut bytes, file_layout.reserve);
     // mov ecx, -10 (STD_INPUT_HANDLE).
     bytes.push(0xb9);
     bytes.extend((-10i32).to_le_bytes());
@@ -4012,12 +4036,22 @@ fn build_runtime_text_line_read(
     bytes.extend([0x4c, 0x89, 0xe9]); // mov rcx, r13 (handle)
     bytes.extend([0x4b, 0x8d, 0x14, 0x3e]); // lea rdx, [r14+r15]
     bytes.extend([0x41, 0xb8, 0x01, 0x00, 0x00, 0x00]); // mov r8d, 1
-    bytes.extend([0x4c, 0x8d, 0x4c, 0x24, 0x28]); // lea r9, [rsp+40]
-    bytes.extend([0x48, 0xc7, 0x44, 0x24, 0x20, 0, 0, 0, 0]); // mov qword [rsp+32], 0
+    bytes.extend([0x4c, 0x8d, 0x4c, 0x24, file_layout.transferred_disp]);
+    bytes.extend([
+        0x48,
+        0xc7,
+        0x44,
+        0x24,
+        file_layout.overlapped_disp,
+        0,
+        0,
+        0,
+        0,
+    ]);
     bytes.push(0xe8); // call ReadFile (rel32)
     let read_file_call_offset = bytes.len();
     bytes.extend([0, 0, 0, 0]);
-    bytes.extend([0x8b, 0x44, 0x24, 0x28]); // mov eax, [rsp+40]  (bytesRead)
+    bytes.extend([0x8b, 0x44, 0x24, file_layout.transferred_disp]);
 
     // Forward jumps to `done`, patched after `done` is known.
     let mut done_fixups: Vec<usize> = Vec::new();
@@ -4072,8 +4106,7 @@ fn build_runtime_text_line_read(
         let rel = done as isize - (fixup as isize + 4);
         bytes[fixup..fixup + 4].copy_from_slice(&(rel as i32).to_le_bytes());
     }
-    // add rsp, 56.
-    bytes.extend([0x48, 0x83, 0xc4, 0x38]);
+    append_add_rsp(&mut bytes, file_layout.reserve);
 
     let target_mov_offset = if is_bounded_buffer {
         // Owned carrier: the bytes are already in place (r14 read straight into the
@@ -11640,6 +11673,8 @@ pub fn encode_runtime_byte_read_import(
     target_offset: usize,
     payload_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
+    validate_normalized_win64_get_std_handle_plan()?;
+    let file_layout = normalized_win64_file_io_layout()?;
     let tag_disp = disp32(target_offset)?;
     let payload_disp = disp32(target_offset + payload_offset)?;
     let mut bytes = Vec::with_capacity(runtime_byte_read_import_width());
@@ -11647,7 +11682,7 @@ pub fn encode_runtime_byte_read_import(
     bytes.extend(0u64.to_le_bytes());
     append_zero_dword_r14(&mut bytes, tag_disp); // tag = 0 (Eof)
     append_zero_dword_r14(&mut bytes, payload_disp); // payload = 0
-    bytes.extend([0x48, 0x83, 0xec, 0x38]); // sub rsp, 56
+    append_sub_rsp(&mut bytes, file_layout.reserve);
     bytes.push(0xb9); // mov ecx, STD_INPUT_HANDLE
     bytes.extend((-10i32).to_le_bytes());
     bytes.push(0xe8); // call GetStdHandle
@@ -11657,16 +11692,26 @@ pub fn encode_runtime_byte_read_import(
     bytes.extend([0x49, 0x8d, 0x96]); // lea rdx, [r14 + payload]
     bytes.extend(payload_disp.to_le_bytes());
     bytes.extend([0x41, 0xb8, 0x01, 0x00, 0x00, 0x00]); // mov r8d, 1
-    bytes.extend([0x4c, 0x8d, 0x4c, 0x24, 0x28]); // lea r9, [rsp+40]
-    bytes.extend([0x48, 0xc7, 0x44, 0x24, 0x20, 0, 0, 0, 0]); // [rsp+32] = 0
+    bytes.extend([0x4c, 0x8d, 0x4c, 0x24, file_layout.transferred_disp]);
+    bytes.extend([
+        0x48,
+        0xc7,
+        0x44,
+        0x24,
+        file_layout.overlapped_disp,
+        0,
+        0,
+        0,
+        0,
+    ]);
     bytes.push(0xe8); // call ReadFile
     debug_assert_eq!(bytes.len(), runtime_byte_read_read_file_offset());
     bytes.extend([0, 0, 0, 0]);
-    bytes.extend([0x8b, 0x44, 0x24, 0x28]); // mov eax, [rsp+40] (bytesRead)
+    bytes.extend([0x8b, 0x44, 0x24, file_layout.transferred_disp]);
     bytes.extend([0x85, 0xc0]); // test eax, eax
     bytes.extend([0x74, 0x0b]); // je +11 (skip the tag store: Eof stays)
     append_one_dword_r14(&mut bytes, tag_disp); // tag = 1 (Byte)
-    bytes.extend([0x48, 0x83, 0xc4, 0x38]); // add rsp, 56
+    append_add_rsp(&mut bytes, file_layout.reserve);
     debug_assert_eq!(bytes.len(), runtime_byte_read_import_width());
     Ok(bytes)
 }
@@ -11711,11 +11756,13 @@ pub fn encode_runtime_byte_read_syscall(
 /// Windows import flavor: GetStdHandle(STD_OUTPUT_HANDLE) + WriteFile(handle,
 /// &source, 1, &written, NULL).
 pub fn encode_runtime_byte_write_import(source_offset: usize) -> Result<Vec<u8>, Diagnostic> {
+    validate_normalized_win64_get_std_handle_plan()?;
+    let file_layout = normalized_win64_file_io_layout()?;
     let source_disp = disp32(source_offset)?;
     let mut bytes = Vec::with_capacity(runtime_byte_write_import_width());
     bytes.extend([0x49, 0xbe]); // mov r14, imm64 (source region/literal, relocated)
     bytes.extend(0u64.to_le_bytes());
-    bytes.extend([0x48, 0x83, 0xec, 0x38]); // sub rsp, 56
+    append_sub_rsp(&mut bytes, file_layout.reserve);
     bytes.push(0xb9); // mov ecx, STD_OUTPUT_HANDLE
     bytes.extend((-11i32).to_le_bytes());
     bytes.push(0xe8); // call GetStdHandle
@@ -11725,12 +11772,22 @@ pub fn encode_runtime_byte_write_import(source_offset: usize) -> Result<Vec<u8>,
     bytes.extend([0x49, 0x8d, 0x96]); // lea rdx, [r14 + source]
     bytes.extend(source_disp.to_le_bytes());
     bytes.extend([0x41, 0xb8, 0x01, 0x00, 0x00, 0x00]); // mov r8d, 1
-    bytes.extend([0x4c, 0x8d, 0x4c, 0x24, 0x28]); // lea r9, [rsp+40]
-    bytes.extend([0x48, 0xc7, 0x44, 0x24, 0x20, 0, 0, 0, 0]); // [rsp+32] = 0
+    bytes.extend([0x4c, 0x8d, 0x4c, 0x24, file_layout.transferred_disp]);
+    bytes.extend([
+        0x48,
+        0xc7,
+        0x44,
+        0x24,
+        file_layout.overlapped_disp,
+        0,
+        0,
+        0,
+        0,
+    ]);
     bytes.push(0xe8); // call WriteFile
     debug_assert_eq!(bytes.len(), runtime_byte_write_write_file_offset());
     bytes.extend([0, 0, 0, 0]);
-    bytes.extend([0x48, 0x83, 0xc4, 0x38]); // add rsp, 56
+    append_add_rsp(&mut bytes, file_layout.reserve);
     debug_assert_eq!(bytes.len(), runtime_byte_write_import_width());
     Ok(bytes)
 }

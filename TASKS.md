@@ -73,8 +73,10 @@ operation-specific so QPF cannot be mistaken for AArch64's frequency constant.
 Composite `ReadFile`/`WriteFile` calls now model their actual five-parameter
 signature and ignored `BOOL` result; RCX/RDX/R8/R9, the shadow-relative fifth
 argument, and the scratch-slot reservation all come from that evaluated plan.
-Dedicated runtime line/byte Windows sequences, AArch64 stack/fragmented calls,
-concrete firmware state policy, and source-selected policies remain below.
+The dedicated runtime line and byte Windows sequences reuse that exact layout
+plus an actual one-DWORD/RAX `GetStdHandle` plan, preserving their fixed widths
+and relocation sites. AArch64 stack/fragmented calls, concrete firmware state
+policy, and source-selected policies remain below.
 
 1. **ENT2b — source policy evaluation and identity (OWNER-BLOCKED: see
    `OWNER_QUESTIONS.md` section 2).** Evaluate the policy type
@@ -93,8 +95,8 @@ concrete firmware state policy, and source-selected policies remain below.
    planned register/stack/result placements and target-derived policy, as do
    Microsoft vtable and firmware service-table calls. Ordinary composite
    x86-64 host operations are now plan-checked through their actual foreign
-   signatures. Continue through the dedicated runtime line/byte Windows
-   sequences, AArch64 stack/fragmented calls, and
+   signatures, as are the dedicated runtime line/byte Windows sequences.
+   Continue through AArch64 stack/fragmented calls and
    remaining firmware state policy, then make the plan authoritative. Add the
    concrete x86 interrupt `StatePlan`, stack/IST, nesting, and acknowledgement
    policy used by Cathedral.

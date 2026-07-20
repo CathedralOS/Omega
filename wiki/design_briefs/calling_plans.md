@@ -230,8 +230,10 @@ Composite `ReadFile`/`WriteFile` sequences now evaluate their actual five-value
 native signature and ignored RAX `BOOL` result. Their four register arguments,
 shadow-relative fifth argument, and scratch-slot reservation consume that plan;
 the scratch slot itself remains an encoder materialization detail. Dedicated
-runtime line/byte Windows sequences, AArch64 stack/fragmented calls, and
-concrete firmware machine-state policy remain.
+runtime line/byte Windows sequences now reuse the same file layout and validate
+the actual one-DWORD/RAX `GetStdHandle` plan without changing their fixed bytes
+or relocation sites. AArch64 stack/fragmented calls and concrete firmware
+machine-state policy remain.
 
 Remaining order:
 

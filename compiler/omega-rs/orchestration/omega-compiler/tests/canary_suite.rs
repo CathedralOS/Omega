@@ -27987,13 +27987,14 @@ fn windows_wrapper_copy_exit_canary_runs() {
 
 #[test]
 fn cross_windows_general_imports_compile() {
-    // ENT2c: exercise both a seven-argument built-in GUI import (three planned
-    // shadow-relative stack arguments) and a provides-authored import through
-    // full PE layout/emission on every development host.
+    // ENT2c: exercise general and composite plan-driven imports through full PE
+    // layout/emission on every development host: seven-argument GUI, key/time,
+    // the dedicated byte-at-a-time line reader, and a provides-authored call.
     for canary_name in [
         "host/runtime_gui_window_lifecycle_exit",
         "host/runtime_user32_key_state_exit",
         "time/runtime_time_host_native_exit",
+        "text/runtime_stdin_line_buffering_exit",
         "capabilities/windows_provides_import_exit",
     ] {
         let canary = pass_canary(canary_name);
