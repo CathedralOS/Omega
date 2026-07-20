@@ -1,0 +1,26 @@
+// Symbolic const arguments evaluate before instance synthesis. These spellings
+// resolve scoped integer const operands while preserving ordinary precedence.
+use omega::language::std::console;
+
+data Sizes {
+}
+
+const Sizes::BASE: u64 = 2;
+const Sizes::STEP: u64 = 1;
+
+data FixedBuffer<const N: u64> {
+    items: [i32 in Wrapping; N];
+}
+
+data Main {
+    console: Console;
+    small: FixedBuffer<Sizes::BASE + Sizes::STEP>;
+    large: FixedBuffer<Sizes::BASE * 2>;
+}
+
+machine Main::main(&mut self) {
+    self.small.items[2] = 30;
+    self.large.items[3] = 40;
+    let result: i32 in Wrapping = self.small.items[2] + self.large.items[3];
+    self.console.exit_process(result);
+}

@@ -627,6 +627,9 @@ fn count_type_reference_handle(
                 count_type_reference_handle(syntax_trees, *argument, counts);
             }
         }
+        crate::types::TypeReferenceNode::ConstExpression(expression) => {
+            count_expression_handle(syntax_trees, *expression, counts);
+        }
         crate::types::TypeReferenceNode::DynamicTrait(name) => count_identifier(name, counts),
         crate::types::TypeReferenceNode::Named(name) => count_identifier(name, counts),
         crate::types::TypeReferenceNode::SelfType => {}

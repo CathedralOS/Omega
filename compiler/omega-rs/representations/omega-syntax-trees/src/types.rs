@@ -238,6 +238,11 @@ pub enum TypeReferenceNode {
         base_name: Identifier,
         arguments: HandleSpan<TypeReferenceHandle>,
     },
+    /// A pre-resolution const-generic argument expression. Generic-data
+    /// monomorphization evaluates this against scoped integer consts, then
+    /// replaces it with the canonical decimal `Named` leaf used by literal
+    /// const arguments. It must never survive into symbol-resolved trees.
+    ConstExpression(crate::expression::ExpressionHandle),
     DynamicTrait(Identifier),
     Named(Identifier),
     SelfType,
