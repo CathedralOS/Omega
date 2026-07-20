@@ -102,6 +102,8 @@ pub enum MachineInstructionKind {
     /// Entry prologue: copy an incoming stack-argument fragment into the
     /// parameter's frame slot (the calling plan's inbound direction).
     EntryStackArgumentWrite,
+    /// Entry prologue: copy an indirectly passed aggregate into its frame slot.
+    EntryIndirectArgumentWrite,
     /// Entry prologue: bind `args: &[u8]` as a slice descriptor over the
     /// entry-argument spill.
     EntryArgumentsSliceDescriptorWrite,

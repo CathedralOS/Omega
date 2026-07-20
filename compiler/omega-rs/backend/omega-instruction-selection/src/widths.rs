@@ -436,6 +436,30 @@ pub fn entry_stack_argument_write_width(architecture: Architecture, byte_size: u
     }
 }
 
+pub fn entry_indirect_argument_write_width(
+    architecture: Architecture,
+    pointer: omega_calling_conventions::IndirectPointerLocation,
+    byte_offset: usize,
+    byte_size: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::entry_indirect_argument_write_width(pointer, byte_offset, byte_size)
+        }
+        Architecture::X86_64 => 0,
+    }
+}
+
+pub fn entry_indirect_argument_frame_base_offset(
+    architecture: Architecture,
+    pointer: omega_calling_conventions::IndirectPointerLocation,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::entry_indirect_argument_frame_base_offset(pointer),
+        Architecture::X86_64 => 0,
+    }
+}
+
 /// Width of the entry prologue's `args: &[u8]` descriptor write.
 pub fn entry_arguments_slice_descriptor_write_width(architecture: Architecture) -> usize {
     match architecture {

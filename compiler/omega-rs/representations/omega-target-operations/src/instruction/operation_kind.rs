@@ -253,6 +253,11 @@ pub enum TargetOperationKind {
         byte_offset: usize,
         byte_size: usize,
     },
+    WriteEntryIndirectArgument {
+        pointer: omega_calling_conventions::IndirectPointerLocation,
+        byte_offset: usize,
+        byte_size: usize,
+    },
     /// Entry prologue: bind `args: &[u8]` as {ptr -> frame+spill, len}.
     WriteEntryArgumentsSliceDescriptor {
         descriptor_offset: usize,

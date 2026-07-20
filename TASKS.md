@@ -43,10 +43,11 @@ across the selected vector registers. Fixed non-HFA AAPCS64 records up to 16
 bytes now use consecutive `x` fragments or aligned whole-value stack
 fragments, and
 normalized small-aggregate result plans select `x0`/`x1`. AAPCS64 aggregates
-above 16 bytes now have normalized indirect placements, and outbound calls use
-caller-owned copies plus `x8` result destinations. Inbound indirect aggregate
-copying remains; unsupported mixed/general entry signatures retain
-the compatibility path without panicking the compiler. Generic Linux syscall
+above 16 bytes now have normalized indirect placements, outbound calls use
+caller-owned copies plus `x8` result destinations, and entry prologues copy
+register- or stack-passed pointees into runtime-frame storage. Unsupported
+mixed/general entry signatures retain the compatibility path without panicking
+the compiler. Generic Linux syscall
 leaves now evaluate the normalized syscall policy at emission and pass its
 exact parameter registers, number register, and supervisor-call immediate into
 both ISA encoders; the legacy binding fields no longer choose those facts on
@@ -159,8 +160,10 @@ ceiling derived exactly from the ABI volatile-register classes.
    `x0`/`x1` fragments through one relocated result base. Aggregates above 16
    bytes now use normalized indirect placements: outbound calls allocate and
    populate aligned caller-copy slots, pass their pointers in the planned `x`
-   register or stack slot, and materialize large result destinations in `x8`.
-   Indirect aggregate entry parameters still require pointee-to-frame copying.
+   register or stack slot, and materialize large result destinations in `x8`;
+   entry prologues load register- or stack-passed pointers and copy the complete
+   pointee into its runtime-frame slot. Source-to-object and ISA tests pin the
+   register path, stack-pointer prefix, relocation position, and fragment stores.
    Ordinary AArch64 `VtableSlot` and `VtableField` calls now evaluate AAPCS64
    from their selected operands, require the full-width receiver in planned
    `x0`, marshal every argument/stack slot through the shared plan consumer,

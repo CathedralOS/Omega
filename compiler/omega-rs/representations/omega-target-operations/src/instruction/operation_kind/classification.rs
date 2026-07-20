@@ -34,6 +34,7 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::AtomicCompareExchange { .. }
             | Self::WriteEntryArgumentRegister { .. }
             | Self::WriteEntryStackArgument { .. }
+            | Self::WriteEntryIndirectArgument { .. }
             | Self::WriteEntryArgumentsSliceDescriptor { .. }
             | Self::WriteRuntimeStorageConvert { .. }
             | Self::AppendRuntimeMachineBoundedBufferSource { .. }

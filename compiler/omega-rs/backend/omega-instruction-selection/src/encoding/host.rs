@@ -1097,6 +1097,22 @@ pub fn encode_entry_stack_argument_write_bytes(
     }
 }
 
+pub fn encode_entry_indirect_argument_write_bytes(
+    architecture: Architecture,
+    pointer: omega_calling_conventions::IndirectPointerLocation,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_entry_indirect_argument_write_bytes(pointer, byte_offset, byte_size)
+        }
+        Architecture::X86_64 => Err(Diagnostic::error(
+            "indirect aggregate entry lowering is currently AAPCS64-only",
+        )),
+    }
+}
+
 /// The entry prologue's `args: &[u8]` descriptor write (x86_64 only).
 pub fn encode_entry_arguments_slice_descriptor_write_bytes(
     architecture: Architecture,
