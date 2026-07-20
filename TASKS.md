@@ -163,7 +163,9 @@ ceiling derived exactly from the ABI volatile-register classes.
    atomic post-handoff entry writers: it resolves only entries in that admitted
    set against the installed placement, rejects foreign/data targets before
    publication, and never exposes the numeric address API. Lower these
-   normalized writer programs to generated machine code.
+   normalized writer programs to generated machine code (OWNER-BLOCKED on the
+   provider boundary and atomic-publication contract in `OWNER_QUESTIONS.md`
+   section 4).
 5. **IDT2 — installed-root ledger.** Add `lidt` only as an installation path
    that consumes scoped IDT
    authority and records every installed entry as an external analysis root
@@ -406,7 +408,8 @@ before the fix.
   integration now reaches canonical executable entry-set decoding and
   admission-bound sealed entry targets. Exact installed code now resolves those
   targets privately while executing the atomic writer. Lower the normalized
-  provider-resolved post-handoff writer programs to generated machine code.
+  provider-resolved post-handoff writer programs to generated machine code
+  (OWNER-BLOCKED: `OWNER_QUESTIONS.md` section 4).
   Writer programs already validate their
   concrete site, resolve each sealed target once, stage all writes, and publish
   atomically. Native whole-pointer actions already lower into section-qualified
