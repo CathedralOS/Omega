@@ -252,6 +252,9 @@ ceiling derived exactly from the ABI volatile-register classes.
    two-eightbyte ceiling still selects the existing hidden-pointer MEMORY path.
    One-eightbyte nested SSE entry parameters and results likewise store from
    and load to `xmm0`; a source-to-ELF round-trip canary pins both directions.
+   SysV MEMORY entry parameters no longer inherit the separate 32-byte
+   Microsoft boundary-handoff ceiling: a 40-byte source canary pins all five
+   incoming stack-fragment copies.
    Ordinary AArch64 `VtableSlot` and `VtableField` calls now evaluate AAPCS64
    from their selected operands, require the full-width receiver in planned
    `x0`, marshal every argument/stack slot through the shared plan consumer,
