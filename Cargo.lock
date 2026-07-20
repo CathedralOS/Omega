@@ -107,6 +107,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-access-plans"
+version = "0.1.0"
+dependencies = [
+ "omega-layout-plans",
+]
+
+[[package]]
 name = "omega-architecture-test"
 version = "0.1.0"
 dependencies = [

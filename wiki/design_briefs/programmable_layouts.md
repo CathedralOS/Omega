@@ -87,6 +87,13 @@ statically pinned boundary reach. Layout and access plans are validated as a
 pair when deriving a placed view. See
 [`os_memory_and_hardware_foundation.md`](os_memory_and_hardware_foundation.md).
 
+The normalized validator is live in `omega-access-plans`: entries are keyed by
+layout field name; exact-width accesses must fit one fixed placement/container;
+external access must pin reach; exported external RMW rejects; atomic and
+ordinary permissions cannot be conflated; and operation authorization preserves
+shared-read/exclusive-write polarity. Omega source records, extent-provenance
+agreement, and sealed accessor/lowering consumers remain.
+
 ## Codecs are hand-written and proved
 
 Encoding, decoding, and validation are ordinary library machines. Omega does
@@ -219,9 +226,9 @@ and target-machine emission of the post-handoff writer remain.
   slice uses compiler-issued field keys and `FieldEntry`);
 - source-level symbolic relocation derivation and propagation of normalized
   placement constraints through linker/loader/provider artifacts;
-- concrete `AccessPlan` record/source spelling and placed-view validator
-  diagnostics (its semantics and public access discipline are settled in the
-  OS-foundation brief);
+- concrete Omega `AccessPlan` record/source spelling, extent-provenance
+  agreement, and sealed placed-view accessor/lowering consumers (the normalized
+  validator and diagnostics are live);
 - recast syntax and diagnostics;
 - schema-evolution law traits beyond strict roundtrip;
 - policy selection through generics; and
