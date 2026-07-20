@@ -102,11 +102,16 @@ fn collect_computed_scalar_argument_blockers(
             let HostCallArgumentKind::Expression(expression) = argument.kind else {
                 continue;
             };
-            if !matches!(
-                input.host_calls.expressions.expression(expression),
+            let is_computed_scalar = match input.host_calls.expressions.expression(expression) {
                 omega_checked_trees::expression::ExpressionNode::Binary(_)
-                    | omega_checked_trees::expression::ExpressionNode::Cast(_)
-            ) {
+                | omega_checked_trees::expression::ExpressionNode::Cast(_) => true,
+                // Selection admits only the scalar builtin symbols. An
+                // authored nested call reaches this blocker too and stays
+                // fail-closed until explicit call sequencing exists.
+                omega_checked_trees::expression::ExpressionNode::Call(_) => true,
+                _ => false,
+            };
+            if !is_computed_scalar {
                 continue;
             }
             let target_offset = input.runtime_storage.host_argument_scratch_base + index * 8;
@@ -140,7 +145,7 @@ fn collect_computed_scalar_argument_blockers(
             blockers.insert(blocker(
                 "host arguments",
                 &format!(
-                    "{} statement {} computed scalar argument {} did not materialize before its platform call{}",
+                    "{} statement {} computed scalar argument {} did not materialize before its platform call and is not encodable{}",
                     source_name,
                     host_call.statement_index,
                     index,

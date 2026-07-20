@@ -1296,6 +1296,36 @@ fn computed_host_cast_arg_exit_canary_runs() {
 }
 
 #[test]
+fn computed_host_builtin_arg_exit_canary_runs() {
+    let canary = pass_canary("calls/computed_host_builtin_arg_exit");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-computed-host-builtin-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("computed builtin host argument should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("computed builtin host argument canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected direct `max(self.low, self.high)` host argument to exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn exact_overflow_value_call_hint_canary_is_rejected() {
     // Exact arithmetic over a value-machine call with an unconstrained return is a
     // decision-17 overflow; the diagnostic must NAME the call and point at annotating
