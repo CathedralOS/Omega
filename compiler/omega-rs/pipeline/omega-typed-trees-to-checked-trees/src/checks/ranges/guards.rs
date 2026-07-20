@@ -71,10 +71,7 @@ pub(super) fn seed_value_vs_value_endpoints(
     let Some(exclusive) = high.checked_add(inclusive_shift) else {
         return;
     };
-    facts.prove_index_upper_bound(
-        program.expression_table.display_name(bounded),
-        exclusive,
-    );
+    facts.prove_index_upper_bound(program.expression_table.display_name(bounded), exclusive);
 }
 
 pub(super) fn seed_guard_facts(

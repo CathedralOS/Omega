@@ -65,26 +65,22 @@ pub(crate) fn record_permission_events(
             continue;
         };
         let statements = program.statement_table.statements(state.statement_nodes);
-        let mut places = initial_linear_places(
-            program,
-            state,
-            state_flow.machine_symbol,
-            state.symbol,
-        );
+        let mut places =
+            initial_linear_places(program, state, state_flow.machine_symbol, state.symbol);
 
         for place in places.iter().filter(|place| place.ever_established) {
-                permission_events.push(FlowPermissionEventFact {
-                    machine_symbol: state_flow.machine_symbol,
-                    state_symbol: state.symbol,
-                    source: PermissionEventSource::StateEntry,
-                    kind: PermissionEventKind::Establish,
-                    multiplicity: place.multiplicity,
-                    access: PermissionAccess::Owned,
-                    provenance: place.provenance.expect("entry place has provenance"),
-                    root: omega_facts::PlaceRoot::Symbol(place.symbol),
-                    segments: HandleSpan::empty(),
-                    obligation_live: true,
-                });
+            permission_events.push(FlowPermissionEventFact {
+                machine_symbol: state_flow.machine_symbol,
+                state_symbol: state.symbol,
+                source: PermissionEventSource::StateEntry,
+                kind: PermissionEventKind::Establish,
+                multiplicity: place.multiplicity,
+                access: PermissionAccess::Owned,
+                provenance: place.provenance.expect("entry place has provenance"),
+                root: omega_facts::PlaceRoot::Symbol(place.symbol),
+                segments: HandleSpan::empty(),
+                obligation_live: true,
+            });
         }
 
         let moves = crate::flow::discover_state_move_events(
@@ -163,12 +159,8 @@ pub(crate) fn validate_linear_permission_events(
             continue;
         };
         let statements = program.statement_table.statements(state.statement_nodes);
-        let mut places = initial_linear_places(
-            program,
-            state,
-            state_flow.machine_symbol,
-            state.symbol,
-        );
+        let mut places =
+            initial_linear_places(program, state, state_flow.machine_symbol, state.symbol);
         let events = facts
             .flow
             .ownership
@@ -422,13 +414,12 @@ fn append_borrow_permission_events(
             .span_or_empty(weakenings)
             .to_vec()
         {
-            let source = if weakening.reason
-                == omega_checked_trees::FlowBorrowWeakeningReason::StateExit
-            {
-                PermissionEventSource::StateExit
-            } else {
-                permission_source_from_invalidation(weakening.source)
-            };
+            let source =
+                if weakening.reason == omega_checked_trees::FlowBorrowWeakeningReason::StateExit {
+                    PermissionEventSource::StateExit
+                } else {
+                    permission_source_from_invalidation(weakening.source)
+                };
             append_borrow_permission_event(
                 facts,
                 permission_events,
@@ -523,13 +514,8 @@ fn apply_statement_permission_production(
         return;
     }
 
-    let written_target = written_whole_linear_target(
-        program,
-        state_symbol,
-        statement_index,
-        statement,
-        places,
-    );
+    let written_target =
+        written_whole_linear_target(program, state_symbol, statement_index, statement, places);
 
     // Moves out of initializer/assignment sources happen before the
     // destination becomes established. The old move-only summary also
@@ -678,11 +664,7 @@ fn permission_kind_for_move(
     if arguments.len() != parameters.len() {
         return PermissionEventKind::Transfer;
     }
-    let event_segments = facts
-        .flow
-        .ownership
-        .segments
-        .span_or_empty(event.segments);
+    let event_segments = facts.flow.ownership.segments.span_or_empty(event.segments);
     for (parameter, argument) in parameters.iter().zip(arguments) {
         if !parameter.is_self {
             continue;
@@ -924,14 +906,17 @@ fn expression_establishes_obligation(
     if let omega_typed_trees::expression::ExpressionNode::Name(path) =
         program.expression_table.expression(expression)
         && let Some(variant) = program.data_definitions().iter().find_map(|definition| {
-            program.data_members(definition).iter().find_map(|member| match member {
-                omega_typed_trees::data::DataMember::Variant(variant)
-                    if variant.symbol == path.symbol =>
-                {
-                    Some(variant)
-                }
-                _ => None,
-            })
+            program
+                .data_members(definition)
+                .iter()
+                .find_map(|member| match member {
+                    omega_typed_trees::data::DataMember::Variant(variant)
+                        if variant.symbol == path.symbol =>
+                    {
+                        Some(variant)
+                    }
+                    _ => None,
+                })
         })
     {
         return variant_carries_linear_obligation(program, variant);
@@ -954,14 +939,18 @@ fn expression_establishes_obligation(
     else {
         return true;
     };
-    let Some(variant) = program.data_members(definition).iter().find_map(|member| match member {
-        omega_typed_trees::data::DataMember::Variant(variant)
-            if variant.name.as_str() == case_name.as_str() =>
-        {
-            Some(variant)
-        }
-        _ => None,
-    }) else {
+    let Some(variant) = program
+        .data_members(definition)
+        .iter()
+        .find_map(|member| match member {
+            omega_typed_trees::data::DataMember::Variant(variant)
+                if variant.name.as_str() == case_name.as_str() =>
+            {
+                Some(variant)
+            }
+            _ => None,
+        })
+    else {
         return true;
     };
 
@@ -986,12 +975,8 @@ fn type_multiplicity(
         return Multiplicity::Affine;
     }
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { .. } | TypeReferenceNode::Unit => {
-            Multiplicity::Unrestricted
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_multiplicity(program, *base_type)
-        }
+        TypeReferenceNode::Reference { .. } | TypeReferenceNode::Unit => Multiplicity::Unrestricted,
+        TypeReferenceNode::Constrained { base_type, .. } => type_multiplicity(program, *base_type),
         TypeReferenceNode::FixedArray { element_type, .. } => {
             type_multiplicity(program, *element_type)
         }

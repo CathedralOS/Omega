@@ -1,7 +1,7 @@
-use crate::context::*;
 use crate::borrow::view_link::{
     ViewReturnSource, is_borrow_carrying_data, resolve_view_return_source,
 };
+use crate::context::*;
 use crate::semantic_calls::find_state;
 
 use super::accesses::{self, borrow_access_place};
@@ -121,8 +121,9 @@ fn borrow_carrying_data_loan(
     SymbolHandle,
     omega_checked_trees::BorrowAccessKind,
 )> {
-    let ExpressionNode::StructLiteral(literal) =
-        program.expression_table.expression(local_data.initial_value)
+    let ExpressionNode::StructLiteral(literal) = program
+        .expression_table
+        .expression(local_data.initial_value)
     else {
         return None;
     };

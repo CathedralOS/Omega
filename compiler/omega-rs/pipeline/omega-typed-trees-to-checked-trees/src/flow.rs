@@ -46,10 +46,10 @@ use mutation::call_may_mutate_contract_state;
 pub(crate) use mutation::{
     StateMutationSummaryCache, call_mutated_places, statement_mutated_place,
 };
+pub(crate) use ownership::{DiscoveredMoveEvent, discover_state_move_events};
 use ownership::{
     append_call_ownership_events, append_state_exit_drop_events, append_statement_ownership_events,
 };
-pub(crate) use ownership::{DiscoveredMoveEvent, discover_state_move_events};
 #[allow(unused_imports)]
 pub(crate) use place::{
     CanonicalPlace, canonical_place_from_expression, canonical_place_from_expression_in_state,

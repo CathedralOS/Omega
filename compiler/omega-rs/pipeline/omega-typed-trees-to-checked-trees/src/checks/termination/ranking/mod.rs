@@ -496,7 +496,11 @@ fn classify_cycle_edge(
 /// DFS cycle check over the component restricted to the given edges.
 fn subgraph_is_acyclic(component: &[usize], edges: &[(usize, usize)]) -> bool {
     // 0 unvisited, 1 on-stack, 2 done -- iterative coloring.
-    fn visit(node: usize, edges: &[(usize, usize)], color: &mut std::collections::BTreeMap<usize, u8>) -> bool {
+    fn visit(
+        node: usize,
+        edges: &[(usize, usize)],
+        color: &mut std::collections::BTreeMap<usize, u8>,
+    ) -> bool {
         color.insert(node, 1);
         for &(from, to) in edges {
             if from != node {

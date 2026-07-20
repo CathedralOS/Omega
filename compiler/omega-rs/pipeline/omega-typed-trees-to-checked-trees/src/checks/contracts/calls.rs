@@ -504,12 +504,8 @@ fn collect_expression_self_fields(
             collect_expression_self_fields(program, binary.left, fields);
             collect_expression_self_fields(program, binary.right, fields);
         }
-        ExpressionNode::Mutable(inner) => {
-            collect_expression_self_fields(program, *inner, fields)
-        }
-        ExpressionNode::Cast(cast) => {
-            collect_expression_self_fields(program, cast.value, fields)
-        }
+        ExpressionNode::Mutable(inner) => collect_expression_self_fields(program, *inner, fields),
+        ExpressionNode::Cast(cast) => collect_expression_self_fields(program, cast.value, fields),
         _ => {}
     }
 }

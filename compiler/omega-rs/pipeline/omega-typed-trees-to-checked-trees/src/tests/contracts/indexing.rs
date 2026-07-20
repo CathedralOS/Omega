@@ -512,9 +512,12 @@ fn indexes_terminal_state_contract_ensures() {
         .append(omega_typed_trees::domain::ProofFact::Expression(
             fact_expression,
         ));
-    let return_expression = program
-        .expression_table
-        .insert(omega_typed_trees::expression::ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
+    let return_expression =
+        program
+            .expression_table
+            .insert(omega_typed_trees::expression::ExpressionNode::Integer(
+                omega_core::literals::IntegerLiteral::from_value(0),
+            ));
 
     let mut machine = Machine {
         symbol: machine_symbol,
@@ -578,7 +581,6 @@ fn indexes_terminal_state_contract_ensures() {
     assert_eq!(ensures.len(), 1);
     assert_eq!(facts.contract_facts.get(ensures[0].fact).fact, fact);
 }
-
 
 #[test]
 fn boundary_out_param_ensures_discharges_index_bounds() {
@@ -645,7 +647,6 @@ fn boundary_out_param_ensures_bound_too_wide_keeps_index_refusal() {
         "expected the index refusal, got {diagnostics:#?}"
     );
 }
-
 
 #[test]
 fn boundary_ensures_transport_through_transition_arguments() {
@@ -730,7 +731,6 @@ fn boundary_ensures_transport_rebind_before_transition_kills_the_fact() {
         "expected the index refusal, got {diagnostics:#?}"
     );
 }
-
 
 #[test]
 fn boundary_ensures_witness_discharges_bounded_assignment() {

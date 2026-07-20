@@ -237,7 +237,13 @@ fn build_edges(program: &omega_typed_trees::TypedTrees, machine: &Machine) -> Ve
             let StatementNode::Transition(transition) = statement else {
                 continue;
             };
-            push_edge(program, machine, &mut edges, state.symbol, transition.target);
+            push_edge(
+                program,
+                machine,
+                &mut edges,
+                state.symbol,
+                transition.target,
+            );
             push_edge(
                 program,
                 machine,
@@ -477,8 +483,12 @@ fn boolean_equality_inner(
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    let is_true =
-        |handle| matches!(program.expression_table.expression(handle), ExpressionNode::Boolean(true));
+    let is_true = |handle| {
+        matches!(
+            program.expression_table.expression(handle),
+            ExpressionNode::Boolean(true)
+        )
+    };
     if is_true(left) {
         Some(right)
     } else if is_true(right) {

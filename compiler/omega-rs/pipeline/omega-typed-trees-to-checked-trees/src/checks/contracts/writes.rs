@@ -146,7 +146,8 @@ fn statement_root_expressions(
         StatementNode::LocalData(local_data) => vec![local_data.initial_value],
         StatementNode::Transition(transition) => {
             let mut roots = Vec::new();
-            if let omega_typed_trees::statement::TransitionGuardNode::When(guard) = &transition.guard
+            if let omega_typed_trees::statement::TransitionGuardNode::When(guard) =
+                &transition.guard
             {
                 roots.push(*guard);
             }
@@ -155,7 +156,9 @@ fn statement_root_expressions(
                     continue;
                 }
                 match program.statement_table.transition_target(target) {
-                    omega_typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
+                    omega_typed_trees::statement::TransitionTargetNode::Named {
+                        arguments, ..
+                    } => {
                         roots.extend(
                             program
                                 .statement_table
@@ -486,18 +489,17 @@ fn construction_field_type(
     field_name: &str,
 ) -> Option<TypeReferenceHandle> {
     if let Some(case_name) = case_name
-        && let Some(variant) =
-            program
-                .data_members(data_definition)
-                .iter()
-                .find_map(|member| match member {
-                    omega_typed_trees::data::DataMember::Variant(variant)
-                        if variant.name.as_str() == case_name =>
-                    {
-                        Some(variant)
-                    }
-                    _ => None,
-                })
+        && let Some(variant) = program
+            .data_members(data_definition)
+            .iter()
+            .find_map(|member| match member {
+                omega_typed_trees::data::DataMember::Variant(variant)
+                    if variant.name.as_str() == case_name =>
+                {
+                    Some(variant)
+                }
+                _ => None,
+            })
     {
         for payload_field in program.data_payload_fields(variant) {
             if payload_field.name.as_str() == field_name {
@@ -552,9 +554,21 @@ fn value_proves_domain(
         && crate::field_domain::domain_is_concat_preserving(program, domain_symbol)
     {
         let (left, right) = (binary.left, binary.right);
-        if value_proves_domain(program, facts, state_flow, statement_index, left, domain_symbol)
-            && value_proves_domain(program, facts, state_flow, statement_index, right, domain_symbol)
-        {
+        if value_proves_domain(
+            program,
+            facts,
+            state_flow,
+            statement_index,
+            left,
+            domain_symbol,
+        ) && value_proves_domain(
+            program,
+            facts,
+            state_flow,
+            statement_index,
+            right,
+            domain_symbol,
+        ) {
             return true;
         }
     }
@@ -633,8 +647,9 @@ fn value_call_return_domain_implies(
     if !target.return_type.is_valid() {
         return false;
     }
-    let Some(return_domain) = crate::field_domain::domain_constraint_name(program, target.return_type)
-        .and_then(|name| crate::field_domain::resolve_domain_symbol(program, &name))
+    let Some(return_domain) =
+        crate::field_domain::domain_constraint_name(program, target.return_type)
+            .and_then(|name| crate::field_domain::resolve_domain_symbol(program, &name))
     else {
         return false;
     };

@@ -51,17 +51,26 @@ fn retains_semantic_permission_events_beside_legacy_moves_and_drops() {
         !checked.facts.flow.ownership.moves.is_empty(),
         "legacy compatibility moves remain while downstream migration is staged"
     );
-    assert!(events
-        .iter()
-        .all(|event| event.access == omega_core::semantics::PermissionAccess::Owned));
-    assert!(events[..4]
-        .iter()
-        .all(|event| event.multiplicity == omega_core::semantics::Multiplicity::Linear));
-    assert_eq!(events[4].multiplicity, omega_core::semantics::Multiplicity::Affine);
+    assert!(
+        events
+            .iter()
+            .all(|event| event.access == omega_core::semantics::PermissionAccess::Owned)
+    );
+    assert!(
+        events[..4]
+            .iter()
+            .all(|event| event.multiplicity == omega_core::semantics::Multiplicity::Linear)
+    );
+    assert_eq!(
+        events[4].multiplicity,
+        omega_core::semantics::Multiplicity::Affine
+    );
     let origin = events[0].provenance;
     assert_ne!(origin, omega_core::semantics::PermissionProvenance::Unknown);
-    assert!(events[..4].iter().all(|event| event.provenance == origin),
-        "transfers preserve one obligation origin rather than minting a new one per binding");
+    assert!(
+        events[..4].iter().all(|event| event.provenance == origin),
+        "transfers preserve one obligation origin rather than minting a new one per binding"
+    );
     assert_eq!(
         events[4].provenance,
         omega_core::semantics::PermissionProvenance::Unknown,
@@ -221,9 +230,11 @@ fn consuming_call_that_returns_an_obligation_transfers_its_origin() {
             PermissionEventKind::Consume,
         ]
     );
-    assert!(events
-        .iter()
-        .all(|event| event.provenance == events[0].provenance));
+    assert!(
+        events
+            .iter()
+            .all(|event| event.provenance == events[0].provenance)
+    );
 }
 
 #[test]
@@ -289,7 +300,11 @@ fn permission_producer_discovers_affine_cleanup_without_legacy_drops() {
                 .then_some(event.root)
         })
         .collect::<Vec<_>>();
-    assert_eq!(expected.len(), 3, "two locals and one owned parameter clean up");
+    assert_eq!(
+        expected.len(),
+        3,
+        "two locals and one owned parameter clean up"
+    );
 
     let mut facts = checked.facts.clone();
     facts.flow.ownership.drops = Default::default();
@@ -384,7 +399,9 @@ fn nested_linear_record_extraction_stays_conservative_without_field_algebra() {
     let diagnostics = lower_typed_trees(typed)
         .expect_err("partial linear-record extraction needs per-field resource accounting");
 
-    assert!(diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.message.contains("linear value `pair` reaches scope exit")));
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("linear value `pair` reaches scope exit")
+    }));
 }

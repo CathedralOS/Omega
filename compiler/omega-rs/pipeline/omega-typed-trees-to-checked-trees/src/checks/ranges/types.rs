@@ -18,12 +18,7 @@ pub(super) fn expression_is_unsigned_integer(
     matches!(
         expression_type_reference(program, machine, state, expression)
             .and_then(|type_reference| primitive_of_type_reference(program, type_reference)),
-        Some(
-            PrimitiveType::U8
-                | PrimitiveType::U16
-                | PrimitiveType::U32
-                | PrimitiveType::U64
-        )
+        Some(PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64)
     )
 }
 
@@ -108,16 +103,20 @@ fn dependent_range_substituted(
         .data_definitions()
         .iter()
         .find(|data| data.name.as_str() == attached.as_str())?;
-    let field_type = program.data_members(data).iter().find_map(|member| {
-        match member {
+    let field_type = program
+        .data_members(data)
+        .iter()
+        .find_map(|member| match member {
             omega_typed_trees::data::DataMember::Field(field)
                 if field.name.as_str() == symbolic.field.as_str() =>
             {
-                field.type_reference.is_valid().then_some(field.type_reference)
+                field
+                    .type_reference
+                    .is_valid()
+                    .then_some(field.type_reference)
             }
             _ => None,
-        }
-    })?;
+        })?;
     // The field itself must be an enforced-integer-ranged place (same gate
     // this module applies to any range an index proof may trust).
     if primitive_of_type_reference(program, field_type).is_none_or(|primitive| {
@@ -169,8 +168,7 @@ fn dependent_range_of_type_reference(
                 .iter()
                 .find_map(|constraint| match constraint {
                     omega_typed_trees::types::TypeConstraintNode::Range { minimum, maximum } => {
-                        let minimum =
-                            program.expression_table.constant_integer_value(*minimum)?;
+                        let minimum = program.expression_table.constant_integer_value(*minimum)?;
                         let symbolic = omega_typed_trees::dependent_ranges::symbolic_max_bound(
                             &program.expression_table,
                             *maximum,
@@ -244,29 +242,31 @@ fn expression_type_reference(
                 type_reference_for_name(program, machine, state, name)
             })
         }
-        ExpressionNode::Member(member) => expression_type_reference(
-            program,
-            machine,
-            state,
-            member.receiver,
-        )
-        .and_then(|receiver_type| {
-            data_field_type_reference(program, receiver_type, member.member_symbol, &member.member)
-        })
-        .or_else(|| {
-            // `self.field`: the receiver `self` does not resolve to a type
-            // reference (attached-data fields are not in the machine's owned-data
-            // span), so resolve the field directly from its data definition. The
-            // member symbol is field-unique, so this matches the right field.
-            program.data_definitions().iter().find_map(|definition| {
-                data_field_in_definition(
-                    program,
-                    definition,
-                    member.member_symbol,
-                    &member.member,
-                )
-            })
-        }),
+        ExpressionNode::Member(member) => {
+            expression_type_reference(program, machine, state, member.receiver)
+                .and_then(|receiver_type| {
+                    data_field_type_reference(
+                        program,
+                        receiver_type,
+                        member.member_symbol,
+                        &member.member,
+                    )
+                })
+                .or_else(|| {
+                    // `self.field`: the receiver `self` does not resolve to a type
+                    // reference (attached-data fields are not in the machine's owned-data
+                    // span), so resolve the field directly from its data definition. The
+                    // member symbol is field-unique, so this matches the right field.
+                    program.data_definitions().iter().find_map(|definition| {
+                        data_field_in_definition(
+                            program,
+                            definition,
+                            member.member_symbol,
+                            &member.member,
+                        )
+                    })
+                })
+        }
         _ => None,
     }
 }

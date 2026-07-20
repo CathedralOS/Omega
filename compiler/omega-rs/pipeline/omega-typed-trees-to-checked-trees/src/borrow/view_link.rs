@@ -140,15 +140,10 @@ fn reference_lifetime(program: &TypedTrees, type_reference: TypeReferenceHandle)
 
 /// Whether a type reference is a view (a reference, possibly under a
 /// `Constrained` wrapper).
-pub(crate) fn is_reference_type(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> bool {
+pub(crate) fn is_reference_type(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { .. } => true,
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            is_reference_type(program, *base_type)
-        }
+        TypeReferenceNode::Constrained { base_type, .. } => is_reference_type(program, *base_type),
         _ => false,
     }
 }
@@ -158,8 +153,7 @@ pub(crate) fn is_reference_type(
 /// reference-typed field — `data Msg<'buf> { body: &'buf string }`). Both make a
 /// machine's result outlive-bounded by one of its inputs (decision 15 stage 2).
 pub(crate) fn returns_borrow(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
-    is_reference_type(program, type_reference)
-        || is_borrow_carrying_data(program, type_reference)
+    is_reference_type(program, type_reference) || is_borrow_carrying_data(program, type_reference)
 }
 
 /// Whether a type reference names a `data` definition that has at least one

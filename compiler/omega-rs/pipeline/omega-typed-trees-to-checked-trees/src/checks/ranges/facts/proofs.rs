@@ -294,7 +294,8 @@ impl RangeFacts<'_> {
     /// (the merge in `prove_minimum_length` keeps the larger floor) would let a
     /// stale floor prove indexes into the new, possibly shorter value.
     pub(in crate::checks::ranges) fn forget_collection_facts(&mut self, collection: &str) {
-        self.minimum_lengths.retain(|(known, _)| known != collection);
+        self.minimum_lengths
+            .retain(|(known, _)| known != collection);
         self.exact_lengths.retain(|(known, _)| known != collection);
         self.window_parents
             .retain(|(child, _, _)| child != collection);

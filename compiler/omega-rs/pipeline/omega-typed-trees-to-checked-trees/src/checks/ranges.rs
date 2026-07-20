@@ -16,6 +16,7 @@ mod types;
 
 use arrays::fixed_array_field_lengths;
 pub(in crate::checks) use arrays::fixed_array_type_length;
+use dependent_params::seed_dependent_param_orderings;
 use facts::RangeFacts;
 use incoming_guards::{collect_incoming_guard_facts, seed_incoming_guard_facts};
 use initializers::seed_field_integer_facts;
@@ -23,7 +24,6 @@ use loop_invariants::{collect_loop_invariant_facts, seed_loop_invariant_facts};
 use omega_core::diagnostics::Diagnostic;
 use requirements::seed_machine_requires;
 use state_arguments::{collect_state_argument_facts, seed_state_argument_facts};
-use dependent_params::seed_dependent_param_orderings;
 use statements::check_statement;
 
 pub(crate) fn check_indexed_accesses(
