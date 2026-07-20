@@ -31806,6 +31806,7 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
 fn suspension_carry_canaries_pin_statement_bound_liveness() {
     for name in [
         "concurrency/suspend_after_last_use_compile",
+        "concurrency/suspend_after_earlier_operand_compile",
         "concurrency/suspend_after_self_field_last_use_compile",
     ] {
         let pass = pass_canary(name);
@@ -31830,6 +31831,14 @@ fn suspension_carry_canaries_pin_statement_bound_liveness() {
         (
             "concurrency/suspend_self_field_reachable_state_rejected",
             "may reach `Suspend` while `self.message` remains live",
+        ),
+        (
+            "concurrency/suspend_call_argument_rejected",
+            "may reach `Suspend` while `message` remains live",
+        ),
+        (
+            "concurrency/suspend_later_operand_rejected",
+            "may reach `Suspend` while `message` remains live",
         ),
     ] {
         let fail = fail_canary(name);
@@ -34241,6 +34250,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "borrow/runtime_view_of_view_chain_exit",
     "borrow/runtime_method_view_write_after_last_use_exit",
     "concurrency/suspend_after_last_use_compile",
+    "concurrency/suspend_after_earlier_operand_compile",
     "concurrency/suspend_after_self_field_last_use_compile",
     // --- ch17 atomics (concurrency stage 1) ---
     "atomics/atomic_field_declared",
@@ -34281,6 +34291,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/boundary_data_construction_rejected",
     "data/boundary_data_relaxed_carry_unadmitted",
     "concurrency/suspend_live_value_rejected",
+    "concurrency/suspend_call_argument_rejected",
+    "concurrency/suspend_later_operand_rejected",
     "concurrency/suspend_self_field_reachable_state_rejected",
     "expressions/match_duplicate_pattern_rejected",
     "expressions/primitive_member_access_rejected",

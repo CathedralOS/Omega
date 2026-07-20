@@ -1,0 +1,25 @@
+data Cell {
+    value: i32;
+}
+
+data Message {
+    body: &Cell;
+}
+
+boundary trait Scheduler {
+    machine park() -> i32 effects Suspend;
+}
+
+data Main {
+    scheduler: Scheduler;
+    cell: Cell;
+}
+
+machine Main::read(&mut self, cell: &Cell) -> i32 {
+    transition { _ -> cell.value }
+}
+
+machine Main::main(&mut self) {
+    let message: Message = Message { body: &self.cell };
+    let values: [i32; 2] = [self.scheduler.park(), self.read(message.body)];
+}

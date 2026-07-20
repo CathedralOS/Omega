@@ -213,11 +213,13 @@ before the fix.
   liveness also tracks attached-data fields and compatibility machine-owned
   cells through reachable state transitions without collapsing them into
   whole-`self`; effect, borrow, flow, and contract analyses join calls by the
-  shared `(state, statement, ordinal)` identity. Continue with intra-statement
-  call ordering, contained-machine subtrees, admitted and sealed per-mint
-  facts, activation-demand joins against pessimistic admitted runtime behavior,
-  and
-  diagnostic and model-export consumers. Checked builds now emit
+  shared `(state, statement, ordinal)` identity. Intra-statement checking keeps
+  that preorder identity while applying left-to-right evaluation: call
+  arguments count as live during the call, and later operands cross an earlier
+  nested suspending call. Continue with contained-machine subtrees, semantic
+  generic-call substitution for argument policies, admitted and sealed
+  per-mint facts, activation-demand joins against pessimistic admitted runtime
+  behavior, and diagnostic and model-export consumers. Checked builds now emit
   `05_carry_manifest.json`, keeping authored minimums separate from effective
   derived policies with all four axes structured.
 - **CML4 — finish multiplicity migration.** Remove downstream dependence on

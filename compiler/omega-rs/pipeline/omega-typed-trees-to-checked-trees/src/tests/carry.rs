@@ -253,3 +253,83 @@ fn rejects_suspension_when_self_field_is_used_in_reachable_state() {
         "expected cross-state self-field carry diagnostic, got {diagnostics:#?}"
     );
 }
+
+#[test]
+fn rejects_restrictive_argument_carried_by_suspending_call() {
+    let diagnostics = lower(
+        r#"
+        data Cell { value: i32; }
+        data Message { body: &Cell; }
+        boundary trait Scheduler {
+            machine park(message: Message) effects Suspend;
+        }
+        data Main { scheduler: Scheduler; cell: Cell; }
+        machine Main::run(&mut self) {
+            let message: Message = Message { body: &self.cell };
+            self.scheduler.park(message);
+        }
+        "#,
+    )
+    .expect_err("a suspending call carries its arguments even at their last lexical use");
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("may reach `Suspend`")
+                && diagnostic.message.contains("`message` remains live")
+                && diagnostic.message.contains("suspension: forbidden")
+        }),
+        "expected call-argument carry diagnostic, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn rejects_restrictive_use_after_nested_suspending_call_in_same_statement() {
+    let diagnostics = lower(
+        r#"
+        data Cell { value: i32; }
+        data Message { body: &Cell; }
+        boundary trait Scheduler {
+            machine park() -> i32 effects Suspend;
+        }
+        data Main { scheduler: Scheduler; cell: Cell; }
+        machine Main::read(&mut self, cell: &Cell) -> i32 {
+            transition { _ -> cell.value }
+        }
+        machine Main::run(&mut self) {
+            let message: Message = Message { body: &self.cell };
+            let values: [i32; 2] = [self.scheduler.park(), self.read(message.body)];
+        }
+        "#,
+    )
+    .expect_err("left-to-right evaluation keeps the later operand live across suspension");
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("may reach `Suspend`")
+                && diagnostic.message.contains("`message` remains live")
+        }),
+        "expected intra-statement carry diagnostic, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn accepts_restrictive_use_before_nested_suspending_call_in_same_statement() {
+    lower(
+        r#"
+        data Cell { value: i32; }
+        data Message { body: &Cell; }
+        boundary trait Scheduler {
+            machine park() -> i32 effects Suspend;
+        }
+        data Main { scheduler: Scheduler; cell: Cell; }
+        machine Main::read(&mut self, cell: &Cell) -> i32 {
+            transition { _ -> cell.value }
+        }
+        machine Main::run(&mut self) {
+            let message: Message = Message { body: &self.cell };
+            let values: [i32; 2] = [self.read(message.body), self.scheduler.park()];
+        }
+        "#,
+    )
+    .expect("the restrictive value is dead before the later operand suspends");
+}

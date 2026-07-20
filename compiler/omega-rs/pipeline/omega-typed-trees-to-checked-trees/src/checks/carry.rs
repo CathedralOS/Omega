@@ -1,6 +1,8 @@
 use omega_core::diagnostics::Diagnostic;
 use omega_core::semantics::CarrySuspension;
 
+mod intra_statement;
+
 /// Reject a call that may suspend while a suspension-forbidden lexical value
 /// remains live in the caller activation. This is deliberately a local check:
 /// CPU/thread/address demands join provider runtime behavior at admission,
@@ -66,9 +68,44 @@ pub(super) fn check_suspension_carry(
                 continue;
             }
 
-            append_live_persistent_diagnostics(program, machine, state, call, &mut diagnostics);
-            append_live_parameter_diagnostics(program, machine, state, call, &mut diagnostics);
-            append_live_local_diagnostics(program, machine, state, call, &mut diagnostics);
+            let call_site = crate::find_call_site(
+                program,
+                machine.symbol,
+                state.symbol,
+                call.statement_index,
+                call.call_ordinal,
+            );
+
+            append_call_carried_argument_diagnostics(
+                program,
+                call,
+                call_site.as_ref(),
+                &mut diagnostics,
+            );
+            append_live_persistent_diagnostics(
+                program,
+                machine,
+                state,
+                call,
+                call_site.as_ref(),
+                &mut diagnostics,
+            );
+            append_live_parameter_diagnostics(
+                program,
+                machine,
+                state,
+                call,
+                call_site.as_ref(),
+                &mut diagnostics,
+            );
+            append_live_local_diagnostics(
+                program,
+                machine,
+                state,
+                call,
+                call_site.as_ref(),
+                &mut diagnostics,
+            );
         }
     }
 
@@ -79,11 +116,45 @@ pub(super) fn check_suspension_carry(
     }
 }
 
+fn append_call_carried_argument_diagnostics(
+    program: &omega_typed_trees::TypedTrees,
+    call: &omega_checked_trees::BorrowCallFact,
+    call_site: Option<&crate::CallSite<'_>>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(call_site) = call_site else {
+        return;
+    };
+    let Some(parameters) = crate::call_target_parameters(program, call.target_symbol) else {
+        return;
+    };
+    let arguments = crate::call_site_argument_expressions(program, call_site);
+    for (parameter, argument) in parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .zip(arguments)
+    {
+        let display_name = program.expression_table.display_name(*argument);
+        append_if_suspension_forbidden_with_type_parameters(
+            program,
+            // A concrete target parameter derives normally. An unsubstituted
+            // generic target parameter remains born-strict until semantic call
+            // substitution supplies its admitted argument policy.
+            &[],
+            parameter.type_reference,
+            &display_name,
+            call,
+            diagnostics,
+        );
+    }
+}
+
 fn append_live_persistent_diagnostics(
     program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state: &omega_typed_trees::state::State,
     call: &omega_checked_trees::BorrowCallFact,
+    call_site: Option<&crate::CallSite<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if let Some(attached_name) = machine.attached_data.as_ref()
@@ -100,6 +171,7 @@ fn append_live_persistent_diagnostics(
                         machine,
                         state,
                         call,
+                        call_site,
                         field.symbol,
                         field.type_reference,
                         field.name.as_str(),
@@ -113,6 +185,7 @@ fn append_live_persistent_diagnostics(
                             machine,
                             state,
                             call,
+                            call_site,
                             field.symbol,
                             field.type_reference,
                             field.name.as_str(),
@@ -130,6 +203,7 @@ fn append_live_persistent_diagnostics(
             machine,
             state,
             call,
+            call_site,
             owned.symbol,
             owned.type_reference,
             owned.name.as_str(),
@@ -144,12 +218,21 @@ fn append_persistent_field_if_live(
     machine: &omega_typed_trees::machine::Machine,
     state: &omega_typed_trees::state::State,
     call: &omega_checked_trees::BorrowCallFact,
+    call_site: Option<&crate::CallSite<'_>>,
     field_symbol: omega_core::symbols::SymbolHandle,
     type_reference: omega_typed_trees::types::TypeReferenceHandle,
     field_name: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if !persistent_symbol_is_live_after_call(program, machine, state, call, field_symbol) {
+    if !persistent_symbol_is_live_after_call(
+        program,
+        machine,
+        state,
+        call,
+        call_site,
+        field_symbol,
+        field_name,
+    ) {
         return;
     }
     let display_name = format!("self.{field_name}");
@@ -168,8 +251,22 @@ fn persistent_symbol_is_live_after_call(
     machine: &omega_typed_trees::machine::Machine,
     state: &omega_typed_trees::state::State,
     call: &omega_checked_trees::BorrowCallFact,
+    call_site: Option<&crate::CallSite<'_>>,
     field_symbol: omega_core::symbols::SymbolHandle,
+    field_name: &str,
 ) -> bool {
+    if call_site.is_some_and(|call_site| {
+        intra_statement::place_is_used_after_call(
+            program,
+            state,
+            call.statement_index,
+            call_site,
+            field_symbol,
+            field_name,
+        )
+    }) {
+        return true;
+    }
     if crate::borrow::place_symbol_is_used_after_statement(
         program,
         state.symbol,
@@ -287,17 +384,27 @@ fn append_live_parameter_diagnostics(
     machine: &omega_typed_trees::machine::Machine,
     state: &omega_typed_trees::state::State,
     call: &omega_checked_trees::BorrowCallFact,
+    call_site: Option<&crate::CallSite<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for parameter in program.state_parameters(state) {
         if parameter.is_self
-            || !crate::borrow::place_is_used_after_statement(
+            || (!crate::borrow::place_is_used_after_statement(
                 program,
                 state.statement_nodes,
                 call.statement_index,
                 parameter.symbol,
                 parameter.name.as_str(),
-            )
+            ) && !call_site.is_some_and(|call_site| {
+                intra_statement::place_is_used_after_call(
+                    program,
+                    state,
+                    call.statement_index,
+                    call_site,
+                    parameter.symbol,
+                    parameter.name.as_str(),
+                )
+            }))
         {
             continue;
         }
@@ -317,6 +424,7 @@ fn append_live_local_diagnostics(
     machine: &omega_typed_trees::machine::Machine,
     state: &omega_typed_trees::state::State,
     call: &omega_checked_trees::BorrowCallFact,
+    call_site: Option<&crate::CallSite<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for (definition_index, statement) in program
@@ -337,7 +445,16 @@ fn append_live_local_diagnostics(
             call.statement_index,
             local.symbol,
             local.name.as_str(),
-        ) {
+        ) && !call_site.is_some_and(|call_site| {
+            intra_statement::place_is_used_after_call(
+                program,
+                state,
+                call.statement_index,
+                call_site,
+                local.symbol,
+                local.name.as_str(),
+            )
+        }) {
             continue;
         }
         append_if_suspension_forbidden(
@@ -359,17 +476,39 @@ fn append_if_suspension_forbidden(
     call: &omega_checked_trees::BorrowCallFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let policy = omega_validation::effective_type_carry_policy(
+    append_if_suspension_forbidden_with_type_parameters(
         program,
         program.machine_type_parameters(machine),
         type_reference,
+        value_name,
+        call,
+        diagnostics,
     );
+}
+
+fn append_if_suspension_forbidden_with_type_parameters(
+    program: &omega_typed_trees::TypedTrees,
+    type_parameters: &[omega_typed_trees::data::TypeParameter],
+    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    value_name: &str,
+    call: &omega_checked_trees::BorrowCallFact,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let policy =
+        omega_validation::effective_type_carry_policy(program, type_parameters, type_reference);
     if policy.suspension == CarrySuspension::Allowed {
         return;
     }
 
     let target_name = crate::labels::symbol_name(program, call.target_symbol);
-    diagnostics.push(Diagnostic::error(format!(
+    let message = format!(
         "call to `{target_name}` may reach `Suspend` while `{value_name}` remains live, but its effective policy is `{policy}`; consume the value before the call or use a suspension-safe carrier"
-    )));
+    );
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.message == message)
+    {
+        return;
+    }
+    diagnostics.push(Diagnostic::error(message));
 }
