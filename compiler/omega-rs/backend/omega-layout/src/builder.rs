@@ -1090,8 +1090,11 @@ fn binding_for_type<'program>(
     bindings
         .iter()
         .find(|binding| {
-            (symbol.is_valid() && binding.parameter_symbol == symbol)
-                || binding.parameter_name == name
+            if symbol.is_valid() {
+                binding.parameter_symbol == symbol
+            } else {
+                binding.parameter_name == name
+            }
         })
         .copied()
 }
@@ -1126,7 +1129,9 @@ fn const_argument_value(
         return None;
     };
     if !symbol.is_valid() {
-        return name.as_str().parse::<usize>().ok();
+        if let Ok(value) = name.as_str().parse::<usize>() {
+            return Some(value);
+        }
     }
     let binding = binding_for_type(*symbol, name, bindings)?;
     const_argument_value(program, binding.argument, bindings, depth + 1)

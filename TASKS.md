@@ -701,10 +701,10 @@ before the fix.
 - **Const data parameters.** Literal arguments now parse in generic type
   position, validate against the declared integer kind/range, and substitute
   into fixed-array layout, descriptors, runtime storage, and interpreter
-  defaults; a differential canary pins `FixedBuffer<i32, 4>` indexed storage.
-  Continue with named/forwarded const arguments, per-instance identity beyond
-  the existing generic-data collision boundary, richer const expressions,
-  layout diagnostics, and const-fact proof integration.
+  defaults; differential canaries pin direct and same-name, symbol-resolved
+  forwarded const arguments through indexed storage. Continue with per-instance
+  identity beyond the existing generic-data collision boundary, richer const
+  expressions, layout diagnostics, and const-fact proof integration.
 - **Trait defaults.** Implement conformance, reuse, override, and dispatch for
   trait machines whose body supplies the default. Do not restore a `default`
   keyword.

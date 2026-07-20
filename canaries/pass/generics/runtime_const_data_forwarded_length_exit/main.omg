@@ -1,0 +1,23 @@
+// A const parameter may be forwarded through another generic data instance.
+// Both declarations intentionally call it `N`: symbol identity, not the
+// repeated spelling, must select the inner binding and then follow it outward.
+use omega::language::std::console;
+
+data FixedBuffer<const N: u64> {
+    items: [i32 in Wrapping; N];
+}
+
+data ForwardedBuffer<const N: u64> {
+    buffer: FixedBuffer<N>;
+}
+
+data Main {
+    console: Console;
+    forwarded: ForwardedBuffer<4>;
+}
+
+machine Main::main(&mut self) {
+    self.forwarded.buffer.items[3] = 70;
+    let result: i32 in Wrapping = self.forwarded.buffer.items[3];
+    self.console.exit_process(result);
+}

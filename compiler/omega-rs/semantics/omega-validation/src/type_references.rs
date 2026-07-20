@@ -391,6 +391,7 @@ fn validate_type_reference_handle_with_context(
                             parameter,
                             type_reference,
                             *argument,
+                            type_parameter_scope,
                             diagnostics,
                         );
                         continue;
@@ -454,31 +455,9 @@ fn validate_const_data_argument(
     parameter: &TypeParameter,
     parameter_type: TypeReferenceHandle,
     argument: TypeReferenceHandle,
+    type_parameter_scope: TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let TypeReferenceNode::Named { symbol, name } =
-        program.type_reference_table.type_reference(argument)
-    else {
-        diagnostics.push(Diagnostic::error(format!(
-            "const parameter `{}` of `{base_name}` requires an integer literal argument",
-            parameter.name
-        )));
-        return;
-    };
-    let Ok(value) = name.as_str().parse::<u64>() else {
-        diagnostics.push(Diagnostic::error(format!(
-            "const parameter `{}` of `{base_name}` requires an integer literal argument, got `{name}`",
-            parameter.name
-        )));
-        return;
-    };
-    if symbol.is_valid() {
-        diagnostics.push(Diagnostic::error(format!(
-            "const parameter `{}` of `{base_name}` requires a value, not a type",
-            parameter.name
-        )));
-        return;
-    }
     let Some(primitive) = program.type_reference_table.primitive_type(parameter_type) else {
         diagnostics.push(Diagnostic::error(format!(
             "const parameter `{}` of `{base_name}` must declare an integer primitive type",
@@ -494,6 +473,67 @@ fn validate_const_data_argument(
         )));
         return;
     }
+
+    let TypeReferenceNode::Named { symbol, name } =
+        program.type_reference_table.type_reference(argument)
+    else {
+        diagnostics.push(Diagnostic::error(format!(
+            "const parameter `{}` of `{base_name}` requires an integer literal argument",
+            parameter.name
+        )));
+        return;
+    };
+
+    if let Ok(value) = name.as_str().parse::<u64>() {
+        validate_const_integer_range(base_name, parameter, primitive, value, diagnostics);
+        return;
+    }
+
+    let forwarded = type_parameter_scope
+        .type_parameters
+        .iter()
+        .find(|candidate| {
+            if symbol.is_valid() {
+                candidate.symbol == *symbol
+            } else {
+                candidate.name.as_str() == name.as_str()
+            }
+        });
+    let Some(forwarded) = forwarded else {
+        diagnostics.push(Diagnostic::error(format!(
+            "const parameter `{}` of `{base_name}` requires an integer literal argument or an in-scope const parameter, got `{name}`",
+            parameter.name
+        )));
+        return;
+    };
+    let TypeParameterKind::Const {
+        type_reference: forwarded_type,
+    } = forwarded.kind
+    else {
+        diagnostics.push(Diagnostic::error(format!(
+            "const parameter `{}` of `{base_name}` requires a value, not a type",
+            parameter.name
+        )));
+        return;
+    };
+    if !type_references_match(program, forwarded_type, parameter_type) {
+        diagnostics.push(Diagnostic::error(format!(
+            "const parameter `{}` of `{base_name}` has type `{}`, but forwarded const parameter `{}` has type `{}`",
+            parameter.name,
+            type_reference_label(program, parameter_type),
+            forwarded.name,
+            type_reference_label(program, forwarded_type),
+        )));
+    }
+}
+
+fn validate_const_integer_range(
+    base_name: &str,
+    parameter: &TypeParameter,
+    primitive: PrimitiveType,
+    value: u64,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     let maximum = match primitive {
         PrimitiveType::I8 => i8::MAX as u64,
         PrimitiveType::I16 => i16::MAX as u64,

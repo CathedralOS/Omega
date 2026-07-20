@@ -38,7 +38,7 @@ use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::{DataDefinition, DataMember, Item};
+use omega_syntax_trees::item::{DataDefinition, DataMember, Item, TypeParameterKind};
 use omega_syntax_trees::statement::StatementNode;
 use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use std::collections::HashMap;
@@ -103,6 +103,22 @@ pub(crate) fn desugar_generic_data_instances(
         if definition.type_parameters.is_empty() {
             continue;
         }
+        let definition_parameters = syntax
+            .tables
+            .items
+            .type_parameters(definition.type_parameters);
+        // This desugar substitutes TYPE references. Const parameters also use
+        // the generic argument surface, but their uses live in value slots such
+        // as fixed-array lengths; treating a literal like `4` as a type slug
+        // synthesizes a record while leaving `[T; N]` unsubstituted. Keep const
+        // instances on the binding-aware layout path until this pass learns
+        // value-position substitution.
+        if definition_parameters
+            .iter()
+            .any(|parameter| !matches!(parameter.kind, TypeParameterKind::Type))
+        {
+            continue;
+        }
         if data_with_machines.contains(definition.name.as_str()) {
             // A CONTAINER (generic data with attached machines) monomorphizes
             // ONLY when every method's own type parameters are covered by the
@@ -155,10 +171,7 @@ pub(crate) fn desugar_generic_data_instances(
                 continue;
             }
         }
-        let parameter_names = syntax
-            .tables
-            .items
-            .type_parameters(definition.type_parameters)
+        let parameter_names = definition_parameters
             .iter()
             .map(|parameter| parameter.name.as_str().to_string())
             .collect();
