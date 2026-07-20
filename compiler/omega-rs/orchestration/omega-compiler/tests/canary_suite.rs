@@ -1195,10 +1195,10 @@ fn unapproved_host_call_canary_is_rejected() {
 
 #[test]
 fn value_call_as_host_arg_rejected_canary_is_rejected() {
-    // A value-call result (or any non-trivial computed value) used directly as a host-call
-    // argument is not yet encodable; the selector rejects it cleanly rather than silently
-    // miscompiling (#40). Workaround: bind to a field first. Guards the value-call positions
-    // that ARE cleanly rejected against the value-call-in-guard silent-miscompile failure mode.
+    // A nested value-call result used directly as a host-call argument still needs explicit
+    // call sequencing; the selector rejects it cleanly rather than silently miscompiling (#40).
+    // Direct scalar binary expressions have their own scratch-materialization path. Workaround
+    // here: bind the nested call result to a field first.
     let canary = fail_canary("calls/value_call_as_host_arg_rejected");
     let diagnostics = match compile_canary_without_output(&canary) {
         Ok(report) => panic!(
@@ -1219,29 +1219,52 @@ fn value_call_as_host_arg_rejected_canary_is_rejected() {
 }
 
 #[test]
-fn computed_host_arg_rejected_canary_is_rejected() {
-    // A computed expression (arithmetic) used directly as a host-call argument is not yet
-    // encodable; the selector rejects it cleanly (#40) rather than silently exiting 0. The
-    // message is actionable (names the rule + the let-bind fix). Workaround: bind to a local
-    // first. Sibling of value_call_as_host_arg_rejected (a value-call arg). Remove when host-arg
-    // expression materialization lands (memory host-arg-expression-materialization).
-    let canary = fail_canary("calls/computed_host_arg_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected computed-host-arg canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
-    let combined = diagnostics
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        combined.contains("encodable") && combined.contains("simple value"),
-        "expected an actionable 'no encodable call / must be a simple value' rejection, got:\n{combined}"
+fn computed_host_arg_exit_canary_runs() {
+    let canary = pass_canary("calls/computed_host_arg_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-computed-host-arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("computed scalar host argument should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("computed scalar host argument canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected direct `self.a + self.b` host argument to exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
     );
+
+    let _ = fs::remove_dir_all(&build_dir);
+
+    let cross_dir = std::env::temp_dir().join(format!(
+        "omega-computed-host-arg-arm64-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&cross_dir);
+    let src_dir = cross_dir.join("src");
+    let out_dir = cross_dir.join("out");
+    fs::create_dir_all(&src_dir).expect("scratch source directory");
+    fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
+    fs::write(src_dir.join("build.omg"), "target linux_arm64 {\n}\n")
+        .expect("write target manifest");
+    compile(CompileOptions {
+        root_path: src_dir.join("main.omg"),
+        build_dir: Some(out_dir),
+        target_name: Some("linux_arm64".into()),
+        write_output: true,
+    })
+    .expect("computed scalar host argument should cross-compile for AArch64");
+    let _ = fs::remove_dir_all(&cross_dir);
 }
 
 #[test]

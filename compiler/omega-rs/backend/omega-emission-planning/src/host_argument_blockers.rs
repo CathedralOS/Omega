@@ -20,6 +20,7 @@ pub(super) fn collect_host_argument_blockers(
     blockers: &mut Arena<EmissionBlocker>,
 ) {
     collect_console_byte_op_blockers(input, state_schedule, blockers);
+    collect_computed_scalar_argument_blockers(input, state_schedule, blockers);
 
     for (_, host_call) in input.host_calls.calls.iter() {
         if !scheduled_state_contains_key(state_schedule, host_call.source_key) {
@@ -83,6 +84,60 @@ pub(super) fn collect_host_argument_blockers(
     }
 
     collect_selected_runtime_text_buffer_host_blockers(input, blockers);
+}
+
+fn collect_computed_scalar_argument_blockers(
+    input: &EmissionPlanningInput<'_>,
+    state_schedule: &[ScheduledState],
+    blockers: &mut Arena<EmissionBlocker>,
+) {
+    for (_, host_call) in input.host_calls.calls.iter() {
+        if !scheduled_state_contains_key(state_schedule, host_call.source_key) {
+            continue;
+        }
+        let Some(arguments) = input.host_calls.arguments.span(host_call.arguments) else {
+            continue;
+        };
+        for (index, argument) in arguments.iter().enumerate() {
+            let HostCallArgumentKind::Expression(expression) = argument.kind else {
+                continue;
+            };
+            if !matches!(
+                input.host_calls.expressions.expression(expression),
+                omega_checked_trees::expression::ExpressionNode::Binary(_)
+            ) {
+                continue;
+            }
+            let target_offset = input.runtime_storage.host_argument_scratch_base + index * 8;
+            let has_materialization = input.instructions.code.instructions.iter().any(
+                |(_, instruction)| {
+                    state_key_matches_statement_source(instruction.source_key, host_call.source_key)
+                        && instruction.source_statement == host_call.statement_index
+                        && matches!(
+                            instruction.kind,
+                            SelectedInstructionKind::WritePlaceBinary { target, .. }
+                                if target.region
+                                    == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+                                    && target.const_offset() == Some(target_offset)
+                        )
+                },
+            );
+            if has_materialization {
+                continue;
+            }
+            let source_name = state_name(input, host_call.source_key);
+            blockers.insert(blocker(
+                "host arguments",
+                &format!(
+                    "{} statement {} computed scalar argument {} did not materialize before its platform call{}",
+                    source_name,
+                    host_call.statement_index,
+                    index,
+                    proof_scope_suffix(input, host_call.source_key)
+                ),
+            ));
+        }
+    }
 }
 
 /// Console byte ops select into their composite instructions ONLY (selection

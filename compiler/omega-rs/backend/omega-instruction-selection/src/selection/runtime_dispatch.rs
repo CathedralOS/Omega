@@ -338,6 +338,76 @@ pub(crate) fn write_place_binary_direct(
     }
 }
 
+/// Materialize one computed scalar host-call argument into its reserved frame
+/// slot. This intentionally admits only binary expressions for the first
+/// slice; nested value calls need separate call sequencing rather than a
+/// scratch write.
+pub(in crate::selection) fn select_computed_host_argument_binary_write(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    value: ExpressionHandle,
+    target_offset: usize,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<(SelectedInstructionKind, usize)> {
+    let byte_size = computed_host_argument_binary_byte_size(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        value,
+    )?;
+    let static_values = writes::RuntimeStaticValues::default();
+    writes::mutation::select_runtime_storage_binary_write_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        expressions,
+        RuntimeStorageRegion::RuntimeFrame,
+        target_offset,
+        byte_size,
+        value,
+        &static_values,
+        runtime_value_operands,
+    )
+    .map(|instruction| (instruction, byte_size))
+}
+
+pub(in crate::selection) fn computed_host_argument_binary_byte_size(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    value: ExpressionHandle,
+) -> Option<usize> {
+    let ExpressionNode::Binary(binary) = expressions.expression(value) else {
+        return None;
+    };
+    if matches!(
+        binary.operator,
+        omega_checked_trees::expression::BinaryOperator::Equal
+            | omega_checked_trees::expression::BinaryOperator::NotEqual
+            | omega_checked_trees::expression::BinaryOperator::Less
+            | omega_checked_trees::expression::BinaryOperator::LessOrEqual
+            | omega_checked_trees::expression::BinaryOperator::Greater
+            | omega_checked_trees::expression::BinaryOperator::GreaterOrEqual
+    ) {
+        Some(1)
+    } else {
+        Some(writes::mutation::binary_value_operand_byte_width(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            binary.left,
+            binary.right,
+        ))
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn write_place_binary_pointee(
     pointer_byte_offset: usize,
@@ -1959,6 +2029,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                             Some(dispatch_case.dispatch_index),
                             alias_context,
                             operands,
+                            runtime_value_operands,
                             selected_instructions,
                         );
                     } else {
@@ -2472,6 +2543,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                         Some(dispatch_case.dispatch_index),
                         alias_context,
                         operands,
+                        runtime_value_operands,
                         selected_instructions,
                     );
 

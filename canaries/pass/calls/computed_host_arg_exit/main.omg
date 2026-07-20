@@ -1,0 +1,16 @@
+// A scalar binary expression can be passed directly to a host boundary. The
+// backend materializes it into statement-local argument scratch before the
+// platform marshaller reads the value.
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.a = 3;
+    self.b = 67;
+    self.console.exit_process(self.a + self.b);
+}

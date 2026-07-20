@@ -121,6 +121,7 @@ fn select_runtime_branch_prelude(
                         alias_expressions: &input.runtime_branching_calls.expressions,
                     }),
                     operands,
+                    runtime_value_operands,
                     selected_instructions,
                 );
             }

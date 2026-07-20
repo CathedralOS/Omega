@@ -31,7 +31,8 @@ use omega_runtime_dispatch_loop::{
 use omega_runtime_storage::{
     RuntimeStorageContext, build_runtime_storage_plan_with_workers, reserve_entry_argument_spill,
     reserve_entry_indirect_result_pointer, reserve_entry_result_scratch,
-    reserve_wire_nested_scratch, runtime_frame_storage_alignment, runtime_frame_storage_size,
+    reserve_host_argument_scratch, reserve_wire_nested_scratch, runtime_frame_storage_alignment,
+    runtime_frame_storage_size,
 };
 use omega_runtime_text::build_runtime_text_plan;
 use omega_state_calls::{
@@ -300,6 +301,10 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     // replaying it (length varint + copy) into the caller's out buffer, and
     // the decoder keeps the sub-region end bound in the same slots.
     reserve_wire_nested_scratch(&mut backend_plan.runtime_storage, &program);
+    reserve_host_argument_scratch(
+        &mut backend_plan.runtime_storage,
+        host_computed_scalar_argument_slot_count(&backend_plan.host_calls),
+    );
     // Reserve the entry-argument spill (the bytes handoff `run(&self, args:
     // &[u8])`) ABOVE every other reservation -- args's slice descriptor points
     // at the spilled registers for the program's whole life, so nothing may
@@ -531,6 +536,32 @@ fn entry_may_need_native_indirect_result_pointer(
                 layout.layout.size > 16
             }
     })
+}
+
+fn host_computed_scalar_argument_slot_count(
+    host_calls: &omega_platform_interface::HostCallPlan,
+) -> usize {
+    host_calls
+        .calls
+        .iter()
+        .filter_map(|(_, call)| {
+            let arguments = host_calls.arguments.span(call.arguments)?;
+            arguments
+                .iter()
+                .any(|argument| {
+                    matches!(
+                        argument.kind,
+                        omega_platform_interface::HostCallArgumentKind::Expression(expression)
+                            if matches!(
+                                host_calls.expressions.expression(expression),
+                                omega_checked_trees::expression::ExpressionNode::Binary(_)
+                            )
+                    )
+                })
+                .then_some(arguments.len())
+        })
+        .max()
+        .unwrap_or(0)
 }
 
 fn entry_native_expression_result_layout(

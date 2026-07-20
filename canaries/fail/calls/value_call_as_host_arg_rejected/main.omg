@@ -1,6 +1,6 @@
-// FAIL canary (#40 boundary guard): a value-call result -- and more generally any non-trivial
-// computed value (e.g. an arithmetic expression) -- used DIRECTLY as a host-call argument is
-// not yet encodable. The instruction selector rejects it CLEANLY ("no encodable call
+// FAIL canary (#40 boundary guard): a nested value-call result used DIRECTLY as a host-call
+// argument is not yet sequenced. (Direct scalar binary expressions are materialized through
+// host-argument scratch.) The instruction selector rejects this CLEANLY ("no encodable call
 // selection") rather than silently miscompiling. The sound workaround is to bind the value to
 // a field/local first, then pass the place: `self.r = self.dbl(35);
 // self.console.exit_process(self.r)` (verified to exit 70).
@@ -10,7 +10,7 @@
 // memory value-call-in-guard-always-true). So locking the value-call positions that ARE
 // cleanly rejected guards against any regressing into that silent-miscompile failure mode: if
 // a value-call as a direct host arg ever compiles, this test fails. Remove/repurpose when
-// direct computed host-call arguments are supported.
+// nested value-call host arguments are supported.
 use omega::language::std::console;
 
 data Main {

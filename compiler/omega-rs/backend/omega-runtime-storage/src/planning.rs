@@ -71,6 +71,8 @@ pub fn build_runtime_storage_plan_with_workers(
             frame_scratch_size: _,
             wire_scratch_base: _,
             wire_scratch_size: _,
+            host_argument_scratch_base: _,
+            host_argument_scratch_size: _,
             entry_argument_spill_base: _,
             entry_argument_spill_size: _,
             entry_indirect_result_pointer_base: _,
@@ -316,6 +318,26 @@ pub fn reserve_wire_nested_scratch(
     plan.wire_scratch_size = 16 + staging_bytes;
 }
 
+/// Reserve one native word per argument position for scalar expressions that
+/// must be evaluated before a host operation marshals its arguments. The
+/// region is reused across statements after each call consumes its values.
+pub fn reserve_host_argument_scratch(plan: &mut RuntimeStoragePlan, slot_count: usize) {
+    if slot_count == 0 {
+        return;
+    }
+    let occupied_extent = (plan.wire_scratch_base + plan.wire_scratch_size)
+        .max(plan.frame_scratch_base + plan.frame_scratch_size)
+        .max(
+            plan.frame_slots
+                .iter()
+                .map(|(_, slot)| slot.byte_offset + slot.byte_size)
+                .max()
+                .unwrap_or(0),
+        );
+    plan.host_argument_scratch_base = align_to(occupied_extent.max(8), 8);
+    plan.host_argument_scratch_size = slot_count.saturating_mul(8);
+}
+
 /// Reserve the ENTRY-ARGUMENT SPILL region when the entry state declares the
 /// bytes-handoff signature (`run(&self, args: &[u8])` -- exactly one non-self
 /// parameter whose frame slot is the 16-byte `&[u8]` slice descriptor). The
@@ -342,6 +364,7 @@ pub fn reserve_entry_argument_spill(
     }
 
     let occupied_extent = (plan.wire_scratch_base + plan.wire_scratch_size)
+        .max(plan.host_argument_scratch_base + plan.host_argument_scratch_size)
         .max(plan.frame_scratch_base + plan.frame_scratch_size)
         .max(
             plan.frame_slots
@@ -363,6 +386,7 @@ pub fn reserve_entry_indirect_result_pointer(plan: &mut RuntimeStoragePlan, enab
         return;
     }
     let occupied_extent = (plan.entry_argument_spill_base + plan.entry_argument_spill_size)
+        .max(plan.host_argument_scratch_base + plan.host_argument_scratch_size)
         .max(plan.wire_scratch_base + plan.wire_scratch_size)
         .max(plan.frame_scratch_base + plan.frame_scratch_size)
         .max(
@@ -388,6 +412,7 @@ pub fn reserve_entry_result_scratch(plan: &mut RuntimeStoragePlan, layout: Optio
     let occupied_extent = (plan.entry_indirect_result_pointer_base
         + plan.entry_indirect_result_pointer_size)
         .max(plan.entry_argument_spill_base + plan.entry_argument_spill_size)
+        .max(plan.host_argument_scratch_base + plan.host_argument_scratch_size)
         .max(plan.wire_scratch_base + plan.wire_scratch_size)
         .max(plan.frame_scratch_base + plan.frame_scratch_size)
         .max(
@@ -413,6 +438,7 @@ pub fn runtime_frame_storage_size(plan: &RuntimeStoragePlan) -> usize {
     slots_extent
         .max(plan.frame_scratch_base + plan.frame_scratch_size)
         .max(plan.wire_scratch_base + plan.wire_scratch_size)
+        .max(plan.host_argument_scratch_base + plan.host_argument_scratch_size)
         .max(plan.entry_argument_spill_base + plan.entry_argument_spill_size)
         .max(plan.entry_indirect_result_pointer_base + plan.entry_indirect_result_pointer_size)
         .max(plan.entry_result_scratch_base + plan.entry_result_scratch_size)
@@ -428,6 +454,7 @@ pub fn runtime_frame_storage_alignment(plan: &RuntimeStoragePlan) -> usize {
     let reserved_alignment = if plan.entry_argument_spill_size > 0
         || plan.entry_indirect_result_pointer_size > 0
         || plan.entry_result_scratch_size > 0
+        || plan.host_argument_scratch_size > 0
         || plan.wire_scratch_size > 0
     {
         8
@@ -454,6 +481,22 @@ mod tests {
         assert_eq!(plan.entry_indirect_result_pointer_base, 56);
         assert_eq!(plan.entry_indirect_result_pointer_size, 8);
         assert_eq!(runtime_frame_storage_size(&plan), 64);
+        assert_eq!(runtime_frame_storage_alignment(&plan), 8);
+    }
+
+    #[test]
+    fn host_argument_scratch_reserves_one_word_per_argument() {
+        let mut plan = RuntimeStoragePlan {
+            wire_scratch_base: 24,
+            wire_scratch_size: 19,
+            ..RuntimeStoragePlan::default()
+        };
+
+        reserve_host_argument_scratch(&mut plan, 3);
+
+        assert_eq!(plan.host_argument_scratch_base, 48);
+        assert_eq!(plan.host_argument_scratch_size, 24);
+        assert_eq!(runtime_frame_storage_size(&plan), 72);
         assert_eq!(runtime_frame_storage_alignment(&plan), 8);
     }
 

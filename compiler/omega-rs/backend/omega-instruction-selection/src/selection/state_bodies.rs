@@ -383,6 +383,7 @@ pub(super) fn select_state_body_instructions(
                     alias_expressions,
                 }),
                 operands,
+                runtime_value_operands,
                 selected_instructions,
             );
             continue;
