@@ -70,6 +70,14 @@ pub enum InstructionOperandKind {
         member_byte_count: usize,
         members: u8,
     },
+    /// A fixed non-HFA AAPCS64 aggregate of 9-16 bytes, preserved by value so
+    /// lowering can copy its doubleword fragments into registers or the stack.
+    RuntimeSmallAggregate {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+        byte_count: usize,
+        alignment: usize,
+    },
     /// The ADDRESS of a statically allocated runtime-storage place (`region` base
     /// + `byte_offset`), marshalled as a pointer-sized host-call argument. This is
     /// the pointer-argument shape of the extern boundary: a `[u32; N]` framebuffer

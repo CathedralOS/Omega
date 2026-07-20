@@ -121,6 +121,11 @@ pub(super) fn collect_data_address_relocations(
                     .runtime_homogeneous_float_aggregate()
                     .map(|(region, _, _, _)| region)
             })
+            .or_else(|| {
+                operand
+                    .runtime_small_aggregate()
+                    .map(|(region, _, _, _)| region)
+            })
             .or_else(|| operand.runtime_storage_address().map(|(region, _)| region));
 
         if let Some(region) = region {

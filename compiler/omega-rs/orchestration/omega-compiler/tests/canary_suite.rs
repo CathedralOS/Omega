@@ -28101,6 +28101,87 @@ fn cross_aarch64_hfa_import_compiles_with_fragmented_plan() {
 }
 
 #[test]
+fn cross_aarch64_small_aggregate_import_uses_consecutive_x_registers() {
+    let canary = pass_canary("capabilities/aarch64_small_aggregate_import_compile");
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-aarch64-small-aggregate-import-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+    let src_dir = scratch.join("src");
+    let out_dir = scratch.join("out");
+    fs::create_dir_all(&src_dir).expect("scratch source directory");
+    fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
+    fs::write(
+        src_dir.join("build.omg"),
+        "target macos_arm64 {\n    boundary omega::host::contracts\n    boundary omega::host::targets::darwin\n}\n",
+    )
+    .expect("write macos_arm64 target manifest");
+
+    compile(CompileOptions {
+        root_path: src_dir.join("main.omg"),
+        build_dir: Some(out_dir.clone()),
+        target_name: Some("macos_arm64".to_owned()),
+        write_output: true,
+    })
+    .expect("by-value small aggregate import should compile for macos_arm64");
+
+    let image = fs::read(out_dir.join("omega-program")).expect("read emitted AArch64 Mach-O");
+    let load_register_mask = 0xffc0_03ffu32;
+    assert!(
+        image.windows(8).any(|window| {
+            let first = u32::from_le_bytes(window[0..4].try_into().expect("instruction"));
+            let second = u32::from_le_bytes(window[4..8].try_into().expect("instruction"));
+            first & load_register_mask == 0xf940_0201 && second & load_register_mask == 0xf940_0202
+        }),
+        "expected one aggregate source to feed consecutive x1/x2 fragments"
+    );
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
+fn cross_aarch64_small_aggregate_import_falls_wholly_to_stack() {
+    let canary = pass_canary("capabilities/aarch64_small_aggregate_stack_import_compile");
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-aarch64-small-aggregate-stack-import-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+    let src_dir = scratch.join("src");
+    let out_dir = scratch.join("out");
+    fs::create_dir_all(&src_dir).expect("scratch source directory");
+    fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
+    fs::write(
+        src_dir.join("build.omg"),
+        "target macos_arm64 {\n    boundary omega::host::contracts\n    boundary omega::host::targets::darwin\n}\n",
+    )
+    .expect("write macos_arm64 target manifest");
+
+    compile(CompileOptions {
+        root_path: src_dir.join("main.omg"),
+        build_dir: Some(out_dir.clone()),
+        target_name: Some("macos_arm64".to_owned()),
+        write_output: true,
+    })
+    .expect("register-exhausted small aggregate import should compile for macos_arm64");
+
+    let image = fs::read(out_dir.join("omega-program")).expect("read emitted AArch64 Mach-O");
+    for (name, instruction) in [
+        ("16-byte outgoing reserve", 0xd100_43ffu32),
+        ("first aggregate stack store", 0xf900_03f1u32),
+        ("second aggregate stack store", 0xf900_07f1u32),
+        ("outgoing stack restore", 0x9100_43ffu32),
+    ] {
+        let bytes = instruction.to_le_bytes();
+        assert!(
+            image.windows(4).any(|window| window == bytes),
+            "AArch64 aggregate stack-import image missing {name}"
+        );
+    }
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
 fn cross_aarch64_hfa_stack_import_copies_the_aggregate() {
     let canary = pass_canary("capabilities/aarch64_hfa_stack_import_compile");
     let scratch =

@@ -199,8 +199,11 @@ register fragments. Fixed non-HFA AAPCS64 records up to 16 bytes now follow the
 normalized consecutive-`x`/whole-value-stack rule, including even-register
 rounding
 for 16-byte alignment; normalized small-aggregate result plans use `x0`/`x1`.
-Outbound aggregate marshalling/result stores and aggregates above 16 bytes
-still need copy and indirect-result lowering, and
+Provides-authored outbound calls preserve the same small non-HFA record as one
+by-value operand: emission loads every planned consecutive `x` fragment or
+copies the whole value into the plan's aligned outgoing stack fragments.
+Small aggregate result stores and aggregates above 16 bytes still need result
+or caller-copy/indirect-result lowering, and
 source-selected policies remain. Generic Linux
 syscall leaves are the first outbound path to make the normalized plan
 authoritative: emission evaluates the x86-64 or AArch64 syscall policy for the

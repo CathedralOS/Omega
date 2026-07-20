@@ -183,6 +183,15 @@ pub(super) fn select_host_operation_operands(
                 .map_or(0, |arguments| arguments.len());
             let result = if host_call.has_result {
                 aapcs_hfa_argument_operand_at(input, host_call, dispatch_index, alias_context, 0)
+                    .or_else(|| {
+                        aapcs_small_aggregate_argument_operand_at(
+                            input,
+                            host_call,
+                            dispatch_index,
+                            alias_context,
+                            0,
+                        )
+                    })
                     .or_else(|| first_scalar_argument_operand(input, host_call, dispatch_index))
             } else {
                 None
@@ -226,6 +235,15 @@ pub(super) fn select_host_operation_operands(
                             alias_context,
                             index,
                         )
+                        .or_else(|| {
+                            aapcs_small_aggregate_argument_operand_at(
+                                input,
+                                host_call,
+                                dispatch_index,
+                                alias_context,
+                                index,
+                            )
+                        })
                         .or_else(|| {
                             scalar_argument_operand_at(
                                 input,
@@ -2384,6 +2402,76 @@ fn hfa_descriptor_shape(
         && data_layout.layout.size == member_byte_count * fields.len()
         && data_layout.layout.alignment == member_byte_count)
         .then_some((member_byte_count, members))
+}
+
+fn aapcs_small_aggregate_argument_operand_at(
+    input: &InstructionSelectionInput<'_>,
+    host_call: &HostCall,
+    dispatch_index: Option<u32>,
+    alias_context: Option<RuntimeAliasResolutionContext<'_, '_>>,
+    index: usize,
+) -> Option<InstructionOperandKind> {
+    if input.target.architecture != omega_target::Architecture::Aarch64 {
+        return None;
+    }
+    let argument = input
+        .host_calls
+        .arguments
+        .span(host_call.arguments)
+        .and_then(|arguments| arguments.get(index))?;
+    let HostCallArgumentKind::Expression(expression) = &argument.kind else {
+        return None;
+    };
+    let place = alias_resolved_place_at(input, host_call, dispatch_index, alias_context, index)
+        .or_else(|| {
+            resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index.unwrap_or(0),
+                host_call.source_key,
+                &input.host_calls.expressions,
+                *expression,
+            )
+        })?;
+    let descriptor = resolve_runtime_storage_leaf_descriptor_in_table(
+        input,
+        dispatch_index.unwrap_or(0),
+        host_call.source_key,
+        &input.host_calls.expressions,
+        *expression,
+    )?;
+    let (byte_count, alignment) = small_aggregate_descriptor_shape(input, &descriptor)?;
+    (place.byte_count == byte_count).then_some(InstructionOperandKind::RuntimeSmallAggregate {
+        region: place.region,
+        byte_offset: place.byte_offset,
+        byte_count,
+        alignment,
+    })
+}
+
+fn small_aggregate_descriptor_shape(
+    input: &InstructionSelectionInput<'_>,
+    descriptor: &TypeLayoutDescriptor,
+) -> Option<(usize, usize)> {
+    let descriptor = match descriptor {
+        TypeLayoutDescriptor::Constrained { base_type, .. } => {
+            return small_aggregate_descriptor_shape(input, base_type);
+        }
+        descriptor => descriptor,
+    };
+    let TypeLayoutDescriptor::Named { symbol, name } = descriptor else {
+        return None;
+    };
+    let data_layout = input
+        .layouts
+        .data_layouts
+        .iter()
+        .find(|(_, layout)| layout.symbol == *symbol || layout.name.as_str() == name.as_str())
+        .map(|(_, layout)| layout)?;
+    matches!(data_layout.shape, DataShape::Record { .. })
+        .then_some((data_layout.layout.size, data_layout.layout.alignment))
+        .filter(|(byte_count, alignment)| {
+            (9..=16).contains(byte_count) && alignment.is_power_of_two()
+        })
 }
 
 fn first_argument<'plan>(

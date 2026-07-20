@@ -1,0 +1,20 @@
+// A fixed 16-byte non-HFA record remains one by-value AAPCS64 operand. The
+// leading scalar consumes x0 and the record fragments load into x1/x2.
+data Pair {
+    first: u64;
+    second: u64;
+}
+
+boundary trait AggregateImport {
+    machine call(tag: u64, pair: Pair) -> i64;
+}
+
+macos_arm64 provides AggregateImport {
+    call -> DllImport("libSystem.B.dylib", "omega_small_aggregate_probe")
+}
+
+data Main { foreign: AggregateImport; pair: Pair; result: i64; }
+machine Main::main(&mut self) {
+    self.pair = Pair { first: 1, second: 2 };
+    self.result = self.foreign.call(7, self.pair);
+}
