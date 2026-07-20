@@ -31,8 +31,10 @@ fn insert_data_address_relocations_for_architecture(
     match architecture {
         Architecture::Aarch64 => {
             relocation_plan.push_record(RelocationRecord {
-                function_symbol_handle,
-                selected_instruction_index,
+                origin: omega_object_file::RelocationOrigin::Instruction {
+                    function_symbol_handle,
+                    selected_instruction_index,
+                },
                 section: omega_object_file::SectionKind::Text,
                 offset: operand_text_offset,
                 byte_width: 4,
@@ -40,8 +42,10 @@ fn insert_data_address_relocations_for_architecture(
                 kind: RelocationKind::Aarch64Page21,
             });
             relocation_plan.push_record(RelocationRecord {
-                function_symbol_handle,
-                selected_instruction_index,
+                origin: omega_object_file::RelocationOrigin::Instruction {
+                    function_symbol_handle,
+                    selected_instruction_index,
+                },
                 section: omega_object_file::SectionKind::Text,
                 offset: operand_text_offset + 4,
                 byte_width: 4,
@@ -51,8 +55,10 @@ fn insert_data_address_relocations_for_architecture(
         }
         Architecture::X86_64 => {
             relocation_plan.push_record(RelocationRecord {
-                function_symbol_handle,
-                selected_instruction_index,
+                origin: omega_object_file::RelocationOrigin::Instruction {
+                    function_symbol_handle,
+                    selected_instruction_index,
+                },
                 section: omega_object_file::SectionKind::Text,
                 offset: operand_text_offset,
                 byte_width: 8,

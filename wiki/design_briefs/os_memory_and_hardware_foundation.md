@@ -556,9 +556,10 @@ and the concrete interrupt state policy remain. Remaining order:
    data/entry identities from selected compiler artifacts. Name-keyed fragment
    placement, exact tiling, phase-aware action derivation, fixed-address
    resolution, early-consumption rejection, and section-qualified absolute
-   data relocation/rebasing are already live. Give materialized data honest
-   artifact-origin records rather than pretending those sites came from an
-   instruction.
+   data relocation/rebasing are already live. Native symbolic actions lower
+   with tagged materialization origin rather than pretending those sites came
+   from an instruction. Connect selected data/entry identities and emit the
+   generated post-handoff writer path.
 3. Implement the settled `Extent` carrier, conservation rules, source-loan /
    destination-authority mapping, and authority-origin validation.
 4. Implement `AccessPlan`, validation against `LayoutPlan`, sealed field-access

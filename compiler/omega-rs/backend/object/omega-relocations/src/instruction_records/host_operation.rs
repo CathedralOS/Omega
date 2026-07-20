@@ -53,8 +53,10 @@ fn collect_host_operation_call_relocation(
         .record_set
         .records
         .insert(RelocationRecord {
-            function_symbol_handle: context.function_symbol_handle,
-            selected_instruction_index: context.selected_instruction_index,
+            origin: omega_object_file::RelocationOrigin::Instruction {
+                function_symbol_handle: context.function_symbol_handle,
+                selected_instruction_index: context.selected_instruction_index,
+            },
             section: omega_object_file::SectionKind::Text,
             offset: external_call_relocation_offset(
                 context.input.target.architecture,

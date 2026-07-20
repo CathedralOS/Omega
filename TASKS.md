@@ -76,10 +76,11 @@ results and source-selected policies remain below.
    post-handoff writer records while rejecting loader-consumed unresolved
    fragments. Object/image relocation sites are section-qualified, generic
    `Absolute64` relocations patch initialized data on both native families,
-   and PE rebasing records data sites correctly. Wire entry identities from
-   selected artifacts and lower symbolic actions into those object relocations
-   or generated post-handoff code; do not fake instruction origin metadata for
-   materialized data.
+   and PE rebasing records data sites correctly. Native symbolic actions now
+   lower with an explicit materialization origin rather than fake instruction
+   metadata. Wire entry identities from selected artifacts, connect that
+   lowering to artifact construction, and emit generated post-handoff code for
+   fragmented writer actions.
 5. **IDT2 — installed-root ledger.** Add `lidt` only as an installation path
    that consumes scoped IDT
    authority and records every installed entry as an external analysis root
@@ -292,8 +293,9 @@ before the fix.
   probes.
 - **L6c — symbolic materializer.** The normalized source/action plan and
   loader-versus-post-handoff validation are live. Add richer placement
-  constraints, source identity derivation, symbolic-action lowering into the
-  section-qualified object relocation model, and generated writer code.
+  constraints, source identity derivation/integration, and generated writer
+  code. Native whole-pointer actions already lower into section-qualified
+  object relocations with materialization provenance.
 - **External loans.** Represent DMA/device borrowing with linear proxy tokens,
   completion/fence/cache obligations, and CPU-access exclusion through the
   ordinary permission context.

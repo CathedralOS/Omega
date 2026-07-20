@@ -14,6 +14,7 @@ omega-calling-conventions = { path = "../../../foundation/omega-calling-conventi
 omega-core = { path = "../../../foundation/omega-core" }
 omega-instruction-selection = { path = "../../omega-instruction-selection" }
 omega-isa-x86_64 = { path = "../../instruction_set_architectures/omega-isa-x86_64" }
+omega-layout-plans = { path = "../../../foundation/omega-layout-plans" }
 omega-machine-bytes = { path = "../../../representations/omega-machine-bytes" }
 omega-object-file = { path = "../omega-object-file" }
 omega-target = { path = "../../../foundation/omega-target" }

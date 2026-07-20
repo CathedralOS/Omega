@@ -1470,7 +1470,7 @@ fn relocations_for_selected_instruction(
         .records
         .iter()
         .filter(|(_, relocation)| {
-            relocation.selected_instruction_index == selected_instruction_index
+            relocation.origin.selected_instruction_index() == Some(selected_instruction_index)
         })
         .map(|(_, relocation)| relocation)
         .collect()

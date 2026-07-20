@@ -1,7 +1,7 @@
 use crate::BackendReportInput;
 use omega_layout::{DataShape, FieldLayout};
 use omega_object_file::{
-    RelocationRecord, SectionPlan, SymbolPlan, object_symbol_name, section_name,
+    RelocationOrigin, RelocationRecord, SectionPlan, SymbolPlan, object_symbol_name, section_name,
     symbol_section_name,
 };
 use omega_target::NativeTarget;
@@ -182,14 +182,29 @@ fn write_relocation_record(
     backend_plan: &BackendReportInput<'_>,
     relocation: &RelocationRecord,
 ) {
+    let origin = match relocation.origin {
+        RelocationOrigin::Instruction {
+            function_symbol_handle,
+            selected_instruction_index,
+        } => format!(
+            "instruction {} #{}",
+            object_symbol_name(backend_plan.object, function_symbol_handle),
+            selected_instruction_index
+        ),
+        RelocationOrigin::Materialization {
+            object_symbol_handle,
+        } => format!(
+            "materialization {}",
+            object_symbol_name(backend_plan.object, object_symbol_handle)
+        ),
+    };
     output.push_str(&format!(
-        "- {:?} {} {} @{} width {} instruction #{} -> {}\n",
+        "- {:?} {} {} @{} width {} -> {}\n",
         relocation.kind,
-        object_symbol_name(backend_plan.object, relocation.function_symbol_handle),
+        origin,
         section_name(backend_plan.target, relocation.section),
         relocation.offset,
         relocation.byte_width,
-        relocation.selected_instruction_index,
         object_symbol_name(backend_plan.object, relocation.symbol_handle)
     ));
 }
