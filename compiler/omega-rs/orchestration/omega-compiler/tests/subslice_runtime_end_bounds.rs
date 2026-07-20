@@ -59,7 +59,11 @@ fn assert_exit(canary_rel: &str, tag: &str, expected: i32) {
 #[test]
 fn domained_slice_len_guard_lowers() {
     // Fix #1 alone: `self.k < path.len` over a `&[u8] in Path` param.
-    assert_exit("slices/domained_slice_len_guard_exit", "domained-len-guard", 70);
+    assert_exit(
+        "slices/domained_slice_len_guard_exit",
+        "domained-len-guard",
+        70,
+    );
 }
 
 #[test]

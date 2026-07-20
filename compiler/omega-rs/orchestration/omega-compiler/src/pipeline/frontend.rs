@@ -94,11 +94,7 @@ pub fn load_sources(
 /// Load a COMPILER-PROVIDED source (a virtual file with no on-disk backing):
 /// the build-vocabulary prelude and its future siblings. The synthetic path
 /// names the provider in diagnostics.
-pub fn load_injected_source(
-    name: &str,
-    text: &str,
-    first_source_id: usize,
-) -> LoadedSources {
+pub fn load_injected_source(name: &str, text: &str, first_source_id: usize) -> LoadedSources {
     let mut sources = Arena::with_capacity(1);
     let batch = sources.insert_many([LoadedSource {
         source_id: SourceId(first_source_id),
@@ -118,8 +114,7 @@ pub fn lex_sources(sources: LoadedSources) -> Result<LexedSources, Vec<Diagnosti
         let tokens = lexer::Lexer::new(loaded_source.source.as_ref())
             .tokenize()
             .map_err(|error| {
-                let position =
-                    SourcePosition::of(loaded_source.source.as_ref(), error.span.start);
+                let position = SourcePosition::of(loaded_source.source.as_ref(), error.span.start);
                 vec![Diagnostic::error(format!(
                     "{}:{}:{}: {}",
                     loaded_source.path.display(),
@@ -199,10 +194,7 @@ pub fn parse_sources(
 /// machine never joins the program (each package has one; two would
 /// collide). Unreadable/unparsable package builds are skipped here; the
 /// package's own compile surfaces them.
-fn collect_package_build_aliases(
-    directory: &Path,
-    depend_aliases: &mut Vec<(String, PathBuf)>,
-) {
+fn collect_package_build_aliases(directory: &Path, depend_aliases: &mut Vec<(String, PathBuf)>) {
     let package_build = directory.join("build.omg");
     if !package_build.is_file() {
         return;
@@ -267,14 +259,11 @@ pub fn collect_depend_aliases(
                     if !receiver_is_build_param {
                         continue;
                     }
-                    let arguments = syntax_trees
-                        .statements
-                        .expression_handles(call.arguments);
+                    let arguments = syntax_trees.statements.expression_handles(call.arguments);
                     let [alias, location] = arguments else {
                         continue;
                     };
-                    let ExpressionNode::String(alias) =
-                        syntax_trees.expressions.expression(*alias)
+                    let ExpressionNode::String(alias) = syntax_trees.expressions.expression(*alias)
                     else {
                         continue;
                     };
@@ -282,18 +271,14 @@ pub fn collect_depend_aliases(
                     // or a bare string.
                     let location = match syntax_trees.expressions.expression(*location) {
                         ExpressionNode::String(location) => Some(location.clone()),
-                        ExpressionNode::Call(path_call)
-                            if path_call.target.as_str() == "path" =>
-                        {
+                        ExpressionNode::Call(path_call) if path_call.target.as_str() == "path" => {
                             syntax_trees
                                 .expressions
                                 .expression_handles(path_call.arguments)
                                 .first()
                                 .and_then(|argument| {
                                     match syntax_trees.expressions.expression(*argument) {
-                                        ExpressionNode::String(location) => {
-                                            Some(location.clone())
-                                        }
+                                        ExpressionNode::String(location) => Some(location.clone()),
                                         _ => None,
                                     }
                                 })
@@ -366,10 +351,7 @@ pub fn discover_imports(
                         collect_package_build_aliases(&directory, depend_aliases);
                         continue;
                     }
-                    imports.push(normalize_path(&resolve_source_path(
-                        &root_dir,
-                        members,
-                    ))?);
+                    imports.push(normalize_path(&resolve_source_path(&root_dir, members))?);
                 }
                 Item::Target(target) => {
                     let target_is_selected = selected_target_name

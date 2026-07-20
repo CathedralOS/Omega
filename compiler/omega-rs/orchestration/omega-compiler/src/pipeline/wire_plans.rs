@@ -268,7 +268,9 @@ fn extract_wire_placements(
         )));
     }
     let BuildTimeValue::Array(cells) = field("fields")? else {
-        return Err(fail("plan `fields` is not an array of FieldPlan cases".to_owned()));
+        return Err(fail(
+            "plan `fields` is not an array of FieldPlan cases".to_owned(),
+        ));
     };
     fn case_name(variant: &str) -> &str {
         variant.rsplit("::").next().unwrap_or(variant)

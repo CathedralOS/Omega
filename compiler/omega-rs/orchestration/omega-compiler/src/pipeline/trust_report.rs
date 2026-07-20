@@ -105,8 +105,7 @@ pub(super) fn write_trust_report(
     for grant in root_grants {
         let names_domain = typed.domain_definitions().iter().any(|domain| {
             grant == domain.name.as_str()
-                || Some(grant.as_str())
-                    == domain.name.as_str().rsplit("::").next()
+                || Some(grant.as_str()) == domain.name.as_str().rsplit("::").next()
         });
         let names_accepted = typed.machines().iter().any(|machine| {
             machine.supply_mode == omega_core::semantics::MachineSupplyMode::Accepted
