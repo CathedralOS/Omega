@@ -20349,6 +20349,28 @@ fn runtime_trait_default_dispatch_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_inherited_trait_default_exit_canary_runs() {
+    let canary = pass_canary("traits/runtime_inherited_trait_default_exit");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-inherited-trait-default-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("inherited trait defaults should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("inherited trait default canary should run");
+    assert_eq!(output.status.code(), Some(70));
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_const_container_methods_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_const_container_methods_exit");
     let build_dir =
@@ -35914,6 +35936,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "traits/ring_requirement_satisfies_exit",
     "traits/default_machine_in_trait",
     "traits/runtime_trait_default_dispatch_exit",
+    "traits/runtime_inherited_trait_default_exit",
     "proofs/ring_law_conformance",
     "proofs/ring_rearrange_core_nat",
     "expressions/float_literal_suffix",
@@ -37256,6 +37279,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "traits/equatable_recursive_type",
     "traits/equatable_string_field_literal_compare",
     "traits/trait_composition_missing_requirement",
+    "traits/inherited_default_ambiguous",
+    "traits/inherited_default_reabstracted",
     "traits/trait_requirement_cycle",
     "traits/trait_requires_unknown",
     "traits/trait_satisfies_missing_machine",
