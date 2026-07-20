@@ -1434,7 +1434,7 @@ pub(super) fn resolve_runtime_storage_is_signed(
 
 /// Walk a runtime storage target (frame slot or machine-owned `data` field, plus
 /// any nested-field suffix) to its leaf [`TypeLayoutDescriptor`].
-fn resolve_runtime_storage_leaf_descriptor_in_table(
+pub(super) fn resolve_runtime_storage_leaf_descriptor_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,

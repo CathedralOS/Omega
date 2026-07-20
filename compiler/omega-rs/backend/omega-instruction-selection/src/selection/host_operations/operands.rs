@@ -10,13 +10,16 @@ use super::runtime_text::{
     runtime_text_literal_for_host_call,
 };
 use crate::selection::storage_places::{
-    resolve_fixed_array_length_in_table, resolve_runtime_storage_place_in_table,
+    resolve_fixed_array_length_in_table, resolve_runtime_storage_leaf_descriptor_in_table,
+    resolve_runtime_storage_place_in_table,
 };
 use omega_abstract_operations::{
     AbstractDataObject, AbstractDataObjectHandle, InstructionOperand, InstructionOperandKind,
 };
 use omega_checked_trees::expression::{ExpressionNode, ExpressionTable};
+use omega_checked_trees::types::PrimitiveType;
 use omega_core::arena::{Arena, Handle, HandleSpan};
+use omega_layout::{DataShape, TypeLayoutDescriptor};
 
 pub(super) fn select_host_operation_operands(
     input: &InstructionSelectionInput<'_>,
@@ -215,13 +218,22 @@ pub(super) fn select_host_operation_operands(
                             )
                         })
                     } else {
-                        scalar_argument_operand_at(
+                        aapcs_hfa_argument_operand_at(
                             input,
                             host_call,
                             dispatch_index,
                             alias_context,
                             index,
                         )
+                        .or_else(|| {
+                            scalar_argument_operand_at(
+                                input,
+                                host_call,
+                                dispatch_index,
+                                alias_context,
+                                index,
+                            )
+                        })
                         .or_else(|| {
                             address_argument_operand_at(
                                 input,
@@ -2275,6 +2287,102 @@ fn float_argument_operand_at(
         }),
         _ => None,
     }
+}
+
+/// Preserve one flat by-value HFA as one selected operand. The AAPCS64 call
+/// plan later splits it into exact member locations; other targets retain the
+/// compatibility address fallback.
+fn aapcs_hfa_argument_operand_at(
+    input: &InstructionSelectionInput<'_>,
+    host_call: &HostCall,
+    dispatch_index: Option<u32>,
+    alias_context: Option<RuntimeAliasResolutionContext<'_, '_>>,
+    index: usize,
+) -> Option<InstructionOperandKind> {
+    if input.target.architecture != omega_target::Architecture::Aarch64 {
+        return None;
+    }
+    let argument = input
+        .host_calls
+        .arguments
+        .span(host_call.arguments)
+        .and_then(|arguments| arguments.get(index))?;
+    let HostCallArgumentKind::Expression(expression) = &argument.kind else {
+        return None;
+    };
+    let place = alias_resolved_place_at(input, host_call, dispatch_index, alias_context, index)
+        .or_else(|| {
+            resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index.unwrap_or(0),
+                host_call.source_key,
+                &input.host_calls.expressions,
+                *expression,
+            )
+        })?;
+    let descriptor = resolve_runtime_storage_leaf_descriptor_in_table(
+        input,
+        dispatch_index.unwrap_or(0),
+        host_call.source_key,
+        &input.host_calls.expressions,
+        *expression,
+    )?;
+    let (member_byte_count, members) = hfa_descriptor_shape(input, &descriptor)?;
+    (place.byte_count == member_byte_count * usize::from(members)).then_some(
+        InstructionOperandKind::RuntimeHomogeneousFloatAggregate {
+            region: place.region,
+            byte_offset: place.byte_offset,
+            member_byte_count,
+            members,
+        },
+    )
+}
+
+fn hfa_descriptor_shape(
+    input: &InstructionSelectionInput<'_>,
+    descriptor: &TypeLayoutDescriptor,
+) -> Option<(usize, u8)> {
+    let descriptor = match descriptor {
+        TypeLayoutDescriptor::Constrained { base_type, .. } => {
+            return hfa_descriptor_shape(input, base_type);
+        }
+        descriptor => descriptor,
+    };
+    let TypeLayoutDescriptor::Named { symbol, name } = descriptor else {
+        return None;
+    };
+    let data_layout = input
+        .layouts
+        .data_layouts
+        .iter()
+        .find(|(_, layout)| layout.symbol == *symbol || layout.name.as_str() == name.as_str())
+        .map(|(_, layout)| layout)?;
+    let DataShape::Record { fields } = data_layout.shape else {
+        return None;
+    };
+    let fields = input.layouts.fields.span(fields)?;
+    let members = u8::try_from(fields.len()).ok()?;
+    if !(2..=4).contains(&members) {
+        return None;
+    }
+    let member_byte_count = fields.first().and_then(|field| {
+        match PrimitiveType::from_name(field.type_name.as_ref())? {
+            PrimitiveType::F32 => Some(4),
+            PrimitiveType::F64 => Some(8),
+            _ => None,
+        }
+    })?;
+    let flat = fields.iter().enumerate().all(|(index, field)| {
+        field.offset == index * member_byte_count
+            && field.layout.size == member_byte_count
+            && PrimitiveType::from_name(field.type_name.as_ref())
+                .and_then(|primitive| primitive.scalar_byte_size())
+                == Some(member_byte_count)
+    });
+    (flat
+        && data_layout.layout.size == member_byte_count * fields.len()
+        && data_layout.layout.alignment == member_byte_count)
+        .then_some((member_byte_count, members))
 }
 
 fn first_argument<'plan>(

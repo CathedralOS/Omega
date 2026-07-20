@@ -78,14 +78,15 @@ pub fn host_call_sequence_width<T: InstructionOperandLike>(
                 omega_calling_conventions::HostCapability::Unknown
                     | omega_calling_conventions::HostCapability::Custom(_)
             );
-            let Ok(argument_locations) = crate::normalized_aarch64_host_argument_locations(
+            let Ok(argument_placements) = crate::normalized_aarch64_host_argument_placements(
                 operation_key,
                 operands,
                 authored_import,
             ) else {
                 return 0;
             };
-            let planned_stack = aarch64::host_call_stack_total_width(&argument_locations);
+            let planned_stack =
+                aarch64::host_call_stack_total_width_for_placements(&argument_placements);
             // A deref-result op (errno) emits one extra `ldr w0,[x0]` (4 bytes)
             // between the BL and the result store; keep the layout width in
             // lockstep with the encoder + the data-address relocation offset.

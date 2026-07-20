@@ -1,6 +1,6 @@
 use crate::Aarch64CallOperand;
 use crate::Aarch64CallOperand::*;
-use omega_calling_conventions::{MachineRegister, ValueLocation};
+use omega_calling_conventions::{MachineRegister, ValueLocation, ValuePlacement};
 use omega_core::diagnostics::Diagnostic;
 
 mod dispatch;
@@ -21,17 +21,17 @@ pub use wire_encode::*;
 
 pub fn encode_host_call_sequence(
     operands: &[Aarch64CallOperand],
-    argument_locations: &[ValueLocation],
+    argument_placements: &[ValuePlacement],
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_host_call_sequence_from_operands(operands.iter().copied(), argument_locations)
+    encode_host_call_sequence_from_operands(operands.iter().copied(), argument_placements)
 }
 
 pub fn encode_host_call_sequence_from_operands(
     operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
-    argument_locations: &[ValueLocation],
+    argument_placements: &[ValuePlacement],
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(host_call_sequence_width_from_operands(operands.clone()));
-    let stack_bytes = append_call_operands(&mut bytes, operands, argument_locations)?;
+    let stack_bytes = append_call_operands(&mut bytes, operands, argument_placements)?;
     bytes.extend(encode_branch_link_placeholder());
     append_call_stack_restore(&mut bytes, stack_bytes)?;
     Ok(bytes)
@@ -47,7 +47,7 @@ pub fn encode_host_call_sequence_from_operands(
 /// width (adrp+add+ldr = 12) is the same as its store (adrp+add+str = 12).
 pub fn encode_host_call_sequence_value_returning_from_operands(
     operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
-    argument_locations: &[ValueLocation],
+    argument_placements: &[ValuePlacement],
     result_register: MachineRegister,
 ) -> Result<Vec<u8>, Diagnostic> {
     let all: Vec<Aarch64CallOperand> = operands.collect();
@@ -66,7 +66,7 @@ pub fn encode_host_call_sequence_value_returning_from_operands(
         ));
     };
     let mut bytes = Vec::with_capacity(host_call_sequence_width_from_operands(all.iter().copied()));
-    let stack_bytes = append_call_operands(&mut bytes, args.iter().copied(), argument_locations)?;
+    let stack_bytes = append_call_operands(&mut bytes, args.iter().copied(), argument_placements)?;
     bytes.extend(encode_branch_link_placeholder());
     append_call_stack_restore(&mut bytes, stack_bytes)?;
     let MachineRegister::Aarch64X(result_register) = result_register else {
@@ -134,7 +134,7 @@ pub fn encode_host_call_sequence_constant_result_from_operands(
 /// relocation (which precedes the load) is unaffected.
 pub fn encode_host_call_sequence_value_returning_deref_from_operands(
     operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
-    argument_locations: &[ValueLocation],
+    argument_placements: &[ValuePlacement],
     result_register: MachineRegister,
 ) -> Result<Vec<u8>, Diagnostic> {
     let all: Vec<Aarch64CallOperand> = operands.collect();
@@ -154,7 +154,7 @@ pub fn encode_host_call_sequence_value_returning_deref_from_operands(
     };
     let mut bytes =
         Vec::with_capacity(host_call_sequence_width_from_operands(all.iter().copied()) + 4);
-    let stack_bytes = append_call_operands(&mut bytes, args.iter().copied(), argument_locations)?;
+    let stack_bytes = append_call_operands(&mut bytes, args.iter().copied(), argument_placements)?;
     bytes.extend(encode_branch_link_placeholder());
     append_call_stack_restore(&mut bytes, stack_bytes)?;
     let MachineRegister::Aarch64X(result_register) = result_register else {
@@ -194,7 +194,7 @@ pub fn encode_host_call_sequence_value_returning_deref_from_operands(
 /// `BL` relocation is unaffected.
 pub fn encode_host_call_sequence_value_returning_float_from_operands(
     operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
-    argument_locations: &[ValueLocation],
+    argument_placements: &[ValuePlacement],
     result_register: MachineRegister,
 ) -> Result<Vec<u8>, Diagnostic> {
     let all: Vec<Aarch64CallOperand> = operands.collect();
@@ -214,7 +214,7 @@ pub fn encode_host_call_sequence_value_returning_float_from_operands(
     };
     let mut bytes =
         Vec::with_capacity(host_call_sequence_width_from_operands(all.iter().copied()) + 4);
-    let stack_bytes = append_call_operands(&mut bytes, args.iter().copied(), argument_locations)?;
+    let stack_bytes = append_call_operands(&mut bytes, args.iter().copied(), argument_placements)?;
     bytes.extend(encode_branch_link_placeholder());
     append_call_stack_restore(&mut bytes, stack_bytes)?;
     let MachineRegister::Aarch64V(result_register) = result_register else {
@@ -251,7 +251,7 @@ pub fn encode_host_call_sequence_value_returning_float_from_operands(
 /// sits AFTER the BL) — MUST stay in lockstep with those sites.
 pub fn encode_host_call_sequence_value_returning_open_create_from_operands(
     operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
-    argument_locations: &[ValueLocation],
+    argument_placements: &[ValuePlacement],
     result_register: MachineRegister,
 ) -> Result<Vec<u8>, Diagnostic> {
     let all: Vec<Aarch64CallOperand> = operands.collect();
@@ -286,7 +286,7 @@ pub fn encode_host_call_sequence_value_returning_open_create_from_operands(
     let named_stack_bytes = append_call_operands(
         &mut bytes,
         register_args.iter().copied(),
-        argument_locations,
+        argument_placements,
     )?;
     if named_stack_bytes != 0 {
         return Err(Diagnostic::error(
@@ -446,6 +446,11 @@ fn append_syscall_operands(
                     "AArch64 Linux syscall plans do not admit float operands",
                 ));
             }
+            RuntimeHomogeneousFloatAggregate { .. } => {
+                return Err(Diagnostic::error(
+                    "AArch64 Linux syscall plans do not admit HFA operands",
+                ));
+            }
         }
     }
     Ok(())
@@ -557,15 +562,28 @@ mod result_register_tests {
 mod host_call_plan_register_tests {
     use super::*;
 
+    fn placement(
+        shape: omega_calling_conventions::ValueShape,
+        location: ValueLocation,
+    ) -> ValuePlacement {
+        ValuePlacement {
+            shape,
+            locations: vec![location],
+        }
+    }
+
     #[test]
     fn import_arguments_use_the_plan_selected_registers() {
         let bytes = encode_host_call_sequence(
             &[Aarch64CallOperand::ImmediateInteger(7)],
-            &[ValueLocation::Register {
-                register: MachineRegister::Aarch64X(3),
-                value_byte_offset: 0,
-                byte_size: 8,
-            }],
+            &[placement(
+                omega_calling_conventions::ValueShape::integer(8, 8),
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(3),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+            )],
         )
         .expect("noncanonical AAPCS register should encode");
 
@@ -584,11 +602,14 @@ mod host_call_plan_register_tests {
                 Aarch64CallOperand::ImmediateInteger(7),
             ]
             .into_iter(),
-            &[ValueLocation::Register {
-                register: MachineRegister::Aarch64X(3),
-                value_byte_offset: 0,
-                byte_size: 8,
-            }],
+            &[placement(
+                omega_calling_conventions::ValueShape::integer(8, 8),
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(3),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+            )],
             MachineRegister::Aarch64X(5),
         )
         .expect("noncanonical AAPCS result register should encode");
@@ -604,11 +625,14 @@ mod host_call_plan_register_tests {
     fn import_register_bank_mismatches_are_rejected() {
         let error = encode_host_call_sequence(
             &[Aarch64CallOperand::ImmediateInteger(7)],
-            &[ValueLocation::Register {
-                register: MachineRegister::Aarch64V(0),
-                value_byte_offset: 0,
-                byte_size: 8,
-            }],
+            &[placement(
+                omega_calling_conventions::ValueShape::integer(8, 8),
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64V(0),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+            )],
         )
         .expect_err("integer operand in vector register must reject");
 
@@ -619,12 +643,15 @@ mod host_call_plan_register_tests {
     fn scalar_stack_argument_is_reserved_stored_and_restored() {
         let bytes = encode_host_call_sequence(
             &[Aarch64CallOperand::ImmediateInteger(7)],
-            &[ValueLocation::Stack {
-                stack_byte_offset: 0,
-                value_byte_offset: 0,
-                byte_size: 8,
-                alignment: 8,
-            }],
+            &[placement(
+                omega_calling_conventions::ValueShape::integer(8, 8),
+                ValueLocation::Stack {
+                    stack_byte_offset: 0,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                    alignment: 8,
+                },
+            )],
         )
         .expect("scalar AAPCS64 stack argument");
 
@@ -642,12 +669,15 @@ mod host_call_plan_register_tests {
                 byte_offset: 0,
                 byte_count: 8,
             }],
-            &[ValueLocation::Stack {
-                stack_byte_offset: 0,
-                value_byte_offset: 0,
-                byte_size: 8,
-                alignment: 8,
-            }],
+            &[placement(
+                omega_calling_conventions::ValueShape::float(8),
+                ValueLocation::Stack {
+                    stack_byte_offset: 0,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                    alignment: 8,
+                },
+            )],
         )
         .expect("f64 AAPCS64 stack argument");
 
@@ -656,24 +686,73 @@ mod host_call_plan_register_tests {
         assert_eq!(&bytes[24..28], &encode_branch_link_placeholder());
         assert_eq!(&bytes[28..32], &0x9100_43ffu32.to_le_bytes());
     }
+
+    #[test]
+    fn hfa_argument_loads_one_source_into_each_planned_vector_register() {
+        let shape = omega_calling_conventions::ValueShape::homogeneous_float_aggregate(8, 2);
+        let bytes = encode_host_call_sequence(
+            &[Aarch64CallOperand::RuntimeHomogeneousFloatAggregate {
+                byte_offset: 32,
+                member_byte_count: 8,
+                members: 2,
+            }],
+            &[ValuePlacement {
+                shape,
+                locations: vec![
+                    ValueLocation::Register {
+                        register: MachineRegister::Aarch64V(3),
+                        value_byte_offset: 0,
+                        byte_size: 8,
+                    },
+                    ValueLocation::Register {
+                        register: MachineRegister::Aarch64V(4),
+                        value_byte_offset: 8,
+                        byte_size: 8,
+                    },
+                ],
+            }],
+        )
+        .expect("fragmented HFA placement should encode");
+
+        assert_eq!(&bytes[8..12], &encode_load_x_from_x(17, 16, 32).unwrap());
+        assert_eq!(
+            &bytes[12..16],
+            &encode_float_move_from_gpr(8, 3, 17).unwrap()
+        );
+        assert_eq!(&bytes[16..20], &encode_load_x_from_x(17, 16, 40).unwrap());
+        assert_eq!(
+            &bytes[20..24],
+            &encode_float_move_from_gpr(8, 4, 17).unwrap()
+        );
+        assert_eq!(&bytes[24..28], &encode_branch_link_placeholder());
+        assert_eq!(
+            bytes.len(),
+            crate::aarch64::operand_width(&Aarch64CallOperand::RuntimeHomogeneousFloatAggregate {
+                byte_offset: 32,
+                member_byte_count: 8,
+                members: 2,
+            }) + 4
+        );
+    }
 }
 
 fn append_call_operands(
     bytes: &mut Vec<u8>,
     operands: impl Iterator<Item = Aarch64CallOperand>,
-    argument_locations: &[ValueLocation],
+    argument_placements: &[ValuePlacement],
 ) -> Result<usize, Diagnostic> {
     let operands = operands.collect::<Vec<_>>();
-    if operands.len() != argument_locations.len() {
+    if operands.len() != argument_placements.len() {
         return Err(Diagnostic::error(format!(
-            "AArch64 call plan supplied {} argument locations for {} operands",
-            argument_locations.len(),
+            "AArch64 call plan supplied {} argument placements for {} operands",
+            argument_placements.len(),
             operands.len()
         )));
     }
 
-    let stack_bytes = argument_locations
+    let stack_bytes = argument_placements
         .iter()
+        .flat_map(|placement| &placement.locations)
         .filter_map(|location| match location {
             ValueLocation::Stack {
                 stack_byte_offset,
@@ -687,12 +766,30 @@ fn append_call_operands(
         .unwrap_or(0);
     append_call_stack_reserve(bytes, stack_bytes)?;
 
-    for (index, (operand, location)) in operands
-        .into_iter()
-        .zip(argument_locations.iter().copied())
-        .enumerate()
-    {
-        match location {
+    for (index, (operand, placement)) in operands.into_iter().zip(argument_placements).enumerate() {
+        if let RuntimeHomogeneousFloatAggregate {
+            byte_offset,
+            member_byte_count,
+            members,
+        } = operand
+        {
+            append_hfa_call_operand(
+                bytes,
+                byte_offset,
+                member_byte_count,
+                members,
+                &placement.locations,
+                index,
+            )?;
+            continue;
+        }
+        let [location] = placement.locations.as_slice() else {
+            return Err(Diagnostic::error(format!(
+                "AAPCS64 outbound scalar parameter {index} requires one location, got {:?}",
+                placement.locations
+            )));
+        };
+        match *location {
             ValueLocation::Register {
                 register,
                 value_byte_offset: 0,
@@ -734,6 +831,49 @@ fn append_call_operands(
     }
 
     Ok(stack_bytes)
+}
+
+fn append_hfa_call_operand(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+    member_byte_count: usize,
+    members: u8,
+    locations: &[ValueLocation],
+    parameter_index: usize,
+) -> Result<(), Diagnostic> {
+    if locations.len() != usize::from(members) || !matches!(member_byte_count, 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "AAPCS64 outbound HFA parameter {parameter_index} has incompatible source/member placement"
+        )));
+    }
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    for (member, location) in locations.iter().copied().enumerate() {
+        let expected_offset = member * member_byte_count;
+        let ValueLocation::Register {
+            register: MachineRegister::Aarch64V(register),
+            value_byte_offset,
+            byte_size,
+        } = location
+        else {
+            return Err(Diagnostic::error(format!(
+                "AAPCS64 outbound HFA parameter {parameter_index} requires vector-register fragments, got {location:?}"
+            )));
+        };
+        if usize::from(value_byte_offset) != expected_offset
+            || usize::from(byte_size) != member_byte_count
+        {
+            return Err(Diagnostic::error(format!(
+                "AAPCS64 outbound HFA parameter {parameter_index} member {member} disagrees with its normalized byte range"
+            )));
+        }
+        let source_offset = byte_offset.checked_add(expected_offset).ok_or_else(|| {
+            Diagnostic::error("AAPCS64 outbound HFA source offset overflows usize")
+        })?;
+        append_load_data_from_x_offset(bytes, 17, 16, source_offset, member_byte_count, 9)?;
+        bytes.extend(encode_float_move_from_gpr(member_byte_count, register, 17)?);
+    }
+    Ok(())
 }
 
 fn encode_store_float_to_sp(
@@ -895,6 +1035,11 @@ fn append_register_call_operand(
                 bytes.extend(encode_load_w_from_x(16, 16, *byte_offset, *byte_count)?);
             }
             bytes.extend(encode_float_move_from_gpr(*byte_count, register, 16)?);
+        }
+        RuntimeHomogeneousFloatAggregate { .. } => {
+            return Err(Diagnostic::error(
+                "AAPCS64 HFA operands require their complete fragmented placement",
+            ));
         }
         RuntimeStorageAddress { byte_offset } => {
             let register = integer_argument_register(planned_register)?;

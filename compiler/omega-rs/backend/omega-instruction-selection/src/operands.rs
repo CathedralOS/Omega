@@ -36,6 +36,14 @@ pub(crate) fn aarch64_call_operand(operand: &impl InstructionOperandLike) -> Aar
             byte_offset,
             byte_count,
         }
+    } else if let Some((_, byte_offset, member_byte_count, members)) =
+        operand.runtime_homogeneous_float_aggregate()
+    {
+        Aarch64CallOperand::RuntimeHomogeneousFloatAggregate {
+            byte_offset,
+            member_byte_count,
+            members,
+        }
     } else if let Some((_, byte_offset)) = operand.runtime_storage_address() {
         Aarch64CallOperand::RuntimeStorageAddress { byte_offset }
     } else if let Some(value) = operand.immediate_integer() {
