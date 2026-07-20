@@ -47,7 +47,10 @@ above 16 bytes now have normalized indirect placements, outbound calls use
 caller-owned copies plus `x8` result destinations, and entry prologues copy
 register- or stack-passed pointees into runtime-frame storage. Unsupported
 mixed/general entry signatures retain the compatibility path without panicking
-the compiler. Generic Linux syscall
+the compiler. Pure-integer SysV AMD64 records up to 16 bytes now use
+consecutive GPR fragments when the whole value fits, otherwise roll wholly to
+the stack without consuming the remaining argument register; normalized result
+plans select `rax`/`rdx`. Generic Linux syscall
 leaves now evaluate the normalized syscall policy at emission and pass its
 exact parameter registers, number register, and supervisor-call immediate into
 both ISA encoders; the legacy binding fields no longer choose those facts on
@@ -166,6 +169,14 @@ ceiling derived exactly from the ABI volatile-register classes.
    register and stack-pointer paths, records beyond the special 32-byte boundary
    handoff ceiling, the Microsoft-only scope of that exception, relocation
    position, and fragment stores.
+   Pure-integer SysV AMD64 entry records up to 16 bytes now consume consecutive
+   plan-selected GPR fragments when the complete aggregate fits. If the
+   remaining register bank is too small, the complete aggregate moves to
+   aligned stack fragments and the rolled-back register remains available to a
+   following scalar; normalized small-aggregate result plans select
+   `rax`/`rdx`. Linux x64 source-to-object canaries pin both the register and
+   stack/rollback entry paths. Outbound SysV aggregate call/result lowering
+   remains to be migrated to the normalized plan.
    Ordinary AArch64 `VtableSlot` and `VtableField` calls now evaluate AAPCS64
    from their selected operands, require the full-width receiver in planned
    `x0`, marshal every argument/stack slot through the shared plan consumer,

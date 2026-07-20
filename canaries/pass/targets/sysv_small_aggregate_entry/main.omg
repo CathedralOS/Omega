@@ -1,0 +1,16 @@
+// One scalar consumes rdi. The following two-eightbyte INTEGER record arrives
+// whole in rsi/rdx under SysV AMD64 and is copied into its runtime-frame slot.
+data Pair {
+    first: u64;
+    second: u64;
+}
+
+data Main { observed: u64; }
+
+boundary machine Main::main(&mut self, tag: u64, pair: Pair) -> i32 {
+    self.observed = tag + pair.first + pair.second;
+    transition { _ -> (0) }
+}
+
+target linux_x64 {
+}
