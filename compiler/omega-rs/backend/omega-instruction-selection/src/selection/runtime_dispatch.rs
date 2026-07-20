@@ -1291,15 +1291,14 @@ fn select_entry_argument_register_writes(
         .into_iter()
         .map(|(byte_offset, _, shape)| (byte_offset, shape))
         .collect::<Vec<_>>();
-    // General integer aggregates are the next ENT2 classification rung. The
-    // entry-slot probe deliberately admits the legacy boundary handoff shape
-    // above, but only the exact one-parameter split case is normalized today.
-    // A mixed/multi-parameter signature must therefore retain the previous
-    // no-prologue behavior rather than turning the plan evaluator's directed
-    // "not normalized yet" result into a compiler panic.
+    // AAPCS64 fixed aggregates up to 16 bytes now consume the evaluator's
+    // consecutive-register or whole-stack placement. Other policies retain
+    // the previous fail-closed no-prologue behavior for general aggregates;
+    // the explicit boundary handoff special case above remains separate.
     if destinations
         .iter()
         .any(|(_, shape)| matches!(shape.class, ValueClass::Integer) && shape.byte_size > 8)
+        && CallingPolicy::native_for_target(input.target) != CallingPolicy::Aapcs64
     {
         return;
     }
@@ -1433,7 +1432,11 @@ fn entry_slot_value_shape(
         .iter()
         .find(|machine| machine.symbol == input.entry_key.machine)
         .is_some_and(|machine| machine.boundary);
-    if byte_size <= 8 || (entry_is_boundary && byte_size <= 32 && byte_size.is_multiple_of(8)) {
+    if byte_size <= 8
+        || (CallingPolicy::native_for_target(input.target) == CallingPolicy::Aapcs64
+            && byte_size <= 16)
+        || (entry_is_boundary && byte_size <= 32 && byte_size.is_multiple_of(8))
+    {
         return Some(ValueShape::integer(byte_size, alignment));
     }
     None
