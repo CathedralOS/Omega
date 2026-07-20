@@ -31286,6 +31286,8 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/aarch64_large_aggregate_entry", "linux_arm64"),
     ("targets/aarch64_large_aggregate_stack_entry", "linux_arm64"),
     ("targets/aarch64_wide_aggregate_entry", "linux_arm64"),
+    ("targets/aarch64_small_result_entry", "linux_arm64"),
+    ("targets/aarch64_hfa_result_entry", "linux_arm64"),
     ("targets/sysv_small_aggregate_entry", "linux_x64"),
     ("targets/sysv_hfa_entry_argument", "linux_x64"),
     ("targets/sysv_mixed_aggregate_entry", "linux_x64"),
@@ -31524,6 +31526,66 @@ fn aarch64_wide_aggregate_entry_uses_general_indirect_classification() {
             })
         }),
         "expected all five x0-pointee words copied into runtime-frame storage"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn aarch64_small_result_entry_loads_x0_and_x1() {
+    let canary = pass_canary("targets/aarch64_small_result_entry");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-aarch64-small-result-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_arm64".into()),
+        write_output: true,
+    })
+    .expect("AAPCS64 two-word entry result should load x0/x1");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted AArch64 ELF");
+    let register_mask = 0xffc0_03ffu32;
+    assert!(
+        image.windows(24).any(|window| {
+            let first = u32::from_le_bytes(window[8..12].try_into().expect("first load"));
+            let second = u32::from_le_bytes(window[20..24].try_into().expect("second load"));
+            first & register_mask == 0xf940_0200 && second & register_mask == 0xf940_0201
+        }),
+        "expected terminal record fragments loaded into x0 and x1"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn aarch64_hfa_result_entry_loads_d0_and_d1() {
+    let canary = pass_canary("targets/aarch64_hfa_result_entry");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-aarch64-hfa-result-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_arm64".into()),
+        write_output: true,
+    })
+    .expect("AAPCS64 HFA entry result should load d0/d1");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted AArch64 ELF");
+    let register_mask = 0xffc0_03ffu32;
+    assert!(
+        image.windows(24).any(|window| {
+            let first = u32::from_le_bytes(window[8..12].try_into().expect("first load"));
+            let second = u32::from_le_bytes(window[20..24].try_into().expect("second load"));
+            first & register_mask == 0xfd40_0200 && second & register_mask == 0xfd40_0201
+        }),
+        "expected terminal HFA members loaded into d0 and d1"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }

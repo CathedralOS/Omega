@@ -42,7 +42,9 @@ parameters are classified from their normalized record layout and spread
 across the selected vector registers. Fixed non-HFA AAPCS64 records up to 16
 bytes now use consecutive `x` fragments or aligned whole-value stack
 fragments, and
-normalized small-aggregate result plans select `x0`/`x1`. AAPCS64 aggregates
+normalized small-aggregate result plans select `x0`/`x1`. Small AAPCS64 entry
+terminals now load fixed non-HFA results into `x0`/`x1` and flat HFA results
+into their plan-selected vector registers. AAPCS64 aggregates
 above 16 bytes now have normalized indirect placements, outbound calls use
 caller-owned copies plus `x8` result destinations, and entry prologues copy
 register- or stack-passed pointees into runtime-frame storage. Unsupported
@@ -185,6 +187,10 @@ ceiling derived exactly from the ABI volatile-register classes.
    register and stack-pointer paths, records beyond the special 32-byte boundary
    handoff ceiling, the Microsoft-only scope of that exception, relocation
    position, and fragment stores.
+   Small AAPCS64 entry results now consume those normalized result placements:
+   fixed two-word records load `x0`/`x1`, while flat HFA members load `s`/`d`
+   vector registers directly from runtime storage. Cross-target source
+   canaries and direct encoder tests pin both families.
    Pure-integer SysV AMD64 entry records up to 16 bytes now consume consecutive
    plan-selected GPR fragments when the complete aggregate fits. If the
    remaining register bank is too small, the complete aggregate moves to
