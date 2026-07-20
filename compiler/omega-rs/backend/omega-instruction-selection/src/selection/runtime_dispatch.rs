@@ -1266,7 +1266,9 @@ fn select_entry_argument_register_writes(
     // handoff.handle (+0) and RDX to handoff.table (+8). This is the boundary
     // contract's shape-over-arrival-bytes, NOT general MS-x64 struct passing
     // (which passes large aggregates by pointer; there is no caller here --
-    // the platform hands registers, the declaration shapes them).
+    // the platform hands registers, the declaration shapes them). Keep this
+    // exceptional contract on the Microsoft-x64/UEFI family; ordinary SysV and
+    // AAPCS64 boundary entries must follow their native aggregate ABI.
     let entry_is_boundary = input
         .program
         .machines()
@@ -1274,6 +1276,7 @@ fn select_entry_argument_register_writes(
         .find(|machine| machine.symbol == input.entry_key.machine)
         .is_some_and(|machine| machine.boundary);
     if entry_is_boundary
+        && CallingPolicy::native_for_target(input.target) == CallingPolicy::MicrosoftX64
         && let [(byte_offset, byte_size, shape)] = parameter_slots.as_slice()
         && matches!(shape.class, ValueClass::Integer)
         && *byte_size > 8
