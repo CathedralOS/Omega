@@ -98,6 +98,7 @@ pub(crate) fn resolve_runtime_value_operand_in_table(
         expressions,
         expression,
         expression,
+        None,
         static_values,
         runtime_value_operands,
     )
@@ -112,6 +113,7 @@ fn resolve_runtime_value_operand_in_table_with_root(
     expressions: &ExpressionTable,
     root_expression: ExpressionHandle,
     expression: ExpressionHandle,
+    minimum_call_ordinal: Option<usize>,
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<RuntimeValueOperandHandle> {
@@ -164,7 +166,7 @@ fn resolve_runtime_value_operand_in_table_with_root(
             right_expr,
             operator,
         );
-        let left = resolve_runtime_comparison_operand_in_table_with_root(
+        let left = resolve_runtime_comparison_operand_in_table_with_root_and_call_ordinal(
             input,
             dispatch_index,
             source_key,
@@ -174,10 +176,11 @@ fn resolve_runtime_value_operand_in_table_with_root(
             left_expr,
             Some(binary.operator),
             right_expr,
+            minimum_call_ordinal,
             static_values,
             runtime_value_operands,
         )?;
-        let right = resolve_runtime_comparison_operand_in_table_with_root(
+        let right = resolve_runtime_comparison_operand_in_table_with_root_and_call_ordinal(
             input,
             dispatch_index,
             source_key,
@@ -187,6 +190,7 @@ fn resolve_runtime_value_operand_in_table_with_root(
             right_expr,
             Some(binary.operator),
             left_expr,
+            minimum_call_ordinal,
             static_values,
             runtime_value_operands,
         )?;
@@ -265,6 +269,7 @@ fn resolve_runtime_value_operand_in_table_with_root(
             expressions,
             root_expression,
             source_expression,
+            minimum_call_ordinal,
             static_values,
             runtime_value_operands,
         )?;
@@ -309,6 +314,7 @@ fn resolve_runtime_value_operand_in_table_with_root(
                 expressions,
                 root_expression,
                 left_expr,
+                minimum_call_ordinal,
                 static_values,
                 runtime_value_operands,
             )?;
@@ -320,6 +326,7 @@ fn resolve_runtime_value_operand_in_table_with_root(
                 expressions,
                 root_expression,
                 right_expr,
+                minimum_call_ordinal,
                 static_values,
                 runtime_value_operands,
             )?;
@@ -361,6 +368,7 @@ fn resolve_runtime_value_operand_in_table_with_root(
             root_expression,
             expression,
             call,
+            minimum_call_ordinal,
         ) {
             return Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
                 region: place.region,
@@ -644,6 +652,37 @@ pub(super) fn resolve_runtime_comparison_operand_in_table_with_root(
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<RuntimeValueOperandHandle> {
+    resolve_runtime_comparison_operand_in_table_with_root_and_call_ordinal(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        expressions,
+        root_expression,
+        expression,
+        comparison_operator,
+        other_expression,
+        None,
+        static_values,
+        runtime_value_operands,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn resolve_runtime_comparison_operand_in_table_with_root_and_call_ordinal(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    root_expression: ExpressionHandle,
+    expression: ExpressionHandle,
+    comparison_operator: Option<omega_checked_trees::expression::BinaryOperator>,
+    other_expression: ExpressionHandle,
+    minimum_call_ordinal: Option<usize>,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<RuntimeValueOperandHandle> {
     if matches!(
         comparison_operator,
         Some(
@@ -675,6 +714,7 @@ pub(super) fn resolve_runtime_comparison_operand_in_table_with_root(
         expressions,
         root_expression,
         expression,
+        minimum_call_ordinal,
         static_values,
         runtime_value_operands,
     )

@@ -26,6 +26,7 @@ use super::super::static_values::{
 use super::operators::{builtin_runtime_call_operator_in_table, runtime_binary_operator};
 use super::value_operands::{
     binary_value_operands_are_float, resolve_runtime_comparison_operand_in_table_with_root,
+    resolve_runtime_comparison_operand_in_table_with_root_and_call_ordinal,
     resolve_runtime_value_operand_in_table,
 };
 
@@ -727,6 +728,37 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
+    select_runtime_storage_binary_write_in_table_with_call_ordinal(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        expressions,
+        target_region,
+        target_offset,
+        byte_size,
+        value,
+        None,
+        static_values,
+        runtime_value_operands,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_write_in_table_with_call_ordinal(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    target_region: RuntimeStorageRegion,
+    target_offset: usize,
+    byte_size: usize,
+    value: ExpressionHandle,
+    minimum_call_ordinal: Option<usize>,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
     let (operator, comparison_operator, left_expression, right_expression) =
         match expressions.expression(value) {
             ExpressionNode::Binary(binary) => (
@@ -779,7 +811,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
         (Some(unsigned), Some(false)) => unsigned,
         _ => operator,
     };
-    let left = resolve_runtime_comparison_operand_in_table_with_root(
+    let left = resolve_runtime_comparison_operand_in_table_with_root_and_call_ordinal(
         input,
         dispatch_index,
         source_key,
@@ -789,10 +821,11 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
         left_expression,
         comparison_operator,
         right_expression,
+        minimum_call_ordinal,
         static_values,
         runtime_value_operands,
     )?;
-    let right = resolve_runtime_comparison_operand_in_table_with_root(
+    let right = resolve_runtime_comparison_operand_in_table_with_root_and_call_ordinal(
         input,
         dispatch_index,
         source_key,
@@ -802,6 +835,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
         right_expression,
         comparison_operator,
         left_expression,
+        minimum_call_ordinal,
         static_values,
         runtime_value_operands,
     )?;

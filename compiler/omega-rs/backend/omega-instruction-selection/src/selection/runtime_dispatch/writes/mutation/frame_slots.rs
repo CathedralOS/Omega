@@ -136,6 +136,34 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table(
 }
 
 #[allow(clippy::too_many_arguments)]
+pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_call_ordinal(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    value_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    slot: &omega_runtime_storage::RuntimeFrameSlot,
+    value: ExpressionHandle,
+    minimum_call_ordinal: usize,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    select_runtime_frame_slot_value_write_in_table_with_source_anchor_and_call_ordinal(
+        input,
+        dispatch_index,
+        value_source_key,
+        statement_index,
+        expressions,
+        slot,
+        value,
+        static_values,
+        runtime_value_operands,
+        slot.byte_offset,
+        Some(minimum_call_ordinal),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
 pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_source_anchor(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -147,6 +175,35 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     source_anchor_byte_offset: usize,
+) -> Option<SelectedInstructionKind> {
+    select_runtime_frame_slot_value_write_in_table_with_source_anchor_and_call_ordinal(
+        input,
+        dispatch_index,
+        value_source_key,
+        statement_index,
+        expressions,
+        slot,
+        value,
+        static_values,
+        runtime_value_operands,
+        source_anchor_byte_offset,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_frame_slot_value_write_in_table_with_source_anchor_and_call_ordinal(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    value_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    slot: &omega_runtime_storage::RuntimeFrameSlot,
+    value: ExpressionHandle,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    source_anchor_byte_offset: usize,
+    minimum_call_ordinal: Option<usize>,
 ) -> Option<SelectedInstructionKind> {
     // `let n = arr.len` / `let n = s.len` where the receiver views a FIXED array
     // (directly, through `.as_slice()`, or through an unmaterialized local alias):
@@ -581,7 +638,7 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
     // Decision 17 (operand-driven): arithmetic domain and signedness come from
     // the operands. Typed local-alias capture retains constant landings through
     // transition-argument materialization, so no destination fallback is needed.
-    super::select_runtime_storage_binary_write_in_table(
+    super::select_runtime_storage_binary_write_in_table_with_call_ordinal(
         input,
         dispatch_index,
         value_source_key,
@@ -591,6 +648,7 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         slot.byte_offset,
         slot.byte_size,
         value,
+        minimum_call_ordinal,
         static_values,
         runtime_value_operands,
     )

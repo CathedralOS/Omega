@@ -487,15 +487,7 @@ remain contract-invisible.
 
 ## Correctness bugs and missing lowering
 
-These are unblocked and should gain a focused pass/fail or differential canary
-before the fix.
-
-- **Nested repeated inline calls.** Sibling calls with the same target and
-  receiver now select result slots by source-order occurrence. The nested form
-  `g.with_delta(g.with_delta(0))` still misorders or loses its inline call-result
-  dependency (native result 0 for that subtree in the local probe). Thread the
-  same occurrence identity through nested call-argument materialization and
-  order inner result production before the outer expansion.
+No currently isolated correctness bugs are queued here.
 
 ## Type, proof, and semantic-model work
 
