@@ -173,9 +173,24 @@ pub fn encode_vtable_call_sequence_at_offset<T: InstructionOperandLike>(
     result_present: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     match target.architecture {
-        Architecture::Aarch64 => Err(Diagnostic::error(
-            "AArch64 vtable-field dispatch is not implemented (x86_64 only)",
-        )),
+        Architecture::Aarch64 => {
+            let (arguments, result) = normalized_aarch64_vtable_plan(operands, result_present)?;
+            if result_present {
+                aarch64::encode_vtable_call_sequence_at_offset_value_returning_from_operands(
+                    operands.iter().map(aarch64_call_operand),
+                    &arguments,
+                    scalar_result_register(result.as_ref(), "vtable")?,
+                    byte_offset,
+                )
+            } else {
+                debug_assert!(result.is_none());
+                aarch64::encode_vtable_call_sequence_at_offset_from_operands(
+                    operands.iter().map(aarch64_call_operand),
+                    &arguments,
+                    byte_offset,
+                )
+            }
+        }
         Architecture::X86_64
             if CallingPolicy::native_for_target(target) == CallingPolicy::MicrosoftX64 =>
         {
@@ -378,9 +393,23 @@ pub fn normalized_aarch64_host_argument_placements<T: InstructionOperandLike>(
 pub fn normalized_aarch64_vtable_argument_placements<T: InstructionOperandLike>(
     operands: &[T],
 ) -> Result<Vec<ValuePlacement>, Diagnostic> {
-    let (placements, result) =
-        normalized_aarch64_import_plan(operands, Aarch64ImportResult::None, false)?;
-    debug_assert!(result.is_none());
+    normalized_aarch64_vtable_plan(operands, false).map(|(placements, _)| placements)
+}
+
+pub fn normalized_aarch64_vtable_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    result_present: bool,
+) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
+    let (placements, result) = normalized_aarch64_import_plan(
+        operands,
+        if result_present {
+            Aarch64ImportResult::Authored
+        } else {
+            Aarch64ImportResult::None
+        },
+        false,
+    )?;
+    debug_assert_eq!(result.is_some(), result_present);
     if !matches!(
         placements
             .first()
@@ -395,7 +424,22 @@ pub fn normalized_aarch64_vtable_argument_placements<T: InstructionOperandLike>(
             "AAPCS64 vtable call requires one full-width receiver in x0",
         ));
     }
-    Ok(placements)
+    if let Some(result) = result.as_ref()
+        && !matches!(
+            result.locations.as_slice(),
+            [ValueLocation::Register {
+                register: MachineRegister::Aarch64X(_),
+                value_byte_offset: 0,
+                ..
+            }]
+        )
+    {
+        return Err(Diagnostic::error(format!(
+            "AAPCS64 scalar vtable result is not in one general-purpose register: {:?}",
+            result.locations
+        )));
+    }
+    Ok((placements, result))
 }
 
 pub fn aarch64_host_call_stack_prefix_width_for_placements(
@@ -974,6 +1018,76 @@ mod aarch64_import_plan_tests {
 
         let placements = normalized_aarch64_vtable_argument_placements(&operands)
             .expect("AAPCS64 vtable placements");
+        assert!(matches!(
+            placements[0].locations.as_slice(),
+            [ValueLocation::Register {
+                register: MachineRegister::Aarch64X(0),
+                value_byte_offset: 0,
+                byte_size: 8,
+            }]
+        ));
+        assert!(matches!(
+            placements[1].locations.as_slice(),
+            [ValueLocation::Register {
+                register: MachineRegister::Aarch64X(1),
+                value_byte_offset: 0,
+                byte_size: 8,
+            }]
+        ));
+
+        let bytes = encode_vtable_call_sequence_at_offset(
+            omega_target::NativeTarget::linux_arm64(),
+            &operands,
+            24,
+            true,
+        )
+        .expect("encode AAPCS64 vtable field result");
+        assert_eq!(
+            bytes.len(),
+            crate::vtable_call_sequence_width_at_offset(
+                omega_target::NativeTarget::linux_arm64(),
+                &operands,
+                24,
+                true,
+            )
+        );
+        assert_eq!(
+            crate::vtable_call_sequence_width_at_offset(
+                omega_target::NativeTarget::linux_arm64(),
+                &operands,
+                32_768,
+                true,
+            ),
+            0
+        );
+    }
+
+    #[test]
+    fn vtable_field_result_is_separate_from_the_x0_receiver_argument() {
+        let operands = [
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 32,
+                byte_count: 4,
+            }),
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::ImmediateInteger(7)),
+        ];
+
+        let (placements, result) =
+            normalized_aarch64_vtable_plan(&operands, true).expect("AAPCS64 vtable field plan");
+        assert!(matches!(
+            result.expect("result placement").locations.as_slice(),
+            [ValueLocation::Register {
+                register: MachineRegister::Aarch64X(0),
+                value_byte_offset: 0,
+                byte_size: 4,
+            }]
+        ));
         assert!(matches!(
             placements[0].locations.as_slice(),
             [ValueLocation::Register {

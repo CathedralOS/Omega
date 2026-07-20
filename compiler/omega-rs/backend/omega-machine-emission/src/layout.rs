@@ -36,6 +36,7 @@ use omega_instruction_selection::{
     runtime_text_storage_compare_width, runtime_text_stored_place_append_width,
     runtime_text_stored_suffix_append_width, runtime_value_compare_width, syscall_sequence_width,
     table_function_call_sequence_width, vtable_call_sequence_width,
+    vtable_call_sequence_width_at_offset,
 };
 use omega_machine_instructions::{MachineInstruction, MachineInstructionKind};
 
@@ -115,16 +116,18 @@ fn machine_instruction_width(
             Some(HostBindingMechanism::VtableSlot { index }) => {
                 vtable_call_sequence_width(input.target, operands, *index, false)
             }
-            // The disp32 encoding is offset-independent: the field flavor's
-            // width is the slot flavor's width (index unused there). A call
-            // with MORE operands than the method's declared parameters
-            // carries a prepended RESULT place (`let status = ...`).
+            // A call with MORE operands than the method's declared parameters
+            // carries a prepended RESULT place (`let status = ...`). The
+            // AArch64 field offset is retained here so an unencodable load
+            // fails layout instead of being sized through slot zero.
             Some(HostBindingMechanism::VtableField {
-                parameter_count, ..
-            }) => vtable_call_sequence_width(
+                byte_offset,
+                parameter_count,
+                ..
+            }) => vtable_call_sequence_width_at_offset(
                 input.target,
                 operands,
-                0,
+                *byte_offset,
                 operands.len() > *parameter_count,
             ),
             Some(HostBindingMechanism::TableFunction {

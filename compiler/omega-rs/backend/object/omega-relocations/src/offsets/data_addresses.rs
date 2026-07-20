@@ -43,6 +43,48 @@ pub(crate) fn data_address_relocation_offset(
         };
         return selected_text_offset + byte_offset;
     }
+
+    // AArch64 This-call field dispatch uses the direct-import marshaller, but
+    // a leading result place is stored only after the arguments, indirect
+    // load/BLR, and outgoing-stack restore. Keep every page relocation on the
+    // exact byte selected by that layout.
+    if architecture == Architecture::Aarch64
+        && let Some(shape) = field_model_shape
+        && shape.passes_receiver
+        && let Ok((argument_placements, _)) =
+            omega_instruction_selection::normalized_aarch64_vtable_plan(
+                operands,
+                shape.result_present,
+            )
+    {
+        let argument_start = usize::from(shape.result_present);
+        if shape.result_present && operand_index == 0 {
+            return selected_text_offset
+                + operands[argument_start..]
+                    .iter()
+                    .map(|operand| {
+                        omega_instruction_selection::operand_width(architecture, operand)
+                    })
+                    .sum::<usize>()
+                + omega_instruction_selection::aarch64_host_call_stack_total_width_for_placements(
+                    &argument_placements,
+                )
+                + 8;
+        }
+        if operand_index >= argument_start {
+            return selected_text_offset
+                + operands[argument_start..operand_index]
+                    .iter()
+                    .map(|operand| {
+                        omega_instruction_selection::operand_width(architecture, operand)
+                    })
+                    .sum::<usize>()
+                + omega_instruction_selection::aarch64_host_call_stack_prefix_width_for_placements(
+                    &argument_placements,
+                    operand_index - argument_start,
+                );
+        }
+    }
     // x86_64 Linux syscalls marshal each argument into its register independently, so
     // the data-address/runtime-storage fixup is the sum of the preceding arguments'
     // marshalling widths plus 2 -- a different layout than the win32 import sequence.
@@ -162,9 +204,10 @@ pub(crate) fn data_address_relocation_offset(
 
 #[cfg(test)]
 mod tests {
-    use super::data_address_relocation_offset;
+    use super::{FieldModelCallShape, data_address_relocation_offset};
     use omega_assigned_target_operations::{InstructionOperand, InstructionOperandKind};
     use omega_target::Architecture;
+    use omega_target_operations::RuntimeStorageRegion;
 
     #[test]
     fn offsets_data_address_by_prior_operand_widths() {
@@ -216,6 +259,60 @@ mod tests {
                 false
             ),
             32
+        );
+    }
+
+    #[test]
+    fn aarch64_vtable_result_relocation_follows_arguments_and_indirect_dispatch() {
+        let operands = [
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeScalarInteger {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 32,
+                    byte_count: 4,
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeScalarInteger {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 0,
+                    byte_count: 8,
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::ImmediateInteger(7),
+            },
+        ];
+        let shape = Some(FieldModelCallShape {
+            passes_receiver: true,
+            result_present: true,
+        });
+
+        assert_eq!(
+            data_address_relocation_offset(
+                Architecture::Aarch64,
+                None,
+                &operands,
+                20,
+                0,
+                false,
+                shape,
+                false,
+            ),
+            44
+        );
+        assert_eq!(
+            data_address_relocation_offset(
+                Architecture::Aarch64,
+                None,
+                &operands,
+                20,
+                1,
+                false,
+                shape,
+                false,
+            ),
+            20
         );
     }
 }

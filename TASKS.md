@@ -57,9 +57,10 @@ immediate, while the fixed x86-64 sequences reject plans they cannot realize
 instead of silently choosing an ABI. AArch64 C/import calls and their results
 now evaluate AAPCS64 from selected operand shapes and pass the plan's exact X/V
 registers and stack placements to the ISA encoder, including scalar stack
-arguments and flat HFA arguments/results. Result-free AArch64 vtable-slot calls
+arguments and flat HFA arguments/results. AArch64 vtable-slot and field calls
 reuse that marshaller, require the receiver in planned `x0`, and dispatch through
-caller-saved `x16`. The general Microsoft x64 import path
+caller-saved `x16`; field calls also store plan-selected scalar GPR results. The
+general Microsoft x64 import path
 now derives its policy from the concrete target, evaluates argument/result shapes,
 consumes the plan's register and shadow-relative stack placements, and rejects
 non-Microsoft x86 policies
@@ -134,11 +135,14 @@ ceiling derived exactly from the ABI volatile-register classes.
    contract, or ordinary-clobber ceiling cannot cover the encoder's fixed
    caller-saved scratch set; placement is no longer the only enforced plan
    facet. Continue making the plan authoritative across compatibility paths.
-   Ordinary result-free AArch64 `VtableSlot` calls now evaluate AAPCS64 from
-   their selected operands, require the full-width receiver in planned `x0`,
-   marshal every argument/stack slot through the shared plan consumer, and
-   dispatch through caller-saved `x16` with no import relocation. Result-bearing
-   vtable fields and dispatch-only service tables remain x86-64-only.
+   Ordinary AArch64 `VtableSlot` and `VtableField` calls now evaluate AAPCS64
+   from their selected operands, require the full-width receiver in planned
+   `x0`, marshal every argument/stack slot through the shared plan consumer,
+   and dispatch through caller-saved `x16` with no import relocation. Field
+   calls separate a leading result place from the receiver and store a
+   plan-selected scalar GPR result with layout and relocation accounting in
+   lockstep. Floating/aggregate field results and dispatch-only service tables
+   remain x86-64-only.
    The concrete x86 interrupt
    `StatePlan`, stack/IST, nesting, and acknowledgement policy used by Cathedral
    is OWNER-BLOCKED on `OWNER_QUESTIONS.md` section 3.
