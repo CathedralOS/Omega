@@ -28485,6 +28485,63 @@ fn cross_win64_direct_aggregate_import_loads_the_record_by_value() {
     let _ = fs::remove_dir_all(&scratch);
 }
 
+#[test]
+fn cross_win64_direct_aggregate_result_spills_rax_by_value() {
+    let canary = pass_canary("capabilities/win64_direct_aggregate_result_import_compile");
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-win64-direct-aggregate-result-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(scratch.clone()),
+        target_name: Some("windows_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("direct aggregate result import should compile for windows_x64");
+
+    let image = fs::read(scratch.join("omega-program.exe")).expect("read emitted Win64 PE");
+    assert!(
+        image
+            .windows(17)
+            .any(|window| { window[0..2] == [0x49, 0xbb] && window[10..13] == [0x49, 0x89, 0x83] }),
+        "expected the eight-byte record spilled from RAX into aggregate storage"
+    );
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
+fn cross_win64_large_aggregate_result_uses_hidden_rcx_destination() {
+    let canary = pass_canary("capabilities/win64_large_aggregate_result_import_compile");
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-win64-large-aggregate-result-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(scratch.clone()),
+        target_name: Some("windows_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("indirect aggregate result import should compile for windows_x64");
+
+    let image = fs::read(scratch.join("omega-program.exe")).expect("read emitted Win64 PE");
+    assert!(
+        image.windows(34).any(|window| {
+            window[0..2] == [0x49, 0xbb]
+                && window[10..13] == [0x49, 0x8d, 0x8b]
+                && window[17..19] == [0x49, 0xbb]
+                && window[27..30] == [0x49, 0x8b, 0x93]
+        }),
+        "expected hidden RCX result address followed by the declared seed in RDX"
+    );
+    let _ = fs::remove_dir_all(&scratch);
+}
+
 // An AUTHORED provides import end to end (hosted-consumption rung 2): the
 // program's own `windows_x64 provides Beeper { beep -> DllImport("msvcrt.dll",
 // "abs") }` row binds, the import table names msvcrt.dll (the binding, not

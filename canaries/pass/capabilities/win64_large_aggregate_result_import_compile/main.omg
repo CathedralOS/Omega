@@ -1,0 +1,25 @@
+// Microsoft x64 returns larger records through a caller-owned destination in
+// hidden RCX. The declared seed argument therefore shifts to RDX.
+data Triple {
+    first: u64;
+    second: u64;
+    third: u64;
+}
+
+boundary trait LargeAggregateResultImport {
+    machine receive(seed: u64) -> Triple;
+}
+
+windows_x64 provides LargeAggregateResultImport {
+    receive -> DllImport("omega_abi_probe.dll", "omega_win64_large_result_probe")
+}
+
+data Main {
+    foreign: LargeAggregateResultImport;
+    seed: u64;
+    result: Triple;
+}
+machine Main::main(&mut self) {
+    self.seed = 7;
+    self.result = self.foreign.receive(self.seed);
+}

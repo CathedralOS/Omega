@@ -1,0 +1,24 @@
+// Microsoft x64 returns 1/2/4/8-byte records by value in RAX. The compiler
+// test pins the eight-byte spill into the aggregate result place.
+data Pair32 {
+    first: u32;
+    second: u32;
+}
+
+boundary trait DirectAggregateResultImport {
+    machine receive(seed: u64) -> Pair32;
+}
+
+windows_x64 provides DirectAggregateResultImport {
+    receive -> DllImport("omega_abi_probe.dll", "omega_win64_direct_result_probe")
+}
+
+data Main {
+    foreign: DirectAggregateResultImport;
+    seed: u64;
+    result: Pair32;
+}
+machine Main::main(&mut self) {
+    self.seed = 7;
+    self.result = self.foreign.receive(self.seed);
+}
