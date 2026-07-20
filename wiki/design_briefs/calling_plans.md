@@ -250,7 +250,12 @@ the encoder instead copies every member into the plan's one contiguous,
 selected aggregate result place while the evaluated result placement supplies
 each exact vector-register fragment; emission spills those fragments through
 one relocated storage base, with width and relocation accounting remaining per
-source value.
+source value. The AArch64 import normalization seam now validates the rest of
+the plan contract it can realize as well: AAPCS64 policy, call/return entry
+control, 16-byte stack alignment, zero shadow space, and an ordinary-clobber
+ceiling containing every fixed caller-saved X/V scratch register used by the
+encoder family. A future policy or evaluator change therefore fails before
+emission instead of silently preserving only the placement projection.
 
 Ordinary process and firmware entries now evaluate a complete validated
 `BoundaryEntryPlan`, not a detached call layout. Their concrete `StatePlan`

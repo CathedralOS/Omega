@@ -111,7 +111,12 @@ ceiling derived exactly from the ABI volatile-register classes.
    is exhausted, the same operand copies each member into its contiguous planned
    stack area. Authored flat HFA results now preserve one aggregate result place
    and spill every plan-selected vector-register fragment through one relocated
-   base. Make the plan authoritative next. The concrete x86 interrupt
+   base. The AArch64 import normalization seam now also rejects plans whose
+   policy, call/return control, 16-byte stack alignment, zero-shadow-space
+   contract, or ordinary-clobber ceiling cannot cover the encoder's fixed
+   caller-saved scratch set; placement is no longer the only enforced plan
+   facet. Continue making the plan authoritative across compatibility paths.
+   The concrete x86 interrupt
    `StatePlan`, stack/IST, nesting, and acknowledgement policy used by Cathedral
    is OWNER-BLOCKED on `OWNER_QUESTIONS.md` section 3.
 3. **ENT3 — constrained entry codegen.** Derive entry stubs, specialize/codegen

@@ -1,7 +1,7 @@
 use crate::aarch64_call_operand;
 use omega_calling_conventions::{
-    CallSignature, CallingPolicy, EntryControl, HostOperationKey, MachineRegister, ValueLocation,
-    ValuePlacement, ValueShape, evaluate_call_plan,
+    CallPlan, CallSignature, CallingPolicy, EntryControl, HostOperationKey, MachineRegister,
+    ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan,
 };
 use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
@@ -406,6 +406,7 @@ fn normalized_aarch64_import_plan<T: InstructionOperandLike>(
     let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature).map_err(|error| {
         Diagnostic::error(format!("cannot evaluate AAPCS64 import plan: {error}"))
     })?;
+    validate_aarch64_import_plan(&plan)?;
     for (index, placement) in plan.parameters.iter().enumerate() {
         if placement.locations.len() > 1
             && !matches!(
@@ -432,6 +433,41 @@ fn normalized_aarch64_import_plan<T: InstructionOperandLike>(
         )));
     }
     Ok((plan.parameters, plan.result))
+}
+
+fn validate_aarch64_import_plan(plan: &CallPlan) -> Result<(), Diagnostic> {
+    if plan.policy != CallingPolicy::Aapcs64
+        || plan.entry_control != EntryControl::CallReturn
+        || plan.stack_alignment != 16
+        || plan.shadow_bytes != 0
+    {
+        return Err(Diagnostic::error(format!(
+            "AArch64 import encoder cannot realize plan policy={:?}, control={:?}, alignment={}, shadow_bytes={}",
+            plan.policy, plan.entry_control, plan.stack_alignment, plan.shadow_bytes
+        )));
+    }
+
+    // The current encoder family uses these caller-saved registers while
+    // materializing stack arguments, large offsets, floating-point values,
+    // and result stores. Keep that implementation footprint inside the
+    // plan's ordinary-clobber ceiling instead of treating the placement
+    // projection as the whole calling contract.
+    for scratch in [
+        MachineRegister::Aarch64X(0),
+        MachineRegister::Aarch64X(9),
+        MachineRegister::Aarch64X(10),
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64V(31),
+    ] {
+        if !plan.ordinary_clobbers.contains(scratch) {
+            return Err(Diagnostic::error(format!(
+                "AArch64 import encoder scratch register {scratch:?} exceeds the plan's ordinary-clobber ceiling"
+            )));
+        }
+    }
+
+    Ok(())
 }
 
 fn aarch64_operand_shape(
@@ -744,6 +780,7 @@ mod result_register_architecture_tests {
 #[cfg(test)]
 mod aarch64_import_plan_tests {
     use super::*;
+    use omega_calling_conventions::RegisterSet;
     use omega_target_operations::{
         RuntimeStorageRegion, TargetInstructionOperand, TargetInstructionOperandKind,
     };
@@ -910,5 +947,42 @@ mod aarch64_import_plan_tests {
                 byte_size: 8,
             }
         ));
+    }
+
+    #[test]
+    fn import_encoder_rejects_incompatible_plan_control_and_stack_contracts() {
+        let mut plan = evaluate_call_plan(CallingPolicy::Aapcs64, &CallSignature::default())
+            .expect("baseline AAPCS64 plan");
+
+        plan.entry_control = EntryControl::InterruptReturn;
+        let error = validate_aarch64_import_plan(&plan).expect_err("interrupt return must reject");
+        assert!(error.message.contains("cannot realize plan"));
+
+        plan.entry_control = EntryControl::CallReturn;
+        plan.stack_alignment = 8;
+        let error = validate_aarch64_import_plan(&plan).expect_err("weak alignment must reject");
+        assert!(error.message.contains("alignment=8"));
+
+        plan.stack_alignment = 16;
+        plan.shadow_bytes = 32;
+        let error = validate_aarch64_import_plan(&plan).expect_err("shadow space must reject");
+        assert!(error.message.contains("shadow_bytes=32"));
+    }
+
+    #[test]
+    fn import_encoder_rejects_scratch_above_the_plan_clobber_ceiling() {
+        let mut plan = evaluate_call_plan(CallingPolicy::Aapcs64, &CallSignature::default())
+            .expect("baseline AAPCS64 plan");
+        plan.ordinary_clobbers = RegisterSet::new(
+            plan.ordinary_clobbers
+                .as_slice()
+                .iter()
+                .copied()
+                .filter(|register| *register != MachineRegister::Aarch64X(17)),
+        );
+
+        let error = validate_aarch64_import_plan(&plan).expect_err("missing scratch must reject");
+        assert!(error.message.contains("Aarch64X(17)"));
+        assert!(error.message.contains("ordinary-clobber ceiling"));
     }
 }
