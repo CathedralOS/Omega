@@ -32850,6 +32850,58 @@ fn scalar_float_entry_result_uses_native_vector_registers_on_linux() {
 }
 
 #[test]
+fn constant_u64_entry_result_uses_the_declared_native_width() {
+    let canary = pass_canary("targets/efi_u64_constant_result_entry");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-efi-u64-result-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("uefi_x64".into()),
+        write_output: true,
+    })
+    .expect("EFI u64 constant result should compile");
+    let image = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
+    assert!(
+        image
+            .windows(10)
+            .any(|window| window == [0x48, 0xb8, 7, 0, 0, 0, 0, 0, 0, 0]),
+        "u64 constant terminal must write the full RAX register"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-linux-arm64-u64-result-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+    let src_dir = scratch.join("src");
+    let out_dir = scratch.join("out");
+    fs::create_dir_all(&src_dir).expect("scratch source directory");
+    fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
+    fs::write(src_dir.join("build.omg"), "target linux_arm64 {\n}\n")
+        .expect("write target manifest");
+
+    compile(CompileOptions {
+        root_path: src_dir.join("main.omg"),
+        build_dir: Some(out_dir.clone()),
+        target_name: Some("linux_arm64".into()),
+        write_output: true,
+    })
+    .expect("Linux ARM64 u64 constant result should compile");
+    let image = fs::read(out_dir.join("omega-program")).expect("read emitted ELF");
+    assert!(
+        image
+            .windows(4)
+            .any(|window| window == 0xd280_00e0u32.to_le_bytes()),
+        "u64 constant terminal must write the full X0 register"
+    );
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
 fn efi_small_aggregate_entry_uses_rcx_and_rax() {
     let canary = pass_canary("targets/efi_small_aggregate_entry");
     let build_dir =

@@ -880,7 +880,7 @@ pub fn encode_return_register_integer_write_bytes(
     byte_size: usize,
     value: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
-    if !matches!(byte_size, 1 | 4 | 8) {
+    if !matches!(byte_size, 1 | 2 | 4 | 8) {
         return Err(Diagnostic::error(format!(
             "X86_64 MVP encoder cannot write {byte_size}-byte return integers yet"
         )));
@@ -987,6 +987,13 @@ mod result_register_tests {
         let bytes = encode_return_register_integer_write_bytes(MachineRegister::X86R9, 4, 7)
             .expect("r9d result write");
         assert_eq!(bytes, [0x41, 0xb9, 7, 0, 0, 0]);
+    }
+
+    #[test]
+    fn constant_result_accepts_the_normalized_u16_width() {
+        let bytes = encode_return_register_integer_write_bytes(MachineRegister::X86Rax, 2, 7)
+            .expect("ax result represented through eax");
+        assert_eq!(bytes, [0xb8, 7, 0, 0, 0]);
     }
 
     #[test]
