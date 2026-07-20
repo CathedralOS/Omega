@@ -239,7 +239,12 @@ the encoder reserves a 16-byte-aligned outgoing area, materializes integer,
 pointer, and float values through caller-saved X/V scratch registers, stores
 them at the planned offset, and restores SP after `BL`. Width calculation plus
 call/data relocation walkers consume the same stack-prefix/store/restore
-accounting. Fragmented outbound placements still fail closed.
+accounting. A flat two-to-four-member AArch64 HFA argument is now preserved as
+one by-value aggregate operand from selection onward. Its grouped normalized
+placement drives one load per member into the exact selected vector register,
+and width plus both relocation walkers account by source value rather than
+mistaking fragments for independent arguments. Aggregate stack arguments and
+fragmented aggregate results still fail closed.
 
 Ordinary process and firmware entries now evaluate a complete validated
 `BoundaryEntryPlan`, not a detached call layout. Their concrete `StatePlan`

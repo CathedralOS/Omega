@@ -60,6 +60,16 @@ pub enum InstructionOperandKind {
         byte_offset: usize,
         byte_count: usize,
     },
+    /// A flat AAPCS64 homogeneous floating-point aggregate read from one
+    /// runtime-storage place. One source value may be split across two to four
+    /// vector argument registers; preserving the aggregate here prevents
+    /// selection from degrading a by-value record into a pointer.
+    RuntimeHomogeneousFloatAggregate {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+        member_byte_count: usize,
+        members: u8,
+    },
     /// The ADDRESS of a statically allocated runtime-storage place (`region` base
     /// + `byte_offset`), marshalled as a pointer-sized host-call argument. This is
     /// the pointer-argument shape of the extern boundary: a `[u32; N]` framebuffer

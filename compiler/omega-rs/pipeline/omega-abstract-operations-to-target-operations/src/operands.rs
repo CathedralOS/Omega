@@ -67,6 +67,17 @@ fn translate_operand_kind(
             byte_offset: *byte_offset,
             byte_count: *byte_count,
         },
+        omega_abstract_operations::InstructionOperandKind::RuntimeHomogeneousFloatAggregate {
+            region,
+            byte_offset,
+            member_byte_count,
+            members,
+        } => InstructionOperandKind::RuntimeHomogeneousFloatAggregate {
+            region: *region,
+            byte_offset: *byte_offset,
+            member_byte_count: *member_byte_count,
+            members: *members,
+        },
         omega_abstract_operations::InstructionOperandKind::RuntimeStorageAddress {
             region,
             byte_offset,

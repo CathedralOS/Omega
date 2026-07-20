@@ -33,6 +33,13 @@ pub enum Aarch64CallOperand {
         byte_offset: usize,
         byte_count: usize,
     },
+    /// One flat by-value HFA source. The normalized `ValuePlacement` supplies
+    /// the exact vector register for every member fragment.
+    RuntimeHomogeneousFloatAggregate {
+        byte_offset: usize,
+        member_byte_count: usize,
+        members: u8,
+    },
     /// The ADDRESS of a runtime storage place (a caller buffer/out-param
     /// pointer): `adrp`+`add` to the region base (relocated), then `add` the
     /// field byte offset. Unlike `RuntimeScalarInteger` it does not load the

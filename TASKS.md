@@ -104,8 +104,12 @@ ceiling derived exactly from the ABI volatile-register classes.
    Scalar AAPCS64 outbound stack placements now reserve aligned outgoing space,
    materialize integer/pointer or float values through caller-saved scratch
    registers, store at plan-selected offsets, restore SP after the call, and
-   feed the same overhead into layout and both relocation walkers. Continue
-   through AArch64 fragmented calls, then make the plan authoritative. Add the
+   feed the same overhead into layout and both relocation walkers. Flat
+   two-to-four-member HFA arguments now remain one by-value operand through
+   selection and consume every plan-selected vector-register fragment; grouped
+   placements also drive layout and relocation accounting. Continue through
+   aggregate stack arguments and fragmented aggregate results, then make the
+   plan authoritative. Add the
    concrete x86 interrupt `StatePlan`, stack/IST, nesting, and acknowledgement
    policy used by Cathedral.
 3. **ENT3 — constrained entry codegen.** Derive entry stubs, specialize/codegen

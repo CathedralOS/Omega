@@ -31,6 +31,13 @@ pub trait InstructionOperandLike {
     /// A floating-point scalar read from a runtime-storage slot: `(region,
     /// byte_offset, byte_count)`. Marshalled into a float argument register (v0–v7).
     fn runtime_scalar_float(&self) -> Option<(RuntimeStorageRegion, usize, usize)>;
+    /// A flat homogeneous floating-point aggregate: region, byte offset,
+    /// equal member width, and member count.
+    fn runtime_homogeneous_float_aggregate(
+        &self,
+    ) -> Option<(RuntimeStorageRegion, usize, usize, u8)> {
+        None
+    }
     /// The ADDRESS of a runtime-storage place, `(region, byte_offset)`, marshalled
     /// as a pointer-sized host-call argument (`lea` through the relocated region
     /// base) -- the extern boundary's pointer-argument shape.
@@ -124,6 +131,20 @@ impl InstructionOperandLike for TargetInstructionOperand {
         }
     }
 
+    fn runtime_homogeneous_float_aggregate(
+        &self,
+    ) -> Option<(RuntimeStorageRegion, usize, usize, u8)> {
+        match self.kind {
+            InstructionOperandKind::RuntimeHomogeneousFloatAggregate {
+                region,
+                byte_offset,
+                member_byte_count,
+                members,
+            } => Some((region, byte_offset, member_byte_count, members)),
+            _ => None,
+        }
+    }
+
     fn runtime_storage_address(&self) -> Option<(RuntimeStorageRegion, usize)> {
         match self.kind {
             InstructionOperandKind::RuntimeStorageAddress {
@@ -189,6 +210,12 @@ pub enum TargetInstructionOperandKind {
         region: RuntimeStorageRegion,
         byte_offset: usize,
         byte_count: usize,
+    },
+    RuntimeHomogeneousFloatAggregate {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+        member_byte_count: usize,
+        members: u8,
     },
     /// The ADDRESS of a statically allocated runtime-storage place (`region` base
     /// + `byte_offset`), marshalled as a pointer-sized host-call argument (the

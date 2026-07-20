@@ -28,8 +28,8 @@ pub(crate) fn external_call_relocation_offset<T: InstructionOperandLike>(
     // result-binding shape and the encoder routes it there; the catalog
     // cannot know authored operations.
     if architecture == Architecture::Aarch64 && (operation_key.returns_value() || authored_import) {
-        let argument_locations =
-            omega_instruction_selection::normalized_aarch64_host_argument_locations(
+        let argument_placements =
+            omega_instruction_selection::normalized_aarch64_host_argument_placements(
                 operation_key,
                 operands,
                 authored_import,
@@ -47,9 +47,9 @@ pub(crate) fn external_call_relocation_offset<T: InstructionOperandLike>(
                 .map(|operand| omega_instruction_selection::operand_width(architecture, operand))
                 .sum::<usize>()
             + stack_mode_bytes
-            + omega_instruction_selection::aarch64_host_call_stack_prefix_width(
-                &argument_locations,
-                argument_locations.len(),
+            + omega_instruction_selection::aarch64_host_call_stack_prefix_width_for_placements(
+                &argument_placements,
+                argument_placements.len(),
             );
     }
 
@@ -59,15 +59,15 @@ pub(crate) fn external_call_relocation_offset<T: InstructionOperandLike>(
         .sum::<usize>();
 
     let planned_stack_bytes = if architecture == Architecture::Aarch64 {
-        omega_instruction_selection::normalized_aarch64_host_argument_locations(
+        omega_instruction_selection::normalized_aarch64_host_argument_placements(
             operation_key,
             operands,
             false,
         )
-        .map(|locations| {
-            omega_instruction_selection::aarch64_host_call_stack_prefix_width(
-                &locations,
-                locations.len(),
+        .map(|placements| {
+            omega_instruction_selection::aarch64_host_call_stack_prefix_width_for_placements(
+                &placements,
+                placements.len(),
             )
         })
         .unwrap_or(0)

@@ -1,6 +1,6 @@
 use crate::Aarch64CallOperand;
 use crate::Aarch64CallOperand::*;
-use omega_calling_conventions::ValueLocation;
+use omega_calling_conventions::{ValueLocation, ValuePlacement};
 use omega_target_operations::{
     RuntimeValueOperandHandle, RuntimeValueOperandSource, StateGuardOperator,
 };
@@ -22,30 +22,32 @@ pub fn host_call_sequence_width_from_operands(
         + 4
 }
 
-pub fn host_call_stack_prefix_width(locations: &[ValueLocation], argument_count: usize) -> usize {
-    let has_stack = locations
+pub fn host_call_stack_prefix_width_for_placements(
+    placements: &[ValuePlacement],
+    argument_count: usize,
+) -> usize {
+    let has_stack = placements
         .iter()
+        .flat_map(|placement| &placement.locations)
         .any(|location| matches!(location, ValueLocation::Stack { .. }));
     usize::from(has_stack) * 4
-        + locations
+        + placements
             .iter()
             .take(argument_count)
+            .flat_map(|placement| &placement.locations)
             .filter(|location| matches!(location, ValueLocation::Stack { .. }))
             .count()
             * 4
 }
 
-pub fn host_call_stack_restore_width(locations: &[ValueLocation]) -> usize {
-    usize::from(
-        locations
-            .iter()
-            .any(|location| matches!(location, ValueLocation::Stack { .. })),
-    ) * 4
-}
-
-pub fn host_call_stack_total_width(locations: &[ValueLocation]) -> usize {
-    host_call_stack_prefix_width(locations, locations.len())
-        + host_call_stack_restore_width(locations)
+pub fn host_call_stack_total_width_for_placements(placements: &[ValuePlacement]) -> usize {
+    host_call_stack_prefix_width_for_placements(placements, placements.len())
+        + usize::from(
+            placements
+                .iter()
+                .flat_map(|placement| &placement.locations)
+                .any(|location| matches!(location, ValueLocation::Stack { .. })),
+        ) * 4
 }
 
 pub fn syscall_sequence_width_from_operands(
@@ -1667,6 +1669,23 @@ pub fn operand_width(operand: &Aarch64CallOperand) -> usize {
         RuntimePointeeStringPointer { .. } | RuntimePointeeStringLength { .. } => 16,
         // adrp + add + load + fmov (into a v-register) = 16.
         RuntimeScalarFloat { .. } => 16,
+        // One relocated base pair, then a sized load plus FMOV for every
+        // normalized member fragment. Large source offsets use the same
+        // load-width accounting as emission.
+        RuntimeHomogeneousFloatAggregate {
+            byte_offset,
+            member_byte_count,
+            members,
+        } => {
+            8 + (0..usize::from(*members))
+                .map(|member| {
+                    load_data_offset_width(
+                        byte_offset + member * member_byte_count,
+                        *member_byte_count,
+                    ) + 4
+                })
+                .sum::<usize>()
+        }
         ImmediateInteger(value) => immediate_width(*value),
         ByteLength(value) => unsigned_immediate_width(*value as u64),
     }

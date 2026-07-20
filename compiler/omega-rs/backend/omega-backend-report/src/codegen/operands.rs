@@ -65,6 +65,19 @@ pub(super) fn selected_instruction_operands_name(
                 let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
                 format!("scalar f{} {symbol}@{byte_offset}", byte_count * 8)
             }
+            InstructionOperandKind::RuntimeHomogeneousFloatAggregate {
+                region,
+                byte_offset,
+                member_byte_count,
+                members,
+            } => {
+                let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
+                format!(
+                    "hfa{}x{} {symbol}@{byte_offset}",
+                    members,
+                    member_byte_count * 8
+                )
+            }
             InstructionOperandKind::RuntimeStorageAddress {
                 region,
                 byte_offset,

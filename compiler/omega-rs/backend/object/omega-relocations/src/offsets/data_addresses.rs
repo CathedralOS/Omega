@@ -80,8 +80,8 @@ pub(crate) fn data_address_relocation_offset(
             // walker, which sees the binding mechanism.
             || authored_import)
     {
-        let argument_locations =
-            omega_instruction_selection::normalized_aarch64_host_argument_locations(
+        let argument_placements =
+            omega_instruction_selection::normalized_aarch64_host_argument_placements(
                 operation_key,
                 operands,
                 authored_import,
@@ -119,22 +119,22 @@ pub(crate) fn data_address_relocation_offset(
                 + deref_bytes
                 + float_return_bytes
                 + stack_mode_bytes
-                + omega_instruction_selection::aarch64_host_call_stack_total_width(
-                    &argument_locations,
+                + omega_instruction_selection::aarch64_host_call_stack_total_width_for_placements(
+                    &argument_placements,
                 );
         }
         return selected_text_offset
             + arg_bytes(1..operand_index)
-            + omega_instruction_selection::aarch64_host_call_stack_prefix_width(
-                &argument_locations,
+            + omega_instruction_selection::aarch64_host_call_stack_prefix_width_for_placements(
+                &argument_placements,
                 operand_index - 1,
             );
     }
 
     if architecture == Architecture::Aarch64
         && let Some(operation_key) = operation_key
-        && let Ok(argument_locations) =
-            omega_instruction_selection::normalized_aarch64_host_argument_locations(
+        && let Ok(argument_placements) =
+            omega_instruction_selection::normalized_aarch64_host_argument_placements(
                 operation_key,
                 operands,
                 false,
@@ -146,8 +146,8 @@ pub(crate) fn data_address_relocation_offset(
                 .take(operand_index)
                 .map(|operand| omega_instruction_selection::operand_width(architecture, operand))
                 .sum::<usize>()
-            + omega_instruction_selection::aarch64_host_call_stack_prefix_width(
-                &argument_locations,
+            + omega_instruction_selection::aarch64_host_call_stack_prefix_width_for_placements(
+                &argument_placements,
                 operand_index,
             );
     }
