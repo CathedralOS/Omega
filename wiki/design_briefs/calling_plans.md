@@ -3,9 +3,9 @@
 Current as of 2026-07-20. Boundary conventions are normalized policy artifacts;
 Omega's internal calling convention remains compiler-sovereign. This brief now
 includes inbound machine-state preservation, which ordinary calls do not expose.
-Engineering is incomplete. The normalized compiler model and initial policy
-evaluators are implemented; source-policy evaluation and authoritative lowering
-remain.
+Engineering is incomplete. The normalized compiler model and initial built-in
+policy evaluators are implemented; the settled source-policy evaluator and
+authoritative lowering remain.
 
 ## One boundary entry plan, two independent facets
 
@@ -44,10 +44,36 @@ fuse their identities.
 
 ## Policies are ordinary trait relationships
 
-A boundary requirement pins a target policy through ordinary trait composition:
+A boundary requirement pins a target policy through ordinary trait composition.
+The source relationship mirrors `Layout::plan`: authorship is open, while the
+compiler owns the normalized input/output vocabulary and validator.
 
 ```omega
-trait Calling<C> {
+data BoundaryPlanResult {
+    case Accepted(plan: BoundaryEntryPlan);
+    case Rejected(reason: CallingPolicyRejection);
+}
+
+trait CallingPolicy {
+    machine Self::plan(
+        signature: BoundarySignature,
+    ) -> BoundaryPlanResult;
+}
+
+trait Calling<C>
+where
+    C: CallingPolicy
+{
+}
+
+data X86InterruptConvention;
+
+machine X86InterruptConvention::plan(
+    signature: BoundarySignature,
+) -> BoundaryPlanResult
+    satisfies CallingPolicy::plan
+{
+    ...
 }
 
 boundary trait TimerInterrupt:
@@ -57,12 +83,44 @@ boundary trait TimerInterrupt:
 }
 ```
 
-`C` is a calling-policy type, not the frame data type. Evaluating it against the
-requirement signature produces the complete normalized `BoundaryEntryPlan`.
-The evaluated result, not merely the policy symbol, enters the public contract
-identity. A target-specific requirement may layer over a portable semantic
-service trait; Omega does not need an entry-slot refinement mechanism merely to
-reuse the semantic API across targets.
+`C` is a calling-policy type, not the frame data type or a friendly target name.
+Its `plan` machine is compile-time-only, deterministic, terminating, and
+build-time-admissible. It receives the normalized requirement signature and
+either returns an accepted plan or a structured rejection. Rejection produces a
+diagnostic at the `Calling<C>` relationship and contributes no contract identity.
+Hardware conventions are often validators first: an interrupt policy rejects a
+return value, frame shape, parameter, or entry-control form the hardware cannot
+honor instead of manufacturing a deliberately invalid plan.
+
+An accepted result is compiler-validated and canonicalized before use. The
+fingerprint of that canonical evaluated result—not `C`'s symbol, source body, or
+unnormalized construction order—enters public contract identity. Refactoring a
+policy machine without changing its normalized output therefore preserves ABI
+identity; changing an observable placement or state commitment changes it.
+
+Ordinary packages may author policy types under the same validation rules as
+platform packages. They choose only from the closed placement and machine-state
+vocabularies; adding a new primitive placement or state concept still requires a
+compiler release. Omega's internal calling convention is never selected through
+this surface.
+
+A target-specific requirement may layer over a portable semantic service trait.
+When the boundary declaration itself is reusable across conventions, make the
+policy an ordinary type parameter:
+
+```omega
+boundary trait Console<C>: Calling<C>
+where
+    C: CallingPolicy
+{
+    machine write(bytes: &[u8]);
+}
+```
+
+`Console<MicrosoftX64>` and `Console<SysVAMD64>` reuse one semantic declaration
+but have distinct boundary contract identities. One concrete requirement never
+lets individual providers choose different conventions; mixed conventions use
+separate requirement instantiations or composed boundary facets.
 
 Boundary-trait parents and policy parents have different established meanings:
 boundary service parents contribute service reach; ordinary core policy parents
@@ -105,13 +163,20 @@ Plan validation checks, at minimum:
 - entry/exit control is valid for the initial regime; and
 - target and provider applicability match the requirement.
 
+Canonicalization is part of validation: unordered register/clobber sets are
+sorted, equivalent encodings normalize identically, and only accepted canonical
+plans may be fingerprinted. The implementation should reuse the compiler's
+general normalized-plan infrastructure while preserving `CallPlan` and
+`StatePlan` as their own semantic algebras.
+
 Regime-changing instructions do not turn one calling plan into a multi-mode
 blob. Checked instruction contracts require regime R and establish R'. Stable
 regions on either side use their own plans.
 
 ## Contract identity versus implementation evidence
 
-The authored, evaluated `CallPlan + StatePlan` is published contract identity.
+The requirement-pinned, evaluated `CallPlan + StatePlan` is published contract
+identity.
 The emitted register/machine-state footprint is provider evidence.
 
 The backend must honor a state ceiling while selecting instructions and
@@ -127,6 +192,13 @@ actual_clobbers intersect unsaved_interrupted_state = empty
 A legal change in register allocation or implementation evidence does not alter
 caller contract identity. It revalidates the provider artifact only.
 
+The firewall is observational: published promises are identity; realization
+evidence is not. Calling placement and the `StatePlan` ceiling are counterparty-
+observable promises. The emitted footprint certificate proves one realization
+refines that ceiling and may change without changing the promise, just as a
+termination witness may change without changing a machine's termination
+contract.
+
 Checked Omega leaves produce derived footprint evidence. Raw/admitted leaves
 carry accepted footprint claims under receipt. The trust report must distinguish
 the two.
@@ -141,6 +213,12 @@ Plans exist only at boundaries. Most callers do not name one: an external
 `Binding` and satisfied requirement determine the pinned policy. Explicit policy
 identity is authored on the requirement, never inferred from a DLL name,
 syscall number, or friendly target string.
+
+The compiler derives provider-plan rows from `satisfies` and `via`; build-time
+machines may compute policy results or select among declared candidates, but do
+not imperatively assemble a second plan table. A builder that restates
+requirement-to-implementation edges would duplicate `satisfies` and remains
+rejected independently of machine-parameter implementation progress.
 
 Provider plans remain derived from explicit `satisfies` declarations and `via`
 leaves. Admission proves or accepts that a realization refines the complete
@@ -313,8 +391,10 @@ being ignored by the plan-driven encoder.
 
 Remaining order:
 
-1. Evaluate the policy selected by `Calling<C>` against the requirement
-   signature and hash the evaluated pair into requirement identity.
+1. Implement source evaluation of
+   `CallingPolicy::plan(BoundarySignature) -> BoundaryPlanResult`, report
+   structured rejections, canonicalize accepted plans, and hash the evaluated
+   pair into requirement identity.
 2. Complete plan-driven outbound calls and their results;
    differential-check every supported compatibility encoder against the plan,
    add the concrete firmware/interrupt state policies, and make the plan
@@ -327,8 +407,6 @@ Remaining order:
 
 ## Still open
 
-- core-data spelling and source evaluation of the policy selected by
-  `Calling<C>`;
 - register/machine-state vocabulary extensions beyond the implemented x86-64
   and AArch64 foundation;
 - object-certificate composition and final-image validation format;

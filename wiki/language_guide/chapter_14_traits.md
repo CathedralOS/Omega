@@ -240,7 +240,16 @@ a plain list of required machine signatures.
 Header composition is the generic-capable spelling of the same graph:
 
 ```omega
-trait Calling<C> {
+trait CallingPolicy {
+    machine Self::plan(
+        signature: BoundarySignature,
+    ) -> BoundaryPlanResult;
+}
+
+trait Calling<C>
+where
+    C: CallingPolicy
+{
 }
 
 boundary trait TimerInterrupt:
@@ -255,6 +264,15 @@ parent contributes service reach, while an ordinary parent such as
 `Calling<C>` contributes policy/contract identity and no service reach. An
 ordinary trait therefore cannot inherit a boundary parent; the child must also
 be a `boundary trait`.
+
+`Calling<C>` is not compiler recognition of a friendly type name. `C` satisfies
+`CallingPolicy`, whose compile-time `plan` machine evaluates the normalized
+boundary signature to `Accepted(BoundaryEntryPlan)` or a structured `Rejected`
+reason. The compiler validates and canonicalizes accepted plans; their evaluated
+identity, not the policy symbol or machine body, becomes part of the boundary
+contract. Policy authorship is open, but the plan vocabulary and validator are
+closed compiler interfaces. See the calling-plans design brief for the complete
+boundary rule.
 
 This avoids making traits magic. They are named requirement sets.
 

@@ -674,7 +674,11 @@ parameter list is the shape imposed over the platform's arrival bytes (the
 boundary performs the recast; a raw `&[u8]` parameter stays first-class for
 programs that want unclaimed bytes). The satisfied target requirement pins a
 normalized calling policy through ordinary `Calling<C>` trait composition.
-The evaluated `CallPlan + StatePlan` belongs to requirement identity;
+`C` satisfies the ordinary core `CallingPolicy` relationship; its compile-time
+machine evaluates the normalized signature to an accepted or structured-
+rejected boundary plan. Accepted plans are compiler-validated and canonicalized.
+The evaluated `CallPlan + StatePlan`, not the policy symbol or source body,
+belongs to requirement identity;
 `boundary(<Plan>)` is retired because it fused trust treatment with deployment
 policy. "No host" is `b.freestanding = true` in
 `build.omg` (an orthogonal `Build` field; see
