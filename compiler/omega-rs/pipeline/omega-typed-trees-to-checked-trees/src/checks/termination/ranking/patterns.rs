@@ -100,8 +100,7 @@ pub(super) fn refuted_guard_proves_positive(
     if !expression_is_parameter(program, binary.left, parameter) {
         return false;
     }
-    let ExpressionNode::Integer(literal) = program.expression_table.expression(binary.right)
-    else {
+    let ExpressionNode::Integer(literal) = program.expression_table.expression(binary.right) else {
         return false;
     };
     match binary.operator {

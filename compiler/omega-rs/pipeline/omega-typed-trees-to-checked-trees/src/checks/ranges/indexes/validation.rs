@@ -223,11 +223,7 @@ fn literal_only_integer_value(
         ExpressionNode::Binary(binary) => {
             let left = literal_only_integer_value(program, binary.left)?;
             let right = literal_only_integer_value(program, binary.right)?;
-            crate::checks::ranges::expressions::folded_integer_binary(
-                left,
-                binary.operator,
-                right,
-            )
+            crate::checks::ranges::expressions::folded_integer_binary(left, binary.operator, right)
         }
         _ => None,
     }
@@ -323,11 +319,9 @@ fn check_known_length_index(
                 // hoisted index. Scoped to the reserved prefix: a USER local
                 // may see writes between its `let` and its use, where the
                 // initializer-label fact would describe a DIFFERENT value.
-                let initializer_label =
-                    hoist_temp_initializer_label(program, state, &index_label);
+                let initializer_label = hoist_temp_initializer_label(program, state, &index_label);
                 let initializer_label = initializer_label.as_deref();
-                let upper_bound_proven = facts
-                    .index_is_proven(&collection_label, &index_label)
+                let upper_bound_proven = facts.index_is_proven(&collection_label, &index_label)
                     || facts.index_upper_bound_is_proven(&index_label, length)
                     || facts.index_upper_bound_is_proven_via_ordering(&index_label, length)
                     || declared_range.is_some_and(|(_, high)| {
@@ -338,15 +332,15 @@ fn check_known_length_index(
                             || facts.index_upper_bound_is_proven(label, length)
                             || facts.index_upper_bound_is_proven_via_ordering(label, length)
                     });
-                let lower_bound_proven = expression_is_unsigned_integer(
-                    program, machine, state, index,
-                ) || facts.non_negative_is_proven(&index_label)
-                    || facts.non_negative_is_proven_via_ordering(&index_label)
-                    || declared_range.is_some_and(|(low, _)| low >= 0)
-                    || initializer_label.is_some_and(|label| {
-                        facts.non_negative_is_proven(label)
-                            || facts.non_negative_is_proven_via_ordering(label)
-                    });
+                let lower_bound_proven =
+                    expression_is_unsigned_integer(program, machine, state, index)
+                        || facts.non_negative_is_proven(&index_label)
+                        || facts.non_negative_is_proven_via_ordering(&index_label)
+                        || declared_range.is_some_and(|(low, _)| low >= 0)
+                        || initializer_label.is_some_and(|label| {
+                            facts.non_negative_is_proven(label)
+                                || facts.non_negative_is_proven_via_ordering(label)
+                        });
                 if upper_bound_proven && lower_bound_proven {
                     return;
                 }

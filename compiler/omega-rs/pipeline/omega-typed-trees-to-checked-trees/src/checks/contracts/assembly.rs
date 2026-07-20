@@ -5,8 +5,7 @@ use omega_typed_trees::statement::{AssemblyFactKind, StatementNode};
 
 use super::prover::semantic_contexts_prove_boolean_expression;
 use crate::flow::{
-    CanonicalPlace, canonical_place_from_expression_in_state,
-    canonical_place_segments_may_overlap,
+    CanonicalPlace, canonical_place_from_expression_in_state, canonical_place_segments_may_overlap,
 };
 use crate::labels::machine_name;
 

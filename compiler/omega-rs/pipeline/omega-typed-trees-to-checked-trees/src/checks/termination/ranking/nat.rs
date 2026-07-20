@@ -210,13 +210,11 @@ fn declared_floor_at_least_one(
                 }) {
                     return false;
                 }
-                if let Some(minimum) = constraints.iter().find_map(|constraint| {
-                    match constraint {
-                        TypeConstraintNode::Range { minimum, .. } => {
-                            program.expression_table.constant_integer_value(*minimum)
-                        }
-                        _ => None,
+                if let Some(minimum) = constraints.iter().find_map(|constraint| match constraint {
+                    TypeConstraintNode::Range { minimum, .. } => {
+                        program.expression_table.constant_integer_value(*minimum)
                     }
+                    _ => None,
                 }) {
                     return minimum >= 1;
                 }

@@ -126,11 +126,7 @@ impl RankingOrder {
             return OrderResolution::Resolved(Self::IncreasingTo(*limit));
         }
         if !view_arguments.is_empty() {
-            let path = order
-                .iter()
-                .copied()
-                .collect::<Vec<_>>()
-                .join("::");
+            let path = order.iter().copied().collect::<Vec<_>>().join("::");
             return OrderResolution::Rejected {
                 message: format!(
                     "view arguments are only meaningful on an argumented view                      (`Nat::IncreasingTo(limit)`); `{path}` takes none"
@@ -502,17 +498,14 @@ fn find_declared_measure<'program>(
     program: &'program omega_typed_trees::TypedTrees,
     order: &[&str],
 ) -> Option<&'program MeasureDefinition> {
-    program
-        .measures()
-        .iter()
-        .find(|measure| {
-            let actual = program.measure_path_members(measure.name);
-            actual.len() == order.len()
-                && actual
-                    .iter()
-                    .zip(order.iter())
-                    .all(|(actual, expected)| actual.as_str() == *expected)
-        })
+    program.measures().iter().find(|measure| {
+        let actual = program.measure_path_members(measure.name);
+        actual.len() == order.len()
+            && actual
+                .iter()
+                .zip(order.iter())
+                .all(|(actual, expected)| actual.as_str() == *expected)
+    })
 }
 
 /// `usize` is retired (parse-rejected); `u64` is the natural-measure name,

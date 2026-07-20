@@ -46,7 +46,9 @@ pub(super) fn check_statement(
             // reassignment (`j = j + 1`) cannot retain an old tighter bound and
             // wrongly prove an access AFTER the mutation. Any new bound is
             // re-derived below from the value (`seed_offset_index_bound`).
-            facts.forget_index_upper_bound(&program.expression_table.display_name(assignment.target));
+            facts.forget_index_upper_bound(
+                &program.expression_table.display_name(assignment.target),
+            );
             // The `>= 0` fact is likewise STALE on reassignment -- the new value
             // may be negative. A `>= 0` guard re-establishes it where it holds.
             facts.forget_non_negative(&program.expression_table.display_name(assignment.target));
@@ -221,7 +223,8 @@ fn field_plus_positive_constant(
         return None;
     }
     for (field_side, constant_side) in [(binary.left, binary.right), (binary.right, binary.left)] {
-        if let ExpressionNode::Integer(constant) = program.expression_table.expression(constant_side)
+        if let ExpressionNode::Integer(constant) =
+            program.expression_table.expression(constant_side)
             && let Some(constant) = constant.value_i64()
             && constant > 0
         {
@@ -230,7 +233,6 @@ fn field_plus_positive_constant(
     }
     None
 }
-
 
 /// Resolve a call statement's BOUNDARY-TRAIT callee signature from the typed
 /// trees (receiver field's declared trait), then seed `ensures <param> <OP>
@@ -315,7 +317,10 @@ fn seed_ensures_bound_conjunct(
     else {
         return;
     };
-    let Some(bound) = literal.value_i64().and_then(|value| value.checked_add(exclusive)) else {
+    let Some(bound) = literal
+        .value_i64()
+        .and_then(|value| value.checked_add(exclusive))
+    else {
         return;
     };
     let Some(position) = parameters

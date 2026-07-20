@@ -1006,11 +1006,12 @@ fn recorded_view_divergence_is_loud() {
     assert_eq!(witness.view_path, "Nat::Descending");
     witness.view_path = "Slice::Length".to_string();
 
-    let diagnostics =
-        lower_typed_trees(typed).expect_err("a diverging recorded view must be loud");
+    let diagnostics = lower_typed_trees(typed).expect_err("a diverging recorded view must be loud");
     assert!(
         diagnostics.iter().any(|diagnostic| {
-            diagnostic.message.contains("recorded ranking view `Nat::Descending`")
+            diagnostic
+                .message
+                .contains("recorded ranking view `Nat::Descending`")
                 && diagnostic.message.contains("resolved view `Slice::Length`")
         }),
         "expected the divergence invariant diagnostic, got: {:?}",
@@ -1739,7 +1740,11 @@ fn effect_row_facts_split_ceiling_from_inferred_summaries() {
     // CEILING through their call edges -- the modular bound.)
     assert_eq!(quiet.inferred_transitive, EffectRowTable::EMPTY_ROW);
     assert_eq!(
-        checked.facts.effect_rows.rows.members(quiet.published_ceiling),
+        checked
+            .facts
+            .effect_rows
+            .rows
+            .members(quiet.published_ceiling),
         &[omega_core::semantics::effect_member_id("filesystem_io").expect("catalog")]
     );
 
@@ -1802,7 +1807,10 @@ fn qualification_facts_record_policy_commitments() {
     let clamped_symbol = symbol_of("Main::clamped");
     let minted_symbol = symbol_of("Main::minted");
     let main_symbol = symbol_of("Main::main");
-    let km_id = typed.semantic_domains.lookup("i64::Km").expect("Km interned");
+    let km_id = typed
+        .semantic_domains
+        .lookup("i64::Km")
+        .expect("Km interned");
     let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
 
     let clamped = checked
@@ -1951,8 +1959,5 @@ fn data_where_facts_propagate_to_typed() {
         .iter()
         .find(|data| data.name.as_str() == "Ledger")
         .expect("Ledger data");
-    assert_eq!(
-        typed.proof_facts.span_or_empty(ledger.where_facts).len(),
-        1
-    );
+    assert_eq!(typed.proof_facts.span_or_empty(ledger.where_facts).len(), 1);
 }

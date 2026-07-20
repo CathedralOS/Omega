@@ -96,9 +96,11 @@ fn self_field_path(
         }
         ExpressionNode::Name(name) => {
             match program.expression_table.name_path_members(name.members) {
-                [first, rest @ ..] if first.as_str() == "self" => {
-                    Some(rest.iter().map(|segment| segment.as_str().to_owned()).collect())
-                }
+                [first, rest @ ..] if first.as_str() == "self" => Some(
+                    rest.iter()
+                        .map(|segment| segment.as_str().to_owned())
+                        .collect(),
+                ),
                 _ => None,
             }
         }
@@ -136,9 +138,7 @@ fn type_reference_data_name(
 ) -> Option<String> {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Named { name, .. } => Some(name.as_str().to_owned()),
-        TypeReferenceNode::Reference { referee, .. } => {
-            type_reference_data_name(program, *referee)
-        }
+        TypeReferenceNode::Reference { referee, .. } => type_reference_data_name(program, *referee),
         TypeReferenceNode::Constrained { base_type, .. } => {
             type_reference_data_name(program, *base_type)
         }
@@ -282,5 +282,3 @@ pub(crate) fn type_reference_fixed_array_capacity(
         _ => None,
     }
 }
-
-

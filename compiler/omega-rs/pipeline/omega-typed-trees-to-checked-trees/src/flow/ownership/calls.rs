@@ -27,7 +27,9 @@ pub(in crate::flow) fn append_call_ownership_events(
     // count equals the full parameter count and self participates in ordinary
     // ownership transfer. Method-form calls bind self through the receiver and
     // expose only the non-self positional arguments here.
-    let includes_explicit_self = declared_parameters.iter().any(|parameter| parameter.is_self)
+    let includes_explicit_self = declared_parameters
+        .iter()
+        .any(|parameter| parameter.is_self)
         && arguments.len() == declared_parameters.len();
     let parameters = declared_parameters
         .iter()

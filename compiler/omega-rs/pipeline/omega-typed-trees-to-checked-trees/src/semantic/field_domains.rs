@@ -250,8 +250,9 @@ pub(super) fn append_local_case_payload_domain_facts(program: &TypedTrees, facts
                 if !local_data.initial_value.is_valid() {
                     continue;
                 }
-                let ExpressionNode::StructLiteral(literal) =
-                    program.expression_table.expression(local_data.initial_value)
+                let ExpressionNode::StructLiteral(literal) = program
+                    .expression_table
+                    .expression(local_data.initial_value)
                 else {
                     continue;
                 };
@@ -265,13 +266,19 @@ pub(super) fn append_local_case_payload_domain_facts(program: &TypedTrees, facts
                 else {
                     continue;
                 };
-                let Some(variant) = program.data_members(data).iter().find_map(|member| match member
-                {
-                    DataMember::Variant(variant) if variant.name.as_str() == case_name.as_str() => {
-                        Some(variant)
-                    }
-                    _ => None,
-                }) else {
+                let Some(variant) =
+                    program
+                        .data_members(data)
+                        .iter()
+                        .find_map(|member| match member {
+                            DataMember::Variant(variant)
+                                if variant.name.as_str() == case_name.as_str() =>
+                            {
+                                Some(variant)
+                            }
+                            _ => None,
+                        })
+                else {
                     continue;
                 };
 

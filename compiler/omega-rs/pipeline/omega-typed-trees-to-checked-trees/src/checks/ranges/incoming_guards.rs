@@ -400,7 +400,11 @@ pub(super) fn seed_incoming_guard_facts(
             // (fields resolve machine-wide; a source-scope name that does
             // not resolve here simply yields no fact).
             super::guards::seed_value_vs_value_endpoints(
-                program, machine, state, facts, entry.guard,
+                program,
+                machine,
+                state,
+                facts,
+                entry.guard,
             );
         }
     }

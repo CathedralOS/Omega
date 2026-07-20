@@ -1,6 +1,5 @@
 use super::{
-    Lexer, lower_symbol_resolved_trees, lower_syntax_trees, lower_typed_trees,
-    parse_syntax_trees,
+    Lexer, lower_symbol_resolved_trees, lower_syntax_trees, lower_typed_trees, parse_syntax_trees,
 };
 
 #[test]
@@ -30,7 +29,11 @@ fn checked_facts_store_declared_and_effective_carry_separately() {
         .iter()
         .find(|definition| definition.name.as_str() == "Outer")
         .expect("Outer");
-    let outer_fact = checked.facts.carry.for_data(outer.symbol).expect("carry fact");
+    let outer_fact = checked
+        .facts
+        .carry
+        .for_data(outer.symbol)
+        .expect("carry fact");
     assert_eq!(
         outer_fact.declared,
         Some(omega_core::semantics::CarryPolicy::PERMISSIVE)

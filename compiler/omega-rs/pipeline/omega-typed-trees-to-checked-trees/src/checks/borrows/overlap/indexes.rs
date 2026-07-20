@@ -151,11 +151,9 @@ mod tests {
     use super::*;
 
     fn integer(program: &mut omega_typed_trees::TypedTrees, value: i64) -> ExpressionHandle {
-        program
-            .expression_table
-            .insert(ExpressionNode::Integer(
-                omega_core::literals::IntegerLiteral::from_value(value),
-            ))
+        program.expression_table.insert(ExpressionNode::Integer(
+            omega_core::literals::IntegerLiteral::from_value(value),
+        ))
     }
 
     fn range(

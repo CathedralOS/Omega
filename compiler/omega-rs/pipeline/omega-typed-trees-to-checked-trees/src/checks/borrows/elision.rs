@@ -10,9 +10,7 @@
 
 use omega_core::diagnostics::Diagnostic;
 
-use crate::borrow::view_link::{
-    ViewReturnAmbiguity, ViewReturnSource, resolve_view_return_source,
-};
+use crate::borrow::view_link::{ViewReturnAmbiguity, ViewReturnSource, resolve_view_return_source};
 
 pub(super) fn check_view_return_elision(
     program: &omega_typed_trees::TypedTrees,

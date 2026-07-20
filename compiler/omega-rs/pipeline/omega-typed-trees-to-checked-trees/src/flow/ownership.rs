@@ -9,11 +9,10 @@ mod type_references;
 
 pub(super) use calls::append_call_ownership_events;
 pub(super) use drops::append_state_exit_drop_events;
-use events::{
-    DirectMoveEventSink, MoveEventSink, append_drop_event_for_place,
-    append_move_event_for_place,
-};
 pub(crate) use events::DiscoveredMoveEvent;
+use events::{
+    DirectMoveEventSink, MoveEventSink, append_drop_event_for_place, append_move_event_for_place,
+};
 use moves::{
     append_move_events_for_expression, append_move_events_for_operator_statement_call,
     initializer_produces_owned_value,
