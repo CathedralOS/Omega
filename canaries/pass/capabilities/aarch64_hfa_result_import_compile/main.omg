@@ -1,0 +1,21 @@
+// ENT2c: a flat f64 record returned by value is one AAPCS64 HFA result. The
+// compiler test verifies that d0/d1 are spilled into one aggregate result
+// place rather than forcing the plan through a scalar result register.
+data Pair {
+    first: f64;
+    second: f64;
+}
+
+boundary trait HfaResultImport {
+    machine call(seed: i64) -> Pair;
+}
+
+macos_arm64 provides HfaResultImport {
+    call -> DllImport("libSystem.B.dylib", "omega_hfa_result_probe")
+}
+
+data Main { foreign: HfaResultImport; seed: i64; pair: Pair; }
+machine Main::main(&mut self) {
+    self.seed = 7;
+    self.pair = self.foreign.call(self.seed);
+}

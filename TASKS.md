@@ -5,7 +5,7 @@
 
 # Tasks
 
-Last pruned: 2026-07-19.
+Last pruned: 2026-07-20.
 
 Omega's first real consumer is Cathedral (`../Cathedral`). General language
 work takes priority, with Cathedral vertical slices used as acceptance tests.
@@ -49,11 +49,11 @@ that path. Composite
 runtime-text byte and line syscalls now consume the same normalized placements:
 the AArch64 encoders honor the plan-selected registers and supervisor-call
 immediate, while the fixed x86-64 sequences reject plans they cannot realize
-instead of silently choosing an ABI. Register-resident AArch64 C/import calls
-and their integer/float results now evaluate AAPCS64 from selected operand
-shapes and pass the plan's exact X/V registers to the ISA encoder; stack or
-fragmented placements fail closed. The general Microsoft x64 import path now
-derives its policy from the concrete target, evaluates argument/result shapes,
+instead of silently choosing an ABI. AArch64 C/import calls and their results
+now evaluate AAPCS64 from selected operand shapes and pass the plan's exact X/V
+registers and stack placements to the ISA encoder, including scalar stack
+arguments and flat HFA arguments/results. The general Microsoft x64 import path
+now derives its policy from the concrete target, evaluates argument/result shapes,
 consumes the plan's register and shadow-relative stack placements, and rejects
 non-Microsoft x86 policies
 instead of silently applying Win64. Microsoft x64 vtable and firmware
@@ -109,8 +109,9 @@ ceiling derived exactly from the ABI volatile-register classes.
    selection and consume every plan-selected vector-register fragment; grouped
    placements also drive layout and relocation accounting. When the vector bank
    is exhausted, the same operand copies each member into its contiguous planned
-   stack area. Continue through fragmented aggregate results, then make the plan
-   authoritative. Add the
+   stack area. Authored flat HFA results now preserve one aggregate result place
+   and spill every plan-selected vector-register fragment through one relocated
+   base. Make the plan authoritative next. Add the
    concrete x86 interrupt `StatePlan`, stack/IST, nesting, and acknowledgement
    policy used by Cathedral.
 3. **ENT3 — constrained entry codegen.** Derive entry stubs, specialize/codegen
