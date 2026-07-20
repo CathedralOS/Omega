@@ -15,13 +15,53 @@ pub fn vtable_call_sequence_width<T: InstructionOperandLike>(
     index: i64,
     result_present: bool,
 ) -> usize {
+    let dispatch_width = match target.architecture {
+        Architecture::Aarch64 => aarch64::vtable_call_dispatch_width(index),
+        Architecture::X86_64 => Some(0),
+    };
+    vtable_call_sequence_width_with_dispatch(
+        target,
+        operands,
+        index,
+        result_present,
+        dispatch_width,
+    )
+}
+
+pub fn vtable_call_sequence_width_at_offset<T: InstructionOperandLike>(
+    target: NativeTarget,
+    operands: &[T],
+    byte_offset: usize,
+    result_present: bool,
+) -> usize {
+    let dispatch_width = match target.architecture {
+        Architecture::Aarch64 => aarch64::vtable_call_dispatch_width_at_offset(byte_offset),
+        Architecture::X86_64 => Some(0),
+    };
+    vtable_call_sequence_width_with_dispatch(
+        target,
+        operands,
+        i64::try_from(byte_offset).unwrap_or(i64::MAX),
+        result_present,
+        dispatch_width,
+    )
+}
+
+fn vtable_call_sequence_width_with_dispatch<T: InstructionOperandLike>(
+    target: NativeTarget,
+    operands: &[T],
+    index_or_offset: i64,
+    result_present: bool,
+    dispatch_width: Option<usize>,
+) -> usize {
     match target.architecture {
-        Architecture::Aarch64 if !result_present => {
-            let Ok(placements) = crate::normalized_aarch64_vtable_argument_placements(operands)
+        Architecture::Aarch64 => {
+            let Ok((placements, _)) =
+                crate::normalized_aarch64_vtable_plan(operands, result_present)
             else {
                 return 0;
             };
-            let Some(dispatch_width) = aarch64::vtable_call_dispatch_width(index) else {
+            let Some(dispatch_width) = dispatch_width else {
                 return 0;
             };
             operands
@@ -31,12 +71,11 @@ pub fn vtable_call_sequence_width<T: InstructionOperandLike>(
                 + aarch64::host_call_stack_total_width_for_placements(&placements)
                 + dispatch_width
         }
-        Architecture::Aarch64 => 0,
         Architecture::X86_64
             if omega_calling_conventions::CallingPolicy::native_for_target(target)
                 == omega_calling_conventions::CallingPolicy::MicrosoftX64 =>
         {
-            x86_64::win64_vtable_call_width(operands, index, result_present)
+            x86_64::win64_vtable_call_width(operands, index_or_offset, result_present)
         }
         Architecture::X86_64 => 0,
     }

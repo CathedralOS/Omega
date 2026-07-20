@@ -246,12 +246,14 @@ runtime line/byte Windows sequences now reuse the same file layout and validate
 the actual one-DWORD/RAX `GetStdHandle` plan without changing their fixed bytes
 or relocation sites.
 
-Result-free AArch64 `VtableSlot` compatibility calls now consume the same
-normalized AAPCS64 argument and stack placements as direct imports. The
+AArch64 `VtableSlot` and `VtableField` compatibility calls now consume the
+same normalized AAPCS64 argument and stack placements as direct imports. The
 receiver must be the plan's full-width `x0` argument; emission reads the slot
-into caller-saved `x16` and uses `blr x16`, with no import relocation. AArch64
-result-bearing field calls and dispatch-only service tables remain future
-slices.
+or layout-resolved field into caller-saved `x16` and uses `blr x16`, with no
+import relocation. A field call may carry a separate leading scalar result
+place; its plan-selected GPR result store is reflected in layout and page-fixup
+offsets. Floating/aggregate field results and dispatch-only service tables
+remain future slices.
 
 Scalar AAPCS64 outbound stack arguments now consume normalized stack offsets:
 the encoder reserves a 16-byte-aligned outgoing area, materializes integer,

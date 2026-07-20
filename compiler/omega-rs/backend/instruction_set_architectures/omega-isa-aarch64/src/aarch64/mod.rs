@@ -46,6 +46,86 @@ pub fn encode_vtable_call_sequence_from_operands(
     argument_placements: &[ValuePlacement],
     index: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
+    encode_vtable_call_sequence_at_offset_from_operands(
+        operands,
+        argument_placements,
+        vtable_slot_byte_offset(index)?,
+    )
+}
+
+/// The field-model form of a result-free AAPCS64 vtable call. Unlike the
+/// legacy slot form, `byte_offset` is already resolved from the table layout.
+pub fn encode_vtable_call_sequence_at_offset_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    argument_placements: &[ValuePlacement],
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    validate_vtable_receiver(argument_placements)?;
+    let mut bytes = Vec::with_capacity(
+        host_call_sequence_width_from_operands(operands.clone())
+            + host_call_stack_total_width_for_placements(argument_placements)
+            + 4,
+    );
+    let stack_bytes = append_call_operands(&mut bytes, operands, argument_placements)?;
+    append_vtable_dispatch(&mut bytes, byte_offset)?;
+    append_call_stack_restore(&mut bytes, stack_bytes)?;
+    Ok(bytes)
+}
+
+/// The field-model form with a leading scalar result place. Arguments still
+/// consume their normalized AAPCS64 placements; after indirect dispatch the
+/// plan-selected GPR result is stored through the same relocated tail as a
+/// direct import.
+pub fn encode_vtable_call_sequence_at_offset_value_returning_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    argument_placements: &[ValuePlacement],
+    result_register: MachineRegister,
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    validate_vtable_receiver(argument_placements)?;
+    let all = operands.collect::<Vec<_>>();
+    let Some((result, arguments)) = all.split_first() else {
+        return Err(Diagnostic::error(
+            "AArch64 value-returning vtable call has no result storage operand",
+        ));
+    };
+    let RuntimeScalarInteger {
+        byte_offset: result_byte_offset,
+        byte_count,
+    } = *result
+    else {
+        return Err(Diagnostic::error(
+            "AArch64 value-returning vtable result place did not lower to a runtime scalar",
+        ));
+    };
+    let MachineRegister::Aarch64X(result_register) = result_register else {
+        return Err(Diagnostic::error(format!(
+            "AArch64 integer-returning vtable plan selected non-GPR result register {result_register:?}"
+        )));
+    };
+    let mut bytes = Vec::with_capacity(
+        host_call_sequence_width_from_operands(all.iter().copied())
+            + host_call_stack_total_width_for_placements(argument_placements)
+            + 4,
+    );
+    let stack_bytes =
+        append_call_operands(&mut bytes, arguments.iter().copied(), argument_placements)?;
+    append_vtable_dispatch(&mut bytes, byte_offset)?;
+    append_call_stack_restore(&mut bytes, stack_bytes)?;
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_store_data_to_x_offset(
+        &mut bytes,
+        result_register,
+        16,
+        result_byte_offset,
+        byte_count,
+        17,
+    )?;
+    Ok(bytes)
+}
+
+fn validate_vtable_receiver(argument_placements: &[ValuePlacement]) -> Result<(), Diagnostic> {
     let Some(receiver) = argument_placements.first() else {
         return Err(Diagnostic::error(
             "AArch64 vtable call has no receiver placement",
@@ -64,24 +144,23 @@ pub fn encode_vtable_call_sequence_from_operands(
             receiver.locations
         )));
     }
-    let slot_offset = vtable_slot_byte_offset(index)?;
-    let mut bytes = Vec::with_capacity(
-        host_call_sequence_width_from_operands(operands.clone())
-            + host_call_stack_total_width_for_placements(argument_placements)
-            + 4,
-    );
-    let stack_bytes = append_call_operands(&mut bytes, operands, argument_placements)?;
-    bytes.extend(encode_load_x_from_x(16, 0, slot_offset)?);
+    Ok(())
+}
+
+fn append_vtable_dispatch(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    bytes.extend(encode_load_x_from_x(16, 0, byte_offset)?);
     bytes.extend(encode_instruction(0xd63f_0000 | (16 << 5))); // blr x16
-    append_call_stack_restore(&mut bytes, stack_bytes)?;
-    Ok(bytes)
+    Ok(())
 }
 
 pub fn vtable_call_dispatch_width(index: i64) -> Option<usize> {
     vtable_slot_byte_offset(index)
         .ok()
-        .and_then(|offset| encode_load_x_from_x(16, 0, offset).ok())
-        .map(|_| 8)
+        .and_then(vtable_call_dispatch_width_at_offset)
+}
+
+pub fn vtable_call_dispatch_width_at_offset(byte_offset: usize) -> Option<usize> {
+    encode_load_x_from_x(16, 0, byte_offset).ok().map(|_| 8)
 }
 
 fn vtable_slot_byte_offset(index: i64) -> Result<usize, Diagnostic> {
@@ -792,6 +871,51 @@ mod host_call_plan_register_tests {
         assert_eq!(&bytes[20..24], &encode_instruction(0xd63f_0200));
         assert_eq!(bytes.len(), 24);
         assert_eq!(vtable_call_dispatch_width(1), Some(8));
+    }
+
+    #[test]
+    fn vtable_field_stores_the_plan_selected_scalar_result_after_dispatch() {
+        let operands = [
+            Aarch64CallOperand::RuntimeScalarInteger {
+                byte_offset: 32,
+                byte_count: 4,
+            },
+            Aarch64CallOperand::RuntimeScalarInteger {
+                byte_offset: 0,
+                byte_count: 8,
+            },
+            Aarch64CallOperand::ImmediateInteger(7),
+        ];
+        let placements = [
+            placement(
+                omega_calling_conventions::ValueShape::integer(8, 8),
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(0),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+            ),
+            placement(
+                omega_calling_conventions::ValueShape::integer(8, 8),
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(1),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+            ),
+        ];
+        let bytes = encode_vtable_call_sequence_at_offset_value_returning_from_operands(
+            operands.into_iter(),
+            &placements,
+            MachineRegister::Aarch64X(0),
+            24,
+        )
+        .expect("AAPCS64 value-returning vtable field call");
+
+        assert_eq!(&bytes[16..20], &encode_load_x_from_x(16, 0, 24).unwrap());
+        assert_eq!(&bytes[20..24], &encode_instruction(0xd63f_0200));
+        assert_eq!(&bytes[24..28], &encode_adrp_placeholder(16));
+        assert_eq!(bytes.len(), 36);
     }
 
     #[test]
