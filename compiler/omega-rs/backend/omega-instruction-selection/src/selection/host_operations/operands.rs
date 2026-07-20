@@ -2708,7 +2708,7 @@ fn system_v_pure_integer_aggregate_descriptor_shape(
     )
 }
 
-fn system_v_record_descriptor_shape(
+pub(in crate::selection) fn system_v_record_descriptor_shape(
     input: &InstructionSelectionInput<'_>,
     descriptor: &TypeLayoutDescriptor,
 ) -> Option<(usize, usize, u8)> {

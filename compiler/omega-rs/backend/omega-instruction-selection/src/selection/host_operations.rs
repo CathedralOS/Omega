@@ -14,6 +14,7 @@ use super::instruction_sink::SelectedInstructionSink;
 use omega_abstract_operations::{
     InstructionOperand, InstructionOperandKind, SelectedInstruction, SelectedInstructionKind,
 };
+pub(in crate::selection) use operands::system_v_record_descriptor_shape;
 use operands::{data_object_handle, operand, select_host_operation_operands};
 use runtime_text::runtime_text_line_read;
 pub(super) use runtime_text::{
