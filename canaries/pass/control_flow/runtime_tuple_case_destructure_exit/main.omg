@@ -1,0 +1,60 @@
+// RUN CANARY (exit 70) + interpreter differential. Tuple case patterns bind
+// payloads from more than one subject, keep those names in scope for the arm
+// target, validate both payload spellings, and remain Cartesian-exhaustive
+// without a `_` arm. The first arm binds two same-named payload fields under
+// distinct aliases and passes both to the selected state. A second tuple arm
+// destructures two computed copy-record subjects, proving each is captured
+// exactly once before any field projection.
+use omega::language::std::console;
+
+data Cell {
+    case Empty;
+    case Value(n: i32);
+}
+
+data Point [copy] { x: i32; y: i32; }
+
+data Main {
+    console: Console;
+    left: Cell;
+    right: Cell;
+    calls: u32 in Wrapping;
+}
+
+machine Main::make(&mut self, base: i32) -> Point {
+    self.calls = self.calls + 1;
+    transition { _ -> Point { x: base, y: 20 } }
+}
+
+machine Main::main(&mut self) {
+    self.left = Cell::Value { n: 30 };
+    self.right = Cell::Value { n: 40 };
+    self.calls = 0;
+    transition (self.left, self.right) {
+        (Cell::Value { n as left_n }, Cell::Value { n as right_n }) -> sum(left_n, right_n)
+        (Cell::Value { n as left_n }, Cell::Empty) -> wrong()
+        (Cell::Empty, Cell::Value { n as right_n }) -> wrong()
+        (Cell::Empty, Cell::Empty) -> wrong()
+    }
+
+    state sum(&mut self, left_n: i32, right_n: i32) {
+        transition (self.left, self.right) {
+            (Cell::Value { n as guard_left }, Cell::Value { n as guard_right }) if guard_left + guard_right == left_n + right_n -> records()
+            _ -> wrong()
+        }
+    }
+    state records(&mut self) {
+        transition (self.make(10), self.make(20)) {
+            (Point { x as ax, y as ay }, Point { x as bx, y as by }) -> check_points(ax, ay, bx, by)
+            _ -> wrong()
+        }
+    }
+    state check_points(&mut self, ax: i32, ay: i32, bx: i32, by: i32) {
+        transition self.calls == 2 && ax + ay + bx + by == 70 {
+            true -> good()
+            _ -> wrong()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state wrong(&mut self) { self.console.exit_process(71); }
+}

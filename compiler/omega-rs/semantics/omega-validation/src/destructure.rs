@@ -124,9 +124,9 @@ pub(crate) fn validate_destructure_exhaustiveness(
 }
 
 /// The arm-position exhaustiveness law: a `..`-free destructure arm's marker
-/// (`__arm_destructure#V=<variant>#<f1>...`) must spell every field of the
-/// record (empty variant) or of the named case's payload. `..` in the arm
-/// opts out at parse time (no marker is minted).
+/// (`__arm_destructure#V=<variant>#<f1>...#~subject=<id>`) must spell every
+/// field of the record (empty variant) or of the named case's payload. `..` in
+/// the arm opts out of missing-field validation via a trailing `#~rest`.
 fn validate_arm_pattern_marker(
     program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
@@ -143,6 +143,15 @@ fn validate_arm_pattern_marker(
     // spelled fields still refuse, but the missing-field law is waived.
     let has_rest = spelled.last() == Some(&"~rest");
     if has_rest {
+        spelled.pop();
+    }
+    // Tuple destructures can carry the same spelling on multiple subjects.
+    // The parser gives each validation carrier a generated subject suffix so
+    // their local names remain distinct; it is metadata, not a field.
+    if spelled
+        .last()
+        .is_some_and(|part| part.starts_with("~subject="))
+    {
         spelled.pop();
     }
 

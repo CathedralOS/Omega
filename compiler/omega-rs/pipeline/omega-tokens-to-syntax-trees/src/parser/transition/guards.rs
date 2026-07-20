@@ -55,7 +55,7 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
 ) -> Result<
     (
         TransitionGuardNode,
-        Option<DestructureBindings>,
+        Vec<DestructureBindings>,
         Option<Vec<Option<bool>>>,
         Input<'tokens, 'source>,
     ),
@@ -68,7 +68,14 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
         && let Some((guard, bindings)) =
             parse_destructure_pattern_arm(syntax_trees, pattern_input, subject[0])?
     {
-        return Ok((guard, Some(bindings), None, rest));
+        return Ok((guard, vec![bindings], None, rest));
+    }
+
+    if subject.len() >= 2
+        && let Some((guard, bindings)) =
+            parse_tuple_destructure_pattern_arm(syntax_trees, pattern_input, subject)?
+    {
+        return Ok((guard, bindings, None, rest));
     }
 
     let (patterns, pattern_rest) = parse_transition_pattern_list(syntax_trees, pattern_input)?;
@@ -82,13 +89,13 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
                 Some(expression) => TransitionGuardNode::When(expression),
                 None => TransitionGuardNode::Always,
             };
-            return Ok((guard, None, None, rest));
+            return Ok((guard, Vec::new(), None, rest));
         }
         return Err(input.error_here("anonymous transition blocks do not support tuple patterns"));
     }
 
     if patterns.len() == 1 && patterns[0].is_none() {
-        return Ok((TransitionGuardNode::Always, None, None, rest));
+        return Ok((TransitionGuardNode::Always, Vec::new(), None, rest));
     }
 
     if subject.len() != patterns.len() {
@@ -166,10 +173,213 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
         } else {
             TransitionGuardNode::Always
         },
-        None,
+        Vec::new(),
         bool_tuple,
         rest,
     ))
+}
+
+/// Parse a tuple arm containing one or more record/case destructures:
+/// `(Packet::Data { byte }, Header { version }, _) [if predicate]`.
+/// Each component is paired with its own subject, while bindings from every
+/// component are in scope for the shared `if` guard and transition target.
+fn parse_tuple_destructure_pattern_arm<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    subjects: &[ExpressionHandle],
+) -> Result<Option<(TransitionGuardNode, Vec<DestructureBindings>)>, ParseError> {
+    if !input.at_punctuation(PunctuationKind::LeftParen) {
+        return Ok(None);
+    }
+
+    let (tuple_input, guard_input) = match find_top_level_keyword(input, KeywordKind::If) {
+        Some(if_index) => {
+            let (tuple_tokens, guard_tokens_with_if) = input.tokens.split_at(if_index);
+            (
+                Input::new(input.source_id, tuple_tokens),
+                Some(Input::new(
+                    input.source_id,
+                    guard_tokens_with_if
+                        .get(1..)
+                        .expect("if keyword split should include guard tokens"),
+                )),
+            )
+        }
+        None => (input, None),
+    };
+    let components = split_tuple_pattern_components(tuple_input)?;
+    if !components.iter().any(|component| {
+        component
+            .tokens
+            .iter()
+            .any(|token| token.punctuation() == Some(PunctuationKind::LeftBrace))
+    }) {
+        return Ok(None);
+    }
+    if components.len() != subjects.len() {
+        return Err(input.error_here(format!(
+            "transition pattern arity {} does not match subject arity {}",
+            components.len(),
+            subjects.len()
+        )));
+    }
+
+    let mut combined = ExpressionHandle::invalid();
+    let mut all_bindings = Vec::new();
+    for (component, subject) in components.into_iter().zip(subjects.iter().copied()) {
+        if component.at_contextual("_") && component.tokens.len() == 1 {
+            continue;
+        }
+        if let Some((guard, bindings)) =
+            parse_destructure_pattern_arm(syntax_trees, component, subject)?
+        {
+            if let TransitionGuardNode::When(expression) = guard {
+                combined = join_guard_conjunction(syntax_trees, combined, expression);
+            }
+            all_bindings.push(bindings);
+            continue;
+        }
+
+        let (pattern, rest) = parse_transition_match_component::<Option<ExpressionHandle>>(
+            syntax_trees,
+            component,
+            true,
+        )?;
+        if !rest.tokens.is_empty() {
+            return Err(rest.error_here("expected tuple transition pattern component"));
+        }
+        if let Some(pattern) = pattern {
+            let constraint = pattern_constraint(syntax_trees, subject, pattern);
+            combined = join_guard_conjunction(syntax_trees, combined, constraint);
+        }
+    }
+
+    for (binding_index, bindings) in all_bindings.iter().enumerate() {
+        for field in &bindings.fields {
+            if all_bindings[..binding_index].iter().any(|earlier| {
+                earlier
+                    .fields
+                    .iter()
+                    .any(|other| other.binding.as_str() == field.binding.as_str())
+            }) {
+                return Err(input.error_here(format!(
+                    "tuple destructure binding `{}` is introduced by more than one subject; rename one binding with `as`",
+                    field.binding.as_str()
+                )));
+            }
+        }
+    }
+
+    if let Some(guard_input) = guard_input {
+        let (guard, rest) =
+            parse_expression_handle_without_struct_literals(syntax_trees, guard_input)?;
+        if !rest.tokens.is_empty() {
+            return Err(rest.error_here("expected transition pattern guard"));
+        }
+        let guard = all_bindings.iter().fold(guard, |guard, bindings| {
+            rewrite_destructure_guard_expression(
+                syntax_trees,
+                guard,
+                bindings.subject,
+                &bindings.fields,
+            )
+        });
+        combined = join_guard_conjunction(syntax_trees, combined, guard);
+    }
+
+    Ok(Some((
+        if combined.is_valid() {
+            TransitionGuardNode::When(combined)
+        } else {
+            TransitionGuardNode::Always
+        },
+        all_bindings,
+    )))
+}
+
+fn split_tuple_pattern_components<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> Result<Vec<Input<'tokens, 'source>>, ParseError> {
+    let tokens = input.tokens;
+    if tokens.first().and_then(|token| token.punctuation()) != Some(PunctuationKind::LeftParen) {
+        return Err(input.error_here("expected `(` to open tuple transition pattern"));
+    }
+
+    let mut paren = 0usize;
+    let mut bracket = 0usize;
+    let mut brace = 0usize;
+    let mut component_start = 1usize;
+    let mut components = Vec::new();
+    for (index, token) in tokens.iter().enumerate().skip(1) {
+        match token.punctuation() {
+            Some(PunctuationKind::LeftParen) => paren += 1,
+            Some(PunctuationKind::RightParen) if paren > 0 => paren -= 1,
+            Some(PunctuationKind::RightParen) if bracket == 0 && brace == 0 => {
+                if tokens[index + 1..]
+                    .iter()
+                    .any(|token| !token.is_non_semantic())
+                {
+                    return Err(Input::new(input.source_id, &tokens[index + 1..])
+                        .error_here("expected `if` or `->` after tuple transition pattern"));
+                }
+                components.push(Input::new(input.source_id, &tokens[component_start..index]));
+                return Ok(components);
+            }
+            Some(PunctuationKind::LeftBracket) => bracket += 1,
+            Some(PunctuationKind::RightBracket) => bracket = bracket.saturating_sub(1),
+            Some(PunctuationKind::LeftBrace) => brace += 1,
+            Some(PunctuationKind::RightBrace) => brace = brace.saturating_sub(1),
+            Some(PunctuationKind::Comma) if paren == 0 && bracket == 0 && brace == 0 => {
+                components.push(Input::new(input.source_id, &tokens[component_start..index]));
+                component_start = index + 1;
+            }
+            _ => {}
+        }
+    }
+    Err(input.error_here("expected `)` to close tuple transition pattern"))
+}
+
+fn pattern_constraint(
+    syntax_trees: &mut SyntaxTrees,
+    subject: ExpressionHandle,
+    pattern: ExpressionHandle,
+) -> ExpressionHandle {
+    match syntax_trees.expressions.expression(pattern).clone() {
+        ExpressionNode::Name(path)
+            if syntax_trees.expressions.identifier_path_members(path).len() == 2 =>
+        {
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Membership(TableMembershipExpression {
+                    value: subject,
+                    domain: path,
+                }))
+        }
+        _ => syntax_trees
+            .expressions
+            .insert(ExpressionNode::Binary(TableBinaryExpression {
+                left: subject,
+                operator: BinaryOperator::Equal,
+                right: pattern,
+            })),
+    }
+}
+
+fn join_guard_conjunction(
+    syntax_trees: &mut SyntaxTrees,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> ExpressionHandle {
+    if !left.is_valid() {
+        return right;
+    }
+    syntax_trees
+        .expressions
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            left,
+            operator: BinaryOperator::And,
+            right,
+        }))
 }
 
 pub(super) fn parse_transition_expression_list<'tokens, 'source>(

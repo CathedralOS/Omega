@@ -1,0 +1,12 @@
+// FAIL CANARY: every tuple destructure carries its own exhaustive-field
+// marker. The second subject cannot hide a missing field behind an identical
+// marker emitted for the first subject.
+data Pair { left: i32; right: i32; }
+data Main { a: Pair; b: Pair; }
+machine Main::main(&mut self) {
+    transition (self.a, self.b) {
+        (Pair { left as a_left, right as a_right }, Pair { left as b_left }) -> done(a_left, a_right, b_left)
+        _ -> done(0, 0, 0)
+    }
+    state done(&mut self, a: i32, b: i32, c: i32) {}
+}
