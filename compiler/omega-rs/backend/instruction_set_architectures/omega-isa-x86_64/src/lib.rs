@@ -1942,6 +1942,7 @@ fn append_call_register(bytes: &mut Vec<u8>, reg: u8) {
 fn win64_import_arg_is_staged<T: InstructionOperandLike>(operand: Option<&T>) -> bool {
     operand.is_some_and(|operand| {
         operand.runtime_scalar_integer().is_some()
+            || operand.runtime_scalar_float().is_some()
             || operand.runtime_small_aggregate().is_some()
             || operand.runtime_large_aggregate().is_some()
             || operand.runtime_storage_address().is_some()
@@ -1972,6 +1973,17 @@ fn win64_import_arg_width<T: InstructionOperandLike>(
     placement: Option<&ValuePlacement>,
 ) -> usize {
     let operand = operands.get(arg_start + index);
+    if let Some((_, _, byte_count)) = operand.and_then(|operand| operand.runtime_scalar_float())
+        && let Some(placement) = placement
+    {
+        return match placement.locations.as_slice() {
+            [ValueLocation::Register { .. }] => 19,
+            [ValueLocation::Stack { .. }] => {
+                10 + 7 + win64_direct_aggregate_stack_store_width(byte_count)
+            }
+            _ => 0,
+        };
+    }
     if let Some((_, _, byte_count, _)) = operand.and_then(win64_aggregate_operand)
         && let Some(placement) = placement
     {
@@ -2158,6 +2170,59 @@ fn append_win64_aggregate_argument<T: InstructionOperandLike>(
         }
         locations => Err(Diagnostic::error(format!(
             "Microsoft x64 aggregate parameter {parameter_index} has unsupported placement {locations:?}"
+        ))),
+    }
+}
+
+fn append_win64_float_argument<T: InstructionOperandLike>(
+    bytes: &mut Vec<u8>,
+    operand: &T,
+    parameter_index: usize,
+    placement: &ValuePlacement,
+) -> Result<(), Diagnostic> {
+    let Some((_, byte_offset, byte_count)) = operand.runtime_scalar_float() else {
+        return Err(Diagnostic::error(format!(
+            "Microsoft x64 float parameter {parameter_index} is not a float operand"
+        )));
+    };
+    if !matches!(byte_count, 4 | 8)
+        || !matches!(placement.shape.class, ValueClass::Float)
+        || usize::from(placement.shape.byte_size) != byte_count
+    {
+        return Err(Diagnostic::error(format!(
+            "Microsoft x64 float parameter {parameter_index} has inconsistent shape"
+        )));
+    }
+
+    append_mov_r11_imm64(bytes, 0); // relocated to the float's region base
+    match placement.locations.as_slice() {
+        [
+            ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                byte_size,
+            },
+        ] if usize::from(*byte_size) == byte_count => {
+            append_x86_load_float_from_r11(bytes, *register, byte_offset, byte_count)
+        }
+        [
+            ValueLocation::Stack {
+                stack_byte_offset,
+                value_byte_offset: 0,
+                byte_size,
+                ..
+            },
+        ] if usize::from(*byte_size) == byte_count => {
+            append_win64_load_register_from_r11(
+                bytes,
+                MachineRegister::X86Rax,
+                byte_offset,
+                byte_count,
+            )?;
+            append_win64_store_rax_to_rsp(bytes, *stack_byte_offset, byte_count)
+        }
+        locations => Err(Diagnostic::error(format!(
+            "Microsoft x64 float parameter {parameter_index} has unsupported placement {locations:?}"
         ))),
     }
 }
@@ -2419,6 +2484,17 @@ fn append_win64_call_arguments<T: InstructionOperandLike>(
     }
     for index in 0..arg_count {
         let operand = &operands[arg_start + index];
+        if operand.runtime_scalar_float().is_some() {
+            let placement = planned_parameters
+                .and_then(|parameters| parameters.get(index))
+                .ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "Microsoft x64 float parameter {index} has no normalized placement"
+                    ))
+                })?;
+            append_win64_float_argument(bytes, operand, index, placement)?;
+            continue;
+        }
         if win64_aggregate_operand(operand).is_some() {
             let placement = planned_parameters
                 .and_then(|parameters| parameters.get(index))
@@ -3004,7 +3080,7 @@ fn append_sysv_parameter<T: InstructionOperandLike>(
                 } => {
                     let source_offset = byte_offset + usize::from(value_byte_offset);
                     if matches!(register, MachineRegister::X86Xmm(_)) {
-                        append_sysv_load_float_from_r11(
+                        append_x86_load_float_from_r11(
                             bytes,
                             register,
                             source_offset,
@@ -3056,7 +3132,7 @@ fn append_sysv_parameter<T: InstructionOperandLike>(
                     register,
                     value_byte_offset,
                     byte_size,
-                } => append_sysv_load_float_from_r11(
+                } => append_x86_load_float_from_r11(
                     bytes,
                     register,
                     byte_offset + usize::from(value_byte_offset),
@@ -3094,7 +3170,7 @@ fn append_sysv_parameter<T: InstructionOperandLike>(
         append_sysv_runtime_base(bytes, relocation_sites, operand_index);
         return match *location {
             ValueLocation::Register { register, .. } => {
-                append_sysv_load_float_from_r11(bytes, register, byte_offset, byte_count)
+                append_x86_load_float_from_r11(bytes, register, byte_offset, byte_count)
             }
             ValueLocation::Stack {
                 stack_byte_offset, ..
@@ -3312,7 +3388,7 @@ fn append_sysv_result<T: InstructionOperandLike>(
             };
             let destination_offset = byte_offset + usize::from(value_byte_offset);
             if matches!(register, MachineRegister::X86Xmm(_)) {
-                append_sysv_store_float_to_r11(
+                append_x86_store_float_to_r11(
                     bytes,
                     register,
                     destination_offset,
@@ -3349,7 +3425,7 @@ fn append_sysv_result<T: InstructionOperandLike>(
                     "SysV AMD64 float aggregate result is not register-resident",
                 ));
             };
-            append_sysv_store_float_to_r11(
+            append_x86_store_float_to_r11(
                 bytes,
                 register,
                 byte_offset + usize::from(value_byte_offset),
@@ -3378,7 +3454,7 @@ fn append_sysv_result<T: InstructionOperandLike>(
             )));
         };
         append_sysv_runtime_base(bytes, relocation_sites, 0);
-        return append_sysv_store_float_to_r11(
+        return append_x86_store_float_to_r11(
             bytes,
             *register,
             byte_offset,
@@ -3695,7 +3771,7 @@ fn append_sysv_mov_register_imm64(
     Ok(())
 }
 
-fn append_sysv_load_float_from_r11(
+fn append_x86_load_float_from_r11(
     bytes: &mut Vec<u8>,
     register: MachineRegister,
     byte_offset: usize,
@@ -3703,7 +3779,7 @@ fn append_sysv_load_float_from_r11(
 ) -> Result<(), Diagnostic> {
     let MachineRegister::X86Xmm(index @ 0..=7) = register else {
         return Err(Diagnostic::error(format!(
-            "SysV AMD64 import cannot load float argument register {register:?}"
+            "X86_64 call cannot load float argument register {register:?}"
         )));
     };
     let prefix = match byte_size {
@@ -3711,7 +3787,7 @@ fn append_sysv_load_float_from_r11(
         8 => 0xf2,
         _ => {
             return Err(Diagnostic::error(format!(
-                "SysV AMD64 scalar float width {byte_size} is not encodable"
+                "X86_64 scalar float width {byte_size} is not encodable"
             )));
         }
     };
@@ -3720,7 +3796,7 @@ fn append_sysv_load_float_from_r11(
     Ok(())
 }
 
-fn append_sysv_store_float_to_r11(
+fn append_x86_store_float_to_r11(
     bytes: &mut Vec<u8>,
     register: MachineRegister,
     byte_offset: usize,
@@ -3728,7 +3804,7 @@ fn append_sysv_store_float_to_r11(
 ) -> Result<(), Diagnostic> {
     let MachineRegister::X86Xmm(index @ 0..=7) = register else {
         return Err(Diagnostic::error(format!(
-            "SysV AMD64 import cannot store float result register {register:?}"
+            "X86_64 call cannot store float result register {register:?}"
         )));
     };
     let prefix = match byte_size {
@@ -3736,7 +3812,7 @@ fn append_sysv_store_float_to_r11(
         8 => 0xf2,
         _ => {
             return Err(Diagnostic::error(format!(
-                "SysV AMD64 scalar float result width {byte_size} is not encodable"
+                "X86_64 scalar float result width {byte_size} is not encodable"
             )));
         }
     };
@@ -4005,6 +4081,7 @@ fn win64_result_pre_call_width(plan: &CallPlan) -> usize {
 
 fn win64_result_post_call_width(plan: &CallPlan) -> usize {
     match plan.result.as_ref() {
+        Some(placement) if matches!(placement.shape.class, ValueClass::Float) => 19,
         Some(placement) if !win64_result_is_indirect(placement) => {
             17 + usize::from(placement.shape.byte_size == 2)
         }
@@ -4375,6 +4452,92 @@ mod x86_import_plan_tests {
                 .map(|site| site.operand_index)
                 .collect::<Vec<_>>(),
             [Some(0), Some(1), None]
+        );
+    }
+
+    #[test]
+    fn win64_scalar_floats_use_positional_xmm_registers_stack_and_xmm0_result() {
+        let float = |byte_offset, byte_count| {
+            operand(TargetInstructionOperandKind::RuntimeScalarFloat {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset,
+                byte_count,
+            })
+        };
+        let integer = |byte_offset| {
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset,
+                byte_count: 8,
+            })
+        };
+        let operands = [
+            float(0, 8),
+            integer(8),
+            float(16, 4),
+            integer(24),
+            float(32, 8),
+            float(40, 4),
+        ];
+        let plan = normalized_win64_import_plan(&operands, true)
+            .expect("Microsoft x64 scalar-float import plan");
+        assert!(matches!(
+            plan.result.as_ref().unwrap().locations.as_slice(),
+            [ValueLocation::Register {
+                register: MachineRegister::X86Xmm(0),
+                ..
+            }]
+        ));
+        assert!(matches!(
+            plan.parameters[1].locations.as_slice(),
+            [ValueLocation::Register {
+                register: MachineRegister::X86Xmm(1),
+                ..
+            }]
+        ));
+        assert!(matches!(
+            plan.parameters[3].locations.as_slice(),
+            [ValueLocation::Register {
+                register: MachineRegister::X86Xmm(3),
+                ..
+            }]
+        ));
+        assert!(matches!(
+            plan.parameters[4].locations.as_slice(),
+            [ValueLocation::Stack {
+                stack_byte_offset: 32,
+                ..
+            }]
+        ));
+
+        let bytes = encode_win64_import_call(&operands, true, false)
+            .expect("Microsoft x64 scalar-float import call");
+        assert_eq!(bytes.len(), win64_import_call_width(&operands, true, false));
+        for instruction in [
+            &[0xf3, 0x41, 0x0f, 0x10, 0x8b, 16, 0, 0, 0][..],
+            &[0xf2, 0x41, 0x0f, 0x10, 0x9b, 32, 0, 0, 0],
+            &[0xf2, 0x41, 0x0f, 0x11, 0x83, 0, 0, 0, 0],
+        ] {
+            assert!(
+                bytes
+                    .windows(instruction.len())
+                    .any(|window| window == instruction),
+                "missing float instruction {instruction:02x?}"
+            );
+        }
+        assert!(
+            bytes
+                .windows(14)
+                .any(|window| window
+                    == [0x41, 0x8b, 0x83, 40, 0, 0, 0, 0x89, 0x84, 0x24, 32, 0, 0, 0]),
+            "the fifth-position f32 must occupy the low four bytes of stack slot 32"
+        );
+        assert_eq!(
+            win64_import_call_relocation_sites(&operands, true, false)
+                .iter()
+                .map(|site| site.operand_index)
+                .collect::<Vec<_>>(),
+            [Some(1), Some(2), Some(3), Some(4), Some(5), None, Some(0)]
         );
     }
 
@@ -5393,7 +5556,9 @@ fn win64_import_call_relocation_sites<T: InstructionOperandLike>(
             .and_then(|plan| plan.result.as_ref())
             .is_some_and(|placement| !win64_result_is_indirect(placement))
         && operands.first().is_some_and(|operand| {
-            operand.runtime_scalar_integer().is_some() || win64_aggregate_operand(operand).is_some()
+            operand.runtime_scalar_integer().is_some()
+                || operand.runtime_scalar_float().is_some()
+                || win64_aggregate_operand(operand).is_some()
         })
     {
         sites.push(X86_64RelocationSite {
@@ -5425,7 +5590,7 @@ pub fn encode_win64_vtable_call<T: InstructionOperandLike>(
 
 /// The result store tail shared by the field-model call encoders (the same
 /// shape as the import call's): `mov r11, imm64` relocated to the result
-/// region base, then store rax/eax at the result's declared width.
+/// region base, then store rax/eax or xmm0 at the result's declared width.
 fn append_win64_result_store<T: InstructionOperandLike>(
     bytes: &mut Vec<u8>,
     operand: &T,
@@ -5446,6 +5611,18 @@ fn append_win64_result_store<T: InstructionOperandLike>(
             )));
         }
     };
+    if let Some((_, byte_offset, byte_count)) = operand.runtime_scalar_float() {
+        if result_register != MachineRegister::X86Xmm(0)
+            || !matches!(placement.shape.class, ValueClass::Float)
+            || usize::from(placement.shape.byte_size) != byte_count
+        {
+            return Err(Diagnostic::error(format!(
+                "X86_64 {label} float result disagrees with its normalized XMM0 placement"
+            )));
+        }
+        append_mov_r11_imm64(bytes, 0); // relocated to the result region base
+        return append_x86_store_float_to_r11(bytes, result_register, byte_offset, byte_count);
+    }
     if result_register != MachineRegister::X86Rax {
         return Err(Diagnostic::error(format!(
             "X86_64 {label} result store cannot realize planned register {result_register:?}"
@@ -5790,7 +5967,9 @@ pub fn win64_vtable_call_relocation_sites<T: InstructionOperandLike>(
             .and_then(|plan| plan.result.as_ref())
             .is_some_and(|placement| !win64_result_is_indirect(placement))
         && operands.first().is_some_and(|operand| {
-            operand.runtime_scalar_integer().is_some() || win64_aggregate_operand(operand).is_some()
+            operand.runtime_scalar_integer().is_some()
+                || operand.runtime_scalar_float().is_some()
+                || win64_aggregate_operand(operand).is_some()
         })
     {
         sites.push(X86_64RelocationSite {
@@ -5865,7 +6044,9 @@ pub fn win64_table_function_call_relocation_sites<T: InstructionOperandLike>(
             .and_then(|plan| plan.result.as_ref())
             .is_some_and(|placement| !win64_result_is_indirect(placement))
         && operands.first().is_some_and(|operand| {
-            operand.runtime_scalar_integer().is_some() || win64_aggregate_operand(operand).is_some()
+            operand.runtime_scalar_integer().is_some()
+                || operand.runtime_scalar_float().is_some()
+                || win64_aggregate_operand(operand).is_some()
         })
     {
         sites.push(X86_64RelocationSite {
@@ -13853,6 +14034,11 @@ mod vtable_call_encoding_tests {
             offset: usize,
             size: usize,
         },
+        Float {
+            region: RuntimeStorageRegion,
+            offset: usize,
+            size: usize,
+        },
         Address {
             region: RuntimeStorageRegion,
             offset: usize,
@@ -13893,10 +14079,15 @@ mod vtable_call_encoding_tests {
                 _ => None,
             }
         }
-        // Float host-call args (v-registers) are aarch64-only today; x86_64 (untested)
-        // has no float operand kind yet.
         fn runtime_scalar_float(&self) -> Option<(RuntimeStorageRegion, usize, usize)> {
-            None
+            match self {
+                Op::Float {
+                    region,
+                    offset,
+                    size,
+                } => Some((*region, *offset, *size)),
+                _ => None,
+            }
         }
         fn runtime_large_aggregate(&self) -> Option<(RuntimeStorageRegion, usize, usize, usize)> {
             match self {
@@ -14263,6 +14454,95 @@ mod vtable_call_encoding_tests {
                 .map(|site| (site.operand_index, site.byte_offset))
                 .collect::<Vec<_>>(),
             [(Some(0), 6), (Some(2), 23), (Some(1), 40)]
+        );
+    }
+
+    #[test]
+    fn vtable_float_argument_and_result_use_their_positional_xmm_registers() {
+        let operands = vec![
+            Op::Float {
+                region: RuntimeStorageRegion::Machine,
+                offset: 16,
+                size: 8,
+            },
+            Op::Scalar {
+                region: RuntimeStorageRegion::Machine,
+                offset: 0,
+                size: 8,
+            },
+            Op::Float {
+                region: RuntimeStorageRegion::Machine,
+                offset: 8,
+                size: 8,
+            },
+        ];
+        let bytes = encode_win64_vtable_call_at_offset(&operands, 8, true)
+            .expect("Win64 vtable float call");
+        assert_eq!(bytes.len(), win64_vtable_call_width(&operands, 8, true));
+        assert!(
+            bytes
+                .windows(9)
+                .any(|window| window == [0xf2, 0x41, 0x0f, 0x10, 0x8b, 8, 0, 0, 0]),
+            "the second positional argument must load into XMM1"
+        );
+        assert!(
+            bytes
+                .windows(9)
+                .any(|window| window == [0xf2, 0x41, 0x0f, 0x11, 0x83, 16, 0, 0, 0]),
+            "the result must spill from XMM0"
+        );
+        assert_eq!(
+            win64_vtable_call_relocation_sites(&operands, true)
+                .iter()
+                .map(|site| site.operand_index)
+                .collect::<Vec<_>>(),
+            [Some(1), Some(2), Some(0)]
+        );
+    }
+
+    #[test]
+    fn table_function_float_layout_excludes_the_dispatch_table() {
+        let operands = vec![
+            Op::Float {
+                region: RuntimeStorageRegion::Machine,
+                offset: 16,
+                size: 4,
+            },
+            Op::Scalar {
+                region: RuntimeStorageRegion::Machine,
+                offset: 0,
+                size: 8,
+            },
+            Op::Float {
+                region: RuntimeStorageRegion::Machine,
+                offset: 8,
+                size: 4,
+            },
+        ];
+        let bytes = encode_win64_table_function_call(&operands, 56, true)
+            .expect("Win64 service-table float call");
+        assert_eq!(
+            bytes.len(),
+            win64_table_function_call_width(&operands, 56, true)
+        );
+        assert!(
+            bytes
+                .windows(9)
+                .any(|window| window == [0xf3, 0x41, 0x0f, 0x10, 0x83, 8, 0, 0, 0]),
+            "the first declared service argument must use XMM0"
+        );
+        assert!(
+            bytes
+                .windows(9)
+                .any(|window| window == [0xf3, 0x41, 0x0f, 0x11, 0x83, 16, 0, 0, 0]),
+            "the service result must spill from XMM0"
+        );
+        assert_eq!(
+            win64_table_function_call_relocation_sites(&operands, true)
+                .iter()
+                .map(|site| site.operand_index)
+                .collect::<Vec<_>>(),
+            [Some(2), Some(1), Some(0)]
         );
     }
 }
