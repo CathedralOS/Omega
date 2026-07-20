@@ -1,6 +1,7 @@
-// A leading scalar consumes x0. A fixed aggregate above 16 bytes then arrives
-// indirectly under AAPCS64: x1 points at caller-owned storage, which the entry
-// prologue copies into the machine's runtime frame before dispatch begins.
+// A sole fixed aggregate above 16 bytes arrives indirectly under AAPCS64: x0
+// points at caller-owned storage, which the entry prologue copies into the
+// machine's runtime frame before dispatch begins. This must not take the
+// Microsoft-x64 boundary handoff's exceptional word-spreading path.
 data Triple {
     first: u64;
     second: u64;
@@ -9,8 +10,8 @@ data Triple {
 
 data Main { observed: u64; }
 
-boundary machine Main::main(&mut self, tag: u64, value: Triple) -> i32 {
-    self.observed = tag + value.first + value.second + value.third;
+boundary machine Main::main(&mut self, value: Triple) -> i32 {
+    self.observed = value.first + value.second + value.third;
     transition { _ -> (0) }
 }
 

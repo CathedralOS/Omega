@@ -31324,10 +31324,10 @@ fn aarch64_large_aggregate_entry_copies_from_the_indirect_pointer() {
         target_name: Some("linux_arm64".into()),
         write_output: true,
     })
-    .expect("large fixed aggregate should cross-compile through an x1 pointer");
+    .expect("large fixed aggregate should cross-compile through an x0 pointer");
 
     let image = fs::read(build_dir.join("omega-program")).expect("read emitted AArch64 ELF");
-    let loads = [0xf940_0031u32, 0xf940_0431, 0xf940_0831];
+    let loads = [0xf940_0011u32, 0xf940_0411, 0xf940_0811];
     let store_mask = 0xffc0_03ffu32;
     assert!(
         image.windows(32).any(|window| {
@@ -31347,7 +31347,7 @@ fn aarch64_large_aggregate_entry_copies_from_the_indirect_pointer() {
                 load == *expected && store & store_mask == 0xf900_0211
             })
         }),
-        "expected three x1-pointee loads copied into runtime-frame storage"
+        "expected three x0-pointee loads copied into runtime-frame storage"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
