@@ -702,9 +702,10 @@ before the fix.
   position, validate against the declared integer kind/range, and substitute
   into fixed-array layout, descriptors, runtime storage, and interpreter
   defaults; differential canaries pin direct and same-name, symbol-resolved
-  forwarded const arguments through indexed storage. Continue with per-instance
-  identity beyond the existing generic-data collision boundary, richer const
-  expressions, layout diagnostics, and const-fact proof integration.
+  forwarded const arguments through indexed storage. Const-specialized plain
+  records now give distinct literal instances independent layout identity.
+  Continue with richer const expressions, layout diagnostics, const-bearing
+  containers/methods, and const-fact proof integration.
 - **Trait defaults.** Implement conformance, reuse, override, and dispatch for
   trait machines whose body supplies the default. Do not restore a `default`
   keyword.

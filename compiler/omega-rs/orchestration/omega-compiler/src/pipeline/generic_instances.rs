@@ -40,11 +40,14 @@ use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{DataDefinition, DataMember, Item, TypeParameterKind};
 use omega_syntax_trees::statement::StatementNode;
-use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use omega_syntax_trees::types::{
+    FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 use std::collections::HashMap;
 
 struct GenericData {
     parameter_names: Vec<String>,
+    const_parameter_types: Vec<Option<TypeReferenceHandle>>,
     members: HandleSpan<DataMember>,
     properties: omega_syntax_trees::item::DataProperties,
     supply_mode: omega_core::semantics::DataSupplyMode,
@@ -107,16 +110,21 @@ pub(crate) fn desugar_generic_data_instances(
             .tables
             .items
             .type_parameters(definition.type_parameters);
-        // This desugar substitutes TYPE references. Const parameters also use
-        // the generic argument surface, but their uses live in value slots such
-        // as fixed-array lengths; treating a literal like `4` as a type slug
-        // synthesizes a record while leaving `[T; N]` unsubstituted. Keep const
-        // instances on the binding-aware layout path until this pass learns
-        // value-position substitution.
+        // Machine-symbol parameters require method/template identity work this
+        // record-only pass does not perform. Type and const parameters are both
+        // supported; const arguments are substituted into fixed-array lengths.
         if definition_parameters
             .iter()
-            .any(|parameter| !matches!(parameter.kind, TypeParameterKind::Type))
+            .any(|parameter| matches!(parameter.kind, TypeParameterKind::Machine { .. }))
         {
+            continue;
+        }
+        let has_const_parameters = definition_parameters
+            .iter()
+            .any(|parameter| matches!(parameter.kind, TypeParameterKind::Const { .. }));
+        if has_const_parameters && data_with_machines.contains(definition.name.as_str()) {
+            // Const substitution in cloned attached-machine bodies is a later
+            // slice; keep such containers on the existing generic path.
             continue;
         }
         if data_with_machines.contains(definition.name.as_str()) {
@@ -174,11 +182,19 @@ pub(crate) fn desugar_generic_data_instances(
         let parameter_names = definition_parameters
             .iter()
             .map(|parameter| parameter.name.as_str().to_string())
+            .collect::<Vec<_>>();
+        let const_parameter_types = definition_parameters
+            .iter()
+            .map(|parameter| match parameter.kind {
+                TypeParameterKind::Const { type_reference } => Some(type_reference),
+                _ => None,
+            })
             .collect();
         generic_data.insert(
             definition.name.as_str().to_string(),
             GenericData {
                 parameter_names,
+                const_parameter_types,
                 members: definition.members,
                 properties: definition.properties,
                 supply_mode: definition.supply_mode,
@@ -400,6 +416,11 @@ fn consider_generic_spelling(
     let Some(argument_names) = monomorphizable_argument_slugs(syntax, &argument_handles) else {
         return;
     };
+    if !const_arguments_fit_declarations(syntax, base_info, &argument_handles) {
+        // Leave malformed/out-of-range const applications intact so the normal
+        // declaration-aware validator emits its precise diagnostic.
+        return;
+    }
     if !base_is_fully_monomorphizable(syntax, generic_data, base_info) {
         return;
     }
@@ -419,6 +440,49 @@ fn consider_generic_spelling(
             argument_handles,
         });
     }
+}
+
+fn const_arguments_fit_declarations(
+    syntax: &SyntaxTrees,
+    base_info: &GenericData,
+    arguments: &[TypeReferenceHandle],
+) -> bool {
+    base_info
+        .const_parameter_types
+        .iter()
+        .zip(arguments)
+        .all(|(parameter_type, argument)| {
+            let Some(parameter_type) = parameter_type else {
+                return true;
+            };
+            let TypeReferenceNode::Named(value) =
+                syntax.tables.type_references.type_reference(*argument)
+            else {
+                return false;
+            };
+            let Ok(value) = value.as_str().parse::<u64>() else {
+                return false;
+            };
+            let TypeReferenceNode::Named(type_name) = syntax
+                .tables
+                .type_references
+                .type_reference(*parameter_type)
+            else {
+                return false;
+            };
+            let maximum = match type_name.as_str() {
+                "i8" => i8::MAX as u64,
+                "i16" => i16::MAX as u64,
+                "i32" => i32::MAX as u64,
+                "i64" => i64::MAX as u64,
+                "u8" => u8::MAX as u64,
+                "u16" => u16::MAX as u64,
+                "u32" => u32::MAX as u64,
+                "u64" | "addr" => u64::MAX,
+                _ => return false,
+            };
+            value <= maximum
+        })
 }
 
 /// A distinguishing slug for each argument -- the Phase-1 gate. `Some` when
@@ -531,6 +595,27 @@ fn base_is_fully_monomorphizable(
                                 )
                             })
                 }
+                TypeReferenceNode::FixedArray {
+                    element_type,
+                    length,
+                } => {
+                    let element_is_substitutable =
+                        matches!(
+                            syntax.tables.type_references.type_reference(*element_type),
+                            TypeReferenceNode::Named(_)
+                        ) || !type_reference_mentions_parameter(syntax, *element_type, &parameters);
+                    let length_is_substitutable = match length {
+                        FixedArrayLength::Literal(_) | FixedArrayLength::ConstCall(_) => true,
+                        FixedArrayLength::ConstParameter(name) => base_info
+                            .parameter_names
+                            .iter()
+                            .zip(&base_info.const_parameter_types)
+                            .any(|(parameter_name, parameter_type)| {
+                                parameter_type.is_some() && parameter_name == name.as_str()
+                            }),
+                    };
+                    element_is_substitutable && length_is_substitutable
+                }
                 // any other node is fine only if it does NOT nest a parameter.
                 _ => !type_reference_mentions_parameter(syntax, field.type_reference, &parameters),
             }
@@ -594,6 +679,40 @@ fn substitute_member(
                     .insert(TypeReferenceNode::Generic {
                         base_name,
                         arguments: new_span,
+                    });
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            let substituted_element =
+                match syntax.tables.type_references.type_reference(element_type) {
+                    TypeReferenceNode::Named(name) => substitution
+                        .get(name.as_str())
+                        .copied()
+                        .unwrap_or(element_type),
+                    _ => element_type,
+                };
+            let substituted_length = match length {
+                FixedArrayLength::ConstParameter(name) => substitution
+                    .get(name.as_str())
+                    .and_then(|argument| {
+                        match syntax.tables.type_references.type_reference(*argument) {
+                            TypeReferenceNode::Named(value) => value.as_str().parse::<usize>().ok(),
+                            _ => None,
+                        }
+                    })
+                    .map(FixedArrayLength::Literal)
+                    .unwrap_or(FixedArrayLength::ConstParameter(name)),
+                length => length,
+            };
+            field.type_reference =
+                syntax
+                    .tables
+                    .type_references
+                    .insert(TypeReferenceNode::FixedArray {
+                        element_type: substituted_element,
+                        length: substituted_length,
                     });
         }
         _ => {} // parameter-free composite: shared unchanged

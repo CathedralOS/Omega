@@ -1,0 +1,20 @@
+// Distinct const arguments synthesize distinct concrete record identities, so
+// their array layouts coexist instead of colliding under the template symbol.
+use omega::language::std::console;
+
+data FixedBuffer<T, const N: u64> {
+    items: [T; N];
+}
+
+data Main {
+    console: Console;
+    small: FixedBuffer<i32 in Wrapping, 2>;
+    large: FixedBuffer<i32 in Wrapping, 4>;
+}
+
+machine Main::main(&mut self) {
+    self.small.items[1] = 30;
+    self.large.items[3] = 40;
+    let result: i32 in Wrapping = self.small.items[1] + self.large.items[3];
+    self.console.exit_process(result);
+}
