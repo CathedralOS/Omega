@@ -243,8 +243,10 @@ accounting. A flat two-to-four-member AArch64 HFA argument is now preserved as
 one by-value aggregate operand from selection onward. Its grouped normalized
 placement drives one load per member into the exact selected vector register,
 and width plus both relocation walkers account by source value rather than
-mistaking fragments for independent arguments. Aggregate stack arguments and
-fragmented aggregate results still fail closed.
+mistaking fragments for independent arguments. If the vector bank is exhausted,
+the encoder instead copies every member into the plan's one contiguous,
+16-byte-aligned outgoing stack area. Fragmented aggregate results still fail
+closed.
 
 Ordinary process and firmware entries now evaluate a complete validated
 `BoundaryEntryPlan`, not a detached call layout. Their concrete `StatePlan`

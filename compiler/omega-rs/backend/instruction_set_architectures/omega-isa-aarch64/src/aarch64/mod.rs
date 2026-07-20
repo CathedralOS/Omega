@@ -734,6 +734,41 @@ mod host_call_plan_register_tests {
             }) + 4
         );
     }
+
+    #[test]
+    fn hfa_stack_argument_copies_each_member_into_the_planned_area() {
+        let shape = omega_calling_conventions::ValueShape::homogeneous_float_aggregate(8, 2);
+        let operand = Aarch64CallOperand::RuntimeHomogeneousFloatAggregate {
+            byte_offset: 32,
+            member_byte_count: 8,
+            members: 2,
+        };
+        let placement = ValuePlacement {
+            shape,
+            locations: vec![ValueLocation::Stack {
+                stack_byte_offset: 0,
+                value_byte_offset: 0,
+                byte_size: 16,
+                alignment: 8,
+            }],
+        };
+        let bytes = encode_host_call_sequence(&[operand], &[placement.clone()])
+            .expect("stack-resident HFA should encode");
+
+        assert_eq!(&bytes[0..4], &0xd100_43ffu32.to_le_bytes());
+        assert_eq!(&bytes[12..16], &encode_load_x_from_x(17, 16, 32).unwrap());
+        assert_eq!(&bytes[16..20], &encode_store_x_to_x(17, 31, 0).unwrap());
+        assert_eq!(&bytes[20..24], &encode_load_x_from_x(17, 16, 40).unwrap());
+        assert_eq!(&bytes[24..28], &encode_store_x_to_x(17, 31, 8).unwrap());
+        assert_eq!(&bytes[28..32], &encode_branch_link_placeholder());
+        assert_eq!(&bytes[32..36], &0x9100_43ffu32.to_le_bytes());
+        assert_eq!(
+            bytes.len(),
+            crate::aarch64::operand_width(&operand)
+                + crate::aarch64::host_call_stack_total_width_for_placements(&[placement])
+                + 4
+        );
+    }
 }
 
 fn append_call_operands(
@@ -841,13 +876,60 @@ fn append_hfa_call_operand(
     locations: &[ValueLocation],
     parameter_index: usize,
 ) -> Result<(), Diagnostic> {
-    if locations.len() != usize::from(members) || !matches!(member_byte_count, 4 | 8) {
+    if !matches!(member_byte_count, 4 | 8) {
         return Err(Diagnostic::error(format!(
             "AAPCS64 outbound HFA parameter {parameter_index} has incompatible source/member placement"
         )));
     }
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
+    if let [
+        ValueLocation::Stack {
+            stack_byte_offset,
+            value_byte_offset: 0,
+            byte_size,
+            ..
+        },
+    ] = locations
+    {
+        let aggregate_byte_count = member_byte_count * usize::from(members);
+        if usize::from(*byte_size) != aggregate_byte_count {
+            return Err(Diagnostic::error(format!(
+                "AAPCS64 outbound HFA parameter {parameter_index} stack width disagrees with its source shape"
+            )));
+        }
+        let stack_byte_offset = usize::try_from(*stack_byte_offset)
+            .map_err(|_| Diagnostic::error("AAPCS64 outbound HFA stack offset exceeds usize"))?;
+        for member in 0..usize::from(members) {
+            let member_offset = member * member_byte_count;
+            append_load_data_from_x_offset(
+                bytes,
+                17,
+                16,
+                byte_offset.checked_add(member_offset).ok_or_else(|| {
+                    Diagnostic::error("AAPCS64 outbound HFA source offset overflows usize")
+                })?,
+                member_byte_count,
+                9,
+            )?;
+            let target_offset = stack_byte_offset
+                .checked_add(member_offset)
+                .ok_or_else(|| {
+                    Diagnostic::error("AAPCS64 outbound HFA stack offset overflows usize")
+                })?;
+            if member_byte_count == 8 {
+                bytes.extend(encode_store_x_to_x(17, 31, target_offset)?);
+            } else {
+                bytes.extend(encode_store_w_to_x(17, 31, target_offset, 4)?);
+            }
+        }
+        return Ok(());
+    }
+    if locations.len() != usize::from(members) {
+        return Err(Diagnostic::error(format!(
+            "AAPCS64 outbound HFA parameter {parameter_index} has incompatible source/member placement"
+        )));
+    }
     for (member, location) in locations.iter().copied().enumerate() {
         let expected_offset = member * member_byte_count;
         let ValueLocation::Register {

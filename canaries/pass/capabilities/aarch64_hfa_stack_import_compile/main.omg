@@ -1,0 +1,27 @@
+// ENT2c: two four-member HFAs consume v0-v7, so the following Pair is passed
+// by value in the normalized outgoing stack area.
+data Pair { first: f64; second: f64; }
+data Quad { a: f64; b: f64; c: f64; d: f64; }
+
+boundary trait HfaStackImport {
+    machine call(first: Quad, second: Quad, trailing: Pair) -> i64;
+}
+
+macos_arm64 provides HfaStackImport {
+    call -> DllImport("libSystem.B.dylib", "omega_hfa_stack_probe")
+}
+
+data Main {
+    foreign: HfaStackImport;
+    first: Quad;
+    second: Quad;
+    trailing: Pair;
+    result: i64;
+}
+
+machine Main::main(&mut self) {
+    self.first = Quad { a: 1.0, b: 2.0, c: 3.0, d: 4.0 };
+    self.second = Quad { a: 5.0, b: 6.0, c: 7.0, d: 8.0 };
+    self.trailing = Pair { first: 9.0, second: 10.0 };
+    self.result = self.foreign.call(self.first, self.second, self.trailing);
+}

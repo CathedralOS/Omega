@@ -34,6 +34,12 @@ pub fn host_call_stack_prefix_width_for_placements(
         + placements
             .iter()
             .take(argument_count)
+            .filter(|placement| {
+                !matches!(
+                    placement.shape.class,
+                    omega_calling_conventions::ValueClass::HomogeneousFloatAggregate { .. }
+                )
+            })
             .flat_map(|placement| &placement.locations)
             .filter(|location| matches!(location, ValueLocation::Stack { .. }))
             .count()
