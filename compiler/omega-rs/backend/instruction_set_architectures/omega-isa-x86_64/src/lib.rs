@@ -1242,7 +1242,13 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
 ) -> Result<Vec<u8>, Diagnostic> {
     // Target calibration constants do not cross a call boundary. Keep their
     // architecture-local materialization available under every x86 policy.
-    if operation_key.lowers_to_constant_result() {
+    if matches!(
+        (operation_key.capability, operation_key.operation),
+        (
+            HostCapability::Clock,
+            HostOperation::WallClockUnitsPerSecond | HostOperation::WallClockEpochOffsetSeconds
+        )
+    ) {
         return encode_constant_result(operands);
     }
     if policy != CallingPolicy::MicrosoftX64 {
@@ -1281,7 +1287,7 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
             HostOperation::MonotonicTicks
             | HostOperation::MonotonicTicksPerSecond
             | HostOperation::WallClockRaw,
-        ) => encode_win64_out_param_call(operands),
+        ) => encode_win64_out_param_call(operation_key, operands),
         (HostCapability::Input, HostOperation::KeyState) => encode_key_state_call(operands),
         // Every Gui import is value-returning and encodes through the GENERAL
         // import call: operands[0] = result place, then the full ABI argument
@@ -1936,10 +1942,12 @@ fn normalized_win64_call_plan<T: InstructionOperandLike>(
             .collect::<Result<Vec<_>, _>>()?,
         result,
     };
-    let plan = evaluate_call_plan(CallingPolicy::MicrosoftX64, &signature).map_err(|error| {
-        Diagnostic::error(format!(
-            "cannot evaluate Microsoft x64 import plan: {error}"
-        ))
+    evaluate_normalized_win64_plan(&signature)
+}
+
+fn evaluate_normalized_win64_plan(signature: &CallSignature) -> Result<CallPlan, Diagnostic> {
+    let plan = evaluate_call_plan(CallingPolicy::MicrosoftX64, signature).map_err(|error| {
+        Diagnostic::error(format!("cannot evaluate Microsoft x64 call plan: {error}"))
     })?;
     if plan.entry_control != EntryControl::CallReturn
         || plan.stack_alignment != 16
@@ -2140,6 +2148,31 @@ mod win64_import_plan_tests {
         assert_eq!(sites[0].byte_offset, 6, "runtime region-base imm64");
         assert_eq!(sites[1].byte_offset, 22, "call rel32");
     }
+
+    #[test]
+    fn time_out_parameter_plans_model_the_actual_native_signatures() {
+        let qpc = normalized_win64_out_param_plan(HostOperation::MonotonicTicks)
+            .expect("QueryPerformanceCounter plan");
+        assert_eq!(
+            qpc.parameters[0].locations,
+            [ValueLocation::Register {
+                register: MachineRegister::X86Rcx,
+                value_byte_offset: 0,
+                byte_size: 8,
+            }]
+        );
+        assert_eq!(
+            normalized_win64_result_register(&qpc, true).expect("QPC native BOOL result"),
+            Some(MachineRegister::X86Rax)
+        );
+
+        let filetime = normalized_win64_out_param_plan(HostOperation::WallClockRaw)
+            .expect("GetSystemTimePreciseAsFileTime plan");
+        assert!(
+            filetime.result.is_none(),
+            "FILETIME native call returns void"
+        );
+    }
 }
 
 /// Relocation sites for a `encode_win64_import_call` sequence: one Absolute64
@@ -2159,6 +2192,7 @@ const WIN64_OUT_PARAM_CALL_WIDTH: usize = 40;
 /// call, load the u64 back into RAX, release, then store through the
 /// standard result tail. operands[0] = the result place.
 fn encode_win64_out_param_call<T: InstructionOperandLike>(
+    operation_key: HostOperationKey,
     operands: &[T],
 ) -> Result<Vec<u8>, Diagnostic> {
     const RESERVE: usize = 56;
@@ -2172,6 +2206,21 @@ fn encode_win64_out_param_call<T: InstructionOperandLike>(
              to a runtime scalar operand",
         ));
     };
+    let plan = normalized_win64_out_param_plan(operation_key.operation)?;
+    match win64_argument_location(&plan.parameters[0], 0)? {
+        Win64ArgumentLocation::Register(MachineRegister::X86Rcx) => {}
+        location => {
+            return Err(Diagnostic::error(format!(
+                "Win64 out-parameter encoder requires its pointer in rcx, got {location:?}"
+            )));
+        }
+    }
+    let native_result = normalized_win64_result_register(&plan, plan.result.is_some())?;
+    if native_result.is_some_and(|register| register != MachineRegister::X86Rax) {
+        return Err(Diagnostic::error(format!(
+            "Win64 out-parameter encoder cannot ignore planned native result {native_result:?}"
+        )));
+    }
     let mut bytes = Vec::with_capacity(WIN64_OUT_PARAM_CALL_WIDTH);
     append_sub_rsp(&mut bytes, RESERVE);
     bytes.extend([0x48, 0x8d, 0x4c, 0x24, SLOT]); // lea rcx, [rsp+SLOT]
@@ -2191,6 +2240,24 @@ fn encode_win64_out_param_call<T: InstructionOperandLike>(
     bytes.extend(disp32(byte_offset)?.to_le_bytes());
     debug_assert_eq!(bytes.len(), WIN64_OUT_PARAM_CALL_WIDTH);
     Ok(bytes)
+}
+
+fn normalized_win64_out_param_plan(operation: HostOperation) -> Result<CallPlan, Diagnostic> {
+    let signature = CallSignature {
+        parameters: vec![ValueShape::integer(8, 8)],
+        result: match operation {
+            HostOperation::MonotonicTicks | HostOperation::MonotonicTicksPerSecond => {
+                Some(ValueShape::integer(4, 4))
+            }
+            HostOperation::WallClockRaw => None,
+            operation => {
+                return Err(Diagnostic::error(format!(
+                    "unsupported Win64 out-parameter operation {operation:?}"
+                )));
+            }
+        },
+    };
+    evaluate_normalized_win64_plan(&signature)
 }
 
 /// Relocation sites for `encode_win64_out_param_call`: the import-thunk call
