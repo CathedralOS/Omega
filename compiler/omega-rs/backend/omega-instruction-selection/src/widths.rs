@@ -73,6 +73,19 @@ pub fn host_call_sequence_width<T: InstructionOperandLike>(
             let base = aarch64::host_call_sequence_width_from_operands(
                 operands.iter().map(aarch64_call_operand),
             );
+            let authored_import = matches!(
+                operation_key.capability,
+                omega_calling_conventions::HostCapability::Unknown
+                    | omega_calling_conventions::HostCapability::Custom(_)
+            );
+            let Ok(argument_locations) = crate::normalized_aarch64_host_argument_locations(
+                operation_key,
+                operands,
+                authored_import,
+            ) else {
+                return 0;
+            };
+            let planned_stack = aarch64::host_call_stack_total_width(&argument_locations);
             // A deref-result op (errno) emits one extra `ldr w0,[x0]` (4 bytes)
             // between the BL and the result store; keep the layout width in
             // lockstep with the encoder + the data-address relocation offset.
@@ -92,7 +105,7 @@ pub fn host_call_sequence_width<T: InstructionOperandLike>(
             } else {
                 0
             };
-            base + deref + float_return + stack_mode
+            base + planned_stack + deref + float_return + stack_mode
         }
         Architecture::X86_64 => x86_64::host_call_sequence_width(
             omega_calling_conventions::CallingPolicy::native_for_target(target),

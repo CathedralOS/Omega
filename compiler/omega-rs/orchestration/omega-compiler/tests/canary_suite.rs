@@ -28025,6 +28025,45 @@ fn cross_windows_general_imports_compile() {
     }
 }
 
+#[test]
+fn cross_aarch64_stack_import_compiles_with_planned_layout() {
+    let canary = pass_canary("capabilities/aarch64_stack_import_compile");
+    let scratch =
+        std::env::temp_dir().join(format!("omega-aarch64-stack-import-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&scratch);
+    let src_dir = scratch.join("src");
+    let out_dir = scratch.join("out");
+    fs::create_dir_all(&src_dir).expect("scratch source directory");
+    fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
+    fs::write(
+        src_dir.join("build.omg"),
+        "target macos_arm64 {\n    boundary omega::host::contracts\n    boundary omega::host::targets::darwin\n}\n",
+    )
+    .expect("write macos_arm64 target manifest");
+
+    compile(CompileOptions {
+        root_path: src_dir.join("main.omg"),
+        build_dir: Some(out_dir.clone()),
+        target_name: Some("macos_arm64".to_owned()),
+        write_output: true,
+    })
+    .expect("nine-argument import should compile for macos_arm64");
+
+    let image = fs::read(out_dir.join("omega-program")).expect("read emitted AArch64 Mach-O");
+    for (name, instruction) in [
+        ("16-byte outgoing reserve", 0xd100_43ffu32),
+        ("ninth argument store", 0xf900_03eau32),
+        ("outgoing stack restore", 0x9100_43ffu32),
+    ] {
+        let bytes = instruction.to_le_bytes();
+        assert!(
+            image.windows(4).any(|window| window == bytes),
+            "AArch64 stack-import image missing {name}"
+        );
+    }
+    let _ = fs::remove_dir_all(&scratch);
+}
+
 // An AUTHORED provides import end to end (hosted-consumption rung 2): the
 // program's own `windows_x64 provides Beeper { beep -> DllImport("msvcrt.dll",
 // "abs") }` row binds, the import table names msvcrt.dll (the binding, not

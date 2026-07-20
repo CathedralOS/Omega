@@ -28,6 +28,13 @@ pub(crate) fn external_call_relocation_offset<T: InstructionOperandLike>(
     // result-binding shape and the encoder routes it there; the catalog
     // cannot know authored operations.
     if architecture == Architecture::Aarch64 && (operation_key.returns_value() || authored_import) {
+        let argument_locations =
+            omega_instruction_selection::normalized_aarch64_host_argument_locations(
+                operation_key,
+                operands,
+                authored_import,
+            )
+            .unwrap_or_default();
         let stack_mode_bytes = if operation_key.passes_trailing_mode_on_stack() {
             8
         } else {
@@ -39,7 +46,11 @@ pub(crate) fn external_call_relocation_offset<T: InstructionOperandLike>(
                 .skip(1)
                 .map(|operand| omega_instruction_selection::operand_width(architecture, operand))
                 .sum::<usize>()
-            + stack_mode_bytes;
+            + stack_mode_bytes
+            + omega_instruction_selection::aarch64_host_call_stack_prefix_width(
+                &argument_locations,
+                argument_locations.len(),
+            );
     }
 
     let operand_bytes = operands
@@ -47,8 +58,26 @@ pub(crate) fn external_call_relocation_offset<T: InstructionOperandLike>(
         .map(|operand| omega_instruction_selection::operand_width(architecture, operand))
         .sum::<usize>();
 
+    let planned_stack_bytes = if architecture == Architecture::Aarch64 {
+        omega_instruction_selection::normalized_aarch64_host_argument_locations(
+            operation_key,
+            operands,
+            false,
+        )
+        .map(|locations| {
+            omega_instruction_selection::aarch64_host_call_stack_prefix_width(
+                &locations,
+                locations.len(),
+            )
+        })
+        .unwrap_or(0)
+    } else {
+        0
+    };
+
     selected_text_offset
         + operand_bytes
+        + planned_stack_bytes
         + match architecture {
             Architecture::Aarch64 => 0,
             Architecture::X86_64 => 1,
