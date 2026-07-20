@@ -1,1 +1,1 @@
-const fact for generic instance `FixedBuffer<9>` is false
+const fact for generic instance `FixedBuffer<0>` is false

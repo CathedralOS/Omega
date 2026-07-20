@@ -3,7 +3,9 @@
 // instance. They are not runtime invariants on the synthesized record.
 use omega::language::std::console;
 
-domain u64::BufferSize when self > 0 {
+domain u64::Positive when self > 0 {}
+
+domain u64::BufferSize when self in Positive {
     self <= 8;
 }
 

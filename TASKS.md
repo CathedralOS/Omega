@@ -727,8 +727,8 @@ remain contract-invisible.
   their const operands specialized. Const-parameter membership in an integer
   domain defined by boolean `self` facts and/or an evaluable boolean `when`
   classifier also discharges per instance; false membership rejects. Continue
-  with signed/domain arithmetic semantics, machine-call and nested-membership
-  classifiers, and richer build-time proof operands.
+  with signed/domain arithmetic semantics, machine-call classifiers, and
+  richer build-time proof operands.
 - **Trait defaults (authored bodies complete).** Standalone data conformances synthesize a
   missing attached machine from the trait's authored body before resolution,
   including defaults inherited through `requires` and header parents. Ordinary

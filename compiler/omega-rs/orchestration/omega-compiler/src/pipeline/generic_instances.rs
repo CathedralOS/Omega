@@ -597,6 +597,27 @@ fn evaluate_const_membership_fact(
     } else {
         format!("{parameter_type}::{domain_path}")
     };
+    evaluate_named_const_domain(
+        syntax,
+        &domain_name,
+        parameter_type,
+        value,
+        const_values,
+        &mut Vec::new(),
+    )
+}
+
+fn evaluate_named_const_domain(
+    syntax: &SyntaxTrees,
+    domain_name: &str,
+    carrier: &str,
+    value: u64,
+    const_values: &HashMap<String, u64>,
+    visiting: &mut Vec<String>,
+) -> Result<Option<bool>, String> {
+    if visiting.iter().any(|name| name == domain_name) {
+        return Ok(None);
+    }
     let Some(domain) = syntax.root_items().find_map(|item| {
         let Item::Domain(domain) = item else {
             return None;
@@ -610,25 +631,28 @@ fn evaluate_const_membership_fact(
     else {
         return Ok(None);
     };
-    if domain_target.as_str() != parameter_type {
+    if domain_target.as_str() != carrier {
         return Err(format!(
-            "domain `{domain_name}` has carrier `{}`, but const parameter `{}` has carrier `{parameter_type}`",
+            "domain `{domain_name}` has carrier `{}`, but the const value has carrier `{carrier}`",
             domain_target.as_str(),
-            parameter_name.as_str()
         ));
     }
+    visiting.push(domain_name.to_owned());
     if domain.classifier.is_valid() {
-        let Some(ConstFactValue::Boolean(holds)) = evaluate_const_fact_expression(
+        let Some(ConstFactValue::Boolean(holds)) = evaluate_const_classifier_expression(
             syntax,
             domain.classifier,
             const_values,
-            &HashMap::new(),
-            Some(value),
+            value,
+            carrier,
+            visiting,
         )?
         else {
+            visiting.pop();
             return Ok(None);
         };
         if !holds {
+            visiting.pop();
             return Ok(Some(false));
         }
     }
@@ -644,13 +668,93 @@ fn evaluate_const_membership_fact(
             Some(value),
         )?
         else {
+            visiting.pop();
             return Ok(None);
         };
         if !holds {
+            visiting.pop();
             return Ok(Some(false));
         }
     }
+    visiting.pop();
     Ok(Some(true))
+}
+
+fn evaluate_const_classifier_expression(
+    syntax: &SyntaxTrees,
+    expression: ExpressionHandle,
+    const_values: &HashMap<String, u64>,
+    self_value: u64,
+    carrier: &str,
+    visiting: &mut Vec<String>,
+) -> Result<Option<ConstFactValue>, String> {
+    match syntax.expressions.expression(expression) {
+        ExpressionNode::Membership(membership) => {
+            let Some(ConstFactValue::Integer(value)) = evaluate_const_fact_expression(
+                syntax,
+                membership.value,
+                const_values,
+                &HashMap::new(),
+                Some(self_value),
+            )?
+            else {
+                return Ok(None);
+            };
+            let path = syntax
+                .expressions
+                .identifier_path_members(membership.domain)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            let domain_name = if path.contains("::") {
+                path
+            } else {
+                format!("{carrier}::{path}")
+            };
+            evaluate_named_const_domain(
+                syntax,
+                &domain_name,
+                carrier,
+                value,
+                const_values,
+                visiting,
+            )
+            .map(|result| result.map(ConstFactValue::Boolean))
+        }
+        ExpressionNode::Binary(binary) => {
+            let Some(left) = evaluate_const_classifier_expression(
+                syntax,
+                binary.left,
+                const_values,
+                self_value,
+                carrier,
+                visiting,
+            )?
+            else {
+                return Ok(None);
+            };
+            let Some(right) = evaluate_const_classifier_expression(
+                syntax,
+                binary.right,
+                const_values,
+                self_value,
+                carrier,
+                visiting,
+            )?
+            else {
+                return Ok(None);
+            };
+            evaluate_const_fact_binary(binary.operator, left, right).map(Some)
+        }
+        _ => evaluate_const_fact_expression(
+            syntax,
+            expression,
+            const_values,
+            &HashMap::new(),
+            Some(self_value),
+        ),
+    }
 }
 
 fn evaluate_const_fact_binary(
