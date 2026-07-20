@@ -24,6 +24,28 @@ pub(crate) fn data_address_relocation_offset_for_target(
     authored_import: bool,
 ) -> usize {
     if target.architecture == Architecture::X86_64
+        && omega_calling_conventions::CallingPolicy::native_for_target(target)
+            == omega_calling_conventions::CallingPolicy::SystemVAMD64
+        && let Some(shape) = field_model_shape
+    {
+        let byte_offset = if shape.passes_receiver {
+            omega_isa_x86_64::sysv_vtable_call_data_relocation_byte_offset(
+                operands,
+                0,
+                shape.result_present,
+                operand_index,
+            )
+        } else {
+            omega_isa_x86_64::sysv_table_function_call_data_relocation_byte_offset(
+                operands,
+                0,
+                shape.result_present,
+                operand_index,
+            )
+        };
+        return selected_text_offset + byte_offset;
+    }
+    if target.architecture == Architecture::X86_64
         && field_model_shape.is_none()
         && !is_syscall
         && let Some(operation_key) = operation_key
@@ -551,6 +573,94 @@ mod tests {
                 true,
             ),
             76
+        );
+    }
+
+    #[test]
+    fn sysv_indirect_field_relocations_follow_the_normalized_layouts() {
+        let scalar = |byte_offset| InstructionOperand {
+            kind: InstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset,
+                byte_count: 8,
+            },
+        };
+        let operands = [scalar(0), scalar(8), scalar(16)];
+        let operation = Some(omega_calling_conventions::HostOperationKey::default());
+
+        let vtable = Some(FieldModelCallShape {
+            passes_receiver: true,
+            result_present: true,
+        });
+        assert_eq!(
+            data_address_relocation_offset_for_target(
+                NativeTarget::linux_x64(),
+                operation,
+                &operands,
+                20,
+                1,
+                false,
+                vtable,
+                false,
+            ),
+            26
+        );
+        assert_eq!(
+            data_address_relocation_offset_for_target(
+                NativeTarget::linux_x64(),
+                operation,
+                &operands,
+                20,
+                0,
+                false,
+                vtable,
+                false,
+            ),
+            73
+        );
+
+        let table = Some(FieldModelCallShape {
+            passes_receiver: false,
+            result_present: true,
+        });
+        assert_eq!(
+            data_address_relocation_offset_for_target(
+                NativeTarget::linux_x64(),
+                operation,
+                &operands,
+                20,
+                2,
+                false,
+                table,
+                false,
+            ),
+            26
+        );
+        assert_eq!(
+            data_address_relocation_offset_for_target(
+                NativeTarget::linux_x64(),
+                operation,
+                &operands,
+                20,
+                1,
+                false,
+                table,
+                false,
+            ),
+            43
+        );
+        assert_eq!(
+            data_address_relocation_offset_for_target(
+                NativeTarget::linux_x64(),
+                operation,
+                &operands,
+                20,
+                0,
+                false,
+                table,
+                false,
+            ),
+            73
         );
     }
 

@@ -157,8 +157,16 @@ pub fn encode_vtable_call_sequence<T: InstructionOperandLike>(
         {
             x86_64::encode_win64_vtable_call(operands, index)
         }
+        Architecture::X86_64
+            if CallingPolicy::native_for_target(target) == CallingPolicy::SystemVAMD64 =>
+        {
+            let byte_offset = index
+                .checked_mul(8)
+                .ok_or_else(|| Diagnostic::error("vtable slot index overflows a byte offset"))?;
+            x86_64::encode_sysv_vtable_call(operands, byte_offset, false)
+        }
         Architecture::X86_64 => Err(Diagnostic::error(
-            "x86-64 vtable compatibility encoder requires the Microsoft x64 policy",
+            "x86-64 vtable compatibility encoder requires Microsoft x64 or SysV AMD64",
         )),
     }
 }
@@ -244,8 +252,18 @@ pub fn encode_vtable_call_sequence_at_offset<T: InstructionOperandLike>(
                 result_present,
             )
         }
+        Architecture::X86_64
+            if CallingPolicy::native_for_target(target) == CallingPolicy::SystemVAMD64 =>
+        {
+            x86_64::encode_sysv_vtable_call(
+                operands,
+                i64::try_from(byte_offset)
+                    .map_err(|_| Diagnostic::error("vtable field offset overflows i64"))?,
+                result_present,
+            )
+        }
         Architecture::X86_64 => Err(Diagnostic::error(
-            "x86-64 vtable-field compatibility encoder requires the Microsoft x64 policy",
+            "x86-64 vtable-field compatibility encoder requires Microsoft x64 or SysV AMD64",
         )),
     }
 }
@@ -330,8 +348,18 @@ pub fn encode_table_function_call_sequence<T: InstructionOperandLike>(
                 result_present,
             )
         }
+        Architecture::X86_64
+            if CallingPolicy::native_for_target(target) == CallingPolicy::SystemVAMD64 =>
+        {
+            x86_64::encode_sysv_table_function_call(
+                operands,
+                i64::try_from(byte_offset)
+                    .map_err(|_| Diagnostic::error("service table field offset overflows i64"))?,
+                result_present,
+            )
+        }
         Architecture::X86_64 => Err(Diagnostic::error(
-            "x86-64 table-function compatibility encoder requires the Microsoft x64 policy",
+            "x86-64 table-function compatibility encoder requires Microsoft x64 or SysV AMD64",
         )),
     }
 }
@@ -1232,6 +1260,61 @@ mod result_register_architecture_tests {
             error
                 .message
                 .contains("does not belong to target architecture")
+        );
+    }
+}
+
+#[cfg(test)]
+mod sysv_field_call_tests {
+    use super::*;
+    use omega_target_operations::{
+        RuntimeStorageRegion, TargetInstructionOperand, TargetInstructionOperandKind,
+    };
+
+    fn scalar(byte_offset: usize) -> TargetInstructionOperand {
+        TargetInstructionOperand {
+            kind: TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset,
+                byte_count: 8,
+            },
+        }
+    }
+
+    #[test]
+    fn linux_x64_routes_vtable_fields_through_the_sysv_encoder() {
+        let operands = [scalar(0), scalar(8), scalar(16)];
+        let target = omega_target::NativeTarget::linux_x64();
+        let bytes = encode_vtable_call_sequence_at_offset(target, &operands, 24, true)
+            .expect("SysV vtable-field call");
+
+        assert_eq!(
+            bytes.len(),
+            crate::vtable_call_sequence_width_at_offset(target, &operands, 24, true)
+        );
+        assert!(
+            bytes
+                .windows(9)
+                .any(|window| window == [0x48, 0x8b, 0x87, 24, 0, 0, 0, 0xff, 0xd0])
+        );
+    }
+
+    #[test]
+    fn linux_x64_routes_table_functions_without_passing_the_table() {
+        let operands = [scalar(0), scalar(8), scalar(16)];
+        let target = omega_target::NativeTarget::linux_x64();
+        let bytes = encode_table_function_call_sequence(target, &operands, 40, true)
+            .expect("SysV table-function call");
+
+        assert_eq!(
+            bytes.len(),
+            crate::table_function_call_sequence_width(target, &operands, 40, true)
+        );
+        assert!(
+            bytes
+                .windows(7)
+                .any(|window| window == [0x49, 0x8b, 0xbb, 16, 0, 0, 0]),
+            "the first declared argument must use rdi"
         );
     }
 }

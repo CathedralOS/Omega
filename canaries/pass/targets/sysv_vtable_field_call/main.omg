@@ -1,0 +1,14 @@
+// Source-to-ELF pin for normalized SysV AMD64 indirect field dispatch. The
+// receiver is the first wire argument (rdi), and layout resolves `invoke` to
+// +8 behind the leading field.
+boundary trait FieldDispatch { machine invoke(this: addr, value: u64); }
+data NativeVtable {
+    header: addr;
+    invoke: addr;
+}
+linux_x64 provides FieldDispatch over NativeVtable { invoke -> invoke; }
+data Main { dispatch: FieldDispatch; receiver: addr; }
+boundary machine Main::run(&self) -> i32 {
+    self.dispatch.invoke(self.receiver, 7);
+    transition { _ -> (0) }
+}

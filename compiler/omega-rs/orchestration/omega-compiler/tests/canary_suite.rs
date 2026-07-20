@@ -35855,6 +35855,33 @@ fn efi_vtable_field_call_emits_indirect_dispatch() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// The same authored field model on ELF/x86-64 must use the normalized SysV
+// plan: the receiver occupies rdi, and the indirect dispatch reads +8 from it.
+// This stays freestanding, so it exercises the full source-to-ELF path without
+// depending on the still-missing ELF dynamic-import image support.
+#[test]
+fn sysv_vtable_field_call_emits_indirect_dispatch() {
+    let canary = pass_canary("targets/sysv_vtable_field_call");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-sysv-vtable-field-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("vtable field-model canary should cross-compile for linux_x64");
+    let bytes = fs::read(build_dir.join("omega-program")).expect("read emitted ELF image");
+    let needle = [0x48u8, 0x8b, 0x87, 0x08, 0x00, 0x00, 0x00, 0xff, 0xd0];
+    assert!(
+        bytes.windows(needle.len()).any(|window| window == needle),
+        "expected `mov rax, [rdi+8]; call rax` (SysV field-model dispatch at the \
+         layout-computed +8) in .text"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // M2-LADDER #1: `&mut` OUT-PARAMS through a field-model vtable call, MS-x64
 // (GetMemoryMap's six-argument shape). Pins the WHOLE marshaling: borrow
 // arguments lower as ADDRESSES (before the 2026-07-17 fix the scalar-first

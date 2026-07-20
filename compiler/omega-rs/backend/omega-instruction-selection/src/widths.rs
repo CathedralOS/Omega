@@ -74,6 +74,12 @@ fn vtable_call_sequence_width_with_dispatch<T: InstructionOperandLike>(
         {
             x86_64::win64_vtable_call_width(operands, index_or_offset, result_present)
         }
+        Architecture::X86_64
+            if omega_calling_conventions::CallingPolicy::native_for_target(target)
+                == omega_calling_conventions::CallingPolicy::SystemVAMD64 =>
+        {
+            x86_64::sysv_vtable_call_width(operands, index_or_offset, result_present)
+        }
         Architecture::X86_64 => 0,
     }
 }
@@ -104,6 +110,16 @@ pub fn table_function_call_sequence_width<T: InstructionOperandLike>(
                 == omega_calling_conventions::CallingPolicy::MicrosoftX64 =>
         {
             x86_64::win64_table_function_call_width(
+                operands,
+                i64::try_from(byte_offset).unwrap_or(i64::MAX),
+                result_present,
+            )
+        }
+        Architecture::X86_64
+            if omega_calling_conventions::CallingPolicy::native_for_target(target)
+                == omega_calling_conventions::CallingPolicy::SystemVAMD64 =>
+        {
+            x86_64::sysv_table_function_call_width(
                 operands,
                 i64::try_from(byte_offset).unwrap_or(i64::MAX),
                 result_present,
