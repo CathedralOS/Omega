@@ -66,7 +66,9 @@ pub(crate) fn substitute_provides_values(
                     ))]);
                 }
             } else {
-                other_target_rows.entry(key).or_insert_with(|| row_target.to_owned());
+                other_target_rows
+                    .entry(key)
+                    .or_insert_with(|| row_target.to_owned());
             }
         }
     }
@@ -96,8 +98,7 @@ pub(crate) fn substitute_provides_values(
 
     // Substitute two-segment Name paths. Collect first (the walk borrows the
     // table), then replace.
-    let mut replacements: Vec<(omega_syntax_trees::expression::ExpressionHandle, i64)> =
-        Vec::new();
+    let mut replacements: Vec<(omega_syntax_trees::expression::ExpressionHandle, i64)> = Vec::new();
     let mut wrong_target: HashSet<(String, String)> = HashSet::new();
     for (handle, node) in syntax.expressions.iter_expressions() {
         let ExpressionNode::Name(path) = node else {

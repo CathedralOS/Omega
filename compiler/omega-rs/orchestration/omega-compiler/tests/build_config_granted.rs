@@ -23,10 +23,8 @@ fn executable_name() -> &'static str {
 
 #[test]
 fn declared_filesystem_build_machine_stages_at_compile_time() {
-    let project = std::env::temp_dir().join(format!(
-        "omega-build-config-granted-{}",
-        std::process::id()
-    ));
+    let project =
+        std::env::temp_dir().join(format!("omega-build-config-granted-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&project);
     std::fs::create_dir_all(project.join("stage")).expect("create project dirs");
 

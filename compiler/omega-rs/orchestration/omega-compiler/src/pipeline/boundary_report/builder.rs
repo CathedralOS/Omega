@@ -1,6 +1,6 @@
 use omega_artifacts::{
-    BoundaryContract, BoundaryProviderEntry, BoundaryReport, BoundaryTarget,
-    CapabilityBlastRadius, UncheckedBoundaryPolicy,
+    BoundaryContract, BoundaryProviderEntry, BoundaryReport, BoundaryTarget, CapabilityBlastRadius,
+    UncheckedBoundaryPolicy,
 };
 use omega_checked_trees::CheckedTrees;
 use omega_core::arena::HandleSpan;
@@ -231,11 +231,7 @@ fn append_provider_registry(report: &mut BoundaryReport, syntax: &SyntaxTrees) {
             name: provider.name.clone(),
             category: provider.category.name().to_owned(),
             contract_ref: provider.contract_ref.clone(),
-            authority_effects: provider
-                .effect_set
-                .names()
-                .map(str::to_owned)
-                .collect(),
+            authority_effects: provider.effect_set.names().map(str::to_owned).collect(),
             target_applicability: provider.target_applicability.clone(),
             origin_package: provider.origin_package.clone(),
         });
