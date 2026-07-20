@@ -334,7 +334,12 @@ Each target also declares its consumption phase. A field the loader consumes
 before the first Omega instruction must fit the object format's native
 relocation vocabulary. Post-handoff structures may use the generated writer.
 Placement plans may constrain range, alignment, phase, machine regime, and
-scoped artifact-installation authority.
+scoped artifact-installation authority. The normalized materialization
+foundation now carries those five facts: policy alignment is joined with the
+layout's alignment, compiler-issued identities cite regime and installation
+scope, and a concrete-site validator checks the complete occupied range before
+linker/loader/provider consumption. Propagation through the final artifact
+pipeline remains engineering work.
 
 There is no general `ExecutableMemory` capability, arbitrary byte-to-code
 conversion, JIT facility, or self-modifying-code path. Executable eligibility

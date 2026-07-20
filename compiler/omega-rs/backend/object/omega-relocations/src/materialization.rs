@@ -93,8 +93,8 @@ mod tests {
     use super::append_native_materialization_relocations;
     use omega_core::arena::Handle;
     use omega_layout_plans::{
-        ByteOrder, EntryStubId, MaterializationAction, RelocationTarget,
-        SymbolicMaterializationPlan,
+        ByteOrder, EntryStubId, MaterializationAction, PlacementConstraints, PlacementPhase,
+        RelocationTarget, SymbolicMaterializationPlan,
     };
     use omega_object_file::{RelocationKind, RelocationOrigin, RelocationPlan, SectionKind};
     use omega_target::NativeTarget;
@@ -107,6 +107,7 @@ mod tests {
         let materialization = SymbolicMaterializationPlan {
             byte_len: 16,
             byte_order: ByteOrder::LittleEndian,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::Load),
             actions: vec![MaterializationAction::NativePointerRelocation {
                 field: "entry".into(),
                 target,
@@ -146,6 +147,7 @@ mod tests {
         let materialization = SymbolicMaterializationPlan {
             byte_len: 8,
             byte_order: ByteOrder::LittleEndian,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::Load),
             actions: Vec::new(),
         };
         let error = append_native_materialization_relocations(
