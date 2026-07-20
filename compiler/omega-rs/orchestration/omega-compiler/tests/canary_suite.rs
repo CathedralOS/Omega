@@ -31052,6 +31052,8 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/efi_out_param_call", "uefi_x64"),
     ("targets/efi_ref_param_call_arg", "uefi_x64"),
     ("targets/aarch64_hfa_entry_argument", "linux_arm64"),
+    ("targets/aarch64_small_aggregate_entry", "linux_arm64"),
+    ("targets/aarch64_small_aggregate_stack_entry", "linux_arm64"),
 ];
 
 #[test]
@@ -31077,6 +31079,67 @@ fn aarch64_hfa_entry_argument_spreads_vector_registers() {
             .windows(16)
             .any(|window| { window[..4] == store_d0 && window[12..16] == store_d1 }),
         "expected entry prologue stores from d0 @ +0 and d1 @ +8"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn aarch64_small_aggregate_entry_spreads_consecutive_x_registers() {
+    let canary = pass_canary("targets/aarch64_small_aggregate_entry");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-aarch64-small-aggregate-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_arm64".into()),
+        write_output: true,
+    })
+    .expect("small fixed aggregate should cross-compile through x1/x2");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted AArch64 ELF");
+    let store_register_mask = 0xffc0_03ffu32;
+    let store_x1 = 0xf900_0201u32;
+    let store_x2 = 0xf900_0202u32;
+    assert!(
+        image.windows(24).any(|window| {
+            let first = u32::from_le_bytes(window[8..12].try_into().expect("instruction"));
+            let second = u32::from_le_bytes(window[20..24].try_into().expect("instruction"));
+            first & store_register_mask == store_x1 && second & store_register_mask == store_x2
+        }),
+        "expected consecutive entry-prologue stores from x1 and x2"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn aarch64_small_aggregate_entry_falls_wholly_to_the_stack() {
+    let canary = pass_canary("targets/aarch64_small_aggregate_stack_entry");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-aarch64-small-aggregate-stack-entry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_arm64".into()),
+        write_output: true,
+    })
+    .expect("register-exhausted small aggregate should cross-compile from the stack");
+
+    let image = fs::read(build_dir.join("omega-program")).expect("read emitted AArch64 ELF");
+    let load_first = 0xf940_33f1u32.to_le_bytes();
+    let load_second = 0xf940_37f1u32.to_le_bytes();
+    assert!(
+        image
+            .windows(32)
+            .any(|window| { window[8..12] == load_first && window[24..28] == load_second }),
+        "expected consecutive incoming-stack loads for both aggregate fragments"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }

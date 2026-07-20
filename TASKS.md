@@ -39,7 +39,11 @@ float register locations are covered as well. Integer process-entry results
 now carry the plan-selected result register through both native encoders. Flat
 one-to-four-member AAPCS64 homogeneous floating-point aggregate entry
 parameters are classified from their normalized record layout and spread
-across the selected vector registers. Nested and general aggregate ABI
+across the selected vector registers. Fixed non-HFA AAPCS64 records up to 16
+bytes now use consecutive `x` fragments or aligned whole-value stack
+fragments, and
+normalized small-aggregate result plans select `x0`/`x1`. Aggregate result
+emission and larger aggregate ABI
 classification remains; unsupported mixed/general entry signatures retain
 the compatibility path without panicking the compiler. Generic Linux syscall
 leaves now evaluate the normalized syscall policy at emission and pass its
@@ -139,6 +143,13 @@ ceiling derived exactly from the ABI volatile-register classes.
    contract, or ordinary-clobber ceiling cannot cover the encoder's fixed
    caller-saved scratch set; placement is no longer the only enforced plan
    facet. Continue making the plan authoritative across compatibility paths.
+   Fixed non-HFA AAPCS64 entry records up to 16 bytes now consume consecutive
+   plan-selected `x` fragments with 16-byte register alignment, fall wholly to
+   aligned stack fragments when the remaining register bank is too small,
+   while normalized small-aggregate results select `x0`/`x1`; a
+   source-to-object canary pins a mixed scalar + 16-byte record entry in `x0`,
+   then `x1`/`x2`. Outbound aggregate marshalling/result stores and aggregates
+   above 16 bytes still require their copy/indirect-result lowering.
    Ordinary AArch64 `VtableSlot` and `VtableField` calls now evaluate AAPCS64
    from their selected operands, require the full-width receiver in planned
    `x0`, marshal every argument/stack slot through the shared plan consumer,

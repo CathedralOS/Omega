@@ -507,9 +507,13 @@ fn validate_signature_shapes(
             ));
         }
         match shape.class {
-            ValueClass::Integer if shape.byte_size > 8 => {
+            ValueClass::Integer
+                if shape.byte_size > 8
+                    && (policy != CallingPolicy::Aapcs64 || shape.byte_size > 16) =>
+            {
                 return Err(PlanDiagnostic(
-                    "aggregate integer classification is not normalized yet".into(),
+                    "aggregate integer classification is not normalized except for AAPCS64 values up to 16 bytes"
+                        .into(),
                 ));
             }
             ValueClass::Float if !matches!(shape.byte_size, 4 | 8) => {
@@ -784,7 +788,7 @@ fn evaluate_system_v_amd64(signature: &CallSignature) -> Result<CallPlan, PlanDi
 
 fn evaluate_aapcs64(signature: &CallSignature) -> Result<CallPlan, PlanDiagnostic> {
     let integer = (0..8).map(MachineRegister::Aarch64X).collect::<Vec<_>>();
-    evaluate_split_bank_call(
+    let mut plan = evaluate_split_bank_call(
         CallingPolicy::Aapcs64,
         signature,
         &integer,
@@ -798,7 +802,14 @@ fn evaluate_aapcs64(signature: &CallSignature) -> Result<CallPlan, PlanDiagnosti
                 .chain((0..=7).map(MachineRegister::Aarch64V))
                 .chain((16..=31).map(MachineRegister::Aarch64V)),
         ),
-    )
+    )?;
+    if let Some(result) = plan.result.as_mut()
+        && matches!(result.shape.class, ValueClass::Integer)
+        && result.shape.byte_size > 8
+    {
+        result.locations = integer_fragment_locations(result.shape, 0);
+    }
+    Ok(plan)
 }
 
 fn evaluate_split_bank_call(
@@ -834,6 +845,32 @@ fn evaluate_split_bank_call(
                 });
             }
             float_index += members;
+        } else if float_members.is_none() && shape.byte_size > 8 {
+            // AAPCS64 B.5/C.10-C.15: a fixed non-HFA value up to 16 bytes is
+            // rounded to doublewords, aligned to an even NGRN when required,
+            // and placed wholly in consecutive X registers or wholly on the
+            // stack. Signature validation keeps this branch AAPCS64-only.
+            debug_assert_eq!(policy, CallingPolicy::Aapcs64);
+            let register_count = usize::from(shape.byte_size.div_ceil(8));
+            if shape.alignment >= 16 {
+                integer_index = integer_index.next_multiple_of(2);
+            }
+            if integer_index + register_count <= integer_registers.len() {
+                for fragment in 0..register_count {
+                    let value_byte_offset = fragment * 8;
+                    locations.push(ValueLocation::Register {
+                        register: integer_registers[integer_index + fragment],
+                        value_byte_offset: value_byte_offset as u16,
+                        byte_size: (usize::from(shape.byte_size) - value_byte_offset).min(8) as u16,
+                    });
+                }
+                integer_index += register_count;
+            } else {
+                integer_index = integer_registers.len();
+                stack_offset = align_up(stack_offset, u32::from(shape.alignment.clamp(8, 16)));
+                locations.extend(integer_stack_fragment_locations(shape, stack_offset));
+                stack_offset += u32::from(shape.byte_size).next_multiple_of(8);
+            }
         } else if float_members.is_none() && integer_index < integer_registers.len() {
             locations.push(register_location(integer_registers[integer_index], shape));
             integer_index += 1;
@@ -853,6 +890,36 @@ fn evaluate_split_bank_call(
         shadow_bytes: 0,
         entry_control: EntryControl::CallReturn,
     })
+}
+
+fn integer_fragment_locations(shape: ValueShape, first_register: u8) -> Vec<ValueLocation> {
+    (0..usize::from(shape.byte_size.div_ceil(8)))
+        .map(|fragment| {
+            let value_byte_offset = fragment * 8;
+            ValueLocation::Register {
+                register: MachineRegister::Aarch64X(first_register + fragment as u8),
+                value_byte_offset: value_byte_offset as u16,
+                byte_size: (usize::from(shape.byte_size) - value_byte_offset).min(8) as u16,
+            }
+        })
+        .collect()
+}
+
+fn integer_stack_fragment_locations(
+    shape: ValueShape,
+    first_stack_byte_offset: u32,
+) -> Vec<ValueLocation> {
+    (0..usize::from(shape.byte_size.div_ceil(8)))
+        .map(|fragment| {
+            let value_byte_offset = fragment * 8;
+            ValueLocation::Stack {
+                stack_byte_offset: first_stack_byte_offset + value_byte_offset as u32,
+                value_byte_offset: value_byte_offset as u16,
+                byte_size: (usize::from(shape.byte_size) - value_byte_offset).min(8) as u16,
+                alignment: 8,
+            }
+        })
+        .collect()
 }
 
 fn evaluate_linux_syscall_x86_64(signature: &CallSignature) -> Result<CallPlan, PlanDiagnostic> {
@@ -1263,6 +1330,85 @@ mod tests {
                 value_byte_offset: 24,
                 ..
             }
+        ));
+    }
+
+    #[test]
+    fn aapcs_small_integer_aggregates_use_consecutive_x_registers() {
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8), ValueShape::integer(16, 16)],
+            result: Some(ValueShape::integer(12, 8)),
+        };
+        let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature)
+            .expect("AAPCS small aggregate plan");
+
+        assert_eq!(
+            plan.parameters[1].locations,
+            vec![
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(2),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(3),
+                    value_byte_offset: 8,
+                    byte_size: 8,
+                },
+            ]
+        );
+        assert_eq!(
+            plan.result.expect("aggregate result").locations,
+            vec![
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(0),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(1),
+                    value_byte_offset: 8,
+                    byte_size: 4,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn aapcs_small_aggregate_moves_wholly_to_stack_when_x_registers_run_out() {
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8); 7]
+                .into_iter()
+                .chain([ValueShape::integer(16, 8), ValueShape::integer(8, 8)])
+                .collect(),
+            result: None,
+        };
+        let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature)
+            .expect("AAPCS exhausted aggregate plan");
+
+        assert_eq!(
+            plan.parameters[7].locations,
+            vec![
+                ValueLocation::Stack {
+                    stack_byte_offset: 0,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                    alignment: 8,
+                },
+                ValueLocation::Stack {
+                    stack_byte_offset: 8,
+                    value_byte_offset: 8,
+                    byte_size: 8,
+                    alignment: 8,
+                },
+            ]
+        );
+        assert!(matches!(
+            plan.parameters[8].locations.as_slice(),
+            [ValueLocation::Stack {
+                stack_byte_offset: 16,
+                ..
+            }]
         ));
     }
 

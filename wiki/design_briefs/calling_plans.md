@@ -195,7 +195,12 @@ exact result register through abstract/target operations and x86-64/AArch64
 emission; ISA encoders no longer invent `rax` or `x0`. On AAPCS64, flat records
 of one to four contiguous, same-width `f32` or `f64` members classify as HFAs
 from the normalized data layout and arrive through the plan-selected vector
-register fragments. Nested and general aggregate entry classification and
+register fragments. Fixed non-HFA AAPCS64 records up to 16 bytes now follow the
+normalized consecutive-`x`/whole-value-stack rule, including even-register
+rounding
+for 16-byte alignment; normalized small-aggregate result plans use `x0`/`x1`.
+Outbound aggregate marshalling/result stores and aggregates above 16 bytes
+still need copy and indirect-result lowering, and
 source-selected policies remain. Generic Linux
 syscall leaves are the first outbound path to make the normalized plan
 authoritative: emission evaluates the x86-64 or AArch64 syscall policy for the
