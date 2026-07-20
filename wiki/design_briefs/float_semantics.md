@@ -22,10 +22,12 @@ The model has three layers:
 - **Language** (representation-free): floats are format-parameterized
   rounded-Rat carriers; finite values embed exactly in Rat; comparisons
   may be partial. No NaN, no infinity, no IEEE anywhere in the grammar.
-- **Core**: format RECORDS (what Binary32 IS — radix 2, p=24, emin/emax,
-  IEEE specials, round-to-nearest-even) are target-independent semantic
-  data living in omega::core beside Nat/Rat; the engine's round(format)
-  and the proof stratum's decode->Rat consume them.
+- **Core**: format RECORDS (what Binary32 IS — radix 2, p=24, explicit
+  normal/subnormal exponent bounds, IEEE specials, round-to-nearest-even)
+  are target-independent semantic data living in omega::core beside Nat/Rat;
+  `FloatFormat::BINARY32` and `FloatFormat::BINARY64` are now ordinary core
+  constants. The engine's round(format) and the proof stratum's decode->Rat
+  consume them.
 - **Targets**: checked software machines and checked target instructions
   (`f32.add` -> the FPU operation) live in target packages as explicit
   conformances. Irreducible target operations use parsed, contract-emitting
@@ -183,5 +185,7 @@ makes format-as-data descriptive, not speculative.
    number and never adopted. Retires the shift entry of the
    underspecified-numerics family; native==interp by definition.
 4. Engineering: the stale bounded_float canary family (the `0.0f` suffix
-   no longer lexes) — cleanup rung; the `Instruction` Binding arm (F7);
-   format-record vocabulary v1 = fixed-precision radix-2.
+   no longer lexes) — cleanup rung; F7's remaining work is replacing the
+   hardcoded IEEE lowering bootstrap with checked target conformances and
+   checked assembly. The core format-record vocabulary v1 is live and covers
+   fixed-precision radix-2.
