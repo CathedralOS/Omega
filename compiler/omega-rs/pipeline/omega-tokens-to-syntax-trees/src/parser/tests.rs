@@ -859,6 +859,66 @@ fn parses_data_destructure_transition_guard_as_subject_member_guard() {
 }
 
 #[test]
+fn parses_record_field_value_pattern_as_subject_member_equality() {
+    let source = r#"
+        data Header [copy] { ok: i32; version: i32; }
+        machine inspect(h: Header) -> i32 {
+            transition h {
+                Header { ok: 0, version } -> version
+                _ -> 1
+            }
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("field-value pattern should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+    let state = parsed
+        .items
+        .state_handles(machine.states)
+        .first()
+        .copied()
+        .map(|handle| parsed.items.state(handle))
+        .expect("entry state");
+    let transition = parsed
+        .items
+        .statements(state.statements)
+        .iter()
+        .filter_map(|handle| match parsed.statements.statement(*handle) {
+            omega_syntax_trees::statement::StatementNode::Transition(transition) => {
+                Some(transition)
+            }
+            _ => None,
+        })
+        .next()
+        .expect("first transition arm");
+    let omega_syntax_trees::statement::TransitionGuardNode::When(guard) = transition.guard else {
+        panic!("field-value arm must have an equality guard");
+    };
+    let omega_syntax_trees::expression::ExpressionNode::Binary(equality) =
+        parsed.expressions.expression(guard)
+    else {
+        panic!("field-value pattern should lower to binary equality");
+    };
+    assert_eq!(
+        equality.operator,
+        omega_syntax_trees::expression::BinaryOperator::Equal
+    );
+    assert!(matches!(
+        parsed.expressions.expression(equality.left),
+        omega_syntax_trees::expression::ExpressionNode::Member(_)
+    ));
+}
+
+#[test]
 fn parses_asm_jmp_block_as_transition_statement() {
     let source = r#"
         data Main {

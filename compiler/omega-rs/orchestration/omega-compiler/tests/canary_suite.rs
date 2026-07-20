@@ -16057,6 +16057,42 @@ fn case_payload_native_construction_canary_runs() {
 }
 
 #[test]
+fn runtime_record_field_value_pattern_exit_canary_runs() {
+    // `Header { ok: 0, version }` is a plain-data destructure plus a real
+    // `header.ok == 0` guard.  The matched arm must bind `version` from the
+    // same evaluated subject and route its value to the target state.
+    let canary = pass_canary("data/runtime_record_field_value_pattern_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-record-field-value-pattern-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("record field-value pattern canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("record field-value pattern canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `ok: 0` to select the arm and bind version=70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_case_payload_guard_read_exit_canary_runs() {
     // A multi-field case payload read in a destructure `if` guard: the guard
     // must read the SECOND payload field (`bonus`, packed after `power`) from
@@ -33962,6 +33998,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "data/record_pattern_let_exit",
     "data/record_pattern_double_underscore_field",
     "data/record_pattern_bind_all_exit",
+    "data/runtime_record_field_value_pattern_exit",
     "control_flow/case_pattern_rename_waive_exit",
     "control_flow/record_pattern_arm_rename_guard_exit",
     "control_flow/runtime_nonplace_record_pattern_single_evaluation_exit",

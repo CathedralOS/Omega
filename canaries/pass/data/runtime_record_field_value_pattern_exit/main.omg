@@ -1,0 +1,40 @@
+// A plain-data arm may match a field value while binding its other fields.
+// The field comparison is a real equality guard, so the ordinary flow/proof
+// machinery knows `self.header.ok == 0` inside the first arm.
+
+use omega::language::std::console;
+
+data Header [copy] {
+    ok: i32;
+    version: i32;
+}
+
+data Main {
+    console: Console;
+    header: Header;
+}
+
+machine require_ok(header: Header)
+requires header.ok == 0
+{
+}
+
+machine Main::main(&mut self) {
+    self.header.ok = 0;
+    self.header.version = 70;
+    transition self.header {
+        Header { ok: 0, version } -> matched(self.header, version)
+        _ -> finish(1)
+    }
+
+    state matched(&mut self, header: Header, code: i32) {
+        // The pattern's equality guard follows the transition argument into
+        // this state and discharges the callee's ordinary precondition.
+        require_ok(header);
+        self.console.exit_process(code);
+    }
+
+    state finish(&mut self, code: i32) {
+        self.console.exit_process(code);
+    }
+}

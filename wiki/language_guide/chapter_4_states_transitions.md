@@ -107,6 +107,30 @@ machine Inventory::find_item(
 The call-shaped syntax in a transition arm is argument passing for a jump. It is
 not method dispatch.
 
+## Data Patterns
+
+A transition over ordinary data may destructure fields and match selected
+fields by value:
+
+```omega
+transition header {
+    Header { ok: 0, version } -> accept(version)
+    Header { ok as _, version as _ } -> reject()
+}
+```
+
+`version` binds to `header.version`; `ok: 0` is a real equality guard over
+`header.ok`, so the arm carries the ordinary proof fact `header.ok == 0`.
+`field as name` renames a binding and `field as _` explicitly waives it. A
+pattern without `..` must mention every field, whether bound, waived, or
+matched; adding a field therefore breaks every exhaustive pattern until its
+author decides what to do. `..` opts out of that drift check in arm position.
+
+The same spelling applies to case payloads (`Message::Data { kind: 1, body }`).
+The subject is evaluated once before dispatch, and extraction reads that saved
+value. Field-value patterns are ordinary projection plus equality, not a
+second pattern-only fact or comparison system.
+
 ## No Silent Fall-Through (settled 2026-07-02)
 
 A transition dispatch must PROVABLY cover every case: a dispatch that could
