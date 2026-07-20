@@ -31280,6 +31280,7 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/efi_vtable_field_call", "uefi_x64"),
     ("targets/efi_out_param_call", "uefi_x64"),
     ("targets/efi_ref_param_call_arg", "uefi_x64"),
+    ("targets/efi_small_aggregate_entry", "uefi_x64"),
     ("targets/aarch64_hfa_entry_argument", "linux_arm64"),
     ("targets/aarch64_small_aggregate_entry", "linux_arm64"),
     ("targets/aarch64_small_aggregate_stack_entry", "linux_arm64"),
@@ -32581,6 +32582,37 @@ fn efi_float_entry_argument_unmarshals_xmm0() {
     );
     assert_eq!(&entry[15..19], &0u32.to_le_bytes(), "frame offset 0");
 
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn efi_small_aggregate_entry_uses_rcx_and_rax() {
+    let canary = pass_canary("targets/efi_small_aggregate_entry");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-efi-small-record-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("uefi_x64".into()),
+        write_output: true,
+    })
+    .expect("Microsoft x64 direct record entry should compile");
+
+    let image = fs::read(build_dir.join("omega-program.exe")).expect("emitted image should exist");
+    assert!(
+        image
+            .windows(17)
+            .any(|window| { window[0..2] == [0x49, 0xbf] && window[10..13] == [0x49, 0x89, 0x8f] }),
+        "expected the incoming eight-byte record stored from rcx"
+    );
+    assert!(
+        image
+            .windows(17)
+            .any(|window| { window[0..2] == [0x49, 0xbf] && window[10..13] == [0x49, 0x8b, 0x87] }),
+        "expected the terminal eight-byte record loaded into rax"
+    );
     let _ = fs::remove_dir_all(&build_dir);
 }
 

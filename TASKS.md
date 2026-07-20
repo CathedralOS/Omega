@@ -140,6 +140,12 @@ ceiling derived exactly from the ABI volatile-register classes.
    The general Win64 encoder additionally rejects incompatible policy/control/
    stack/shadow/clobber contracts and keeps its call marshalling, dispatch, and
    result-store scratch inside the normalized ordinary-clobber ceiling.
+   Direct 1-, 2-, 4-, and 8-byte Microsoft x64 entry records now consume the
+   normalized boundary plan in both directions: declared parameters store from
+   the plan-selected integer register or stack slot and terminal records load
+   into `rax`. A source-to-PE UEFI canary pins the eight-byte `rcx`/`rax` path;
+   wider hidden-`rcx` result records remain fail-closed pending the x86 indirect
+   entry copier.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
    complete import/vtable/service-table compatibility mechanism matrix is

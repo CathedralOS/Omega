@@ -1424,7 +1424,10 @@ fn normalized_entry_record_result_shape(
     input: &InstructionSelectionInput<'_>,
 ) -> Option<ValueShape> {
     let policy = CallingPolicy::native_for_target(input.target);
-    if !matches!(policy, CallingPolicy::Aapcs64 | CallingPolicy::SystemVAMD64) {
+    if !matches!(
+        policy,
+        CallingPolicy::Aapcs64 | CallingPolicy::MicrosoftX64 | CallingPolicy::SystemVAMD64
+    ) {
         return None;
     }
     let machine = input
@@ -1449,6 +1452,14 @@ fn normalized_entry_record_result_shape(
     };
     let byte_size = u16::try_from(data_layout.layout.size).ok()?;
     let alignment = u16::try_from(data_layout.layout.alignment).ok()?;
+
+    // Microsoft x64 returns only 1-, 2-, 4-, and 8-byte records directly in
+    // RAX. Wider records require its distinct hidden-RCX convention, which is
+    // kept fail-closed until the x86 indirect-entry path can preserve it.
+    if policy == CallingPolicy::MicrosoftX64 {
+        return matches!(byte_size, 1 | 2 | 4 | 8)
+            .then(|| ValueShape::integer(byte_size, alignment));
+    }
 
     if policy == CallingPolicy::Aapcs64 {
         return flat_homogeneous_float_aggregate_shape(input, fields, data_layout.layout)
