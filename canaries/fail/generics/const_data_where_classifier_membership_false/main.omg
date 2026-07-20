@@ -1,6 +1,7 @@
-// A concrete const parameter must satisfy an evaluable integer-domain `when`
-// classifier before its generic instance can be synthesized.
-domain u64::BufferSize when self > 0 && self <= 8 {}
+// A concrete const parameter must satisfy nested integer-domain `when`
+// membership before its generic instance can be synthesized.
+domain u64::Positive when self > 0 {}
+domain u64::BufferSize when self in Positive {}
 
 data FixedBuffer<const N: u64>
 where
@@ -10,7 +11,7 @@ where
 }
 
 data Main {
-    buffer: FixedBuffer<9>;
+    buffer: FixedBuffer<0>;
 }
 
 machine Main::main(&mut self) {}
