@@ -203,6 +203,10 @@ ceiling derived exactly from the ABI volatile-register classes.
    fragments or saved hidden destination as runtime-backed records. One
    source canary pins a two-word literal through SysV `rax`/`rdx`, AAPCS64
    `x0`/`x1`, and the Microsoft x64 indirect-result path.
+   Runtime-indexed slice-element entry terminals now reuse the internal
+   call-result indexed-copy shape to stage the selected element in result
+   scratch, then load the normalized scalar register. A dependent-bound slice
+   source canary pins `eax` and `w0` delivery on Linux x64 and ARM64.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
    complete import/vtable/service-table compatibility mechanism matrix is

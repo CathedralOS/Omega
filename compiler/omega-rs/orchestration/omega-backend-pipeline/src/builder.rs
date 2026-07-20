@@ -563,6 +563,7 @@ fn entry_native_expression_result_layout(
         {
             omega_checked_trees::expression::ExpressionNode::Binary(_)
             | omega_checked_trees::expression::ExpressionNode::Float(_)
+            | omega_checked_trees::expression::ExpressionNode::Indexed(_)
             | omega_checked_trees::expression::ExpressionNode::StructLiteral(_) => true,
             omega_checked_trees::expression::ExpressionNode::Name(path) => {
                 path.head_symbol == result_symbol

@@ -31810,6 +31810,52 @@ fn aggregate_literal_entry_result_uses_native_fragments() {
 }
 
 #[test]
+fn indexed_scalar_entry_result_uses_native_registers() {
+    let canary = pass_canary("targets/indexed_scalar_result_entry");
+    for target in ["linux_x64", "linux_arm64"] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-{target}-indexed-scalar-result-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let src_dir = scratch.join("src");
+        let out_dir = scratch.join("out");
+        fs::create_dir_all(&src_dir).expect("scratch source directory");
+        fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
+        fs::write(
+            src_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write target manifest");
+
+        compile(CompileOptions {
+            root_path: src_dir.join("main.omg"),
+            build_dir: Some(out_dir.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .expect("indexed scalar entry result should cross-compile");
+
+        let image = fs::read(out_dir.join("omega-program")).expect("read emitted ELF");
+        if target == "linux_x64" {
+            assert!(
+                image.windows(3).any(|window| window == [0x41, 0x8b, 0x87]),
+                "SysV indexed scalar terminal missing eax scratch load"
+            );
+        } else {
+            assert!(
+                image.windows(4).any(|window| {
+                    let instruction = u32::from_le_bytes(window.try_into().expect("word"));
+                    instruction & !0x003f_fc00 == 0xb940_0200
+                }),
+                "AAPCS64 indexed scalar terminal missing w0 scratch load"
+            );
+        }
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
 fn aarch64_hfa_result_entry_loads_d0_d1_and_d2() {
     let canary = pass_canary("targets/aarch64_hfa_result_entry");
     let build_dir = std::env::temp_dir().join(format!(
