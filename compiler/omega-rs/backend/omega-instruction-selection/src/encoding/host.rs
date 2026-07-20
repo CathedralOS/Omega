@@ -678,6 +678,10 @@ fn normalized_aarch64_import_plan_from_call_operands(
                 placement.shape.class,
                 omega_calling_conventions::ValueClass::HomogeneousFloatAggregate { .. }
             )
+            && !(matches!(
+                placement.shape.class,
+                omega_calling_conventions::ValueClass::Integer
+            ) && (9..=16).contains(&placement.shape.byte_size))
         {
             return Err(Diagnostic::error(format!(
                 "AAPCS64 import parameter {index} has unsupported fragmented placement {:?}",
@@ -762,6 +766,18 @@ fn aarch64_operand_shape(
                 member_byte_count,
                 members,
             ))
+        }
+        Aarch64CallOperand::RuntimeSmallAggregate {
+            byte_count,
+            alignment,
+            ..
+        } => {
+            let byte_count = u16::try_from(byte_count).map_err(|_| {
+                Diagnostic::error("AArch64 small aggregate operand width exceeds u16")
+            })?;
+            let alignment = u16::try_from(alignment)
+                .map_err(|_| Diagnostic::error("AArch64 small aggregate alignment exceeds u16"))?;
+            Ok(ValueShape::integer(byte_count, alignment))
         }
         Aarch64CallOperand::DataAddress
         | Aarch64CallOperand::RuntimeStringPointer { .. }

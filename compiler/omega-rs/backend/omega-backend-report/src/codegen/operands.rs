@@ -78,6 +78,15 @@ pub(super) fn selected_instruction_operands_name(
                     member_byte_count * 8
                 )
             }
+            InstructionOperandKind::RuntimeSmallAggregate {
+                region,
+                byte_offset,
+                byte_count,
+                alignment,
+            } => {
+                let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
+                format!("aggregate {byte_count}/{alignment} {symbol}@{byte_offset}")
+            }
             InstructionOperandKind::RuntimeStorageAddress {
                 region,
                 byte_offset,

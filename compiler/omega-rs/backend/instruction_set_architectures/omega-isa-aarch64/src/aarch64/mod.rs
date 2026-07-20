@@ -980,6 +980,11 @@ fn append_syscall_operands(
                     "AArch64 Linux syscall plans do not admit HFA operands",
                 ));
             }
+            RuntimeSmallAggregate { .. } => {
+                return Err(Diagnostic::error(
+                    "AArch64 Linux syscall plans do not admit aggregate operands",
+                ));
+            }
         }
     }
     Ok(())
@@ -1597,6 +1602,76 @@ mod host_call_plan_register_tests {
                 + 4
         );
     }
+
+    #[test]
+    fn small_aggregate_argument_uses_all_planned_x_or_stack_fragments() {
+        let operand = Aarch64CallOperand::RuntimeSmallAggregate {
+            byte_offset: 32,
+            byte_count: 16,
+            alignment: 8,
+        };
+        let register_placement = ValuePlacement {
+            shape: omega_calling_conventions::ValueShape::integer(16, 8),
+            locations: vec![
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(0),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(1),
+                    value_byte_offset: 8,
+                    byte_size: 8,
+                },
+            ],
+        };
+        let register_bytes = encode_host_call_sequence(&[operand], &[register_placement])
+            .expect("register-resident small aggregate");
+        assert_eq!(
+            &register_bytes[8..12],
+            &encode_load_x_from_x(0, 16, 32).unwrap()
+        );
+        assert_eq!(
+            &register_bytes[12..16],
+            &encode_load_x_from_x(1, 16, 40).unwrap()
+        );
+        assert_eq!(&register_bytes[16..20], &encode_branch_link_placeholder());
+
+        let stack_placement = ValuePlacement {
+            shape: omega_calling_conventions::ValueShape::integer(16, 8),
+            locations: vec![
+                ValueLocation::Stack {
+                    stack_byte_offset: 0,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                    alignment: 8,
+                },
+                ValueLocation::Stack {
+                    stack_byte_offset: 8,
+                    value_byte_offset: 8,
+                    byte_size: 8,
+                    alignment: 8,
+                },
+            ],
+        };
+        let stack_bytes = encode_host_call_sequence(&[operand], &[stack_placement.clone()])
+            .expect("stack-resident small aggregate");
+        assert_eq!(&stack_bytes[0..4], &0xd100_43ffu32.to_le_bytes());
+        assert_eq!(
+            &stack_bytes[16..20],
+            &encode_store_x_to_x(17, 31, 0).unwrap()
+        );
+        assert_eq!(
+            &stack_bytes[24..28],
+            &encode_store_x_to_x(17, 31, 8).unwrap()
+        );
+        assert_eq!(
+            stack_bytes.len(),
+            crate::aarch64::operand_width(&operand)
+                + crate::aarch64::host_call_stack_total_width_for_placements(&[stack_placement])
+                + 4
+        );
+    }
 }
 
 fn append_call_operands(
@@ -1630,6 +1705,22 @@ fn append_call_operands(
     append_call_stack_reserve(bytes, stack_bytes)?;
 
     for (index, (operand, placement)) in operands.into_iter().zip(argument_placements).enumerate() {
+        if let RuntimeSmallAggregate {
+            byte_offset,
+            byte_count,
+            alignment,
+        } = operand
+        {
+            append_small_aggregate_call_operand(
+                bytes,
+                byte_offset,
+                byte_count,
+                alignment,
+                &placement.locations,
+                index,
+            )?;
+            continue;
+        }
         if let RuntimeHomogeneousFloatAggregate {
             byte_offset,
             member_byte_count,
@@ -1694,6 +1785,84 @@ fn append_call_operands(
     }
 
     Ok(stack_bytes)
+}
+
+fn append_small_aggregate_call_operand(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+    byte_count: usize,
+    alignment: usize,
+    locations: &[ValueLocation],
+    parameter_index: usize,
+) -> Result<(), Diagnostic> {
+    if !(9..=16).contains(&byte_count)
+        || !alignment.is_power_of_two()
+        || locations.len() != byte_count.div_ceil(8)
+    {
+        return Err(Diagnostic::error(format!(
+            "AAPCS64 small aggregate parameter {parameter_index} has inconsistent shape or placement"
+        )));
+    }
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    for (fragment, location) in locations.iter().copied().enumerate() {
+        let fragment_offset = fragment * 8;
+        let fragment_byte_count = (byte_count - fragment_offset).min(8);
+        match location {
+            ValueLocation::Register {
+                register: MachineRegister::Aarch64X(register),
+                value_byte_offset,
+                byte_size,
+            } if usize::from(value_byte_offset) == fragment_offset
+                && usize::from(byte_size) == fragment_byte_count =>
+            {
+                append_load_data_from_x_offset(
+                    bytes,
+                    register,
+                    16,
+                    byte_offset + fragment_offset,
+                    fragment_byte_count,
+                    17,
+                )?;
+            }
+            ValueLocation::Stack {
+                stack_byte_offset,
+                value_byte_offset,
+                byte_size,
+                ..
+            } if usize::from(value_byte_offset) == fragment_offset
+                && usize::from(byte_size) == fragment_byte_count =>
+            {
+                append_load_data_from_x_offset(
+                    bytes,
+                    17,
+                    16,
+                    byte_offset + fragment_offset,
+                    fragment_byte_count,
+                    9,
+                )?;
+                let stack_byte_offset = usize::try_from(stack_byte_offset).map_err(|_| {
+                    Diagnostic::error("AAPCS64 aggregate stack offset exceeds usize")
+                })?;
+                if fragment_byte_count < 8 {
+                    bytes.extend(encode_store_w_to_x(
+                        17,
+                        31,
+                        stack_byte_offset,
+                        fragment_byte_count,
+                    )?);
+                } else {
+                    bytes.extend(encode_store_x_to_x(17, 31, stack_byte_offset)?);
+                }
+            }
+            location => {
+                return Err(Diagnostic::error(format!(
+                    "AAPCS64 small aggregate parameter {parameter_index} has unsupported fragment {fragment}: {location:?}"
+                )));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn append_hfa_call_operand(
@@ -1949,6 +2118,11 @@ fn append_register_call_operand(
         RuntimeHomogeneousFloatAggregate { .. } => {
             return Err(Diagnostic::error(
                 "AAPCS64 HFA operands require their complete fragmented placement",
+            ));
+        }
+        RuntimeSmallAggregate { .. } => {
+            return Err(Diagnostic::error(
+                "AAPCS64 small aggregates require their complete fragmented placement",
             ));
         }
         RuntimeStorageAddress { byte_offset } => {

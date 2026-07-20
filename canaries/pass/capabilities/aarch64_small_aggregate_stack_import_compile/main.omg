@@ -1,0 +1,26 @@
+// Seven scalar arguments consume x0..x6. The following two-register record
+// must move wholly to the normalized outgoing stack area, never split at x7.
+data Pair { first: u64; second: u64; }
+
+boundary trait AggregateStackImport {
+    machine call(
+        a0: u64,
+        a1: u64,
+        a2: u64,
+        a3: u64,
+        a4: u64,
+        a5: u64,
+        a6: u64,
+        pair: Pair
+    ) -> i64;
+}
+
+macos_arm64 provides AggregateStackImport {
+    call -> DllImport("libSystem.B.dylib", "omega_small_aggregate_stack_probe")
+}
+
+data Main { foreign: AggregateStackImport; pair: Pair; result: i64; }
+machine Main::main(&mut self) {
+    self.pair = Pair { first: 8, second: 9 };
+    self.result = self.foreign.call(1, 2, 3, 4, 5, 6, 7, self.pair);
+}

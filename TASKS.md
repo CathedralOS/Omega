@@ -61,7 +61,9 @@ immediate, while the fixed x86-64 sequences reject plans they cannot realize
 instead of silently choosing an ABI. AArch64 C/import calls and their results
 now evaluate AAPCS64 from selected operand shapes and pass the plan's exact X/V
 registers and stack placements to the ISA encoder, including scalar stack
-arguments and flat HFA arguments/results. AArch64 vtable and service-table calls
+arguments, flat HFA arguments/results, and fixed non-HFA arguments up to 16
+bytes in consecutive `x` registers or whole-value stack fragments. AArch64
+vtable and service-table calls
 reuse that marshaller and dispatch through caller-saved `x16`; vtable receivers
 remain planned `x0` arguments, while service-table pointers stay outside the
 wire signature. Field-model returns route plan-selected scalar GPR/vector and
@@ -148,8 +150,11 @@ ceiling derived exactly from the ABI volatile-register classes.
    aligned stack fragments when the remaining register bank is too small,
    while normalized small-aggregate results select `x0`/`x1`; a
    source-to-object canary pins a mixed scalar + 16-byte record entry in `x0`,
-   then `x1`/`x2`. Outbound aggregate marshalling/result stores and aggregates
-   above 16 bytes still require their copy/indirect-result lowering.
+   then `x1`/`x2`. Provides-authored outbound calls now preserve the same
+   non-HFA records as one by-value operand, load every plan-selected `x`
+   fragment, or copy the whole value into aligned outgoing stack fragments;
+   cross-target canaries pin both realizations. Small aggregate result stores
+   and aggregates above 16 bytes still require result/copy lowering.
    Ordinary AArch64 `VtableSlot` and `VtableField` calls now evaluate AAPCS64
    from their selected operands, require the full-width receiver in planned
    `x0`, marshal every argument/stack slot through the shared plan consumer,

@@ -1692,6 +1692,21 @@ pub fn operand_width(operand: &Aarch64CallOperand) -> usize {
                 })
                 .sum::<usize>()
         }
+        RuntimeSmallAggregate {
+            byte_offset,
+            byte_count,
+            ..
+        } => {
+            8 + (0..byte_count.div_ceil(8))
+                .map(|fragment| {
+                    let fragment_offset = fragment * 8;
+                    load_data_offset_width(
+                        byte_offset + fragment_offset,
+                        (byte_count - fragment_offset).min(8),
+                    )
+                })
+                .sum::<usize>()
+        }
         ImmediateInteger(value) => immediate_width(*value),
         ByteLength(value) => unsigned_immediate_width(*value as u64),
     }
