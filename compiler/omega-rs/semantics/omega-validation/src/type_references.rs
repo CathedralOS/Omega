@@ -4,7 +4,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{TypeParameter, TypeParameterKind};
 use omega_typed_trees::types::{
-    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+    FixedArrayLength, PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 use std::fmt;
 
@@ -301,7 +301,17 @@ fn validate_type_reference_handle_with_context(
             );
             validate_type_constraints_node(program, *base_type, *constraints, diagnostics, owner);
         }
-        TypeReferenceNode::FixedArray { element_type, .. } => {
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            validate_symbolic_array_length(
+                program,
+                length,
+                type_parameter_scope,
+                diagnostics,
+                owner,
+            );
             // Element spelling of the Q9 rule (`[u8 [0..=9] in Wrapping; 3]`).
             crate::arithmetic_domains::check_range_under_non_exact_domain(
                 program,
@@ -446,6 +456,53 @@ fn validate_type_reference_handle_with_context(
             }
         }
         TypeReferenceNode::Unit => {}
+    }
+}
+
+fn validate_symbolic_array_length(
+    program: &TypedTrees,
+    length: &FixedArrayLength,
+    type_parameter_scope: TypeParameterScope<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+    owner: TypeReferenceOwner<'_>,
+) {
+    let FixedArrayLength::ConstParameter { symbol, name } = length else {
+        return;
+    };
+    let parameter = type_parameter_scope
+        .type_parameters
+        .iter()
+        .find(|parameter| {
+            (symbol.is_valid() && parameter.symbol == *symbol)
+                || parameter.name.as_str() == name.as_str()
+        });
+    let Some(parameter) = parameter else {
+        diagnostics.push(Diagnostic::error(format!(
+            "{owner} uses unresolved fixed-array length `{name}`; a symbolic array length \
+             must name an in-scope `const` parameter"
+        )));
+        return;
+    };
+    let TypeParameterKind::Const { type_reference } = parameter.kind else {
+        diagnostics.push(Diagnostic::error(format!(
+            "{owner} uses type parameter `{name}` as a fixed-array length; array lengths \
+             must name a `const` parameter"
+        )));
+        return;
+    };
+    let Some(primitive) = program.type_reference_table.primitive_type(type_reference) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "{owner} uses const parameter `{name}` with a non-primitive type as a \
+             fixed-array length; array lengths require an integer primitive"
+        )));
+        return;
+    };
+    if !primitive.accepts_integer_literal() {
+        diagnostics.push(Diagnostic::error(format!(
+            "{owner} uses const parameter `{name}` of non-integer type `{}` as a \
+             fixed-array length",
+            primitive.name(),
+        )));
     }
 }
 

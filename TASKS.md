@@ -487,7 +487,11 @@ remain contract-invisible.
 
 ## Correctness bugs and missing lowering
 
-No currently isolated correctness bugs are queued here.
+- **Computed scalar host arguments.** The aggregate pass corpus currently
+  rejects `collections/runtime_dual_indexed_copy_exit` plus computed path/index
+  operands in `filesystem/repeated_dir_walk_scan_exit` because their scalar
+  arguments do not materialize before platform calls. Restore those lowering
+  paths without weakening the fail-closed host-argument diagnostic.
 
 ## Type, proof, and semantic-model work
 
@@ -707,9 +711,10 @@ No currently isolated correctness bugs are queued here.
   parameter-free attached mutating/value methods clone and dispatch by exact
   specialization. Attached methods whose same-name const parameters are covered
   by the container now specialize const-sized signatures and bare const values
-  in executable bodies for each instance, and call validation enforces the
-  specialized fixed-array extent. Continue with richer const expressions,
-  layout diagnostics, and const-fact proof integration.
+  in executable bodies for each instance. Symbolic fixed-array lengths now
+  reject undeclared names, ordinary type parameters, and non-integer const
+  parameters instead of degrading to an unknown/default layout. Continue with
+  richer const expressions and const-fact proof integration.
 - **Trait defaults.** Implement conformance, reuse, override, and dispatch for
   trait machines whose body supplies the default. Do not restore a `default`
   keyword.

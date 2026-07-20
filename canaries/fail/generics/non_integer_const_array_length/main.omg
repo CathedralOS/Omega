@@ -1,0 +1,9 @@
+data Wrong<const N: bool> {
+    slots: [u8; N];
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
