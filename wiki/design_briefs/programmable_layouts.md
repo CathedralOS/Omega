@@ -227,9 +227,12 @@ executable-container v2, which carries one required entry-set section. It
 validates unique compiler-issued entry identities and in-code offsets, binds
 the entry-set identity through artifact admission, and allows an admitted
 artifact to yield only a sealed target present in that set. Source-level data
-identity derivation, final artifact propagation, numeric resolution after an
-artifact is bound to one exact placement, and target-machine emission of the
-resulting writer remain.
+identity derivation and final artifact propagation remain. For entry targets,
+the exact `InstalledCode` state now supplies the private resolver while the
+normalized writer validates its destination, resolves each target once, stages
+all fragments, and publishes atomically. Foreign entries and data symbols fail
+without changing the destination; numeric entry addresses never become a
+public API. Target-machine emission of the writer remains.
 
 ## Still open
 

@@ -450,6 +450,14 @@ impl PostHandoffWriterPlan {
         let mut resolved_targets = std::collections::BTreeMap::new();
         let mut values = Vec::with_capacity(self.steps.len());
         for step in &self.steps {
+            if let PostHandoffWriterSource::Resolve(target) = step.source
+                && target != step.write.target
+            {
+                return Err(MaterializationDiagnostic(format!(
+                    "post-handoff writer source {target:?} does not match write target {:?}",
+                    step.write.target
+                )));
+            }
             let value = match step.source {
                 PostHandoffWriterSource::Resolved(value) => value,
                 PostHandoffWriterSource::Resolve(target) => {
@@ -924,6 +932,46 @@ mod tests {
         assert_eq!(resolutions, 1, "three fragments share one resolution");
         assert_eq!(&bytes[0..4], &[0x88, 0x77, 0x66, 0x55]);
         assert_eq!(&bytes[8..12], &[0x44, 0x33, 0x22, 0x11]);
+    }
+
+    #[test]
+    fn writer_rejects_a_resolved_source_that_does_not_match_its_write_target() {
+        let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
+        let plan = derive_symbolic_materialization(
+            &split_layout(),
+            &[symbolic],
+            MaterializationContext {
+                consumption: ConsumptionInstant::AfterOmegaHandoff,
+                byte_order: ByteOrder::LittleEndian,
+                native_pointer_relocation_bits: None,
+                placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+            },
+            |_| None,
+        )
+        .expect("writer plan");
+        let mut writer = plan
+            .derive_post_handoff_writer()
+            .expect("runtime actions form a writer program");
+        let substituted = RelocationTarget::Entry(
+            EntryStubId::from_normalized_identity(0x66bb).expect("second entry identity"),
+        );
+        writer.steps[0].source = PostHandoffWriterSource::Resolve(substituted);
+
+        let mut bytes = [0xa5_u8; 16];
+        let error = writer
+            .execute(
+                &mut bytes,
+                PlacementSite {
+                    base_address: 0,
+                    phase: PlacementPhase::PostHandoff,
+                    machine_regime: None,
+                    installation_scope: None,
+                },
+                |_| panic!("mismatched writer target must reject before resolution"),
+            )
+            .expect_err("writer source substitution must reject");
+        assert!(error.0.contains("does not match write target"));
+        assert_eq!(bytes, [0xa5; 16]);
     }
 
     #[test]
