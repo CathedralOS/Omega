@@ -1,9 +1,9 @@
-// A fact over only const parameters is discharged once for the concrete
-// generic instance. It is not a runtime invariant on the synthesized record.
+// Facts over only const parameters, including membership in an integer domain
+// with an evaluable `when` classifier, discharge once for the concrete generic
+// instance. They are not runtime invariants on the synthesized record.
 use omega::language::std::console;
 
-domain u64::BufferSize {
-    self > 0;
+domain u64::BufferSize when self > 0 {
     self <= 8;
 }
 
