@@ -24,12 +24,18 @@ impl TypeReferenceTable {
         self.type_references.insert(type_reference)
     }
 
-    /// Number of nodes in the table. Handles created at or after this count
-    /// belong to a copy in progress -- the generic-instance machine clones use
-    /// it as a SUBSTITUTION WATERMARK (rewrite `Named(T)` nodes only inside
-    /// the freshly copied subtree).
+    /// Arena index of the next node inserted into the table. Handles created
+    /// at or after this watermark belong to a copy in progress -- generic
+    /// specialization rewrites `Named(T)` nodes only inside that fresh
+    /// subtree.
     pub fn node_count(&self) -> u32 {
-        self.type_references.iter().count() as u32
+        self.type_references
+            .iter()
+            .map(|(handle, _)| handle.arena_index())
+            .max()
+            .unwrap_or(0)
+            .checked_add(1)
+            .expect("type-reference arena index overflow")
     }
 
     /// The `Named` nodes created at or after `watermark`, as (handle, name).
@@ -345,6 +351,18 @@ mod tests {
         };
 
         assert_eq!(arguments.count(), 2);
+    }
+
+    #[test]
+    fn substitution_watermark_excludes_existing_type_nodes() {
+        let mut types = TypeReferenceTable::new();
+        let existing = types.insert_named(Identifier::generated("T"));
+        let watermark = types.node_count();
+        let copied = types.insert_named(Identifier::generated("T"));
+
+        let nodes = types.named_nodes_from(watermark);
+        assert_eq!(nodes, vec![(copied, "T".to_string())]);
+        assert_ne!(nodes[0].0, existing);
     }
 
     #[test]

@@ -53,6 +53,7 @@ pub enum ItemSnapshot {
     Conformance {
         type_name: IdentifierSnapshot,
         trait_name: IdentifierSnapshot,
+        trait_arguments: Vec<TypeReferenceSnapshot>,
     },
     Const {
         scope: IdentifierSnapshot,
@@ -584,6 +585,12 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         Item::Conformance(value) => ItemSnapshot::Conformance {
             type_name: snapshot_identifier(&value.type_name),
             trait_name: snapshot_identifier(&value.trait_name),
+            trait_arguments: syntax_trees
+                .type_references
+                .type_reference_handles(value.trait_arguments)
+                .iter()
+                .map(|argument| snapshot_type_reference_handle(syntax_trees, *argument))
+                .collect(),
         },
         Item::Const(value) => ItemSnapshot::Const {
             scope: snapshot_identifier(&value.scope),

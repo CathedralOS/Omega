@@ -542,6 +542,8 @@ Working guideline:
 
 - Use trait parameters first.
 - Bind concrete trait parameters on the satisfying machine with `satisfies`.
+- Bind a whole generic conformance explicitly at its standalone item, for
+  example `Player satisfies WireEncodable<PlayerMessage>;`.
 - Do not add associated constants, higher-kinded types, or type families until
   the language has a real need.
 
@@ -595,6 +597,16 @@ is a standalone CONFORMANCE ITEM:
 ```omega
 Point satisfies Equatable;
 ```
+
+A generic conformance carries its concrete arguments at the same site:
+
+```omega
+Player satisfies WireEncodable<PlayerMessage>;
+```
+
+Those arguments specialize authored default signatures and bodies. They also
+compose through header parents, so a non-generic `trait IntSink: Sink<i32>`
+passes `i32` into defaults inherited from `Sink<T>`.
 
 The claim is discharged member by member:
 

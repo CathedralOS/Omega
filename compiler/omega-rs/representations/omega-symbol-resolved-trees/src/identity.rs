@@ -84,6 +84,19 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
         }
     }
 
+    for conformance in &program.conformances {
+        count_declaration_name(&conformance.type_name, &mut counts);
+        count_declaration_name(&conformance.trait_name, &mut counts);
+        for argument in child_type_references.span_or_empty(conformance.arguments) {
+            count_type_reference(
+                argument,
+                child_type_references,
+                expression_table,
+                &mut counts,
+            );
+        }
+    }
+
     for trait_definition in &program.traits {
         count_declaration_name(&trait_definition.name, &mut counts);
         for parameter in program.trait_type_parameters(trait_definition) {

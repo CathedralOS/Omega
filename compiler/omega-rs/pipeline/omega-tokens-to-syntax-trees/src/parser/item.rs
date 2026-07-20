@@ -11,7 +11,9 @@ use crate::parser::measure::parse_measure_definition;
 use crate::parser::operator::parse_operator_definition;
 use crate::parser::target::parse_target_definition;
 use crate::parser::trait_definition::parse_trait_definition;
-use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
+use crate::parser::type_reference::{
+    parse_type_reference_handle, parse_type_reference_handle_allowing_borrow,
+};
 use crate::parser::use_item::parse_use_item;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::{
@@ -275,12 +277,33 @@ pub(super) fn parse_item<'tokens, 'source>(
         && rest.at_contextual("satisfies")
     {
         let rest = rest.take_contextual("satisfies")?;
-        let (trait_name, rest) = rest.take_identifier()?;
+        let (trait_name, mut rest) = rest.take_identifier()?;
+        let trait_arguments = if rest.at_punctuation(PunctuationKind::Less) {
+            rest = rest.take_punctuation(PunctuationKind::Less, "<")?;
+            let mut arguments = Vec::new();
+            loop {
+                let (argument, next) = parse_type_reference_handle(syntax_trees, rest)?;
+                arguments.push(argument);
+                rest = next;
+                if rest.at_punctuation(PunctuationKind::Comma) {
+                    rest = rest.take_punctuation(PunctuationKind::Comma, ",")?;
+                    continue;
+                }
+                rest = rest.take_punctuation(PunctuationKind::Greater, ">")?;
+                break;
+            }
+            syntax_trees
+                .type_references
+                .insert_type_reference_handles(arguments)
+        } else {
+            omega_core::arena::HandleSpan::empty()
+        };
         let rest = take_optional_semicolon(rest)?;
         return Ok((
             Item::Conformance(omega_syntax_trees::item::ConformanceItem {
                 type_name,
                 trait_name,
+                trait_arguments,
             }),
             rest,
         ));

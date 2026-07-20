@@ -63,6 +63,16 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
             &mut domain.target_type,
         );
     });
+
+    program.roots.conformances.for_each_mut(|conformance| {
+        assign_type_reference_argument_symbols(
+            symbols,
+            child_type_references,
+            &[],
+            SymbolHandle::invalid(),
+            conformance.arguments,
+        );
+    });
 }
 
 pub(in crate::symbols) fn assign_type_reference_symbol_with_self_type(

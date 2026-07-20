@@ -728,13 +728,16 @@ remain contract-invisible.
   domain defined by boolean `self` facts also discharges per instance; false
   membership rejects. Continue with signed/domain arithmetic semantics,
   classifier-backed const membership, and richer build-time proof operands.
-- **Trait defaults.** Non-generic standalone data conformances now synthesize a
+- **Trait defaults (authored bodies complete).** Standalone data conformances synthesize a
   missing attached machine from the trait's authored body before resolution,
   including defaults inherited through `requires` and header parents. Ordinary
   calls dispatch in both engines, written methods override defaults, bodyless
   child declarations suppress inherited bodies, and conflicting inherited
-  bodies require an override. Continue through generic trait defaults. Do not
-  restore a `default` keyword.
+  bodies require an override. Direct generic conformances retain and validate
+  their explicit arguments, and concrete bindings compose through generic
+  header parents before substitution into the synthesized signature and body.
+  Reflection-driven trait generators remain under build-time evaluation below.
+  Do not restore a `default` keyword.
 - **Dynamic traits.** Implement `dyn Trait` construction, descriptors carrying
   satisfier identity, vtable emission, dispatch lowering, and object-safety.
 - **Equatable synthesis.** Provide a callable conformance surface rather than

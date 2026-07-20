@@ -1,0 +1,9 @@
+trait Resettable<T> {
+    machine reset(&mut self) {
+    }
+}
+
+data Counter {
+}
+
+Counter satisfies Resettable;

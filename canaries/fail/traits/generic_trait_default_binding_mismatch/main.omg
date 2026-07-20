@@ -1,0 +1,17 @@
+trait Assignable<T> {
+    machine assign(&mut self, value: T);
+
+    machine reset(&mut self, value: T) {
+        self.assign(value);
+    }
+}
+
+data Counter {
+    value: i32;
+}
+
+Counter satisfies Assignable<bool>;
+
+machine Counter::assign(&mut self, value: i32) {
+    self.value = value;
+}

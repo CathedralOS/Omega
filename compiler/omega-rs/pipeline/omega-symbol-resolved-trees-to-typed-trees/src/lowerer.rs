@@ -76,9 +76,24 @@ pub fn lower_symbol_resolved_trees(
     }
 
     for conformance in &symbol_resolved_trees.conformances {
+        let mut arguments = omega_core::arena::HandleSpan::empty();
+        for argument in symbol_resolved_trees
+            .tables
+            .declarations
+            .child_type_references
+            .span_or_empty(conformance.arguments)
+        {
+            let argument =
+                crate::type_reference::lower_type_reference_into_table(&mut lowerer, argument)?;
+            lowerer
+                .typed_trees
+                .type_reference_table
+                .push_type_reference_handle(&mut arguments, argument);
+        }
         let conformance = omega_typed_trees::trait_definition::DataConformance {
             type_name: crate::name::lower_name(&conformance.type_name),
             trait_name: crate::name::lower_name(&conformance.trait_name),
+            arguments,
         };
         lowerer.typed_trees.push_data_conformance(conformance);
     }

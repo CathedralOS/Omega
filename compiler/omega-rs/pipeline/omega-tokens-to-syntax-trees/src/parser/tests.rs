@@ -43,6 +43,43 @@ fn parses_consecutive_bodyless_boundary_machines() {
 }
 
 #[test]
+fn parses_generic_standalone_conformance_arguments() {
+    let source = r#"
+        trait Converter<Source, Target> {
+        }
+
+        data Adapter {
+        }
+
+        Adapter satisfies Converter<i32, bool>;
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("generic conformance should parse");
+    let conformance = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
+            _ => None,
+        })
+        .expect("conformance root item");
+    let arguments = parsed
+        .type_references
+        .type_reference_handles(conformance.trait_arguments);
+    assert_eq!(arguments.len(), 2);
+    assert!(matches!(
+        parsed.type_references.type_reference(arguments[0]),
+        TypeReferenceNode::Named(name) if name.as_str() == "i32"
+    ));
+    assert!(matches!(
+        parsed.type_references.type_reference(arguments[1]),
+        TypeReferenceNode::Named(name) if name.as_str() == "bool"
+    ));
+}
+
+#[test]
 fn parses_dungeon_state_flow() {
     let source = r#"
         data Main {

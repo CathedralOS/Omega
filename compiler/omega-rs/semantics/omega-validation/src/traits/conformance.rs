@@ -177,19 +177,58 @@ fn validate_machine_satisfies_trait(
             continue;
         };
 
+        let required_arguments = compose_forwarded_trait_arguments(
+            program,
+            trait_definition,
+            explicit_type_arguments,
+            program
+                .type_reference_table
+                .type_reference_handles(requirement.arguments),
+        );
+
         validate_machine_satisfies_trait(
             program,
             machine,
             required_trait,
-            program
-                .type_reference_table
-                .type_reference_handles(requirement.arguments),
+            &required_arguments,
             diagnostics,
             visited_traits,
         );
     }
 
     visited_traits.pop();
+}
+
+/// Compose a parent edge such as `Forwarded<U>: Sink<U>` with the concrete
+/// arguments of the child instance. The returned handles are existing nodes;
+/// exact forwarded parameters need no allocation and cover the canonical
+/// parent-binding form while preserving concrete/composite arguments as-is.
+pub(super) fn compose_forwarded_trait_arguments(
+    program: &TypedTrees,
+    source_trait: &TraitDefinition,
+    source_arguments: &[TypeReferenceHandle],
+    parent_arguments: &[TypeReferenceHandle],
+) -> Vec<TypeReferenceHandle> {
+    let source_parameters = program.trait_type_parameters(source_trait);
+    parent_arguments
+        .iter()
+        .map(|argument| {
+            let TypeReferenceNode::Named { symbol, name } =
+                program.type_reference_table.type_reference(*argument)
+            else {
+                return *argument;
+            };
+            source_parameters
+                .iter()
+                .zip(source_arguments.iter())
+                .find(|(parameter, _)| {
+                    (parameter.symbol.is_valid() && parameter.symbol == *symbol)
+                        || parameter.name.as_str() == name.as_str()
+                })
+                .map(|(_, concrete)| *concrete)
+                .unwrap_or(*argument)
+        })
+        .collect()
 }
 
 fn trait_requirement_state<'program>(
@@ -244,7 +283,7 @@ pub(super) fn validate_machine_state_satisfies_trait_signature(
     );
 }
 
-fn validate_machine_state_satisfies_trait_signature_with_arguments(
+pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
