@@ -542,12 +542,21 @@ fn validate_signature_shapes(
                 ));
             }
             ValueClass::HomogeneousFloatAggregate { members }
-                if policy != CallingPolicy::Aapcs64
+                if !matches!(policy, CallingPolicy::Aapcs64 | CallingPolicy::SystemVAMD64)
                     || !(1..=4).contains(&members)
                     || shape.byte_size % u16::from(members.max(1)) != 0 =>
             {
                 return Err(PlanDiagnostic(
-                    "homogeneous float aggregates are currently normalized only for AAPCS64 with one to four equal members"
+                    "homogeneous float aggregates require a supported native policy and equal members"
+                        .into(),
+                ));
+            }
+            ValueClass::HomogeneousFloatAggregate { members }
+                if policy == CallingPolicy::SystemVAMD64
+                    && !(members == 2 && shape.byte_size == 16 && shape.alignment == 8) =>
+            {
+                return Err(PlanDiagnostic(
+                    "SysV AMD64 homogeneous-float normalization currently admits exactly two f64 members"
                         .into(),
                 ));
             }
@@ -1046,6 +1055,10 @@ fn evaluate_split_bank_call(
                 locations.extend(integer_stack_fragment_locations(shape, stack_offset));
                 stack_offset += u32::from(shape.byte_size).next_multiple_of(8);
             }
+        } else if float_members.is_some() && policy == CallingPolicy::SystemVAMD64 {
+            stack_offset = align_up(stack_offset, u32::from(shape.alignment.clamp(8, 16)));
+            locations.extend(integer_stack_fragment_locations(shape, stack_offset));
+            stack_offset += u32::from(shape.byte_size).next_multiple_of(8);
         } else if float_members.is_none() && integer_index < integer_registers.len() {
             locations.push(register_location(integer_registers[integer_index], shape));
             integer_index += 1;
@@ -2014,6 +2027,51 @@ mod tests {
                 byte_size: 24,
                 alignment: 8,
             }]
+        ));
+    }
+
+    #[test]
+    fn system_v_two_f64_record_uses_sse_fragments_or_whole_stack_rollback() {
+        let pair = ValueShape::homogeneous_float_aggregate(8, 2);
+        let signature = CallSignature {
+            parameters: vec![ValueShape::float(8); 8]
+                .into_iter()
+                .chain([pair])
+                .collect(),
+            result: Some(pair),
+        };
+        let plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature)
+            .expect("SysV two-f64 record plan");
+
+        assert_eq!(
+            plan.parameters[8].locations,
+            vec![
+                ValueLocation::Stack {
+                    stack_byte_offset: 0,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                    alignment: 8,
+                },
+                ValueLocation::Stack {
+                    stack_byte_offset: 8,
+                    value_byte_offset: 8,
+                    byte_size: 8,
+                    alignment: 8,
+                },
+            ]
+        );
+        assert!(matches!(
+            plan.result.expect("SSE result").locations.as_slice(),
+            [
+                ValueLocation::Register {
+                    register: MachineRegister::X86Xmm(0),
+                    ..
+                },
+                ValueLocation::Register {
+                    register: MachineRegister::X86Xmm(1),
+                    ..
+                }
+            ]
         ));
     }
 }

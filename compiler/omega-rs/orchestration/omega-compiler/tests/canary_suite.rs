@@ -35916,6 +35916,13 @@ fn sysv_vtable_field_call_emits_indirect_dispatch() {
         "expected `mov rax, [rsi+16]; call rax`: the MEMORY-class result's hidden \
          rdi pointer must shift the receiver to rsi"
     );
+    let sse_needle = [0x48u8, 0x8b, 0x87, 0x18, 0x00, 0x00, 0x00, 0xff, 0xd0];
+    assert!(
+        bytes
+            .windows(sse_needle.len())
+            .any(|window| window == sse_needle),
+        "expected layout-resolved +24 dispatch for the two-f64 SSE/SSE record call"
+    );
     let _ = fs::remove_dir_all(&build_dir);
 }
 
