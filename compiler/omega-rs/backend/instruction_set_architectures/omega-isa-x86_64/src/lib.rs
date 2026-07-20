@@ -15,8 +15,8 @@ use omega_calling_conventions::{
 use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{
-    InstructionOperandLike, RuntimeValueOperandHandle, RuntimeValueOperandSource,
-    StateGuardOperator,
+    InstructionOperandLike, RuntimeStorageRegion, RuntimeValueOperandHandle,
+    RuntimeValueOperandSource, StateGuardOperator,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1849,7 +1849,47 @@ const WIN64_STACK_ARG_HOME: usize = 32;
 /// existing 40-byte no-stack-arg reservation encodes).
 fn win64_import_reserve(arg_count: usize) -> usize {
     let stack_slots = arg_count.saturating_sub(4);
-    let mut reserve = WIN64_STACK_ARG_HOME + 8 * stack_slots;
+    win64_import_reserve_bytes(WIN64_STACK_ARG_HOME + 8 * stack_slots)
+}
+
+fn win64_import_reserve_for_plan(plan: &CallPlan) -> usize {
+    let stack_bytes = plan
+        .parameters
+        .iter()
+        .flat_map(|placement| placement.locations.iter())
+        .map(|location| match location {
+            ValueLocation::Register { .. } => 0,
+            ValueLocation::Stack {
+                stack_byte_offset,
+                byte_size,
+                ..
+            } => *stack_byte_offset as usize + usize::from(*byte_size),
+            ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset,
+                byte_size,
+                ..
+            } => {
+                let pointer_end = match pointer {
+                    IndirectPointerLocation::Register(_) => 0,
+                    IndirectPointerLocation::Stack {
+                        stack_byte_offset, ..
+                    } => *stack_byte_offset as usize + 8,
+                };
+                let copy_end = copy_stack_byte_offset
+                    .map(|offset| offset as usize + usize::from(*byte_size))
+                    .unwrap_or(0);
+                pointer_end.max(copy_end)
+            }
+        })
+        .max()
+        .unwrap_or(0)
+        .max(usize::from(plan.shadow_bytes));
+    win64_import_reserve_bytes(stack_bytes)
+}
+
+fn win64_import_reserve_bytes(stack_bytes: usize) -> usize {
+    let mut reserve = stack_bytes;
     if reserve % 16 == 0 {
         reserve += 8;
     }
@@ -1903,6 +1943,8 @@ fn append_call_register(bytes: &mut Vec<u8>, reg: u8) {
 fn win64_import_arg_is_staged<T: InstructionOperandLike>(operand: Option<&T>) -> bool {
     operand.is_some_and(|operand| {
         operand.runtime_scalar_integer().is_some()
+            || operand.runtime_small_aggregate().is_some()
+            || operand.runtime_large_aggregate().is_some()
             || operand.runtime_storage_address().is_some()
             || operand.data_address().is_some()
             || operand.runtime_string_pointer().is_some()
@@ -1928,8 +1970,26 @@ fn win64_import_arg_width<T: InstructionOperandLike>(
     operands: &[T],
     arg_start: usize,
     index: usize,
+    placement: Option<&ValuePlacement>,
 ) -> usize {
     let operand = operands.get(arg_start + index);
+    if let Some((_, _, byte_count, _)) = operand.and_then(win64_aggregate_operand)
+        && let Some(placement) = placement
+        && let [
+            ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset: Some(_),
+                ..
+            },
+        ] = placement.locations.as_slice()
+    {
+        return 10
+            + win64_indirect_aggregate_copy_width(byte_count)
+            + match pointer {
+                IndirectPointerLocation::Register(_) => 8,
+                IndirectPointerLocation::Stack { .. } => 16,
+            };
+    }
     let data_address = win64_import_arg_is_data_address(operand);
     let staged = win64_import_arg_is_staged(operand);
     if index < 4 {
@@ -1950,6 +2010,37 @@ fn win64_import_arg_width<T: InstructionOperandLike>(
     }
 }
 
+fn win64_aggregate_operand<T: InstructionOperandLike>(
+    operand: &T,
+) -> Option<(RuntimeStorageRegion, usize, usize, usize)> {
+    operand
+        .runtime_small_aggregate()
+        .or_else(|| operand.runtime_large_aggregate())
+}
+
+fn win64_indirect_aggregate_copy_width(byte_count: usize) -> usize {
+    let mut copied = 0usize;
+    let mut width = 0usize;
+    while copied < byte_count {
+        let fragment = win64_aggregate_copy_fragment_byte_count(byte_count - copied);
+        width += match fragment {
+            8 => 15,
+            4 | 1 => 14,
+            2 => 16,
+            _ => unreachable!("aggregate copy fragment width is canonical"),
+        };
+        copied += fragment;
+    }
+    width
+}
+
+fn win64_aggregate_copy_fragment_byte_count(remaining: usize) -> usize {
+    [8, 4, 2, 1]
+        .into_iter()
+        .find(|fragment| remaining >= *fragment)
+        .expect("aggregate copy always has bytes remaining")
+}
+
 /// Total width of a `encode_win64_import_call` sequence -- must mirror the
 /// encoder byte for byte (the relocation cursor math depends on it).
 fn win64_import_call_width<T: InstructionOperandLike>(
@@ -1959,10 +2050,19 @@ fn win64_import_call_width<T: InstructionOperandLike>(
 ) -> usize {
     let arg_start = usize::from(returns_value);
     let arg_count = operands.len().saturating_sub(arg_start);
-    let reserve = win64_import_reserve(arg_count);
+    let plan = normalized_win64_import_plan(operands, returns_value).ok();
+    let reserve = plan
+        .as_ref()
+        .map(win64_import_reserve_for_plan)
+        .unwrap_or_else(|| win64_import_reserve(arg_count));
     let mut width = 2 * rsp_adjust_width(reserve) + 5;
     for index in 0..arg_count {
-        width += win64_import_arg_width(operands, arg_start, index);
+        width += win64_import_arg_width(
+            operands,
+            arg_start,
+            index,
+            plan.as_ref().and_then(|plan| plan.parameters.get(index)),
+        );
     }
     if dereferences_result {
         width += 2; // mov eax, [rax]
@@ -2018,6 +2118,133 @@ fn immediate_imm32<T: InstructionOperandLike>(
 /// immediates) and the shadow-space stack home for args past the fourth.
 /// Shared by the import call and the vtable call (their only difference is how
 /// the callee address is obtained: a relocated `call rel32` vs `call rax`).
+fn append_win64_indirect_aggregate_argument<T: InstructionOperandLike>(
+    bytes: &mut Vec<u8>,
+    operand: &T,
+    parameter_index: usize,
+    placement: &ValuePlacement,
+) -> Result<(), Diagnostic> {
+    let Some((_, byte_offset, byte_count, alignment)) = win64_aggregate_operand(operand) else {
+        return Err(Diagnostic::error(format!(
+            "Microsoft x64 indirect parameter {parameter_index} is not an aggregate operand"
+        )));
+    };
+    let [
+        ValueLocation::Indirect {
+            pointer,
+            copy_stack_byte_offset: Some(copy_stack_byte_offset),
+            byte_size,
+            alignment: planned_alignment,
+        },
+    ] = placement.locations.as_slice()
+    else {
+        return Err(Diagnostic::error(format!(
+            "Microsoft x64 aggregate parameter {parameter_index} has no caller-copy placement"
+        )));
+    };
+    if byte_count <= 8
+        || usize::from(*byte_size) != byte_count
+        || usize::from(*planned_alignment) != alignment
+        || !alignment.is_power_of_two()
+        || copy_stack_byte_offset % 16 != 0
+    {
+        return Err(Diagnostic::error(format!(
+            "Microsoft x64 aggregate parameter {parameter_index} has inconsistent shape or copy alignment"
+        )));
+    }
+
+    append_mov_r11_imm64(bytes, 0); // relocated to the aggregate's region base
+    let mut copied = 0usize;
+    while copied < byte_count {
+        let fragment = win64_aggregate_copy_fragment_byte_count(byte_count - copied);
+        let source_offset = byte_offset
+            .checked_add(copied)
+            .ok_or_else(|| Diagnostic::error("Microsoft x64 aggregate source offset overflow"))?;
+        match fragment {
+            8 => bytes.extend([0x49, 0x8b, 0x83]), // mov rax, [r11+disp32]
+            4 => bytes.extend([0x41, 0x8b, 0x83]), // mov eax, [r11+disp32]
+            2 => bytes.extend([0x66, 0x41, 0x8b, 0x83]), // mov ax, [r11+disp32]
+            1 => bytes.extend([0x41, 0x8a, 0x83]), // mov al, [r11+disp32]
+            _ => unreachable!("aggregate copy fragment width is canonical"),
+        }
+        bytes.extend(disp32(source_offset)?.to_le_bytes());
+
+        let target_offset = usize::try_from(*copy_stack_byte_offset)
+            .ok()
+            .and_then(|offset| offset.checked_add(copied))
+            .ok_or_else(|| Diagnostic::error("Microsoft x64 aggregate copy offset overflow"))?;
+        match fragment {
+            8 => bytes.extend([0x48, 0x89, 0x84, 0x24]), // mov [rsp+disp32], rax
+            4 => bytes.extend([0x89, 0x84, 0x24]),       // mov [rsp+disp32], eax
+            2 => bytes.extend([0x66, 0x89, 0x84, 0x24]), // mov [rsp+disp32], ax
+            1 => bytes.extend([0x88, 0x84, 0x24]),       // mov [rsp+disp32], al
+            _ => unreachable!("aggregate copy fragment width is canonical"),
+        }
+        bytes.extend(disp32(target_offset)?.to_le_bytes());
+        copied += fragment;
+    }
+
+    match *pointer {
+        IndirectPointerLocation::Register(register) => {
+            append_win64_lea_register_from_rsp(bytes, register, *copy_stack_byte_offset)?;
+        }
+        IndirectPointerLocation::Stack {
+            stack_byte_offset, ..
+        } => {
+            append_win64_lea_register_from_rsp(
+                bytes,
+                MachineRegister::X86Rax,
+                *copy_stack_byte_offset,
+            )?;
+            bytes.extend([0x48, 0x89, 0x84, 0x24]); // mov [rsp+disp32], rax
+            bytes.extend(
+                i32::try_from(stack_byte_offset)
+                    .map_err(|_| {
+                        Diagnostic::error("Microsoft x64 pointer stack offset exceeds disp32")
+                    })?
+                    .to_le_bytes(),
+            );
+        }
+    }
+    Ok(())
+}
+
+fn append_win64_lea_register_from_rsp(
+    bytes: &mut Vec<u8>,
+    register: MachineRegister,
+    stack_byte_offset: u32,
+) -> Result<(), Diagnostic> {
+    let register_number = x86_gpr_number(register).ok_or_else(|| {
+        Diagnostic::error(format!(
+            "Microsoft x64 aggregate pointer uses unsupported register {register:?}"
+        ))
+    })?;
+    if !matches!(
+        register,
+        MachineRegister::X86Rax
+            | MachineRegister::X86Rcx
+            | MachineRegister::X86Rdx
+            | MachineRegister::X86R8
+            | MachineRegister::X86R9
+    ) {
+        return Err(Diagnostic::error(format!(
+            "Microsoft x64 aggregate pointer uses non-positional register {register:?}"
+        )));
+    }
+    bytes.extend([
+        0x48 | if register_number >= 8 { 0x04 } else { 0 },
+        0x8d,
+        0x84 | ((register_number & 7) << 3),
+        0x24,
+    ]); // lea selected register, [rsp+disp32]
+    bytes.extend(
+        i32::try_from(stack_byte_offset)
+            .map_err(|_| Diagnostic::error("Microsoft x64 copy offset exceeds disp32"))?
+            .to_le_bytes(),
+    );
+    Ok(())
+}
+
 fn append_win64_call_arguments<T: InstructionOperandLike>(
     bytes: &mut Vec<u8>,
     operands: &[T],
@@ -2035,6 +2262,17 @@ fn append_win64_call_arguments<T: InstructionOperandLike>(
     }
     for index in 0..arg_count {
         let operand = &operands[arg_start + index];
+        if win64_aggregate_operand(operand).is_some() {
+            let placement = planned_parameters
+                .and_then(|parameters| parameters.get(index))
+                .ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "Microsoft x64 aggregate parameter {index} has no normalized placement"
+                    ))
+                })?;
+            append_win64_indirect_aggregate_argument(bytes, operand, index, placement)?;
+            continue;
+        }
         let planned_location = planned_parameters
             .map(|parameters| win64_argument_location(&parameters[index], index))
             .transpose()?;
@@ -2200,10 +2438,9 @@ fn encode_win64_import_call<T: InstructionOperandLike>(
         ));
     }
     let arg_start = usize::from(returns_value);
-    let arg_count = operands.len() - arg_start;
     let plan = normalized_win64_import_plan(operands, returns_value)?;
     let result_register = normalized_win64_result_register(&plan, returns_value)?;
-    let reserve = win64_import_reserve(arg_count);
+    let reserve = win64_import_reserve_for_plan(&plan);
     let mut bytes = Vec::with_capacity(win64_import_call_width(
         operands,
         returns_value,
@@ -3544,6 +3781,18 @@ fn validate_win64_encoder_plan(plan: &CallPlan) -> Result<(), Diagnostic> {
 }
 
 fn win64_operand_shape<T: InstructionOperandLike>(operand: &T) -> Result<ValueShape, Diagnostic> {
+    if let Some((_, _, byte_count, alignment)) = win64_aggregate_operand(operand) {
+        if byte_count <= 8 {
+            return Err(Diagnostic::error(
+                "direct Microsoft x64 aggregate call operands are not normalized yet",
+            ));
+        }
+        let byte_count = u16::try_from(byte_count)
+            .map_err(|_| Diagnostic::error("Microsoft x64 aggregate width exceeds u16"))?;
+        let alignment = u16::try_from(alignment)
+            .map_err(|_| Diagnostic::error("Microsoft x64 aggregate alignment exceeds u16"))?;
+        return Ok(ValueShape::integer(byte_count, alignment));
+    }
     if let Some((_, _, byte_count)) = operand.runtime_scalar_float() {
         let byte_count = u16::try_from(byte_count)
             .map_err(|_| Diagnostic::error("Microsoft x64 float operand width exceeds u16"))?;
@@ -3657,6 +3906,92 @@ mod x86_import_plan_tests {
             "the result base must use plan-clobbered r11"
         );
         assert!(!bytes.windows(2).any(|window| window == [0x49, 0xbf]));
+    }
+
+    #[test]
+    fn win64_indirect_aggregate_arguments_use_aligned_copies_and_positional_pointers() {
+        let operands = vec![
+            operand(TargetInstructionOperandKind::ImmediateInteger(1)),
+            operand(TargetInstructionOperandKind::RuntimeLargeAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 64,
+                byte_count: 24,
+                alignment: 8,
+            }),
+            operand(TargetInstructionOperandKind::ImmediateInteger(2)),
+            operand(TargetInstructionOperandKind::ImmediateInteger(3)),
+            operand(TargetInstructionOperandKind::RuntimeSmallAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 96,
+                byte_count: 16,
+                alignment: 8,
+            }),
+        ];
+        let plan = normalized_win64_import_plan(&operands, false)
+            .expect("Microsoft x64 aggregate argument plan");
+        assert!(matches!(
+            plan.parameters[1].locations.as_slice(),
+            [ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Register(MachineRegister::X86Rdx),
+                copy_stack_byte_offset: Some(48),
+                ..
+            }]
+        ));
+        assert!(matches!(
+            plan.parameters[4].locations.as_slice(),
+            [ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Stack {
+                    stack_byte_offset: 32,
+                    ..
+                },
+                copy_stack_byte_offset: Some(80),
+                ..
+            }]
+        ));
+
+        let bytes = encode_win64_import_call(&operands, false, false)
+            .expect("Microsoft x64 aggregate argument call");
+        assert_eq!(
+            bytes.len(),
+            win64_import_call_width(&operands, false, false)
+        );
+        assert_eq!(&bytes[..4], &[0x48, 0x83, 0xec, 104]);
+        assert!(
+            bytes
+                .windows(8)
+                .any(|window| window == [0x48, 0x8d, 0x94, 0x24, 48, 0, 0, 0]),
+            "the second positional argument must point RDX at its aligned copy"
+        );
+        assert!(
+            bytes.windows(16).any(|window| window
+                == [
+                    0x48, 0x8d, 0x84, 0x24, 80, 0, 0, 0, 0x48, 0x89, 0x84, 0x24, 32, 0, 0, 0,
+                ]),
+            "the fifth positional argument must store its copy pointer above shadow space"
+        );
+        assert_eq!(
+            win64_import_call_relocation_sites(&operands, false, false)
+                .iter()
+                .map(|site| site.operand_index)
+                .collect::<Vec<_>>(),
+            [Some(1), Some(4), None]
+        );
+    }
+
+    #[test]
+    fn win64_direct_aggregate_arguments_remain_fail_closed() {
+        let operands = [operand(
+            TargetInstructionOperandKind::RuntimeSmallAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 8,
+                alignment: 8,
+            },
+        )];
+
+        let error = normalized_win64_import_plan(&operands, false)
+            .expect_err("direct Microsoft x64 records are the next separate lowering slice");
+        assert!(error.message.contains("direct Microsoft x64 aggregate"));
     }
 
     #[test]
@@ -4622,7 +4957,11 @@ fn win64_import_call_relocation_sites<T: InstructionOperandLike>(
 ) -> Vec<X86_64RelocationSite> {
     let arg_start = usize::from(returns_value);
     let arg_count = operands.len().saturating_sub(arg_start);
-    let reserve = win64_import_reserve(arg_count);
+    let plan = normalized_win64_import_plan(operands, returns_value).ok();
+    let reserve = plan
+        .as_ref()
+        .map(win64_import_reserve_for_plan)
+        .unwrap_or_else(|| win64_import_reserve(arg_count));
     let mut sites = Vec::new();
     let mut cursor = rsp_adjust_width(reserve);
     for index in 0..arg_count {
@@ -4634,7 +4973,12 @@ fn win64_import_call_relocation_sites<T: InstructionOperandLike>(
                 kind: X86_64RelocationSiteKind::Absolute64,
             });
         }
-        cursor += win64_import_arg_width(operands, arg_start, index);
+        cursor += win64_import_arg_width(
+            operands,
+            arg_start,
+            index,
+            plan.as_ref().and_then(|plan| plan.parameters.get(index)),
+        );
     }
     sites.push(X86_64RelocationSite {
         operand_index: None,
@@ -4733,10 +5077,9 @@ pub fn encode_win64_vtable_call_at_offset<T: InstructionOperandLike>(
             "cannot encode X86_64 vtable call: the receiver (arg 0) did not lower to an operand",
         ));
     }
-    let arg_count = operands.len() - arg_start;
     let plan = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start)?;
     let result_register = normalized_win64_result_register(&plan, result_present)?;
-    let reserve = win64_import_reserve(arg_count);
+    let reserve = win64_import_reserve_for_plan(&plan);
     let mut bytes = Vec::with_capacity(win64_vtable_call_width(
         operands,
         byte_offset,
@@ -4771,10 +5114,19 @@ pub fn win64_vtable_call_width<T: InstructionOperandLike>(
 ) -> usize {
     let arg_start = usize::from(result_present);
     let arg_count = operands.len() - arg_start;
-    let reserve = win64_import_reserve(arg_count);
+    let plan = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start).ok();
+    let reserve = plan
+        .as_ref()
+        .map(win64_import_reserve_for_plan)
+        .unwrap_or_else(|| win64_import_reserve(arg_count));
     let mut width = rsp_adjust_width(reserve);
     for index in 0..arg_count {
-        width += win64_import_arg_width(operands, arg_start, index);
+        width += win64_import_arg_width(
+            operands,
+            arg_start,
+            index,
+            plan.as_ref().and_then(|plan| plan.parameters.get(index)),
+        );
     }
     width += 7; // mov rax, [rcx + disp32]
     width += 2; // call rax (no REX.B for rax)
@@ -4810,10 +5162,9 @@ pub fn encode_win64_table_function_call<T: InstructionOperandLike>(
         ));
     };
     let arg_start = table_index + 1;
-    let arg_count = operands.len() - arg_start;
     let plan = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start)?;
     let result_register = normalized_win64_result_register(&plan, result_present)?;
-    let reserve = win64_import_reserve(arg_count);
+    let reserve = win64_import_reserve_for_plan(&plan);
     let mut bytes = Vec::with_capacity(win64_table_function_call_width(
         operands,
         byte_offset,
@@ -4852,10 +5203,19 @@ pub fn win64_table_function_call_width<T: InstructionOperandLike>(
 ) -> usize {
     let arg_start = usize::from(result_present) + 1;
     let arg_count = operands.len().saturating_sub(arg_start);
-    let reserve = win64_import_reserve(arg_count);
+    let plan = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start).ok();
+    let reserve = plan
+        .as_ref()
+        .map(win64_import_reserve_for_plan)
+        .unwrap_or_else(|| win64_import_reserve(arg_count));
     let mut width = rsp_adjust_width(reserve);
     for index in 0..arg_count {
-        width += win64_import_arg_width(operands, arg_start, index);
+        width += win64_import_arg_width(
+            operands,
+            arg_start,
+            index,
+            plan.as_ref().and_then(|plan| plan.parameters.get(index)),
+        );
     }
     width += 10; // mov r11, imm64 (table region base)
     width += 7; // mov rax, [r11 + disp32]
@@ -4906,7 +5266,11 @@ pub fn win64_vtable_call_relocation_sites<T: InstructionOperandLike>(
 ) -> Vec<X86_64RelocationSite> {
     let arg_start = usize::from(result_present);
     let arg_count = operands.len() - arg_start;
-    let reserve = win64_import_reserve(arg_count);
+    let plan = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start).ok();
+    let reserve = plan
+        .as_ref()
+        .map(win64_import_reserve_for_plan)
+        .unwrap_or_else(|| win64_import_reserve(arg_count));
     let mut sites = Vec::new();
     let mut cursor = rsp_adjust_width(reserve);
     for index in 0..arg_count {
@@ -4918,7 +5282,12 @@ pub fn win64_vtable_call_relocation_sites<T: InstructionOperandLike>(
                 kind: X86_64RelocationSiteKind::Absolute64,
             });
         }
-        cursor += win64_import_arg_width(operands, arg_start, index);
+        cursor += win64_import_arg_width(
+            operands,
+            arg_start,
+            index,
+            plan.as_ref().and_then(|plan| plan.parameters.get(index)),
+        );
     }
     cursor += 7 + 2 + rsp_adjust_width(reserve); // fn-ptr read + call rax + add rsp
     if result_present
@@ -4946,7 +5315,11 @@ pub fn win64_table_function_call_relocation_sites<T: InstructionOperandLike>(
     let table_index = usize::from(result_present);
     let arg_start = table_index + 1;
     let arg_count = operands.len().saturating_sub(arg_start);
-    let reserve = win64_import_reserve(arg_count);
+    let plan = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start).ok();
+    let reserve = plan
+        .as_ref()
+        .map(win64_import_reserve_for_plan)
+        .unwrap_or_else(|| win64_import_reserve(arg_count));
     let mut sites = Vec::new();
     let mut cursor = rsp_adjust_width(reserve);
     for index in 0..arg_count {
@@ -4958,7 +5331,12 @@ pub fn win64_table_function_call_relocation_sites<T: InstructionOperandLike>(
                 kind: X86_64RelocationSiteKind::Absolute64,
             });
         }
-        cursor += win64_import_arg_width(operands, arg_start, index);
+        cursor += win64_import_arg_width(
+            operands,
+            arg_start,
+            index,
+            plan.as_ref().and_then(|plan| plan.parameters.get(index)),
+        );
     }
     if win64_import_arg_is_staged(operands.get(table_index)) {
         sites.push(X86_64RelocationSite {
@@ -12947,7 +13325,8 @@ mod vtable_call_encoding_tests {
     use super::{
         X86_64RelocationSiteKind, encode_win64_table_function_call, encode_win64_vtable_call,
         encode_win64_vtable_call_at_offset, win64_table_function_call_relocation_sites,
-        win64_table_function_call_width, win64_vtable_call_width,
+        win64_table_function_call_width, win64_vtable_call_relocation_sites,
+        win64_vtable_call_width,
     };
     use omega_target_operations::{InstructionOperandLike, RuntimeStorageRegion};
 
@@ -12962,6 +13341,12 @@ mod vtable_call_encoding_tests {
         Address {
             region: RuntimeStorageRegion,
             offset: usize,
+        },
+        Aggregate {
+            region: RuntimeStorageRegion,
+            offset: usize,
+            size: usize,
+            alignment: usize,
         },
     }
     impl InstructionOperandLike for Op {
@@ -12997,6 +13382,17 @@ mod vtable_call_encoding_tests {
         // has no float operand kind yet.
         fn runtime_scalar_float(&self) -> Option<(RuntimeStorageRegion, usize, usize)> {
             None
+        }
+        fn runtime_large_aggregate(&self) -> Option<(RuntimeStorageRegion, usize, usize, usize)> {
+            match self {
+                Op::Aggregate {
+                    region,
+                    offset,
+                    size,
+                    alignment,
+                } => Some((*region, *offset, *size, *alignment)),
+                _ => None,
+            }
         }
         fn runtime_storage_address(&self) -> Option<(RuntimeStorageRegion, usize)> {
             match self {
@@ -13197,6 +13593,65 @@ mod vtable_call_encoding_tests {
             sites
                 .iter()
                 .all(|site| matches!(site.kind, X86_64RelocationSiteKind::Absolute64))
+        );
+    }
+
+    #[test]
+    fn indirect_calls_share_win64_aggregate_caller_copy_layouts() {
+        let receiver = || Op::Scalar {
+            region: RuntimeStorageRegion::Machine,
+            offset: 0,
+            size: 8,
+        };
+        let aggregate = || Op::Aggregate {
+            region: RuntimeStorageRegion::Machine,
+            offset: 16,
+            size: 24,
+            alignment: 8,
+        };
+
+        let vtable_operands = vec![receiver(), aggregate()];
+        let vtable = encode_win64_vtable_call_at_offset(&vtable_operands, 8, false)
+            .expect("Win64 vtable aggregate call");
+        assert_eq!(
+            vtable.len(),
+            win64_vtable_call_width(&vtable_operands, 8, false)
+        );
+        assert_eq!(&vtable[..4], &[0x48, 0x83, 0xec, 56]);
+        assert!(
+            vtable
+                .windows(8)
+                .any(|window| window == [0x48, 0x8d, 0x94, 0x24, 32, 0, 0, 0]),
+            "the record following the receiver must point RDX at its copy"
+        );
+        assert_eq!(
+            win64_vtable_call_relocation_sites(&vtable_operands, false)
+                .iter()
+                .map(|site| site.operand_index)
+                .collect::<Vec<_>>(),
+            [Some(0), Some(1)]
+        );
+
+        let table_operands = vec![receiver(), aggregate()];
+        let table = encode_win64_table_function_call(&table_operands, 56, false)
+            .expect("Win64 service-table aggregate call");
+        assert_eq!(
+            table.len(),
+            win64_table_function_call_width(&table_operands, 56, false)
+        );
+        assert_eq!(&table[..4], &[0x48, 0x83, 0xec, 56]);
+        assert!(
+            table
+                .windows(8)
+                .any(|window| window == [0x48, 0x8d, 0x8c, 0x24, 32, 0, 0, 0]),
+            "the first declared service argument must point RCX at its copy"
+        );
+        assert_eq!(
+            win64_table_function_call_relocation_sites(&table_operands, false)
+                .iter()
+                .map(|site| site.operand_index)
+                .collect::<Vec<_>>(),
+            [Some(1), Some(0)]
         );
     }
 }

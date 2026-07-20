@@ -2593,8 +2593,9 @@ fn system_v_classified_aggregate_descriptor_shape(
 }
 
 /// Preserve a fixed pure-integer record of at most two ABI words as one
-/// selected operand for AAPCS64 and SysV AMD64. Their normalized plans split
-/// the value into architecture-specific fragments or move it wholly to stack.
+/// selected operand for native C ABIs. AAPCS64 and SysV AMD64 may split the
+/// value into architecture-specific fragments or move it wholly to stack;
+/// Microsoft x64 passes widths above eight bytes through a caller copy.
 fn native_small_aggregate_argument_operand_at(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
@@ -2604,7 +2605,7 @@ fn native_small_aggregate_argument_operand_at(
 ) -> Option<InstructionOperandKind> {
     if !matches!(
         CallingPolicy::native_for_target(input.target),
-        CallingPolicy::Aapcs64 | CallingPolicy::SystemVAMD64
+        CallingPolicy::Aapcs64 | CallingPolicy::MicrosoftX64 | CallingPolicy::SystemVAMD64
     ) {
         return None;
     }
@@ -2633,12 +2634,14 @@ fn native_small_aggregate_argument_operand_at(
         &input.host_calls.expressions,
         *expression,
     )?;
-    let (byte_count, alignment) =
-        if CallingPolicy::native_for_target(input.target) == CallingPolicy::SystemVAMD64 {
+    let (byte_count, alignment) = match CallingPolicy::native_for_target(input.target) {
+        CallingPolicy::SystemVAMD64 => {
             system_v_pure_integer_aggregate_descriptor_shape(input, &descriptor)?
-        } else {
-            small_aggregate_descriptor_shape(input, &descriptor)?
-        };
+        }
+        CallingPolicy::MicrosoftX64 => aggregate_descriptor_shape(input, &descriptor)
+            .filter(|(byte_count, _)| *byte_count <= 16)?,
+        _ => small_aggregate_descriptor_shape(input, &descriptor)?,
+    };
     (place.byte_count == byte_count).then_some(InstructionOperandKind::RuntimeSmallAggregate {
         region: place.region,
         byte_offset: place.byte_offset,
@@ -2647,9 +2650,9 @@ fn native_small_aggregate_argument_operand_at(
     })
 }
 
-/// Preserve a fixed pure-integer record above two ABI words for the native
-/// AAPCS64 or SysV AMD64 plan. AAPCS64 passes a pointer to a caller copy;
-/// SysV places the MEMORY-class value directly in the outgoing stack area.
+/// Preserve a fixed pure-integer record above two ABI words for the native C
+/// plan. AAPCS64 and Microsoft x64 pass a pointer to a caller copy; SysV places
+/// the MEMORY-class value directly in the outgoing stack area.
 fn native_large_aggregate_argument_operand_at(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
@@ -2659,7 +2662,7 @@ fn native_large_aggregate_argument_operand_at(
 ) -> Option<InstructionOperandKind> {
     if !matches!(
         CallingPolicy::native_for_target(input.target),
-        CallingPolicy::Aapcs64 | CallingPolicy::SystemVAMD64
+        CallingPolicy::Aapcs64 | CallingPolicy::MicrosoftX64 | CallingPolicy::SystemVAMD64
     ) {
         return None;
     }

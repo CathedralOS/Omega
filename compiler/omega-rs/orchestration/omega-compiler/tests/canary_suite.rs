@@ -28405,6 +28405,53 @@ fn cross_aarch64_large_aggregate_import_uses_indirect_places() {
     let _ = fs::remove_dir_all(&scratch);
 }
 
+#[test]
+fn cross_win64_large_aggregate_import_uses_an_aligned_caller_copy() {
+    let canary = pass_canary("capabilities/win64_large_aggregate_import_compile");
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-win64-large-aggregate-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(scratch.clone()),
+        target_name: Some("windows_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("by-reference aggregate import should compile for windows_x64");
+
+    let image = fs::read(scratch.join("omega-program.exe")).expect("read emitted Win64 PE");
+    assert!(
+        image
+            .windows(4)
+            .any(|window| window == [0x48, 0x83, 0xec, 56]),
+        "expected shadow space plus the aligned 24-byte caller copy"
+    );
+    for copy_offset in [32u32, 40, 48] {
+        let mut store = vec![0x48, 0x89, 0x84, 0x24];
+        store.extend(copy_offset.to_le_bytes());
+        assert!(
+            image.windows(store.len()).any(|window| window == store),
+            "expected aggregate fragment at outgoing stack offset {copy_offset}"
+        );
+    }
+    assert!(
+        image
+            .windows(8)
+            .any(|window| window == [0x48, 0x8d, 0x94, 0x24, 32, 0, 0, 0]),
+        "expected RDX to point at the aligned caller copy"
+    );
+    assert!(
+        image
+            .windows(4)
+            .any(|window| window == [0x48, 0x83, 0xc4, 56]),
+        "expected the complete outgoing area to be restored"
+    );
+    let _ = fs::remove_dir_all(&scratch);
+}
+
 // An AUTHORED provides import end to end (hosted-consumption rung 2): the
 // program's own `windows_x64 provides Beeper { beep -> DllImport("msvcrt.dll",
 // "abs") }` row binds, the import table names msvcrt.dll (the binding, not
