@@ -44,6 +44,26 @@ impl TypeReferenceTable {
             .collect()
     }
 
+    /// Fixed-array nodes in a freshly copied subtree whose length still names
+    /// a const parameter. Generic-instance method cloning substitutes these
+    /// after the copy, alongside `Named(T)` type nodes.
+    pub fn const_parameter_array_nodes_from(
+        &self,
+        watermark: u32,
+    ) -> Vec<(TypeReferenceHandle, TypeReferenceHandle, String)> {
+        self.type_references
+            .iter()
+            .filter(|(handle, _)| handle.arena_index() >= watermark)
+            .filter_map(|(handle, node)| match node {
+                TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: FixedArrayLength::ConstParameter(name),
+                } => Some((handle, *element_type, name.as_str().to_string())),
+                _ => None,
+            })
+            .collect()
+    }
+
     pub fn insert_named(&mut self, name: Identifier) -> TypeReferenceHandle {
         self.insert(TypeReferenceNode::Named(name))
     }

@@ -14,6 +14,10 @@ machine FixedBuffer::first(&self) -> i32 in Wrapping {
     transition { _ -> (self.items[0]) }
 }
 
+machine FixedBuffer::capacity<const N: u64>(&self, witness: &[u8; N]) -> u64 {
+    transition { _ -> N }
+}
+
 data Main {
     console: Console;
     small: FixedBuffer<2>;
@@ -23,6 +27,28 @@ data Main {
 machine Main::main(&mut self) {
     self.small.set_first(30);
     self.large.set_first(40);
-    let result: i32 in Wrapping = self.small.first() + self.large.first();
-    self.console.exit_process(result);
+    let small_witness: [u8; 2] = [0, 0];
+    let small_capacity: u64 = self.small.capacity(&small_witness);
+    transition small_capacity == 2 {
+        true -> check_large()
+        _ -> fail()
+    }
+
+    state check_large(&mut self) {
+        let large_witness: [u8; 4] = [0, 0, 0, 0];
+        let large_capacity: u64 = self.large.capacity(&large_witness);
+        transition large_capacity == 4 {
+            true -> finish()
+            _ -> fail()
+        }
+    }
+
+    state finish(&mut self) {
+        let result: i32 in Wrapping = self.small.first() + self.large.first();
+        self.console.exit_process(result);
+    }
+
+    state fail(&mut self) {
+        self.console.exit_process(71);
+    }
 }

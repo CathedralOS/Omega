@@ -1,0 +1,16 @@
+data FixedBuffer<const N: u64> {
+    items: [u8; N];
+}
+
+machine FixedBuffer::capacity<const N: u64>(&self, witness: &[u8; N]) -> u64 {
+    transition { _ -> N }
+}
+
+data Main {
+    buffer: FixedBuffer<2>;
+}
+
+machine Main::main(&mut self) {
+    let wrong_size: [u8; 4] = [0, 0, 0, 0];
+    let capacity: u64 = self.buffer.capacity(&wrong_size);
+}

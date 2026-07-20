@@ -1,0 +1,1 @@
+argument `witness` for state `capacity` expects fixed-array length 2, got 4

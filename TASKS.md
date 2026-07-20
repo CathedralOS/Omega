@@ -704,8 +704,11 @@ No currently isolated correctness bugs are queued here.
   forwarded const arguments through indexed storage. Const-specialized plain
   records now give distinct literal instances independent layout identity, and
   parameter-free attached mutating/value methods clone and dispatch by exact
-  specialization. Continue with richer const expressions, layout diagnostics,
-  const-parameterized method signatures/bodies, and const-fact proof integration.
+  specialization. Attached methods whose same-name const parameters are covered
+  by the container now specialize const-sized signatures and bare const values
+  in executable bodies for each instance, and call validation enforces the
+  specialized fixed-array extent. Continue with richer const expressions,
+  layout diagnostics, and const-fact proof integration.
 - **Trait defaults.** Implement conformance, reuse, override, and dispatch for
   trait machines whose body supplies the default. Do not restore a `default`
   keyword.
