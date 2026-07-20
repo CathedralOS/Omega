@@ -152,3 +152,35 @@ fixed-array/text boundary legality explicit in the evaluated calling policy,
 and classify admitted fixed arrays structurally (including HFA/SSE rules) while
 requiring text to use an explicit public descriptor record after String
 retirement. Do not infer either ABI from byte size alone.
+
+## 6. What is the runtime and object-safety contract for `dyn Trait`?
+
+Closed-world call-site specialization currently makes `&dyn Trait` parameters
+execute correctly when every concrete receiver is known at its call site. It
+cannot represent a runtime-varying trait value stored in data, passed across a
+component boundary, or rebound to one of several satisfiers. The language guide
+explicitly leaves the runtime representation and boundary legality open, while
+the remaining task requires descriptors that preserve satisfier identity.
+
+Decide:
+
+- whether the stable value is a two-word `{instance, table}` pair whose table
+  identity names the satisfier, or carries a separate sealed satisfier/contract
+  identity (or component/endpoint handle);
+- which trait signatures are object-safe, especially `Self` outside the
+  receiver, unbound trait parameters, value returns, generic requirements,
+  effects, capabilities, and boundary machines;
+- whether `dyn Trait` may be owned/stored directly or only borrowed, and how
+  lifetime, mutability, drop, migration, and hot-swap pinning travel with it;
+- who emits, owns, versions, validates, and updates machine tables, including
+  the ABI identity used across separately built components; and
+- how named satisfier selection and third-party named-only conformances are
+  encoded and checked at coercion.
+
+Recommendation: use a sealed descriptor whose logical identity is
+`{instance, satisfier_contract}` and let a validated target-specific table be a
+private realization of that contract. Initially admit only borrowed receivers,
+fully bound trait parameters, and requirements whose nonreceiver
+parameters/results do not mention `Self`; require declared effect/capability
+ceilings at every dynamic slot. This keeps the public model independent of raw
+table addresses and leaves room for loader-controlled table replacement.
