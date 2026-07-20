@@ -30,7 +30,8 @@ use omega_runtime_dispatch_loop::{
 };
 use omega_runtime_storage::{
     RuntimeStorageContext, build_runtime_storage_plan_with_workers, reserve_entry_argument_spill,
-    reserve_wire_nested_scratch, runtime_frame_storage_alignment, runtime_frame_storage_size,
+    reserve_entry_indirect_result_pointer, reserve_wire_nested_scratch,
+    runtime_frame_storage_alignment, runtime_frame_storage_size,
 };
 use omega_runtime_text::build_runtime_text_plan;
 use omega_state_calls::{
@@ -304,6 +305,15 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     // at the spilled registers for the program's whole life, so nothing may
     // reuse those bytes.
     reserve_entry_argument_spill(&mut backend_plan.runtime_storage, backend_plan.entry_key);
+    reserve_entry_indirect_result_pointer(
+        &mut backend_plan.runtime_storage,
+        entry_has_sysv_indirect_result(
+            &program,
+            &backend_plan.layouts,
+            backend_plan.entry_key,
+            backend_plan.target,
+        ),
+    );
     // Observability: dump the absolute frame-slot layout (which logical slot lives
     // at which runtime byte offset) to stderr when OMEGA_DUMP_SLOTS is set. Inert
     // by default -- env unset is zero output and zero behavior change. Mirrors the
@@ -468,6 +478,38 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     backend_plan.phase_timings = phase_timings;
 
     Ok(backend_plan)
+}
+
+fn entry_has_sysv_indirect_result(
+    program: &CheckedTrees,
+    layouts: &omega_layout::LayoutPlan,
+    entry_key: omega_control_flow::StateKey,
+    target: NativeTarget,
+) -> bool {
+    if omega_calling_conventions::CallingPolicy::native_for_target(target)
+        != omega_calling_conventions::CallingPolicy::SystemVAMD64
+    {
+        return false;
+    }
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == entry_key.machine)
+    else {
+        return false;
+    };
+    let Some(state) = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == entry_key.state)
+    else {
+        return false;
+    };
+    let result_symbol = program.type_reference_symbol(state.return_type);
+    layouts
+        .data_layouts
+        .iter()
+        .any(|(_, layout)| layout.symbol == result_symbol && layout.layout.size > 16)
 }
 
 /// Give each call-context (specialized clone) -- and each STATE within a context

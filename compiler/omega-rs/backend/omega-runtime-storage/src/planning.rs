@@ -73,6 +73,8 @@ pub fn build_runtime_storage_plan_with_workers(
             wire_scratch_size: _,
             entry_argument_spill_base: _,
             entry_argument_spill_size: _,
+            entry_indirect_result_pointer_base: _,
+            entry_indirect_result_pointer_size: _,
         } = body_plan;
         plan.frame_slots.insert_many(frame_slots.into_items());
         for write in writes.into_items() {
@@ -350,6 +352,28 @@ pub fn reserve_entry_argument_spill(
     plan.entry_argument_spill_size = 32;
 }
 
+/// Reserve one frame word for an incoming SysV MEMORY-result destination.
+/// The caller decides whether the entry signature has that ABI shape; keeping
+/// the reservation mechanism policy-neutral avoids teaching storage layout
+/// how to classify calling conventions.
+pub fn reserve_entry_indirect_result_pointer(plan: &mut RuntimeStoragePlan, enabled: bool) {
+    if !enabled {
+        return;
+    }
+    let occupied_extent = (plan.entry_argument_spill_base + plan.entry_argument_spill_size)
+        .max(plan.wire_scratch_base + plan.wire_scratch_size)
+        .max(plan.frame_scratch_base + plan.frame_scratch_size)
+        .max(
+            plan.frame_slots
+                .iter()
+                .map(|(_, slot)| slot.byte_offset + slot.byte_size)
+                .max()
+                .unwrap_or(0),
+        );
+    plan.entry_indirect_result_pointer_base = align_to(occupied_extent.max(8), 8);
+    plan.entry_indirect_result_pointer_size = 8;
+}
+
 pub fn runtime_frame_storage_size(plan: &RuntimeStoragePlan) -> usize {
     let slots_extent = plan
         .frame_slots
@@ -357,19 +381,50 @@ pub fn runtime_frame_storage_size(plan: &RuntimeStoragePlan) -> usize {
         .map(|(_, slot)| slot.byte_offset + slot.byte_size)
         .max()
         .unwrap_or(0);
-    // Include the reserved argument-staging scratch region, which lives ABOVE all
-    // real slots (see stack_runtime_storage_by_call_context), and the wire
-    // nested-message scratch above that.
+    // Include every reserved region above the real slots, including the saved
+    // incoming indirect-result pointer.
     slots_extent
         .max(plan.frame_scratch_base + plan.frame_scratch_size)
         .max(plan.wire_scratch_base + plan.wire_scratch_size)
         .max(plan.entry_argument_spill_base + plan.entry_argument_spill_size)
+        .max(plan.entry_indirect_result_pointer_base + plan.entry_indirect_result_pointer_size)
 }
 
 pub fn runtime_frame_storage_alignment(plan: &RuntimeStoragePlan) -> usize {
-    plan.frame_slots
+    let slot_alignment = plan
+        .frame_slots
         .iter()
         .map(|(_, slot)| slot.alignment)
         .max()
-        .unwrap_or(1)
+        .unwrap_or(1);
+    let reserved_alignment = if plan.entry_argument_spill_size > 0
+        || plan.entry_indirect_result_pointer_size > 0
+        || plan.wire_scratch_size > 0
+    {
+        8
+    } else {
+        1
+    };
+    slot_alignment.max(reserved_alignment)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn indirect_result_pointer_is_reserved_above_entry_spill() {
+        let mut plan = RuntimeStoragePlan {
+            entry_argument_spill_base: 24,
+            entry_argument_spill_size: 32,
+            ..RuntimeStoragePlan::default()
+        };
+
+        reserve_entry_indirect_result_pointer(&mut plan, true);
+
+        assert_eq!(plan.entry_indirect_result_pointer_base, 56);
+        assert_eq!(plan.entry_indirect_result_pointer_size, 8);
+        assert_eq!(runtime_frame_storage_size(&plan), 64);
+        assert_eq!(runtime_frame_storage_alignment(&plan), 8);
+    }
 }
