@@ -61,8 +61,13 @@ arguments and flat HFA arguments/results. The general Microsoft x64 import path
 now derives its policy from the concrete target, evaluates argument/result shapes,
 consumes the plan's register and shadow-relative stack placements, and rejects
 non-Microsoft x86 policies
-instead of silently applying Win64. Microsoft x64 vtable and firmware
-service-table calls now use the same plan-driven register/stack marshaller,
+instead of silently applying Win64. The Win64 normalization seam also enforces
+policy, call/return control, 16-byte stack alignment, 32-byte shadow space, and
+the `rax`/`r10`/`r11` encoder scratch/clobber ceiling. General imports, vtable
+and service-table dispatch, and their result stores stage through
+plan-clobbered `r11`/`rax` instead of silently destroying callee-saved `r15`.
+Microsoft x64 vtable and firmware service-table calls now use the same
+plan-driven register/stack marshaller,
 with dispatch-only table pointers excluded from the wire signature and
 plan-selected results checked before storage. The ordinary host-operation
 Windows imports now consume evaluated Microsoft x64 placements. `GetStdHandle`,
@@ -104,6 +109,9 @@ ceiling derived exactly from the ABI volatile-register classes.
    Microsoft vtable and firmware service-table calls. Ordinary composite
    x86-64 host operations are now plan-checked through their actual foreign
    signatures, as are the dedicated runtime line/byte Windows sequences.
+   The general Win64 encoder additionally rejects incompatible policy/control/
+   stack/shadow/clobber contracts and keeps its call marshalling, dispatch, and
+   result-store scratch inside the normalized ordinary-clobber ceiling.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
    generic encoders additionally reject incompatible policy/control/stack/

@@ -1384,8 +1384,8 @@ fn encode_key_state_call<T: InstructionOperandLike>(operands: &[T]) -> Result<Ve
     bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32 (relocated)
     append_add_rsp(&mut bytes, reserve);
     bytes.extend([0x0f, 0xb7, 0xc0]); // movzx eax, ax (zero the upper bits)
-    append_mov_r15_imm64(&mut bytes, 0); // relocated to the result region base
-    bytes.extend([0x49, 0x89, 0x87]); // mov [r15 + disp32], rax
+    append_mov_r11_imm64(&mut bytes, 0); // relocated to the result region base
+    bytes.extend([0x49, 0x89, 0x83]); // mov [r11 + disp32], rax
     let displacement: i32 = result_offset
         .try_into()
         .map_err(|_| Diagnostic::error("key_state result offset exceeds i32"))?;
@@ -1590,32 +1590,32 @@ fn append_file_length_operand<T: InstructionOperandLike>(
 }
 
 /// The Win64 integer argument registers, in call order, as
-/// (mov-imm32 opcode bytes, load-from-[r15+disp32] opcode bytes) pairs:
+/// (mov-imm32 opcode bytes, load-from-[r11+disp32] opcode bytes) pairs:
 /// rcx, rdx, r8, r9. Immediates use the 32-bit `mov r32, imm32` forms (the
 /// kernel32 surface is u32-shaped today); loads are 64-bit `mov r64,
-/// [r15+disp32]` (callees read the low 32 bits).
+/// [r11+disp32]` (callees read the low 32 bits).
 const WIN64_ARG_REGISTERS: [(&[u8], &[u8]); 4] = [
-    (&[0xb9], &[0x49, 0x8b, 0x8f]), // mov ecx, imm32 / mov rcx, [r15+d]
-    (&[0xba], &[0x49, 0x8b, 0x97]), // mov edx, imm32 / mov rdx, [r15+d]
-    (&[0x41, 0xb8], &[0x4d, 0x8b, 0x87]), // mov r8d, imm32 / mov r8,  [r15+d]
-    (&[0x41, 0xb9], &[0x4d, 0x8b, 0x8f]), // mov r9d, imm32 / mov r9,  [r15+d]
+    (&[0xb9], &[0x49, 0x8b, 0x8b]), // mov ecx, imm32 / mov rcx, [r11+d]
+    (&[0xba], &[0x49, 0x8b, 0x93]), // mov edx, imm32 / mov rdx, [r11+d]
+    (&[0x41, 0xb8], &[0x4d, 0x8b, 0x83]), // mov r8d, imm32 / mov r8,  [r11+d]
+    (&[0x41, 0xb9], &[0x4d, 0x8b, 0x8b]), // mov r9d, imm32 / mov r9,  [r11+d]
 ];
 
-/// `lea <reg64>, [r15+disp32]` opcode bytes for the Win64 integer argument
+/// `lea <reg64>, [r11+disp32]` opcode bytes for the Win64 integer argument
 /// registers rcx/rdx/r8/r9 -- `WIN64_ARG_REGISTERS`' load opcodes with the mov
 /// (8B) swapped for lea (8D), byte-for-byte the same width.
 const WIN64_ARG_LEA_OPCODES: [&[u8]; 4] = [
-    &[0x49, 0x8d, 0x8f], // lea rcx, [r15+d]
-    &[0x49, 0x8d, 0x97], // lea rdx, [r15+d]
-    &[0x4d, 0x8d, 0x87], // lea r8,  [r15+d]
-    &[0x4d, 0x8d, 0x8f], // lea r9,  [r15+d]
+    &[0x49, 0x8d, 0x8b], // lea rcx, [r11+d]
+    &[0x49, 0x8d, 0x93], // lea rdx, [r11+d]
+    &[0x4d, 0x8d, 0x83], // lea r8,  [r11+d]
+    &[0x4d, 0x8d, 0x8b], // lea r9,  [r11+d]
 ];
 
 /// `mov <reg64>, imm64` opcode bytes for the Win64 integer argument registers
 /// rcx/rdx/r8/r9 -- a DATA-ADDRESS argument (a string-literal path, e.g.
 /// `_open("...")`) marshals as the data symbol's absolute address, imm64=0
 /// relocated Absolute64 at the opcode's +2 (the same imm64 position as the
-/// staged `mov r15, imm64` forms, so the relocation-site walker treats all
+/// staged `mov r11, imm64` forms, so the relocation-site walker treats all
 /// three identically).
 const WIN64_ARG_MOV_IMM64_OPCODES: [&[u8]; 4] = [
     &[0x48, 0xb9], // mov rcx, imm64
@@ -1682,7 +1682,7 @@ fn append_call_register(bytes: &mut Vec<u8>, reg: u8) {
     bytes.push(0xd0 | (reg & 0x7)); // ModRM: mod=11 reg=/2(010) rm=reg
 }
 
-/// Whether a general-import argument operand marshals through the relocated r15
+/// Whether a general-import argument operand marshals through the relocated r11
 /// region base (a runtime-storage scalar LOAD or a runtime-storage ADDRESS lea)
 /// rather than as a constant immediate.
 fn win64_import_arg_is_staged<T: InstructionOperandLike>(operand: Option<&T>) -> bool {
@@ -1695,8 +1695,8 @@ fn win64_import_arg_is_staged<T: InstructionOperandLike>(operand: Option<&T>) ->
 }
 
 /// Whether a general-import argument is a data-object address (`mov <reg>,
-/// imm64` relocated to the symbol, no r15 staging) -- narrower than
-/// `win64_import_arg_is_staged`, which also covers the r15-staged forms; both
+/// imm64` relocated to the symbol, no r11 staging) -- narrower than
+/// `win64_import_arg_is_staged`, which also covers the r11-staged forms; both
 /// place their relocated imm64 at the argument's start + 2.
 fn win64_import_arg_is_data_address<T: InstructionOperandLike>(operand: Option<&T>) -> bool {
     operand.is_some_and(|operand| operand.data_address().is_some())
@@ -1706,7 +1706,7 @@ fn win64_import_arg_is_data_address<T: InstructionOperandLike>(operand: Option<&
 /// stored at `operands[arg_start + index]`). For register args, an address lea
 /// is the same width as a scalar load; a data-object address is one
 /// `mov <reg64>, imm64` (10). Stack args
-/// stage through r15/rax (10 + 7 + a 5-byte `mov [rsp+disp8], rax`; a data
+/// stage through r11/rax (10 + 7 + a 5-byte `mov [rsp+disp8], rax`; a data
 /// address is 10 + 5), or store a constant directly (9-byte
 /// `mov qword [rsp+disp8], imm32`).
 fn win64_import_arg_width<T: InstructionOperandLike>(
@@ -1753,7 +1753,7 @@ fn win64_import_call_width<T: InstructionOperandLike>(
         width += 2; // mov eax, [rax]
     }
     if returns_value {
-        width += 17; // mov r15, imm64 (10) + mov [r15+disp32], eax/rax (7)
+        width += 17; // mov r11, imm64 (10) + mov [r11+disp32], eax/rax (7)
     }
     width
 }
@@ -1795,11 +1795,11 @@ fn immediate_imm32<T: InstructionOperandLike>(
 /// Operand roles: when `returns_value`, `operands[0]` is the RESULT place (a
 /// runtime scalar; its byte_count picks the store width) and the arguments
 /// follow; otherwise every operand is an argument. Each argument is a constant
-/// immediate, a runtime-storage scalar (loaded through the relocated r15 region
+/// immediate, a runtime-storage scalar (loaded through the relocated r11 region
 /// base), or a runtime-storage ADDRESS (`lea` through the same base -- the
 /// pointer-argument shape: buffers, OS structs, C strings).
 /// Marshal MS-x64 call arguments `operands[arg_start..]` into RCX/RDX/R8/R9
-/// (staged runtime loads/leas through the relocated r15 region base, or plain
+/// (staged runtime loads/leas through the relocated r11 region base, or plain
 /// immediates) and the shadow-space stack home for args past the fourth.
 /// Shared by the import call and the vtable call (their only difference is how
 /// the callee address is obtained: a relocated `call rel32` vs `call rax`).
@@ -1838,7 +1838,7 @@ fn append_win64_call_arguments<T: InstructionOperandLike>(
         if let Some(register_slot) = register_slot {
             let (imm_opcode, load_opcode) = WIN64_ARG_REGISTERS[register_slot];
             if let Some((_, byte_offset, _)) = operand.runtime_scalar_integer() {
-                append_mov_r15_imm64(bytes, 0); // relocated to the argument's region base
+                append_mov_r11_imm64(bytes, 0); // relocated to the argument's region base
                 bytes.extend_from_slice(load_opcode);
                 bytes.extend(disp32(byte_offset)?.to_le_bytes());
             } else if let Some((_, byte_offset)) = operand.runtime_string_pointer() {
@@ -1848,7 +1848,7 @@ fn append_win64_call_arguments<T: InstructionOperandLike>(
                 // POINTER word (at +0), or the inline content after the len
                 // word for an owned bounded-buffer carrier -- mirroring the
                 // syscall encoder's string-pointer staging.
-                append_mov_r15_imm64(bytes, 0); // relocated to the argument's region base
+                append_mov_r11_imm64(bytes, 0); // relocated to the argument's region base
                 if operand.runtime_string_is_bounded_buffer() {
                     bytes.extend_from_slice(WIN64_ARG_LEA_OPCODES[register_slot]);
                     bytes.extend(disp32(byte_offset + 8)?.to_le_bytes());
@@ -1857,7 +1857,7 @@ fn append_win64_call_arguments<T: InstructionOperandLike>(
                     bytes.extend(disp32(byte_offset)?.to_le_bytes());
                 }
             } else if let Some((_, byte_offset)) = operand.runtime_storage_address() {
-                append_mov_r15_imm64(bytes, 0); // relocated to the argument's region base
+                append_mov_r11_imm64(bytes, 0); // relocated to the argument's region base
                 bytes.extend_from_slice(WIN64_ARG_LEA_OPCODES[register_slot]);
                 bytes.extend(disp32(byte_offset)?.to_le_bytes());
             } else if operand.data_address().is_some() {
@@ -1895,13 +1895,13 @@ fn append_win64_call_arguments<T: InstructionOperandLike>(
                 .filter(|_| stack_offset <= 127)
                 .ok_or_else(|| Diagnostic::error("X86_64 call supports at most 16 arguments"))?;
             if let Some((_, byte_offset, _)) = operand.runtime_scalar_integer() {
-                append_mov_r15_imm64(bytes, 0); // relocated to the argument's region base
-                bytes.extend([0x49, 0x8b, 0x87]); // mov rax, [r15+disp32]
+                append_mov_r11_imm64(bytes, 0); // relocated to the argument's region base
+                bytes.extend([0x49, 0x8b, 0x83]); // mov rax, [r11+disp32]
                 bytes.extend(disp32(byte_offset)?.to_le_bytes());
                 bytes.extend([0x48, 0x89, 0x44, 0x24, stack_disp8]); // mov [rsp+o], rax
             } else if let Some((_, byte_offset)) = operand.runtime_storage_address() {
-                append_mov_r15_imm64(bytes, 0); // relocated to the argument's region base
-                bytes.extend([0x49, 0x8d, 0x87]); // lea rax, [r15+disp32]
+                append_mov_r11_imm64(bytes, 0); // relocated to the argument's region base
+                bytes.extend([0x49, 0x8d, 0x83]); // lea rax, [r11+disp32]
                 bytes.extend(disp32(byte_offset)?.to_le_bytes());
                 bytes.extend([0x48, 0x89, 0x44, 0x24, stack_disp8]); // mov [rsp+o], rax
             } else if operand.data_address().is_some() {
@@ -2020,10 +2020,10 @@ fn encode_win64_import_call<T: InstructionOperandLike>(
                  runtime scalar operand",
             ));
         };
-        append_mov_r15_imm64(&mut bytes, 0); // relocated to the result region base
+        append_mov_r11_imm64(&mut bytes, 0); // relocated to the result region base
         match byte_count {
-            4 => bytes.extend([0x41, 0x89, 0x87]), // mov [r15+disp32], eax
-            8 => bytes.extend([0x49, 0x89, 0x87]), // mov [r15+disp32], rax
+            4 => bytes.extend([0x41, 0x89, 0x83]), // mov [r11+disp32], eax
+            8 => bytes.extend([0x49, 0x89, 0x83]), // mov [r11+disp32], rax
             other => {
                 return Err(Diagnostic::error(format!(
                     "X86_64 import call cannot store a {other}-byte result (expected 4 or 8)"
@@ -2085,16 +2085,33 @@ fn evaluate_normalized_win64_plan(signature: &CallSignature) -> Result<CallPlan,
     let plan = evaluate_call_plan(CallingPolicy::MicrosoftX64, signature).map_err(|error| {
         Diagnostic::error(format!("cannot evaluate Microsoft x64 call plan: {error}"))
     })?;
-    if plan.entry_control != EntryControl::CallReturn
+    validate_win64_encoder_plan(&plan)?;
+    Ok(plan)
+}
+
+fn validate_win64_encoder_plan(plan: &CallPlan) -> Result<(), Diagnostic> {
+    if plan.policy != CallingPolicy::MicrosoftX64
+        || plan.entry_control != EntryControl::CallReturn
         || plan.stack_alignment != 16
         || plan.shadow_bytes != WIN64_STACK_ARG_HOME as u16
     {
         return Err(Diagnostic::error(format!(
-            "Microsoft x64 import encoder cannot realize plan control={:?}, alignment={}, shadow_bytes={}",
-            plan.entry_control, plan.stack_alignment, plan.shadow_bytes
+            "Microsoft x64 import encoder cannot realize plan policy={:?}, control={:?}, alignment={}, shadow_bytes={}",
+            plan.policy, plan.entry_control, plan.stack_alignment, plan.shadow_bytes
         )));
     }
-    Ok(plan)
+    for scratch in [
+        MachineRegister::X86Rax,
+        MachineRegister::X86R10,
+        MachineRegister::X86R11,
+    ] {
+        if !plan.ordinary_clobbers.contains(scratch) {
+            return Err(Diagnostic::error(format!(
+                "Microsoft x64 encoder scratch register {scratch:?} exceeds the plan's ordinary-clobber ceiling"
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn win64_operand_shape<T: InstructionOperandLike>(operand: &T) -> Result<ValueShape, Diagnostic> {
@@ -2204,8 +2221,37 @@ mod win64_import_plan_tests {
             normalized_win64_result_register(&plan, true).expect("result placement"),
             Some(MachineRegister::X86Rax)
         );
-        encode_win64_import_call(&operands, true, false)
+        let bytes = encode_win64_import_call(&operands, true, false)
             .expect("the general encoder must consume the evaluated placements");
+        assert!(
+            bytes.windows(2).any(|window| window == [0x49, 0xbb]),
+            "the result base must use plan-clobbered r11"
+        );
+        assert!(!bytes.windows(2).any(|window| window == [0x49, 0xbf]));
+    }
+
+    #[test]
+    fn win64_encoder_rejects_scratch_above_the_plan_clobber_ceiling() {
+        let mut plan = evaluate_call_plan(
+            CallingPolicy::MicrosoftX64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: Some(ValueShape::integer(8, 8)),
+            },
+        )
+        .expect("baseline Microsoft x64 plan");
+        plan.ordinary_clobbers = omega_calling_conventions::RegisterSet::new(
+            plan.ordinary_clobbers
+                .as_slice()
+                .iter()
+                .copied()
+                .filter(|register| *register != MachineRegister::X86R11),
+        );
+
+        let error =
+            validate_win64_encoder_plan(&plan).expect_err("missing volatile scratch must reject");
+        assert!(error.message.contains("X86R11"));
+        assert!(error.message.contains("ordinary-clobber ceiling"));
     }
 
     #[test]
@@ -2342,11 +2388,11 @@ mod win64_import_plan_tests {
 }
 
 /// Relocation sites for a `encode_win64_import_call` sequence: one Absolute64
-/// region-base site per staged argument (inside its `mov r15, imm64`), the
+/// region-base site per staged argument (inside its `mov r11, imm64`), the
 /// Relative32 `call rel32` after all marshalling, and (value-returning) the
-/// result region base inside the store tail's `mov r15, imm64`.
+/// result region base inside the store tail's `mov r11, imm64`.
 /// Total byte width of `encode_win64_out_param_call`'s fixed sequence:
-/// sub(4) + lea(5) + call(5) + load(5) + add(4) + mov r15,imm64(10) + store(7).
+/// sub(4) + lea(5) + call(5) + load(5) + add(4) + mov r11,imm64(10) + store(7).
 const WIN64_OUT_PARAM_CALL_WIDTH: usize = 40;
 
 /// A 0-arg Win64 import whose RESULT arrives through an OUT-PARAM (std::time
@@ -2393,10 +2439,10 @@ fn encode_win64_out_param_call<T: InstructionOperandLike>(
     bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32 (relocated)
     bytes.extend([0x48, 0x8b, 0x44, 0x24, SLOT]); // mov rax, [rsp+SLOT]
     append_add_rsp(&mut bytes, RESERVE);
-    append_mov_r15_imm64(&mut bytes, 0); // relocated to the result region base
+    append_mov_r11_imm64(&mut bytes, 0); // relocated to the result region base
     match byte_count {
-        4 => bytes.extend([0x41, 0x89, 0x87]), // mov [r15+disp32], eax
-        8 => bytes.extend([0x49, 0x89, 0x87]), // mov [r15+disp32], rax
+        4 => bytes.extend([0x41, 0x89, 0x83]), // mov [r11+disp32], eax
+        8 => bytes.extend([0x49, 0x89, 0x83]), // mov [r11+disp32], rax
         other => {
             return Err(Diagnostic::error(format!(
                 "X86_64 out-param import call cannot store a {other}-byte result (expected 4 or 8)"
@@ -2428,7 +2474,7 @@ fn normalized_win64_out_param_plan(operation: HostOperation) -> Result<CallPlan,
 
 /// Relocation sites for `encode_win64_out_param_call`: the import-thunk call
 /// rel32 at 10 (sub 4 + lea 5 + the call opcode) and the result region base
-/// at 25 (14 + load 5 + add 4 + the mov r15,imm64 prefix).
+/// at 25 (14 + load 5 + add 4 + the mov r11,imm64 prefix).
 fn win64_out_param_call_relocation_sites() -> Vec<X86_64RelocationSite> {
     vec![
         X86_64RelocationSite {
@@ -2520,7 +2566,7 @@ fn win64_import_call_relocation_sites<T: InstructionOperandLike>(
         if win64_import_arg_is_staged(operands.get(arg_start + index)) {
             sites.push(X86_64RelocationSite {
                 operand_index: Some(arg_start + index),
-                byte_offset: cursor + 2, // inside mov r15/argreg, imm64
+                byte_offset: cursor + 2, // inside mov r11/argreg, imm64
                 byte_width: 8,
                 kind: X86_64RelocationSiteKind::Absolute64,
             });
@@ -2544,7 +2590,7 @@ fn win64_import_call_relocation_sites<T: InstructionOperandLike>(
     {
         sites.push(X86_64RelocationSite {
             operand_index: Some(0),
-            byte_offset: cursor + 2, // inside the result mov r15, imm64
+            byte_offset: cursor + 2, // inside the result mov r11, imm64
             byte_width: 8,
             kind: X86_64RelocationSiteKind::Absolute64,
         });
@@ -2570,7 +2616,7 @@ pub fn encode_win64_vtable_call<T: InstructionOperandLike>(
 }
 
 /// The result store tail shared by the field-model call encoders (the same
-/// shape as the import call's): `mov r15, imm64` relocated to the result
+/// shape as the import call's): `mov r11, imm64` relocated to the result
 /// region base, then store rax/eax at the result's declared width.
 fn append_win64_result_store<T: InstructionOperandLike>(
     bytes: &mut Vec<u8>,
@@ -2592,10 +2638,10 @@ fn append_win64_result_store<T: InstructionOperandLike>(
              runtime scalar operand"
         )));
     };
-    append_mov_r15_imm64(bytes, 0); // relocated to the result region base
+    append_mov_r11_imm64(bytes, 0); // relocated to the result region base
     match byte_count {
-        4 => bytes.extend([0x41, 0x89, 0x87]), // mov [r15+disp32], eax
-        8 => bytes.extend([0x49, 0x89, 0x87]), // mov [r15+disp32], rax
+        4 => bytes.extend([0x41, 0x89, 0x83]), // mov [r11+disp32], eax
+        8 => bytes.extend([0x49, 0x89, 0x83]), // mov [r11+disp32], rax
         other => {
             return Err(Diagnostic::error(format!(
                 "X86_64 {label} cannot store a {other}-byte result (expected 4 or 8)"
@@ -2671,7 +2717,7 @@ pub fn win64_vtable_call_width<T: InstructionOperandLike>(
     width += 2; // call rax (no REX.B for rax)
     width += rsp_adjust_width(reserve);
     if result_present {
-        width += 17; // mov r15, imm64 (10) + mov [r15+disp32], eax/rax (7)
+        width += 17; // mov r11, imm64 (10) + mov [r11+disp32], eax/rax (7)
     }
     width
 }
@@ -2679,8 +2725,8 @@ pub fn win64_vtable_call_width<T: InstructionOperandLike>(
 /// A SERVICE-TABLE function call (UEFI BootServices/RuntimeServices): the
 /// table pointer is DISPATCH-ONLY -- the declared arguments AFTER it marshal
 /// into RCX/RDX/R8/R9/stack (EFI table services take no This), then the
-/// callee loads from the table's fn-ptr field: `mov r15, imm64` (relocated
-/// to the table's region base), `mov rax, [r15 + slot]`, `mov rax, [rax +
+/// callee loads from the table's fn-ptr field: `mov r11, imm64` (relocated
+/// to the table's region base), `mov rax, [r11 + slot]`, `mov rax, [rax +
 /// field_offset]`, `call rax`. Operand roles: `[result?][table][args...]`.
 pub fn encode_win64_table_function_call<T: InstructionOperandLike>(
     operands: &[T],
@@ -2714,8 +2760,8 @@ pub fn encode_win64_table_function_call<T: InstructionOperandLike>(
     append_win64_call_arguments(&mut bytes, operands, arg_start, Some(&plan.parameters))?;
     // Load the table pointer (dispatch-only, never a wire argument), read the
     // fn-ptr field, call it.
-    append_mov_r15_imm64(&mut bytes, 0); // relocated to the table's region base
-    bytes.extend([0x49, 0x8b, 0x87]); // mov rax, [r15 + disp32]
+    append_mov_r11_imm64(&mut bytes, 0); // relocated to the table's region base
+    bytes.extend([0x49, 0x8b, 0x83]); // mov rax, [r11 + disp32]
     bytes.extend(disp32(table_slot_offset)?.to_le_bytes());
     let field_disp = i32::try_from(byte_offset)
         .map_err(|_| Diagnostic::error("service table field offset exceeds an imm32"))?;
@@ -2748,19 +2794,19 @@ pub fn win64_table_function_call_width<T: InstructionOperandLike>(
     for index in 0..arg_count {
         width += win64_import_arg_width(operands, arg_start, index);
     }
-    width += 10; // mov r15, imm64 (table region base)
-    width += 7; // mov rax, [r15 + disp32]
+    width += 10; // mov r11, imm64 (table region base)
+    width += 7; // mov rax, [r11 + disp32]
     width += 7; // mov rax, [rax + disp32]
     width += 2; // call rax
     width += rsp_adjust_width(reserve);
     if result_present {
-        width += 17; // mov r15, imm64 (10) + mov [r15+disp32], eax/rax (7)
+        width += 17; // mov r11, imm64 (10) + mov [r11+disp32], eax/rax (7)
     }
     width
 }
 
 /// The region-base fixup byte offset for vtable-call argument `operand_index`
-/// (the `mov r15, imm64` imm), matching `encode_win64_vtable_call`'s layout.
+/// (the `mov r11, imm64` imm), matching `encode_win64_vtable_call`'s layout.
 pub fn vtable_call_data_relocation_byte_offset<T: InstructionOperandLike>(
     operands: &[T],
     operand_index: usize,
@@ -2790,7 +2836,7 @@ pub fn table_function_call_data_relocation_byte_offset<T: InstructionOperandLike
 /// Relocation sites for a vtable call: the staged-argument region bases (no
 /// call relocation -- the callee is a runtime pointer read from RCX) and,
 /// when a result place leads the operands, the result region base inside the
-/// store tail's `mov r15, imm64`.
+/// store tail's `mov r11, imm64`.
 pub fn win64_vtable_call_relocation_sites<T: InstructionOperandLike>(
     operands: &[T],
     result_present: bool,
@@ -2804,7 +2850,7 @@ pub fn win64_vtable_call_relocation_sites<T: InstructionOperandLike>(
         if win64_import_arg_is_staged(operands.get(arg_start + index)) {
             sites.push(X86_64RelocationSite {
                 operand_index: Some(arg_start + index),
-                byte_offset: cursor + 2, // inside mov r15, imm64
+                byte_offset: cursor + 2, // inside mov r11, imm64
                 byte_width: 8,
                 kind: X86_64RelocationSiteKind::Absolute64,
             });
@@ -2819,7 +2865,7 @@ pub fn win64_vtable_call_relocation_sites<T: InstructionOperandLike>(
     {
         sites.push(X86_64RelocationSite {
             operand_index: Some(0),
-            byte_offset: cursor + 2, // inside the result mov r15, imm64
+            byte_offset: cursor + 2, // inside the result mov r11, imm64
             byte_width: 8,
             kind: X86_64RelocationSiteKind::Absolute64,
         });
@@ -2844,7 +2890,7 @@ pub fn win64_table_function_call_relocation_sites<T: InstructionOperandLike>(
         if win64_import_arg_is_staged(operands.get(arg_start + index)) {
             sites.push(X86_64RelocationSite {
                 operand_index: Some(arg_start + index),
-                byte_offset: cursor + 2, // inside mov r15, imm64
+                byte_offset: cursor + 2, // inside mov r11, imm64
                 byte_width: 8,
                 kind: X86_64RelocationSiteKind::Absolute64,
             });
@@ -2854,12 +2900,12 @@ pub fn win64_table_function_call_relocation_sites<T: InstructionOperandLike>(
     if win64_import_arg_is_staged(operands.get(table_index)) {
         sites.push(X86_64RelocationSite {
             operand_index: Some(table_index),
-            byte_offset: cursor + 2, // inside the table load's mov r15, imm64
+            byte_offset: cursor + 2, // inside the table load's mov r11, imm64
             byte_width: 8,
             kind: X86_64RelocationSiteKind::Absolute64,
         });
     }
-    cursor += 10 + 7; // table load: mov r15, imm64 + mov rax, [r15+disp32]
+    cursor += 10 + 7; // table load: mov r11, imm64 + mov rax, [r11+disp32]
     cursor += 7 + 2 + rsp_adjust_width(reserve); // fn-ptr read + call rax + add rsp
     if result_present
         && operands
@@ -2868,7 +2914,7 @@ pub fn win64_table_function_call_relocation_sites<T: InstructionOperandLike>(
     {
         sites.push(X86_64RelocationSite {
             operand_index: Some(0),
-            byte_offset: cursor + 2, // inside the result mov r15, imm64
+            byte_offset: cursor + 2, // inside the result mov r11, imm64
             byte_width: 8,
             kind: X86_64RelocationSiteKind::Absolute64,
         });
@@ -2893,7 +2939,7 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
         }
         (HostCapability::Input, HostOperation::KeyState) => {
             // Layout: sub(4) + vk marshalling (17 runtime / 5 const) + call(5)
-            // + add(4) + movzx(3) + mov r15,imm64(10) + store(7).
+            // + add(4) + movzx(3) + mov r11,imm64(10) + store(7).
             let vk_is_runtime = operands
                 .get(1)
                 .is_some_and(|operand| operand.runtime_scalar_integer().is_some());
@@ -2902,7 +2948,7 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
             if vk_is_runtime {
                 sites.push(X86_64RelocationSite {
                     operand_index: Some(1),
-                    byte_offset: 4 + 2, // inside the vk mov r15, imm64
+                    byte_offset: 4 + 2, // inside the vk mov r11, imm64
                     byte_width: 8,
                     kind: X86_64RelocationSiteKind::Absolute64,
                 });
@@ -2915,7 +2961,7 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
             });
             sites.push(X86_64RelocationSite {
                 operand_index: Some(0),
-                byte_offset: 4 + vk_width + 5 + 4 + 3 + 2, // inside the result mov r15, imm64
+                byte_offset: 4 + vk_width + 5 + 4 + 3 + 2, // inside result mov r11, imm64
                 byte_width: 8,
                 kind: X86_64RelocationSiteKind::Absolute64,
             });
@@ -10905,18 +10951,18 @@ mod vtable_call_encoding_tests {
 
         // 2 register args -> reserve = 32 (padded to 40); sub rsp, 40 (imm8).
         assert_eq!(&bytes[0..4], &[0x48, 0x83, 0xec, 40], "sub rsp, 40");
-        // arg 0 (this -> RCX): mov r15,imm64 (10) then mov rcx,[r15+0] (49 8b 8f + disp32 0).
-        assert_eq!(bytes[4], 0x49, "mov r15,imm64 opcode #0");
+        // arg 0 (this -> RCX): mov r11,imm64 (10) then mov rcx,[r11+0].
+        assert_eq!(bytes[4], 0x49, "mov r11,imm64 opcode #0");
         assert_eq!(
             &bytes[14..21],
-            &[0x49, 0x8b, 0x8f, 0, 0, 0, 0],
-            "rcx = [r15+0]"
+            &[0x49, 0x8b, 0x8b, 0, 0, 0, 0],
+            "rcx = [r11+0]"
         );
-        // arg 1 (text -> RDX lea): mov r15,imm64 (10) then lea rdx,[r15+8] (49 8d 97 + disp32 8).
+        // arg 1 (text -> RDX lea): mov r11,imm64 then lea rdx,[r11+8].
         assert_eq!(
             &bytes[31..38],
-            &[0x49, 0x8d, 0x97, 8, 0, 0, 0],
-            "lea rdx, [r15+8]"
+            &[0x49, 0x8d, 0x93, 8, 0, 0, 0],
+            "lea rdx, [r11+8]"
         );
         // the vtable read + indirect call, then restore.
         assert_eq!(
@@ -10960,13 +11006,13 @@ mod vtable_call_encoding_tests {
         assert_eq!(&bytes[0..4], &[0x48, 0x83, 0xec, 40], "sub rsp, 40");
         assert_eq!(
             &bytes[14..21],
-            &[0x49, 0x8b, 0x8f, 0, 0, 0, 0],
-            "rcx = [r15+0] (this)"
+            &[0x49, 0x8b, 0x8b, 0, 0, 0, 0],
+            "rcx = [r11+0] (this)"
         );
         assert_eq!(
             &bytes[31..38],
-            &[0x49, 0x8d, 0x97, 8, 0, 0, 0],
-            "lea rdx, [r15+8]"
+            &[0x49, 0x8d, 0x93, 8, 0, 0, 0],
+            "lea rdx, [r11+8]"
         );
         assert_eq!(
             &bytes[38..45],
@@ -10975,16 +11021,16 @@ mod vtable_call_encoding_tests {
         );
         assert_eq!(&bytes[45..47], &[0xff, 0xd0], "call rax");
         assert_eq!(&bytes[47..51], &[0x48, 0x83, 0xc4, 40], "add rsp, 40");
-        // The result store tail: mov r15,imm64 (relocated) + mov [r15+16], rax.
+        // The result store tail: mov r11,imm64 (relocated) + mov [r11+16], rax.
         assert_eq!(
             &bytes[51..53],
-            &[0x49, 0xbf],
-            "mov r15, imm64 (result base)"
+            &[0x49, 0xbb],
+            "mov r11, imm64 (result base)"
         );
         assert_eq!(
             &bytes[61..68],
-            &[0x49, 0x89, 0x87, 16, 0, 0, 0],
-            "mov [r15+16], rax"
+            &[0x49, 0x89, 0x83, 16, 0, 0, 0],
+            "mov [r11+16], rax"
         );
         assert_eq!(bytes.len(), 68);
     }
@@ -11023,16 +11069,16 @@ mod vtable_call_encoding_tests {
         assert_eq!(&bytes[0..4], &[0x48, 0x83, 0xec, 40], "sub rsp, 40");
         assert_eq!(
             &bytes[14..21],
-            &[0x49, 0x8d, 0x8f, 8, 0, 0, 0],
-            "lea rcx, [r15+8] (arg)"
+            &[0x49, 0x8d, 0x8b, 8, 0, 0, 0],
+            "lea rcx, [r11+8] (arg)"
         );
-        // The table pointer loads for dispatch only: mov r15,imm64 (relocated
-        // to the table's region base) + mov rax,[r15+0], then the fn-ptr read.
-        assert_eq!(&bytes[21..23], &[0x49, 0xbf], "mov r15, imm64 (table base)");
+        // The table pointer loads for dispatch only: mov r11,imm64 (relocated
+        // to the table's region base) + mov rax,[r11+0], then the fn-ptr read.
+        assert_eq!(&bytes[21..23], &[0x49, 0xbb], "mov r11, imm64 (table base)");
         assert_eq!(
             &bytes[31..38],
-            &[0x49, 0x8b, 0x87, 0, 0, 0, 0],
-            "rax = [r15+0] (table)"
+            &[0x49, 0x8b, 0x83, 0, 0, 0, 0],
+            "rax = [r11+0] (table)"
         );
         assert_eq!(
             &bytes[38..45],
@@ -11044,13 +11090,13 @@ mod vtable_call_encoding_tests {
         // Result store tail.
         assert_eq!(
             &bytes[51..53],
-            &[0x49, 0xbf],
-            "mov r15, imm64 (result base)"
+            &[0x49, 0xbb],
+            "mov r11, imm64 (result base)"
         );
         assert_eq!(
             &bytes[61..68],
-            &[0x49, 0x89, 0x87, 16, 0, 0, 0],
-            "mov [r15+16], rax"
+            &[0x49, 0x89, 0x83, 16, 0, 0, 0],
+            "mov [r11+16], rax"
         );
         assert_eq!(bytes.len(), 68);
 
