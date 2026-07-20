@@ -40,10 +40,12 @@ now carry the plan-selected result register through both native encoders. Flat
 one-to-four-member AAPCS64 homogeneous floating-point aggregate entry
 parameters are classified from their normalized record layout and spread
 across the selected vector registers. Nested and general aggregate ABI
-classification remains. Generic Linux syscall leaves now evaluate the
-normalized syscall policy at emission and pass its exact parameter registers,
-number register, and supervisor-call immediate into both ISA encoders; the
-legacy binding fields no longer choose those facts on that path. Composite
+classification remains; unsupported mixed/general entry signatures retain
+the compatibility path without panicking the compiler. Generic Linux syscall
+leaves now evaluate the normalized syscall policy at emission and pass its
+exact parameter registers, number register, and supervisor-call immediate into
+both ISA encoders; the legacy binding fields no longer choose those facts on
+that path. Composite
 runtime-text byte and line syscalls now consume the same normalized placements:
 the AArch64 encoders honor the plan-selected registers and supervisor-call
 immediate, while the fixed x86-64 sequences reject plans they cannot realize

@@ -1291,6 +1291,17 @@ fn select_entry_argument_register_writes(
         .into_iter()
         .map(|(byte_offset, _, shape)| (byte_offset, shape))
         .collect::<Vec<_>>();
+    // General integer aggregates are the next ENT2 classification rung. The
+    // entry-slot probe deliberately admits the legacy boundary handoff shape
+    // above, but only the exact one-parameter split case is normalized today.
+    // A mixed/multi-parameter signature must therefore retain the previous
+    // no-prologue behavior rather than turning the plan evaluator's directed
+    // "not normalized yet" result into a compiler panic.
+    if destinations.iter().any(|(_, shape)| {
+        matches!(shape.class, ValueClass::Integer) && shape.byte_size > 8
+    }) {
+        return;
+    }
     select_normalized_entry_argument_writes(input, &destinations, selected_instructions);
 }
 

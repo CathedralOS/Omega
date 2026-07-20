@@ -510,3 +510,44 @@ fn distinct_static_machine_specializations_clone_the_template() {
         2
     );
 }
+
+#[test]
+fn forwarded_generic_calls_specialize_after_their_caller() {
+    let source = r#"
+        data Light [copy] { weight: i32; }
+        data Main { light: Light; number: i32; }
+
+        machine Main::copy_it<T [copy]>(&self, value: &T) {}
+        machine Main::wrap<U [copy]>(&self, value: &U) {
+            self.copy_it(value);
+        }
+        machine Main::run(&mut self) {
+            self.copy_it(&self.light);
+            self.copy_it(&self.number);
+            self.wrap(&self.light);
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed)
+        .expect("specializing the generic caller should expose its forwarded concrete type");
+
+    let specialization_count = |name: &str| {
+        checked
+            .machine_specializations
+            .iter()
+            .filter(|specialization| {
+                checked.machines().iter().any(|machine| {
+                    machine.symbol == specialization.template && machine.name.as_str() == name
+                })
+            })
+            .count()
+    };
+    assert_eq!(specialization_count("Main::copy_it"), 2);
+    assert_eq!(specialization_count("Main::wrap"), 1);
+}

@@ -52,6 +52,7 @@ struct CallSelection {
     site: CallSite,
     callee_symbol: SymbolHandle,
     candidate_index: usize,
+    caller_is_generic: bool,
     type_bindings: Vec<Option<TypeReferenceHandle>>,
     machine_bindings: Vec<Option<StaticMachineArgument>>,
     conflicted: bool,
@@ -262,14 +263,22 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
 
     let multi_tuple_candidates: Vec<usize> = (0..candidates.len())
         .filter(|candidate_index| {
-            unique_complete_selections(program, &selections, *candidate_index).len() > 1
+            !has_forwarded_generic_call(&selections, *candidate_index)
+                && unique_complete_selections(program, &selections, *candidate_index).len() > 1
         })
         .collect();
 
     let approved = approved_type_bounds(program, &candidates);
     let mut diagnostics = Vec::new();
+    let mut applied_any = false;
     for (candidate_index, approved) in approved.into_iter().enumerate() {
         if multi_tuple_candidates.contains(&candidate_index) {
+            continue;
+        }
+        if has_forwarded_generic_call(&selections, candidate_index) {
+            // A generic caller is forwarding one of its own parameters into
+            // this template. Specialize the caller first; the next fixed-point
+            // round will then see the concrete argument in its rewritten body.
             continue;
         }
         let candidate = candidates[candidate_index].clone();
@@ -310,6 +319,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             continue;
         }
         apply_specialization(program, &candidate);
+        applied_any = true;
     }
 
     if diagnostics.is_empty() {
@@ -321,10 +331,14 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                 candidate_index,
             ) {
                 diagnostics.append(&mut errors);
+            } else {
+                applied_any = true;
             }
         }
     }
-    if diagnostics.is_empty() {
+    if diagnostics.is_empty() && applied_any {
+        monomorphize_generic_machine_value_calls(program)
+    } else if diagnostics.is_empty() {
         Ok(())
     } else {
         Err(diagnostics)
@@ -521,6 +535,7 @@ fn collect_call_selections(
                             &call.machine_arguments,
                             program.statement_table.expression_handles(call.arguments),
                             None,
+                            !program.machine_type_parameters(machine).is_empty(),
                         ) {
                             upsert_selection(&mut selections, selection);
                         }
@@ -545,6 +560,7 @@ fn collect_call_selections(
                                     .type_reference
                                     .is_valid()
                                     .then_some(local.type_reference),
+                                !program.machine_type_parameters(machine).is_empty(),
                             ) {
                                 upsert_selection(&mut selections, selection);
                             }
@@ -567,6 +583,7 @@ fn collect_call_selections(
                                 &call.machine_arguments,
                                 program.expression_table.expression_handles(call.arguments),
                                 None,
+                                !program.machine_type_parameters(machine).is_empty(),
                             ) {
                                 upsert_selection(&mut selections, selection);
                             }
@@ -609,6 +626,7 @@ fn collect_call_selections(
             CallSite::Expression(handle),
             callee,
             candidate,
+            false,
             machine_proposals,
             type_proposals,
         );
@@ -631,6 +649,7 @@ fn selection_for_call(
     machine_arguments: &[StaticMachineArgument],
     arguments: &[ExpressionHandle],
     expected_return: Option<TypeReferenceHandle>,
+    caller_is_generic: bool,
 ) -> Option<CallSelection> {
     let callee = resolve_callee(callee_states, target_symbol, target_name)?;
     let candidate = &candidates[callee.candidate_index];
@@ -655,6 +674,7 @@ fn selection_for_call(
         site,
         callee,
         candidate,
+        caller_is_generic,
         machine_proposals,
         type_proposals,
     ))
@@ -665,6 +685,7 @@ fn selection_from_proposals(
     site: CallSite,
     callee: &CalleeState,
     candidate: &Candidate,
+    caller_is_generic: bool,
     machine_proposals: Vec<(usize, usize, StaticMachineArgument)>,
     type_proposals: Vec<(usize, usize, TypeReferenceHandle)>,
 ) -> CallSelection {
@@ -672,6 +693,7 @@ fn selection_from_proposals(
         site,
         callee_symbol: callee.symbol,
         candidate_index: callee.candidate_index,
+        caller_is_generic,
         type_bindings: vec![None; candidate.type_parameters.len()],
         machine_bindings: vec![None; candidate.machine_parameters.len()],
         conflicted: false,
@@ -783,6 +805,14 @@ fn unique_complete_selections(
         }
     }
     groups
+}
+
+fn has_forwarded_generic_call(selections: &[CallSelection], candidate_index: usize) -> bool {
+    selections.iter().any(|selection| {
+        selection.candidate_index == candidate_index
+            && selection.caller_is_generic
+            && !selection.is_complete()
+    })
 }
 
 fn infer_type_bindings(
