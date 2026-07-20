@@ -185,7 +185,7 @@ pub(super) fn select_host_operation_operands(
             let result = if host_call.has_result {
                 aapcs_hfa_argument_operand_at(input, host_call, dispatch_index, alias_context, 0)
                     .or_else(|| {
-                        aapcs_large_aggregate_argument_operand_at(
+                        native_large_aggregate_argument_operand_at(
                             input,
                             host_call,
                             dispatch_index,
@@ -255,7 +255,7 @@ pub(super) fn select_host_operation_operands(
                             index,
                         )
                         .or_else(|| {
-                            aapcs_large_aggregate_argument_operand_at(
+                            native_large_aggregate_argument_operand_at(
                                 input,
                                 host_call,
                                 dispatch_index,
@@ -2552,14 +2552,20 @@ fn native_small_aggregate_argument_operand_at(
     })
 }
 
-fn aapcs_large_aggregate_argument_operand_at(
+/// Preserve a fixed pure-integer record above two ABI words for the native
+/// AAPCS64 or SysV AMD64 plan. AAPCS64 passes a pointer to a caller copy;
+/// SysV places the MEMORY-class value directly in the outgoing stack area.
+fn native_large_aggregate_argument_operand_at(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
     dispatch_index: Option<u32>,
     alias_context: Option<RuntimeAliasResolutionContext<'_, '_>>,
     index: usize,
 ) -> Option<InstructionOperandKind> {
-    if input.target.architecture != omega_target::Architecture::Aarch64 {
+    if !matches!(
+        CallingPolicy::native_for_target(input.target),
+        CallingPolicy::Aapcs64 | CallingPolicy::SystemVAMD64
+    ) {
         return None;
     }
     let argument = input

@@ -2203,22 +2203,30 @@ fn sysv_field_call_layout<T: InstructionOperandLike>(
     })?;
     validate_sysv_import_plan(&plan)?;
 
-    if passes_receiver
-        && !matches!(
-            plan.parameters
-                .first()
-                .map(|placement| placement.locations.as_slice()),
-            Some([ValueLocation::Register {
-                register: MachineRegister::X86Rdi,
-                value_byte_offset: 0,
-                byte_size: 8,
-            }])
-        )
-    {
-        return Err(Diagnostic::error(
-            "SysV AMD64 vtable call requires one full-width receiver in rdi",
-        ));
-    }
+    let receiver_register = if passes_receiver {
+        match plan
+            .parameters
+            .first()
+            .map(|placement| placement.locations.as_slice())
+        {
+            Some(
+                [
+                    ValueLocation::Register {
+                        register,
+                        value_byte_offset: 0,
+                        byte_size: 8,
+                    },
+                ],
+            ) => Some(*register),
+            _ => {
+                return Err(Diagnostic::error(
+                    "SysV AMD64 vtable call requires one full-width register receiver",
+                ));
+            }
+        }
+    } else {
+        None
+    };
 
     let stack_bytes = plan
         .parameters
@@ -2238,6 +2246,17 @@ fn sysv_field_call_layout<T: InstructionOperandLike>(
     let mut bytes = Vec::new();
     let mut relocation_sites = Vec::new();
     append_sub_rsp(&mut bytes, reserve);
+    if let (Some(result_index), Some(result)) = (result_index, plan.result.as_ref())
+        && sysv_result_is_indirect(result)
+    {
+        append_sysv_indirect_result_address(
+            &mut bytes,
+            &mut relocation_sites,
+            &operands[result_index],
+            result_index,
+            result,
+        )?;
+    }
     for (parameter_index, placement) in plan.parameters.iter().enumerate() {
         let operand_index = argument_start + parameter_index;
         append_sysv_parameter(
@@ -2252,8 +2271,11 @@ fn sysv_field_call_layout<T: InstructionOperandLike>(
     let field_disp = i32::try_from(byte_offset)
         .map_err(|_| Diagnostic::error("indirect field offset exceeds an imm32"))?;
     if passes_receiver {
-        bytes.extend([0x48, 0x8b, 0x87]); // mov rax, [rdi + disp32]
-        bytes.extend(field_disp.to_le_bytes());
+        append_sysv_load_rax_from_base(
+            &mut bytes,
+            receiver_register.expect("validated receiver register"),
+            field_disp,
+        )?;
     } else {
         let (_, table_slot_offset, _) = operands[dispatch_index]
             .runtime_scalar_integer()
@@ -2267,7 +2289,9 @@ fn sysv_field_call_layout<T: InstructionOperandLike>(
     append_call_register(&mut bytes, 0);
     append_add_rsp(&mut bytes, reserve);
 
-    if let Some(result_index) = result_index {
+    if let Some(result_index) = result_index
+        && !plan.result.as_ref().is_some_and(sysv_result_is_indirect)
+    {
         append_sysv_result(
             &mut bytes,
             &mut relocation_sites,
@@ -2288,7 +2312,7 @@ fn sysv_field_call_layout<T: InstructionOperandLike>(
 /// of at most two eightbytes whose fragments are four/eight bytes. The
 /// evaluated plan owns the independent GPR/XMM banks, whole-value stack
 /// rollback, and `rax`/`rdx`/`xmm0` results; this encoder only realizes those
-/// locations. Vector/mixed-class and indirect aggregate cases stay closed.
+/// locations. Vector and mixed-class aggregate cases stay closed.
 fn encode_sysv_import_call<T: InstructionOperandLike>(
     operands: &[T],
     returns_value: bool,
@@ -2326,6 +2350,19 @@ fn sysv_import_layout<T: InstructionOperandLike>(
     let mut relocation_sites = Vec::new();
     append_sub_rsp(&mut bytes, reserve);
 
+    if returns_value
+        && let Some(result) = plan.result.as_ref()
+        && sysv_result_is_indirect(result)
+    {
+        append_sysv_indirect_result_address(
+            &mut bytes,
+            &mut relocation_sites,
+            &operands[0],
+            0,
+            result,
+        )?;
+    }
+
     for (parameter_index, placement) in plan.parameters.iter().enumerate() {
         append_sysv_parameter(
             &mut bytes,
@@ -2345,7 +2382,7 @@ fn sysv_import_layout<T: InstructionOperandLike>(
     bytes.extend([0xe8, 0, 0, 0, 0]);
     append_add_rsp(&mut bytes, reserve);
 
-    if returns_value {
+    if returns_value && !plan.result.as_ref().is_some_and(sysv_result_is_indirect) {
         append_sysv_result(
             &mut bytes,
             &mut relocation_sites,
@@ -2404,7 +2441,10 @@ fn append_sysv_parameter<T: InstructionOperandLike>(
             )),
         };
     }
-    if let Some((_, byte_offset, byte_count, _)) = operand.runtime_small_aggregate() {
+    if let Some((_, byte_offset, byte_count, _)) = operand
+        .runtime_small_aggregate()
+        .or_else(|| operand.runtime_large_aggregate())
+    {
         if byte_count != usize::from(placement.shape.byte_size) {
             return Err(Diagnostic::error(format!(
                 "SysV AMD64 aggregate operand {operand_index} width {byte_count} disagrees with plan width {}",
@@ -2646,6 +2686,73 @@ fn append_sysv_result<T: InstructionOperandLike>(
     Ok(())
 }
 
+fn sysv_result_is_indirect(placement: &ValuePlacement) -> bool {
+    matches!(
+        placement.locations.as_slice(),
+        [ValueLocation::Indirect { .. }]
+    )
+}
+
+fn append_sysv_indirect_result_address<T: InstructionOperandLike>(
+    bytes: &mut Vec<u8>,
+    relocation_sites: &mut Vec<X86_64RelocationSite>,
+    operand: &T,
+    operand_index: usize,
+    placement: &ValuePlacement,
+) -> Result<(), Diagnostic> {
+    let [
+        ValueLocation::Indirect {
+            pointer: omega_calling_conventions::IndirectPointerLocation::Register(register),
+            copy_stack_byte_offset: None,
+            byte_size,
+            alignment,
+        },
+    ] = placement.locations.as_slice()
+    else {
+        return Err(Diagnostic::error(
+            "SysV AMD64 indirect result has an unsupported pointer placement",
+        ));
+    };
+    let Some((_, byte_offset, operand_byte_size, operand_alignment)) =
+        operand.runtime_large_aggregate()
+    else {
+        return Err(Diagnostic::error(
+            "SysV AMD64 indirect result did not lower to large-aggregate runtime storage",
+        ));
+    };
+    if operand_byte_size != usize::from(*byte_size) || operand_alignment != usize::from(*alignment)
+    {
+        return Err(Diagnostic::error(
+            "SysV AMD64 indirect result storage disagrees with the normalized result shape",
+        ));
+    }
+    append_sysv_runtime_base(bytes, relocation_sites, operand_index);
+    append_sysv_lea_register_from_r11(bytes, *register, byte_offset)
+}
+
+fn append_sysv_load_rax_from_base(
+    bytes: &mut Vec<u8>,
+    base: MachineRegister,
+    displacement: i32,
+) -> Result<(), Diagnostic> {
+    let (rex, modrm) = match base {
+        MachineRegister::X86Rdi => (0x48, 0x87),
+        MachineRegister::X86Rsi => (0x48, 0x86),
+        MachineRegister::X86Rdx => (0x48, 0x82),
+        MachineRegister::X86Rcx => (0x48, 0x81),
+        MachineRegister::X86R8 => (0x49, 0x80),
+        MachineRegister::X86R9 => (0x49, 0x81),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "SysV AMD64 vtable receiver register {base:?} is not encodable"
+            )));
+        }
+    };
+    bytes.extend([rex, 0x8b, modrm]);
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
 fn append_sysv_runtime_base(
     bytes: &mut Vec<u8>,
     relocation_sites: &mut Vec<X86_64RelocationSite>,
@@ -2687,14 +2794,17 @@ fn sysv_operand_shape<T: InstructionOperandLike>(operand: &T) -> Result<ValueSha
             .map_err(|_| Diagnostic::error("SysV AMD64 float width exceeds u16"))?;
         return Ok(ValueShape::float(byte_count));
     }
-    if let Some((_, _, byte_count, alignment)) = operand.runtime_small_aggregate() {
+    if let Some((_, _, byte_count, alignment)) = operand
+        .runtime_small_aggregate()
+        .or_else(|| operand.runtime_large_aggregate())
+    {
         let byte_count = u16::try_from(byte_count)
             .map_err(|_| Diagnostic::error("SysV AMD64 aggregate width exceeds u16"))?;
         let alignment = u16::try_from(alignment)
             .map_err(|_| Diagnostic::error("SysV AMD64 aggregate alignment exceeds u16"))?;
-        if !(9..=16).contains(&byte_count) {
+        if byte_count < 9 {
             return Err(Diagnostic::error(
-                "SysV AMD64 authored aggregate imports currently require 9..=16 bytes",
+                "SysV AMD64 aggregate calls require at least nine bytes",
             ));
         }
         return Ok(ValueShape::integer(byte_count, alignment));
@@ -2735,21 +2845,37 @@ fn validate_sysv_import_plan(plan: &CallPlan) -> Result<(), Diagnostic> {
             )));
         }
     }
-    if plan
-        .parameters
-        .iter()
-        .chain(plan.result.iter())
-        .any(|placement| {
-            !matches!(
-                placement.shape.class,
-                ValueClass::Integer | ValueClass::Float
-            ) || placement.shape.byte_size > 16
-                || placement
-                    .locations
-                    .iter()
-                    .any(|location| matches!(location, ValueLocation::Indirect { .. }))
-        })
-    {
+    let unsupported_parameter = plan.parameters.iter().any(|placement| {
+        !matches!(
+            placement.shape.class,
+            ValueClass::Integer | ValueClass::Float
+        ) || (placement.shape.byte_size > 16
+            && placement
+                .locations
+                .iter()
+                .any(|location| !matches!(location, ValueLocation::Stack { .. })))
+            || placement
+                .locations
+                .iter()
+                .any(|location| matches!(location, ValueLocation::Indirect { .. }))
+    });
+    let unsupported_result = plan.result.as_ref().is_some_and(|placement| {
+        !matches!(
+            placement.shape.class,
+            ValueClass::Integer | ValueClass::Float
+        ) || (placement.shape.byte_size > 16
+            && !matches!(
+                placement.locations.as_slice(),
+                [ValueLocation::Indirect {
+                    pointer: omega_calling_conventions::IndirectPointerLocation::Register(
+                        MachineRegister::X86Rdi
+                    ),
+                    copy_stack_byte_offset: None,
+                    ..
+                }]
+            ))
+    });
+    if unsupported_parameter || unsupported_result {
         return Err(Diagnostic::error(
             "SysV AMD64 import plan contains an unsupported aggregate class or indirect placement",
         ));
@@ -3514,6 +3640,103 @@ mod x86_import_plan_tests {
                 .map(|site| site.operand_index)
                 .collect::<Vec<_>>(),
             [Some(2), Some(3), Some(1), Some(0)]
+        );
+    }
+
+    #[test]
+    fn authored_sysv_memory_class_uses_stack_and_hidden_result_pointer() {
+        let operands = [
+            operand(TargetInstructionOperandKind::RuntimeLargeAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 24,
+                alignment: 8,
+            }),
+            operand(TargetInstructionOperandKind::RuntimeLargeAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 32,
+                byte_count: 24,
+                alignment: 8,
+            }),
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 64,
+                byte_count: 8,
+            }),
+        ];
+        let layout = sysv_import_layout(&operands, true).expect("SysV MEMORY-class import");
+
+        assert_eq!(&layout.bytes[..4], &[0x48, 0x83, 0xec, 24]);
+        assert!(
+            layout
+                .bytes
+                .windows(7)
+                .any(|window| window == [0x49, 0x8d, 0xbb, 0, 0, 0, 0]),
+            "hidden result destination must materialize in rdi"
+        );
+        for stack_offset in [0u8, 8, 16] {
+            assert!(
+                layout
+                    .bytes
+                    .windows(8)
+                    .any(|window| window == [0x48, 0x89, 0x84, 0x24, stack_offset, 0, 0, 0]),
+                "large argument fragment must occupy stack offset {stack_offset}"
+            );
+        }
+        assert!(
+            layout
+                .bytes
+                .windows(7)
+                .any(|window| window == [0x49, 0x8b, 0xb3, 64, 0, 0, 0]),
+            "declared scalar must shift to rsi behind the hidden result pointer"
+        );
+        assert_eq!(
+            layout
+                .relocation_sites
+                .iter()
+                .map(|site| site.operand_index)
+                .collect::<Vec<_>>(),
+            [Some(0), Some(1), Some(2), None]
+        );
+    }
+
+    #[test]
+    fn sysv_vtable_large_result_shifts_receiver_to_rsi() {
+        let operands = [
+            operand(TargetInstructionOperandKind::RuntimeLargeAggregate {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 24,
+                alignment: 8,
+            }),
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 32,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 40,
+                byte_count: 8,
+            }),
+        ];
+        let layout =
+            sysv_field_call_layout(&operands, 24, true, true).expect("SysV sret vtable call");
+
+        assert!(
+            layout
+                .bytes
+                .windows(9)
+                .any(|window| window == [0x48, 0x8b, 0x86, 24, 0, 0, 0, 0xff, 0xd0]),
+            "receiver dispatch must use planned rsi behind hidden rdi"
+        );
+        assert_eq!(
+            layout
+                .relocation_sites
+                .iter()
+                .map(|site| site.operand_index)
+                .collect::<Vec<_>>(),
+            [Some(0), Some(1), Some(2)]
         );
     }
 

@@ -35879,6 +35879,14 @@ fn sysv_vtable_field_call_emits_indirect_dispatch() {
         "expected `mov rax, [rdi+8]; call rax` (SysV field-model dispatch at the \
          layout-computed +8) in .text"
     );
+    let sret_needle = [0x48u8, 0x8b, 0x86, 0x10, 0x00, 0x00, 0x00, 0xff, 0xd0];
+    assert!(
+        bytes
+            .windows(sret_needle.len())
+            .any(|window| window == sret_needle),
+        "expected `mov rax, [rsi+16]; call rax`: the MEMORY-class result's hidden \
+         rdi pointer must shift the receiver to rsi"
+    );
     let _ = fs::remove_dir_all(&build_dir);
 }
 
