@@ -2080,9 +2080,9 @@ struct SysvImportLayout {
 }
 
 /// The first normalized SysV AMD64 import slice. Provides-authored integer
-/// calls may carry four/eight-byte scalar or pointer operands and pure-INTEGER
-/// records of at most two eightbytes whose fragments are four/eight bytes. The
-/// evaluated plan owns register allocation, whole-value
+/// calls may carry four/eight-byte integer/float scalar or pointer operands and
+/// pure-INTEGER records of at most two eightbytes whose fragments are
+/// four/eight bytes. The evaluated plan owns register allocation, whole-value
 /// stack rollback, and `rax`/`rdx` results; this encoder only realizes those
 /// locations. Float, mixed-class, and indirect aggregate cases stay closed.
 fn encode_sysv_import_call<T: InstructionOperandLike>(
@@ -2172,6 +2172,34 @@ fn append_sysv_parameter<T: InstructionOperandLike>(
     operand_index: usize,
     placement: &ValuePlacement,
 ) -> Result<(), Diagnostic> {
+    if let Some((_, byte_offset, byte_count)) = operand.runtime_scalar_float() {
+        let [location] = placement.locations.as_slice() else {
+            return Err(Diagnostic::error(format!(
+                "SysV AMD64 float operand {operand_index} has fragmented placement {:?}",
+                placement.locations
+            )));
+        };
+        append_sysv_runtime_base(bytes, relocation_sites, operand_index);
+        return match *location {
+            ValueLocation::Register { register, .. } => {
+                append_sysv_load_float_from_r11(bytes, register, byte_offset, byte_count)
+            }
+            ValueLocation::Stack {
+                stack_byte_offset, ..
+            } => {
+                append_sysv_load_rax_from_r11(
+                    bytes,
+                    byte_offset,
+                    u16::try_from(byte_count)
+                        .map_err(|_| Diagnostic::error("SysV AMD64 float width exceeds u16"))?,
+                )?;
+                append_sysv_store_rax_to_rsp(bytes, stack_byte_offset)
+            }
+            ValueLocation::Indirect { .. } => Err(Diagnostic::error(
+                "SysV AMD64 scalar float import received an indirect placement",
+            )),
+        };
+    }
     if let Some((_, byte_offset, byte_count, _)) = operand.runtime_small_aggregate() {
         if byte_count != usize::from(placement.shape.byte_size) {
             return Err(Diagnostic::error(format!(
@@ -2345,6 +2373,33 @@ fn append_sysv_result<T: InstructionOperandLike>(
     operand: &T,
     placement: &ValuePlacement,
 ) -> Result<(), Diagnostic> {
+    if let Some((_, byte_offset, byte_count)) = operand.runtime_scalar_float() {
+        if byte_count != usize::from(placement.shape.byte_size) {
+            return Err(Diagnostic::error(
+                "SysV AMD64 float result storage disagrees with the normalized result width",
+            ));
+        }
+        let [
+            ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                byte_size,
+            },
+        ] = placement.locations.as_slice()
+        else {
+            return Err(Diagnostic::error(format!(
+                "SysV AMD64 float result has unsupported placement {:?}",
+                placement.locations
+            )));
+        };
+        append_sysv_runtime_base(bytes, relocation_sites, 0);
+        return append_sysv_store_float_to_r11(
+            bytes,
+            *register,
+            byte_offset,
+            usize::from(*byte_size),
+        );
+    }
     let (byte_offset, byte_count, aggregate) =
         if let Some((_, offset, count, _)) = operand.runtime_small_aggregate() {
             (offset, count, true)
@@ -2423,6 +2478,11 @@ fn normalized_sysv_import_plan<T: InstructionOperandLike>(
 }
 
 fn sysv_operand_shape<T: InstructionOperandLike>(operand: &T) -> Result<ValueShape, Diagnostic> {
+    if let Some((_, _, byte_count)) = operand.runtime_scalar_float() {
+        let byte_count = u16::try_from(byte_count)
+            .map_err(|_| Diagnostic::error("SysV AMD64 float width exceeds u16"))?;
+        return Ok(ValueShape::float(byte_count));
+    }
     if let Some((_, _, byte_count, alignment)) = operand.runtime_small_aggregate() {
         let byte_count = u16::try_from(byte_count)
             .map_err(|_| Diagnostic::error("SysV AMD64 aggregate width exceeds u16"))?;
@@ -2476,8 +2536,10 @@ fn validate_sysv_import_plan(plan: &CallPlan) -> Result<(), Diagnostic> {
         .iter()
         .chain(plan.result.iter())
         .any(|placement| {
-            !matches!(placement.shape.class, ValueClass::Integer)
-                || placement.shape.byte_size > 16
+            !matches!(
+                placement.shape.class,
+                ValueClass::Integer | ValueClass::Float
+            ) || placement.shape.byte_size > 16
                 || placement
                     .locations
                     .iter()
@@ -2485,7 +2547,7 @@ fn validate_sysv_import_plan(plan: &CallPlan) -> Result<(), Diagnostic> {
         })
     {
         return Err(Diagnostic::error(
-            "SysV AMD64 import plan contains an unsupported non-integer or indirect placement",
+            "SysV AMD64 import plan contains an unsupported aggregate class or indirect placement",
         ));
     }
     Ok(())
@@ -2512,6 +2574,56 @@ fn append_sysv_mov_register_imm64(
     };
     bytes.extend(opcode);
     bytes.extend(value.to_le_bytes());
+    Ok(())
+}
+
+fn append_sysv_load_float_from_r11(
+    bytes: &mut Vec<u8>,
+    register: MachineRegister,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<(), Diagnostic> {
+    let MachineRegister::X86Xmm(index @ 0..=7) = register else {
+        return Err(Diagnostic::error(format!(
+            "SysV AMD64 import cannot load float argument register {register:?}"
+        )));
+    };
+    let prefix = match byte_size {
+        4 => 0xf3,
+        8 => 0xf2,
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "SysV AMD64 scalar float width {byte_size} is not encodable"
+            )));
+        }
+    };
+    bytes.extend([prefix, 0x41, 0x0f, 0x10, 0x83 | (index << 3)]);
+    bytes.extend(disp32(byte_offset)?.to_le_bytes());
+    Ok(())
+}
+
+fn append_sysv_store_float_to_r11(
+    bytes: &mut Vec<u8>,
+    register: MachineRegister,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<(), Diagnostic> {
+    let MachineRegister::X86Xmm(index @ 0..=7) = register else {
+        return Err(Diagnostic::error(format!(
+            "SysV AMD64 import cannot store float result register {register:?}"
+        )));
+    };
+    let prefix = match byte_size {
+        4 => 0xf3,
+        8 => 0xf2,
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "SysV AMD64 scalar float result width {byte_size} is not encodable"
+            )));
+        }
+    };
+    bytes.extend([prefix, 0x41, 0x0f, 0x11, 0x83 | (index << 3)]);
+    bytes.extend(disp32(byte_offset)?.to_le_bytes());
     Ok(())
 }
 
@@ -2918,6 +3030,111 @@ mod x86_import_plan_tests {
             encode_host_call_sequence(CallingPolicy::SystemVAMD64, key, &operands)
                 .expect("routed SysV authored import"),
             layout.bytes
+        );
+    }
+
+    #[test]
+    fn authored_sysv_scalar_floats_use_the_independent_xmm_bank_and_result() {
+        let operands = [
+            operand(TargetInstructionOperandKind::RuntimeScalarFloat {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 8,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::RuntimeScalarFloat {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 16,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 24,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::RuntimeScalarFloat {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 32,
+                byte_count: 8,
+            }),
+        ];
+        let layout = sysv_import_layout(&operands, true).expect("SysV scalar-float import");
+
+        assert!(
+            layout
+                .bytes
+                .windows(9)
+                .any(|window| window == [0xf2, 0x41, 0x0f, 0x10, 0x83, 16, 0, 0, 0]),
+            "first float must load into xmm0 independently of rdi"
+        );
+        assert!(
+            layout
+                .bytes
+                .windows(9)
+                .any(|window| window == [0xf2, 0x41, 0x0f, 0x10, 0x8b, 32, 0, 0, 0]),
+            "second float must load into xmm1 independently of rsi"
+        );
+        assert!(
+            layout
+                .bytes
+                .windows(9)
+                .any(|window| window == [0xf2, 0x41, 0x0f, 0x11, 0x83, 0, 0, 0, 0]),
+            "the float result must spill from planned xmm0"
+        );
+        assert_eq!(
+            layout
+                .relocation_sites
+                .iter()
+                .map(|site| site.operand_index)
+                .collect::<Vec<_>>(),
+            [Some(1), Some(2), Some(3), Some(4), None, Some(0)]
+        );
+    }
+
+    #[test]
+    fn authored_sysv_ninth_scalar_float_moves_to_the_stack() {
+        let mut operands = vec![operand(
+            TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 8,
+            },
+        )];
+        operands.extend((0..9).map(|index| {
+            operand(TargetInstructionOperandKind::RuntimeScalarFloat {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 16 + index * 8,
+                byte_count: 8,
+            })
+        }));
+        operands.push(operand(
+            TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 96,
+                byte_count: 8,
+            },
+        ));
+
+        let layout = sysv_import_layout(&operands, true).expect("SysV stack-float import");
+        assert_eq!(&layout.bytes[..4], &[0x48, 0x83, 0xec, 8]);
+        assert!(
+            layout.bytes.windows(15).any(|window| window
+                == [
+                    0x49, 0x8b, 0x83, 80, 0, 0, 0, 0x48, 0x89, 0x84, 0x24, 0, 0, 0, 0,
+                ]),
+            "the ninth float's bits must occupy outgoing stack offset zero: {:02x?}",
+            layout.bytes
+        );
+        assert!(
+            layout
+                .bytes
+                .windows(7)
+                .any(|window| window == [0x49, 0x8b, 0xbb, 96, 0, 0, 0]),
+            "the independent integer bank must still start at rdi"
         );
     }
 

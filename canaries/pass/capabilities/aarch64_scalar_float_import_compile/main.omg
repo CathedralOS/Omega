@@ -1,0 +1,14 @@
+// An authored scalar-float signature must retain its float class through
+// selection: the argument travels in d0 and the result returns in d0.
+boundary trait ScalarFloatImport {
+    machine call(value: f64) -> f64;
+}
+
+macos_arm64 provides ScalarFloatImport {
+    call -> DllImport("libSystem.B.dylib", "omega_scalar_float_probe")
+}
+
+data Main { foreign: ScalarFloatImport; value: f64; result: f64; }
+machine Main::main(&mut self) {
+    self.result = self.foreign.call(self.value);
+}

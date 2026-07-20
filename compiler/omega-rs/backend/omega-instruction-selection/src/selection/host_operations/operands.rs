@@ -202,6 +202,15 @@ pub(super) fn select_host_operation_operands(
                             0,
                         )
                     })
+                    .or_else(|| {
+                        authored_float_argument_operand_at(
+                            input,
+                            host_call,
+                            dispatch_index,
+                            alias_context,
+                            0,
+                        )
+                    })
                     .or_else(|| first_scalar_argument_operand(input, host_call, dispatch_index))
             } else {
                 None
@@ -256,6 +265,15 @@ pub(super) fn select_host_operation_operands(
                         })
                         .or_else(|| {
                             native_small_aggregate_argument_operand_at(
+                                input,
+                                host_call,
+                                dispatch_index,
+                                alias_context,
+                                index,
+                            )
+                        })
+                        .or_else(|| {
+                            authored_float_argument_operand_at(
                                 input,
                                 host_call,
                                 dispatch_index,
@@ -2323,6 +2341,67 @@ fn float_argument_operand_at(
             byte_offset: place.byte_offset,
             byte_count: place.byte_count,
         }),
+        _ => None,
+    }
+}
+
+/// Preserve scalar float identity for authored imports. Catalog operations
+/// know their float slots from the operation key; authored calls instead need
+/// to recover it from the selected expression's layout descriptor before the
+/// generic scalar fallback erases the distinction.
+fn authored_float_argument_operand_at(
+    input: &InstructionSelectionInput<'_>,
+    host_call: &HostCall,
+    dispatch_index: Option<u32>,
+    alias_context: Option<RuntimeAliasResolutionContext<'_, '_>>,
+    index: usize,
+) -> Option<InstructionOperandKind> {
+    let argument = input
+        .host_calls
+        .arguments
+        .span(host_call.arguments)
+        .and_then(|arguments| arguments.get(index))?;
+    let HostCallArgumentKind::Expression(expression) = &argument.kind else {
+        return None;
+    };
+    let place = alias_resolved_place_at(input, host_call, dispatch_index, alias_context, index)
+        .or_else(|| {
+            resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index.unwrap_or(0),
+                host_call.source_key,
+                &input.host_calls.expressions,
+                *expression,
+            )
+        })?;
+    let descriptor = resolve_runtime_storage_leaf_descriptor_in_table(
+        input,
+        dispatch_index.unwrap_or(0),
+        host_call.source_key,
+        &input.host_calls.expressions,
+        *expression,
+    )?;
+    let byte_count = scalar_float_descriptor_byte_count(&descriptor)?;
+    (place.byte_count == byte_count).then_some(InstructionOperandKind::RuntimeScalarFloat {
+        region: place.region,
+        byte_offset: place.byte_offset,
+        byte_count,
+    })
+}
+
+fn scalar_float_descriptor_byte_count(descriptor: &TypeLayoutDescriptor) -> Option<usize> {
+    let descriptor = match descriptor {
+        TypeLayoutDescriptor::Constrained { base_type, .. } => {
+            return scalar_float_descriptor_byte_count(base_type);
+        }
+        descriptor => descriptor,
+    };
+    let TypeLayoutDescriptor::Named { name, .. } = descriptor else {
+        return None;
+    };
+    match PrimitiveType::from_name(name.as_ref())? {
+        PrimitiveType::F32 => Some(4),
+        PrimitiveType::F64 => Some(8),
         _ => None,
     }
 }
