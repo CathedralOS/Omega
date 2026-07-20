@@ -216,10 +216,13 @@ before the fix.
   shared `(state, statement, ordinal)` identity. Intra-statement checking keeps
   that preorder identity while applying left-to-right evaluation: call
   arguments count as live during the call, and later operands cross an earlier
-  nested suspending call. Continue with contained-machine subtrees, semantic
-  generic-call substitution for argument policies, admitted and sealed
-  per-mint facts, activation-demand joins against pessimistic admitted runtime
-  behavior, and diagnostic and model-export consumers. Checked builds now emit
+  nested suspending call. Call-carried generic parameters read the target
+  declaration's normalized carry bounds rather than a same-spelled caller
+  parameter. The legacy `Machine::contains` carrier has no source parser and
+  must be deliberately retired or reintroduced before subtree carry semantics
+  have a real customer. Continue with admitted and sealed per-mint facts,
+  activation-demand joins against pessimistic admitted runtime behavior, and
+  diagnostic and model-export consumers. Checked builds now emit
   `05_carry_manifest.json`, keeping authored minimums separate from effective
   derived policies with all four axes structured.
 - **CML4 — finish multiplicity migration.** Remove downstream dependence on

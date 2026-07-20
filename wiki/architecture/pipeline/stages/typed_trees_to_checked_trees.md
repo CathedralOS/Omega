@@ -117,6 +117,8 @@ Current ownership is:
   preorder call identity while walking actual left-to-right evaluation order:
   restrictive call arguments are carried during a suspending call, and uses
   in later operands keep a place live across an earlier nested call.
+  Call-argument policy derivation uses the target declaration's generic bounds;
+  unrelated caller type parameters cannot qualify the target by name.
   CPU/thread/address demands remain provider-admission work.
 - `omega-checked-trees/src/flow.rs` owns the published checked-flow fact model
   export surface. The model is split by semantic noun under

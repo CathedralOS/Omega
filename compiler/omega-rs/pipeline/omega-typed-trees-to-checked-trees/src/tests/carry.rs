@@ -86,6 +86,51 @@ fn lower(
 }
 
 #[test]
+fn call_target_type_parameters_supply_carry_bounds() {
+    let source = r#"
+        machine hold<T [carry(
+            suspension: allowed,
+            cpu: any,
+            thread: any,
+            address: movable,
+        )]>(value: T) effects Suspend {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "hold")
+        .expect("hold machine");
+    let state = typed
+        .machine_states(machine)
+        .first()
+        .expect("hold entry state");
+    let value = typed
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "value")
+        .expect("value parameter");
+
+    assert_eq!(
+        omega_validation::effective_type_carry_policy(
+            &typed,
+            crate::call_target_type_parameters(&typed, state.symbol),
+            value.type_reference,
+        )
+        .suspension,
+        omega_core::semantics::CarrySuspension::Allowed,
+    );
+    assert_eq!(
+        omega_validation::effective_type_carry_policy(&typed, &[], value.type_reference).suspension,
+        omega_core::semantics::CarrySuspension::Forbidden,
+        "an unowned generic name must stay born-strict",
+    );
+}
+
+#[test]
 fn rejects_suspension_while_borrow_carrying_local_remains_live() {
     let diagnostics = lower(
         r#"
