@@ -265,9 +265,10 @@ Mixed shapes are live (see the rules above). Still pending:
 `match`-statement arms, and `String`-bearing / recursive Equatable types
 (both rejected loudly at the conformance item).[^case-members]
 
-[^case-members]: Open details: payload-binding spelling in `transition` arms
-vs `match` arms (expected to reuse the data-destructure guard machinery);
-generic payloads (`Option<T>`-style); and the layout rule for payload storage
+[^case-members]: Payload binding in `transition` arms uses the ordinary
+data-pattern machinery (`Case { field, fixed: value }`); a future `match`
+statement must reuse that spelling rather than inventing another pattern
+language. Open details remain generic payloads (`Option<T>`-style) and the layout rule for payload storage
 (tag-prefixed overlay with the zero case payload-free). A domain declared as a
 pure case union is recognized for exhaustiveness
 SYNTACTICALLY -- the `when` classifier must be literally `self in Type::A |

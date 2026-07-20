@@ -369,9 +369,18 @@ fn parse_data_member<'tokens, 'source>(
     mut input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DataMember> {
     if input.at_contextual("version") {
-        return Err(input.error_here(
-            "data `version` blocks are retired; declare immutable era data types and an ordinary sum envelope",
-        ));
+        // Retire only the old `version Era { ... }` MEMBER shape. `version`
+        // remains an ordinary identifier, so `version: u32;` must reach the
+        // normal field parser below.
+        let after_version = input.take_contextual("version")?;
+        if after_version.at_name_like() {
+            let (_, after_name) = after_version.take_identifier()?;
+            if after_name.at_punctuation(PunctuationKind::LeftBrace) {
+                return Err(input.error_here(
+                    "data `version` blocks are retired; declare immutable era data types and an ordinary sum envelope",
+                ));
+            }
+        }
     }
 
     if input.at_contextual("case") {

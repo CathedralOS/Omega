@@ -302,9 +302,10 @@ before the fix.
 
 - **Lifetimes.** Implement the decision-15 `'name` lifetime arc and borrow-
   carrying data needed by placed views and task storage.
-- **Transition patterns.** Finish real pattern binding, multi-subject
-  validation, domain-pattern proofs, and diagnostics. Preserve exhaustive
-  record destructuring and single evaluation.
+- **Transition patterns.** Record and case-payload binding, renaming/waiving,
+  exhaustive field spelling, and `field: value` equality patterns are live
+  with single subject evaluation. Finish multi-subject validation,
+  domain-pattern proofs, and diagnostics.
 - **Const data parameters.** Add instantiation-time substitution, validation,
   layout diagnostics, and const-fact proof integration.
 - **Trait defaults.** Implement conformance, reuse, override, and dispatch for

@@ -255,8 +255,10 @@ where
 ///   matches when the subject's tag is `Type::Case` (an equality guard against
 ///   the case name), and each bound `field` rewrites to `subject.field` (a
 ///   payload read) in the `if` guard and in the transition target's arguments.
-/// - `Type { field, .. } if guard -> ...` -- a record destructure: no tag
-///   compare (the subject IS that type); bindings rewrite the same way.
+/// - `Type { field, fixed: value, .. } [if guard] -> ...` -- a record
+///   destructure: no tag compare (the subject IS that type); bare fields bind,
+///   while `fixed: value` contributes `subject.fixed == value` to the arm
+///   guard. Case payload patterns use the same field-value spelling.
 ///
 /// Returns `Ok(None)` when the arm is not a destructure pattern (no `{` after a
 /// leading path), so the caller falls back to the plain pattern list.
@@ -300,7 +302,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
         return Ok(None);
     }
 
-    let ((fields, has_rest), pattern_rest) =
+    let ((fields, matched_fields, has_rest), pattern_rest) =
         parse_data_destructure_pattern_fields(syntax_trees, after_path)?;
     // A `Type::Case { .. }` pattern (two-member path) binds payload fields of that
     // specific CASE, so tag each binding with the variant -- the rewritten field
@@ -355,6 +357,38 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
                 .error_here("destructure pattern path must be `Type { .. }` or `Type::Case { .. }`"));
         }
     };
+
+    // A value-bearing field pattern is ordinary equality over an attenuated
+    // field projection.  Keeping it as a real guard means the existing proof
+    // and flow machinery establishes `subject.field == expected` inside the
+    // arm; no pattern-only fact channel exists.
+    for (member, expected) in matched_fields {
+        let projected = syntax_trees
+            .expressions
+            .insert(ExpressionNode::Member(TableMemberExpression {
+                receiver: subject,
+                member,
+                case_variant: case_variant.clone(),
+            }));
+        let equality = syntax_trees
+            .expressions
+            .insert(ExpressionNode::Binary(TableBinaryExpression {
+                left: projected,
+                operator: BinaryOperator::Equal,
+                right: expected,
+            }));
+        combined = if combined.is_valid() {
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: combined,
+                    operator: BinaryOperator::And,
+                    right: equality,
+                }))
+        } else {
+            equality
+        };
+    }
 
     if let Some(guard_input) = guard_input {
         let (guard, rest) =
@@ -412,19 +446,30 @@ fn find_top_level_keyword(input: Input<'_, '_>, keyword: KeywordKind) -> Option<
     None
 }
 
-/// Parse the `{ field, .. }` part of a destructure pattern (the leading path is
+/// Parse the `{ field, fixed: value, .. }` part of a destructure pattern (the leading path is
 /// already consumed by the caller). Arm position SHARES the record-pattern
 /// field grammar (owner spec 2026-07-18): `field as name` renames the binding
 /// and `field as _` waives it (spelled but unbound). `..` stays the arm-only
 /// rest escape (predates the spec; the LET form has no `..` -- its
 /// exhaustiveness law makes waivers explicit instead). Each entry is
-/// `(member, binding)`: `binding = None` for a waived field.
+/// `(member, binding)`: `binding = None` for a waived field. A `field: value`
+/// entry is spelled for exhaustiveness but introduces no binding; it contributes
+/// a field-equality guard returned in the second vector.
 fn parse_data_destructure_pattern_fields<'tokens, 'source>(
-    _syntax_trees: &mut SyntaxTrees,
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, (Vec<(Identifier, Option<Identifier>)>, bool)> {
+) -> ParseResult<
+    'tokens,
+    'source,
+    (
+        Vec<(Identifier, Option<Identifier>)>,
+        Vec<(Identifier, ExpressionHandle)>,
+        bool,
+    ),
+> {
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut fields = Vec::new();
+    let mut matched_fields = Vec::new();
     let mut has_rest = false;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
@@ -433,6 +478,19 @@ fn parse_data_destructure_pattern_fields<'tokens, 'source>(
             input = input.take_punctuation(PunctuationKind::DotDot, "..")?;
         } else {
             let (field, rest) = input.take_identifier()?;
+            if rest.at_punctuation(PunctuationKind::Colon) {
+                let after_colon = rest.take_punctuation(PunctuationKind::Colon, ":")?;
+                let (expected, rest) =
+                    parse_expression_handle_without_struct_literals(syntax_trees, after_colon)?;
+                fields.push((field.clone(), None));
+                matched_fields.push((field, expected));
+                input = rest;
+                if input.at_punctuation(PunctuationKind::Comma) {
+                    input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+                    continue;
+                }
+                break;
+            }
             let mut binding = Some(field.clone());
             let mut rest = rest;
             if rest.at_keyword(KeywordKind::As) {
@@ -462,7 +520,7 @@ fn parse_data_destructure_pattern_fields<'tokens, 'source>(
     }
 
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    Ok(((fields, has_rest), input))
+    Ok(((fields, matched_fields, has_rest), input))
 }
 
 pub(super) fn rewrite_destructure_guard_expression(

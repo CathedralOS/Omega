@@ -18,6 +18,11 @@ pub(in crate::checks) struct IncomingGuard {
     guard: ExpressionHandle,
     /// True when the edge is the negated (continuation / `_`) arm.
     negated: bool,
+    /// Arguments on the immediate named edge whose guard this is.  Kept only
+    /// when the guarded edge targets `state` directly; transitive and joined
+    /// facts deliberately discard it because their parameter mapping would
+    /// require composing every intervening edge.
+    direct_arguments: Option<omega_core::arena::HandleSpan<ExpressionHandle>>,
 }
 
 impl IncomingGuard {
@@ -28,12 +33,19 @@ impl IncomingGuard {
     pub(in crate::checks) fn guard(&self) -> ExpressionHandle {
         self.guard
     }
+
+    pub(in crate::checks) fn direct_arguments(
+        &self,
+    ) -> Option<omega_core::arena::HandleSpan<ExpressionHandle>> {
+        self.direct_arguments
+    }
 }
 
 #[derive(Clone)]
 struct Edge {
     source: SymbolHandle,
     target: SymbolHandle,
+    arguments: omega_core::arena::HandleSpan<ExpressionHandle>,
     /// `None` for an unguarded (`Always`) edge; `Some((guard, negated))` for a
     /// guarded arm.
     guard: Option<(ExpressionHandle, bool)>,
@@ -138,6 +150,8 @@ pub(in crate::checks) fn collect_incoming_guard_facts(
                         state: state.symbol,
                         guard,
                         negated,
+                        direct_arguments: (edge.target == state.symbol)
+                            .then_some(edge.arguments),
                     });
                 }
             }
@@ -197,6 +211,10 @@ pub(in crate::checks) fn collect_incoming_guard_facts(
                     state: state.symbol,
                     guard: *guard,
                     negated: *negated,
+                    // A meet may combine edges with different argument
+                    // spellings.  Raw machine-field guards still carry; a
+                    // parameter-renamed guard waits for a common mapping.
+                    direct_arguments: None,
                 });
             }
         }
@@ -254,6 +272,7 @@ fn single_incoming_edge(edges: &[Edge], target: SymbolHandle) -> Option<Edge> {
             many.iter().all(|edge| edge.source == source).then(|| Edge {
                 source,
                 target,
+                arguments: omega_core::arena::HandleSpan::default(),
                 guard: None,
             })
         }
@@ -365,7 +384,7 @@ fn push_edge(
     if !target.is_valid() {
         return;
     }
-    let TransitionTargetNode::Named { path, .. } =
+    let TransitionTargetNode::Named { path, arguments } =
         program.statement_table.transition_target(target)
     else {
         return;
@@ -378,6 +397,7 @@ fn push_edge(
         edges.push(Edge {
             source,
             target: path.symbol,
+            arguments: *arguments,
             guard,
         });
     }

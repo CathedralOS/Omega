@@ -448,7 +448,21 @@ fn incoming_guard_proves_requires(
     let guard_matches = incoming
         .iter()
         .filter(|guard| guard.holds_at(state_flow.state_symbol))
-        .any(|guard| guard_conjunct_matches(program, guard.guard(), &required_label));
+        .any(|guard| {
+            guard_conjunct_matches(program, guard.guard(), &required_label)
+                || guard.direct_arguments().is_some_and(|arguments| {
+                    let call_site = crate::CallSite::TransitionNamed(arguments);
+                    let instantiated = super::labels::instantiate_call_contract_expression_label(
+                        program,
+                        state_flow.state_symbol,
+                        0,
+                        &call_site,
+                        state,
+                        expression,
+                    );
+                    guard_conjunct_matches(program, guard.guard(), &instantiated)
+                })
+        });
     if !guard_matches {
         return false;
     }
