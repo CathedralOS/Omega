@@ -6,6 +6,7 @@ use crate::machine::lower_machine_into;
 use crate::measure::lower_measure_definition;
 use crate::operator::lower_operator_definition;
 use crate::trait_definition::lower_trait_definition;
+use crate::type_reference::lower_child_type_references;
 use crate::wire::lower_wire_schema;
 use omega_core::diagnostics::Diagnostic;
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
@@ -52,10 +53,13 @@ pub(crate) fn lower_item(
             lowerer.symbol_resolved_trees.traits.push(trait_definition);
         }
         syntax::item::Item::Conformance(conformance) => {
+            let arguments =
+                lower_child_type_references(lowerer, syntax_trees, conformance.trait_arguments)?;
             lowerer.symbol_resolved_trees.conformances.push(
                 omega_symbol_resolved_trees::trait_definition::DataConformance {
                     type_name: crate::name::lower_name(&conformance.type_name),
                     trait_name: crate::name::lower_name(&conformance.trait_name),
+                    arguments,
                 },
             );
         }

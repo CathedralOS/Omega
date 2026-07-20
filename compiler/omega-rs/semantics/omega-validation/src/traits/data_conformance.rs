@@ -47,10 +47,23 @@ pub(crate) fn validate_data_conformances(
             continue;
         };
 
+        let arguments = program
+            .type_reference_table
+            .type_reference_handles(conformance.arguments);
+        let expected = program.trait_type_parameters(trait_definition).len();
+        if arguments.len() != expected {
+            diagnostics.push(Diagnostic::error(format!(
+                "conformance `{type_name} satisfies {trait_name}` expects {expected} generic argument(s), got {}",
+                arguments.len()
+            )));
+            continue;
+        }
+
         validate_data_satisfies_trait(
             program,
             type_name,
             trait_definition,
+            arguments,
             diagnostics,
             &mut Vec::new(),
         );
@@ -61,6 +74,7 @@ fn validate_data_satisfies_trait(
     program: &TypedTrees,
     type_name: &str,
     trait_definition: &TraitDefinition,
+    explicit_type_arguments: &[omega_typed_trees::types::TypeReferenceHandle],
     diagnostics: &mut Vec<Diagnostic>,
     visited_traits: &mut Vec<omega_core::symbols::SymbolHandle>,
 ) {
@@ -89,12 +103,13 @@ fn validate_data_satisfies_trait(
             continue;
         };
 
-        super::conformance::validate_machine_state_satisfies_trait_signature(
+        super::conformance::validate_machine_state_satisfies_trait_signature_with_arguments(
             program,
             machine,
             state,
             trait_definition,
             requirement,
+            explicit_type_arguments,
             diagnostics,
         );
     }
@@ -103,10 +118,19 @@ fn validate_data_satisfies_trait(
         let Some(required_trait) = trait_definition_by_symbol(program, requirement.symbol) else {
             continue;
         };
+        let required_arguments = super::conformance::compose_forwarded_trait_arguments(
+            program,
+            trait_definition,
+            explicit_type_arguments,
+            program
+                .type_reference_table
+                .type_reference_handles(requirement.arguments),
+        );
         validate_data_satisfies_trait(
             program,
             type_name,
             required_trait,
+            &required_arguments,
             diagnostics,
             visited_traits,
         );

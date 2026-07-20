@@ -21,12 +21,13 @@ pub struct TraitStorage {
 }
 
 /// A standalone conformance item (`Point satisfies Equatable;`, frozen
-/// decision 8): a data type claims a whole trait; validation checks the
-/// type's written attached machines against the trait's requirements.
+/// decision 8): a data type claims a whole, optionally generic trait;
+/// validation checks its written/default attached machines.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataConformance {
     pub type_name: DiagnosticName,
     pub trait_name: DiagnosticName,
+    pub arguments: HandleSpan<crate::types::TypeReference>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

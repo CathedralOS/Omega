@@ -1,0 +1,71 @@
+// Standalone generic conformance arguments specialize both the synthesized
+// default signature and the authored body it carries.
+use omega::language::std::console;
+
+trait Initializable<T> {
+    machine assign(&mut self, value: T);
+
+    machine initialize(&mut self, value: T) {
+        self.assign(value);
+    }
+}
+
+trait Sink<T> {
+    machine store(&mut self, value: T);
+
+    machine put(&mut self, value: T) {
+        self.store(value);
+    }
+}
+
+trait IntSink: Sink<i32> {
+}
+
+trait ForwardedSink<U>: Sink<U> {
+}
+
+data DirectCounter {
+    value: i32;
+}
+
+DirectCounter satisfies Initializable<i32>;
+
+machine DirectCounter::assign(&mut self, value: i32) {
+    self.value = value;
+}
+
+data ParentCounter {
+    value: i32;
+}
+
+ParentCounter satisfies IntSink;
+
+machine ParentCounter::store(&mut self, value: i32) {
+    self.value = value;
+}
+
+data ForwardedCounter {
+    value: i32;
+}
+
+ForwardedCounter satisfies ForwardedSink<i32>;
+
+machine ForwardedCounter::store(&mut self, value: i32) {
+    self.value = value;
+}
+
+data Main {
+    console: Console;
+    direct: DirectCounter;
+    parent: ParentCounter;
+    forwarded: ForwardedCounter;
+}
+
+machine Main::main(&mut self) {
+    self.direct.initialize(20);
+    self.parent.put(20);
+    self.forwarded.put(30);
+    self.console.exit_process(
+        self.direct.value + self.parent.value + self.forwarded.value,
+    );
+}

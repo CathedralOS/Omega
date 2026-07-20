@@ -80,6 +80,17 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
         }
     }
 
+    for conformance in typed_trees.data_conformances() {
+        count_declaration_name(&conformance.type_name, &mut counts);
+        count_declaration_name(&conformance.trait_name, &mut counts);
+        for argument in typed_trees
+            .type_reference_table
+            .type_reference_handles(conformance.arguments)
+        {
+            count_type_reference_handle(&typed_trees.type_reference_table, *argument, &mut counts);
+        }
+    }
+
     for trait_definition in typed_trees.traits() {
         count_declaration_name(&trait_definition.name, &mut counts);
         for parameter in typed_trees.trait_type_parameters(trait_definition) {

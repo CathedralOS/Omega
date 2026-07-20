@@ -11,19 +11,27 @@ use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::ExpressionHandle;
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{Item, Machine, State, StateSignatureNode};
-use omega_syntax_trees::types::TypeReferenceNode;
+use omega_syntax_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 #[derive(Clone)]
 struct TraitDefaultsInput {
+    parameter_names: Vec<String>,
     signatures: Vec<StateSignatureNode>,
-    requirements: Vec<String>,
+    requirements: Vec<TraitRequirementInput>,
+}
+
+#[derive(Clone)]
+struct TraitRequirementInput {
+    name: String,
+    arguments: Vec<TypeReferenceHandle>,
 }
 
 #[derive(Clone)]
 struct DefaultCandidate {
     origin: String,
     signature: StateSignatureNode,
+    substitution: HashMap<String, TypeReferenceHandle>,
 }
 
 type EffectiveDefaults = BTreeMap<String, Vec<DefaultCandidate>>;
@@ -43,39 +51,55 @@ pub(super) fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), 
             let Item::Trait(trait_definition) = item else {
                 return None;
             };
-            if !trait_definition.type_parameters.is_empty() {
-                return None;
-            }
+            let parameter_names = syntax
+                .items
+                .type_parameters(trait_definition.type_parameters)
+                .iter()
+                .map(|parameter| parameter.name.as_str().to_string())
+                .collect();
             let signatures = syntax
                 .items
                 .state_signatures(trait_definition.machines)
                 .iter()
                 .map(|handle| syntax.items.state_signature(*handle).clone())
                 .collect::<Vec<_>>();
-            let requirements = syntax
+            let mut requirements = Vec::new();
+            for handle in syntax
                 .type_references
                 .type_reference_handles(trait_definition.parents)
-                .iter()
-                .filter_map(
-                    |handle| match syntax.type_references.type_reference(*handle) {
-                        TypeReferenceNode::Named(name) => Some(name.as_str().to_string()),
-                        TypeReferenceNode::Generic { base_name, .. } => {
-                            Some(base_name.as_str().to_string())
-                        }
-                        _ => None,
-                    },
-                )
-                .chain(
-                    syntax
-                        .items
-                        .identifier_path_members(trait_definition.requires)
-                        .iter()
-                        .map(|name| name.as_str().to_string()),
-                )
-                .collect();
+            {
+                match syntax.type_references.type_reference(*handle) {
+                    TypeReferenceNode::Named(name) => requirements.push(TraitRequirementInput {
+                        name: name.as_str().to_string(),
+                        arguments: Vec::new(),
+                    }),
+                    TypeReferenceNode::Generic {
+                        base_name,
+                        arguments,
+                    } => requirements.push(TraitRequirementInput {
+                        name: base_name.as_str().to_string(),
+                        arguments: syntax
+                            .type_references
+                            .type_reference_handles(*arguments)
+                            .to_vec(),
+                    }),
+                    _ => {}
+                }
+            }
+            requirements.extend(
+                syntax
+                    .items
+                    .identifier_path_members(trait_definition.requires)
+                    .iter()
+                    .map(|name| TraitRequirementInput {
+                        name: name.as_str().to_string(),
+                        arguments: Vec::new(),
+                    }),
+            );
             Some((
                 trait_definition.name.as_str().to_string(),
                 TraitDefaultsInput {
+                    parameter_names,
                     signatures,
                     requirements,
                 },
@@ -89,6 +113,10 @@ pub(super) fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), 
             Item::Conformance(conformance) => Some((
                 conformance.type_name.as_str().to_string(),
                 conformance.trait_name.as_str().to_string(),
+                syntax
+                    .type_references
+                    .type_reference_handles(conformance.trait_arguments)
+                    .to_vec(),
             )),
             _ => None,
         })
@@ -110,20 +138,34 @@ pub(super) fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), 
         }
     }
 
-    let mut effective_defaults = HashMap::new();
     let mut diagnostics = Vec::new();
     let mut reported_conflicts = HashSet::new();
-    for (type_name, trait_name) in conformances {
+    for (type_name, trait_name, arguments) in conformances {
         if !data_names.contains(&type_name) {
             continue;
         }
-        if !traits.contains_key(&trait_name) {
+        let Some(conformed_trait) = traits.get(&trait_name) else {
+            continue;
+        };
+        if arguments.len() != conformed_trait.parameter_names.len() {
+            diagnostics.push(Diagnostic::error(format!(
+                "conformance `{type_name} satisfies {trait_name}` expects {} generic argument(s), got {}",
+                conformed_trait.parameter_names.len(),
+                arguments.len()
+            )));
             continue;
         }
+        let substitution = conformed_trait
+            .parameter_names
+            .iter()
+            .cloned()
+            .zip(arguments.iter().copied())
+            .collect();
         let defaults = collect_effective_defaults(
+            syntax,
             &trait_name,
+            &substitution,
             &traits,
-            &mut effective_defaults,
             &mut HashSet::new(),
         );
         for (method_name, candidates) in defaults {
@@ -149,7 +191,12 @@ pub(super) fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), 
                 continue;
             };
             attached_methods.insert(attached_method);
-            synthesize_default_machine(syntax, &type_name, &candidate.signature);
+            let signature = if candidate.substitution.is_empty() {
+                candidate.signature.clone()
+            } else {
+                instantiate_default_signature(syntax, &candidate.signature, &candidate.substitution)
+            };
+            synthesize_default_machine(syntax, &type_name, &signature);
         }
     }
 
@@ -166,14 +213,12 @@ pub(super) fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), 
 /// conformance site can require a written override; repeated paths to the same
 /// originating trait (a diamond) are deduplicated.
 fn collect_effective_defaults(
+    syntax: &mut SyntaxTrees,
     trait_name: &str,
+    substitution: &HashMap<String, TypeReferenceHandle>,
     traits: &HashMap<String, TraitDefaultsInput>,
-    memo: &mut HashMap<String, EffectiveDefaults>,
     visiting: &mut HashSet<String>,
 ) -> EffectiveDefaults {
-    if let Some(defaults) = memo.get(trait_name) {
-        return defaults.clone();
-    }
     if !visiting.insert(trait_name.to_string()) {
         // Requirement-cycle validation owns the diagnostic. Avoid recursing
         // forever in this earlier desugaring pass.
@@ -186,9 +231,31 @@ fn collect_effective_defaults(
 
     let mut defaults = EffectiveDefaults::new();
     for requirement in &trait_definition.requirements {
-        for (method_name, candidates) in
-            collect_effective_defaults(requirement, traits, memo, visiting)
-        {
+        let Some(required_trait) = traits.get(&requirement.name) else {
+            continue;
+        };
+        if requirement.arguments.len() != required_trait.parameter_names.len() {
+            // The ordinary requirement validator owns the arity diagnostic.
+            continue;
+        }
+        let required_arguments = requirement
+            .arguments
+            .iter()
+            .map(|argument| substitute_type_reference(syntax, *argument, substitution))
+            .collect::<Vec<_>>();
+        let required_substitution = required_trait
+            .parameter_names
+            .iter()
+            .cloned()
+            .zip(required_arguments)
+            .collect::<HashMap<_, _>>();
+        for (method_name, candidates) in collect_effective_defaults(
+            syntax,
+            &requirement.name,
+            &required_substitution,
+            traits,
+            visiting,
+        ) {
             let inherited = defaults.entry(method_name).or_default();
             for candidate in candidates {
                 if !inherited
@@ -208,16 +275,209 @@ fn collect_effective_defaults(
             defaults.insert(
                 method_name,
                 vec![DefaultCandidate {
-                    origin: trait_name.to_string(),
+                    origin: trait_instance_label(syntax, trait_name, substitution),
                     signature: signature.clone(),
+                    substitution: substitution.clone(),
                 }],
             );
         }
     }
 
     visiting.remove(trait_name);
-    memo.insert(trait_name.to_string(), defaults.clone());
     defaults
+}
+
+fn trait_instance_label(
+    syntax: &SyntaxTrees,
+    trait_name: &str,
+    substitution: &HashMap<String, TypeReferenceHandle>,
+) -> String {
+    if substitution.is_empty() {
+        return trait_name.to_string();
+    }
+    let mut arguments = substitution
+        .iter()
+        .map(|(name, handle)| (name, type_reference_key(syntax, *handle)))
+        .collect::<Vec<_>>();
+    arguments.sort_by(|left, right| left.0.cmp(right.0));
+    format!(
+        "{trait_name}<{}>",
+        arguments
+            .into_iter()
+            .map(|(_, argument)| argument)
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
+fn type_reference_key(syntax: &SyntaxTrees, handle: TypeReferenceHandle) -> String {
+    match syntax.type_references.type_reference(handle) {
+        TypeReferenceNode::Reference {
+            referee,
+            is_mutable,
+            ..
+        } => format!(
+            "&{}{}",
+            if *is_mutable { "mut " } else { "" },
+            type_reference_key(syntax, *referee)
+        ),
+        TypeReferenceNode::Constrained { base_type, .. } => type_reference_key(syntax, *base_type),
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            let length = match length {
+                FixedArrayLength::Literal(value) => value.to_string(),
+                FixedArrayLength::ConstParameter(name) | FixedArrayLength::ConstCall(name) => {
+                    name.as_str().to_string()
+                }
+            };
+            format!("[{}; {length}]", type_reference_key(syntax, *element_type))
+        }
+        TypeReferenceNode::Slice { element_type } => {
+            format!("[{}]", type_reference_key(syntax, *element_type))
+        }
+        TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+        } => format!(
+            "{}<{}>",
+            base_name.as_str(),
+            syntax
+                .type_references
+                .type_reference_handles(*arguments)
+                .iter()
+                .map(|argument| type_reference_key(syntax, *argument))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        TypeReferenceNode::ConstExpression(expression) => format!("const#{:?}", expression),
+        TypeReferenceNode::DynamicTrait(name) => format!("dyn {}", name.as_str()),
+        TypeReferenceNode::Named(name) => name.as_str().to_string(),
+        TypeReferenceNode::SelfType => "Self".to_string(),
+        TypeReferenceNode::Unit => "()".to_string(),
+    }
+}
+
+fn substitute_type_reference(
+    syntax: &mut SyntaxTrees,
+    handle: TypeReferenceHandle,
+    substitution: &HashMap<String, TypeReferenceHandle>,
+) -> TypeReferenceHandle {
+    let node = syntax.type_references.type_reference(handle).clone();
+    match node {
+        TypeReferenceNode::Named(name) => {
+            substitution.get(name.as_str()).copied().unwrap_or(handle)
+        }
+        TypeReferenceNode::Reference {
+            referee,
+            is_mutable,
+            lifetime,
+        } => {
+            let substituted = substitute_type_reference(syntax, referee, substitution);
+            if substituted == referee {
+                handle
+            } else {
+                syntax.type_references.insert_reference_with_lifetime(
+                    substituted,
+                    is_mutable,
+                    lifetime,
+                )
+            }
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            let substituted = substitute_type_reference(syntax, base_type, substitution);
+            if substituted == base_type {
+                handle
+            } else {
+                syntax
+                    .type_references
+                    .insert_constrained(substituted, constraints)
+            }
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            let substituted_element = substitute_type_reference(syntax, element_type, substitution);
+            let substituted_length = match &length {
+                FixedArrayLength::ConstParameter(name) => substitution
+                    .get(name.as_str())
+                    .and_then(
+                        |argument| match syntax.type_references.type_reference(*argument) {
+                            TypeReferenceNode::Named(value) => value.as_str().parse().ok(),
+                            _ => None,
+                        },
+                    )
+                    .map(FixedArrayLength::Literal)
+                    .unwrap_or_else(|| length.clone()),
+                _ => length.clone(),
+            };
+            if substituted_element == element_type && substituted_length == length {
+                handle
+            } else {
+                syntax
+                    .type_references
+                    .insert_fixed_array(substituted_element, substituted_length)
+            }
+        }
+        TypeReferenceNode::Slice { element_type } => {
+            let substituted = substitute_type_reference(syntax, element_type, substitution);
+            if substituted == element_type {
+                handle
+            } else {
+                syntax.type_references.insert_slice(substituted)
+            }
+        }
+        TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+        } => {
+            let original = syntax
+                .type_references
+                .type_reference_handles(arguments)
+                .to_vec();
+            let substituted = original
+                .iter()
+                .map(|argument| substitute_type_reference(syntax, *argument, substitution))
+                .collect::<Vec<_>>();
+            if substituted == original {
+                handle
+            } else {
+                let arguments = syntax
+                    .type_references
+                    .insert_type_reference_handles(substituted);
+                syntax.type_references.insert_generic(base_name, arguments)
+            }
+        }
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait(_)
+        | TypeReferenceNode::SelfType
+        | TypeReferenceNode::Unit => handle,
+    }
+}
+
+fn instantiate_default_signature(
+    syntax: &mut SyntaxTrees,
+    signature: &StateSignatureNode,
+    substitution: &HashMap<String, TypeReferenceHandle>,
+) -> StateSignatureNode {
+    let snapshot = syntax.clone();
+    let type_watermark = syntax.type_references.node_count();
+    let copied = syntax.copy_state_signature_node_from(&snapshot, signature);
+    for (handle, name) in syntax.type_references.named_nodes_from(type_watermark) {
+        let Some(argument) = substitution.get(&name) else {
+            continue;
+        };
+        let replacement = syntax.type_references.type_reference(*argument).clone();
+        syntax
+            .type_references
+            .replace_type_reference(handle, replacement);
+    }
+    copied
 }
 
 fn synthesize_default_machine(

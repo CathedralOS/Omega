@@ -55,6 +55,12 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
         Item::Conformance(conformance) => {
             count_identifier(&conformance.type_name, counts);
             count_identifier(&conformance.trait_name, counts);
+            for argument in syntax_trees
+                .type_references
+                .type_reference_handles(conformance.trait_arguments)
+            {
+                count_type_reference_handle(syntax_trees, *argument, counts);
+            }
         }
         Item::Const(constant) => {
             count_identifier(&constant.scope, counts);

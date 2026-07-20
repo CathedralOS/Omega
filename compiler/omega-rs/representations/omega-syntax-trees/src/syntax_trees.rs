@@ -161,12 +161,38 @@ impl SyntaxTrees {
         }
     }
 
+    /// Deep-copy one trait signature and its authored default body from a
+    /// snapshot. Pre-resolution generic-default synthesis uses this to keep
+    /// substitutions isolated from the source trait template.
+    pub fn copy_state_signature_node_from(
+        &mut self,
+        other: &SyntaxTrees,
+        signature: &crate::item::StateSignatureNode,
+    ) -> crate::item::StateSignatureNode {
+        let copied = self.copy_state_signature_node(other, signature);
+        crate::item::StateSignatureNode {
+            name: copied.name,
+            is_default: copied.is_default,
+            parameters: copied.parameters,
+            return_type: copied.return_type,
+            effects: copied.effects,
+            contracts: copied.contracts,
+            default_body: copied.default_body,
+            terminates_guarantee: copied.terminates_guarantee,
+        }
+    }
+
     fn copy_item(&mut self, other: &SyntaxTrees, item: &Item) -> Item {
         match item {
             Item::Capability(capability) => {
                 Item::Capability(self.copy_capability_definition(other, capability))
             }
-            Item::Conformance(conformance) => Item::Conformance(conformance.clone()),
+            Item::Conformance(conformance) => Item::Conformance(crate::item::ConformanceItem {
+                type_name: conformance.type_name.clone(),
+                trait_name: conformance.trait_name.clone(),
+                trait_arguments: self
+                    .copy_type_reference_handle_span(other, conformance.trait_arguments),
+            }),
             Item::Const(constant) => Item::Const(crate::item::ConstDefinition {
                 scope: constant.scope.clone(),
                 name: constant.name.clone(),

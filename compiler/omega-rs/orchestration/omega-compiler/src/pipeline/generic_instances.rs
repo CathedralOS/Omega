@@ -327,7 +327,9 @@ pub(crate) fn desugar_generic_data_instances(
             // omit it from the concrete record. Mixed facts retain their field
             // operands and receive the same const substitution as members.
             let snapshot = syntax.clone();
-            let fact_expression_watermark = syntax.expressions.expression_count() as u32;
+            let fact_expression_watermark = (syntax.expressions.expression_count() as u32)
+                .checked_add(1)
+                .expect("expression arena index overflow");
             let mut first_fact = Handle::invalid();
             let mut fact_count = 0u32;
             for fact in snapshot.tables.items.proof_facts(base_info.where_facts) {
@@ -413,7 +415,9 @@ pub(crate) fn desugar_generic_data_instances(
                     continue;
                 };
                 let type_watermark = syntax.tables.type_references.node_count();
-                let expression_watermark = syntax.expressions.expression_count() as u32;
+                let expression_watermark = (syntax.expressions.expression_count() as u32)
+                    .checked_add(1)
+                    .expect("expression arena index overflow");
                 let Item::Machine(mut clone) =
                     syntax.copy_item_from(&snapshot, &Item::Machine(machine.clone()))
                 else {
