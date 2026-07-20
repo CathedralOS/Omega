@@ -6,9 +6,11 @@ machine is_positive(value: u64) -> bool {
     value > 0
 }
 
-domain u64::AtMostEight {
-    self <= 8
+machine is_at_most_eight(value: u64) -> bool {
+    value <= 8
 }
+
+domain u64::AtMostEight when is_at_most_eight(self) {}
 
 domain u64::BufferSize when is_positive(self) {
     self in AtMostEight;

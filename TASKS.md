@@ -735,9 +735,11 @@ remain contract-invisible.
   while false or effectful classifiers reject. Their boolean/arithmetic facts
   over `self` compose in the same build-time proof, including checked integer
   operands and logical negation; nested membership facts recursively compose
-  with ordinary integer-domain facts and conservatively stand down on cycles.
-  Continue with declared-width signed shift/bitwise and arithmetic-domain
-  semantics, plus richer build-time operands such as nested machine classifiers.
+  with ordinary integer-domain facts and conservatively stand down on cycles;
+  nested direct machine classifiers reuse the same typed transitive-effect and
+  signature gates before build-time execution. Continue with declared-width
+  signed shift/bitwise and arithmetic-domain semantics, plus richer build-time
+  operands.
 - **Trait defaults (authored bodies complete).** Standalone data conformances synthesize a
   missing attached machine from the trait's authored body before resolution,
   including defaults inherited through `requires` and header parents. Ordinary
