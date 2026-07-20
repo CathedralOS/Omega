@@ -130,10 +130,12 @@ ceiling derived exactly from the ABI volatile-register classes.
    lower with an explicit materialization origin rather than fake instruction
    metadata. Normalized placement constraints now join layout alignment with
    permitted address range, build/load/post-handoff phase, machine-regime
-   identity, and artifact-installation scope, and validate concrete sites. Wire
-   entry identities from selected artifacts, propagate placement constraints
-   through artifact construction, and lower the now-derived atomic
-   post-handoff writer programs to generated machine code.
+   identity, and artifact-installation scope, and validate concrete sites. The
+   decoded constraint record is now bound into artifact admission and must match
+   the exact record carried by the claimed placement at materialization, so a
+   provider cannot substitute weaker constraints behind the admitted placement
+   plan identity. Wire entry identities from selected artifacts and lower the
+   now-derived atomic post-handoff writer programs to generated machine code.
 5. **IDT2 — installed-root ledger.** Add `lidt` only as an installation path
    that consumes scoped IDT
    authority and records every installed entry as an external analysis root
@@ -370,10 +372,11 @@ before the fix.
   expose arbitrary-offset access or per-access revocation probes.
 - **L6c — symbolic materializer.** The normalized source/action plan and
   loader-versus-post-handoff validation are live. Range/alignment/phase/regime/
-  installation-scope constraints are normalized and concrete-site validated.
-  Add source identity derivation/integration, propagate those constraints into
-  artifact construction, and lower the provider-resolved post-handoff writer
-  programs to generated machine code. Writer programs already validate their
+  installation-scope constraints are normalized, concrete-site validated, and
+  bound through decoded artifact construction, admission evidence, placement,
+  and materialization without permitting constraint substitution. Add source
+  identity derivation/integration and lower the provider-resolved post-handoff
+  writer programs to generated machine code. Writer programs already validate their
   concrete site, resolve each sealed target once, stage all writes, and publish
   atomically. Native whole-pointer actions already lower into section-qualified
   object relocations with materialization provenance.

@@ -46,6 +46,9 @@ pub struct DecodedArtifactContainer {
     pub contracts: MachineContractSetId,
     pub declared_footprint: MachineFootprintId,
     pub placement_plan: PlacementPlanId,
+    /// Checked decode of the canonical placement section. Its identity and
+    /// normalized constraints are both bound into artifact admission.
+    pub placement_constraints: PlacementConstraints,
     pub relocation_set: RelocationSetId,
     pub proof_payload: ProofPayloadId,
     pub sections: Vec<ContainerSection>,
@@ -210,6 +213,7 @@ pub fn validate_decoded_container(
         decoded.contracts,
         decoded.declared_footprint,
         decoded.placement_plan,
+        decoded.placement_constraints,
     )?;
     Ok(ValidatedArtifactContainer {
         artifact,
@@ -264,6 +268,9 @@ mod tests {
             contracts,
             declared_footprint: footprint,
             placement_plan: placement,
+            placement_constraints: PlacementConstraints::unconstrained(
+                omega_layout_plans::PlacementPhase::Load,
+            ),
             relocation_set: relocations,
             proof_payload: proof,
             sections: vec![
@@ -306,6 +313,10 @@ mod tests {
         let container = validate_decoded_container(decoded(), limits()).expect("container");
         assert_eq!(container.artifact().identity().normalized_identity(), 1);
         assert_eq!(container.artifact().byte_length(), 64);
+        assert_eq!(
+            container.artifact().placement_constraints(),
+            PlacementConstraints::unconstrained(omega_layout_plans::PlacementPhase::Load)
+        );
     }
 
     #[test]

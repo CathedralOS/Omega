@@ -60,6 +60,7 @@ struct ArtifactRecord {
     contracts: MachineContractSetId,
     declared_footprint: MachineFootprintId,
     placement_plan: PlacementPlanId,
+    placement_constraints: PlacementConstraints,
 }
 
 /// Immutable canonical decode result. Construction grants no executable
@@ -75,6 +76,7 @@ impl Artifact {
         contracts: MachineContractSetId,
         declared_footprint: MachineFootprintId,
         placement_plan: PlacementPlanId,
+        placement_constraints: PlacementConstraints,
     ) -> Result<Self, InstallationDiagnostic> {
         if byte_length == 0 {
             return Err(InstallationDiagnostic(
@@ -88,6 +90,7 @@ impl Artifact {
             contracts,
             declared_footprint,
             placement_plan,
+            placement_constraints,
         })))
     }
 
@@ -102,6 +105,10 @@ impl Artifact {
     pub fn byte_length(&self) -> u64 {
         self.0.byte_length
     }
+
+    pub fn placement_constraints(&self) -> PlacementConstraints {
+        self.0.placement_constraints
+    }
 }
 
 /// Validator-authored evidence for the reusable executable qualification.
@@ -115,6 +122,7 @@ pub struct ArtifactAdmissionEvidence {
     contracts: MachineContractSetId,
     footprint: MachineFootprintId,
     placement_plan: PlacementPlanId,
+    placement_constraints: PlacementConstraints,
     accepted: bool,
 }
 
@@ -127,6 +135,7 @@ impl ArtifactAdmissionEvidence {
         contracts: MachineContractSetId,
         footprint: MachineFootprintId,
         placement_plan: PlacementPlanId,
+        placement_constraints: PlacementConstraints,
         accepted: bool,
     ) -> Self {
         Self {
@@ -136,6 +145,7 @@ impl ArtifactAdmissionEvidence {
             contracts,
             footprint,
             placement_plan,
+            placement_constraints,
             accepted,
         }
     }
@@ -172,6 +182,7 @@ pub fn admit_executable(
         || evidence.contracts != artifact.0.contracts
         || evidence.footprint != artifact.0.declared_footprint
         || evidence.placement_plan != artifact.0.placement_plan
+        || evidence.placement_constraints != artifact.0.placement_constraints
     {
         return Err(InstallationDiagnostic(
             "artifact admission evidence does not match canonical candidate".into(),
@@ -264,6 +275,7 @@ impl CodePlacementAuthority {
             placement: self.placement,
             scope: self.scope,
             audience: self.audience,
+            constraints: self.constraints,
             extent,
         })
     }
@@ -292,6 +304,7 @@ pub struct CodePlacement {
     placement: CodePlacementId,
     scope: InstallationScopeId,
     audience: InstallationAudience,
+    constraints: PlacementConstraints,
     extent: Extent,
 }
 
@@ -360,6 +373,8 @@ pub fn materialize_and_freeze(
         Some("code placement is smaller than the admitted artifact")
     } else if receipt.placement_plan != artifact.artifact.0.placement_plan {
         Some("materialization did not use the admitted placement plan")
+    } else if placement.constraints != artifact.artifact.0.placement_constraints {
+        Some("code placement constraints do not match the admitted artifact")
     } else if !receipt.writes_frozen {
         Some("materialization did not freeze write authority over final bytes")
     } else {
@@ -847,6 +862,19 @@ mod tests {
         )
     }
 
+    fn artifact_placement_constraints() -> PlacementConstraints {
+        let scope = ArtifactInstallationScopeId::from_normalized_identity(61)
+            .expect("artifact installation scope");
+        PlacementConstraints::new(
+            Some(PlacementAddressRange::new(0x1000, 0x1_0000).expect("placement range")),
+            4096,
+            PlacementPhase::PostHandoff,
+            None,
+            Some(scope),
+        )
+        .expect("placement constraints")
+    }
+
     fn artifact(identity: u64) -> Artifact {
         Artifact::from_canonical_decode(
             id(identity, ArtifactId::from_normalized_identity),
@@ -855,6 +883,7 @@ mod tests {
             id(30, MachineContractSetId::from_normalized_identity),
             id(31, MachineFootprintId::from_normalized_identity),
             id(32, PlacementPlanId::from_normalized_identity),
+            artifact_placement_constraints(),
         )
         .expect("artifact")
     }
@@ -869,6 +898,7 @@ mod tests {
                 candidate.0.contracts,
                 candidate.0.declared_footprint,
                 candidate.0.placement_plan,
+                candidate.0.placement_constraints,
                 true,
             ),
         )
@@ -888,6 +918,14 @@ mod tests {
     }
 
     fn placement_authority(placement: u64, base: u64) -> CodePlacementAuthority {
+        placement_authority_with_constraints(placement, base, artifact_placement_constraints())
+    }
+
+    fn placement_authority_with_constraints(
+        placement: u64,
+        base: u64,
+        constraints: PlacementConstraints,
+    ) -> CodePlacementAuthority {
         let scope = ArtifactInstallationScopeId::from_normalized_identity(61)
             .expect("artifact installation scope");
         CodePlacementAuthority::from_admitted_provider(
@@ -897,14 +935,7 @@ mod tests {
             extent_id(50, AddressSpaceId::from_normalized_identity),
             extent_id(52, ExtentProvenanceId::from_normalized_identity),
             rights(&[51]),
-            PlacementConstraints::new(
-                Some(PlacementAddressRange::new(0x1000, 0x1_0000).expect("placement range")),
-                4096,
-                PlacementPhase::PostHandoff,
-                None,
-                Some(scope),
-            )
-            .expect("placement constraints"),
+            constraints,
             PlacementSite {
                 base_address: base,
                 phase: PlacementPhase::PostHandoff,
@@ -1042,6 +1073,27 @@ mod tests {
     }
 
     #[test]
+    fn admission_evidence_cannot_substitute_placement_constraints() {
+        let candidate = artifact(1);
+        let weaker = PlacementConstraints::unconstrained(PlacementPhase::PostHandoff);
+        let error = admit_executable(
+            &candidate,
+            ArtifactAdmissionEvidence::from_validator(
+                id(40, AdmissionReceiptId::from_normalized_identity),
+                candidate.0.identity,
+                candidate.0.content,
+                candidate.0.contracts,
+                candidate.0.declared_footprint,
+                candidate.0.placement_plan,
+                weaker,
+                true,
+            ),
+        )
+        .expect_err("admission evidence must pin the decoded placement constraints");
+        assert!(error.0.contains("does not match canonical candidate"));
+    }
+
+    #[test]
     fn final_certificate_is_bound_to_one_placement_and_final_bytes() {
         let admitted = admit(&artifact(1));
         let frozen = frozen(&admitted, 102, 0x3000);
@@ -1103,6 +1155,33 @@ mod tests {
         )
         .expect_err("artifact cannot fit");
         assert!(error.diagnostic().0.contains("smaller"));
+    }
+
+    #[test]
+    fn materialization_rejects_placement_constraint_substitution() {
+        let admitted = admit(&artifact(1));
+        let substituted =
+            PlacementConstraints::new(None, 1, PlacementPhase::PostHandoff, None, None)
+                .expect("weaker substituted constraints");
+        let placement = placement_authority_with_constraints(109, 0x8000, substituted)
+            .claim(placement_extent(109, 0x8000, 4096))
+            .expect("substituted constraints independently accept the site");
+        let error = materialize_and_freeze(
+            &admitted,
+            placement,
+            MaterializationReceipt::from_provider(
+                admitted.artifact().identity(),
+                admitted.admission(),
+                id(109, CodePlacementId::from_normalized_identity),
+                id(32, PlacementPlanId::from_normalized_identity),
+                id(179, FinalBytesId::from_normalized_identity),
+                id(71, MachineFootprintId::from_normalized_identity),
+                true,
+            ),
+        )
+        .expect_err("provider cannot substitute weaker placement constraints");
+        assert!(error.diagnostic().0.contains("constraints do not match"));
+        let (_placement, _receipt) = (*error).into_parts();
     }
 
     #[test]
