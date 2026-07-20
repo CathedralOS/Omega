@@ -103,6 +103,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 )))
             }
             resolved::expression::ExpressionNode::Call(call) => {
+                if let Some(lowered) = self.try_lower_synthesized_equatable_call(call)? {
+                    return Ok(lowered);
+                }
                 let receiver = self.lower_optional(call.receiver)?;
                 let arguments = self.lower_expression_handle_span(call.arguments)?;
                 Ok(self.target.insert(typed::expression::ExpressionNode::Call(

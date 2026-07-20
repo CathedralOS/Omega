@@ -4,7 +4,9 @@
 // same case + different payload must miss (a tag-only compare takes the
 // wrong arm); different cases must miss. The constructed-literal compare
 // (`self.a == Command::Move { dx: 3, dy: 5 }`) pins the single-arm form.
-// Exits 70 only when all four compares are right.
+// The callable surface must preserve the same case/payload behavior. A
+// payload-less sum call also pins native tag reads through the `&Self`
+// argument. Exits 70 only when all six compares are right.
 
 use omega::language::std::console;
 
@@ -19,12 +21,21 @@ data Command {
 
 Command satisfies Equatable;
 
+data Switch {
+    case Off;
+    case On;
+}
+
+Switch satisfies Equatable;
+
 data Main {
     console: Console;
     a: Command;
     b: Command;
     c: Command;
     d: Command;
+    e: Switch;
+    f: Switch;
 }
 
 machine Main::main(&mut self) {
@@ -32,6 +43,8 @@ machine Main::main(&mut self) {
     self.b = Command::Move { dx: 3, dy: 5 };
     self.c = Command::Move { dx: 3, dy: 9 };
     // d stays the zero case (None).
+    self.e = Switch::On;
+    self.f = Switch::On;
 
     let same_case_equal_payload: bool = self.a == self.b;
 
@@ -62,6 +75,24 @@ machine Main::main(&mut self) {
         let literal_equal: bool = self.a == Command::Move { dx: 3, dy: 5 };
 
         transition literal_equal {
+            true -> check_callable()
+            _ -> missed()
+        }
+    }
+
+    state check_callable(&mut self) {
+        let callable_equal: bool = self.a.equals(&self.b);
+
+        transition callable_equal {
+            true -> check_payloadless_callable()
+            _ -> missed()
+        }
+    }
+
+    state check_payloadless_callable(&mut self) {
+        let callable_equal: bool = self.e.equals(&self.f);
+
+        transition callable_equal {
             true -> matched()
             _ -> missed()
         }

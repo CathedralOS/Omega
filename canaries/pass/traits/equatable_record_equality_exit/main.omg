@@ -3,12 +3,14 @@
 // on Point values is legal and compares field by field. Equal points must
 // match; a single differing middle field must miss (a compare that only
 // reads a prefix of the fields, or compares storage width, takes the wrong
-// arm). Exits 70 only when both the equal and unequal compares are right.
+// arm). The conformance also emits a callable Point::equals wrapper over the
+// same structural expansion. Exits 70 only when operator and callable faces
+// all agree.
 
 use omega::language::std::console;
 
 trait Equatable {
-    machine equals(&self, other: &Self) -> bool;
+    machine equals(&self, rhs: &Self) -> bool;
 }
 
 data Point {
@@ -19,11 +21,23 @@ data Point {
 
 Point satisfies Equatable;
 
+data OverridePoint {
+    value: i32;
+}
+
+OverridePoint satisfies Equatable;
+
+machine OverridePoint::equals(&self, rhs: &OverridePoint) -> bool {
+    false
+}
+
 data Main {
     console: Console;
     a: Point;
     b: Point;
     c: Point;
+    overridden_a: OverridePoint;
+    overridden_b: OverridePoint;
 }
 
 machine Main::main(&mut self) {
@@ -34,15 +48,44 @@ machine Main::main(&mut self) {
     let same: bool = self.a == self.b;
 
     transition same {
-        true -> check_unequal()
+        true -> check_callable()
         _ -> missed()
+    }
+
+    state check_callable(&mut self) {
+        let callable: bool = self.a.equals(&self.b);
+
+        transition callable {
+            true -> check_callable_unequal()
+            _ -> missed()
+        }
+    }
+
+    state check_callable_unequal(&mut self) {
+        let callable: bool = self.a.equals(&self.c);
+
+        transition callable {
+            false -> check_unequal()
+            _ -> missed()
+        }
     }
 
     state check_unequal(&mut self) {
         let different: bool = self.a != self.c;
 
         transition different {
-            true -> matched()
+            true -> check_written_override()
+            _ -> missed()
+        }
+    }
+
+    state check_written_override(&mut self) {
+        self.overridden_a.value = 1;
+        self.overridden_b.value = 1;
+        let written_result: bool = self.overridden_a == self.overridden_b;
+
+        transition written_result {
+            false -> matched()
             _ -> missed()
         }
     }

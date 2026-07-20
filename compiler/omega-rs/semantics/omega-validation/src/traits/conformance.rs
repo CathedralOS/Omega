@@ -446,6 +446,15 @@ fn validate_trait_parameter_match(
         return;
     }
 
+    // `&self` establishes receiver shape, not a reusable type-variable
+    // binding. Attached machine self parameters carry the syntax placeholder
+    // `Self`; binding the trait's `Self` to that placeholder makes a later
+    // concrete `other: &Type` spuriously mismatch. The carrier is inferred
+    // from the first non-receiver `Self` occurrence instead.
+    if required.is_self {
+        return;
+    }
+
     if !type_references_match_with_trait_bindings(
         program,
         actual.type_reference,
