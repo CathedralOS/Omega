@@ -289,6 +289,21 @@ pub(super) fn encode_machine_instruction_bytes(
             *value,
             *ordering,
         ),
+        SelectedInstructionKind::AtomicFetchAnd {
+            target_offset,
+            byte_size,
+            result_offset,
+            value,
+            ordering,
+            ..
+        } => runtime_storage::encode_atomic_fetch_and(
+            input,
+            *target_offset,
+            *byte_size,
+            *result_offset,
+            *value,
+            *ordering,
+        ),
         SelectedInstructionKind::AtomicSwap {
             target_offset,
             byte_size,

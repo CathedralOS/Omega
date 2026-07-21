@@ -22,12 +22,12 @@ use super::primitives::{
     encode_float_convert_double_to_single, encode_float_convert_single_to_double,
     encode_float_divide, encode_float_move_from_gpr, encode_float_move_to_gpr,
     encode_float_multiply, encode_float_sqrt, encode_float_subtract, encode_float_to_signed_int,
-    encode_float_to_unsigned_int, encode_ldadd, encode_ldeor, encode_ldset,
+    encode_float_to_unsigned_int, encode_ldadd, encode_ldclr, encode_ldeor, encode_ldset,
     encode_load_byte_w_from_x, encode_load_byte_w_post_increment, encode_load_w_from_x,
     encode_load_x_from_x, encode_lslv_w_register, encode_lslv_x_register, encode_lsrv_w_register,
     encode_lsrv_x_register, encode_move_w_register, encode_move_x_register, encode_movz,
     encode_movz_w, encode_msub_w_register, encode_msub_x_register, encode_mul_x_register,
-    encode_orr_x_register, encode_sdiv_w_register, encode_sdiv_x_register,
+    encode_mvn_register, encode_orr_x_register, encode_sdiv_w_register, encode_sdiv_x_register,
     encode_sign_extend_byte_to_w, encode_sign_extend_byte_to_x, encode_sign_extend_halfword_to_w,
     encode_sign_extend_halfword_to_x, encode_sign_extend_word_to_x, encode_signed_int_to_float,
     encode_smulh_x, encode_store_byte_w_post_increment, encode_store_byte_w_to_x,
@@ -493,6 +493,84 @@ pub fn runtime_atomic_fetch_or_result_address_offset(
     value: RuntimeValueOperandHandle,
 ) -> usize {
     runtime_atomic_fetch_add_result_address_offset(runtime_value_operands, target_offset, value)
+}
+
+pub fn encode_atomic_fetch_and(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    result_offset: usize,
+    value: RuntimeValueOperandHandle,
+    ordering: omega_core::atomic::MemoryOrdering,
+) -> Result<Vec<u8>, Diagnostic> {
+    if target_offset > 4095 {
+        return Err(Diagnostic::error(format!(
+            "AArch64 atomic fetch_and target offset `{target_offset}` exceeds the \
+             single-instruction ADD immediate range (4095)"
+        )));
+    }
+    let mut bytes = Vec::with_capacity(runtime_atomic_fetch_and_width(
+        runtime_value_operands,
+        target_offset,
+        byte_size,
+        result_offset,
+        value,
+    ));
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_runtime_value_operand(
+        runtime_value_operands,
+        &mut bytes,
+        17,
+        RUNTIME_VALUE_LEFT_SCRATCH_REGISTERS,
+        value,
+    )?;
+    bytes.extend(encode_mvn_register(byte_size, 17, 17)?);
+    append_add_x_constant(&mut bytes, 16, 16, target_offset, 19)?;
+    bytes.extend(encode_ldclr(byte_size, 17, 26, 16, ordering)?);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_add_constant_to_x_register(&mut bytes, 16, result_offset)?;
+    match byte_size {
+        1 | 2 | 4 => bytes.extend(encode_store_w_to_x(26, 16, 0, byte_size)?),
+        8 => bytes.extend(encode_store_x_to_x(26, 16, 0)?),
+        _ => unreachable!("fetch_and width validated before LDCLR"),
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_atomic_fetch_and_width(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            result_offset,
+            value
+        )
+    );
+    Ok(bytes)
+}
+
+pub fn runtime_atomic_fetch_and_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    result_offset: usize,
+    value: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_atomic_fetch_or_width(
+        runtime_value_operands,
+        target_offset,
+        byte_size,
+        result_offset,
+        value,
+    ) + 4
+}
+
+pub fn runtime_atomic_fetch_and_result_address_offset(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    value: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_atomic_fetch_or_result_address_offset(runtime_value_operands, target_offset, value) + 4
 }
 
 pub fn encode_atomic_swap(

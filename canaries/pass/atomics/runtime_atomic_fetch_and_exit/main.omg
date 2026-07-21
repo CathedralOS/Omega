@@ -1,0 +1,61 @@
+// RUN canary: AtomicU32 fetch_and returns the instruction-observed prior and
+// atomically ANDs the cell. X86_64 uses a locked CMPXCHG retry loop; AArch64
+// complements the mask and uses ordering-selected LDCLR.
+
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    counter: AtomicU32;
+}
+
+machine Main::main(&mut self) {
+    self.counter.store(14, Relaxed);
+    let prior: u32 = self.counter.fetch_and(11, AcqRel);
+    transition prior == 14 {
+        true -> check_first_value()
+        false -> bad_first_prior()
+    }
+
+    state check_first_value(&mut self) {
+        transition self.counter == 10 {
+            true -> do_second_and()
+            false -> bad_first_value()
+        }
+    }
+
+    state do_second_and(&mut self) {
+        let prior2: u32 = self.counter.fetch_and(7, Relaxed);
+        transition prior2 == 10 {
+            true -> check_second_value()
+            false -> bad_second_prior()
+        }
+    }
+
+    state check_second_value(&mut self) {
+        transition self.counter == 2 {
+            true -> good()
+            false -> bad_second_value()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(80);
+    }
+
+    state bad_first_prior(&mut self) {
+        self.console.exit_process(81);
+    }
+
+    state bad_first_value(&mut self) {
+        self.console.exit_process(82);
+    }
+
+    state bad_second_prior(&mut self) {
+        self.console.exit_process(83);
+    }
+
+    state bad_second_value(&mut self) {
+        self.console.exit_process(84);
+    }
+}

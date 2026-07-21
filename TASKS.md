@@ -900,9 +900,9 @@ stronger operations it needs instead of citing machine parameters generally.
   legality rules now reject release-bearing loads, acquire-bearing stores,
   unknown names, and compare-exchange failure orderings that release or exceed
   the success ordering.
-  Load/store/fetch_add/fetch_sub/fetch_xor/fetch_or/swap/compare_exchange now
-  preserve their normalized order through target lowering on x86_64 and
-  aarch64; RMW
+  Load/store/fetch_add/fetch_sub/fetch_xor/fetch_or/fetch_and/swap/
+  compare_exchange now preserve their normalized order through target
+  lowering on x86_64 and aarch64; RMW
   returns come from the atomic instruction itself, never a racing ordinary
   read, and the interpreter preserves that same returned-prior contract. Swap
   lowers to implicitly locked `XCHG` on x86_64 and ordering-selected LSE `SWP`
@@ -914,6 +914,8 @@ stronger operations it needs instead of citing machine parameters generally.
   attempt, with native, interpreter, and exact-encoding coverage.
   Fetch-or uses ordering-selected `LDSET` on ARM64 and the shared locked retry
   loop on x86_64, with the same native, interpreter, and encoding coverage.
+  Fetch-and uses complement-plus-ordering-selected `LDCLR` on ARM64 and the
+  shared locked retry loop on x86_64, with equivalent coverage.
   Complete standalone fences and the remaining fetch operations, and the
   cross-activation proof model beyond these first operations.
 - **Proof engine.** Continue induction and proof-data support required by

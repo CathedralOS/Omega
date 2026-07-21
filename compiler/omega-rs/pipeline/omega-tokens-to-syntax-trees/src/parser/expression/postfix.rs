@@ -534,7 +534,10 @@ fn validate_atomic_call_orderings(
                 )));
             }
         }
-        ("fetch_add" | "fetch_sub" | "fetch_xor" | "fetch_or" | "swap", [_, ordering]) => {
+        (
+            "fetch_add" | "fetch_sub" | "fetch_xor" | "fetch_or" | "fetch_and" | "swap",
+            [_, ordering],
+        ) => {
             let _ = memory_ordering_from_expression(syntax_trees, *ordering)
                 .map_err(ParseError::new)?;
         }
