@@ -461,7 +461,10 @@ the `CallPlan`; inbound stub construction can therefore recover the associated
 obligations from the fingerprint. The selected `ProvidesRow` and backend
 `HostBinding` retain that complete plan too. Existing emission, layout, and
 relocation consumers borrow only its call half, so the selected state policy
-reaches the backend without creating a parallel lowering table.
+reaches the backend without creating a parallel lowering table. Compatibility
+bindings resolve through the same complete-plan API and project their outbound
+call plan from it; source-selected complete plans are revalidated as a unit at
+that seam.
 
 While compatibility syscall rows coexist with normalized plans, evaluation
 differentially checks their historical register-slot and supervisor-call facts

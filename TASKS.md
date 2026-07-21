@@ -313,6 +313,10 @@ schemas recover the same instance without publishing policy type identity.
    bindings now carry that complete plan as well; emission, layout, and both
    relocation walkers borrow its call half, leaving the state half available
    at the selected backend boundary instead of truncating it in orchestration.
+   Compatibility bindings now resolve through the same complete-plan API:
+   their existing call-plan entry point is only a projection, while selected
+   source plans are fully revalidated against the concrete signature before
+   either direction may consume them.
    Fixed non-HFA AAPCS64 entry records up to 16 bytes now consume consecutive
    plan-selected `x` fragments with 16-byte register alignment, fall wholly to
    aligned stack fragments when the remaining register bank is too small,

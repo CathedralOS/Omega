@@ -1249,15 +1249,15 @@ impl HostAbiPlan {
             .any(|(_, allowed)| allowed.checked && allowed.path.as_ref() == policy)
     }
 
-    /// ENT2 migration seam: evaluate the normalized calling plan for one
-    /// existing compatibility binding. Generic syscall leaves now consume the
-    /// evaluated plan directly; composite runtime-text and C/import encoders
-    /// still use this result as their independent semantic oracle.
-    pub fn evaluate_binding_call_plan(
+    /// Evaluate one compatibility binding's complete normalized boundary
+    /// plan. This is the shared source for outbound call projection and future
+    /// inbound-stub/state-ceiling consumers; compatibility fields are checked
+    /// against the call half while the ordinary state half remains attached.
+    pub fn evaluate_binding_boundary_entry_plan(
         &self,
         mechanism: &HostBindingMechanism,
         signature: &CallSignature,
-    ) -> Result<CallPlan, PlanDiagnostic> {
+    ) -> Result<ValidatedBoundaryEntryPlan, PlanDiagnostic> {
         if matches!(mechanism, HostBindingMechanism::Syscall { .. })
             && self.target.object_format != ObjectFormat::Elf
         {
@@ -1278,7 +1278,8 @@ impl HostAbiPlan {
                 CallingPolicy::native_for_target(self.target)
             }
         };
-        let plan = evaluate_call_plan(policy, signature)?;
+        let boundary = evaluate_ordinary_boundary_entry_plan(policy, signature)?;
+        let plan = &boundary.plan().call;
 
         // The compatibility syscall row still carries encoder facts in its
         // historical architecture-neutral numbering (slot 8 is x8 on
@@ -1315,23 +1316,50 @@ impl HostAbiPlan {
                 }
             }
         }
-        Ok(plan)
+        Ok(boundary)
     }
 
-    /// Resolve the authoritative plan for a complete binding. Authored
-    /// source plans win; compatibility bindings retain target-derived
+    /// ENT2 compatibility projection retained for outbound consumers. It is
+    /// deliberately derived from the complete boundary plan rather than
+    /// evaluating a separate call-only oracle.
+    pub fn evaluate_binding_call_plan(
+        &self,
+        mechanism: &HostBindingMechanism,
+        signature: &CallSignature,
+    ) -> Result<CallPlan, PlanDiagnostic> {
+        Ok(self
+            .evaluate_binding_boundary_entry_plan(mechanism, signature)?
+            .plan()
+            .call
+            .clone())
+    }
+
+    /// Resolve the authoritative complete plan for a selected binding.
+    /// Authored source plans win; compatibility bindings retain target-derived
     /// evaluation. Revalidation against the concrete selected signature keeps
-    /// a stale carrier from shifting operands silently.
+    /// both call placement and state obligations tied to one accepted plan.
+    pub fn binding_boundary_entry_plan(
+        &self,
+        binding: &HostBinding,
+        signature: &CallSignature,
+    ) -> Result<ValidatedBoundaryEntryPlan, PlanDiagnostic> {
+        if let Some(boundary) = &binding.boundary_entry_plan {
+            return validate_boundary_entry_plan(boundary.clone(), signature);
+        }
+        self.evaluate_binding_boundary_entry_plan(&binding.mechanism, signature)
+    }
+
+    /// Outbound projection of [`Self::binding_boundary_entry_plan`].
     pub fn binding_call_plan(
         &self,
         binding: &HostBinding,
         signature: &CallSignature,
     ) -> Result<CallPlan, PlanDiagnostic> {
-        if let Some(boundary) = &binding.boundary_entry_plan {
-            plans::validate_call_plan(&boundary.call, signature)?;
-            return Ok(boundary.call.clone());
-        }
-        self.evaluate_binding_call_plan(&binding.mechanism, signature)
+        Ok(self
+            .binding_boundary_entry_plan(binding, signature)?
+            .plan()
+            .call
+            .clone())
     }
 }
 
@@ -1410,6 +1438,14 @@ mod compatibility_binding_tests {
             .evaluate_binding_call_plan(&windows_binding.mechanism, &signature)
             .expect("Windows plan");
         assert_eq!(windows_plan.policy, CallingPolicy::MicrosoftX64);
+        let windows_boundary = windows
+            .evaluate_binding_boundary_entry_plan(&windows_binding.mechanism, &signature)
+            .expect("Windows boundary plan");
+        assert_eq!(windows_boundary.plan().call, windows_plan);
+        assert_eq!(
+            windows_boundary.plan().state.interrupted_state,
+            super::MachineStateSet::default(),
+        );
 
         let linux = build_host_abi_plan(NativeTarget::linux_arm64());
         let (_, linux_binding) = linux
@@ -1467,6 +1503,13 @@ mod compatibility_binding_tests {
             "the selected binding must retain inbound state beside its call plan",
         );
         assert_eq!(binding.call_plan(), Some(&source_plan));
+        assert_eq!(
+            abi.binding_boundary_entry_plan(binding, &signature)
+                .expect("authoritative source boundary plan")
+                .plan(),
+            &source_boundary,
+            "the selected state plan must not be replaced with target-native state",
+        );
         assert_eq!(
             abi.binding_call_plan(binding, &signature)
                 .expect("authoritative source plan"),
