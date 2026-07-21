@@ -159,3 +159,66 @@ fn policy_source_identity_is_absent_from_the_published_fingerprint() {
 
     assert_eq!(fingerprint("FirstPolicy"), fingerprint("RenamedPolicy"));
 }
+
+#[test]
+fn generic_boundary_conformance_selects_and_publishes_its_policy_instance() {
+    let source = POLICY.replace(
+        "boundary trait Tick: Calling<NoResultPolicy> {\n    machine tick();\n}",
+        "boundary trait Tick<C>: Calling<C> {\n    machine tick(&mut self);\n}\n\ndata TickProvider { count: i64; }\nTickProvider satisfies Tick<NoResultPolicy>;\nmachine TickProvider::tick(&mut self) satisfies Tick::tick {\n    self.count = 1;\n}",
+    );
+    let main_path = write_program("generic-boundary-policy", &source);
+    let checked = compile_to_checked(&main_path, None).expect("generic policy instance compiles");
+    let tick = checked
+        .typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Tick")
+        .expect("Tick boundary trait");
+    let conformance = checked
+        .typed
+        .data_conformances()
+        .iter()
+        .find(|conformance| conformance.type_name.as_str() == "TickProvider")
+        .expect("TickProvider conformance");
+    let arguments = checked
+        .typed
+        .type_reference_table
+        .type_reference_handles(conformance.arguments);
+    let schema = omega_effects::provider_plan::ServiceSchema::from_typed_instance(
+        &checked.typed,
+        tick,
+        arguments,
+    )
+    .expect("generic Tick service schema");
+
+    assert_eq!(schema.methods.len(), 1);
+    assert!(schema.methods[0].calling_plan_fingerprint.is_some());
+    assert_eq!(
+        omega_effects::provider_plan::ServiceSchema::from_typed(&checked.typed, tick)
+            .expect("uninstantiated schema")
+            .methods[0]
+            .calling_plan_fingerprint,
+        None,
+        "a generic declaration is not itself a concrete ABI"
+    );
+}
+
+#[test]
+fn uninstantiated_generic_boundary_does_not_publish_an_abi() {
+    let source = POLICY.replace(
+        "boundary trait Tick: Calling<NoResultPolicy> {",
+        "boundary trait Tick<C>: Calling<C> {",
+    );
+    let main_path = write_program("uninstantiated-generic-boundary", &source);
+    let checked = compile_to_checked(&main_path, None).expect("generic declaration compiles");
+    let tick = checked
+        .typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Tick")
+        .expect("Tick boundary trait");
+    let schema = omega_effects::provider_plan::ServiceSchema::from_typed(&checked.typed, tick)
+        .expect("generic declaration schema");
+
+    assert_eq!(schema.methods[0].calling_plan_fingerprint, None);
+}

@@ -41,9 +41,13 @@ pub struct TypedTrees {
     pub boundary_calling_plans: Vec<BoundaryCallingPlanIdentity>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BoundaryCallingPlanIdentity {
     pub boundary_trait: omega_core::symbols::SymbolHandle,
+    /// Concrete boundary trait argument tuple. These handles are internal
+    /// lookup identity only and never enter the published contract hash.
+    /// Empty for a non-generic boundary declaration.
+    pub boundary_arguments: Vec<crate::types::TypeReferenceHandle>,
     pub requirement_machine: omega_core::symbols::SymbolHandle,
     pub fingerprint: u64,
 }
@@ -722,6 +726,7 @@ impl TypedTrees {
     pub fn record_boundary_calling_plan(&mut self, identity: BoundaryCallingPlanIdentity) {
         if let Some(existing) = self.boundary_calling_plans.iter_mut().find(|candidate| {
             candidate.boundary_trait == identity.boundary_trait
+                && candidate.boundary_arguments == identity.boundary_arguments
                 && candidate.requirement_machine == identity.requirement_machine
         }) {
             *existing = identity;
@@ -735,10 +740,24 @@ impl TypedTrees {
         boundary_trait: omega_core::symbols::SymbolHandle,
         requirement_machine: omega_core::symbols::SymbolHandle,
     ) -> Option<u64> {
+        self.boundary_calling_plan_fingerprint_for_arguments(
+            boundary_trait,
+            &[],
+            requirement_machine,
+        )
+    }
+
+    pub fn boundary_calling_plan_fingerprint_for_arguments(
+        &self,
+        boundary_trait: omega_core::symbols::SymbolHandle,
+        boundary_arguments: &[crate::types::TypeReferenceHandle],
+        requirement_machine: omega_core::symbols::SymbolHandle,
+    ) -> Option<u64> {
         self.boundary_calling_plans
             .iter()
             .find(|identity| {
                 identity.boundary_trait == boundary_trait
+                    && identity.boundary_arguments == boundary_arguments
                     && identity.requirement_machine == requirement_machine
             })
             .map(|identity| identity.fingerprint)

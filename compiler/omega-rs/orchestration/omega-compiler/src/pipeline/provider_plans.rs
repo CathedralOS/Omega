@@ -187,7 +187,11 @@ pub(crate) fn derive_satisfies_plans(
                                     .next()
                                     .is_some_and(|leaf| leaf == trait_leaf)
                         })
-                        .and_then(|definition| ServiceSchema::from_typed(typed, definition))
+                        .and_then(|definition| {
+                            let arguments =
+                                provider_boundary_arguments(typed, definition, &provider_type);
+                            ServiceSchema::from_typed_instance(typed, definition, &arguments)
+                        })
                         .unwrap_or_else(|| ServiceSchema {
                             trait_name: trait_leaf.clone(),
                             methods: Vec::new(),
@@ -261,6 +265,33 @@ pub(crate) fn derive_satisfies_plans(
         }
     }
     plans
+}
+
+fn provider_boundary_arguments(
+    typed: &TypedTrees,
+    boundary: &omega_typed_trees::trait_definition::TraitDefinition,
+    provider_type: &str,
+) -> Vec<omega_typed_trees::types::TypeReferenceHandle> {
+    typed
+        .data_conformances()
+        .iter()
+        .find(|conformance| {
+            same_semantic_name(conformance.type_name.as_str(), provider_type)
+                && same_semantic_name(conformance.trait_name.as_str(), boundary.name.as_str())
+        })
+        .map(|conformance| {
+            typed
+                .type_reference_table
+                .type_reference_handles(conformance.arguments)
+                .to_vec()
+        })
+        .unwrap_or_default()
+}
+
+fn same_semantic_name(left: &str, right: &str) -> bool {
+    left == right
+        || (!left.contains("::") && right.rsplit("::").next().is_some_and(|leaf| leaf == left))
+        || (!right.contains("::") && left.rsplit("::").next().is_some_and(|leaf| leaf == right))
 }
 
 /// The stable name shared by derivation, reports, selection, and backend row

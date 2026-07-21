@@ -4,10 +4,9 @@ Current as of 2026-07-20. Boundary conventions are normalized policy artifacts;
 Omega's internal calling convention remains compiler-sovereign. This brief now
 includes inbound machine-state preservation, which ordinary calls do not expose.
 Engineering is incomplete. The normalized compiler model, initial built-in
-policy evaluators, direct source-policy evaluation, concrete `Calling<C>`
-discovery, publication of the evaluated identity, and relationship-span
-diagnostics are implemented. Generic boundary-policy instantiation and
-authoritative lowering remain.
+policy evaluators, direct source-policy evaluation, concrete and generic
+`Calling<C>` discovery, publication of the evaluated identity, and
+relationship-span diagnostics are implemented. Authoritative lowering remains.
 
 ## One boundary entry plan, two independent facets
 
@@ -403,6 +402,10 @@ identity. Policy type names and source bodies do not enter that fingerprint;
 boundaries without a calling policy retain their prior identities. The authored
 relationship span survives typed lowering and is attached to evaluation,
 rejection, invalid-plan, and signature-materialization diagnostics.
+Generic boundary declarations are inert until a standalone conformance supplies
+a concrete trait argument tuple. Each such instance resolves its policy and
+forwarded signature types independently; provider schemas recover that same
+tuple, while only the evaluated plan fingerprint enters their public identity.
 
 While compatibility syscall rows coexist with normalized plans, evaluation
 differentially checks their historical register-slot and supervisor-call facts
@@ -411,18 +414,15 @@ being ignored by the plan-driven encoder.
 
 Remaining order:
 
-1. Extend source policy evaluation from concrete `Calling<C>` relationships to
-   generic boundary-trait instantiations while preserving the implemented
-   relationship-site diagnostics.
-2. Complete plan-driven outbound calls and their results;
+1. Complete plan-driven outbound calls and their results;
    differential-check every supported compatibility encoder against the plan,
    add the concrete firmware/interrupt state policies, and make the plan
    authoritative.
-3. Derive outbound encoders and inbound stubs from the same plan.
-4. Add state-ceiling-aware instruction selection/register allocation and
+2. Derive outbound encoders and inbound stubs from the same plan.
+3. Add state-ceiling-aware instruction selection/register allocation and
    contextual specialization.
-5. Emit object-level footprint evidence and validate the final artifact.
-6. Add external-root reporting and the x86 interrupt vertical slice.
+4. Emit object-level footprint evidence and validate the final artifact.
+5. Add external-root reporting and the x86 interrupt vertical slice.
 
 ## Still open
 

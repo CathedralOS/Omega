@@ -20,6 +20,18 @@ const PARAMETER_CAPACITY: usize = 32;
 const LOCATION_CAPACITY: usize = 16;
 const REGISTER_CAPACITY: usize = 64;
 
+#[derive(Clone)]
+struct TraitTypeBinding {
+    parameter_symbol: omega_core::symbols::SymbolHandle,
+    parameter_name: String,
+    actual: TypeReferenceHandle,
+}
+
+struct BoundarySignatureInstance<'a> {
+    signature: &'a omega_typed_trees::signature::StateSignature,
+    bindings: Vec<TraitTypeBinding>,
+}
+
 /// Discover concrete `Calling<C>` relationships, evaluate `C::plan` once for
 /// every method in the boundary service surface, and retain only canonical
 /// evaluated identities on the typed program.
@@ -80,67 +92,94 @@ pub(crate) fn compute_boundary_calling_plans(
             ))
             .with_source_span(relationship_span)]);
         }
-        let policy_type = concrete_policy_type_name(typed, arguments[0]).map_err(|reason| {
-            vec![
-                Diagnostic::error(format!(
-                    "boundary trait `{}` cannot evaluate Calling<C>: {reason}",
-                    boundary.name
-                ))
-                .with_source_span(relationship_span),
-            ]
-        })?;
-        let policy_machine = find_policy_machine(typed, &policy_type).ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "boundary trait `{}` selects `{policy_type}`, but no `{policy_type}::plan` machine exists",
-                boundary.name
-            ))
-            .with_source_span(relationship_span)]
-        })?;
-        let satisfies_policy =
-            typed
-                .machine_trait_conformances(policy_machine)
-                .iter()
-                .any(|conformance| {
-                    conformance.symbol == calling_policy_symbol
-                        && conformance.requirement.as_ref().is_some_and(|requirement| {
-                            requirement.as_str().rsplit("::").next() == Some("plan")
-                        })
-                });
-        if !satisfies_policy {
-            return Err(vec![
-                Diagnostic::error(format!(
-                    "calling-policy machine `{}` must satisfy `CallingPolicy::plan`",
-                    policy_machine.name
-                ))
-                .with_source_span(relationship_span),
-            ]);
-        }
-
-        let mut signatures = Vec::new();
-        collect_boundary_signatures(typed, boundary, &mut Vec::new(), &mut signatures);
-        for signature in signatures {
-            let call_signature = call_signature_from_typed(typed, signature).map_err(|reason| {
+        let instances =
+            boundary_policy_instances(typed, boundary, arguments[0]).map_err(|reason| {
                 vec![
                     Diagnostic::error(format!(
-                        "cannot materialize boundary signature `{}::{}` for `{}`: {reason}",
-                        boundary.name, signature.name, policy_machine.name
+                        "boundary trait `{}` cannot evaluate Calling<C>: {reason}",
+                        boundary.name
                     ))
                     .with_source_span(relationship_span),
                 ]
             })?;
-            pending.push((
-                boundary.symbol,
-                signature.symbol,
-                policy_machine.name.as_str().to_owned(),
-                call_signature,
-                relationship_span,
-            ));
+        for (boundary_arguments, policy_argument) in instances {
+            let policy_type =
+                concrete_policy_type_name(typed, policy_argument).map_err(|reason| {
+                    vec![
+                        Diagnostic::error(format!(
+                            "boundary trait `{}` cannot evaluate Calling<C>: {reason}",
+                            boundary.name
+                        ))
+                        .with_source_span(relationship_span),
+                    ]
+                })?;
+            let policy_machine = find_policy_machine(typed, &policy_type).ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "boundary trait `{}` selects `{policy_type}`, but no `{policy_type}::plan` machine exists",
+                    boundary.name
+                ))
+                .with_source_span(relationship_span)]
+            })?;
+            let satisfies_policy =
+                typed
+                    .machine_trait_conformances(policy_machine)
+                    .iter()
+                    .any(|conformance| {
+                        conformance.symbol == calling_policy_symbol
+                            && conformance.requirement.as_ref().is_some_and(|requirement| {
+                                requirement.as_str().rsplit("::").next() == Some("plan")
+                            })
+                    });
+            if !satisfies_policy {
+                return Err(vec![
+                    Diagnostic::error(format!(
+                        "calling-policy machine `{}` must satisfy `CallingPolicy::plan`",
+                        policy_machine.name
+                    ))
+                    .with_source_span(relationship_span),
+                ]);
+            }
+
+            let mut signatures = Vec::new();
+            collect_boundary_signatures(
+                typed,
+                boundary,
+                &boundary_arguments,
+                &mut Vec::new(),
+                &mut signatures,
+            );
+            for signature_instance in signatures {
+                let signature = signature_instance.signature;
+                let call_signature =
+                    call_signature_from_typed(typed, signature, &signature_instance.bindings)
+                        .map_err(|reason| {
+                            vec![Diagnostic::error(format!(
+                        "cannot materialize boundary signature `{}::{}` for `{}`: {reason}",
+                        boundary.name, signature.name, policy_machine.name
+                    ))
+                    .with_source_span(relationship_span)]
+                        })?;
+                pending.push((
+                    boundary.symbol,
+                    boundary_arguments.clone(),
+                    signature.symbol,
+                    policy_machine.name.as_str().to_owned(),
+                    call_signature,
+                    relationship_span,
+                ));
+            }
         }
     }
 
     let mut evaluated = Vec::with_capacity(pending.len());
-    for (boundary_trait, requirement_machine, policy_machine, signature, relationship_span) in
-        pending
+    for (
+        boundary_trait,
+        boundary_arguments,
+        requirement_machine,
+        policy_machine,
+        signature,
+        relationship_span,
+    ) in pending
     {
         let validated =
             evaluate_calling_policy_plan(typed, &policy_machine, &signature).map_err(|reason| {
@@ -149,6 +188,7 @@ pub(crate) fn compute_boundary_calling_plans(
         evaluated.push(
             omega_typed_trees::typed_trees::BoundaryCallingPlanIdentity {
                 boundary_trait,
+                boundary_arguments,
                 requirement_machine,
                 fingerprint: validated.contract_fingerprint(),
             },
@@ -158,6 +198,72 @@ pub(crate) fn compute_boundary_calling_plans(
         typed.record_boundary_calling_plan(identity);
     }
     Ok(())
+}
+
+fn boundary_policy_instances(
+    typed: &TypedTrees,
+    boundary: &omega_typed_trees::trait_definition::TraitDefinition,
+    policy_argument: TypeReferenceHandle,
+) -> Result<Vec<(Vec<TypeReferenceHandle>, TypeReferenceHandle)>, String> {
+    let parameters = typed.trait_type_parameters(boundary);
+    if parameters.is_empty() {
+        return Ok(vec![(Vec::new(), policy_argument)]);
+    }
+    let policy_parameter_index = named_parameter_index(typed, policy_argument, parameters);
+
+    let mut instances = Vec::new();
+    for conformance in typed
+        .data_conformances()
+        .iter()
+        .filter(|conformance| names_match(conformance.trait_name.as_str(), boundary.name.as_str()))
+    {
+        let arguments = typed
+            .type_reference_table
+            .type_reference_handles(conformance.arguments)
+            .to_vec();
+        if arguments.len() != parameters.len() {
+            return Err(format!(
+                "conformance `{} satisfies {}` supplies {} argument(s), expected {}",
+                conformance.type_name,
+                conformance.trait_name,
+                arguments.len(),
+                parameters.len()
+            ));
+        }
+        let concrete_policy = policy_parameter_index.map_or(policy_argument, |parameter_index| {
+            arguments[parameter_index]
+        });
+        instances.push((arguments, concrete_policy));
+    }
+
+    // A generic declaration is not itself a callable ABI. With no concrete
+    // conformance there is no requirement identity to publish yet.
+    Ok(instances)
+}
+
+fn names_match(left: &str, right: &str) -> bool {
+    left == right
+        || (!left.contains("::") && right.rsplit("::").next().is_some_and(|leaf| leaf == left))
+        || (!right.contains("::") && left.rsplit("::").next().is_some_and(|leaf| leaf == right))
+}
+
+fn named_parameter_index(
+    typed: &TypedTrees,
+    mut type_reference: TypeReferenceHandle,
+    parameters: &[omega_typed_trees::data::TypeParameter],
+) -> Option<usize> {
+    loop {
+        match typed.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+            TypeReferenceNode::Named { symbol, name } => {
+                return parameters.iter().position(|parameter| {
+                    (parameter.symbol.is_valid() && parameter.symbol == *symbol)
+                        || parameter.name.as_str() == name.as_str()
+                });
+            }
+            _ => return None,
+        }
+    }
 }
 
 fn concrete_policy_type_name(
@@ -196,68 +302,124 @@ fn find_policy_machine<'a>(
 fn collect_boundary_signatures<'a>(
     typed: &'a TypedTrees,
     definition: &'a omega_typed_trees::trait_definition::TraitDefinition,
+    arguments: &[TypeReferenceHandle],
     visited: &mut Vec<omega_core::symbols::SymbolHandle>,
-    signatures: &mut Vec<&'a omega_typed_trees::signature::StateSignature>,
+    signatures: &mut Vec<BoundarySignatureInstance<'a>>,
 ) {
     if visited.contains(&definition.symbol) {
         return;
     }
     visited.push(definition.symbol);
+    let bindings = trait_type_bindings(typed, definition, arguments);
     for requirement in typed.trait_requirements(definition) {
         if let Some(parent) = typed
             .traits()
             .iter()
             .find(|candidate| candidate.symbol == requirement.symbol && candidate.is_boundary)
         {
-            collect_boundary_signatures(typed, parent, visited, signatures);
+            let parent_arguments = typed
+                .type_reference_table
+                .type_reference_handles(requirement.arguments)
+                .iter()
+                .map(|argument| substituted_type_reference(typed, *argument, &bindings))
+                .collect::<Vec<_>>();
+            collect_boundary_signatures(typed, parent, &parent_arguments, visited, signatures);
         }
     }
     for signature in typed.trait_machine_signatures(definition) {
         if !signatures
             .iter()
-            .any(|candidate| candidate.name == signature.name)
+            .any(|candidate| candidate.signature.name == signature.name)
         {
-            signatures.push(signature);
+            signatures.push(BoundarySignatureInstance {
+                signature,
+                bindings: bindings.clone(),
+            });
         }
     }
+    visited.pop();
+}
+
+fn trait_type_bindings(
+    typed: &TypedTrees,
+    definition: &omega_typed_trees::trait_definition::TraitDefinition,
+    arguments: &[TypeReferenceHandle],
+) -> Vec<TraitTypeBinding> {
+    typed
+        .trait_type_parameters(definition)
+        .iter()
+        .zip(arguments.iter().copied())
+        .map(|(parameter, actual)| TraitTypeBinding {
+            parameter_symbol: parameter.symbol,
+            parameter_name: parameter.name.as_str().to_owned(),
+            actual,
+        })
+        .collect()
+}
+
+fn substituted_type_reference(
+    typed: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    bindings: &[TraitTypeBinding],
+) -> TypeReferenceHandle {
+    let TypeReferenceNode::Named { symbol, name } =
+        typed.type_reference_table.type_reference(type_reference)
+    else {
+        return type_reference;
+    };
+    bindings
+        .iter()
+        .find(|binding| {
+            (binding.parameter_symbol.is_valid() && binding.parameter_symbol == *symbol)
+                || binding.parameter_name == name.as_str()
+        })
+        .map_or(type_reference, |binding| binding.actual)
 }
 
 fn call_signature_from_typed(
     typed: &TypedTrees,
     signature: &omega_typed_trees::signature::StateSignature,
+    bindings: &[TraitTypeBinding],
 ) -> Result<CallSignature, String> {
     let parameters = typed
         .state_signature_parameters(signature)
         .iter()
         .filter(|parameter| !parameter.is_self)
-        .map(|parameter| value_shape_from_type(typed, parameter.type_reference, &mut Vec::new()))
+        .map(|parameter| {
+            value_shape_from_type(typed, parameter.type_reference, bindings, &mut Vec::new())
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let result = signature
         .return_type
         .is_valid()
-        .then(|| value_shape_from_type(typed, signature.return_type, &mut Vec::new()))
+        .then(|| value_shape_from_type(typed, signature.return_type, bindings, &mut Vec::new()))
         .transpose()?;
     Ok(CallSignature { parameters, result })
 }
 
 fn value_shape_from_type(
     typed: &TypedTrees,
-    type_reference: TypeReferenceHandle,
+    mut type_reference: TypeReferenceHandle,
+    bindings: &[TraitTypeBinding],
     visiting: &mut Vec<omega_core::symbols::SymbolHandle>,
 ) -> Result<ValueShape, String> {
+    type_reference = substituted_type_reference(typed, type_reference, bindings);
     if let Some(primitive) = typed.primitive_type_reference(type_reference) {
         return primitive_value_shape(primitive);
     }
     match typed.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { base_type, .. } => {
-            value_shape_from_type(typed, *base_type, visiting)
+            value_shape_from_type(typed, *base_type, bindings, visiting)
         }
         TypeReferenceNode::Reference { referee, .. } => {
-            let mut referee = *referee;
-            while let TypeReferenceNode::Constrained { base_type, .. } =
-                typed.type_reference_table.type_reference(referee)
-            {
-                referee = *base_type;
+            let mut referee = substituted_type_reference(typed, *referee, bindings);
+            loop {
+                match typed.type_reference_table.type_reference(referee) {
+                    TypeReferenceNode::Constrained { base_type, .. } => {
+                        referee = substituted_type_reference(typed, *base_type, bindings);
+                    }
+                    _ => break,
+                }
             }
             let is_fat = match typed.type_reference_table.type_reference(referee) {
                 TypeReferenceNode::Slice { .. } => true,
@@ -271,7 +433,7 @@ fn value_shape_from_type(
             element_type,
             length: omega_typed_trees::types::FixedArrayLength::Literal(length),
         } => {
-            let element = value_shape_from_type(typed, *element_type, visiting)?;
+            let element = value_shape_from_type(typed, *element_type, bindings, visiting)?;
             let size = usize::from(element.byte_size)
                 .checked_mul(*length)
                 .ok_or_else(|| "fixed-array boundary shape overflows".to_owned())?;
@@ -282,7 +444,7 @@ fn value_shape_from_type(
             ))
         }
         TypeReferenceNode::Named { symbol, name } => {
-            plain_data_value_shape(typed, *symbol, name.as_str(), visiting)
+            plain_data_value_shape(typed, *symbol, name.as_str(), bindings, visiting)
         }
         TypeReferenceNode::DynamicTrait { .. } => Ok(ValueShape::integer(16, 8)),
         TypeReferenceNode::Generic { .. } => Err(format!(
@@ -319,6 +481,7 @@ fn plain_data_value_shape(
     typed: &TypedTrees,
     symbol: omega_core::symbols::SymbolHandle,
     name: &str,
+    bindings: &[TraitTypeBinding],
     visiting: &mut Vec<omega_core::symbols::SymbolHandle>,
 ) -> Result<ValueShape, String> {
     if visiting.contains(&symbol) {
@@ -343,7 +506,7 @@ fn plain_data_value_shape(
                 "case data `{name}` is not yet classifiable as a boundary value; pass it by reference"
             ));
         };
-        let shape = value_shape_from_type(typed, field.type_reference, visiting)?;
+        let shape = value_shape_from_type(typed, field.type_reference, bindings, visiting)?;
         let field_alignment = usize::from(shape.alignment);
         size = align_up(size, field_alignment)
             .checked_add(usize::from(shape.byte_size))
