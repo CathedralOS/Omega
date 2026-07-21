@@ -134,15 +134,14 @@ fn boundary_trait_is_implemented(program: &TypedTrees, trait_symbol: SymbolHandl
             .machine_trait_conformances(machine)
             .iter()
             .any(|conformance| {
-                // PRV4 supply edges: a FREE machine satisfying ONE named
+                // PRV4 supply edges: a machine satisfying ONE named
                 // requirement (a checked adapter forwarding already-held
                 // authority, or a `via` external leaf) is not an in-package
-                // implementation of the trait -- the trait itself remains
-                // host-provided and its calls stay auditable against the
-                // registry. Whole-trait conformances (and any attached
-                // machine) still revoke approval: that IS authority minting.
-                conformance.symbol == trait_symbol
-                    && !(machine.attached_data.is_none() && conformance.requirement.is_some())
+                // implementation of the trait. Its attached data type, when
+                // present, identifies the selected provider/table layout; it
+                // does not mint authority. Whole-trait conformances still
+                // revoke approval: those are ordinary implementations.
+                conformance.symbol == trait_symbol && conformance.requirement.is_none()
             })
     })
 }

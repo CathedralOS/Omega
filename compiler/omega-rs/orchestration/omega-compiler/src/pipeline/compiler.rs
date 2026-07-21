@@ -150,9 +150,8 @@ fn extract_provides_rows(
     // `satisfies Trait::method via <Binding>;` machine contributes one row
     // for the satisfied requirement; a `<target>`-scoped leaf rides its own
     // marker, an unscoped leaf rides the portable name (resolves to the
-    // host target). Table-addressed mechanisms (VtableField/TableFunction)
-    // wait for the leaf `over`-struct surface and are skipped here -- the
-    // via validation rung keeps them from silently dropping.
+    // host target). For table-addressed mechanisms, the leaf's attached data
+    // type is the layout owner formerly named by `provides ... over Struct`.
     for item in syntax_trees.root_items() {
         let omega_syntax_trees::item::Item::Machine(machine) = item else {
             continue;
@@ -200,11 +199,19 @@ fn extract_provides_rows(
                 HostProviderMappingKind::VtableSlot { index } => {
                     ProvidesBindingKind::VtableSlot { index: *index }
                 }
+                HostProviderMappingKind::VtableField { field } => {
+                    ProvidesBindingKind::VtableField {
+                        field: field.as_str().to_owned(),
+                    }
+                }
+                HostProviderMappingKind::TableFunction { field } => {
+                    ProvidesBindingKind::TableFunction {
+                        field: field.as_str().to_owned(),
+                    }
+                }
                 HostProviderMappingKind::Value { value } => {
                     ProvidesBindingKind::Value { value: *value }
                 }
-                HostProviderMappingKind::VtableField { .. }
-                | HostProviderMappingKind::TableFunction { .. } => continue,
             };
             rows.push(ProvidesRow {
                 // Target-machine filtering clears the selected machine's
@@ -219,7 +226,7 @@ fn extract_provides_rows(
                 ),
                 trait_name: clause.trait_name.as_str().to_owned(),
                 method: requirement.as_str().to_owned(),
-                vtable_struct: String::new(),
+                vtable_struct: provider_type.to_owned(),
                 parameter_count: boundary_trait_method_parameter_count(
                     syntax_trees,
                     clause.trait_name.as_str(),

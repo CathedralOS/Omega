@@ -554,6 +554,15 @@ pub(crate) fn parse_host_provider_binding<'tokens, 'source>(
             let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
             Ok((HostProviderMappingKind::TableFunction { field }, input))
         }
+        // The qualified external-leaf spelling cannot use the legacy bare
+        // field shorthand because `Binding::field` would look like an open
+        // sum. Keep the normalized binding case explicit.
+        "VtableField" => {
+            let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+            let (field, input) = input.take_identifier()?;
+            let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
+            Ok((HostProviderMappingKind::VtableField { field }, input))
+        }
         // A BARE identifier (no `(`) is a VtableField arm: the RHS names a
         // fn-ptr FIELD of the block's `over` struct (the field model, extern
         // brief SS12.1). The over-clause requirement is enforced at
@@ -564,6 +573,7 @@ pub(crate) fn parse_host_provider_binding<'tokens, 'source>(
         other => Err(input.error_here(format!(
             "unknown `provides` binding `{other}`: the compiler-known Binding sum is \
              `Syscall(n)`, `DllImport(\"module\", \"symbol\")`, `VtableSlot(n)`, \
+             `VtableField(field)` (an attached provider data fn-ptr field), \
              `TableFunction(field)` (a service-table fn-ptr field, table not passed), \
              or a bare fn-ptr FIELD name of the block's `over` struct (This-call); a \
              per-target VALUE row is a bare integer (`O_CREATE -> 32768`)"

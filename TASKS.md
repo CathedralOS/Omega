@@ -555,6 +555,14 @@ slot owner may override by type. The migration order remains load-bearing.
    scalar, stack, HFA, and direct/indirect aggregate placement; SysV aggregate
    placement; Win64 scalar and direct/indirect aggregate placement; and the
    hosted import-argument runtime path all retain their exact lowering checks.
+   The runnable UEFI hello sample and its slot/ref-argument canaries likewise
+   use a target-scoped external leaf via `Binding::VtableSlot(1)` rather than a
+   one-row compatibility table. Attached external leaves now carry their data
+   type as the table-layout owner for `Binding::VtableField` and
+   `Binding::TableFunction`; free table-field leaves reject. The UEFI field,
+   out-parameter, and two-row service canaries plus the full SysV field-dispatch
+   matrix have moved off `provides ... over Struct` while preserving layout-
+   selected offsets and native aggregate calling plans.
    Remaining `provides` fixtures either intentionally pin compatibility
    grammar/diagnostics or still exercise vtable/syscall/value consumers that
    must migrate with their owning surfaces. Keep only the directed retirement
