@@ -50,6 +50,8 @@ pub(crate) fn data_address_relocation_offset_for_target_with_plan(
     authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
 ) -> usize {
     if target.architecture == Architecture::X86_64
+        && field_model_shape.is_none()
+        && authored_import
         && let Some(plan) = authoritative_plan
         && let Some(site) = omega_isa_x86_64::authored_import_relocation_sites(plan, operands)
             .into_iter()
@@ -61,23 +63,27 @@ pub(crate) fn data_address_relocation_offset_for_target_with_plan(
         return selected_text_offset + site.byte_offset;
     }
     if target.architecture == Architecture::X86_64
-        && omega_calling_conventions::CallingPolicy::native_for_target(target)
+        && authoritative_plan
+            .map(|plan| plan.policy)
+            .unwrap_or_else(|| omega_calling_conventions::CallingPolicy::native_for_target(target))
             == omega_calling_conventions::CallingPolicy::SystemVAMD64
         && let Some(shape) = field_model_shape
     {
         let byte_offset = if shape.passes_receiver {
-            omega_isa_x86_64::sysv_vtable_call_data_relocation_byte_offset(
+            omega_isa_x86_64::sysv_vtable_call_data_relocation_byte_offset_with_plan(
                 operands,
                 0,
                 shape.result_present,
                 operand_index,
+                authoritative_plan,
             )
         } else {
-            omega_isa_x86_64::sysv_table_function_call_data_relocation_byte_offset(
+            omega_isa_x86_64::sysv_table_function_call_data_relocation_byte_offset_with_plan(
                 operands,
                 0,
                 shape.result_present,
                 operand_index,
+                authoritative_plan,
             )
         };
         return selected_text_offset + byte_offset;
@@ -152,17 +158,25 @@ fn data_address_relocation_offset_with_plan(
         && let Some(shape) = field_model_shape
     {
         let byte_offset = if shape.passes_receiver {
-            omega_isa_x86_64::vtable_call_data_relocation_byte_offset(
+            omega_isa_x86_64::win64_vtable_call_relocation_sites_with_plan(
                 operands,
-                operand_index,
                 shape.result_present,
+                authoritative_plan,
             )
+            .into_iter()
+            .find(|site| site.operand_index == Some(operand_index))
+            .map(|site| site.byte_offset)
+            .unwrap_or(0)
         } else {
-            omega_isa_x86_64::table_function_call_data_relocation_byte_offset(
+            omega_isa_x86_64::win64_table_function_call_relocation_sites_with_plan(
                 operands,
-                operand_index,
                 shape.result_present,
+                authoritative_plan,
             )
+            .into_iter()
+            .find(|site| site.operand_index == Some(operand_index))
+            .map(|site| site.byte_offset)
+            .unwrap_or(0)
         };
         return selected_text_offset + byte_offset;
     }
@@ -175,9 +189,10 @@ fn data_address_relocation_offset_with_plan(
         && let Some(shape) = field_model_shape
         && shape.passes_receiver
         && let Ok((argument_placements, _)) =
-            omega_instruction_selection::normalized_aarch64_vtable_plan(
+            omega_instruction_selection::normalized_aarch64_vtable_plan_with_plan(
                 operands,
                 shape.result_present,
+                authoritative_plan,
             )
     {
         let argument_start = usize::from(shape.result_present);
@@ -238,9 +253,10 @@ fn data_address_relocation_offset_with_plan(
         && let Some(shape) = field_model_shape
         && !shape.passes_receiver
         && let Ok((argument_placements, _)) =
-            omega_instruction_selection::normalized_aarch64_table_function_plan(
+            omega_instruction_selection::normalized_aarch64_table_function_plan_with_plan(
                 operands,
                 shape.result_present,
+                authoritative_plan,
             )
     {
         let table_index = usize::from(shape.result_present);
@@ -734,6 +750,41 @@ mod tests {
             73
         );
 
+        let vtable_signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8); 2],
+            result: Some(ValueShape::integer(8, 8)),
+        };
+        let source_plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &vtable_signature)
+            .expect("source-selected SysV vtable plan");
+        assert_eq!(
+            data_address_relocation_offset_for_target_with_plan(
+                NativeTarget::windows_x64(),
+                operation,
+                &operands,
+                20,
+                1,
+                false,
+                vtable,
+                false,
+                Some(&source_plan),
+            ),
+            26
+        );
+        assert_eq!(
+            data_address_relocation_offset_for_target_with_plan(
+                NativeTarget::windows_x64(),
+                operation,
+                &operands,
+                20,
+                0,
+                false,
+                vtable,
+                false,
+                Some(&source_plan),
+            ),
+            73
+        );
+
         let table = Some(FieldModelCallShape {
             passes_receiver: false,
             result_present: true,
@@ -870,6 +921,42 @@ mod tests {
                 false,
             ),
             20
+        );
+
+        let data_operands = [
+            operands[0].clone(),
+            operands[1].clone(),
+            InstructionOperand {
+                kind: InstructionOperandKind::DataAddress {
+                    data: Handle::<TargetDataObject>::invalid(),
+                },
+            },
+        ];
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8); 2],
+            result: Some(ValueShape::integer(4, 4)),
+        };
+        let mut source_plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature)
+            .expect("source-selected AAPCS64 vtable plan");
+        source_plan.parameters[1].locations[0] = ValueLocation::Stack {
+            stack_byte_offset: 0,
+            value_byte_offset: 0,
+            byte_size: 8,
+            alignment: 8,
+        };
+        assert_eq!(
+            data_address_relocation_offset_for_target_with_plan(
+                NativeTarget::linux_arm64(),
+                None,
+                &data_operands,
+                20,
+                2,
+                false,
+                shape,
+                false,
+                Some(&source_plan),
+            ),
+            36
         );
 
         let float_operands = [

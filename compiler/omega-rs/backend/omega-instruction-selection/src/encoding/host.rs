@@ -143,9 +143,20 @@ pub fn encode_vtable_call_sequence<T: InstructionOperandLike>(
     operands: &[T],
     index: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
+    encode_vtable_call_sequence_with_plan(target, operands, index, None)
+}
+
+pub fn encode_vtable_call_sequence_with_plan<T: InstructionOperandLike>(
+    target: NativeTarget,
+    operands: &[T],
+    index: i64,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<Vec<u8>, Diagnostic> {
     match target.architecture {
         Architecture::Aarch64 => {
-            let placements = normalized_aarch64_vtable_argument_placements(operands)?;
+            let (placements, result) =
+                normalized_aarch64_vtable_plan_with_plan(operands, false, authoritative_plan)?;
+            debug_assert!(result.is_none());
             aarch64::encode_vtable_call_sequence_from_operands(
                 operands.iter().map(aarch64_call_operand),
                 &placements,
@@ -153,17 +164,28 @@ pub fn encode_vtable_call_sequence<T: InstructionOperandLike>(
             )
         }
         Architecture::X86_64
-            if CallingPolicy::native_for_target(target) == CallingPolicy::MicrosoftX64 =>
+            if authoritative_plan
+                .map(|plan| plan.policy)
+                .unwrap_or_else(|| CallingPolicy::native_for_target(target))
+                == CallingPolicy::MicrosoftX64 =>
         {
-            x86_64::encode_win64_vtable_call(operands, index)
+            x86_64::encode_win64_vtable_call_with_plan(operands, index, authoritative_plan)
         }
         Architecture::X86_64
-            if CallingPolicy::native_for_target(target) == CallingPolicy::SystemVAMD64 =>
+            if authoritative_plan
+                .map(|plan| plan.policy)
+                .unwrap_or_else(|| CallingPolicy::native_for_target(target))
+                == CallingPolicy::SystemVAMD64 =>
         {
             let byte_offset = index
                 .checked_mul(8)
                 .ok_or_else(|| Diagnostic::error("vtable slot index overflows a byte offset"))?;
-            x86_64::encode_sysv_vtable_call(operands, byte_offset, false)
+            x86_64::encode_sysv_vtable_call_with_plan(
+                operands,
+                byte_offset,
+                false,
+                authoritative_plan,
+            )
         }
         Architecture::X86_64 => Err(Diagnostic::error(
             "x86-64 vtable compatibility encoder requires Microsoft x64 or SysV AMD64",
@@ -180,9 +202,29 @@ pub fn encode_vtable_call_sequence_at_offset<T: InstructionOperandLike>(
     byte_offset: usize,
     result_present: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
+    encode_vtable_call_sequence_at_offset_with_plan(
+        target,
+        operands,
+        byte_offset,
+        result_present,
+        None,
+    )
+}
+
+pub fn encode_vtable_call_sequence_at_offset_with_plan<T: InstructionOperandLike>(
+    target: NativeTarget,
+    operands: &[T],
+    byte_offset: usize,
+    result_present: bool,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<Vec<u8>, Diagnostic> {
     match target.architecture {
         Architecture::Aarch64 => {
-            let (arguments, result) = normalized_aarch64_vtable_plan(operands, result_present)?;
+            let (arguments, result) = normalized_aarch64_vtable_plan_with_plan(
+                operands,
+                result_present,
+                authoritative_plan,
+            )?;
             if result_present {
                 let result = result.as_ref().ok_or_else(|| {
                     Diagnostic::error("AAPCS64 vtable plan omitted its required result")
@@ -246,23 +288,31 @@ pub fn encode_vtable_call_sequence_at_offset<T: InstructionOperandLike>(
             }
         }
         Architecture::X86_64
-            if CallingPolicy::native_for_target(target) == CallingPolicy::MicrosoftX64 =>
+            if authoritative_plan
+                .map(|plan| plan.policy)
+                .unwrap_or_else(|| CallingPolicy::native_for_target(target))
+                == CallingPolicy::MicrosoftX64 =>
         {
-            x86_64::encode_win64_vtable_call_at_offset(
+            x86_64::encode_win64_vtable_call_at_offset_with_plan(
                 operands,
                 i64::try_from(byte_offset)
                     .map_err(|_| Diagnostic::error("vtable field offset overflows i64"))?,
                 result_present,
+                authoritative_plan,
             )
         }
         Architecture::X86_64
-            if CallingPolicy::native_for_target(target) == CallingPolicy::SystemVAMD64 =>
+            if authoritative_plan
+                .map(|plan| plan.policy)
+                .unwrap_or_else(|| CallingPolicy::native_for_target(target))
+                == CallingPolicy::SystemVAMD64 =>
         {
-            x86_64::encode_sysv_vtable_call(
+            x86_64::encode_sysv_vtable_call_with_plan(
                 operands,
                 i64::try_from(byte_offset)
                     .map_err(|_| Diagnostic::error("vtable field offset overflows i64"))?,
                 result_present,
+                authoritative_plan,
             )
         }
         Architecture::X86_64 => Err(Diagnostic::error(
@@ -280,10 +330,29 @@ pub fn encode_table_function_call_sequence<T: InstructionOperandLike>(
     byte_offset: usize,
     result_present: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
+    encode_table_function_call_sequence_with_plan(
+        target,
+        operands,
+        byte_offset,
+        result_present,
+        None,
+    )
+}
+
+pub fn encode_table_function_call_sequence_with_plan<T: InstructionOperandLike>(
+    target: NativeTarget,
+    operands: &[T],
+    byte_offset: usize,
+    result_present: bool,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<Vec<u8>, Diagnostic> {
     match target.architecture {
         Architecture::Aarch64 => {
-            let (arguments, result) =
-                normalized_aarch64_table_function_plan(operands, result_present)?;
+            let (arguments, result) = normalized_aarch64_table_function_plan_with_plan(
+                operands,
+                result_present,
+                authoritative_plan,
+            )?;
             match result.as_ref().map(|result| result.shape.class) {
                 None => aarch64::encode_table_function_call_sequence_from_operands(
                     operands.iter().map(aarch64_call_operand),
@@ -347,23 +416,31 @@ pub fn encode_table_function_call_sequence<T: InstructionOperandLike>(
             }
         }
         Architecture::X86_64
-            if CallingPolicy::native_for_target(target) == CallingPolicy::MicrosoftX64 =>
+            if authoritative_plan
+                .map(|plan| plan.policy)
+                .unwrap_or_else(|| CallingPolicy::native_for_target(target))
+                == CallingPolicy::MicrosoftX64 =>
         {
-            x86_64::encode_win64_table_function_call(
+            x86_64::encode_win64_table_function_call_with_plan(
                 operands,
                 i64::try_from(byte_offset)
                     .map_err(|_| Diagnostic::error("service table field offset overflows i64"))?,
                 result_present,
+                authoritative_plan,
             )
         }
         Architecture::X86_64
-            if CallingPolicy::native_for_target(target) == CallingPolicy::SystemVAMD64 =>
+            if authoritative_plan
+                .map(|plan| plan.policy)
+                .unwrap_or_else(|| CallingPolicy::native_for_target(target))
+                == CallingPolicy::SystemVAMD64 =>
         {
-            x86_64::encode_sysv_table_function_call(
+            x86_64::encode_sysv_table_function_call_with_plan(
                 operands,
                 i64::try_from(byte_offset)
                     .map_err(|_| Diagnostic::error("service table field offset overflows i64"))?,
                 result_present,
+                authoritative_plan,
             )
         }
         Architecture::X86_64 => Err(Diagnostic::error(
@@ -584,7 +661,15 @@ pub fn normalized_aarch64_vtable_plan<T: InstructionOperandLike>(
     operands: &[T],
     result_present: bool,
 ) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
-    let (placements, result) = normalized_aarch64_import_plan(
+    normalized_aarch64_vtable_plan_with_plan(operands, result_present, None)
+}
+
+pub fn normalized_aarch64_vtable_plan_with_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    result_present: bool,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
+    let (placements, result) = normalized_aarch64_import_plan_with_authoritative(
         operands,
         if result_present {
             Aarch64ImportResult::Authored
@@ -592,6 +677,7 @@ pub fn normalized_aarch64_vtable_plan<T: InstructionOperandLike>(
             Aarch64ImportResult::None
         },
         false,
+        authoritative_plan,
     )?;
     debug_assert_eq!(result.is_some(), result_present);
     if !matches!(
@@ -618,6 +704,14 @@ pub fn normalized_aarch64_table_function_plan<T: InstructionOperandLike>(
     operands: &[T],
     result_present: bool,
 ) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
+    normalized_aarch64_table_function_plan_with_plan(operands, result_present, None)
+}
+
+pub fn normalized_aarch64_table_function_plan_with_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    result_present: bool,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
     let lowered = operands
         .iter()
         .map(aarch64_call_operand)
@@ -642,15 +736,17 @@ pub fn normalized_aarch64_table_function_plan<T: InstructionOperandLike>(
         wire_operands.push(lowered[0]);
     }
     wire_operands.extend_from_slice(&lowered[table_index + 1..]);
-    let (placements, result) = normalized_aarch64_import_plan_from_call_operands(
-        &wire_operands,
-        if result_present {
-            Aarch64ImportResult::Authored
-        } else {
-            Aarch64ImportResult::None
-        },
-        false,
-    )?;
+    let (placements, result) =
+        normalized_aarch64_import_plan_from_call_operands_with_authoritative(
+            &wire_operands,
+            if result_present {
+                Aarch64ImportResult::Authored
+            } else {
+                Aarch64ImportResult::None
+            },
+            false,
+            authoritative_plan,
+        )?;
     debug_assert_eq!(result.is_some(), result_present);
     if let Some(result) = result.as_ref() {
         validate_aarch64_field_result(result, "table-function")?;
@@ -788,19 +884,6 @@ fn normalized_aarch64_import_plan_with_authoritative<T: InstructionOperandLike>(
         result_kind,
         trailing_variadic_stack,
         authoritative_plan,
-    )
-}
-
-fn normalized_aarch64_import_plan_from_call_operands(
-    aarch64_operands: &[omega_isa_aarch64::Aarch64CallOperand],
-    result_kind: Aarch64ImportResult,
-    trailing_variadic_stack: bool,
-) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
-    normalized_aarch64_import_plan_from_call_operands_with_authoritative(
-        aarch64_operands,
-        result_kind,
-        trailing_variadic_stack,
-        None,
     )
 }
 
@@ -1373,6 +1456,43 @@ mod sysv_field_call_tests {
     }
 
     #[test]
+    fn source_selected_sysv_vtable_plan_overrides_a_windows_target() {
+        let operands = [scalar(0), scalar(8), scalar(16)];
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8); 2],
+            result: Some(ValueShape::integer(8, 8)),
+        };
+        let plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature)
+            .expect("source-selected SysV field plan");
+        let target = omega_target::NativeTarget::windows_x64();
+        let bytes = encode_vtable_call_sequence_at_offset_with_plan(
+            target,
+            &operands,
+            24,
+            true,
+            Some(&plan),
+        )
+        .expect("SysV vtable-field call in a PE image");
+
+        assert!(
+            bytes
+                .windows(9)
+                .any(|window| window == [0x48, 0x8b, 0x87, 24, 0, 0, 0, 0xff, 0xd0]),
+            "the dispatch receiver must be read from source-selected rdi"
+        );
+        assert_eq!(
+            bytes.len(),
+            crate::vtable_call_sequence_width_at_offset_with_plan(
+                target,
+                &operands,
+                24,
+                true,
+                Some(&plan),
+            )
+        );
+    }
+
+    #[test]
     fn linux_x64_routes_table_functions_without_passing_the_table() {
         let operands = [scalar(0), scalar(8), scalar(16)];
         let target = omega_target::NativeTarget::linux_x64();
@@ -1388,6 +1508,38 @@ mod sysv_field_call_tests {
                 .windows(7)
                 .any(|window| window == [0x49, 0x8b, 0xbb, 16, 0, 0, 0]),
             "the first declared argument must use rdi"
+        );
+    }
+
+    #[test]
+    fn source_selected_table_plan_excludes_dispatch_storage_on_windows() {
+        let operands = [scalar(0), scalar(8), scalar(16)];
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: Some(ValueShape::integer(8, 8)),
+        };
+        let plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature)
+            .expect("source-selected SysV table-function plan");
+        let target = omega_target::NativeTarget::windows_x64();
+        let bytes =
+            encode_table_function_call_sequence_with_plan(target, &operands, 40, true, Some(&plan))
+                .expect("SysV table-function call in a PE image");
+
+        assert!(
+            bytes
+                .windows(7)
+                .any(|window| window == [0x49, 0x8b, 0xbb, 16, 0, 0, 0]),
+            "the dispatch table must be excluded so the declared argument uses rdi"
+        );
+        assert_eq!(
+            bytes.len(),
+            crate::table_function_call_sequence_width_with_plan(
+                target,
+                &operands,
+                40,
+                true,
+                Some(&plan),
+            )
         );
     }
 }
@@ -1479,6 +1631,55 @@ mod aarch64_import_plan_tests {
                 byte_size: 8,
             }]
         ));
+    }
+
+    #[test]
+    fn source_selected_aarch64_vtable_plan_controls_non_receiver_arguments() {
+        let operands = [
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::ImmediateInteger(7)),
+        ];
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8); 2],
+            result: None,
+        };
+        let mut plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature)
+            .expect("baseline AAPCS64 vtable plan");
+        plan.parameters[1].locations[0] = ValueLocation::Register {
+            register: MachineRegister::Aarch64X(3),
+            value_byte_offset: 0,
+            byte_size: 8,
+        };
+
+        let target = omega_target::NativeTarget::linux_arm64();
+        let bytes = encode_vtable_call_sequence_at_offset_with_plan(
+            target,
+            &operands,
+            24,
+            false,
+            Some(&plan),
+        )
+        .expect("source-selected AAPCS64 vtable plan");
+
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == [0xe3, 0x00, 0x80, 0xd2])
+        );
+        assert_eq!(
+            bytes.len(),
+            crate::vtable_call_sequence_width_at_offset_with_plan(
+                target,
+                &operands,
+                24,
+                false,
+                Some(&plan),
+            )
+        );
     }
 
     #[test]
