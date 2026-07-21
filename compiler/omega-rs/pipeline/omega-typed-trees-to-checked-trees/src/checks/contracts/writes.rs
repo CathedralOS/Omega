@@ -185,10 +185,11 @@ fn statement_root_expressions(
 ///   * a string literal contributes its exact byte length;
 ///   * a concatenation `a + b` contributes the sum of its operands' bounds;
 ///   * a `self.field` read contributes its declared `[u8; N]` carrier capacity
-///     (an owned bounded source).
-/// Anything else -- a `&[u8]` view source (no inline capacity), a runtime call
-/// result, a local -- is unbounded, yielding `None` (conservatively rejected by
-/// the caller). Notably an in-place append `self.buf + "x"` into a `[u8; N]`
+///     (an owned bounded source);
+///   * a value call contributes its declared bounded-carrier return capacity.
+/// Anything else -- a `&[u8]` view source (no inline capacity) or an unresolved
+/// local -- is unbounded, yielding `None` (conservatively rejected by the
+/// caller). Notably an in-place append `self.buf + "x"` into a `[u8; N]`
 /// buffer bounds to `N + 1 > N` and is correctly rejected: proving it fits needs
 /// the buffer's flow-sensitive running length, not this static bound.
 fn static_max_byte_length(
@@ -204,6 +205,10 @@ fn static_max_byte_length(
             let left = static_max_byte_length(program, machine, binary.left)?;
             let right = static_max_byte_length(program, machine, binary.right)?;
             Some(left.saturating_add(right))
+        }
+        ExpressionNode::Call(call) => {
+            let target = crate::find_state(program, call.target_symbol)?;
+            crate::field_domain::type_reference_fixed_array_capacity(program, target.return_type)
         }
         _ => {
             let field_type =

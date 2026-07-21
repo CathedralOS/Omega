@@ -911,7 +911,15 @@ stronger operations it needs instead of citing machine parameters generally.
   carrier aliases, and local-field copies through mutable carrier parameters
   have also moved off builtin `String`; the interpreter now constructs a
   domain-qualified fixed byte carrier as empty `{len, bytes}` rather than an
-  always-full zero array. Still implement scratch-backed
+  always-full zero array. Literal and value-call terminal results can now
+  construct `[u8; N] in D` directly, with an exact compile-time rejection when
+  the literal exceeds `N`; bounded-carrier calls contribute their declared
+  return capacity to assignment proofs. Direct carrier-to-`&[u8]` projection
+  now builds `{ptr, runtime_len}` rather than raw-copying the inline carrier
+  prefix. The remaining boundary-establishment migration needs mutable
+  parameter `ensures` facts to substitute back onto the caller's borrowed field
+  place (`utf8_boundary_established` / `no_nul_boundary_established`). Still
+  implement scratch-backed
   overlap handling (or an equivalent proven length route) before migrating the
   in-place `target = target + suffix` regressions; never zero the aliased source
   and call it a copy. Follow

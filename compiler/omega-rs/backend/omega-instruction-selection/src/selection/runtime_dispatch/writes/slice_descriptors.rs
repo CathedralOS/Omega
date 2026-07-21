@@ -15,7 +15,9 @@ use super::super::super::storage_places::{
     resolve_runtime_frame_fixed_indexed_target,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place,
-    resolve_runtime_storage_place_in_table, resolve_slice_element_byte_size_in_table,
+    resolve_runtime_storage_place_in_table,
+    resolve_runtime_storage_place_is_bounded_byte_buffer_in_table,
+    resolve_slice_element_byte_size_in_table,
 };
 use super::fixed_array_slices::{
     literal_subslice_range_bounds, resolved_subslice_descriptor_base_in_table,
@@ -658,6 +660,52 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
         runtime_value_operands,
         selected_instructions,
     ) {
+        return true;
+    }
+
+    // A bounded text carrier is `{len, inline_bytes[N]}`, while a borrowed
+    // byte view is `{ptr, len}`. Projecting a bare carrier place into a slice
+    // slot must therefore synthesize the descriptor: point at the inline byte
+    // prefix and copy the carrier's RUNTIME length. It must not raw-copy the
+    // first descriptor-sized bytes (which would reinterpret `len` as a pointer)
+    // or use the fixed array's capacity as the view length.
+    if !matches!(expressions.expression(value), ExpressionNode::Call(_))
+        && resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            value,
+        )
+        && let Some(place) = resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            value,
+        )
+    {
+        let descriptor = input.runtime_abi.slice_descriptor();
+        selected_instructions.push(SelectedInstruction {
+            kind: crate::selection::runtime_dispatch::write_place_address_direct(
+                place.region,
+                place.byte_offset + descriptor.len_size(),
+                slot.byte_offset + descriptor.ptr_offset(),
+            ),
+            source_key: value_source_key,
+            source_statement: statement_index,
+        });
+        selected_instructions.push(SelectedInstruction {
+            kind: crate::selection::runtime_dispatch::copy_places_direct(
+                place.region,
+                place.byte_offset,
+                RuntimeStorageRegion::RuntimeFrame,
+                slot.byte_offset + descriptor.len_offset(),
+                descriptor.len_size(),
+            ),
+            source_key: value_source_key,
+            source_statement: statement_index,
+        });
         return true;
     }
 

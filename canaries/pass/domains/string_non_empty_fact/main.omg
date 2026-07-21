@@ -1,23 +1,24 @@
-use omega::language::core::str;
+// Exercises the byte-view fact `[u8]::NonEmpty`. The domain membership is
+// carried as a fact across a call: `main` requires it on `self.text`, and that
+// membership satisfies `consume` without a builtin String type.
 
-// Exercises the cheap O(1) text fact `String::NonEmpty` (`self.len > 0`).
-// The owned-text domain membership is carried as a fact across a call: `main`
-// requires `self.text in String::NonEmpty`, and that membership satisfies the
-// `consume` precondition that asks for the same domain.
-
-data Main {
-    text: String;
+domain [u8]::NonEmpty {
+    non_empty(self);
 }
 
-machine Main::consume(&self, text: &String)
+data Main {
+    text: &[u8];
+}
+
+machine Main::consume(&self, text: &[u8])
 requires
-    text in String::NonEmpty
+    text in NonEmpty
 {
 }
 
 machine Main::main(&mut self)
 requires
-    self.text in String::NonEmpty
+    self.text in NonEmpty
 {
-    self.consume(&self.text);
+    self.consume(self.text);
 }

@@ -1,18 +1,24 @@
-// An owned String exposes its bytes only through explicit borrowed views.
-// Both runtimes must preserve the `{ptr, len}` descriptor through
-// `String::as_view()` and `string::bytes()`; passing the owned String directly
-// as `&[u8]` would be an unsound argument-shape loophole.
+// An owned bounded text carrier exposes its initialized prefix as a borrowed
+// byte view. Both runtimes must preserve the carrier's runtime length while
+// projecting the inline bytes; the view must not expose the unused capacity.
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
+
 use omega::language::std::console;
 
 data Main {
     console: Console;
-    text: String;
+    text: [u8; 8] in Utf8;
 }
 
 machine Main::main(&mut self) {
     self.text = "A";
-    let text_view: &string = self.text.as_view();
-    let bytes: &[u8] = text_view.bytes();
+    let bytes: &[u8] in Utf8 = self.text;
 
     transition bytes.len > 0 {
         true -> check(bytes)

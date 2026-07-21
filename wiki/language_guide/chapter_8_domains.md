@@ -802,8 +802,11 @@ boundary and the operators.
 > rides a RAW-byte encoding (length varint + raw bytes, like protobuf `bytes`),
 > distinct from a `[u8; N]` repeated field (packed per-element varints). Wiring
 > a `&[u8]` bytes field through the wire layer, plus replacing the builtin
-> `string`/`String` with `[u8] in Utf8` wholesale, waits on domains over
-> `Slice<u8>`, the codec operators above, and a corpus migration.
+> Domains over byte views and bounded carriers, direct literal construction,
+> bounded return values, and native/interpreter carrier lowering are now built.
+> Wholesale `string`/`String` removal waits on the remaining corpus migration,
+> mutable-boundary establishment fact transfer, and the allocator-backed
+> growable carrier surface.
 
 ### Establishing the domain: construction, validation, and the wire
 
@@ -814,6 +817,10 @@ never from the transport:
   `[u8] in Utf8` by construction: the compiler knows the bytes, so there is no
   runtime check. The preservation operators above (`concat`, boundary-`slice`)
   carry the domain forward, so text stays text without re-validation.
+  For an owned bounded carrier `[u8; N] in Utf8`, construction additionally
+  proves the exact literal byte length is at most `N`. The same rule applies in
+  argument and machine-result positions; there is no truncation or deferred
+  capacity failure.
 
 - **By validation -- a fallible call, riding chapter 16.** Raw bytes from an
   untrusted source are plain `[u8]` with NO encoding domain. To use them as text
