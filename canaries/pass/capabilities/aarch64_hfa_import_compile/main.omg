@@ -10,9 +10,7 @@ boundary trait HfaImport {
     machine call(pair: Pair) -> i64;
 }
 
-macos_arm64 provides HfaImport {
-    call -> DllImport("libSystem.B.dylib", "omega_hfa_probe")
-}
+machine hfa_import(pair: Pair) -> i64 satisfies HfaImport::call via Binding::DllImport("libSystem.B.dylib", "omega_hfa_probe");
 
 data Main { foreign: HfaImport; pair: Pair; result: i64; }
 machine Main::main(&mut self) {

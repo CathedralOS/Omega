@@ -5,9 +5,7 @@ boundary trait WideImport {
     machine call(a: i64, b: i64, c: i64, d: i64, e: i64, f: i64, g: i64, h: i64, i: i64) -> i64;
 }
 
-macos_arm64 provides WideImport {
-    call -> DllImport("libSystem.B.dylib", "omega_nine_argument_probe")
-}
+machine wide_import(a: i64, b: i64, c: i64, d: i64, e: i64, f: i64, g: i64, h: i64, i: i64) -> i64 satisfies WideImport::call via Binding::DllImport("libSystem.B.dylib", "omega_nine_argument_probe");
 
 data Main { wide: WideImport; ninth: i64; result: i64; }
 machine Main::main(&mut self) {

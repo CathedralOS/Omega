@@ -10,9 +10,7 @@ boundary trait LargeAggregateResultImport {
     machine receive(seed: u64) -> Triple;
 }
 
-windows_x64 provides LargeAggregateResultImport {
-    receive -> DllImport("omega_abi_probe.dll", "omega_win64_large_result_probe")
-}
+machine large_aggregate_result_import(seed: u64) -> Triple satisfies LargeAggregateResultImport::receive via Binding::DllImport("omega_abi_probe.dll", "omega_win64_large_result_probe");
 
 data Main {
     foreign: LargeAggregateResultImport;

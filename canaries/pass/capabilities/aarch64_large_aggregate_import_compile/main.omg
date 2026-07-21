@@ -10,9 +10,7 @@ boundary trait LargeAggregateImport {
     machine call(value: Triple) -> Triple;
 }
 
-macos_arm64 provides LargeAggregateImport {
-    call -> DllImport("libSystem.B.dylib", "omega_large_aggregate_probe")
-}
+machine large_aggregate_import(value: Triple) -> Triple satisfies LargeAggregateImport::call via Binding::DllImport("libSystem.B.dylib", "omega_large_aggregate_probe");
 
 data Main { foreign: LargeAggregateImport; input: Triple; result: Triple; }
 machine Main::main(&mut self) {

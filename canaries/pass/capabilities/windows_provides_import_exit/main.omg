@@ -1,6 +1,6 @@
-// AUTHORED provides import, END TO END on hosted windows_x64 (extern brief
-// §12, hosted-consumption rung 2): the program binds its own boundary trait
-// method to a DLL import -- `beep -> DllImport("msvcrt.dll", "abs")` -- and
+// EXTERNAL-LEAF import, END TO END on hosted windows_x64 (extern brief §12,
+// hosted-consumption rung 2): a bodyless satisfying machine binds the boundary
+// requirement to `Binding::DllImport("msvcrt.dll", "abs")`, and
 // the call rides the GENERAL value-returning Win64 import encoder with the
 // import table naming the BINDING's DLL (msvcrt.dll, never the KERNEL32
 // catalog default). Discriminating: abs(-42) must deliver 42 through the
@@ -12,9 +12,7 @@
 use omega::language::std::console;
 boundary trait Beeper { machine beep(value: i32) -> i32; }
 data Main { console: Console; beeper: Beeper; m: i32; v: i32; }
-windows_x64 provides Beeper {
-    beep -> DllImport("msvcrt.dll", "abs")
-}
+machine beeper_abs(value: i32) -> i32 satisfies Beeper::beep via Binding::DllImport("msvcrt.dll", "abs");
 machine Main::main(&mut self) {
     self.v = 0 - 42;
     self.m = self.beeper.beep(self.v);

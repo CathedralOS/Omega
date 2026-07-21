@@ -10,9 +10,7 @@ boundary trait AggregateImport {
     machine call(tag: u64, pair: Pair) -> Pair;
 }
 
-linux_x64 provides AggregateImport {
-    call -> DllImport("libomega-probes.so", "omega_sysv_small_aggregate_probe")
-}
+machine aggregate_import(tag: u64, pair: Pair) -> Pair satisfies AggregateImport::call via Binding::DllImport("libomega-probes.so", "omega_sysv_small_aggregate_probe");
 
 data Main { foreign: AggregateImport; pair: Pair; result: Pair; }
 machine Main::main(&mut self) {

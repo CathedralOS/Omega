@@ -15,9 +15,16 @@ boundary trait AggregateStackImport {
     ) -> i64;
 }
 
-macos_arm64 provides AggregateStackImport {
-    call -> DllImport("libSystem.B.dylib", "omega_small_aggregate_stack_probe")
-}
+machine aggregate_stack_import(
+    a0: u64,
+    a1: u64,
+    a2: u64,
+    a3: u64,
+    a4: u64,
+    a5: u64,
+    a6: u64,
+    pair: Pair
+) -> i64 satisfies AggregateStackImport::call via Binding::DllImport("libSystem.B.dylib", "omega_small_aggregate_stack_probe");
 
 data Main { foreign: AggregateStackImport; pair: Pair; result: i64; }
 machine Main::main(&mut self) {

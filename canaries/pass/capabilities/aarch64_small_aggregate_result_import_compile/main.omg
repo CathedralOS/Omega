@@ -9,9 +9,7 @@ boundary trait AggregateResultImport {
     machine call(seed: i64) -> Pair;
 }
 
-macos_arm64 provides AggregateResultImport {
-    call -> DllImport("libSystem.B.dylib", "omega_small_aggregate_result_probe")
-}
+machine aggregate_result_import(seed: i64) -> Pair satisfies AggregateResultImport::call via Binding::DllImport("libSystem.B.dylib", "omega_small_aggregate_result_probe");
 
 data Main { foreign: AggregateResultImport; seed: i64; pair: Pair; }
 machine Main::main(&mut self) {

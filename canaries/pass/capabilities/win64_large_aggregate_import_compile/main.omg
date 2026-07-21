@@ -11,9 +11,7 @@ boundary trait LargeAggregateImport {
     machine send(before: u64, value: Triple, after: u64) -> i32;
 }
 
-windows_x64 provides LargeAggregateImport {
-    send -> DllImport("omega_abi_probe.dll", "omega_win64_large_aggregate_probe")
-}
+machine large_aggregate_import(before: u64, value: Triple, after: u64) -> i32 satisfies LargeAggregateImport::send via Binding::DllImport("omega_abi_probe.dll", "omega_win64_large_aggregate_probe");
 
 data Main {
     foreign: LargeAggregateImport;

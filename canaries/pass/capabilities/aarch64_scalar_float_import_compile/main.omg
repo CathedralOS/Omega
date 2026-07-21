@@ -4,9 +4,7 @@ boundary trait ScalarFloatImport {
     machine call(value: f64) -> f64;
 }
 
-macos_arm64 provides ScalarFloatImport {
-    call -> DllImport("libSystem.B.dylib", "omega_scalar_float_probe")
-}
+machine scalar_float_import(value: f64) -> f64 satisfies ScalarFloatImport::call via Binding::DllImport("libSystem.B.dylib", "omega_scalar_float_probe");
 
 data Main { foreign: ScalarFloatImport; value: f64; result: f64; }
 machine Main::main(&mut self) {
