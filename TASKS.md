@@ -454,9 +454,13 @@ schemas recover the same instance without publishing policy type identity.
    live beside their ISA encoders, and selected inputs that alias scratch before
    capture reject instead of silently storing a frame-base value. Exit
    derivation likewise consumes the complete plan and preserves canonical
-   result placement plus call/return control. Whole-body transitive evidence,
-   save/restore specialization, and post-layout aggregation across handler code,
-   exits, veneers, thunks, and admitted leaves remain.
+   result placement plus call/return control. Independently derived footprint
+   fragments now compose through deterministic register/state union, validate
+   once against the retained entry plan, and retain an order- and duplicate-
+   insensitive implementation-evidence fingerprint. Whole-body evidence,
+   save/restore specialization, and post-layout enumeration across handler code,
+   exits, veneers, thunks, and admitted leaves remain; final placement must
+   still prove that enumeration is complete.
 4. **IDT1 — symbolic materialization (normalized foundation complete).**
    `LayoutPlan` now uses compiler-issued field keys normalized back to names;
    repeated `Bits` entries validate exact logical-source tiling plus

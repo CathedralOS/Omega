@@ -415,6 +415,36 @@ impl StateFootprintEvidence {
     }
 }
 
+/// Compose implementation evidence from independently derived code fragments.
+/// Register sets and machine-state classes are mathematical unions, so the
+/// result is deterministic across fragment ordering and repeated evidence.
+/// This remains implementation evidence: it does not enter boundary contract
+/// identity and does not claim to be a final placed-artifact certificate.
+pub fn compose_state_footprints<'a>(
+    fragments: impl IntoIterator<Item = &'a StateFootprintEvidence>,
+) -> StateFootprintEvidence {
+    let mut registers = Vec::new();
+    let mut machine_state = MachineStateSet::empty();
+    for fragment in fragments {
+        registers.extend_from_slice(fragment.registers().as_slice());
+        machine_state = machine_state.union(fragment.machine_state());
+    }
+    StateFootprintEvidence::new(RegisterSet::new(registers), machine_state)
+}
+
+/// Compose fragment evidence and validate the whole transitive footprint
+/// against one already-validated boundary plan. Returning the normalized
+/// aggregate lets later object/final-image consumers retain exactly the
+/// evidence that was checked without publishing it as requirement identity.
+pub fn validate_composed_state_footprint<'a>(
+    validated: &ValidatedBoundaryEntryPlan,
+    fragments: impl IntoIterator<Item = &'a StateFootprintEvidence>,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    let composed = compose_state_footprints(fragments);
+    validate_state_footprint(validated, &composed)?;
+    Ok(composed)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlanDiagnostic(pub String);
 
@@ -2332,6 +2362,78 @@ mod tests {
             evidence_b.evidence_fingerprint()
         );
         assert_eq!(identity, validated.contract_fingerprint());
+    }
+
+    #[test]
+    fn fragment_footprints_compose_deterministically_before_validation() {
+        let validated = validate_boundary_entry_plan(strict_x86_entry(), &integer_signature(1))
+            .expect("strict entry plan");
+        let entry = StateFootprintEvidence::new(
+            RegisterSet::new([MachineRegister::X86R11, MachineRegister::X86Rax]),
+            MachineStateSet::empty(),
+        );
+        let body = StateFootprintEvidence::new(
+            RegisterSet::new([MachineRegister::X86Rcx, MachineRegister::X86R11]),
+            MachineStateSet::new([MachineState::Flags]),
+        );
+
+        let first = validate_composed_state_footprint(&validated, [&entry, &body, &entry])
+            .expect("whole-entry footprint");
+        let second = validate_composed_state_footprint(&validated, [&body, &entry])
+            .expect("reordered whole-entry footprint");
+
+        assert_eq!(first, second);
+        assert_eq!(
+            first.registers().as_slice(),
+            &[
+                MachineRegister::X86Rax,
+                MachineRegister::X86Rcx,
+                MachineRegister::X86R11,
+            ]
+        );
+        assert_eq!(
+            first.machine_state(),
+            MachineStateSet::new([MachineState::GeneralRegisters, MachineState::Flags])
+        );
+        assert_eq!(first.evidence_fingerprint(), second.evidence_fingerprint());
+    }
+
+    #[test]
+    fn composed_footprint_rejects_one_fragment_above_the_state_ceiling() {
+        let validated = validate_boundary_entry_plan(strict_x86_entry(), &integer_signature(1))
+            .expect("strict entry plan");
+        let entry = StateFootprintEvidence::new(
+            RegisterSet::new([MachineRegister::X86Rax]),
+            MachineStateSet::empty(),
+        );
+        let veneer = StateFootprintEvidence::new(
+            RegisterSet::new([MachineRegister::X86Xmm(0)]),
+            MachineStateSet::empty(),
+        );
+
+        let error = validate_composed_state_footprint(&validated, [&entry, &veneer])
+            .expect_err("one vector-using fragment must reject the aggregate");
+
+        assert!(error.0.contains("ceiling"));
+    }
+
+    #[test]
+    fn composed_footprint_rejects_a_foreign_architecture_fragment() {
+        let validated = validate_boundary_entry_plan(strict_x86_entry(), &integer_signature(1))
+            .expect("strict entry plan");
+        let entry = StateFootprintEvidence::new(
+            RegisterSet::new([MachineRegister::X86Rax]),
+            MachineStateSet::empty(),
+        );
+        let foreign_thunk = StateFootprintEvidence::new(
+            RegisterSet::new([MachineRegister::Aarch64X(16)]),
+            MachineStateSet::empty(),
+        );
+
+        let error = validate_composed_state_footprint(&validated, [&entry, &foreign_thunk])
+            .expect_err("foreign-architecture evidence must reject the aggregate");
+
+        assert!(error.0.contains("wrong architecture"));
     }
 
     #[test]
