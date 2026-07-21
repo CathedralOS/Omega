@@ -1,5 +1,5 @@
 use crate::InstructionSelectionInput;
-use crate::{derive_boundary_entry_storage_writes, derive_boundary_exit};
+use crate::{derive_boundary_entry_storage, derive_boundary_exit};
 use omega_checked_trees::data::DataMember;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::statement::StatementNode;
@@ -1588,14 +1588,14 @@ fn select_normalized_entry_argument_writes(
         );
         input.runtime_storage.entry_indirect_result_pointer_base
     });
-    let writes = derive_boundary_entry_storage_writes(
+    let entry_storage = derive_boundary_entry_storage(
         boundary.plan(),
         destinations,
         result,
         indirect_result_pointer_byte_offset,
     )
     .expect("runtime entry must lower from its validated boundary plan");
-    for kind in writes {
+    for kind in entry_storage.writes {
         selected_instructions.push(SelectedInstruction {
             kind,
             source_key: input.entry_key,

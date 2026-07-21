@@ -446,7 +446,17 @@ schemas recover the same instance without publishing policy type identity.
    is OWNER-BLOCKED on `OWNER_QUESTIONS.md` section 2.
 3. **ENT3 — constrained entry codegen.** Derive entry stubs, specialize/codegen
    under the state ceiling, emit a checkable final footprint certificate, and
-   validate after relaxation, veneers, thunks, and generated stubs.
+   validate after relaxation, veneers, thunks, and generated stubs. The shared
+   inbound-storage derivation now consumes and revalidates the complete
+   `BoundaryEntryPlan`, produces target-specific register-clobber evidence for
+   its generated x86-64/AArch64 copy fragments, and checks that evidence against
+   the retained state ceiling before selection continues. Scratch identities
+   live beside their ISA encoders, and selected inputs that alias scratch before
+   capture reject instead of silently storing a frame-base value. Exit
+   derivation likewise consumes the complete plan and preserves canonical
+   result placement plus call/return control. Whole-body transitive evidence,
+   save/restore specialization, and post-layout aggregation across handler code,
+   exits, veneers, thunks, and admitted leaves remain.
 4. **IDT1 — symbolic materialization (normalized foundation complete).**
    `LayoutPlan` now uses compiler-issued field keys normalized back to names;
    repeated `Bits` entries validate exact logical-source tiling plus
