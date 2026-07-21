@@ -52,9 +52,15 @@ fn lower_expression_node_into_table(
         }
         syntax::expression::ExpressionNode::Atomic(atomic) => {
             let value = lower_expression_into_table(syntax_trees, expressions, atomic.value)?;
+            let result = if atomic.result.is_valid() {
+                lower_expression_into_table(syntax_trees, expressions, atomic.result)?
+            } else {
+                ExpressionHandle::invalid()
+            };
             Ok(
                 expressions.insert(ExpressionNode::Atomic(TableAtomicExpression {
                     value,
+                    result,
                     ordering: atomic.ordering,
                 })),
             )

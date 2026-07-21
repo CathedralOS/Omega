@@ -158,6 +158,9 @@ pub enum ExpressionNode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TableAtomicExpression {
     pub value: ExpressionHandle,
+    /// Compiler-authored destination for operations that return the value
+    /// observed by the atomic instruction. Invalid for load/store.
+    pub result: ExpressionHandle,
     pub ordering: omega_core::atomic::AtomicOrderingPlan,
 }
 

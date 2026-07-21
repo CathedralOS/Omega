@@ -42,6 +42,7 @@ pub enum MachineInstructionKind {
     AtomicLoad,
     AtomicStore,
     AtomicFetchAdd,
+    AtomicSwap,
     AtomicCompareExchange,
     RuntimePointeeBinaryWrite,
     RuntimeFrameIndexedIntegerWrite,

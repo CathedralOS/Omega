@@ -964,6 +964,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     // --- ch17 atomics (concurrency stage 1) ---
     ("atomics/runtime_atomic_load_store_exit", 70),
     ("atomics/runtime_atomic_fetch_add_exit", 70),
+    ("atomics/runtime_atomic_swap_exit", 70),
     ("atomics/runtime_atomic_compare_exchange_exit", 70),
     // --- 2026-07-07 sync: the range/render sweep's canaries + the windows fs/gui work ---
     ("arithmetic/runtime_expression_range_bound_exit", 40),
@@ -1522,6 +1523,7 @@ fn interpreter_preserves_atomic_instruction_results() {
     for name in [
         "atomics/runtime_atomic_load_store_exit",
         "atomics/runtime_atomic_fetch_add_exit",
+        "atomics/runtime_atomic_swap_exit",
         "atomics/runtime_atomic_compare_exchange_exit",
     ] {
         let main_path = pass_canary(name).join("main.omg");

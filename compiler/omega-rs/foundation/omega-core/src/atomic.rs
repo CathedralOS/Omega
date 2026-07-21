@@ -15,13 +15,14 @@ pub enum MemoryOrdering {
 }
 
 /// The operation-specific ordering commitment attached to an atomic source
-/// expression. This survives the temporary arithmetic desugar so later phases
-/// do not have to rediscover semantics from an expression shape.
+/// expression. This survives compiler-authored carrier lowering so later
+/// phases do not have to rediscover semantics from an expression shape.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AtomicOrderingPlan {
     Load(MemoryOrdering),
     Store(MemoryOrdering),
     ReadModifyWrite(MemoryOrdering),
+    Swap(MemoryOrdering),
     CompareExchange {
         success: MemoryOrdering,
         failure: MemoryOrdering,
@@ -31,9 +32,10 @@ pub enum AtomicOrderingPlan {
 impl AtomicOrderingPlan {
     pub const fn success(self) -> MemoryOrdering {
         match self {
-            Self::Load(ordering) | Self::Store(ordering) | Self::ReadModifyWrite(ordering) => {
-                ordering
-            }
+            Self::Load(ordering)
+            | Self::Store(ordering)
+            | Self::ReadModifyWrite(ordering)
+            | Self::Swap(ordering) => ordering,
             Self::CompareExchange { success, .. } => success,
         }
     }

@@ -36,6 +36,7 @@ pub enum Expression {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AtomicExpression {
     pub value: Expression,
+    pub result: Option<Expression>,
     pub ordering: omega_core::atomic::AtomicOrderingPlan,
 }
 
@@ -262,8 +263,14 @@ impl ExpressionTable {
             }
             ExpressionNode::Atomic(atomic) => {
                 let value = self.copy_from(source, atomic.value);
+                let result = atomic
+                    .result
+                    .is_valid()
+                    .then(|| self.copy_from(source, atomic.result))
+                    .unwrap_or_else(ExpressionHandle::invalid);
                 self.insert(ExpressionNode::Atomic(TableAtomicExpression {
                     value,
+                    result,
                     ordering: atomic.ordering,
                 }))
             }
@@ -1165,8 +1172,14 @@ impl ExpressionTable {
             }
             ExpressionNode::Atomic(atomic) => {
                 let value = self.insert_copy(atomic.value);
+                let result = atomic
+                    .result
+                    .is_valid()
+                    .then(|| self.insert_copy(atomic.result))
+                    .unwrap_or_else(ExpressionHandle::invalid);
                 self.insert(ExpressionNode::Atomic(TableAtomicExpression {
                     value,
+                    result,
                     ordering: atomic.ordering,
                 }))
             }
@@ -1355,8 +1368,14 @@ impl ExpressionTable {
             }
             Expression::Atomic(atomic) => {
                 let value = self.insert_tree(&atomic.value);
+                let result = atomic
+                    .result
+                    .as_ref()
+                    .map(|result| self.insert_tree(result))
+                    .unwrap_or_else(ExpressionHandle::invalid);
                 self.insert(ExpressionNode::Atomic(TableAtomicExpression {
                     value,
+                    result,
                     ordering: atomic.ordering,
                 }))
             }
@@ -1477,6 +1496,10 @@ impl ExpressionTable {
             ),
             ExpressionNode::Atomic(atomic) => Expression::Atomic(Box::new(AtomicExpression {
                 value: self.to_tree(atomic.value),
+                result: atomic
+                    .result
+                    .is_valid()
+                    .then(|| self.to_tree(atomic.result)),
                 ordering: atomic.ordering,
             })),
             ExpressionNode::Binary(binary) => Expression::Binary(Box::new(BinaryExpression {
@@ -1729,6 +1752,7 @@ pub enum ExpressionNode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TableAtomicExpression {
     pub value: ExpressionHandle,
+    pub result: ExpressionHandle,
     pub ordering: omega_core::atomic::AtomicOrderingPlan,
 }
 

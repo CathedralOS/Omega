@@ -396,6 +396,7 @@ pub enum ExpressionSnapshot {
     },
     Atomic {
         value: Box<ExpressionSnapshot>,
+        result: Option<Box<ExpressionSnapshot>>,
         ordering: String,
     },
     Binary {
@@ -979,6 +980,10 @@ fn expression_snapshot(program: &TypedTrees, expression: ExpressionHandle) -> Ex
         },
         ExpressionNode::Atomic(atomic) => ExpressionSnapshot::Atomic {
             value: Box::new(expression_snapshot(program, atomic.value)),
+            result: atomic
+                .result
+                .is_valid()
+                .then(|| Box::new(expression_snapshot(program, atomic.result))),
             ordering: format!("{:?}", atomic.ordering),
         },
         ExpressionNode::String(value) => ExpressionSnapshot::String {

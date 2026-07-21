@@ -11295,6 +11295,53 @@ pub fn encode_atomic_fetch_add(
     Ok(bytes)
 }
 
+pub fn runtime_atomic_swap_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
+    _result_offset: usize,
+    new_value: RuntimeValueOperandHandle,
+) -> usize {
+    10 + runtime_value_operand_width(runtime_value_operands, new_value)
+        + store_width(byte_size)
+        + 10
+        + store_width(byte_size)
+}
+
+pub fn runtime_atomic_swap_result_address_offset(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
+    new_value: RuntimeValueOperandHandle,
+) -> usize {
+    10 + runtime_value_operand_width(runtime_value_operands, new_value) + store_width(byte_size)
+}
+
+/// Atomic exchange. A memory XCHG is implicitly locked and leaves the
+/// instruction-observed prior in r10, which is copied to the result place.
+pub fn encode_atomic_swap(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    result_offset: usize,
+    new_value: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_atomic_swap_width(
+        runtime_value_operands,
+        byte_size,
+        result_offset,
+        new_value,
+    ));
+    append_mov_r14_imm64(&mut bytes, 0);
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, new_value)?;
+    append_xchg_r10_to_r14(&mut bytes, target_offset, byte_size)?;
+    append_mov_r14_imm64(&mut bytes, 0);
+    append_store_r10_to_r14(&mut bytes, result_offset, byte_size)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_atomic_swap_width(runtime_value_operands, byte_size, result_offset, new_value)
+    );
+    Ok(bytes)
+}
+
 pub fn runtime_atomic_compare_exchange_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     byte_size: usize,
@@ -15477,6 +15524,20 @@ mod atomic_tests {
         assert_eq!(
             fetch.len(),
             runtime_atomic_fetch_add_width(&operands, 4, 32, delta)
+        );
+
+        let swap = encode_atomic_swap(&operands, 24, 4, 36, new_value).unwrap();
+        let swap_result_base = runtime_atomic_swap_result_address_offset(&operands, 4, new_value);
+        assert_eq!(
+            &swap[swap_result_base - 7..swap_result_base - 4],
+            &[0x45, 0x87, 0x96],
+            "memory XCHG is the atomic swap operation"
+        );
+        assert_eq!(&swap[swap_result_base..swap_result_base + 2], &[0x49, 0xbe]);
+        assert_eq!(&swap[swap.len() - 4..], &36i32.to_le_bytes());
+        assert_eq!(
+            swap.len(),
+            runtime_atomic_swap_width(&operands, 4, 36, new_value)
         );
 
         let cas =

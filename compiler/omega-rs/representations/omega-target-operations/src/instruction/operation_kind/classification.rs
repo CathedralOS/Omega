@@ -33,6 +33,7 @@ impl OperationSemanticQuery for TargetOperationKind {
             Self::AtomicLoad { .. }
             | Self::AtomicStore { .. }
             | Self::AtomicFetchAdd { .. }
+            | Self::AtomicSwap { .. }
             | Self::AtomicCompareExchange { .. }
             | Self::WriteEntryArgumentRegister { .. }
             | Self::WriteEntryStackArgument { .. }

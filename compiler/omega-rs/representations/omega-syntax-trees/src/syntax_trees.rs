@@ -1021,6 +1021,11 @@ impl SyntaxTrees {
             ExpressionNode::Atomic(atomic) => {
                 ExpressionNode::Atomic(crate::expression::TableAtomicExpression {
                     value: self.copy_expression_handle(other, atomic.value),
+                    result: atomic
+                        .result
+                        .is_valid()
+                        .then(|| self.copy_expression_handle(other, atomic.result))
+                        .unwrap_or_else(ExpressionHandle::invalid),
                     ordering: atomic.ordering,
                 })
             }

@@ -224,6 +224,44 @@ pub(in crate::aarch64) fn encode_ldadd(
     ))
 }
 
+/// `SWP{A}{L} <Ws/Xs>, <Wt/Xt>, [<Xn>]`: LSE atomic exchange. The
+/// replacement arrives in Rs and Rt receives the instruction-observed prior.
+pub(in crate::aarch64) fn encode_swp(
+    byte_size: usize,
+    replacement_register: u8,
+    result_register: u8,
+    address_register: u8,
+    ordering: omega_core::atomic::MemoryOrdering,
+) -> Result<[u8; 4], Diagnostic> {
+    let size = match byte_size {
+        1 => 0u32,
+        2 => 1,
+        4 => 2,
+        8 => 3,
+        other => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 atomic swap cannot encode a {other}-byte width"
+            )));
+        }
+    };
+    let ordering_bits = match ordering {
+        omega_core::atomic::MemoryOrdering::Relaxed => 0,
+        omega_core::atomic::MemoryOrdering::Acquire => 0x0080_0000,
+        omega_core::atomic::MemoryOrdering::Release => 0x0040_0000,
+        omega_core::atomic::MemoryOrdering::AcqRel | omega_core::atomic::MemoryOrdering::SeqCst => {
+            0x00C0_0000
+        }
+    };
+    Ok(encode_instruction(
+        0x3820_8000
+            | (size << 30)
+            | ordering_bits
+            | (u32::from(replacement_register) << 16)
+            | (u32::from(address_register) << 5)
+            | u32::from(result_register),
+    ))
+}
+
 /// `CAS{A}{L} <Ws/Xs>, <Wt/Xt>, [<Xn>]`: LSE compare-and-swap.
 /// Rs holds expected on entry and receives the prior value on exit; Rt is the
 /// new value. The requested success ordering selects the acquire/release form.

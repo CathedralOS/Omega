@@ -366,11 +366,12 @@ Working rules:
   `Release`/`AcqRel` or stronger than the success ordering.
 - The operation set is load, store, swap, `compare_exchange` (with separate
   success/failure orderings), and the fetch-and-modify family.
-- The implemented load/store/fetch_add/compare_exchange slice carries ordering
-  as normalized operation data through both backends. AArch64 selects the LSE
-  acquire/release form; x86 may realize a request with its stronger locked
-  instruction. Fetch/CAS return the prior observed by that instruction, not by
-  a preceding load.
+- The implemented load/store/fetch_add/swap/compare_exchange slice carries
+  ordering as normalized operation data through both backends. AArch64 selects
+  the LSE acquire/release form; x86 may realize a request with its stronger
+  locked instruction. Fetch/swap/CAS return the prior observed by that
+  instruction, not by a preceding load. Swap uses a first-class carrier and
+  therefore does not manufacture an arithmetic-domain proof obligation.
 - Atomics are exempt from the exclusive-`&mut` aliasing rule by their
   contracts: shared access is the type's documented purpose, not a borrow
   checker escape used elsewhere.

@@ -1,6 +1,4 @@
-use omega_assigned_target_operations::{
-    RuntimeStorageRegion, SelectedInstructionKind, StateGuardOperator,
-};
+use omega_assigned_target_operations::{SelectedInstructionKind, StateGuardOperator};
 use omega_machine_instructions::MachineInstructionKind;
 
 pub(super) fn selected_binary_write_kind(
@@ -20,6 +18,7 @@ pub(super) fn selected_binary_write_kind(
         SelectedInstructionKind::AtomicFetchAdd { .. } => {
             Some(MachineInstructionKind::AtomicFetchAdd)
         }
+        SelectedInstructionKind::AtomicSwap { .. } => Some(MachineInstructionKind::AtomicSwap),
         SelectedInstructionKind::AtomicCompareExchange { .. } => {
             Some(MachineInstructionKind::AtomicCompareExchange)
         }

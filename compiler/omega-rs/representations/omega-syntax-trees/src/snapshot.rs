@@ -474,6 +474,7 @@ pub enum ExpressionSnapshot {
     },
     Atomic {
         value: Box<ExpressionSnapshot>,
+        result: Option<Box<ExpressionSnapshot>>,
         ordering: String,
     },
     Binary {
@@ -1388,6 +1389,10 @@ fn snapshot_expression_handle(
         },
         ExpressionNode::Atomic(atomic) => ExpressionSnapshot::Atomic {
             value: Box::new(snapshot_expression_handle(syntax_trees, atomic.value)),
+            result: atomic
+                .result
+                .is_valid()
+                .then(|| Box::new(snapshot_expression_handle(syntax_trees, atomic.result))),
             ordering: format!("{:?}", atomic.ordering),
         },
         ExpressionNode::Binary(binary) => ExpressionSnapshot::Binary {

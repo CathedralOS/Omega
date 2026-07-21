@@ -1458,23 +1458,19 @@ impl<'program> Evaluator<'program> {
                     && matches!(
                         atomic.ordering,
                         omega_core::atomic::AtomicOrderingPlan::ReadModifyWrite(_)
+                            | omega_core::atomic::AtomicOrderingPlan::Swap(_)
                             | omega_core::atomic::AtomicOrderingPlan::CompareExchange { .. }
                     )
                 {
-                    let ExpressionNode::Binary(operation) = self
-                        .program
-                        .expression_table
-                        .expression(atomic.value)
-                        .clone()
-                    else {
+                    if !atomic.result.is_valid() {
                         return Err(Halt::Trap(
                             "atomic RMW carrier lost its result place".to_owned(),
                         ));
-                    };
+                    }
                     let target = self.resolve_place(assignment.target, frame)?;
                     let target = self.deref_cell(target);
                     let prior = target.borrow().clone();
-                    let result = self.resolve_place(operation.left, frame)?;
+                    let result = self.resolve_place(atomic.result, frame)?;
                     let result = self.deref_cell(result);
                     *result.borrow_mut() = prior;
                 }

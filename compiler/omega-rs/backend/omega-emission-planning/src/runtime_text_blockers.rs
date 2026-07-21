@@ -113,6 +113,7 @@ fn state_value_has_planned_storage_write(
                     SelectedInstructionKind::AtomicLoad { .. }
                         | SelectedInstructionKind::AtomicStore { .. }
                         | SelectedInstructionKind::AtomicFetchAdd { .. }
+                        | SelectedInstructionKind::AtomicSwap { .. }
                         | SelectedInstructionKind::HostOperation { .. }
                         // The console byte-op composites consume a RESOLVED
                         // place (selection refuses otherwise): a bound local
