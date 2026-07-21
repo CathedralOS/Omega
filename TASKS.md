@@ -138,18 +138,13 @@ entry paths; every inherited/declared boundary method is materialized and
 evaluated, and its canonical plan fingerprint enters provider requirement
 identity without perturbing identities that do not opt into calling policies.
 Policy evaluation, authored rejection, and invalid accepted-plan diagnostics
-retain the `Calling<C>` relationship source span. Generic boundary-trait
-instantiations remain in ENT2b.
+retain the `Calling<C>` relationship source span. Generic boundary declarations
+now evaluate only at concrete standalone conformance instances; the concrete
+trait argument tuple keys internal lookup, forwarded method types are
+substituted before signature materialization, and satisfies-derived provider
+schemas recover the same instance without publishing policy type identity.
 
-1. **ENT2b — complete policy instantiation and diagnostics.** Extend the
-   implemented concrete `Calling<C>` discovery, source evaluation, and
-   canonical identity publication to generic boundary-trait instantiations.
-   The relationship source span now survives typed lowering and is attached to
-   `Rejected`, malformed accepted-plan, and materialization diagnostics; keep
-   naming the offending signature component in their structured reason. Policy
-   authorship stays open to ordinary packages; the plan vocabulary and
-   validator remain compiler-owned and closed.
-2. **ENT2c — lowering migration and concrete entry state.** Express the
+1. **ENT2c — lowering migration and concrete entry state.** Express the
    existing MS-x64, SysV-x64, AAPCS64, Linux-syscall, and firmware lowering
    choices through the normalized plan; continue beyond the completed
    register- and stack-resident process-entry argument paths, integer and

@@ -129,6 +129,17 @@ impl ServiceSchema {
         program: &omega_typed_trees::TypedTrees,
         trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
     ) -> Option<Self> {
+        Self::from_typed_instance(program, trait_definition, &[])
+    }
+
+    /// Reify one concrete generic boundary instance. The argument tuple is
+    /// semantic input only for resolving evaluated calling-plan identity;
+    /// policy type/source names remain absent from the published schema.
+    pub fn from_typed_instance(
+        program: &omega_typed_trees::TypedTrees,
+        trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
+        boundary_arguments: &[omega_typed_trees::types::TypeReferenceHandle],
+    ) -> Option<Self> {
         if !trait_definition.is_boundary {
             return None;
         }
@@ -138,6 +149,7 @@ impl ServiceSchema {
             program,
             trait_definition,
             trait_definition.symbol,
+            boundary_arguments,
             &mut visited,
             &mut methods,
         );
@@ -152,6 +164,7 @@ fn collect_service_methods(
     program: &omega_typed_trees::TypedTrees,
     trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
     policy_owner: omega_core::symbols::SymbolHandle,
+    boundary_arguments: &[omega_typed_trees::types::TypeReferenceHandle],
     visited: &mut Vec<omega_core::symbols::SymbolHandle>,
     methods: &mut Vec<ServiceMethod>,
 ) {
@@ -168,7 +181,14 @@ fn collect_service_methods(
         else {
             continue;
         };
-        collect_service_methods(program, parent, policy_owner, visited, methods);
+        collect_service_methods(
+            program,
+            parent,
+            policy_owner,
+            boundary_arguments,
+            visited,
+            methods,
+        );
     }
 
     for signature in program.trait_machine_signatures(trait_definition) {
@@ -191,8 +211,11 @@ fn collect_service_methods(
                 .iter()
                 .map(|effect| effect.as_str().to_owned())
                 .collect(),
-            calling_plan_fingerprint: program
-                .boundary_calling_plan_fingerprint(policy_owner, signature.symbol),
+            calling_plan_fingerprint: program.boundary_calling_plan_fingerprint_for_arguments(
+                policy_owner,
+                boundary_arguments,
+                signature.symbol,
+            ),
         });
     }
 }
