@@ -1307,6 +1307,7 @@ pub(super) fn try_parse_atomic_fetch_let<'tokens, 'source>(
             "fetch_sub" => BinaryOperator::Subtract,
             "fetch_xor" => BinaryOperator::BitwiseXor,
             "fetch_or" => BinaryOperator::BitwiseOr,
+            "fetch_and" => BinaryOperator::BitwiseAnd,
             _ => return None,
         };
         let arg_handles = syntax_trees

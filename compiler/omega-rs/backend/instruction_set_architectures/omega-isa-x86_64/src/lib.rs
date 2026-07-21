@@ -11548,6 +11548,54 @@ pub fn encode_atomic_fetch_or(
     )
 }
 
+pub fn runtime_atomic_fetch_and_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
+    result_offset: usize,
+    value: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_atomic_fetch_bitwise_width(
+        runtime_value_operands,
+        byte_size,
+        result_offset,
+        value,
+        StateGuardOperator::BitwiseAnd,
+    )
+}
+
+pub fn runtime_atomic_fetch_and_result_address_offset(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
+    value: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_atomic_fetch_bitwise_result_address_offset(
+        runtime_value_operands,
+        byte_size,
+        value,
+        StateGuardOperator::BitwiseAnd,
+    )
+}
+
+/// X86 has no fetch-AND instruction that returns the old value. Use the shared
+/// locked CMPXCHG retry lowering and return the successful observation.
+pub fn encode_atomic_fetch_and(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    result_offset: usize,
+    value: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    encode_atomic_fetch_bitwise(
+        runtime_value_operands,
+        target_offset,
+        byte_size,
+        result_offset,
+        value,
+        StateGuardOperator::BitwiseAnd,
+        "fetch_and",
+    )
+}
+
 pub fn runtime_atomic_swap_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     byte_size: usize,
@@ -15875,6 +15923,26 @@ mod atomic_tests {
         assert_eq!(
             fetch_or.len(),
             runtime_atomic_fetch_or_width(&operands, 4, 35, delta)
+        );
+
+        let fetch_and = encode_atomic_fetch_and(&operands, 24, 4, 35, delta).unwrap();
+        let fetch_and_result_base =
+            runtime_atomic_fetch_and_result_address_offset(&operands, 4, delta);
+        assert_eq!(&fetch_and[33..36], &[0x4d, 0x21, 0xda], "and r10,r11");
+        assert_eq!(
+            &fetch_and[36..41],
+            &[0xf0, 0x45, 0x0f, 0xb1, 0x96],
+            "fetch_and retries with locked CMPXCHG"
+        );
+        assert_eq!(&fetch_and[45..47], &[0x75, 0xef], "jne -17 to retry");
+        assert_eq!(
+            &fetch_and[fetch_and_result_base..fetch_and_result_base + 2],
+            &[0x49, 0xbe]
+        );
+        assert_eq!(&fetch_and[fetch_and.len() - 4..], &35i32.to_le_bytes());
+        assert_eq!(
+            fetch_and.len(),
+            runtime_atomic_fetch_and_width(&operands, 4, 35, delta)
         );
 
         let swap = encode_atomic_swap(&operands, 24, 4, 36, new_value).unwrap();

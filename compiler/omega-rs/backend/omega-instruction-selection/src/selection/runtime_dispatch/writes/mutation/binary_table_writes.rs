@@ -390,6 +390,7 @@ fn select_runtime_atomic_fetch_arithmetic_in_table(
             | StateGuardOperator::Subtract
             | StateGuardOperator::BitwiseXor
             | StateGuardOperator::BitwiseOr
+            | StateGuardOperator::BitwiseAnd
     ) {
         return None;
     }
@@ -473,7 +474,16 @@ fn select_runtime_atomic_fetch_arithmetic_in_table(
             value: common.5,
             ordering: common.6,
         },
-        _ => unreachable!("fetch arithmetic gate accepts add/sub/xor/or only"),
+        StateGuardOperator::BitwiseAnd => SelectedInstructionKind::AtomicFetchAnd {
+            target_region: common.0,
+            target_offset: common.1,
+            byte_size: common.2,
+            result_region: common.3,
+            result_offset: common.4,
+            value: common.5,
+            ordering: common.6,
+        },
+        _ => unreachable!("fetch arithmetic gate accepts add/sub/xor/or/and only"),
     })
 }
 

@@ -300,6 +300,64 @@ pub(in crate::aarch64) fn encode_ldset(
     ))
 }
 
+/// `LDCLR{A}{L} <Ws/Xs>, <Wt/Xt>, [<Xn>]`: LSE atomic fetch-clear.
+/// Supplying the complement of an AND mask realizes atomic fetch-AND.
+pub(in crate::aarch64) fn encode_ldclr(
+    byte_size: usize,
+    value_register: u8,
+    result_register: u8,
+    address_register: u8,
+    ordering: omega_core::atomic::MemoryOrdering,
+) -> Result<[u8; 4], Diagnostic> {
+    let size = match byte_size {
+        1 => 0u32,
+        2 => 1,
+        4 => 2,
+        8 => 3,
+        other => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 atomic fetch_and cannot encode a {other}-byte width"
+            )));
+        }
+    };
+    let ordering_bits = match ordering {
+        omega_core::atomic::MemoryOrdering::Relaxed => 0,
+        omega_core::atomic::MemoryOrdering::Acquire => 0x0080_0000,
+        omega_core::atomic::MemoryOrdering::Release => 0x0040_0000,
+        omega_core::atomic::MemoryOrdering::AcqRel | omega_core::atomic::MemoryOrdering::SeqCst => {
+            0x00C0_0000
+        }
+    };
+    Ok(encode_instruction(
+        0x3820_1000
+            | (size << 30)
+            | ordering_bits
+            | (u32::from(value_register) << 16)
+            | (u32::from(address_register) << 5)
+            | u32::from(result_register),
+    ))
+}
+
+/// `MVN <Wd/Xd>, <Wm/Xm>` (`ORN` with the zero register).
+pub(in crate::aarch64) fn encode_mvn_register(
+    byte_size: usize,
+    destination_register: u8,
+    source_register: u8,
+) -> Result<[u8; 4], Diagnostic> {
+    let base = match byte_size {
+        1 | 2 | 4 => 0x2A20_03E0,
+        8 => 0xAA20_03E0,
+        other => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 MVN cannot encode a {other}-byte atomic operand"
+            )));
+        }
+    };
+    Ok(encode_instruction(
+        base | (u32::from(source_register) << 16) | u32::from(destination_register),
+    ))
+}
+
 /// `SWP{A}{L} <Ws/Xs>, <Wt/Xt>, [<Xn>]`: LSE atomic exchange. The
 /// replacement arrives in Rs and Rt receives the instruction-observed prior.
 pub(in crate::aarch64) fn encode_swp(

@@ -384,6 +384,26 @@ pub(super) fn encode_atomic_fetch_or(
     )
 }
 
+pub(super) fn encode_atomic_fetch_and(
+    input: MachineEmissionContext<'_>,
+    target_offset: usize,
+    byte_size: usize,
+    result_offset: usize,
+    value: RuntimeValueOperandHandle,
+    ordering: omega_core::atomic::AtomicOrderingPlan,
+) -> Result<Vec<u8>, Diagnostic> {
+    validate_runtime_value_home(input, value)?;
+    architecture::encode_atomic_fetch_and(
+        input.target.architecture,
+        input.assigned_target_operations,
+        target_offset,
+        byte_size,
+        result_offset,
+        value,
+        ordering,
+    )
+}
+
 pub(super) fn encode_atomic_swap(
     input: MachineEmissionContext<'_>,
     target_offset: usize,
