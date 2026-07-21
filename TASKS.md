@@ -299,6 +299,11 @@ schemas recover the same instance without publishing policy type identity.
    the retained plan for emission, measured width, and call/data relocation
    walks. Non-default register and outgoing-stack placements are pinned across
    those consumers instead of being replaced by target-derived AAPCS64.
+   Provides-authored syscall bindings now also retain authority: x86-64 and
+   AArch64 emission plus measured width revalidate and consume the selected
+   parameter, number-register, and supervisor-call control facts. Non-default
+   argument-register canaries pin both architectures; unsupported result-bearing
+   syscall signatures still fail closed.
    Fixed non-HFA AAPCS64 entry records up to 16 bytes now consume consecutive
    plan-selected `x` fragments with 16-byte register alignment, fall wholly to
    aligned stack fragments when the remaining register bank is too small,

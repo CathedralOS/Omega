@@ -31,6 +31,15 @@ pub(super) fn normalized_syscall_registers(
     parameter_count: usize,
     has_result: bool,
 ) -> Result<NormalizedSyscallRegisters, Diagnostic> {
+    normalized_syscall_registers_with_plan(architecture, parameter_count, has_result, None)
+}
+
+fn normalized_syscall_registers_with_plan(
+    architecture: Architecture,
+    parameter_count: usize,
+    has_result: bool,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<NormalizedSyscallRegisters, Diagnostic> {
     let policy = match architecture {
         Architecture::Aarch64 => CallingPolicy::LinuxSyscallAarch64,
         Architecture::X86_64 => CallingPolicy::LinuxSyscallX86_64,
@@ -40,9 +49,18 @@ pub(super) fn normalized_syscall_registers(
         parameters: vec![word; parameter_count],
         result: has_result.then_some(word),
     };
-    let plan = evaluate_call_plan(policy, &signature).map_err(|error| {
-        Diagnostic::error(format!("cannot evaluate syscall call plan: {error}"))
-    })?;
+    let plan = if let Some(plan) = authoritative_plan {
+        validate_call_plan(plan, &signature).map_err(|error| {
+            Diagnostic::error(format!(
+                "source-selected syscall plan does not match the lowered signature: {error}"
+            ))
+        })?;
+        plan.clone()
+    } else {
+        evaluate_call_plan(policy, &signature).map_err(|error| {
+            Diagnostic::error(format!("cannot evaluate syscall call plan: {error}"))
+        })?
+    };
     let (number, immediate) = validate_normalized_syscall_plan(architecture, &plan)?;
     let parameters = plan
         .parameters
@@ -1139,7 +1157,21 @@ pub fn encode_syscall_sequence<T: InstructionOperandLike>(
     operands: &[T],
     syscall_number: u32,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let registers = normalized_syscall_registers(architecture, operands.len(), false)?;
+    encode_syscall_sequence_with_plan(architecture, operands, syscall_number, None)
+}
+
+pub fn encode_syscall_sequence_with_plan<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    syscall_number: u32,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<Vec<u8>, Diagnostic> {
+    let registers = normalized_syscall_registers_with_plan(
+        architecture,
+        operands.len(),
+        false,
+        authoritative_plan,
+    )?;
 
     match architecture {
         Architecture::Aarch64 => aarch64::encode_syscall_sequence_from_operands(
@@ -1350,6 +1382,7 @@ pub fn encode_return_register_integer_write_bytes(
 mod syscall_plan_contract_tests {
     use super::*;
     use omega_calling_conventions::RegisterSet;
+    use omega_target_operations::{TargetInstructionOperand, TargetInstructionOperandKind};
 
     #[test]
     fn normalized_syscall_plans_cover_their_encoder_scratch() {
@@ -1395,6 +1428,63 @@ mod syscall_plan_contract_tests {
         let error = validate_normalized_syscall_plan(Architecture::X86_64, &plan)
             .expect_err("unsupported stack alignment must reject");
         assert!(error.message.contains("alignment=32"));
+    }
+
+    #[test]
+    fn source_selected_syscall_argument_registers_reach_both_encoders() {
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: None,
+        };
+        let operands = [TargetInstructionOperand {
+            kind: TargetInstructionOperandKind::ImmediateInteger(7),
+        }];
+
+        let mut x86_plan = evaluate_call_plan(CallingPolicy::LinuxSyscallX86_64, &signature)
+            .expect("baseline x86-64 syscall plan");
+        x86_plan.parameters[0].locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86R10,
+            value_byte_offset: 0,
+            byte_size: 8,
+        };
+        let x86_bytes =
+            encode_syscall_sequence_with_plan(Architecture::X86_64, &operands, 60, Some(&x86_plan))
+                .expect("source-selected x86-64 syscall register");
+        assert_eq!(&x86_bytes[..2], &[0x49, 0xba]);
+        assert_eq!(
+            x86_bytes.len(),
+            crate::syscall_sequence_width_with_plan(
+                Architecture::X86_64,
+                &operands,
+                60,
+                Some(&x86_plan),
+            )
+        );
+
+        let mut aarch64_plan = evaluate_call_plan(CallingPolicy::LinuxSyscallAarch64, &signature)
+            .expect("baseline AArch64 syscall plan");
+        aarch64_plan.parameters[0].locations[0] = ValueLocation::Register {
+            register: MachineRegister::Aarch64X(3),
+            value_byte_offset: 0,
+            byte_size: 8,
+        };
+        let aarch64_bytes = encode_syscall_sequence_with_plan(
+            Architecture::Aarch64,
+            &operands,
+            93,
+            Some(&aarch64_plan),
+        )
+        .expect("source-selected AArch64 syscall register");
+        assert_eq!(&aarch64_bytes[..4], &[0xe3, 0x00, 0x80, 0xd2]);
+        assert_eq!(
+            aarch64_bytes.len(),
+            crate::syscall_sequence_width_with_plan(
+                Architecture::Aarch64,
+                &operands,
+                93,
+                Some(&aarch64_plan),
+            )
+        );
     }
 }
 
