@@ -114,8 +114,8 @@ signature and ignored `BOOL` result; RCX/RDX/R8/R9, the shadow-relative fifth
 argument, and the scratch-slot reservation all come from that evaluated plan.
 The dedicated runtime line and byte Windows sequences reuse that exact layout
 plus an actual one-DWORD/RAX `GetStdHandle` plan, preserving their fixed widths
-and relocation sites. AArch64 fragmented compatibility calls and indirect
-mechanisms remain below. Ordinary/firmware entry lowering now validates a combined
+and relocation sites. AArch64 fragmented compatibility calls and indirect-call
+footprint contracts remain below. Ordinary/firmware entry lowering now validates a combined
 boundary plan with no interrupted state, no save/restore obligation, a
 provider-selected stack, non-preemptive entry semantics, and a transitive state
 ceiling derived exactly from the ABI volatile-register classes.
@@ -408,7 +408,12 @@ schemas recover the same instance without publishing policy type identity.
    table pointer from the AAPCS64 signature, marshal only declared arguments,
    and account for table/result fixups around the indirect dispatch. Both
    indirect mechanisms route plan-selected scalar integer, scalar float, and
-   flat HFA results through matching relocated stores.
+   flat HFA results through matching relocated stores. Provides-authored
+   `VtableSlot`/`VtableField` and `TableFunction` bindings now carry their
+   retained source plan through emission, layout, and data relocation on both
+   x86-64 and AArch64. The dispatch-only table stays outside the signature;
+   a source-selected SysV plan can govern indirect calls in a PE image, while
+   AArch64 preserves exact non-receiver register and outgoing-stack placements.
    The concrete x86 interrupt
    `StatePlan`, stack/IST, nesting, and acknowledgement policy used by Cathedral
    is OWNER-BLOCKED on `OWNER_QUESTIONS.md` section 2.

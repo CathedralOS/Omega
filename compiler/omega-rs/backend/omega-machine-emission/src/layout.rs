@@ -35,8 +35,8 @@ use omega_instruction_selection::{
     runtime_text_literal_segment_write_width, runtime_text_literal_write_width,
     runtime_text_storage_compare_width, runtime_text_stored_place_append_width,
     runtime_text_stored_suffix_append_width, runtime_value_compare_width, syscall_sequence_width,
-    table_function_call_sequence_width, vtable_call_sequence_width,
-    vtable_call_sequence_width_at_offset,
+    table_function_call_sequence_width_with_plan, vtable_call_sequence_width_at_offset_with_plan,
+    vtable_call_sequence_width_with_plan,
 };
 use omega_machine_instructions::{MachineInstruction, MachineInstructionKind};
 
@@ -115,7 +115,13 @@ fn machine_instruction_width(
                 syscall_sequence_width(input.target.architecture, operands, *number)
             }
             Some(HostBindingMechanism::VtableSlot { index }) => {
-                vtable_call_sequence_width(input.target, operands, *index, false)
+                vtable_call_sequence_width_with_plan(
+                    input.target,
+                    operands,
+                    *index,
+                    false,
+                    binding.and_then(|binding| binding.call_plan.as_ref()),
+                )
             }
             // A call with MORE operands than the method's declared parameters
             // carries a prepended RESULT place (`let status = ...`). The
@@ -125,21 +131,23 @@ fn machine_instruction_width(
                 byte_offset,
                 parameter_count,
                 ..
-            }) => vtable_call_sequence_width_at_offset(
+            }) => vtable_call_sequence_width_at_offset_with_plan(
                 input.target,
                 operands,
                 *byte_offset,
                 operands.len() > *parameter_count,
+                binding.and_then(|binding| binding.call_plan.as_ref()),
             ),
             Some(HostBindingMechanism::TableFunction {
                 byte_offset,
                 parameter_count,
                 ..
-            }) => table_function_call_sequence_width(
+            }) => table_function_call_sequence_width_with_plan(
                 input.target,
                 operands,
                 *byte_offset,
                 operands.len() > *parameter_count,
+                binding.and_then(|binding| binding.call_plan.as_ref()),
             ),
             Some(HostBindingMechanism::Import { .. })
                 if matches!(

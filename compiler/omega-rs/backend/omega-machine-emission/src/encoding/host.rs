@@ -17,27 +17,34 @@ pub(super) fn encode_host_operation(
             architecture::encode_syscall_sequence(input.target.architecture, operands, *number)
         }
         Some(HostBindingMechanism::VtableSlot { index }) => {
-            architecture::encode_vtable_call_sequence(input.target, operands, *index)
+            architecture::encode_vtable_call_sequence_with_plan(
+                input.target,
+                operands,
+                *index,
+                binding.and_then(|binding| binding.call_plan.as_ref()),
+            )
         }
         Some(HostBindingMechanism::VtableField {
             byte_offset,
             parameter_count,
             ..
-        }) => architecture::encode_vtable_call_sequence_at_offset(
+        }) => architecture::encode_vtable_call_sequence_at_offset_with_plan(
             input.target,
             operands,
             *byte_offset,
             field_model_result_present(operands.len(), *parameter_count, "vtable-field")?,
+            binding.and_then(|binding| binding.call_plan.as_ref()),
         ),
         Some(HostBindingMechanism::TableFunction {
             byte_offset,
             parameter_count,
             ..
-        }) => architecture::encode_table_function_call_sequence(
+        }) => architecture::encode_table_function_call_sequence_with_plan(
             input.target,
             operands,
             *byte_offset,
             field_model_result_present(operands.len(), *parameter_count, "table-function")?,
+            binding.and_then(|binding| binding.call_plan.as_ref()),
         ),
         Some(HostBindingMechanism::Import { .. })
             if matches!(

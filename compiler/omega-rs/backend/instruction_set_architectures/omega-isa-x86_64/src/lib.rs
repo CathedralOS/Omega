@@ -10,7 +10,7 @@ pub use place_copy::{
 use omega_calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, EntryControl, HostCapability, HostOperation,
     HostOperationKey, IndirectPointerLocation, MachineRegister, SystemVEightbyteClass, ValueClass,
-    ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan,
+    ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan, validate_call_plan,
 };
 use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::diagnostics::Diagnostic;
@@ -2790,7 +2790,23 @@ pub fn encode_sysv_vtable_call<T: InstructionOperandLike>(
     byte_offset: i64,
     result_present: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
-    Ok(sysv_field_call_layout(operands, byte_offset, result_present, true)?.bytes)
+    encode_sysv_vtable_call_with_plan(operands, byte_offset, result_present, None)
+}
+
+pub fn encode_sysv_vtable_call_with_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    byte_offset: i64,
+    result_present: bool,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<Vec<u8>, Diagnostic> {
+    Ok(sysv_field_call_layout(
+        operands,
+        byte_offset,
+        result_present,
+        true,
+        authoritative_plan,
+    )?
+    .bytes)
 }
 
 pub fn sysv_vtable_call_width<T: InstructionOperandLike>(
@@ -2798,9 +2814,24 @@ pub fn sysv_vtable_call_width<T: InstructionOperandLike>(
     byte_offset: i64,
     result_present: bool,
 ) -> usize {
-    sysv_field_call_layout(operands, byte_offset, result_present, true)
-        .map(|layout| layout.bytes.len())
-        .unwrap_or(0)
+    sysv_vtable_call_width_with_plan(operands, byte_offset, result_present, None)
+}
+
+pub fn sysv_vtable_call_width_with_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    byte_offset: i64,
+    result_present: bool,
+    authoritative_plan: Option<&CallPlan>,
+) -> usize {
+    sysv_field_call_layout(
+        operands,
+        byte_offset,
+        result_present,
+        true,
+        authoritative_plan,
+    )
+    .map(|layout| layout.bytes.len())
+    .unwrap_or(0)
 }
 
 pub fn sysv_vtable_call_data_relocation_byte_offset<T: InstructionOperandLike>(
@@ -2809,16 +2840,38 @@ pub fn sysv_vtable_call_data_relocation_byte_offset<T: InstructionOperandLike>(
     result_present: bool,
     operand_index: usize,
 ) -> usize {
-    sysv_field_call_layout(operands, byte_offset, result_present, true)
-        .ok()
-        .and_then(|layout| {
-            layout
-                .relocation_sites
-                .into_iter()
-                .find(|site| site.operand_index == Some(operand_index))
-        })
-        .map(|site| site.byte_offset)
-        .unwrap_or(0)
+    sysv_vtable_call_data_relocation_byte_offset_with_plan(
+        operands,
+        byte_offset,
+        result_present,
+        operand_index,
+        None,
+    )
+}
+
+pub fn sysv_vtable_call_data_relocation_byte_offset_with_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    byte_offset: i64,
+    result_present: bool,
+    operand_index: usize,
+    authoritative_plan: Option<&CallPlan>,
+) -> usize {
+    sysv_field_call_layout(
+        operands,
+        byte_offset,
+        result_present,
+        true,
+        authoritative_plan,
+    )
+    .ok()
+    .and_then(|layout| {
+        layout
+            .relocation_sites
+            .into_iter()
+            .find(|site| site.operand_index == Some(operand_index))
+    })
+    .map(|site| site.byte_offset)
+    .unwrap_or(0)
 }
 
 /// Encode a SysV AMD64 service-table call. The table operand is used only to
@@ -2828,7 +2881,23 @@ pub fn encode_sysv_table_function_call<T: InstructionOperandLike>(
     byte_offset: i64,
     result_present: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
-    Ok(sysv_field_call_layout(operands, byte_offset, result_present, false)?.bytes)
+    encode_sysv_table_function_call_with_plan(operands, byte_offset, result_present, None)
+}
+
+pub fn encode_sysv_table_function_call_with_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    byte_offset: i64,
+    result_present: bool,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<Vec<u8>, Diagnostic> {
+    Ok(sysv_field_call_layout(
+        operands,
+        byte_offset,
+        result_present,
+        false,
+        authoritative_plan,
+    )?
+    .bytes)
 }
 
 pub fn sysv_table_function_call_width<T: InstructionOperandLike>(
@@ -2836,9 +2905,24 @@ pub fn sysv_table_function_call_width<T: InstructionOperandLike>(
     byte_offset: i64,
     result_present: bool,
 ) -> usize {
-    sysv_field_call_layout(operands, byte_offset, result_present, false)
-        .map(|layout| layout.bytes.len())
-        .unwrap_or(0)
+    sysv_table_function_call_width_with_plan(operands, byte_offset, result_present, None)
+}
+
+pub fn sysv_table_function_call_width_with_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    byte_offset: i64,
+    result_present: bool,
+    authoritative_plan: Option<&CallPlan>,
+) -> usize {
+    sysv_field_call_layout(
+        operands,
+        byte_offset,
+        result_present,
+        false,
+        authoritative_plan,
+    )
+    .map(|layout| layout.bytes.len())
+    .unwrap_or(0)
 }
 
 pub fn sysv_table_function_call_data_relocation_byte_offset<T: InstructionOperandLike>(
@@ -2847,16 +2931,38 @@ pub fn sysv_table_function_call_data_relocation_byte_offset<T: InstructionOperan
     result_present: bool,
     operand_index: usize,
 ) -> usize {
-    sysv_field_call_layout(operands, byte_offset, result_present, false)
-        .ok()
-        .and_then(|layout| {
-            layout
-                .relocation_sites
-                .into_iter()
-                .find(|site| site.operand_index == Some(operand_index))
-        })
-        .map(|site| site.byte_offset)
-        .unwrap_or(0)
+    sysv_table_function_call_data_relocation_byte_offset_with_plan(
+        operands,
+        byte_offset,
+        result_present,
+        operand_index,
+        None,
+    )
+}
+
+pub fn sysv_table_function_call_data_relocation_byte_offset_with_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    byte_offset: i64,
+    result_present: bool,
+    operand_index: usize,
+    authoritative_plan: Option<&CallPlan>,
+) -> usize {
+    sysv_field_call_layout(
+        operands,
+        byte_offset,
+        result_present,
+        false,
+        authoritative_plan,
+    )
+    .ok()
+    .and_then(|layout| {
+        layout
+            .relocation_sites
+            .into_iter()
+            .find(|site| site.operand_index == Some(operand_index))
+    })
+    .map(|site| site.byte_offset)
+    .unwrap_or(0)
 }
 
 fn sysv_field_call_layout<T: InstructionOperandLike>(
@@ -2864,6 +2970,7 @@ fn sysv_field_call_layout<T: InstructionOperandLike>(
     byte_offset: i64,
     result_present: bool,
     passes_receiver: bool,
+    authoritative_plan: Option<&CallPlan>,
 ) -> Result<SysvImportLayout, Diagnostic> {
     let result_index = result_present.then_some(0);
     let dispatch_index = usize::from(result_present);
@@ -2899,11 +3006,20 @@ fn sysv_field_call_layout<T: InstructionOperandLike>(
             .map(|index| sysv_operand_shape(&operands[index]))
             .transpose()?,
     };
-    let plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature).map_err(|error| {
-        Diagnostic::error(format!(
-            "cannot evaluate SysV AMD64 field-call plan: {error}"
-        ))
-    })?;
+    let plan = if let Some(plan) = authoritative_plan {
+        validate_call_plan(plan, &signature).map_err(|error| {
+            Diagnostic::error(format!(
+                "source-selected SysV AMD64 field-call plan does not match the lowered signature: {error}"
+            ))
+        })?;
+        plan.clone()
+    } else {
+        evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature).map_err(|error| {
+            Diagnostic::error(format!(
+                "cannot evaluate SysV AMD64 field-call plan: {error}"
+            ))
+        })?
+    };
     validate_sysv_import_plan(&plan)?;
 
     let receiver_register = if passes_receiver {
@@ -4081,33 +4197,39 @@ fn validate_win64_plan_operand_shapes<T: InstructionOperandLike>(
     operands: &[T],
     returns_value: bool,
 ) -> Result<(), Diagnostic> {
-    let arg_start = usize::from(returns_value);
-    let parameter_shapes = operands
+    validate_win64_call_plan_operand_shapes(
+        plan,
+        operands,
+        returns_value.then_some(0),
+        usize::from(returns_value),
+    )
+}
+
+fn validate_win64_call_plan_operand_shapes<T: InstructionOperandLike>(
+    plan: &CallPlan,
+    operands: &[T],
+    result_index: Option<usize>,
+    arg_start: usize,
+) -> Result<(), Diagnostic> {
+    let parameters = operands
         .get(arg_start..)
-        .ok_or_else(|| Diagnostic::error("Microsoft x64 authored import has no arguments"))?
+        .ok_or_else(|| Diagnostic::error("Microsoft x64 call has no argument slice"))?
         .iter()
         .map(win64_operand_shape)
         .collect::<Result<Vec<_>, _>>()?;
-    let result_shape = if returns_value {
-        Some(win64_operand_shape(operands.first().ok_or_else(|| {
-            Diagnostic::error("Microsoft x64 authored import has no result operand")
-        })?)?)
-    } else {
-        None
-    };
-    if plan.parameters.len() != parameter_shapes.len()
-        || plan
-            .parameters
-            .iter()
-            .map(|placement| placement.shape)
-            .ne(parameter_shapes)
-        || plan.result.as_ref().map(|placement| placement.shape) != result_shape
-    {
-        return Err(Diagnostic::error(
-            "Microsoft x64 source calling plan does not match the selected authored import operands",
-        ));
-    }
-    Ok(())
+    let result = result_index
+        .map(|index| {
+            operands
+                .get(index)
+                .ok_or_else(|| Diagnostic::error("Microsoft x64 call result index is out of range"))
+                .and_then(win64_operand_shape)
+        })
+        .transpose()?;
+    validate_call_plan(plan, &CallSignature { parameters, result }).map_err(|error| {
+        Diagnostic::error(format!(
+            "Microsoft x64 source calling plan does not match the selected call operands: {error}"
+        ))
+    })
 }
 
 fn evaluate_normalized_win64_plan(signature: &CallSignature) -> Result<CallPlan, Diagnostic> {
@@ -5014,8 +5136,8 @@ mod x86_import_plan_tests {
                 alignment: 8,
             }),
         ];
-        let layout =
-            sysv_field_call_layout(&operands, 24, true, true).expect("SysV vtable field call");
+        let layout = sysv_field_call_layout(&operands, 24, true, true, None)
+            .expect("SysV vtable field call");
 
         assert!(
             layout
@@ -5071,8 +5193,8 @@ mod x86_import_plan_tests {
                 byte_count: 8,
             }),
         ];
-        let layout =
-            sysv_field_call_layout(&operands, 40, true, false).expect("SysV table-function call");
+        let layout = sysv_field_call_layout(&operands, 40, true, false, None)
+            .expect("SysV table-function call");
 
         assert!(
             layout
@@ -5362,7 +5484,7 @@ mod x86_import_plan_tests {
             }),
         ];
         let layout =
-            sysv_field_call_layout(&operands, 24, true, true).expect("SysV sret vtable call");
+            sysv_field_call_layout(&operands, 24, true, true, None).expect("SysV sret vtable call");
 
         assert!(
             layout
@@ -5791,10 +5913,18 @@ pub fn encode_win64_vtable_call<T: InstructionOperandLike>(
     operands: &[T],
     index: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
+    encode_win64_vtable_call_with_plan(operands, index, None)
+}
+
+pub fn encode_win64_vtable_call_with_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    index: i64,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<Vec<u8>, Diagnostic> {
     let byte_offset = index
         .checked_mul(8)
         .ok_or_else(|| Diagnostic::error("vtable slot index overflows a byte offset"))?;
-    encode_win64_vtable_call_at_offset(operands, byte_offset, false)
+    encode_win64_vtable_call_at_offset_with_plan(operands, byte_offset, false, authoritative_plan)
 }
 
 /// The result store tail shared by the field-model call encoders (the same
@@ -5912,22 +6042,43 @@ pub fn encode_win64_vtable_call_at_offset<T: InstructionOperandLike>(
     byte_offset: i64,
     result_present: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
+    encode_win64_vtable_call_at_offset_with_plan(operands, byte_offset, result_present, None)
+}
+
+pub fn encode_win64_vtable_call_at_offset_with_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    byte_offset: i64,
+    result_present: bool,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<Vec<u8>, Diagnostic> {
     let arg_start = usize::from(result_present);
     if operands.len() <= arg_start {
         return Err(Diagnostic::error(
             "cannot encode X86_64 vtable call: the receiver (arg 0) did not lower to an operand",
         ));
     }
-    let plan = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start)?;
+    let plan = if let Some(plan) = authoritative_plan {
+        validate_win64_encoder_plan(plan)?;
+        validate_win64_call_plan_operand_shapes(
+            plan,
+            operands,
+            result_present.then_some(0),
+            arg_start,
+        )?;
+        plan.clone()
+    } else {
+        normalized_win64_call_plan(operands, result_present.then_some(0), arg_start)?
+    };
     let indirect_result = plan.result.as_ref().is_some_and(win64_result_is_indirect);
     if !indirect_result {
         normalized_win64_result_register(&plan, result_present)?;
     }
     let reserve = win64_import_reserve_for_plan(&plan);
-    let mut bytes = Vec::with_capacity(win64_vtable_call_width(
+    let mut bytes = Vec::with_capacity(win64_vtable_call_width_with_plan(
         operands,
         byte_offset,
         result_present,
+        Some(&plan),
     ));
     append_sub_rsp(&mut bytes, reserve);
     if indirect_result {
@@ -5953,7 +6104,7 @@ pub fn encode_win64_vtable_call_at_offset<T: InstructionOperandLike>(
     }
     debug_assert_eq!(
         bytes.len(),
-        win64_vtable_call_width(operands, byte_offset, result_present)
+        win64_vtable_call_width_with_plan(operands, byte_offset, result_present, Some(&plan))
     );
     Ok(bytes)
 }
@@ -5963,9 +6114,37 @@ pub fn win64_vtable_call_width<T: InstructionOperandLike>(
     _index: i64,
     result_present: bool,
 ) -> usize {
+    win64_vtable_call_width_with_plan(operands, _index, result_present, None)
+}
+
+pub fn win64_vtable_call_width_with_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    _index: i64,
+    result_present: bool,
+    authoritative_plan: Option<&CallPlan>,
+) -> usize {
     let arg_start = usize::from(result_present);
     let arg_count = operands.len() - arg_start;
-    let plan = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start).ok();
+    let plan = authoritative_plan
+        .filter(|plan| {
+            validate_win64_encoder_plan(plan).is_ok()
+                && validate_win64_call_plan_operand_shapes(
+                    plan,
+                    operands,
+                    result_present.then_some(0),
+                    arg_start,
+                )
+                .is_ok()
+        })
+        .cloned()
+        .or_else(|| {
+            authoritative_plan.is_none().then(|| {
+                normalized_win64_call_plan(operands, result_present.then_some(0), arg_start).ok()
+            })?
+        });
+    if authoritative_plan.is_some() && plan.is_none() {
+        return 0;
+    }
     let reserve = plan
         .as_ref()
         .map(win64_import_reserve_for_plan)
@@ -6001,6 +6180,15 @@ pub fn encode_win64_table_function_call<T: InstructionOperandLike>(
     byte_offset: i64,
     result_present: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
+    encode_win64_table_function_call_with_plan(operands, byte_offset, result_present, None)
+}
+
+pub fn encode_win64_table_function_call_with_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    byte_offset: i64,
+    result_present: bool,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<Vec<u8>, Diagnostic> {
     let table_index = usize::from(result_present);
     if operands.len() <= table_index {
         return Err(Diagnostic::error(
@@ -6015,16 +6203,28 @@ pub fn encode_win64_table_function_call<T: InstructionOperandLike>(
         ));
     };
     let arg_start = table_index + 1;
-    let plan = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start)?;
+    let plan = if let Some(plan) = authoritative_plan {
+        validate_win64_encoder_plan(plan)?;
+        validate_win64_call_plan_operand_shapes(
+            plan,
+            operands,
+            result_present.then_some(0),
+            arg_start,
+        )?;
+        plan.clone()
+    } else {
+        normalized_win64_call_plan(operands, result_present.then_some(0), arg_start)?
+    };
     let indirect_result = plan.result.as_ref().is_some_and(win64_result_is_indirect);
     if !indirect_result {
         normalized_win64_result_register(&plan, result_present)?;
     }
     let reserve = win64_import_reserve_for_plan(&plan);
-    let mut bytes = Vec::with_capacity(win64_table_function_call_width(
+    let mut bytes = Vec::with_capacity(win64_table_function_call_width_with_plan(
         operands,
         byte_offset,
         result_present,
+        Some(&plan),
     ));
     append_sub_rsp(&mut bytes, reserve);
     if indirect_result {
@@ -6056,7 +6256,12 @@ pub fn encode_win64_table_function_call<T: InstructionOperandLike>(
     }
     debug_assert_eq!(
         bytes.len(),
-        win64_table_function_call_width(operands, byte_offset, result_present)
+        win64_table_function_call_width_with_plan(
+            operands,
+            byte_offset,
+            result_present,
+            Some(&plan),
+        )
     );
     Ok(bytes)
 }
@@ -6066,9 +6271,37 @@ pub fn win64_table_function_call_width<T: InstructionOperandLike>(
     _byte_offset: i64,
     result_present: bool,
 ) -> usize {
+    win64_table_function_call_width_with_plan(operands, _byte_offset, result_present, None)
+}
+
+pub fn win64_table_function_call_width_with_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    _byte_offset: i64,
+    result_present: bool,
+    authoritative_plan: Option<&CallPlan>,
+) -> usize {
     let arg_start = usize::from(result_present) + 1;
     let arg_count = operands.len().saturating_sub(arg_start);
-    let plan = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start).ok();
+    let plan = authoritative_plan
+        .filter(|plan| {
+            validate_win64_encoder_plan(plan).is_ok()
+                && validate_win64_call_plan_operand_shapes(
+                    plan,
+                    operands,
+                    result_present.then_some(0),
+                    arg_start,
+                )
+                .is_ok()
+        })
+        .cloned()
+        .or_else(|| {
+            authoritative_plan.is_none().then(|| {
+                normalized_win64_call_plan(operands, result_present.then_some(0), arg_start).ok()
+            })?
+        });
+    if authoritative_plan.is_some() && plan.is_none() {
+        return 0;
+    }
     let reserve = plan
         .as_ref()
         .map(win64_import_reserve_for_plan)
@@ -6131,9 +6364,36 @@ pub fn win64_vtable_call_relocation_sites<T: InstructionOperandLike>(
     operands: &[T],
     result_present: bool,
 ) -> Vec<X86_64RelocationSite> {
+    win64_vtable_call_relocation_sites_with_plan(operands, result_present, None)
+}
+
+pub fn win64_vtable_call_relocation_sites_with_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    result_present: bool,
+    authoritative_plan: Option<&CallPlan>,
+) -> Vec<X86_64RelocationSite> {
     let arg_start = usize::from(result_present);
     let arg_count = operands.len() - arg_start;
-    let plan = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start).ok();
+    let plan = authoritative_plan
+        .filter(|plan| {
+            validate_win64_encoder_plan(plan).is_ok()
+                && validate_win64_call_plan_operand_shapes(
+                    plan,
+                    operands,
+                    result_present.then_some(0),
+                    arg_start,
+                )
+                .is_ok()
+        })
+        .cloned()
+        .or_else(|| {
+            authoritative_plan.is_none().then(|| {
+                normalized_win64_call_plan(operands, result_present.then_some(0), arg_start).ok()
+            })?
+        });
+    if authoritative_plan.is_some() && plan.is_none() {
+        return Vec::new();
+    }
     let reserve = plan
         .as_ref()
         .map(win64_import_reserve_for_plan)
@@ -6198,10 +6458,37 @@ pub fn win64_table_function_call_relocation_sites<T: InstructionOperandLike>(
     operands: &[T],
     result_present: bool,
 ) -> Vec<X86_64RelocationSite> {
+    win64_table_function_call_relocation_sites_with_plan(operands, result_present, None)
+}
+
+pub fn win64_table_function_call_relocation_sites_with_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    result_present: bool,
+    authoritative_plan: Option<&CallPlan>,
+) -> Vec<X86_64RelocationSite> {
     let table_index = usize::from(result_present);
     let arg_start = table_index + 1;
     let arg_count = operands.len().saturating_sub(arg_start);
-    let plan = normalized_win64_call_plan(operands, result_present.then_some(0), arg_start).ok();
+    let plan = authoritative_plan
+        .filter(|plan| {
+            validate_win64_encoder_plan(plan).is_ok()
+                && validate_win64_call_plan_operand_shapes(
+                    plan,
+                    operands,
+                    result_present.then_some(0),
+                    arg_start,
+                )
+                .is_ok()
+        })
+        .cloned()
+        .or_else(|| {
+            authoritative_plan.is_none().then(|| {
+                normalized_win64_call_plan(operands, result_present.then_some(0), arg_start).ok()
+            })?
+        });
+    if authoritative_plan.is_some() && plan.is_none() {
+        return Vec::new();
+    }
     let reserve = plan
         .as_ref()
         .map(win64_import_reserve_for_plan)

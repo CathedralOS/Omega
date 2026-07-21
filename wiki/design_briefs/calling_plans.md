@@ -440,6 +440,13 @@ consumption now crosses the same authored-import seam: the retained plan is
 revalidated against lowered operand shapes, then supplies exact parameter and
 result placements to emission, width, and both relocation walks. Register and
 outgoing-stack canaries prevent a target-derived AAPCS64 plan from replacing it.
+The same retained-plan path now covers indirect compatibility bindings.
+`VtableSlot`/`VtableField` keep the receiver as the first wire parameter, while
+`TableFunction` excludes its dispatch-only table storage before revalidating
+the source plan. Emission, layout, and data relocation consume that one plan on
+x86-64 and AArch64. Consequently a source-selected SysV indirect call remains
+SysV even in a PE image, and AArch64 field calls preserve exact non-receiver
+register and outgoing-stack placements.
 
 While compatibility syscall rows coexist with normalized plans, evaluation
 differentially checks their historical register-slot and supervisor-call facts

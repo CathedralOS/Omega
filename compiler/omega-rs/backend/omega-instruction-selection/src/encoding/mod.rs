@@ -30,10 +30,14 @@ pub use host::{
     encode_machine_halt_bytes, encode_memory_fence_bytes, encode_return_bytes,
     encode_return_register_integer_write_bytes,
     encode_runtime_storage_copy_to_return_register_bytes, encode_syscall_sequence,
-    encode_table_function_call_sequence, encode_vtable_call_sequence,
-    encode_vtable_call_sequence_at_offset, normalized_aarch64_host_argument_placements,
+    encode_table_function_call_sequence, encode_table_function_call_sequence_with_plan,
+    encode_vtable_call_sequence, encode_vtable_call_sequence_at_offset,
+    encode_vtable_call_sequence_at_offset_with_plan, encode_vtable_call_sequence_with_plan,
+    normalized_aarch64_host_argument_placements,
     normalized_aarch64_host_argument_placements_with_plan, normalized_aarch64_table_function_plan,
+    normalized_aarch64_table_function_plan_with_plan,
     normalized_aarch64_vtable_argument_placements, normalized_aarch64_vtable_plan,
+    normalized_aarch64_vtable_plan_with_plan,
 };
 pub use runtime_storage::{
     CopyPlacesShape, WritePlaceShape, classify_copy_places_shape, classify_write_place_shape,
