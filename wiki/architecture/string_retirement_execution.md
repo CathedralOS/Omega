@@ -1,68 +1,36 @@
 # `String` retirement — execution recipe (#66 Phase B2–B4)
 
-> **REAL BLOCKER (empirically pinned 2026-06-23): the `Utf8` domain `requires`
-> contract, NOT codegen.** A full instrumented dig proved the structural canaries
-> (`runtime_struct_literal_string_field_exit`, `…array_literal…`,
-> `…slice_indexed…`, `…call_argument_struct…`) do **not** fail in instruction
-> selection — they fail to **compile**, in the prover:
+> **Status corrected 2026-07-20: the generic domain-fact forwarding blocker is
+> complete.** The three formerly missing pieces landed independently:
 >
-> ```
-> cannot prove requires contract for call check_text: cmd.unknown in [u8]::Utf8
-> cannot prove requires contract for call bad: text in [u8]::Utf8
-> ```
+> 1. call arguments and other name expressions canonicalize to symbol-rooted
+>    places, so a fact established on a parameter/local matches its forwarded use;
+> 2. guarded-transition fallthrough preserves the pre-transition semantic
+>    context; and
+> 3. case construction plus matched-arm destructuring carries declared payload
+>    domains into the payload binding.
 >
-> `domain [u8]::Utf8 { valid_utf8(self); }` puts a `requires valid_utf8(self)`
-> obligation on every `&[u8] in Utf8` value crossing a call boundary. The split is
-> now principled:
-> - **A string literal directly establishes the `Utf8` fact** — so the 34 migrated
->   canaries (`console.write_line("hi")`, literal→param) prove fine.
-> - **The fact is NOT forwarded** through a **destructured case payload**
->   (`Command::Say { text } -> check_text(text)`), a **struct-field read**, or a
->   **slice index** — so `text in Utf8` / `cmd.unknown in Utf8` is unprovable.
+> `runtime_param_domain_forward_exit` and
+> `runtime_case_payload_domain_forward_exit` now compile and exit 70 in both the
+> interpreter and native backend. `domains/domain_param_forwarded` exercises the
+> same rule over `Blob::Scanned`, proving that forwarding is carrier/domain
+> generic rather than a `Utf8` compiler special case. Declared-domain field,
+> nested-field, indexed-field, literal, return-value, and subslice routes have
+> their own canaries as well.
 >
-> The remaining work is **generic domain-fact forwarding** through
-> destructuring / field-read / index (a #60-class prover feature — facts-on-payloads
-> extended from range-facts to *domain* facts), and it MUST stay carrier/domain-generic
-> (no `Utf8`/text awareness in the compiler). Codegen (`descriptor_layout`,
-> `select_runtime_string_descriptor_write`, frame-slot writers) is NOT on the
-> critical path — the descriptor write is never reached. Instrumentation confirmed:
-> `select_runtime_resolved_target_value_source_mutation_writes`,
-> `select_runtime_string_descriptor_write`, and all three local-init writers
-> (straight-line / prelude / mutation) are never even called for the failing canary.
-> The clean-green baseline is `26f89ff3` (34 canaries migrated).
->
-> **The feature, scoped to three carrier/domain-generic pieces** (a param-domain
-> producer alone was built, proven sound + non-regressing at 321 green, but
-> INEFFECTIVE — see the memory note `string-encoding-domain-model`,
-> "PROVER-INTERNALS DEEP DIVE", for the full instrumented trace):
-> 1. **Forwarded-arg place canonicalization** — a bare param/local arg (`consume(text)`)
->    canonicalizes as `PlaceRoot::Expression`, which `places_match` (omega-facts
->    `view.rs`) does not equate to a symbol-rooted domain fact; the field case
->    works only because `self.out` roots symbol+Field-segment. Canonicalize the arg
->    to a symbol place, or root the fact to match.
-> 2. **Guarded-transition leaf context propagation** — a `transition x==lit { true->a
->    false->b }` leaf target's entry contexts (`build_call_flow_fact` →
->    `build_call_entry_contexts` from threaded `active_contexts`, `flow/calls.rs`)
->    come back EMPTY, so no machine/state domain fact reaches it. A *matched*
->    `transition v { pat->target(arg) }` target does get contexts.
-> 3. **Payload-read narrowing** — a producer for destructured case payloads
->    (`cmd.<payload>`), mirroring `append_machine_field_domain_facts` but placed
->    for the matched arm and gated on construction-enforcement (#60-1c), not ZII.
->
-> The guard obligation is the `text == "ok"` content-compare's domain precondition
-> (`requires text in Utf8`) checked at the leaf dispatch.
+> The current critical path is therefore the migration itself: move remaining
+> borrowed text to `&[u8] in Utf8`, move fixed owned text to bounded carriers,
+> preserve the native/interpreter regression coverage, and then remove the
+> builtin type and backend branches. Only the genuinely growable surface remains
+> allocator-gated.
 
-> **Earlier status (still true for the owned-`String` surface): NOT mechanical — bigger than first scoped (corrected 2026-06-22).**
-> Examining the real corpus overturned an earlier optimistic read: **owned `String`
-> is pervasively NATIVE**, not a gated afterthought. ~120 passing canaries — the
-> **entire dungeon** and every runtime text canary (`runtime_string_concat_exit`,
-> `runtime_text_builder`, `runtime_string_field_concat_exit`, …) — compile, run, and
-> are oracle-matched *today* on owned `String` (fields, copy, concat-into-buffer,
-> text builders). Retiring the type means migrating **all of that** onto *bounded*
-> carriers (`FixedVec<u8>`/`[u8;N] in Utf8`) without regressing the dungeon, and the
-> growable bits (`with_capacity`/`push_str`) genuinely need the allocator. This is a
-> real, risky migration arc — **partly allocator-gated** — not a quick rip. `cb165c24`
-> is the last green commit.
+> **Migration-cost lesson:** this is not a mechanical keyword deletion. The
+> historical corpus exercised owned `String` natively across fields, copies,
+> concat-into-buffer, builders, and the dungeon. Those behaviors must move onto
+> bounded carriers without losing their native/interpreter regression coverage.
+> Migration is underway, but the growable `with_capacity`/`push_str` surface still
+> genuinely needs the allocator. The arc is therefore partly allocator-gated,
+> while fixed-capacity migration and missing carrier lowering remain actionable.
 
 ## Why it's atomic
 
@@ -81,9 +49,9 @@ The split that actually matters:
 
 - **borrowed `&string`** → `&[u8] in Utf8` — ungated, the easy part.
 - **owned-FIXED `String`** (struct/machine fields, field-copy, concat-into-buffer,
-  text builders) — **lowers and RUNS today** via fixed/inline buffer storage, no
-  allocator. This is the pervasive part: **~120 passing canaries + the whole
-  dungeon**. Retiring it means migrating every one onto a bounded carrier
+  text builders) — lowers and runs through fixed/inline storage without an
+  allocator. It was historically pervasive across the canary corpus and
+  dungeon. Retiring it means migrating every remaining site onto a bounded carrier
   (`FixedVec<u8>` / `[u8;N] in Utf8`, which ship today) **without regressing the
   runtime behavior or the differential oracle**. Ungated, but the hard, careful
   core of the arc — not mechanical.
@@ -113,19 +81,25 @@ carrier (the grant validator already exists).
 
 ## Execution order (the recipe)
 
-1. **Keystone** — `semantics/omega-validation/src/expression_types.rs`: stop a
-   string literal / `ExpressionNode::String` from satisfying `PrimitiveType::String`
-   (lines ~98–99); it should satisfy only the `[u8] in Utf8` slice target (the
-   line-70 path). This is what turns the tree red.
-2. **The 15 sites** (below) — delete each `PrimitiveType::String` branch and lean on
-   the already-present slice-descriptor / `&[u8] in Utf8` handling. The backend
-   layout sites (`sizing.rs`, `runtime-storage/layout.rs`, `storage_places.rs`) and
-   the interpreter ZII (`evaluator.rs` `Value::str(String::new())`) need the text
-   descriptor to come from the slice-in-Utf8 path instead.
-3. **Corpus** — migrate the `.omg` files (200 with literals; ~137 typed) off
-   `string`/`String` to the carriers + rewritten operators. `.omg` edits don't
-   rebuild Rust, so re-running `cargo test -p omega-compiler --test canary_suite`
-   (~40 s) verifies each batch fast.
+1. **Corpus first, while compatibility remains** — migrate `.omg` declarations
+   off `string`/`String` to borrowed or bounded carriers and preserve what each
+   canary actually proves. This keeps batches reviewable and exposes missing
+   carrier lowering before the builtin disappears. Re-run the focused native
+   test and interpreter oracle for each batch.
+2. **Keystone** — once source users are gone,
+   `semantics/omega-validation/src/expression_types.rs` stops a string literal /
+   `ExpressionNode::String` from satisfying `PrimitiveType::String`; it should
+   satisfy only the carrier/domain targets.
+3. **Compiler branches** — delete every remaining `PrimitiveType::String` branch
+   and lean on the already-present slice descriptor or bounded-carrier handling.
+   Layout, storage-place, calling-policy, wire, validation, and interpreter
+   branches all remain live; derive the inventory from the tree rather than a
+   copied count:
+
+   ```powershell
+   rg -n "PrimitiveType::String" compiler/omega-rs -g "*.rs"
+   ```
+
 4. **`str.omg`** — re-express the owned surface as `Vec<u8> in Utf8` boundary
    operators (it stays gated, same as today); keep the borrowed surface as
    `&[u8] in Utf8` slice ops.
@@ -136,25 +110,22 @@ carrier (the grant validator already exists).
 6. **Verify green** — full `cargo test --workspace` (build + 321 canaries +
    differential oracle) and the dungeon byte-identical to the interpreter.
 
-## Inventory — the 15 live `PrimitiveType::String` sites
+## Live compiler inventory
 
-```
-backend/omega-instruction-selection/src/selection/runtime_dispatch/guards.rs            (text-descriptor guard recognition)
-backend/omega-instruction-selection/.../writes/mutation.rs                              (byte-width => None)
-backend/omega-instruction-selection/.../writes/mutation/binary_table_writes.rs          (byte-width => None)
-backend/omega-instruction-selection/.../writes/mutation/value_operands.rs               (fat-slice value-operand)
-backend/omega-instruction-selection/src/selection/storage_places.rs                     (fat-slice place + TypeLayout text descriptor)
-backend/omega-layout/src/sizing.rs                                                       (fat_descriptor_layout)
-backend/omega-runtime-storage/src/layout.rs                                              (pointer_size*2 layout)
-orchestration/omega-interpreter/src/evaluator.rs                                         (ZII Value::str, cast pass-through, classify guards)
-pipeline/omega-symbol-resolved-trees-to-typed-trees/src/equatable.rs                     (FieldEquality::Text)
-representations/omega-typed-trees/src/wire.rs                                            (WireScalar::Text)
-semantics/omega-validation/src/expression_types.rs                                       (THE KEYSTONE — literal typing)
-semantics/omega-validation/src/data.rs                                                   (data-field validation)
-semantics/omega-validation/src/properties.rs                                             (property surface)
-semantics/omega-validation/src/arithmetic_domains.rs                                     (exclude String from arith)
-semantics/omega-validation/src/wire.rs                                                   (wire validation)
-```
+Do not maintain a hand-counted site list here: the compatibility implementation
+has grown since the original 15-site survey. The search above is authoritative.
+Classify every hit before deletion as one of:
+
+- source typing/validation and builtin symbol registration;
+- type properties, equality, recasts, arithmetic-domain exclusion, and wire
+  classification;
+- layout, runtime storage, calling-policy shape, and storage-place resolution;
+- instruction selection for descriptors, bounded carriers, guards, writes, and
+  value operands; or
+- interpreter defaulting, casts, comparisons, and wire behavior.
+
+Deletion is complete only when the search is empty and the carrier corpus plus
+the negative tests cover the behavior previously pinned by each category.
 
 ## Notes
 

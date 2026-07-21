@@ -1529,11 +1529,12 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
     }
 
     // Owned `[u8; N]` carrier concat (`self.text = "== " + self.label + " =="`):
-    // walk the left-associative `+` tree into segments; the FIRST (a literal)
-    // initializes the target carrier (`WriteRuntimeMachineBoundedBuffer` sets len +
-    // bytes), and each later segment is appended onto the target's inline bytes at
-    // the running length -- a literal via `AppendRuntimeMachineBoundedBufferLiteral`,
-    // another machine-resident carrier via `AppendRuntimeMachineBoundedBufferSource`.
+    // walk the left-associative `+` tree into segments. A first literal initializes
+    // the target directly; a distinct first carrier initializes it through an empty
+    // write followed by the normal source append. Each later segment is appended
+    // onto the target's inline bytes at the running length -- a literal via
+    // `AppendRuntimeMachineBoundedBufferLiteral`, another machine-resident carrier
+    // via `AppendRuntimeMachineBoundedBufferSource`.
     // The length-fits guard already proved the result fits the target's N. (Handles
     // the 2-segment `runtime_text_builder` shape as the n=2 special case.)
     if let Expression::Binary(binary) = value
@@ -1555,17 +1556,66 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         && target_place.region == omega_abstract_operations::RuntimeStorageRegion::Machine
     {
         let segments = flatten_string_concat_segments(value);
-        if let [Expression::String(prefix), rest @ ..] = segments.as_slice() {
+        if let Some((first, rest)) = segments.split_first() {
             let mut kinds: Vec<SelectedInstructionKind> = Vec::with_capacity(segments.len());
-            // The concat target is gated to the Machine region above.
-            kinds.push(
-                crate::selection::runtime_dispatch::write_place_bounded_buffer_direct(
-                    omega_abstract_operations::RuntimeStorageRegion::Machine,
-                    target_place.byte_offset,
-                    std::sync::Arc::from(prefix.to_string()),
-                ),
-            );
             let mut all_segments_resolved = true;
+
+            // Initialize the destination from the first segment. A literal can
+            // write it directly. A carrier source first establishes the empty
+            // destination and then uses the same checked append primitive as
+            // later carrier segments. This is valid only for a distinct source:
+            // zeroing an aliased target would destroy the source before it was
+            // copied, so that shape deliberately falls through to a future
+            // scratch-backed/in-place lowering.
+            if let Expression::String(prefix) = first {
+                kinds.push(
+                    crate::selection::runtime_dispatch::write_place_bounded_buffer_direct(
+                        omega_abstract_operations::RuntimeStorageRegion::Machine,
+                        target_place.byte_offset,
+                        std::sync::Arc::from(prefix.to_string()),
+                    ),
+                );
+            } else if resolve_runtime_storage_place_is_bounded_byte_buffer(
+                input,
+                dispatch_index,
+                target_source_key,
+                first,
+            ) && let Some(source_place) = resolve_runtime_storage_place(
+                input,
+                dispatch_index,
+                target_source_key,
+                source_machine,
+                source_state,
+                first,
+            ) && matches!(
+                source_place.region,
+                omega_abstract_operations::RuntimeStorageRegion::Machine
+                    | omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
+            ) && !(source_place.region
+                == omega_abstract_operations::RuntimeStorageRegion::Machine
+                && source_place.byte_offset == target_place.byte_offset)
+            {
+                kinds.push(
+                    crate::selection::runtime_dispatch::write_place_bounded_buffer_direct(
+                        omega_abstract_operations::RuntimeStorageRegion::Machine,
+                        target_place.byte_offset,
+                        std::sync::Arc::from(""),
+                    ),
+                );
+                kinds.push(
+                    SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
+                        target_byte_offset: target_place.byte_offset,
+                        source_byte_offset: source_place.byte_offset,
+                        source_in_frame: matches!(
+                            source_place.region,
+                            omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
+                        ),
+                    },
+                );
+            } else {
+                all_segments_resolved = false;
+            }
+
             for segment in rest {
                 if let Expression::String(literal) = segment {
                     kinds.push(
