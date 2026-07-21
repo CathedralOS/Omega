@@ -95,7 +95,7 @@ pub(crate) fn data_address_relocation_offset_for_target_with_plan(
     {
         return selected_text_offset + site.byte_offset;
     }
-    data_address_relocation_offset(
+    data_address_relocation_offset_with_plan(
         target.architecture,
         operation_key,
         operands,
@@ -104,10 +104,12 @@ pub(crate) fn data_address_relocation_offset_for_target_with_plan(
         is_syscall,
         field_model_shape,
         authored_import,
+        authoritative_plan,
     )
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 pub(crate) fn data_address_relocation_offset(
     architecture: Architecture,
     operation_key: Option<HostOperationKey>,
@@ -117,6 +119,31 @@ pub(crate) fn data_address_relocation_offset(
     is_syscall: bool,
     field_model_shape: Option<FieldModelCallShape>,
     authored_import: bool,
+) -> usize {
+    data_address_relocation_offset_with_plan(
+        architecture,
+        operation_key,
+        operands,
+        selected_text_offset,
+        operand_index,
+        is_syscall,
+        field_model_shape,
+        authored_import,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn data_address_relocation_offset_with_plan(
+    architecture: Architecture,
+    operation_key: Option<HostOperationKey>,
+    operands: &[InstructionOperand],
+    selected_text_offset: usize,
+    operand_index: usize,
+    is_syscall: bool,
+    field_model_shape: Option<FieldModelCallShape>,
+    authored_import: bool,
+    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
 ) -> usize {
     // A field-model call marshals args like an import, then reads the callee
     // from the receiver (This-call) or from the dispatch-only table pointer
@@ -319,10 +346,11 @@ pub(crate) fn data_address_relocation_offset(
             || authored_import)
     {
         let argument_placements =
-            omega_instruction_selection::normalized_aarch64_host_argument_placements(
+            omega_instruction_selection::normalized_aarch64_host_argument_placements_with_plan(
                 operation_key,
                 operands,
                 authored_import,
+                authoritative_plan,
             )
             .unwrap_or_default();
         let arg_bytes = |range: std::ops::Range<usize>| {
@@ -424,10 +452,15 @@ mod tests {
     use super::{
         FieldModelCallShape, data_address_relocation_offset,
         data_address_relocation_offset_for_target,
+        data_address_relocation_offset_for_target_with_plan,
     };
     use omega_assigned_target_operations::{InstructionOperand, InstructionOperandKind};
+    use omega_calling_conventions::{
+        CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
+    };
+    use omega_core::arena::Handle;
     use omega_target::{Architecture, NativeTarget};
-    use omega_target_operations::RuntimeStorageRegion;
+    use omega_target_operations::{RuntimeStorageRegion, TargetDataObject};
 
     #[test]
     fn offsets_data_address_by_prior_operand_widths() {
@@ -509,6 +542,51 @@ mod tests {
                 true,
             ),
             32
+        );
+    }
+
+    #[test]
+    fn authored_aarch64_data_relocation_uses_the_source_selected_stack_plan() {
+        let operands = [
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeScalarInteger {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 0,
+                    byte_count: 8,
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::DataAddress {
+                    data: Handle::<TargetDataObject>::invalid(),
+                },
+            },
+        ];
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: Some(ValueShape::integer(8, 8)),
+        };
+        let mut plan =
+            evaluate_call_plan(CallingPolicy::Aapcs64, &signature).expect("baseline AAPCS64 plan");
+        plan.parameters[0].locations[0] = ValueLocation::Stack {
+            stack_byte_offset: 0,
+            value_byte_offset: 0,
+            byte_size: 8,
+            alignment: 8,
+        };
+
+        assert_eq!(
+            data_address_relocation_offset_for_target_with_plan(
+                NativeTarget::linux_arm64(),
+                Some(omega_calling_conventions::HostOperationKey::default()),
+                &operands,
+                20,
+                1,
+                false,
+                None,
+                true,
+                Some(&plan),
+            ),
+            24
         );
     }
 

@@ -227,7 +227,11 @@ pub fn authored_import_call_sequence_width<T: InstructionOperandLike>(
                 .map(|bytes| bytes.len())
                 .unwrap_or(0)
         }
-        (Architecture::Aarch64, Some(_)) => 0,
+        (Architecture::Aarch64, Some(plan)) => {
+            crate::encode_authored_import_call_sequence(target, operation_key, operands, Some(plan))
+                .map(|bytes| bytes.len())
+                .unwrap_or(0)
+        }
         _ => host_call_sequence_width(target, operation_key, operands),
     }
 }
