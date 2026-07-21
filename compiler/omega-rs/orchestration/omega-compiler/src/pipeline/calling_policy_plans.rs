@@ -64,29 +64,37 @@ pub(crate) fn compute_boundary_calling_plans(
                 "boundary trait `{}` selects {} Calling<C> policies; exactly one concrete policy may define a boundary contract",
                 boundary.name,
                 relationships.len()
-            ))]);
+            ))
+            .with_source_span(relationships[0].source_span)]);
         }
+        let relationship = relationships[0];
+        let relationship_span = relationship.source_span;
         let arguments = typed
             .type_reference_table
-            .type_reference_handles(relationships[0].arguments);
+            .type_reference_handles(relationship.arguments);
         if arguments.len() != 1 {
             return Err(vec![Diagnostic::error(format!(
                 "boundary trait `{}` has a Calling relationship with {} policy arguments; expected one",
                 boundary.name,
                 arguments.len()
-            ))]);
+            ))
+            .with_source_span(relationship_span)]);
         }
         let policy_type = concrete_policy_type_name(typed, arguments[0]).map_err(|reason| {
-            vec![Diagnostic::error(format!(
-                "boundary trait `{}` cannot evaluate Calling<C>: {reason}",
-                boundary.name
-            ))]
+            vec![
+                Diagnostic::error(format!(
+                    "boundary trait `{}` cannot evaluate Calling<C>: {reason}",
+                    boundary.name
+                ))
+                .with_source_span(relationship_span),
+            ]
         })?;
         let policy_machine = find_policy_machine(typed, &policy_type).ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "boundary trait `{}` selects `{policy_type}`, but no `{policy_type}::plan` machine exists",
                 boundary.name
-            ))]
+            ))
+            .with_source_span(relationship_span)]
         })?;
         let satisfies_policy =
             typed
@@ -99,34 +107,45 @@ pub(crate) fn compute_boundary_calling_plans(
                         })
                 });
         if !satisfies_policy {
-            return Err(vec![Diagnostic::error(format!(
-                "calling-policy machine `{}` must satisfy `CallingPolicy::plan`",
-                policy_machine.name
-            ))]);
+            return Err(vec![
+                Diagnostic::error(format!(
+                    "calling-policy machine `{}` must satisfy `CallingPolicy::plan`",
+                    policy_machine.name
+                ))
+                .with_source_span(relationship_span),
+            ]);
         }
 
         let mut signatures = Vec::new();
         collect_boundary_signatures(typed, boundary, &mut Vec::new(), &mut signatures);
         for signature in signatures {
             let call_signature = call_signature_from_typed(typed, signature).map_err(|reason| {
-                vec![Diagnostic::error(format!(
-                    "cannot materialize boundary signature `{}::{}` for `{}`: {reason}",
-                    boundary.name, signature.name, policy_machine.name
-                ))]
+                vec![
+                    Diagnostic::error(format!(
+                        "cannot materialize boundary signature `{}::{}` for `{}`: {reason}",
+                        boundary.name, signature.name, policy_machine.name
+                    ))
+                    .with_source_span(relationship_span),
+                ]
             })?;
             pending.push((
                 boundary.symbol,
                 signature.symbol,
                 policy_machine.name.as_str().to_owned(),
                 call_signature,
+                relationship_span,
             ));
         }
     }
 
     let mut evaluated = Vec::with_capacity(pending.len());
-    for (boundary_trait, requirement_machine, policy_machine, signature) in pending {
-        let validated = evaluate_calling_policy_plan(typed, &policy_machine, &signature)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    for (boundary_trait, requirement_machine, policy_machine, signature, relationship_span) in
+        pending
+    {
+        let validated =
+            evaluate_calling_policy_plan(typed, &policy_machine, &signature).map_err(|reason| {
+                vec![Diagnostic::error(reason).with_source_span(relationship_span)]
+            })?;
         evaluated.push(
             omega_typed_trees::typed_trees::BoundaryCallingPlanIdentity {
                 boundary_trait,

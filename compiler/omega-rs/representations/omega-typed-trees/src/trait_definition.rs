@@ -43,6 +43,9 @@ pub struct TraitRequirement {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
+    /// Authored relationship location retained for declaration-site semantic
+    /// diagnostics after source-backed names are lowered to owned text.
+    pub source_span: omega_core::source::SourceSpan,
 }
 
 /// The semantic role of a trait-composition edge. It is derived from the
@@ -60,6 +63,7 @@ impl Default for TraitRequirement {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             arguments: HandleSpan::empty(),
+            source_span: omega_core::source::SourceSpan::default(),
         }
     }
 }

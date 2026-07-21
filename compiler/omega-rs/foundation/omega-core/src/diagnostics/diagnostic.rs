@@ -1,9 +1,14 @@
 use std::fmt;
 
+use crate::source::SourceSpan;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
     pub severity: DiagnosticSeverity,
     pub message: String,
+    /// Optional authored source location. Semantic phases may attach this
+    /// after frontend lowering when the relevant declaration span survives.
+    pub source_span: Option<SourceSpan>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,6 +26,7 @@ impl Diagnostic {
         Self {
             severity: DiagnosticSeverity::Error,
             message: message.into(),
+            source_span: None,
         }
     }
 
@@ -28,7 +34,13 @@ impl Diagnostic {
         Self {
             severity: DiagnosticSeverity::Warning,
             message: message.into(),
+            source_span: None,
         }
+    }
+
+    pub fn with_source_span(mut self, source_span: SourceSpan) -> Self {
+        self.source_span = Some(source_span);
+        self
     }
 
     pub fn is_error(&self) -> bool {
