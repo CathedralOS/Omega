@@ -1,8 +1,43 @@
 use omega_abstract_operations::SelectedInstructionKind;
 use omega_calling_conventions::{
-    BoundaryEntryPlan, CallSignature, IndirectPointerLocation, PlanDiagnostic, ValueLocation,
-    ValueShape, validate_boundary_entry_plan,
+    BoundaryEntryPlan, CallSignature, EntryControl, IndirectPointerLocation, PlanDiagnostic,
+    ValueLocation, ValueShape, validate_boundary_entry_plan,
 };
+
+/// The observable exit half of one validated boundary plan. Result fragments
+/// remain ordered exactly as canonical validation produced them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DerivedBoundaryExit {
+    pub control: EntryControl,
+    pub result_locations: Vec<ValueLocation>,
+}
+
+/// Derive result placement and exit control for a compiler-owned entry stub.
+/// This consumes the complete plan so result lowering cannot accidentally
+/// accept placements from a carrier whose state obligations are invalid.
+pub fn derive_boundary_exit(
+    boundary: &BoundaryEntryPlan,
+    parameters: &[ValueShape],
+    result: Option<ValueShape>,
+) -> Result<DerivedBoundaryExit, PlanDiagnostic> {
+    let boundary = validate_boundary_entry_plan(
+        boundary.clone(),
+        &CallSignature {
+            parameters: parameters.to_vec(),
+            result,
+        },
+    )?;
+    Ok(DerivedBoundaryExit {
+        control: boundary.plan().call.entry_control,
+        result_locations: boundary
+            .plan()
+            .call
+            .result
+            .as_ref()
+            .map(|placement| placement.locations.clone())
+            .unwrap_or_default(),
+    })
+}
 
 /// Derive the inbound argument-unmarshal half of a compiler-owned entry stub
 /// from one already-evaluated boundary plan. `parameter_destinations` names
@@ -209,5 +244,41 @@ mod tests {
         .expect_err("architecture-mismatched state must fail closed");
 
         assert!(error.0.contains("different architectures"));
+    }
+
+    #[test]
+    fn boundary_exit_consumes_the_exact_selected_result_register() {
+        let result = ValueShape::integer(8, 8);
+        let mut boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: Some(result),
+            },
+        )
+        .expect("SysV boundary")
+        .plan()
+        .clone();
+        let ValueLocation::Register { register, .. } =
+            &mut boundary.call.result.as_mut().expect("result").locations[0]
+        else {
+            panic!("register result");
+        };
+        *register = MachineRegister::X86R10;
+
+        let exit = derive_boundary_exit(&boundary, &[], Some(result)).expect("boundary exit");
+
+        assert_eq!(
+            exit.control,
+            omega_calling_conventions::EntryControl::CallReturn
+        );
+        assert_eq!(
+            exit.result_locations,
+            vec![ValueLocation::Register {
+                register: MachineRegister::X86R10,
+                value_byte_offset: 0,
+                byte_size: 8,
+            }]
+        );
     }
 }

@@ -322,7 +322,10 @@ schemas recover the same instance without publishing policy type identity.
    inbound-stub derivation. That derivation consumes and revalidates the exact
    complete `BoundaryEntryPlan`; non-default selected registers reach its
    abstract writes, and a state-invalid carrier fails before any writes are
-   produced.
+   produced. The matching reusable exit derivation now returns canonical
+   result fragments plus entry/exit control from that same validated plan;
+   process-entry scalar and aggregate result selection consumes it instead of
+   reading a separately evaluated native result register.
    Fixed non-HFA AAPCS64 entry records up to 16 bytes now consume consecutive
    plan-selected `x` fragments with 16-byte register alignment, fall wholly to
    aligned stack fragments when the remaining register bank is too small,
