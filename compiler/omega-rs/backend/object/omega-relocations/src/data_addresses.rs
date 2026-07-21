@@ -43,7 +43,7 @@ pub(super) fn collect_data_address_relocations(
     });
     let authoritative_plan = operation_key
         .and_then(|key| find_host_binding(input, key))
-        .and_then(|binding| binding.call_plan.as_ref());
+        .and_then(omega_calling_conventions::HostBinding::call_plan);
     // A field-model call's fixup layout depends on the mechanism's shape:
     // whether the receiver is a wire argument (This-call vtable) or
     // dispatch-only (service table), and whether a result place leads the

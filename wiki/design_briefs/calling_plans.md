@@ -458,7 +458,10 @@ The compiler's retained source-policy identity carries the complete canonical
 publish only its contract fingerprint. Outbound binding construction projects
 the `CallPlan`; inbound stub construction can therefore recover the associated
 `StatePlan` without re-evaluating policy source or trying to infer state
-obligations from the fingerprint.
+obligations from the fingerprint. The selected `ProvidesRow` and backend
+`HostBinding` retain that complete plan too. Existing emission, layout, and
+relocation consumers borrow only its call half, so the selected state policy
+reaches the backend without creating a parallel lowering table.
 
 While compatibility syscall rows coexist with normalized plans, evaluation
 differentially checks their historical register-slot and supervisor-call facts

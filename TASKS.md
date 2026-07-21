@@ -309,7 +309,10 @@ schemas recover the same instance without publishing policy type identity.
    `StatePlan` after hashing it. Outbound bindings continue to project the
    call half, while inbound-stub lowering can recover the matching stack,
    preemption, save/restore, regime, and transitive-state obligations by the
-   same semantic boundary key.
+   same semantic boundary key. Selected provider rows and backend host
+   bindings now carry that complete plan as well; emission, layout, and both
+   relocation walkers borrow its call half, leaving the state half available
+   at the selected backend boundary instead of truncating it in orchestration.
    Fixed non-HFA AAPCS64 entry records up to 16 bytes now consume consecutive
    plan-selected `x` fragments with 16-byte register alignment, fall wholly to
    aligned stack fragments when the remaining register bank is too small,

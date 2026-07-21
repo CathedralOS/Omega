@@ -116,7 +116,7 @@ fn machine_instruction_width(
                 input.target.architecture,
                 operands,
                 *number,
-                binding.and_then(|binding| binding.call_plan.as_ref()),
+                binding.and_then(omega_calling_conventions::HostBinding::call_plan),
             ),
             Some(HostBindingMechanism::VtableSlot { index }) => {
                 vtable_call_sequence_width_with_plan(
@@ -124,7 +124,7 @@ fn machine_instruction_width(
                     operands,
                     *index,
                     false,
-                    binding.and_then(|binding| binding.call_plan.as_ref()),
+                    binding.and_then(omega_calling_conventions::HostBinding::call_plan),
                 )
             }
             // A call with MORE operands than the method's declared parameters
@@ -140,7 +140,7 @@ fn machine_instruction_width(
                 operands,
                 *byte_offset,
                 operands.len() > *parameter_count,
-                binding.and_then(|binding| binding.call_plan.as_ref()),
+                binding.and_then(omega_calling_conventions::HostBinding::call_plan),
             ),
             Some(HostBindingMechanism::TableFunction {
                 byte_offset,
@@ -151,7 +151,7 @@ fn machine_instruction_width(
                 operands,
                 *byte_offset,
                 operands.len() > *parameter_count,
-                binding.and_then(|binding| binding.call_plan.as_ref()),
+                binding.and_then(omega_calling_conventions::HostBinding::call_plan),
             ),
             Some(HostBindingMechanism::Import { .. })
                 if matches!(
@@ -164,7 +164,7 @@ fn machine_instruction_width(
                     input.target,
                     host_operation.operation_key,
                     operands,
-                    binding.and_then(|binding| binding.call_plan.as_ref()),
+                    binding.and_then(omega_calling_conventions::HostBinding::call_plan),
                 )
             }
             _ => host_call_sequence_width(input.target, host_operation.operation_key, operands),

@@ -133,7 +133,7 @@ fn extract_provides_rows(
                     &trait_item_name,
                     mapping.machine.as_str(),
                 ),
-                call_plan: selected_source_call_plan(
+                boundary_entry_plan: selected_source_boundary_entry_plan(
                     typed,
                     provider_plans,
                     selected_plan_names,
@@ -225,7 +225,7 @@ fn extract_provides_rows(
                     clause.trait_name.as_str(),
                     requirement.as_str(),
                 ),
-                call_plan: selected_source_call_plan(
+                boundary_entry_plan: selected_source_boundary_entry_plan(
                     typed,
                     provider_plans,
                     selected_plan_names,
@@ -244,14 +244,14 @@ fn extract_provides_rows(
 /// selection admitted. The public provider/schema identity carries the
 /// canonical fingerprint; the typed program retains the corresponding plan
 /// internally so lowering never has to rediscover or re-run policy source.
-fn selected_source_call_plan(
+fn selected_source_boundary_entry_plan(
     typed: &omega_typed_trees::TypedTrees,
     provider_plans: &[omega_effects::provider_plan::ProviderPlan],
     selected_plan_names: &[String],
     provider_plan_name: &str,
     trait_name: &str,
     method_name: &str,
-) -> Option<omega_calling_conventions::CallPlan> {
+) -> Option<omega_calling_conventions::BoundaryEntryPlan> {
     if !selected_plan_names
         .iter()
         .any(|selected| selected == provider_plan_name)
@@ -293,7 +293,7 @@ fn selected_source_call_plan(
                         })
                 })
         })
-        .map(|identity| identity.boundary_entry_plan.call.clone())
+        .map(|identity| identity.boundary_entry_plan.clone())
 }
 
 /// The declared parameter count of `method` on the boundary trait named

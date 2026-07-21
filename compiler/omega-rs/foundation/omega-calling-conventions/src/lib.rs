@@ -866,9 +866,11 @@ pub struct HostBinding {
     pub operation_key: HostOperationKey,
     pub mechanism: HostBindingMechanism,
     pub boundary_policy: Arc<str>,
-    /// Source-selected validated plan. Built-in compatibility bindings leave
-    /// this empty and derive their plan from the concrete target.
-    pub call_plan: Option<CallPlan>,
+    /// Source-selected validated boundary plan. Built-in compatibility
+    /// bindings leave this empty and derive their call plan from the concrete
+    /// target. Outbound encoders consume `call`; inbound stub planning retains
+    /// the associated state obligations at the same selected binding seam.
+    pub boundary_entry_plan: Option<BoundaryEntryPlan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -886,7 +888,7 @@ impl Default for HostBinding {
                 symbol: Arc::from(""),
             },
             boundary_policy: Arc::from(""),
-            call_plan: None,
+            boundary_entry_plan: None,
         }
     }
 }
@@ -1060,7 +1062,7 @@ pub struct ProvidesRow {
     /// rows (unused there).
     pub parameter_count: usize,
     /// Canonical source-selected plan for this concrete service method.
-    pub call_plan: Option<CallPlan>,
+    pub boundary_entry_plan: Option<BoundaryEntryPlan>,
     pub binding: ProvidesBindingKind,
 }
 
@@ -1225,7 +1227,7 @@ pub fn merge_provides_rows(plan: &mut HostAbiPlan, provides: &[ProvidesRow]) -> 
             operation_key: key,
             mechanism,
             boundary_policy: PROVIDES_BOUNDARY_POLICY.into(),
-            call_plan: row.call_plan.clone(),
+            boundary_entry_plan: row.boundary_entry_plan.clone(),
         });
         // The call-site lowering: the receiver's boundary-trait name is the
         // platform, the method name is the state; one operation per call.
@@ -1325,11 +1327,22 @@ impl HostAbiPlan {
         binding: &HostBinding,
         signature: &CallSignature,
     ) -> Result<CallPlan, PlanDiagnostic> {
-        if let Some(plan) = &binding.call_plan {
-            plans::validate_call_plan(plan, signature)?;
-            return Ok(plan.clone());
+        if let Some(boundary) = &binding.boundary_entry_plan {
+            plans::validate_call_plan(&boundary.call, signature)?;
+            return Ok(boundary.call.clone());
         }
         self.evaluate_binding_call_plan(&binding.mechanism, signature)
+    }
+}
+
+impl HostBinding {
+    /// The authoritative source-selected call half, when one exists. Keeping
+    /// this projection as a borrow prevents emission/layout/relocation from
+    /// growing a second plan carrier beside the complete boundary plan.
+    pub fn call_plan(&self) -> Option<&CallPlan> {
+        self.boundary_entry_plan
+            .as_ref()
+            .map(|boundary| &boundary.call)
     }
 }
 
@@ -1375,7 +1388,8 @@ pub fn host_operation_fixed_leading_immediate(
 mod compatibility_binding_tests {
     use super::{
         CallSignature, CallingPolicy, HostBindingMechanism, ProvidesBindingKind, ProvidesRow,
-        ValueShape, build_host_abi_plan, evaluate_call_plan, merge_provides_rows,
+        ValueShape, build_host_abi_plan, evaluate_ordinary_boundary_entry_plan,
+        merge_provides_rows,
     };
     use omega_target::NativeTarget;
 
@@ -1415,8 +1429,12 @@ mod compatibility_binding_tests {
             parameters: vec![ValueShape::integer(8, 8)],
             result: Some(ValueShape::integer(8, 8)),
         };
-        let source_plan =
-            evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature).expect("source plan");
+        let source_boundary =
+            evaluate_ordinary_boundary_entry_plan(CallingPolicy::SystemVAMD64, &signature)
+                .expect("source boundary plan")
+                .plan()
+                .clone();
+        let source_plan = source_boundary.call.clone();
         let mut abi = build_host_abi_plan(NativeTarget::windows_x64());
         merge_provides_rows(
             &mut abi,
@@ -1426,7 +1444,7 @@ mod compatibility_binding_tests {
                 method: "invoke".to_owned(),
                 vtable_struct: String::new(),
                 parameter_count: 1,
-                call_plan: Some(source_plan.clone()),
+                boundary_entry_plan: Some(source_boundary.clone()),
                 binding: ProvidesBindingKind::DllImport {
                     module: "source.dll".to_owned(),
                     symbol: "invoke".to_owned(),
@@ -1443,7 +1461,12 @@ mod compatibility_binding_tests {
             })
             .expect("authored binding");
 
-        assert_eq!(binding.call_plan.as_ref(), Some(&source_plan));
+        assert_eq!(
+            binding.boundary_entry_plan.as_ref(),
+            Some(&source_boundary),
+            "the selected binding must retain inbound state beside its call plan",
+        );
+        assert_eq!(binding.call_plan(), Some(&source_plan));
         assert_eq!(
             abi.binding_call_plan(binding, &signature)
                 .expect("authoritative source plan"),
