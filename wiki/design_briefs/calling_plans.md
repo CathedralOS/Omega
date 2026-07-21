@@ -464,7 +464,11 @@ relocation consumers borrow only its call half, so the selected state policy
 reaches the backend without creating a parallel lowering table. Compatibility
 bindings resolve through the same complete-plan API and project their outbound
 call plan from it; source-selected complete plans are revalidated as a unit at
-that seam.
+that seam. The first reusable inbound consumer derives parameter-register,
+incoming-stack, indirect-parameter, and hidden-result-pointer storage writes
+from that complete plan. Process entry uses the same derivation, and state
+validation precedes instruction production so future provider stubs do not
+need a separate placement path.
 
 While compatibility syscall rows coexist with normalized plans, evaluation
 differentially checks their historical register-slot and supervisor-call facts

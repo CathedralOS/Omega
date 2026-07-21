@@ -1,4 +1,5 @@
 use crate::InstructionSelectionInput;
+use crate::derive_boundary_entry_storage_writes;
 use omega_checked_trees::data::DataMember;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::statement::StatementNode;
@@ -1580,73 +1581,26 @@ fn select_normalized_entry_argument_writes(
         &signature,
     )
     .expect("runtime entry signature must have a normalized boundary entry plan");
-    let plan = &boundary.plan().call;
-
-    if result.is_some() {
-        let placement = plan
-            .result
-            .as_ref()
-            .expect("indirect entry result must have a normalized placement");
-        let [
-            ValueLocation::Indirect {
-                pointer: omega_calling_conventions::IndirectPointerLocation::Register(register),
-                ..
-            },
-        ] = placement.locations.as_slice()
-        else {
-            panic!("large native entry result must arrive through one register pointer");
-        };
+    let indirect_result_pointer_byte_offset = result.map(|_| {
         assert_eq!(
             input.runtime_storage.entry_indirect_result_pointer_size, 8,
             "large native entry result must reserve its destination pointer"
         );
+        input.runtime_storage.entry_indirect_result_pointer_base
+    });
+    let writes = derive_boundary_entry_storage_writes(
+        boundary.plan(),
+        destinations,
+        result,
+        indirect_result_pointer_byte_offset,
+    )
+    .expect("runtime entry must lower from its validated boundary plan");
+    for kind in writes {
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::WriteEntryArgumentRegister {
-                register: *register,
-                byte_offset: input.runtime_storage.entry_indirect_result_pointer_base,
-                byte_size: 8,
-            },
+            kind,
             source_key: input.entry_key,
             source_statement: 0,
         });
-    }
-
-    for ((destination_offset, _), placement) in destinations.iter().zip(&plan.parameters) {
-        for location in &placement.locations {
-            let kind = match *location {
-                ValueLocation::Register {
-                    register,
-                    value_byte_offset,
-                    byte_size,
-                } => SelectedInstructionKind::WriteEntryArgumentRegister {
-                    register,
-                    byte_offset: *destination_offset + usize::from(value_byte_offset),
-                    byte_size: usize::from(byte_size),
-                },
-                ValueLocation::Stack {
-                    stack_byte_offset,
-                    value_byte_offset,
-                    byte_size,
-                    ..
-                } => SelectedInstructionKind::WriteEntryStackArgument {
-                    stack_byte_offset,
-                    byte_offset: *destination_offset + usize::from(value_byte_offset),
-                    byte_size: usize::from(byte_size),
-                },
-                ValueLocation::Indirect {
-                    pointer, byte_size, ..
-                } => SelectedInstructionKind::WriteEntryIndirectArgument {
-                    pointer,
-                    byte_offset: *destination_offset,
-                    byte_size: usize::from(byte_size),
-                },
-            };
-            selected_instructions.push(SelectedInstruction {
-                kind,
-                source_key: input.entry_key,
-                source_statement: 0,
-            });
-        }
     }
 }
 
