@@ -11373,17 +11373,18 @@ pub fn encode_atomic_fetch_sub(
     Ok(bytes)
 }
 
-pub fn runtime_atomic_fetch_xor_width(
+fn runtime_atomic_fetch_bitwise_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     byte_size: usize,
     _result_offset: usize,
     value: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
 ) -> usize {
     10 + runtime_value_operand_width(runtime_value_operands, value)
-        + 3 // mov r11, r10: preserve XOR operand
+        + 3 // mov r11, r10: preserve bitwise operand
         + load_rax_from_r14_width(byte_size)
         + 3 // loop: mov r10, rax
-        + runtime_binary_operation_width(StateGuardOperator::BitwiseXor, byte_size)
+        + runtime_binary_operation_width(operator, byte_size)
         + lock_cmpxchg_r10_to_r14_width(byte_size)
         + 2 // jne rel8 back to retry
         + 3 // mov r10, rax: instruction-observed prior
@@ -11391,32 +11392,32 @@ pub fn runtime_atomic_fetch_xor_width(
         + store_width(byte_size)
 }
 
-pub fn runtime_atomic_fetch_xor_result_address_offset(
+fn runtime_atomic_fetch_bitwise_result_address_offset(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     byte_size: usize,
     value: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
 ) -> usize {
-    runtime_atomic_fetch_xor_width(runtime_value_operands, byte_size, 0, value)
+    runtime_atomic_fetch_bitwise_width(runtime_value_operands, byte_size, 0, value, operator)
         - 10
         - store_width(byte_size)
 }
 
-/// X86 has no fetch-XOR instruction that returns the old value. Use a genuine
-/// locked CMPXCHG retry loop: the initial ordinary load is only a guess, every
-/// failed CAS refreshes rax from the atomic instruction, and the successful
-/// instruction's expected/old value is the language result.
-pub fn encode_atomic_fetch_xor(
+fn encode_atomic_fetch_bitwise(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     target_offset: usize,
     byte_size: usize,
     result_offset: usize,
     value: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    operation_name: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_atomic_fetch_xor_width(
+    let mut bytes = Vec::with_capacity(runtime_atomic_fetch_bitwise_width(
         runtime_value_operands,
         byte_size,
         result_offset,
         value,
+        operator,
     ));
     append_mov_r14_imm64(&mut bytes, 0);
     append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, value)?;
@@ -11424,22 +11425,127 @@ pub fn encode_atomic_fetch_xor(
     append_load_rax_from_r14(&mut bytes, target_offset, byte_size)?;
     let retry_offset = bytes.len();
     bytes.extend([0x49, 0x89, 0xc2]); // mov r10, rax
-    append_runtime_binary_operation(&mut bytes, StateGuardOperator::BitwiseXor, byte_size)?;
+    append_runtime_binary_operation(&mut bytes, operator, byte_size)?;
     append_lock_cmpxchg_r10_to_r14(&mut bytes, target_offset, byte_size)?;
     let branch_end = bytes.len() + 2;
     let retry_distance = isize::try_from(retry_offset).unwrap_or(isize::MAX)
         - isize::try_from(branch_end).unwrap_or(isize::MIN);
-    let retry_distance = i8::try_from(retry_distance)
-        .map_err(|_| Diagnostic::error("X86_64 atomic fetch_xor retry loop exceeds rel8 reach"))?;
+    let retry_distance = i8::try_from(retry_distance).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 atomic {operation_name} retry loop exceeds rel8 reach"
+        ))
+    })?;
     bytes.extend([0x75, retry_distance as u8]); // jne retry
     bytes.extend([0x49, 0x89, 0xc2]); // mov r10, rax (prior)
     append_mov_r14_imm64(&mut bytes, 0);
     append_store_r10_to_r14(&mut bytes, result_offset, byte_size)?;
     debug_assert_eq!(
         bytes.len(),
-        runtime_atomic_fetch_xor_width(runtime_value_operands, byte_size, result_offset, value)
+        runtime_atomic_fetch_bitwise_width(
+            runtime_value_operands,
+            byte_size,
+            result_offset,
+            value,
+            operator
+        )
     );
     Ok(bytes)
+}
+
+pub fn runtime_atomic_fetch_xor_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
+    result_offset: usize,
+    value: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_atomic_fetch_bitwise_width(
+        runtime_value_operands,
+        byte_size,
+        result_offset,
+        value,
+        StateGuardOperator::BitwiseXor,
+    )
+}
+
+pub fn runtime_atomic_fetch_xor_result_address_offset(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
+    value: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_atomic_fetch_bitwise_result_address_offset(
+        runtime_value_operands,
+        byte_size,
+        value,
+        StateGuardOperator::BitwiseXor,
+    )
+}
+
+/// X86 has no fetch-XOR instruction that returns the old value. Use a genuine
+/// locked CMPXCHG retry loop whose successful observation becomes the result.
+pub fn encode_atomic_fetch_xor(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    result_offset: usize,
+    value: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    encode_atomic_fetch_bitwise(
+        runtime_value_operands,
+        target_offset,
+        byte_size,
+        result_offset,
+        value,
+        StateGuardOperator::BitwiseXor,
+        "fetch_xor",
+    )
+}
+
+pub fn runtime_atomic_fetch_or_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
+    result_offset: usize,
+    value: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_atomic_fetch_bitwise_width(
+        runtime_value_operands,
+        byte_size,
+        result_offset,
+        value,
+        StateGuardOperator::BitwiseOr,
+    )
+}
+
+pub fn runtime_atomic_fetch_or_result_address_offset(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
+    value: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_atomic_fetch_bitwise_result_address_offset(
+        runtime_value_operands,
+        byte_size,
+        value,
+        StateGuardOperator::BitwiseOr,
+    )
+}
+
+/// X86 has no fetch-OR instruction that returns the old value. Use the shared
+/// locked CMPXCHG retry lowering and return the successful observation.
+pub fn encode_atomic_fetch_or(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    result_offset: usize,
+    value: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    encode_atomic_fetch_bitwise(
+        runtime_value_operands,
+        target_offset,
+        byte_size,
+        result_offset,
+        value,
+        StateGuardOperator::BitwiseOr,
+        "fetch_or",
+    )
 }
 
 pub fn runtime_atomic_swap_width(
@@ -15749,6 +15855,26 @@ mod atomic_tests {
         assert_eq!(
             fetch_xor.len(),
             runtime_atomic_fetch_xor_width(&operands, 4, 35, delta)
+        );
+
+        let fetch_or = encode_atomic_fetch_or(&operands, 24, 4, 35, delta).unwrap();
+        let fetch_or_result_base =
+            runtime_atomic_fetch_or_result_address_offset(&operands, 4, delta);
+        assert_eq!(&fetch_or[33..36], &[0x4d, 0x09, 0xda], "or r10,r11");
+        assert_eq!(
+            &fetch_or[36..41],
+            &[0xf0, 0x45, 0x0f, 0xb1, 0x96],
+            "fetch_or retries with locked CMPXCHG"
+        );
+        assert_eq!(&fetch_or[45..47], &[0x75, 0xef], "jne -17 to retry");
+        assert_eq!(
+            &fetch_or[fetch_or_result_base..fetch_or_result_base + 2],
+            &[0x49, 0xbe]
+        );
+        assert_eq!(&fetch_or[fetch_or.len() - 4..], &35i32.to_le_bytes());
+        assert_eq!(
+            fetch_or.len(),
+            runtime_atomic_fetch_or_width(&operands, 4, 35, delta)
         );
 
         let swap = encode_atomic_swap(&operands, 24, 4, 36, new_value).unwrap();

@@ -328,6 +328,16 @@ pub enum TargetOperationKind {
         value: TargetValueOperandHandle,
         ordering: omega_core::atomic::AtomicOrderingPlan,
     },
+    /// Atomic `fetch_or`, returning the instruction-observed prior value.
+    AtomicFetchOr {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_size: usize,
+        result_region: RuntimeStorageRegion,
+        result_offset: usize,
+        value: TargetValueOperandHandle,
+        ordering: omega_core::atomic::AtomicOrderingPlan,
+    },
     /// Atomic exchange returning the instruction-observed prior value.
     AtomicSwap {
         target_region: RuntimeStorageRegion,

@@ -516,6 +516,23 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 value: remap_runtime_value_handle(*value),
                 ordering: *ordering,
             },
+            omega_abstract_operations::AbstractOperationKind::AtomicFetchOr {
+                target_region,
+                target_offset,
+                byte_size,
+                result_region,
+                result_offset,
+                value,
+                ordering,
+            } => Self::AtomicFetchOr {
+                target_region: *target_region,
+                target_offset: *target_offset,
+                byte_size: *byte_size,
+                result_region: *result_region,
+                result_offset: *result_offset,
+                value: remap_runtime_value_handle(*value),
+                ordering: *ordering,
+            },
             omega_abstract_operations::AbstractOperationKind::AtomicSwap {
                 target_region,
                 target_offset,
