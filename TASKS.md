@@ -114,8 +114,8 @@ signature and ignored `BOOL` result; RCX/RDX/R8/R9, the shadow-relative fifth
 argument, and the scratch-slot reservation all come from that evaluated plan.
 The dedicated runtime line and byte Windows sequences reuse that exact layout
 plus an actual one-DWORD/RAX `GetStdHandle` plan, preserving their fixed widths
-and relocation sites. AArch64 fragmented calls and source-selected policies
-remain below. Ordinary/firmware entry lowering now validates a combined
+and relocation sites. AArch64 fragmented compatibility calls and indirect
+mechanisms remain below. Ordinary/firmware entry lowering now validates a combined
 boundary plan with no interrupted state, no save/restore obligation, a
 provider-selected stack, non-preemptive entry semantics, and a transitive state
 ceiling derived exactly from the ABI volatile-register classes.
@@ -295,8 +295,10 @@ schemas recover the same instance without publishing policy type identity.
    width, and call/data relocation walks; a source-selected SysV placement on
    a Windows image is no longer replaced by the target-native Microsoft plan.
    The encoder rechecks the selected operand shapes and fails closed for
-   unsupported policies. AArch64 source-selected import consumption remains;
-   it now refuses rather than silently falling back to target-derived AAPCS64.
+   unsupported policies. Provides-authored AArch64 imports now likewise consume
+   the retained plan for emission, measured width, and call/data relocation
+   walks. Non-default register and outgoing-stack placements are pinned across
+   those consumers instead of being replaced by target-derived AAPCS64.
    Fixed non-HFA AAPCS64 entry records up to 16 bytes now consume consecutive
    plan-selected `x` fragments with 16-byte register alignment, fall wholly to
    aligned stack fragments when the remaining register bank is too small,

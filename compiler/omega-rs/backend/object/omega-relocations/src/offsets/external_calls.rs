@@ -60,10 +60,11 @@ pub(crate) fn external_call_relocation_offset_with_plan<T: InstructionOperandLik
     // cannot know authored operations.
     if architecture == Architecture::Aarch64 && (operation_key.returns_value() || authored_import) {
         let argument_placements =
-            omega_instruction_selection::normalized_aarch64_host_argument_placements(
+            omega_instruction_selection::normalized_aarch64_host_argument_placements_with_plan(
                 operation_key,
                 operands,
                 authored_import,
+                authoritative_plan,
             )
             .unwrap_or_default();
         let stack_mode_bytes = if operation_key.passes_trailing_mode_on_stack() {
@@ -131,10 +132,14 @@ pub(crate) fn external_call_relocation_kind(architecture: Architecture) -> Reloc
 
 #[cfg(test)]
 mod tests {
-    use super::external_call_relocation_offset;
+    use super::{external_call_relocation_offset, external_call_relocation_offset_with_plan};
     use omega_assigned_target_operations::{InstructionOperand, InstructionOperandKind};
+    use omega_calling_conventions::{
+        CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
+    };
+    use omega_core::arena::Handle;
     use omega_target::NativeTarget;
-    use omega_target_operations::RuntimeStorageRegion;
+    use omega_target_operations::{RuntimeStorageRegion, TargetDataObject};
 
     #[test]
     fn authored_sysv_call_relocation_follows_aggregate_marshalling() {
@@ -173,6 +178,48 @@ mod tests {
                 true,
             ),
             66
+        );
+    }
+
+    #[test]
+    fn authored_aarch64_call_relocation_uses_the_source_selected_stack_plan() {
+        let operands = [
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeScalarInteger {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 0,
+                    byte_count: 8,
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::DataAddress {
+                    data: Handle::<TargetDataObject>::invalid(),
+                },
+            },
+        ];
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: Some(ValueShape::integer(8, 8)),
+        };
+        let mut plan =
+            evaluate_call_plan(CallingPolicy::Aapcs64, &signature).expect("baseline AAPCS64 plan");
+        plan.parameters[0].locations[0] = ValueLocation::Stack {
+            stack_byte_offset: 0,
+            value_byte_offset: 0,
+            byte_size: 8,
+            alignment: 8,
+        };
+
+        assert_eq!(
+            external_call_relocation_offset_with_plan(
+                NativeTarget::linux_arm64(),
+                omega_calling_conventions::HostOperationKey::default(),
+                20,
+                &operands,
+                true,
+                Some(&plan),
+            ),
+            36
         );
     }
 }

@@ -436,8 +436,10 @@ authored imports use the retained plan directly for emission, width, and both
 call and data relocation layout; supplied operand shapes are checked again at
 that seam. Thus a source-selected SysV placement can govern an import in a PE
 image instead of being silently replaced by Microsoft x64. AArch64 source-plan
-consumption is the next slice and currently fails closed rather than reverting
-to target-derived AAPCS64.
+consumption now crosses the same authored-import seam: the retained plan is
+revalidated against lowered operand shapes, then supplies exact parameter and
+result placements to emission, width, and both relocation walks. Register and
+outgoing-stack canaries prevent a target-derived AAPCS64 plan from replacing it.
 
 While compatibility syscall rows coexist with normalized plans, evaluation
 differentially checks their historical register-slot and supervisor-call facts

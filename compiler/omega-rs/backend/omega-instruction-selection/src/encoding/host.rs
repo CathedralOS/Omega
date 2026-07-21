@@ -1,7 +1,7 @@
 use crate::aarch64_call_operand;
 use omega_calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, EntryControl, HostOperationKey, MachineRegister,
-    ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan,
+    ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan, validate_call_plan,
 };
 use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
@@ -464,12 +464,13 @@ pub fn encode_authored_import_call_sequence<T: InstructionOperandLike>(
     authoritative_plan: Option<&CallPlan>,
 ) -> Result<Vec<u8>, Diagnostic> {
     match target.architecture {
-        Architecture::Aarch64 if authoritative_plan.is_some() => Err(Diagnostic::error(
-            "AArch64 authored import lowering cannot yet realize a source-selected calling plan",
-        )),
         Architecture::Aarch64 => {
-            let (arguments, result) =
-                normalized_aarch64_import_plan(operands, Aarch64ImportResult::Authored, false)?;
+            let (arguments, result) = normalized_aarch64_import_plan_with_authoritative(
+                operands,
+                Aarch64ImportResult::Authored,
+                false,
+                authoritative_plan,
+            )?;
             let result = result.as_ref().ok_or_else(|| {
                 Diagnostic::error("AArch64 authored import has no normalized result placement")
             })?;
@@ -539,6 +540,20 @@ pub fn normalized_aarch64_host_argument_placements<T: InstructionOperandLike>(
     operands: &[T],
     authored_import: bool,
 ) -> Result<Vec<ValuePlacement>, Diagnostic> {
+    normalized_aarch64_host_argument_placements_with_plan(
+        operation_key,
+        operands,
+        authored_import,
+        None,
+    )
+}
+
+pub fn normalized_aarch64_host_argument_placements_with_plan<T: InstructionOperandLike>(
+    operation_key: HostOperationKey,
+    operands: &[T],
+    authored_import: bool,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<Vec<ValuePlacement>, Diagnostic> {
     let result_kind = if authored_import {
         Aarch64ImportResult::Authored
     } else if operation_key.dereferences_result() {
@@ -550,10 +565,11 @@ pub fn normalized_aarch64_host_argument_placements<T: InstructionOperandLike>(
     } else {
         Aarch64ImportResult::None
     };
-    normalized_aarch64_import_plan(
+    normalized_aarch64_import_plan_with_authoritative(
         operands,
         result_kind,
         operation_key.passes_trailing_mode_on_stack(),
+        authoritative_plan,
     )
     .map(|(placements, _)| placements)
 }
@@ -749,14 +765,29 @@ fn normalized_aarch64_import_plan<T: InstructionOperandLike>(
     result_kind: Aarch64ImportResult,
     trailing_variadic_stack: bool,
 ) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
+    normalized_aarch64_import_plan_with_authoritative(
+        operands,
+        result_kind,
+        trailing_variadic_stack,
+        None,
+    )
+}
+
+fn normalized_aarch64_import_plan_with_authoritative<T: InstructionOperandLike>(
+    operands: &[T],
+    result_kind: Aarch64ImportResult,
+    trailing_variadic_stack: bool,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
     let aarch64_operands = operands
         .iter()
         .map(aarch64_call_operand)
         .collect::<Vec<_>>();
-    normalized_aarch64_import_plan_from_call_operands(
+    normalized_aarch64_import_plan_from_call_operands_with_authoritative(
         &aarch64_operands,
         result_kind,
         trailing_variadic_stack,
+        authoritative_plan,
     )
 }
 
@@ -764,6 +795,20 @@ fn normalized_aarch64_import_plan_from_call_operands(
     aarch64_operands: &[omega_isa_aarch64::Aarch64CallOperand],
     result_kind: Aarch64ImportResult,
     trailing_variadic_stack: bool,
+) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
+    normalized_aarch64_import_plan_from_call_operands_with_authoritative(
+        aarch64_operands,
+        result_kind,
+        trailing_variadic_stack,
+        None,
+    )
+}
+
+fn normalized_aarch64_import_plan_from_call_operands_with_authoritative(
+    aarch64_operands: &[omega_isa_aarch64::Aarch64CallOperand],
+    result_kind: Aarch64ImportResult,
+    trailing_variadic_stack: bool,
+    authoritative_plan: Option<&CallPlan>,
 ) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
     let (result_operand, mut arguments) = match result_kind {
         Aarch64ImportResult::None => (None, aarch64_operands),
@@ -809,9 +854,18 @@ fn normalized_aarch64_import_plan_from_call_operands(
             }
         },
     };
-    let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature).map_err(|error| {
-        Diagnostic::error(format!("cannot evaluate AAPCS64 import plan: {error}"))
-    })?;
+    let plan = if let Some(plan) = authoritative_plan {
+        validate_call_plan(plan, &signature).map_err(|error| {
+            Diagnostic::error(format!(
+                "source-selected AArch64 import plan does not match the lowered signature: {error}"
+            ))
+        })?;
+        plan.clone()
+    } else {
+        evaluate_call_plan(CallingPolicy::Aapcs64, &signature).map_err(|error| {
+            Diagnostic::error(format!("cannot evaluate AAPCS64 import plan: {error}"))
+        })?
+    };
     validate_aarch64_import_plan(&plan)?;
     for (index, placement) in plan.parameters.iter().enumerate() {
         if placement.locations.len() > 1
@@ -1920,6 +1974,48 @@ mod aarch64_import_plan_tests {
                 omega_target::NativeTarget::linux_arm64(),
                 HostOperationKey::default(),
                 &operands,
+            )
+        );
+    }
+
+    #[test]
+    fn authored_import_uses_the_source_selected_aarch64_register() {
+        let operands = [
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 32,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::ImmediateInteger(7)),
+        ];
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: Some(ValueShape::integer(8, 8)),
+        };
+        let mut plan =
+            evaluate_call_plan(CallingPolicy::Aapcs64, &signature).expect("baseline AAPCS64 plan");
+        plan.parameters[0].locations[0] = ValueLocation::Register {
+            register: MachineRegister::Aarch64X(3),
+            value_byte_offset: 0,
+            byte_size: 8,
+        };
+
+        let bytes = encode_authored_import_call_sequence(
+            omega_target::NativeTarget::linux_arm64(),
+            HostOperationKey::default(),
+            &operands,
+            Some(&plan),
+        )
+        .expect("authored import with source-selected x3 argument");
+
+        assert_eq!(&bytes[..4], &[0xe3, 0x00, 0x80, 0xd2]);
+        assert_eq!(
+            bytes.len(),
+            crate::authored_import_call_sequence_width(
+                omega_target::NativeTarget::linux_arm64(),
+                HostOperationKey::default(),
+                &operands,
+                Some(&plan),
             )
         );
     }
