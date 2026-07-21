@@ -1087,7 +1087,7 @@ machine Filesystem::mkall_issue(&mut self, i: u64) -> i32 {
 // paradigm-split ops -- dirent-record walking and the dirfd-relative removal
 // recursion -- are implemented PER TARGET in
 // `std/targets/<target>/filesystem_impl.omg` (target-scoped
-// `<target> machine` items held beside that target's provides rows; the
+// `<target> machine` items held beside that target's external leaves; the
 // pre-resolution filter selects exactly one per machine). The portable layer
 // declares the contract SIGNATURES here; a selected target missing an
 // implementation (or supplying two) is a loud compile error at the filter.

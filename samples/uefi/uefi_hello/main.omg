@@ -16,9 +16,10 @@
 //     shape -- no cast, no mint, in the trusted boot code.
 //   * `table.con_out` projects the live SystemTable at the plan offset (+64):
 //     a dereference of the firmware pointer the boundary vouched for.
-//   * the `provides` table binds `output_string -> VtableSlot(1)`: the call
-//     dispatches through the protocol's own vtable (`mov rax, [rcx+8]; call
-//     rax`) -- COM/UEFI per-object dispatch, no import thunk.
+//   * the target-scoped external leaf binds `output_string` through
+//     `Binding::VtableSlot(1)`: the call dispatches through the protocol's own
+//     vtable (`mov rax, [rcx+8]; call rax`) -- COM/UEFI per-object dispatch,
+//     no import thunk.
 //   * `utf16"..."` is the CHAR16 text UEFI expects.
 
 boundary trait TextOutput {

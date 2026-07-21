@@ -3,7 +3,7 @@
 // participates in the program only when its target is SELECTED: the
 // pre-resolution filter clears the selected machine's marker and every other
 // target's same-name machine stays inert (resolution skips it), exactly like
-// a non-selected provides row.
+// a non-selected external leaf.
 //
 // Host-portable discrimination: `pick` is implemented ONLY by
 // `local_unchecked` (which resolves to the HOST target on every machine),

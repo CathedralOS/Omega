@@ -58,7 +58,7 @@ recursive INTEGER/SSE records, consume the independent GPR/XMM banks
 atomically, and fall wholly to their planned stack fragments on either-bank
 exhaustion. Small SysV entry results now load terminal record fragments into
 their normalized `rax`/`rdx` and/or `xmm0`/`xmm1` locations.
-Provides-authored SysV integer imports now preserve
+`Binding`-authored SysV integer imports now preserve
 those records through selection, marshal their planned register or stack
 fragments, spill small aggregate results from `rax`/`rdx`, and keep layout plus
 data/call relocation walkers in lockstep. Authored scalar floats retain their
@@ -174,7 +174,7 @@ schemas recover the same instance without publishing policy type identity.
    complete pointee into runtime storage. Source-to-PE canaries pin both a
    register pointer between scalar arguments and the fifth-position stack
    pointer after the return address and 32-byte shadow space.
-   Provides-authored outbound Microsoft records of 1, 2, 4, or 8 bytes now load
+   `Binding`-authored outbound Microsoft records of 1, 2, 4, or 8 bytes now load
    by value into their positional GPR or the low bytes of their stack slot; a
    source-to-PE canary pins an eight-byte record in `rdx` between scalar
    arguments. All other record widths allocate 16-byte-aligned caller copies
@@ -291,15 +291,15 @@ schemas recover the same instance without publishing policy type identity.
    facet. Continue making the plan authoritative across compatibility paths.
    Selected source policy plans now survive typed lowering beside their public
    fingerprints and attach only to the admitted provider's authored binding.
-   Provides-authored x86-64 imports consume that exact plan for byte emission,
+   `Binding`-authored x86-64 imports consume that exact plan for byte emission,
    width, and call/data relocation walks; a source-selected SysV placement on
    a Windows image is no longer replaced by the target-native Microsoft plan.
    The encoder rechecks the selected operand shapes and fails closed for
-   unsupported policies. Provides-authored AArch64 imports now likewise consume
+   unsupported policies. `Binding`-authored AArch64 imports now likewise consume
    the retained plan for emission, measured width, and call/data relocation
    walks. Non-default register and outgoing-stack placements are pinned across
    those consumers instead of being replaced by target-derived AAPCS64.
-   Provides-authored syscall bindings now also retain authority: x86-64 and
+   `Binding`-authored syscall leaves now also retain authority: x86-64 and
    AArch64 emission plus measured width revalidate and consume the selected
    parameter, number-register, and supervisor-call control facts. Non-default
    argument-register canaries pin both architectures; unsupported result-bearing
@@ -331,7 +331,7 @@ schemas recover the same instance without publishing policy type identity.
    aligned stack fragments when the remaining register bank is too small,
    while normalized small-aggregate results select `x0`/`x1`; a
    source-to-object canary pins a mixed scalar + 16-byte record entry in `x0`,
-   then `x1`/`x2`. Provides-authored outbound calls now preserve the same
+   then `x1`/`x2`. `Binding`-authored outbound calls now preserve the same
    non-HFA records as one by-value operand, load every plan-selected `x`
    fragment, or copy the whole value into aligned outgoing stack fragments;
    cross-target canaries pin both realizations. Authored imports and indirect
@@ -361,7 +361,7 @@ schemas recover the same instance without publishing policy type identity.
    aligned stack fragments and the rolled-back register remains available to a
    following scalar; normalized small-aggregate result plans select
    `rax`/`rdx`. Linux x64 source-to-object canaries pin both the register and
-   stack/rollback entry paths. Provides-authored outbound SysV integer and scalar
+   stack/rollback entry paths. `Binding`-authored outbound SysV integer and scalar
    float calls now preserve small records as one operand, consume the
    plan-selected GPR/XMM or whole-value stack fragments, spill small record
    results from `rax`/`rdx`, and spill scalar float results from `xmm0`; ISA and
@@ -435,7 +435,7 @@ schemas recover the same instance without publishing policy type identity.
    table pointer from the AAPCS64 signature, marshal only declared arguments,
    and account for table/result fixups around the indirect dispatch. Both
    indirect mechanisms route plan-selected scalar integer, scalar float, and
-   flat HFA results through matching relocated stores. Provides-authored
+   flat HFA results through matching relocated stores. `Binding`-authored
    `VtableSlot`/`VtableField` and `TableFunction` bindings now carry their
    retained source plan through emission, layout, and data relocation on both
    x86-64 and AArch64. The dispatch-only table stays outside the signature;
@@ -563,6 +563,10 @@ slot owner may override by type. The migration order remains load-bearing.
    out-parameter, and two-row service canaries plus the full SysV field-dispatch
    matrix have moved off `provides ... over Struct` while preserving layout-
    selected offsets and native aggregate calling plans.
+   The obsolete standalone `host ... provides` syscall example is gone; the
+   qualified external-leaf syscall canary already pins both x86-64 and AArch64
+   admission, argument registers, syscall-number registers, and supervisor-call
+   instructions.
    Remaining `provides` fixtures either intentionally pin compatibility
    grammar/diagnostics or still exercise vtable/syscall/value consumers that
    must migrate with their owning surfaces. Keep only the directed retirement
