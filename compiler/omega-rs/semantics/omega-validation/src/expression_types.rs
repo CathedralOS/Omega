@@ -45,7 +45,16 @@ pub(crate) fn argument_matches_type_reference_handle(
             argument_matches_type_reference_handle(program, argument, *referee)
         }
         TypeReferenceNode::Constrained { base_type, .. } => {
-            argument_matches_type_reference_handle(program, argument, *base_type)
+            // A literal may directly establish an owned bounded text carrier
+            // (`[u8; N] in Utf8`) in argument and terminal-result positions,
+            // just as it already can in field/local writes. Do this before
+            // erasing the value-domain constraint: the unconstrained base is
+            // an always-full fixed array, which correctly does NOT accept a
+            // text literal by itself.
+            (matches!(argument_node, ExpressionNode::String(literal)
+                if bounded_byte_buffer_capacity(program, type_reference)
+                    .is_some_and(|capacity| literal.as_bytes().len() <= capacity))
+                || argument_matches_type_reference_handle(program, argument, *base_type))
         }
         TypeReferenceNode::FixedArray { .. } => matches!(
             argument_node,
@@ -134,6 +143,50 @@ pub(crate) fn argument_matches_type_reference_handle(
     }
 }
 
+/// Mirror the backend layout classifier for an owned variable-fill text
+/// carrier. A named value domain changes `[u8; N]` from an always-full fixed
+/// array into `{len, bytes[N]}`; layout-policy domains do not.
+fn bounded_byte_buffer_capacity(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<usize> {
+    let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program.type_reference_table.type_reference(type_reference)
+    else {
+        return None;
+    };
+    let has_value_domain = program
+        .type_reference_table
+        .constraints(*constraints)
+        .iter()
+        .any(|constraint| match constraint {
+            TypeConstraintNode::Domain(name) => {
+                !omega_typed_trees::wire::is_layout_domain_name(name.as_str())
+            }
+            _ => false,
+        });
+    if !has_value_domain {
+        return None;
+    }
+    let TypeReferenceNode::FixedArray {
+        element_type,
+        length,
+    } = program.type_reference_table.type_reference(*base_type)
+    else {
+        return None;
+    };
+    if program.type_reference_table.primitive_type(*element_type) != Some(PrimitiveType::U8) {
+        return None;
+    }
+    match length {
+        omega_typed_trees::types::FixedArrayLength::Literal(capacity) => Some(*capacity),
+        omega_typed_trees::types::FixedArrayLength::ConstParameter { .. }
+        | omega_typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
+    }
+}
+
 pub(crate) fn validate_expression_type_handle(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -141,6 +194,17 @@ pub(crate) fn validate_expression_type_handle(
     diagnostics: &mut Vec<Diagnostic>,
     owner: ExpressionTypeOwner<'_>,
 ) {
+    if let ExpressionNode::String(literal) = program.expression_table.expression(expression)
+        && let Some(capacity) = bounded_byte_buffer_capacity(program, type_reference)
+        && literal.as_bytes().len() > capacity
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "{owner} constructs {} byte(s), exceeding the {capacity}-byte capacity of `{}`",
+            literal.as_bytes().len(),
+            program.display_type_reference_with_constraints(type_reference),
+        )));
+        return;
+    }
     if !argument_matches_type_reference_handle(program, expression, type_reference) {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} expects `{}`, got `{}`",

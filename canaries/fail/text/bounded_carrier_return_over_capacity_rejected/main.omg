@@ -1,0 +1,14 @@
+// A terminal expression constructing an owned bounded text carrier must fit
+// the declared capacity just like a field/local write. Accepting this would
+// let the callee return `{len = 5, bytes[4]}` and make the caller trust an
+// out-of-bounds length before any assignment-site capacity check could help.
+domain [u8; 4]::Utf8 {
+    valid_utf8(self);
+}
+
+data Main {
+}
+
+machine Main::too_long(&self) -> [u8; 4] in Utf8 {
+    "hello"
+}

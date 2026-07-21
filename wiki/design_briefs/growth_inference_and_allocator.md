@@ -235,8 +235,8 @@ construction site **and** every loop-body append — must be capacity-checked ag
 the declared carrier, mirroring the construction-1c + assignment-#63 enforcement
 already in place for range-refined fields.
 
-> **Carrier — prover half DONE, codegen half is the remaining blocker
-> (`7bf89867`, 2026-06-25).** `[u8; N] in Utf8` is the owned bounded-text carrier:
+> **Carrier — prover and core codegen are built; corpus migration is in
+> progress (`7bf89867`, 2026-06-25 onward).** `[u8; N] in Utf8` is the owned bounded-text carrier:
 > with `domain [u8; N]::Utf8` declared it compiles and the interpreter runs
 > `self.buf = "hello"; self.buf == "hello"` to exit 70 — **no FixedVec generic-`B`
 > needed.** The append's *prover* obligation is now discharged by two coupled
@@ -250,7 +250,8 @@ already in place for range-refined fields.
 > 2. **Length-fits guard** — the "(b)" side and what makes (1) sound. A write into
 >    `[u8; N] in D` must have a **statically bounded** maximum byte length `≤ N`
 >    (`static_max_byte_length`: a literal's exact length, a concat's operand sum,
->    a `self.field` read's `[u8; M]` capacity), else it is rejected. Crucially
+>    a `self.field` read's `[u8; M]` capacity, or a value call's declared bounded
+>    return capacity), else it is rejected. Crucially
 >    this static bound is **NON-relational** and *suffices for the builder
 >    pattern* — `self.text = "Room " + self.label` (a literal `+` a bounded source,
 >    sum `≤ N`) compiles. The earlier worry that length-fits is inherently the
@@ -279,6 +280,12 @@ already in place for range-refined fields.
 > That obligation is real ONLY for the borrowed `{ptr,len}` view, and lifetimes
 > already discharge it. **Two proofs, two places, both already built.**
 >
+> A direct borrow of an owned carrier synthesizes the ordinary slice descriptor
+> `{ptr = &inline_bytes, len = runtime_len}`. The compiler must not raw-copy the
+> carrier prefix (which would interpret `len` as a pointer) or substitute the
+> static capacity for the runtime length. Literal arguments and terminal returns
+> likewise construct the carrier only when their exact byte length fits `N`.
+>
 > This dissolves the earlier (A)/(B)/(C) fork cleanly:
 > * The fat-ness of an owned buffer comes from `[u8; N]` *being* a length-carrying
 >   bounded slice — **not** from the `in Utf8` domain. So `[u8; N]` and
@@ -297,7 +304,7 @@ already in place for range-refined fields.
 > (growable text) carries the `len`. So existing arrays are untouched; the blast
 > radius stays on the new growable feature.
 >
-> **The build (now unblocked):** lay out owned variable-fill `[u8; N]` as
+> **The implemented layout path:** lay out owned variable-fill `[u8; N]` as
 > `{ len, bytes }` inline; the write/materialize copies content into the inline
 > bytes and sets `len`, reusing the existing materialize machinery pointed at the
 > inline storage instead of the 256-byte scratch (which this retires). Reads use

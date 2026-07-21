@@ -1,11 +1,20 @@
 // R2: `.capacity` is a standing O(1) measure alongside `.len`. Literal
-// construction and a later place write carry the exact String capacity fact.
+// construction and a later place write carry the bounded text carrier's exact
+// capacity fact without relying on builtin String.
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
+
 data Buffer
 where
     used == storage.capacity,
 {
     used: u64;
-    storage: String;
+    storage: [u8; 8] in Utf8;
 }
 
 machine Buffer::replace(&mut self) {

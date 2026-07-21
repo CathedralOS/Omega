@@ -15578,6 +15578,44 @@ fn runtime_local_string_field_copy_through_mut_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn runtime_call_value_canary_runs() {
+    // A string literal may establish a bounded text carrier as a machine
+    // terminal value; the returned `{len, bytes}` value must then copy into
+    // the caller's carrier field in both execution engines.
+    let canary = pass_canary("calls/runtime_call_value");
+    let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("bounded-carrier return-value canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter should preserve a returned bounded carrier (exit 70), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-carrier-return-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded-carrier return-value canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded-carrier return-value canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "native bounded-carrier return should exit 70, got {:?}",
+        output.status.code()
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 /// Regression guard: a value-call (min/max builtin) result bound to a local and
 /// then used in ARITHMETIC. The min-result local was elided as dead (the
 /// liveness scan ignored later LocalData initializers), so `s = bounded + 70`
@@ -37189,6 +37227,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/array_literal_too_few_rejected",
     "arithmetic/array_literal_too_many_rejected",
     "text/bounded_carrier_construction_over_capacity_rejected",
+    "text/bounded_carrier_return_over_capacity_rejected",
     "collections/triple_runtime_indexed_read_rejected",
     "drops/nonempty_drop_body_rejected",
     "drops/drop_ensures_nonempty_body_rejected",

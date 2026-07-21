@@ -37,6 +37,22 @@
 > case-payload equality, mutable carrier aliases, and copying a local record's
 > carrier field through a mutable output parameter likewise no longer depend on
 > builtin `String`.
+>
+> Bounded carriers now also cross ordinary machine-result and borrowed-view
+> seams. A literal may directly satisfy a `[u8; N] in D` argument or terminal
+> result only when its byte length is at most `N`; over-capacity returns fail at
+> the construction site. A value call returning `[u8; N] in D` contributes `N`
+> to the destination's static length proof, and projecting that owned carrier
+> to `&[u8]` synthesizes `{ptr = &inline_bytes, len = runtime_len}`. It never
+> reinterprets the carrier's leading length word as a pointer or exposes the
+> full capacity as the live view length.
+>
+> One establishment route remains deliberately on builtin `String`: a boundary
+> operator whose mutable slice parameter `ensures text in D` does not yet
+> substitute that established fact back onto the caller's borrowed field place.
+> Keep `utf8_boundary_established` and `no_nul_boundary_established` as honest
+> regressions until that fact-transfer rule is implemented; changing their
+> consumers to avoid the carried fact would hide the missing semantics.
 
 > **Migration-cost lesson:** this is not a mechanical keyword deletion. The
 > historical corpus exercised owned `String` natively across fields, copies,
