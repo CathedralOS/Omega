@@ -320,6 +320,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_free_machine_struct_return_exit", 70),
     ("calls/runtime_free_machine_value_call_exit", 70),
     ("calls/runtime_free_machine_value_call_mut_arg_exit", 70),
+    ("calls/runtime_record_forwarding_statement_call_exit", 70),
     ("calls/runtime_let_local_nested_state_arg_exit", 70),
     ("calls/runtime_local_string_field_copy_through_mut_exit", 70),
     ("calls/runtime_min_call_result_arithmetic_exit", 70),
@@ -458,9 +459,13 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("generics/runtime_const_data_array_length_exit", 70),
     ("generics/runtime_const_data_expression_exit", 70),
     ("generics/runtime_const_data_machine_call_exit", 70),
+    ("generics/runtime_const_data_machine_fact_exit", 70),
+    ("generics/runtime_const_data_named_value_exit", 70),
     ("generics/runtime_const_data_symbolic_expression_exit", 70),
+    ("generics/runtime_const_data_where_fact_exit", 70),
     ("generics/runtime_const_data_forwarded_length_exit", 70),
     ("generics/runtime_const_data_multiple_instances_exit", 70),
+    ("generics/runtime_signed_const_data_exit", 70),
     ("generics/runtime_const_container_methods_exit", 70),
     ("generics/runtime_generic_two_instantiations_exit", 30),
     ("generics/runtime_generic_domain_instantiations_exit", 42),
@@ -922,7 +927,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("traits/runtime_dyn_single_impl_dispatch_exit", 70),
     ("traits/runtime_dyn_two_impl_dispatch_exit", 70),
     ("traits/runtime_dyn_two_impl_dispatch_swapped_exit", 70),
+    ("traits/runtime_generic_trait_default_exit", 70),
+    ("traits/runtime_inherited_trait_default_exit", 70),
     ("traits/runtime_ref_param_method_dispatch_exit", 70),
+    ("traits/runtime_trait_default_dispatch_exit", 70),
     ("traits/runtime_typed_two_method_receivers_exit", 70),
     ("types/runtime_i8_signed_arith_exit", 70),
     ("types/runtime_i16_signed_arith_exit", 70),
@@ -964,6 +972,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     // --- ch17 atomics (concurrency stage 1) ---
     ("atomics/runtime_atomic_load_store_exit", 70),
     ("atomics/runtime_atomic_fetch_add_exit", 70),
+    ("atomics/runtime_atomic_fetch_sub_exit", 70),
     ("atomics/runtime_atomic_swap_exit", 70),
     ("atomics/runtime_atomic_compare_exchange_exit", 70),
     // --- 2026-07-07 sync: the range/render sweep's canaries + the windows fs/gui work ---
@@ -1523,6 +1532,7 @@ fn interpreter_preserves_atomic_instruction_results() {
     for name in [
         "atomics/runtime_atomic_load_store_exit",
         "atomics/runtime_atomic_fetch_add_exit",
+        "atomics/runtime_atomic_fetch_sub_exit",
         "atomics/runtime_atomic_swap_exit",
         "atomics/runtime_atomic_compare_exchange_exit",
     ] {

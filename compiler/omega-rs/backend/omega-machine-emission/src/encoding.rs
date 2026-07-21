@@ -244,6 +244,21 @@ pub(super) fn encode_machine_instruction_bytes(
             *delta,
             *ordering,
         ),
+        SelectedInstructionKind::AtomicFetchSub {
+            target_offset,
+            byte_size,
+            result_offset,
+            delta,
+            ordering,
+            ..
+        } => runtime_storage::encode_atomic_fetch_sub(
+            input,
+            *target_offset,
+            *byte_size,
+            *result_offset,
+            *delta,
+            *ordering,
+        ),
         SelectedInstructionKind::AtomicSwap {
             target_offset,
             byte_size,

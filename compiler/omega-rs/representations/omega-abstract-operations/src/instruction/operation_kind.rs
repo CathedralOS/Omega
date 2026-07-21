@@ -388,6 +388,17 @@ pub enum AbstractOperationKind {
         delta: AbstractValueOperandHandle,
         ordering: omega_core::atomic::AtomicOrderingPlan,
     },
+    /// An atomic `fetch_sub`: atomically subtract `delta` from the storage
+    /// place while returning the instruction-observed prior value.
+    AtomicFetchSub {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_size: usize,
+        result_region: RuntimeStorageRegion,
+        result_offset: usize,
+        delta: AbstractValueOperandHandle,
+        ordering: omega_core::atomic::AtomicOrderingPlan,
+    },
     /// Atomically replace the storage value and return the instruction-observed
     /// prior value through a distinct result place.
     AtomicSwap {

@@ -2707,10 +2707,13 @@ fn select_runtime_binary_mutation_write(
     };
 
     // The Atomic wrapper makes the left operand the destination for the prior
-    // value returned by the RMW instruction. An unwrapped `target = target + x`
+    // value returned by the RMW instruction. An unwrapped arithmetic assignment
     // remains an ordinary write even when the target's carrier is atomic.
     if let Some(ordering) = atomic_ordering
-        && operator == StateGuardOperator::Add
+        && matches!(
+            operator,
+            StateGuardOperator::Add | StateGuardOperator::Subtract
+        )
         && runtime_storage_target_is_atomic(
             input,
             dispatch_index,
@@ -2735,14 +2738,26 @@ fn select_runtime_binary_mutation_write(
         )
         && target_place.byte_count > 0
     {
-        return Some(SelectedInstructionKind::AtomicFetchAdd {
-            target_region: target_place.region,
-            target_offset: target_place.byte_offset,
-            byte_size: target_place.byte_count,
-            result_region: result_place.region,
-            result_offset: result_place.byte_offset,
-            delta: right,
-            ordering,
+        return Some(match operator {
+            StateGuardOperator::Add => SelectedInstructionKind::AtomicFetchAdd {
+                target_region: target_place.region,
+                target_offset: target_place.byte_offset,
+                byte_size: target_place.byte_count,
+                result_region: result_place.region,
+                result_offset: result_place.byte_offset,
+                delta: right,
+                ordering,
+            },
+            StateGuardOperator::Subtract => SelectedInstructionKind::AtomicFetchSub {
+                target_region: target_place.region,
+                target_offset: target_place.byte_offset,
+                byte_size: target_place.byte_count,
+                result_region: result_place.region,
+                result_offset: result_place.byte_offset,
+                delta: right,
+                ordering,
+            },
+            _ => unreachable!("fetch arithmetic gate accepts add/sub only"),
         });
     }
 

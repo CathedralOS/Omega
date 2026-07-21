@@ -1269,7 +1269,7 @@ pub(super) fn try_parse_destructure_let<'tokens, 'source>(
     Some((HandleSpan::from_parts(marker, count), rest))
 }
 
-pub(super) fn try_parse_atomic_fetch_add_let<'tokens, 'source>(
+pub(super) fn try_parse_atomic_fetch_let<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> Option<(
@@ -1297,14 +1297,16 @@ pub(super) fn try_parse_atomic_fetch_add_let<'tokens, 'source>(
         .take_punctuation(PunctuationKind::Semicolon, ";")
         .ok()?;
 
-    // Check: is rhs a Call with target "fetch_add" and exactly 2 args?
-    let (place_expr, delta_expr, ordering) = {
+    // Check: is rhs a supported fetch arithmetic call with exactly 2 args?
+    let (place_expr, operand_expr, operator, ordering) = {
         let ExpressionNode::Call(ref call) = *syntax_trees.expressions.expression(rhs) else {
             return None;
         };
-        if call.target.as_str() != "fetch_add" {
-            return None;
-        }
+        let operator = match call.target.as_str() {
+            "fetch_add" => BinaryOperator::Add,
+            "fetch_sub" => BinaryOperator::Subtract,
+            _ => return None,
+        };
         let arg_handles = syntax_trees
             .tables
             .expressions
@@ -1318,7 +1320,7 @@ pub(super) fn try_parse_atomic_fetch_add_let<'tokens, 'source>(
             return None;
         }
         let ordering = memory_ordering_from_expression(syntax_trees, arg_handles[1]).ok()?;
-        (place, arg_handles[0], ordering)
+        (place, arg_handles[0], operator, ordering)
     };
 
     // Reserve the result slot without reading the atomic place. The atomic
@@ -1344,26 +1346,28 @@ pub(super) fn try_parse_atomic_fetch_add_let<'tokens, 'source>(
         let path = HandleSpan::from_parts(member, 1);
         syntax_trees.expressions.insert(ExpressionNode::Name(path))
     };
-    let add_expr = syntax_trees
-        .expressions
-        .insert(ExpressionNode::Binary(TableBinaryExpression {
-            left: result_name,
-            operator: BinaryOperator::Add,
-            right: delta_expr,
-        }));
-    let add_expr = syntax_trees
-        .expressions
-        .insert(ExpressionNode::Atomic(TableAtomicExpression {
-            value: add_expr,
-            result: result_name,
-            ordering: omega_core::atomic::AtomicOrderingPlan::ReadModifyWrite(ordering),
-        }));
+    let update_expr =
+        syntax_trees
+            .expressions
+            .insert(ExpressionNode::Binary(TableBinaryExpression {
+                left: result_name,
+                operator,
+                right: operand_expr,
+            }));
+    let update_expr =
+        syntax_trees
+            .expressions
+            .insert(ExpressionNode::Atomic(TableAtomicExpression {
+                value: update_expr,
+                result: result_name,
+                ordering: omega_core::atomic::AtomicOrderingPlan::ReadModifyWrite(ordering),
+            }));
     let place_for_assign = copy_expression_as_place(syntax_trees, place_expr)?;
     let assign_stmt = syntax_trees
         .statements
         .insert(StatementNode::Assignment(TableAssignment {
             target: place_for_assign,
-            value: add_expr,
+            value: update_expr,
         }));
     syntax_trees.items.append_statement_handle(assign_stmt);
 
