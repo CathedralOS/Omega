@@ -1,4 +1,4 @@
-// M2 BLOCKER 1 (landed 2026-07-11): TWO authored provides rows in one
+// M2 BLOCKER 1 (landed 2026-07-11): TWO external leaf rows in one
 // image -- get_memory_map + exit_boot_services on the same trait. Names
 // outside the built-in host catalog now intern to stable Custom keys
 // (Copy, process-wide), so any number of authored rows coexist; the
@@ -29,10 +29,15 @@ data EfiBootServicesTable {
     get_memory_map: addr;
     exit_boot_services: addr;
 }
-uefi_x64 provides BootServices over EfiBootServicesTable {
-    get_memory_map -> get_memory_map;
-    exit_boot_services -> exit_boot_services;
-}
+uefi_x64 machine EfiBootServicesTable::get_memory_map_leaf(
+    this: addr,
+    map_size: &mut u64,
+    map: addr,
+    key: &mut u64,
+    desc_size: &mut u64,
+    desc_version: &mut u32
+) -> i32 satisfies BootServices::get_memory_map via Binding::VtableField(get_memory_map);
+uefi_x64 machine EfiBootServicesTable::exit_boot_services_leaf(this: addr, handle: addr, key: u64) -> i32 satisfies BootServices::exit_boot_services via Binding::VtableField(exit_boot_services);
 data EfiSystemTable {
     hdr_signature: u64; hdr_revision: u32; hdr_header_size: u32; hdr_crc: u32; hdr_reserved: u32;
     firmware_vendor: addr; firmware_revision: u32; fw_pad: u32;

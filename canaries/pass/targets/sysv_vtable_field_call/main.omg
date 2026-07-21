@@ -35,17 +35,15 @@ data NativeVtable {
     array_mix: addr;
     wrap: addr;
 }
-linux_x64 provides FieldDispatch over NativeVtable {
-    invoke -> invoke;
-    transform -> transform;
-    blend -> blend;
-    pack -> pack;
-    mix -> mix;
-    split -> split;
-    nest -> nest;
-    array_mix -> array_mix;
-    wrap -> wrap;
-}
+linux_x64 machine NativeVtable::invoke_leaf(this: addr, value: u64) satisfies FieldDispatch::invoke via Binding::VtableField(invoke);
+linux_x64 machine NativeVtable::transform_leaf(this: addr, value: Triple) -> Triple satisfies FieldDispatch::transform via Binding::VtableField(transform);
+linux_x64 machine NativeVtable::blend_leaf(this: addr, value: FloatPair) -> FloatPair satisfies FieldDispatch::blend via Binding::VtableField(blend);
+linux_x64 machine NativeVtable::pack_leaf(this: addr, value: FloatTriple) -> FloatTriple satisfies FieldDispatch::pack via Binding::VtableField(pack);
+linux_x64 machine NativeVtable::mix_leaf(this: addr, value: MixedPair) -> MixedPair satisfies FieldDispatch::mix via Binding::VtableField(mix);
+linux_x64 machine NativeVtable::split_leaf(this: addr, value: SplitFloatPair) -> SplitFloatPair satisfies FieldDispatch::split via Binding::VtableField(split);
+linux_x64 machine NativeVtable::nest_leaf(this: addr, value: NestedMixedPair) -> NestedMixedPair satisfies FieldDispatch::nest via Binding::VtableField(nest);
+linux_x64 machine NativeVtable::array_mix_leaf(this: addr, value: ArrayMixedPair) -> ArrayMixedPair satisfies FieldDispatch::array_mix via Binding::VtableField(array_mix);
+linux_x64 machine NativeVtable::wrap_leaf(this: addr, value: WrappedFloat) -> WrappedFloat satisfies FieldDispatch::wrap via Binding::VtableField(wrap);
 data Main {
     dispatch: FieldDispatch; receiver: addr;
     input: Triple; output: Triple;

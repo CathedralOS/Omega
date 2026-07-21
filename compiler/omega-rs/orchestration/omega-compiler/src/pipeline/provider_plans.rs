@@ -227,13 +227,13 @@ pub(crate) fn derive_satisfies_plans(
                     }
                     HostProviderMappingKind::VtableField { field } => {
                         ProviderBinding::VtableField {
-                            table: String::new(),
+                            table: provider_type.clone(),
                             field: field.as_str().to_owned(),
                         }
                     }
                     HostProviderMappingKind::TableFunction { field } => {
                         ProviderBinding::TableFunction {
-                            table: String::new(),
+                            table: provider_type.clone(),
                             field: field.as_str().to_owned(),
                         }
                     }
@@ -317,6 +317,21 @@ pub(crate) fn validate_adapter_refinement(
     let effect_plan = omega_effects::infer_effects(typed);
     for plan in plans {
         for row in &plan.rows {
+            match &row.binding {
+                ProviderBinding::VtableField { table, .. }
+                | ProviderBinding::TableFunction { table, .. }
+                    if table.is_empty() =>
+                {
+                    diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                        "external leaf for `{}::{}` uses a table field without an attached provider data type; declare it as `machine TableType::leaf(...) satisfies {}::{} via Binding::...`",
+                        plan.schema.trait_name,
+                        row.method,
+                        plan.schema.trait_name,
+                        row.method,
+                    )));
+                }
+                _ => {}
+            }
             let ProviderBinding::CheckedAdapter { machine } = &row.binding else {
                 continue;
             };
@@ -701,6 +716,28 @@ mod tests {
             diagnostics[0]
                 .message
                 .contains("conflicting target-package defaults")
+        );
+    }
+
+    #[test]
+    fn table_field_leaf_requires_an_attached_layout_owner() {
+        let mut plan = selection_plan("field-leaf", &["first"], &[]);
+        plan.provider_type.clear();
+        plan.rows.push(ProviderPlanRow {
+            method: "first".to_owned(),
+            binding: ProviderBinding::VtableField {
+                table: String::new(),
+                field: "first".to_owned(),
+            },
+        });
+
+        let diagnostics = validate_adapter_refinement(&TypedTrees::default(), &[plan]);
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("without an attached provider data type")
         );
     }
 }

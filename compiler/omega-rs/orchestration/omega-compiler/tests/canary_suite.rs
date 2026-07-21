@@ -34373,7 +34373,7 @@ fn efi_struct_handoff_prologue_spreads_registers() {
 #[cfg(windows)]
 #[test]
 fn efi_vtable_call_emits_indirect_dispatch() {
-    // The provides-sourced VtableSlot(1) call lowers to `mov rax, [rcx+8];
+    // The external-leaf VtableSlot(1) call lowers to `mov rax, [rcx+8];
     // call rax` -- read OutputString from the con_out protocol struct and
     // dispatch. Pins those bytes in .text (the whole selection->encode chain;
     // the live boot awaits the reference-param projection routing fix).

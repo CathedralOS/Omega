@@ -1,6 +1,6 @@
 // THE FIELD MODEL (extern brief SS12.1, decided 2026-07-04): the M1 greeting
-// re-authored with `provides ... over <Struct>` -- the binding names the
-// fn-ptr FIELD of the declared vtable struct and the LAYOUT computes its
+// re-authored with an external leaf attached to the vtable data type -- the
+// binding names the fn-ptr FIELD and the LAYOUT computes its
 // offset. No magic slot count: `reset` is a leading field (headers fall out
 // free), `output_string` lands at +8, and the emitted dispatch is
 // byte-identical to the VtableSlot(1) original --
@@ -11,7 +11,7 @@ data EfiTextOutputProtocol {
     reset: addr;
     output_string: addr;
 }
-uefi_x64 provides TextOutput over EfiTextOutputProtocol { output_string -> output_string; }
+uefi_x64 machine EfiTextOutputProtocol::text_output_leaf(this: addr, text: addr) satisfies TextOutput::output_string via Binding::VtableField(output_string);
 data EfiSystemTable {
     hdr_signature: u64; hdr_revision: u32; hdr_header_size: u32; hdr_crc: u32; hdr_reserved: u32;
     firmware_vendor: addr; firmware_revision: u32; fw_pad: u32;
