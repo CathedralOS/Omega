@@ -110,7 +110,9 @@ fn state_value_has_planned_storage_write(
                 && instruction.source_statement == value.statement_index
                 && matches!(
                     instruction.kind,
-                    SelectedInstructionKind::AtomicFetchAdd { .. }
+                    SelectedInstructionKind::AtomicLoad { .. }
+                        | SelectedInstructionKind::AtomicStore { .. }
+                        | SelectedInstructionKind::AtomicFetchAdd { .. }
                         | SelectedInstructionKind::HostOperation { .. }
                         // The console byte-op composites consume a RESOLVED
                         // place (selection refuses otherwise): a bound local

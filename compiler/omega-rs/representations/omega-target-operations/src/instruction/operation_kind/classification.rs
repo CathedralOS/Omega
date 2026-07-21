@@ -30,7 +30,9 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::AppendTextStoredToPlace { .. }
             | Self::AppendTextLiteralToPlace { .. } => TargetOperationDomain::RuntimeTextAssembly,
 
-            Self::AtomicFetchAdd { .. }
+            Self::AtomicLoad { .. }
+            | Self::AtomicStore { .. }
+            | Self::AtomicFetchAdd { .. }
             | Self::AtomicCompareExchange { .. }
             | Self::WriteEntryArgumentRegister { .. }
             | Self::WriteEntryStackArgument { .. }

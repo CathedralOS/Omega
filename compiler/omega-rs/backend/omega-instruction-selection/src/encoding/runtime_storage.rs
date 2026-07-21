@@ -158,23 +158,92 @@ pub fn encode_runtime_storage_convert(
     }
 }
 
+pub fn encode_atomic_load_to_storage(
+    architecture: Architecture,
+    source_offset: usize,
+    byte_size: usize,
+    result_offset: usize,
+    ordering: omega_core::atomic::AtomicOrderingPlan,
+) -> Result<Vec<u8>, Diagnostic> {
+    let omega_core::atomic::AtomicOrderingPlan::Load(ordering) = ordering else {
+        return Err(Diagnostic::error(
+            "atomic load reached code generation without a load ordering plan",
+        ));
+    };
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_atomic_load_to_storage(
+            source_offset,
+            byte_size,
+            result_offset,
+            ordering,
+        ),
+        Architecture::X86_64 => {
+            x86_64::encode_atomic_load_to_storage(source_offset, byte_size, result_offset)
+        }
+    }
+}
+
+pub fn encode_atomic_store_from_operand(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    value: RuntimeValueOperandHandle,
+    ordering: omega_core::atomic::AtomicOrderingPlan,
+) -> Result<Vec<u8>, Diagnostic> {
+    let omega_core::atomic::AtomicOrderingPlan::Store(ordering) = ordering else {
+        return Err(Diagnostic::error(
+            "atomic store reached code generation without a store ordering plan",
+        ));
+    };
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_atomic_store_from_operand(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            value,
+            ordering,
+        ),
+        Architecture::X86_64 => x86_64::encode_atomic_store_from_operand(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            value,
+            ordering == omega_core::atomic::MemoryOrdering::SeqCst,
+        ),
+    }
+}
+
 pub fn encode_atomic_fetch_add(
     architecture: Architecture,
     runtime_value_operands: &impl RuntimeValueOperandSource,
     target_offset: usize,
     byte_size: usize,
+    result_offset: usize,
     delta: RuntimeValueOperandHandle,
+    ordering: omega_core::atomic::AtomicOrderingPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
+    let omega_core::atomic::AtomicOrderingPlan::ReadModifyWrite(ordering) = ordering else {
+        return Err(Diagnostic::error(
+            "atomic fetch_add reached code generation without an RMW ordering plan",
+        ));
+    };
     match architecture {
         Architecture::Aarch64 => aarch64::encode_atomic_fetch_add(
             runtime_value_operands,
             target_offset,
             byte_size,
+            result_offset,
+            delta,
+            ordering,
+        ),
+        Architecture::X86_64 => x86_64::encode_atomic_fetch_add(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            result_offset,
             delta,
         ),
-        Architecture::X86_64 => {
-            x86_64::encode_atomic_fetch_add(runtime_value_operands, target_offset, byte_size, delta)
-        }
     }
 }
 
@@ -184,21 +253,31 @@ pub fn encode_atomic_compare_exchange(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     target_offset: usize,
     byte_size: usize,
+    result_offset: usize,
     expected: RuntimeValueOperandHandle,
     new_value: RuntimeValueOperandHandle,
+    ordering: omega_core::atomic::AtomicOrderingPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
+    let omega_core::atomic::AtomicOrderingPlan::CompareExchange { success, .. } = ordering else {
+        return Err(Diagnostic::error(
+            "atomic compare_exchange reached code generation without a CAS ordering plan",
+        ));
+    };
     match architecture {
         Architecture::Aarch64 => aarch64::encode_atomic_compare_exchange(
             runtime_value_operands,
             target_offset,
             byte_size,
+            result_offset,
             expected,
             new_value,
+            success,
         ),
         Architecture::X86_64 => x86_64::encode_atomic_compare_exchange(
             runtime_value_operands,
             target_offset,
             byte_size,
+            result_offset,
             expected,
             new_value,
         ),

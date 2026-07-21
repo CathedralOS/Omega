@@ -1018,6 +1018,12 @@ impl SyntaxTrees {
             ExpressionNode::ArrayLiteral(values) => {
                 ExpressionNode::ArrayLiteral(self.copy_expression_handle_list(other, *values))
             }
+            ExpressionNode::Atomic(atomic) => {
+                ExpressionNode::Atomic(crate::expression::TableAtomicExpression {
+                    value: self.copy_expression_handle(other, atomic.value),
+                    ordering: atomic.ordering,
+                })
+            }
             ExpressionNode::Binary(binary) => ExpressionNode::Binary(TableBinaryExpression {
                 left: self.copy_expression_handle(other, binary.left),
                 operator: binary.operator,

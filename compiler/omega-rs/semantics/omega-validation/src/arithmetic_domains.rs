@@ -636,6 +636,7 @@ fn expression_calls_state(
         return false;
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => expression_calls_state(program, atomic.value, state_name),
         ExpressionNode::Call(call) => {
             if call.target.as_str() == state_name {
                 return true;

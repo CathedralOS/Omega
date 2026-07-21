@@ -313,6 +313,8 @@ fn simple_local_binding_value_from_table(
     expression: ExpressionHandle,
 ) -> Option<Expression> {
     match table.expression(expression) {
+        // Never inline/fold the compiler-authored atomic operation shape.
+        ExpressionNode::Atomic(_) => None,
         ExpressionNode::Binary(binary) => Some(Expression::Binary(Box::new(BinaryExpression {
             left: simple_local_binding_value_from_table(table, binary.left)?,
             operator: binary.operator,

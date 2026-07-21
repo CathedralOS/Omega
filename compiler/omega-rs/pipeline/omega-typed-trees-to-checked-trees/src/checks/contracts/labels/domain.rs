@@ -37,6 +37,11 @@ fn instantiate_domain_expression_label(
     base_label: &str,
 ) -> String {
     match program.expression_table.expression(expression) {
+        omega_typed_trees::expression::ExpressionNode::Atomic(atomic) => format!(
+            "atomic[{:?}]({})",
+            atomic.ordering,
+            instantiate_domain_expression_label(program, atomic.value, base_label),
+        ),
         omega_typed_trees::expression::ExpressionNode::ArrayLiteral(values) => {
             let values = program
                 .expression_table

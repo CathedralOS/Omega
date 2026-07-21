@@ -4,6 +4,9 @@ use omega_typed_trees::expression::ExpressionNode;
 impl ValueFactBuilder<'_> {
     pub(super) fn collect_expression_children(&mut self, expression: ExpressionHandle) {
         match self.program.expression_table.expression(expression) {
+            ExpressionNode::Atomic(atomic) => {
+                self.collect_nested_expression(expression, atomic.value)
+            }
             ExpressionNode::ArrayLiteral(values) => {
                 for value in self
                     .program

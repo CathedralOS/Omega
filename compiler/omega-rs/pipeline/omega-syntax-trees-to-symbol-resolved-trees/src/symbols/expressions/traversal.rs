@@ -74,6 +74,17 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
     }
 
     match expression_table.expression(expression).clone() {
+        omega_symbol_resolved_trees::expression::ExpressionNode::Atomic(atomic) => {
+            assign_expression_table_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expression_table,
+                child_type_references,
+                atomic.value,
+            );
+        }
         omega_symbol_resolved_trees::expression::ExpressionNode::ArrayLiteral(values) => {
             assign_expression_span_symbols(
                 symbols,

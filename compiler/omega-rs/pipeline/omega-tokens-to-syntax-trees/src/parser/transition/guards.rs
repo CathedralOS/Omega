@@ -4,9 +4,10 @@ use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use omega_core::arena::HandleSpan;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
-    TableCastExpression, TableIndexedExpression, TableMemberExpression, TableMembershipExpression,
-    TableRangeExpression, TableStructLiteral, TableStructLiteralField, TableUnaryExpression,
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableAtomicExpression, TableBinaryExpression,
+    TableCallExpression, TableCastExpression, TableIndexedExpression, TableMemberExpression,
+    TableMembershipExpression, TableRangeExpression, TableStructLiteral, TableStructLiteralField,
+    TableUnaryExpression,
 };
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::statement::TransitionGuardNode;
@@ -755,6 +756,15 @@ pub(super) fn rewrite_destructure_guard_expression(
     fields: &[DestructureBinding],
 ) -> ExpressionHandle {
     let rewritten = match syntax_trees.expressions.expression(expression).clone() {
+        ExpressionNode::Atomic(atomic) => ExpressionNode::Atomic(TableAtomicExpression {
+            value: rewrite_destructure_guard_expression(
+                syntax_trees,
+                atomic.value,
+                subject,
+                fields,
+            ),
+            ordering: atomic.ordering,
+        }),
         ExpressionNode::ArrayLiteral(values) => {
             let source_values = syntax_trees.expressions.expression_handles(values).to_vec();
             let values = source_values

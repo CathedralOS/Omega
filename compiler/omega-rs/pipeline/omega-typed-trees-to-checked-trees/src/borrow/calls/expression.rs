@@ -8,6 +8,7 @@ pub(super) fn collect_expression_borrow_calls(
     expression: ExpressionHandle,
 ) {
     match collection.program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => collect_expression_borrow_calls(collection, atomic.value),
         ExpressionNode::ArrayLiteral(values) => {
             for value in collection
                 .program

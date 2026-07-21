@@ -699,7 +699,9 @@ fn external_leaf_syscall_reaches_linux_x64_backend() {
 // Atomics end-to-end across architectures. The host (windows_x64) RUNS the
 // program (fetch_add + compare_exchange, exit 70). aarch64 cannot execute on
 // this box, so the linux_arm64 build is verified by the emitted ELF carrying the
-// real LSE atomic instructions: LDADDAL (fetch_add) and CASAL (compare_exchange).
+// real, ordering-selected LSE atomic instructions: LDADD (Relaxed fetch_add)
+// and CASAL (AcqRel compare_exchange), both returning the instruction-observed
+// prior value in the result register.
 #[test]
 fn atomics_cross_platform_emits_real_atomics() {
     let sample = sample_project("cli/systems/atomics_cross");
@@ -751,10 +753,10 @@ fn atomics_cross_platform_emits_real_atomics() {
         183,
         "e_machine should be EM_AARCH64"
     );
-    // LDADDAL w17, wzr, [x16] = 0xB8F1021F (fetch_add; prior discarded into WZR).
+    // LDADD w17, w26, [x16] = 0xB831021A (Relaxed fetch_add; prior in W26).
     assert!(
-        elf.windows(4).any(|w| w == [0x1f, 0x02, 0xf1, 0xb8]),
-        "linux_arm64 ELF should contain LDADDAL w17,wzr,[x16] for fetch_add"
+        elf.windows(4).any(|w| w == [0x1a, 0x02, 0x31, 0xb8]),
+        "linux_arm64 ELF should contain LDADD w17,w26,[x16] for Relaxed fetch_add"
     );
     // CASAL w26, w17, [x16] = 0x88FAFE11 (compare_exchange).
     assert!(

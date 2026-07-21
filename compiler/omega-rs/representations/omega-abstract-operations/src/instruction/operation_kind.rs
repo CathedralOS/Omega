@@ -359,28 +359,48 @@ pub enum AbstractOperationKind {
         spill_offset: usize,
         byte_length: usize,
     },
+    /// Atomic load from a direct storage place into a direct result place.
+    AtomicLoad {
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        byte_size: usize,
+        result_region: RuntimeStorageRegion,
+        result_offset: usize,
+        ordering: omega_core::atomic::AtomicOrderingPlan,
+    },
+    /// Atomic store of one computed operand into a direct storage place.
+    AtomicStore {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_size: usize,
+        value: AbstractValueOperandHandle,
+        ordering: omega_core::atomic::AtomicOrderingPlan,
+    },
     /// An atomic `fetch_add`: atomically add `delta` to the storage place via a
-    /// single `LOCK xadd`. The prior value is read separately (by the desugar's
-    /// preceding `let old = place`), so the xadd's result register is discarded
-    /// here -- the point is the atomic read-modify-write of the place itself.
+    /// single target RMW. The instruction-observed prior value is written to
+    /// `result_region + result_offset`; no separate ordinary read is legal.
     AtomicFetchAdd {
         target_region: RuntimeStorageRegion,
         target_offset: usize,
         byte_size: usize,
+        result_region: RuntimeStorageRegion,
+        result_offset: usize,
         delta: AbstractValueOperandHandle,
+        ordering: omega_core::atomic::AtomicOrderingPlan,
     },
     /// An atomic `compare_exchange`: atomically compare the storage place against
     /// `expected` and, only if equal, swap in `new_value`, via a single `LOCK
-    /// CMPXCHG` (x86) / `CASAL` (aarch64). The prior value is read separately (by
-    /// the desugar's preceding `let prior = place`), so the instruction's
-    /// returned prior is discarded here -- the point is the atomic
-    /// compare-and-swap of the place itself.
+    /// CMPXCHG` (x86) / `CAS*` (aarch64). The instruction-observed prior value
+    /// is written to `result_region + result_offset`.
     AtomicCompareExchange {
         target_region: RuntimeStorageRegion,
         target_offset: usize,
         byte_size: usize,
+        result_region: RuntimeStorageRegion,
+        result_offset: usize,
         expected: AbstractValueOperandHandle,
         new_value: AbstractValueOperandHandle,
+        ordering: omega_core::atomic::AtomicOrderingPlan,
     },
     /// A numeric `as` cast: load `source` into a register, convert it between
     /// integer and floating-point representations (`cvttsd2si`/`cvtsi2sd`/

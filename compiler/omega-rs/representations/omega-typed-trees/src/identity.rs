@@ -413,6 +413,7 @@ fn count_expression_node(
                 count_expression_handle(table, *value, counts);
             }
         }
+        ExpressionNode::Atomic(atomic) => count_expression_handle(table, atomic.value, counts),
         ExpressionNode::Binary(binary) => {
             count_expression_handle(table, binary.left, counts);
             count_expression_handle(table, binary.right, counts);

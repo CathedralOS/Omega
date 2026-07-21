@@ -7,6 +7,7 @@ pub(super) fn value_kind(table: &ExpressionTable, expression: ExpressionHandle) 
     }
 
     match table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => value_kind(table, atomic.value),
         ExpressionNode::ArrayLiteral(_) => StateValueKind::Array,
         ExpressionNode::Binary(_) => StateValueKind::Binary,
         ExpressionNode::Boolean(_)

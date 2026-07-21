@@ -95,12 +95,15 @@ their ordering. Source validation now treats those names as a closed vocabulary:
 loads admit `Relaxed | Acquire | SeqCst`, stores admit
 `Relaxed | Release | SeqCst`, and compare-exchange failure ordering may neither
 release nor be stronger than its success ordering. Stage-1 atomic operations
-and the memory model are landed; exact target realization remains engineering.
+and the memory model are landed. Load/store/fetch_add/compare_exchange preserve
+their ordering through normalized operations and exact x86_64/aarch64 target
+lowering. Fetch/CAS write the instruction-observed prior into the language
+result; a separate ordinary read is forbidden because it races the RMW.
 
 Still required:
 
-- the full load/store/swap/fetch/compare-exchange surface;
-- exact ordering propagation through normalized operations and target lowering;
+- swap and the remaining fetch-and-modify surface;
+- contention tests once concurrent activation is runnable;
 - standalone fences and target lowering proofs;
 - cross-activation ownership/borrow/access enforcement independent of `[copy]`;
 - volatile/MMIO types and ordering contracts;

@@ -29,7 +29,9 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::AppendTextStoredToPlace { .. }
             | Self::AppendTextLiteralToPlace { .. } => AbstractOperationDomain::RuntimeTextAssembly,
 
-            Self::AtomicFetchAdd { .. }
+            Self::AtomicLoad { .. }
+            | Self::AtomicStore { .. }
+            | Self::AtomicFetchAdd { .. }
             | Self::AtomicCompareExchange { .. }
             | Self::WriteEntryArgumentRegister { .. }
             | Self::WriteEntryStackArgument { .. }

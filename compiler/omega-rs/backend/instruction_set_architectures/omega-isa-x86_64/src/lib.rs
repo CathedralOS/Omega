@@ -11176,38 +11176,121 @@ fn append_float_to_int_saturating(
     append_mov_reg_imm64(bytes, Reg64::R10, minimum); // low
 }
 
+pub fn encode_atomic_load_to_storage(
+    source_offset: usize,
+    byte_size: usize,
+    result_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_atomic_load_to_storage_width(
+        source_offset,
+        byte_size,
+        result_offset,
+    ));
+    append_mov_r14_imm64(&mut bytes, 0);
+    append_load_reg_from_r14(&mut bytes, Reg64::R10, source_offset, byte_size)?;
+    append_mov_r14_imm64(&mut bytes, 0);
+    append_store_r10_to_r14(&mut bytes, result_offset, byte_size)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_atomic_load_to_storage_width(source_offset, byte_size, result_offset)
+    );
+    Ok(bytes)
+}
+
+pub fn runtime_atomic_load_to_storage_width(
+    _source_offset: usize,
+    byte_size: usize,
+    _result_offset: usize,
+) -> usize {
+    10 + load_width(byte_size) + 10 + store_width(byte_size)
+}
+
+pub fn runtime_atomic_load_result_address_offset(byte_size: usize) -> usize {
+    10 + load_width(byte_size)
+}
+
+pub fn encode_atomic_store_from_operand(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    value: RuntimeValueOperandHandle,
+    seq_cst: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_atomic_store_from_operand_width(
+        runtime_value_operands,
+        byte_size,
+        value,
+    ));
+    append_mov_r14_imm64(&mut bytes, 0);
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, value)?;
+    if seq_cst {
+        append_xchg_r10_to_r14(&mut bytes, target_offset, byte_size)?;
+    } else {
+        append_store_r10_to_r14(&mut bytes, target_offset, byte_size)?;
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_atomic_store_from_operand_width(runtime_value_operands, byte_size, value)
+    );
+    Ok(bytes)
+}
+
+pub fn runtime_atomic_store_from_operand_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
+    value: RuntimeValueOperandHandle,
+) -> usize {
+    10 + runtime_value_operand_width(runtime_value_operands, value) + store_width(byte_size)
+}
+
 pub fn runtime_atomic_fetch_add_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
+    _result_offset: usize,
+    delta: RuntimeValueOperandHandle,
+) -> usize {
+    // mov r14,imm64(target base) (10) + delta operand load into r10 + lock xadd.
+    10 + runtime_value_operand_width(runtime_value_operands, delta)
+        + lock_xadd_r10_to_r14_width(byte_size)
+        + 10
+        + store_width(byte_size)
+}
+
+pub fn runtime_atomic_fetch_add_result_address_offset(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     byte_size: usize,
     delta: RuntimeValueOperandHandle,
 ) -> usize {
-    // mov r14,imm64(target base) (10) + delta operand load into r10 + lock xadd.
     10 + runtime_value_operand_width(runtime_value_operands, delta)
         + lock_xadd_r10_to_r14_width(byte_size)
 }
 
 /// Atomic `fetch_add`: hold the target base in r14 (untouched by operand
 /// evaluation, which reloads r15), evaluate `delta` into r10, then `lock xadd
-/// [r14+offset], r10` -- one atomic read-modify-write of the place. The prior
-/// value (left in r10 by xadd) is discarded here; the desugar's preceding
-/// `let old = place` captured it separately.
+/// [r14+offset], r10` -- one atomic read-modify-write of the place. XADD leaves
+/// the instruction-observed prior in r10; the encoder stores that exact value
+/// into the result place before returning.
 pub fn encode_atomic_fetch_add(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     target_offset: usize,
     byte_size: usize,
+    result_offset: usize,
     delta: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_atomic_fetch_add_width(
         runtime_value_operands,
         byte_size,
+        result_offset,
         delta,
     ));
     append_mov_r14_imm64(&mut bytes, 0); // target base (imm64 @ +2 relocated)
     append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, delta)?;
     append_lock_xadd_r10_to_r14(&mut bytes, target_offset, byte_size)?;
+    append_mov_r14_imm64(&mut bytes, 0); // result base (relocated independently)
+    append_store_r10_to_r14(&mut bytes, result_offset, byte_size)?;
     debug_assert_eq!(
         bytes.len(),
-        runtime_atomic_fetch_add_width(runtime_value_operands, byte_size, delta)
+        runtime_atomic_fetch_add_width(runtime_value_operands, byte_size, result_offset, delta)
     );
     Ok(bytes)
 }
@@ -11215,6 +11298,7 @@ pub fn encode_atomic_fetch_add(
 pub fn runtime_atomic_compare_exchange_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     byte_size: usize,
+    _result_offset: usize,
     expected: RuntimeValueOperandHandle,
     new_value: RuntimeValueOperandHandle,
 ) -> usize {
@@ -11229,25 +11313,45 @@ pub fn runtime_atomic_compare_exchange_width(
         + MOV_RAX_R10_WIDTH
         + BINARY_RIGHT_OPERAND_PUSH_WIDTH
         + lock_cmpxchg_r10_to_r14_width(byte_size)
+        + 3 // mov r10, rax (instruction-observed prior)
+        + 10 // mov r14, imm64(result base)
+        + store_width(byte_size)
+}
+
+pub fn runtime_atomic_compare_exchange_result_address_offset(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
+    expected: RuntimeValueOperandHandle,
+    new_value: RuntimeValueOperandHandle,
+) -> usize {
+    10 + runtime_value_operand_width(runtime_value_operands, new_value)
+        + BINARY_RIGHT_OPERAND_PUSH_WIDTH
+        + runtime_value_operand_width(runtime_value_operands, expected)
+        + MOV_RAX_R10_WIDTH
+        + BINARY_RIGHT_OPERAND_PUSH_WIDTH
+        + lock_cmpxchg_r10_to_r14_width(byte_size)
+        + 3
 }
 
 /// Atomic `compare_exchange`: hold the target base in r14, evaluate `new_value`
 /// into r10 and stash it on the stack, evaluate `expected` into r10 and move it
 /// to rax, restore `new_value` into r10, then `lock cmpxchg [r14+offset], r10`.
 /// CMPXCHG compares rax (expected) with the place and swaps in r10 (new_value)
-/// only on equality; the returned prior (left in rax) is discarded -- the
-/// desugar's preceding `let prior = place` captured it. The stash mirrors the
-/// binary write because operand evaluation accumulates in r10.
+/// only on equality; the instruction-observed prior left in rax is copied into
+/// the result place. The stash mirrors the binary write because operand
+/// evaluation accumulates in r10.
 pub fn encode_atomic_compare_exchange(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     target_offset: usize,
     byte_size: usize,
+    result_offset: usize,
     expected: RuntimeValueOperandHandle,
     new_value: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_atomic_compare_exchange_width(
         runtime_value_operands,
         byte_size,
+        result_offset,
         expected,
         new_value,
     ));
@@ -11258,11 +11362,15 @@ pub fn encode_atomic_compare_exchange(
     append_mov_rax_r10(&mut bytes); // expected -> rax (CMPXCHG's implicit accumulator)
     append_pop_r10(&mut bytes); // restore new_value -> r10
     append_lock_cmpxchg_r10_to_r14(&mut bytes, target_offset, byte_size)?;
+    bytes.extend([0x49, 0x89, 0xc2]); // mov r10, rax (prior)
+    append_mov_r14_imm64(&mut bytes, 0); // result base (relocated independently)
+    append_store_r10_to_r14(&mut bytes, result_offset, byte_size)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_atomic_compare_exchange_width(
             runtime_value_operands,
             byte_size,
+            result_offset,
             expected,
             new_value
         )
@@ -14097,6 +14205,28 @@ fn append_store_r10_to_r14(
     Ok(())
 }
 
+fn append_xchg_r10_to_r14(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    match byte_size {
+        // XCHG with a memory operand is implicitly locked.
+        1 => bytes.extend([0x45, 0x86, 0x96]),
+        2 => bytes.extend([0x66, 0x45, 0x87, 0x96]),
+        4 => bytes.extend([0x45, 0x87, 0x96]),
+        8 => bytes.extend([0x4d, 0x87, 0x96]),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 MVP encoder cannot atomically exchange a {byte_size}-byte runtime value"
+            )));
+        }
+    }
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
 fn append_cmp_r10_r11(bytes: &mut Vec<u8>, byte_size: usize) -> Result<(), Diagnostic> {
     match byte_size {
         1 => bytes.extend([0x45, 0x38, 0xda]),
@@ -15317,6 +15447,65 @@ mod machine_control_tests {
 #[cfg(test)]
 mod atomic_tests {
     use super::*;
+
+    fn operands(
+        values: &[i64],
+    ) -> omega_core::arena::Arena<omega_target_operations::RuntimeValueOperand> {
+        let mut operands = omega_core::arena::Arena::default();
+        for value in values {
+            operands.insert(omega_target_operations::RuntimeValueOperand::Immediate(
+                *value,
+            ));
+        }
+        operands
+    }
+
+    #[test]
+    fn full_atomic_rmw_encoders_store_the_instruction_observed_prior() {
+        let operands = operands(&[5, 10, 99]);
+        let delta = RuntimeValueOperandHandle::from_parts(0, 1);
+        let expected = RuntimeValueOperandHandle::from_parts(1, 1);
+        let new_value = RuntimeValueOperandHandle::from_parts(2, 1);
+
+        let fetch = encode_atomic_fetch_add(&operands, 24, 4, 32, delta).unwrap();
+        let fetch_result_base = runtime_atomic_fetch_add_result_address_offset(&operands, 4, delta);
+        assert_eq!(
+            &fetch[fetch_result_base..fetch_result_base + 2],
+            &[0x49, 0xbe]
+        );
+        assert_eq!(&fetch[fetch.len() - 4..], &32i32.to_le_bytes());
+        assert_eq!(
+            fetch.len(),
+            runtime_atomic_fetch_add_width(&operands, 4, 32, delta)
+        );
+
+        let cas =
+            encode_atomic_compare_exchange(&operands, 24, 4, 40, expected, new_value).unwrap();
+        let cas_result_base = runtime_atomic_compare_exchange_result_address_offset(
+            &operands, 4, expected, new_value,
+        );
+        assert_eq!(
+            &cas[cas_result_base - 3..cas_result_base],
+            &[0x49, 0x89, 0xc2]
+        );
+        assert_eq!(&cas[cas_result_base..cas_result_base + 2], &[0x49, 0xbe]);
+        assert_eq!(&cas[cas.len() - 4..], &40i32.to_le_bytes());
+        assert_eq!(
+            cas.len(),
+            runtime_atomic_compare_exchange_width(&operands, 4, 40, expected, new_value)
+        );
+    }
+
+    #[test]
+    fn seq_cst_store_uses_implicitly_locked_xchg() {
+        let operands = operands(&[42]);
+        let value = RuntimeValueOperandHandle::from_parts(0, 1);
+        let relaxed = encode_atomic_store_from_operand(&operands, 8, 4, value, false).unwrap();
+        let seq_cst = encode_atomic_store_from_operand(&operands, 8, 4, value, true).unwrap();
+        assert_eq!(&relaxed[20..23], &[0x45, 0x89, 0x96]);
+        assert_eq!(&seq_cst[20..23], &[0x45, 0x87, 0x96]);
+        assert_eq!(relaxed.len(), seq_cst.len());
+    }
 
     #[test]
     fn lock_xadd_emits_lock_prefix_and_xadd_opcode() {

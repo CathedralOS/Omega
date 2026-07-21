@@ -201,8 +201,42 @@ pub(super) fn collect_runtime_storage_write_relocations(
             collect_runtime_value_operand_relocations(context, source_offset, *source);
             true
         }
+        SelectedInstructionKind::AtomicLoad {
+            source_region,
+            source_offset,
+            byte_size,
+            result_region,
+            ..
+        } => {
+            let source_symbol = context.storage_region_symbol_handle(*source_region);
+            context.insert_data_address_at_instruction_start(source_symbol);
+            let result_symbol = context.storage_region_symbol_handle(*result_region);
+            let result_address_offset =
+                omega_instruction_selection::runtime_atomic_load_result_address_offset(
+                    context.input.target.architecture,
+                    *source_offset,
+                    *byte_size,
+                );
+            context.insert_data_address_at_relative_offset(result_address_offset, result_symbol);
+            true
+        }
+        SelectedInstructionKind::AtomicStore {
+            target_region,
+            value,
+            ..
+        } => {
+            let target_symbol = context.storage_region_symbol_handle(*target_region);
+            context.insert_data_address_at_instruction_start(target_symbol);
+            let value_offset = context.selected_text_offset
+                + runtime_storage_binary_left_operand_offset(context.input.target.architecture);
+            collect_runtime_value_operand_relocations(context, value_offset, *value);
+            true
+        }
         SelectedInstructionKind::AtomicFetchAdd {
             target_region,
+            target_offset,
+            byte_size,
+            result_region,
             delta,
             ..
         } => {
@@ -214,10 +248,23 @@ pub(super) fn collect_runtime_storage_write_relocations(
             let delta_offset = context.selected_text_offset
                 + runtime_storage_binary_left_operand_offset(context.input.target.architecture);
             collect_runtime_value_operand_relocations(context, delta_offset, *delta);
+            let result_symbol = context.storage_region_symbol_handle(*result_region);
+            let result_address_offset =
+                omega_instruction_selection::runtime_atomic_fetch_add_result_address_offset(
+                    context.input.target.architecture,
+                    context.input.assigned_target_operations,
+                    *target_offset,
+                    *byte_size,
+                    *delta,
+                );
+            context.insert_data_address_at_relative_offset(result_address_offset, result_symbol);
             true
         }
         SelectedInstructionKind::AtomicCompareExchange {
             target_region,
+            target_offset,
+            byte_size,
+            result_region,
             expected,
             new_value,
             ..
@@ -243,6 +290,17 @@ pub(super) fn collect_runtime_storage_write_relocations(
                     context.input.target.architecture,
                 );
             collect_runtime_value_operand_relocations(context, expected_offset, *expected);
+            let result_symbol = context.storage_region_symbol_handle(*result_region);
+            let result_address_offset =
+                omega_instruction_selection::runtime_atomic_compare_exchange_result_address_offset(
+                    context.input.target.architecture,
+                    context.input.assigned_target_operations,
+                    *target_offset,
+                    *byte_size,
+                    *expected,
+                    *new_value,
+                );
+            context.insert_data_address_at_relative_offset(result_address_offset, result_symbol);
             true
         }
         SelectedInstructionKind::PortWrite { port, value } => {

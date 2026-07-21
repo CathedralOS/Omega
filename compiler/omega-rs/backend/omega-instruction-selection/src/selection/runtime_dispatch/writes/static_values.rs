@@ -176,6 +176,7 @@ pub(super) fn resolve_runtime_static_integer(
     static_values: &RuntimeStaticValues,
 ) -> Option<RuntimeStaticInteger> {
     match expression {
+        Expression::Atomic(_) => None,
         // Full 8-byte pattern: the literal-width gate guarantees an oversize
         // literal only reaches u64-classed (8-byte) targets, where these bits
         // ARE the value.
@@ -248,6 +249,7 @@ pub(super) fn resolve_runtime_static_integer_in_table(
     static_values: &RuntimeStaticValues,
 ) -> Option<RuntimeStaticInteger> {
     match expressions.expression(expression) {
+        ExpressionNode::Atomic(_) => None,
         ExpressionNode::Integer(value) => RuntimeStaticInteger::from_literal(value),
         ExpressionNode::Boolean(value) => Some(RuntimeStaticInteger::anonymous(i64::from(*value))),
         ExpressionNode::Name(_) => {
@@ -349,6 +351,7 @@ fn resolve_runtime_resolved_static_integer(
 ) -> Option<RuntimeStaticInteger> {
     let expression = strip_mutable_expression(expression);
     match expression {
+        Expression::Atomic(_) => None,
         // Full 8-byte pattern: the literal-width gate guarantees an oversize
         // literal only reaches u64-classed (8-byte) targets, where these bits
         // ARE the value.

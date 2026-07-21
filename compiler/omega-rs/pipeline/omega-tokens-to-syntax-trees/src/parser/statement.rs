@@ -1,5 +1,5 @@
 use crate::parse_error::ParseError;
-use crate::parser::expression::parse_expression_handle;
+use crate::parser::expression::{memory_ordering_from_expression, parse_expression_handle};
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::transition::parse_transition_block_target_handle;
 use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
@@ -8,10 +8,11 @@ use omega_core::inline_assembly::{
     AsmCatalogEntry, AsmInstructionAvailability, AsmInstructionRefusal, AsmInstructionShape,
     asm_catalog_entry,
 };
+use omega_core::literals::IntegerLiteral;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
-    TableIndexedExpression, TableMemberExpression,
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableAtomicExpression, TableBinaryExpression,
+    TableCallExpression, TableIndexedExpression, TableMemberExpression,
 };
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::statement::{
@@ -1011,7 +1012,7 @@ pub(super) fn try_parse_atomic_compare_exchange_let<'tokens, 'source>(
         .ok()?;
 
     // Check: is rhs a Call with target "compare_exchange" and exactly 4 args?
-    let (place_expr, expected_expr, new_val_expr) = {
+    let (place_expr, expected_expr, new_val_expr, success_ordering, failure_ordering) = {
         let ExpressionNode::Call(ref call) = *syntax_trees.expressions.expression(rhs) else {
             return None;
         };
@@ -1031,16 +1032,23 @@ pub(super) fn try_parse_atomic_compare_exchange_let<'tokens, 'source>(
             return None;
         }
         // arg 0 = expected, arg 1 = new_val, arg 2 = success_ord, arg 3 = fail_ord
-        (place, arg_handles[0], arg_handles[1])
+        let success = memory_ordering_from_expression(syntax_trees, arg_handles[2]).ok()?;
+        let failure = memory_ordering_from_expression(syntax_trees, arg_handles[3]).ok()?;
+        (place, arg_handles[0], arg_handles[1], success, failure)
     };
 
-    // Statement 1: `let name: type = place;`
+    // Reserve the result slot without reading the atomic place. The atomic
+    // instruction writes its observed prior value into this local; a separate
+    // ordinary read would race and could disagree with the RMW observation.
+    let zero = syntax_trees
+        .expressions
+        .insert(ExpressionNode::Integer(IntegerLiteral::zero()));
     let local_stmt = syntax_trees
         .statements
         .insert(StatementNode::LocalData(TableLocalData {
             name: name.clone(),
             type_reference,
-            initial_value: place_expr,
+            initial_value: zero,
             is_mutable: false,
         }));
     let first_handle = syntax_trees.items.append_statement_handle(local_stmt);
@@ -1093,6 +1101,15 @@ pub(super) fn try_parse_atomic_compare_exchange_let<'tokens, 'source>(
             left: prior_for_add,
             operator: BinaryOperator::Add,
             right: mul_expr,
+        }));
+    let add_expr = syntax_trees
+        .expressions
+        .insert(ExpressionNode::Atomic(TableAtomicExpression {
+            value: add_expr,
+            ordering: omega_core::atomic::AtomicOrderingPlan::CompareExchange {
+                success: success_ordering,
+                failure: failure_ordering,
+            },
         }));
 
     let place_for_assign = copy_expression_as_place(syntax_trees, place_expr)?;
@@ -1282,7 +1299,7 @@ pub(super) fn try_parse_atomic_fetch_add_let<'tokens, 'source>(
         .ok()?;
 
     // Check: is rhs a Call with target "fetch_add" and exactly 2 args?
-    let (place_expr, delta_expr) = {
+    let (place_expr, delta_expr, ordering) = {
         let ExpressionNode::Call(ref call) = *syntax_trees.expressions.expression(rhs) else {
             return None;
         };
@@ -1301,30 +1318,45 @@ pub(super) fn try_parse_atomic_fetch_add_let<'tokens, 'source>(
         if !place.is_valid() {
             return None;
         }
-        (place, arg_handles[0])
+        let ordering = memory_ordering_from_expression(syntax_trees, arg_handles[1]).ok()?;
+        (place, arg_handles[0], ordering)
     };
 
-    // Duplicate the place expression (needed for `place = place + delta`).
-    let place_copy = copy_expression_as_place(syntax_trees, place_expr)?;
-
-    // Statement 1: `let name: type = place;`
+    // Reserve the result slot without reading the atomic place. The atomic
+    // instruction writes its observed prior value into this local.
+    let zero = syntax_trees
+        .expressions
+        .insert(ExpressionNode::Integer(IntegerLiteral::zero()));
     let local_stmt = syntax_trees
         .statements
         .insert(StatementNode::LocalData(TableLocalData {
-            name,
+            name: name.clone(),
             type_reference,
-            initial_value: place_expr,
+            initial_value: zero,
             is_mutable: false,
         }));
     let first_handle = syntax_trees.items.append_statement_handle(local_stmt);
 
-    // Statement 2: `place = place + delta;`
+    // The wrapper makes the binary's left operand the instruction-result
+    // destination rather than an arithmetic source.
+    let result_name = {
+        let id = omega_syntax_trees::identifier::Identifier::generated(name.as_str());
+        let member = syntax_trees.expressions.append_identifier_path_member(id);
+        let path = HandleSpan::from_parts(member, 1);
+        syntax_trees.expressions.insert(ExpressionNode::Name(path))
+    };
     let add_expr = syntax_trees
         .expressions
         .insert(ExpressionNode::Binary(TableBinaryExpression {
-            left: place_copy,
+            left: result_name,
             operator: BinaryOperator::Add,
             right: delta_expr,
+        }));
+    let add_expr = syntax_trees
+        .expressions
+        .insert(ExpressionNode::Atomic(TableAtomicExpression {
+            value: add_expr,
+            ordering: omega_core::atomic::AtomicOrderingPlan::ReadModifyWrite(ordering),
         }));
     let place_for_assign = copy_expression_as_place(syntax_trees, place_expr)?;
     let assign_stmt = syntax_trees
@@ -1384,7 +1416,7 @@ fn try_desugar_atomic_store(
     syntax_trees: &mut SyntaxTrees,
     expression: ExpressionHandle,
 ) -> Option<TableAssignment> {
-    let ExpressionNode::Call(ref call) = *syntax_trees.expressions.expression(expression) else {
+    let ExpressionNode::Call(call) = syntax_trees.expressions.expression(expression).clone() else {
         return None;
     };
     if call.target.as_str() != "store" {
@@ -1400,12 +1432,18 @@ fn try_desugar_atomic_store(
         // call-statement or error path.
         return None;
     }
-    // The first argument is the value to store; the second is the ordering
-    // (accepted syntactically, ignored in codegen for now).
-    let value = syntax_trees
+    let arguments = syntax_trees
         .tables
         .expressions
-        .expression_handles(call.arguments)[0];
+        .expression_handles(call.arguments);
+    let value = arguments[0];
+    let ordering = memory_ordering_from_expression(syntax_trees, arguments[1]).ok()?;
+    let value = syntax_trees
+        .expressions
+        .insert(ExpressionNode::Atomic(TableAtomicExpression {
+            value,
+            ordering: omega_core::atomic::AtomicOrderingPlan::Store(ordering),
+        }));
     let receiver = call.receiver;
     // receiver must be a valid place expression (member/indexed path). If it
     // is not, `None` lets the statement parser continue normally.

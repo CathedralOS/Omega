@@ -203,24 +203,63 @@ pub(super) fn encode_machine_instruction_bytes(
             *trapping,
             *saturating,
         ),
+        SelectedInstructionKind::AtomicLoad {
+            source_offset,
+            byte_size,
+            result_offset,
+            ordering,
+            ..
+        } => runtime_storage::encode_atomic_load_to_storage(
+            input,
+            *source_offset,
+            *byte_size,
+            *result_offset,
+            *ordering,
+        ),
+        SelectedInstructionKind::AtomicStore {
+            target_offset,
+            byte_size,
+            value,
+            ordering,
+            ..
+        } => runtime_storage::encode_atomic_store_from_operand(
+            input,
+            *target_offset,
+            *byte_size,
+            *value,
+            *ordering,
+        ),
         SelectedInstructionKind::AtomicFetchAdd {
             target_offset,
             byte_size,
+            result_offset,
             delta,
+            ordering,
             ..
-        } => runtime_storage::encode_atomic_fetch_add(input, *target_offset, *byte_size, *delta),
+        } => runtime_storage::encode_atomic_fetch_add(
+            input,
+            *target_offset,
+            *byte_size,
+            *result_offset,
+            *delta,
+            *ordering,
+        ),
         SelectedInstructionKind::AtomicCompareExchange {
             target_offset,
             byte_size,
+            result_offset,
             expected,
             new_value,
+            ordering,
             ..
         } => runtime_storage::encode_atomic_compare_exchange(
             input,
             *target_offset,
             *byte_size,
+            *result_offset,
             *expected,
             *new_value,
+            *ordering,
         ),
         SelectedInstructionKind::AppendWireLiteralByte {
             out_offset,

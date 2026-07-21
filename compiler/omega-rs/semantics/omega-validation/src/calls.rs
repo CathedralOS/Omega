@@ -204,6 +204,7 @@ fn collect_expression_call_written_paths(
         )
     };
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => visit(atomic.value)?,
         ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {
                 visit(call.receiver)?;
@@ -1225,6 +1226,7 @@ fn expression_is_call_free(program: &TypedTrees, expression: ExpressionHandle) -
         return true;
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => expression_is_call_free(program, atomic.value),
         ExpressionNode::ArrayLiteral(values) => program
             .expression_table
             .expression_handles(*values)
@@ -2729,6 +2731,7 @@ fn collect_self_entry_call_arguments(
         collect_self_entry_call_arguments(program, entry_name, handle, found);
     };
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => recurse(atomic.value, found),
         ExpressionNode::Call(call) => {
             if is_self_entry_call(program, entry_name, call) {
                 found.push(call.arguments);
@@ -2956,6 +2959,7 @@ fn reject_embedded_self_calls(
         reject_embedded_self_calls(program, machine, entry_name, handle, diagnostics);
     };
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => recurse(atomic.value, diagnostics),
         ExpressionNode::Call(call) => {
             if is_self_entry_call(program, entry_name, call) {
                 diagnostics.push(Diagnostic::error(format!(
@@ -3438,6 +3442,17 @@ fn scan_expression_calls(
         )));
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => scan_expression_calls(
+            program,
+            machine,
+            state,
+            machine_symbols,
+            symbols,
+            writable_roots,
+            value_env,
+            atomic.value,
+            diagnostics,
+        ),
         ExpressionNode::Call(call) => {
             let call = call.clone();
             validate_expression_call_bounds(
@@ -4336,6 +4351,7 @@ fn first_non_builtin_call(
         return None;
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => first_non_builtin_call(program, atomic.value),
         ExpressionNode::Call(call) => {
             if !matches!(
                 call.target.as_str(),

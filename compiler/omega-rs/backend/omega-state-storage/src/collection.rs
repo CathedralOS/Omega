@@ -1409,6 +1409,9 @@ fn expression_takes_slice_view_of_symbol(
     local_name: &Identifier,
 ) -> bool {
     match expressions.expression(expression) {
+        ExpressionNode::Atomic(atomic) => {
+            expression_takes_slice_view_of_symbol(expressions, atomic.value, symbol, local_name)
+        }
         ExpressionNode::Call(call) => {
             (call.receiver.is_valid()
                 && (call.target.as_str() == "as_slice" || call.target.as_str() == "as_mut_slice")
@@ -1651,6 +1654,7 @@ fn expression_contains_call(
     expression: ExpressionHandle,
 ) -> bool {
     match expressions.expression(expression) {
+        ExpressionNode::Atomic(atomic) => expression_contains_call(expressions, atomic.value),
         ExpressionNode::Call(_) => true,
         ExpressionNode::Mutable(inner) => expression_contains_call(expressions, *inner),
         ExpressionNode::ArrayLiteral(items) => expressions
@@ -1794,6 +1798,7 @@ fn expression_uses_symbol_as_arithmetic_operand(
         expression_uses_symbol_as_arithmetic_operand(expressions, handle, symbol, local_name)
     };
     match expressions.expression(expression) {
+        ExpressionNode::Atomic(atomic) => recurse(atomic.value),
         ExpressionNode::Binary(binary) => {
             ((is_arithmetic_operator(binary.operator)
                 || is_comparison_operator(binary.operator)
@@ -1972,6 +1977,9 @@ fn expression_contains_mutating_call(
     expression: ExpressionHandle,
 ) -> bool {
     match expressions.expression(expression) {
+        ExpressionNode::Atomic(atomic) => {
+            expression_contains_mutating_call(expressions, atomic.value)
+        }
         ExpressionNode::Call(call) => {
             expressions
                 .expression_handles(call.arguments)
@@ -2296,6 +2304,9 @@ fn expression_uses_symbol_mutably(
     local_name: &Identifier,
 ) -> bool {
     match expressions.expression(expression) {
+        ExpressionNode::Atomic(atomic) => {
+            expression_uses_symbol_mutably(expressions, atomic.value, symbol, local_name)
+        }
         ExpressionNode::Mutable(inner) => {
             expression_references_symbol(expressions, *inner, symbol, local_name)
         }
@@ -2357,6 +2368,9 @@ fn expression_references_symbol(
     local_name: &Identifier,
 ) -> bool {
     match expressions.expression(expression) {
+        ExpressionNode::Atomic(atomic) => {
+            expression_references_symbol(expressions, atomic.value, symbol, local_name)
+        }
         ExpressionNode::Name(path) => {
             path.head_symbol == symbol
                 || expressions

@@ -1,15 +1,10 @@
 // RUN canary (ch17 "Atomics" / concurrency stage 1, M4): AtomicU32
 // compare_exchange.
 //
-// The parser still desugars `compare_exchange` to the read-modify-write integer
-// sequence `prior + (prior == expected) * (new - prior)` (so the INTERPRETER
-// computes the value directly), but native instruction selection now recognizes
-// that exact tree on an atomic-typed target and lowers it to a single real
-// atomic compare-and-swap: `LOCK CMPXCHG` on x86_64, `CASAL` on aarch64. The
-// CAS's returned prior is discarded -- the desugar's separate `let prior =
-// place` read supplies the value the guards below check. Atomic-CAS is therefore
-// real on both arches; like fetch_add, cross-thread observability still awaits
-// the scheduler. (See atomics-lock-foundation / TASKS.md.)
+// The parser carries the ordering, operands, and result place through a sealed
+// arithmetic-shaped frontend form. Native lowering recognizes that carrier and
+// emits one LOCK CMPXCHG / CAS*; the instruction-observed prior is written to
+// the result place. No separate ordinary read races the CAS.
 //
 // `let prior: T = place.compare_exchange(expected, new_val, succ_ord, fail_ord);`
 // returns the PRIOR value and conditionally swaps:
@@ -20,11 +15,12 @@
 // success by comparing `prior == expected`.  This mirrors x86 CMPXCHG's RAX
 // contract.
 //
-// Stage-1 desugar:
+// Frontend carrier:
 //   `let prior = place.compare_exchange(expected, new, s, f);`
 //   expands to:
-//     `let prior = place;`
-//     `place = prior + (prior == expected) * (new - prior);`
+//     `let prior = 0;`
+//     `place = atomic[CAS](prior + (prior == expected) * (new - prior));`
+// The carrier is opaque to algebraic simplification until instruction selection.
 //
 // Guard ladder (exits 70..76):
 //   -- SUCCESS path --

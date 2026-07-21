@@ -79,18 +79,58 @@ fn selected_instruction_name(
 ) -> String {
     let kind = &instruction.kind;
     match kind {
+        TargetOperationKind::AtomicLoad {
+            source_region,
+            source_offset,
+            byte_size,
+            result_region,
+            result_offset,
+            ordering,
+        } => format!(
+            "atomic load {source_region:?}[{source_offset}] ({byte_size}B) -> \
+             {result_region:?}[{result_offset}] ({})",
+            ordering.success().name()
+        ),
+        TargetOperationKind::AtomicStore {
+            target_region,
+            target_offset,
+            byte_size,
+            ordering,
+            ..
+        } => format!(
+            "atomic store {target_region:?}[{target_offset}] ({byte_size}B) ({})",
+            ordering.success().name()
+        ),
         TargetOperationKind::AtomicFetchAdd {
             target_region,
             target_offset,
             byte_size,
+            result_region,
+            result_offset,
+            ordering,
             ..
-        } => format!("atomic fetch_add {target_region:?}[{target_offset}] ({byte_size}B)"),
+        } => format!(
+            "atomic fetch_add {target_region:?}[{target_offset}] ({byte_size}B) -> \
+             {result_region:?}[{result_offset}] ({})",
+            ordering.success().name()
+        ),
         TargetOperationKind::AtomicCompareExchange {
             target_region,
             target_offset,
             byte_size,
+            result_region,
+            result_offset,
+            ordering,
             ..
-        } => format!("atomic compare_exchange {target_region:?}[{target_offset}] ({byte_size}B)"),
+        } => format!(
+            "atomic compare_exchange {target_region:?}[{target_offset}] ({byte_size}B) -> \
+             {result_region:?}[{result_offset}] (success {}, failure {})",
+            ordering.success().name(),
+            ordering
+                .failure()
+                .expect("compare_exchange operation carries a failure ordering")
+                .name()
+        ),
         TargetOperationKind::EnterFunction => "enter function".to_owned(),
         TargetOperationKind::WriteEntryArgumentRegister {
             register,

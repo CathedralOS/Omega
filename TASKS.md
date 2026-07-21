@@ -849,9 +849,11 @@ stronger operations it needs instead of citing machine parameters generally.
 - **Atomics remainder.** The closed ordering vocabulary and operation-specific
   legality rules now reject release-bearing loads, acquire-bearing stores,
   unknown names, and compare-exchange failure orderings that release or exceed
-  the success ordering. Complete exact ordering propagation into target
-  lowering, standalone fences, swap and the remaining fetch operations, and
-  the cross-activation proof model beyond the existing first-stage operations.
+  the success ordering. Load/store/fetch_add/compare_exchange now preserve their
+  normalized order through target lowering on x86_64 and aarch64; RMW returns
+  come from the atomic instruction itself, never a racing ordinary read.
+  Complete standalone fences, swap and the remaining fetch operations, and the
+  cross-activation proof model beyond these first operations.
 - **Proof engine.** Continue induction and proof-data support required by
   layouts, quotients, and Real.
 

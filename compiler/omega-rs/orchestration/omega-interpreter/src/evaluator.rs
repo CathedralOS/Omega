@@ -4456,6 +4456,7 @@ impl<'program> Evaluator<'program> {
         self.tick()?;
         let node = self.program.expression_table.expression(handle).clone();
         match node {
+            ExpressionNode::Atomic(atomic) => self.eval_expression(atomic.value, frame),
             ExpressionNode::Integer(value) => match value.bits_u64() {
                 // Value::Int carries the 8-byte two's-complement pattern; u64
                 // semantics ride the bits. The literal-width gate guarantees an

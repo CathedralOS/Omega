@@ -174,6 +174,10 @@ fn simplify_expression_with_bindings(
         return expression.clone();
     }
     match expression {
+        // Atomic wrappers contain a compiler-authored operation shape. Algebraic
+        // folding inside it can erase the result place or CAS operands before
+        // instruction selection, so the carrier is intentionally opaque here.
+        Expression::Atomic(_) => expression.clone(),
         Expression::ArrayLiteral(values) => Expression::ArrayLiteral(Arc::from(
             values
                 .iter()

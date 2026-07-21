@@ -14,6 +14,12 @@ pub(super) fn collect_dependency_paths_from_expression(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => collect_dependency_paths_from_expression(
+            program,
+            atomic.value,
+            self_type_symbol,
+            dependencies,
+        ),
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
                 collect_dependency_paths_from_expression(

@@ -23,6 +23,7 @@ pub(super) fn classify_guard_operand(
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_) => StateGuardOperandKind::Literal,
         ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Atomic(_)
         | ExpressionNode::Binary(_)
         | ExpressionNode::Cast(_)
         | ExpressionNode::Call(_)

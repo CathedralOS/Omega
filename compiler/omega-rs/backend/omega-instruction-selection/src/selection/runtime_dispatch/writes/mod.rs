@@ -668,6 +668,29 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
         }
     }
 
+    // Atomic load/store wrappers are semantic carriers, not transparent
+    // arithmetic. Select them before static folding or ordinary place copies
+    // can erase their ordering commitment.
+    if let Some(kind) = mutation::select_runtime_atomic_load_or_store_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        value_source_key,
+        statement_index,
+        expressions,
+        target,
+        value,
+        static_values,
+        runtime_value_operands,
+    ) {
+        selected_instructions.push(SelectedInstruction {
+            kind,
+            source_key: operation_source_key,
+            source_statement: statement_index,
+        });
+        return true;
+    }
+
     // A literal write records the target as a known constant for later folds.
     if let Some(kind) = mutation::select_runtime_static_mutation_write_in_table(
         input,

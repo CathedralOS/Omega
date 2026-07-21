@@ -145,6 +145,13 @@ fn collect_static_string_expression_data(
     data_plan: &mut TargetDataPlan,
 ) {
     match expressions.expression(expression) {
+        ExpressionNode::Atomic(atomic) => collect_static_string_expression_data(
+            expressions,
+            atomic.value,
+            source_key,
+            source_statement,
+            data_plan,
+        ),
         ExpressionNode::String(value) => {
             let offset = data_plan.bytes.len();
             let byte_span = if value.is_empty() {

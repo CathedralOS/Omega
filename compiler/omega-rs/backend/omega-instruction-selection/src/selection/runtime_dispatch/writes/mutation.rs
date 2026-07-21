@@ -5,6 +5,7 @@ mod operators;
 mod static_writes;
 mod value_operands;
 
+pub(in crate::selection::runtime_dispatch::writes) use binary_table_writes::select_runtime_atomic_load_or_store_in_table;
 pub(crate) use value_operands::resolve_runtime_value_operand_in_table;
 pub(in crate::selection::runtime_dispatch) use value_operands::{
     binary_value_operand_byte_width, binary_value_operands_are_float,
@@ -203,6 +204,13 @@ fn runtime_tree_call_occurrence_rank(
         rank: &mut usize,
     ) -> bool {
         match expression {
+            Expression::Atomic(atomic) => visit(
+                input,
+                &atomic.value,
+                target_call,
+                target_receiver_path,
+                rank,
+            ),
             Expression::ArrayLiteral(values) => values
                 .iter()
                 .any(|value| visit(input, value, target_call, target_receiver_path, rank)),
@@ -378,6 +386,17 @@ fn runtime_table_call_occurrence_rank(
         rank: &mut usize,
     ) -> bool {
         match expressions.expression(expression) {
+            ExpressionNode::Atomic(atomic) => visit(
+                input,
+                expressions,
+                source_key,
+                statement_index,
+                atomic.value,
+                target_call,
+                target,
+                target_receiver_path,
+                rank,
+            ),
             ExpressionNode::ArrayLiteral(values) => {
                 expressions.expression_handles(*values).iter().any(|value| {
                     visit(
@@ -2601,6 +2620,17 @@ fn select_runtime_binary_mutation_write(
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
+    let (value, atomic_ordering) = match value {
+        Expression::Atomic(atomic) => match atomic.ordering {
+            omega_core::atomic::AtomicOrderingPlan::ReadModifyWrite(_) => {
+                (&atomic.value, Some(atomic.ordering))
+            }
+            // Compare-exchange is selected from the authoritative table shape;
+            // never reinterpret its synthetic arithmetic as an ordinary write.
+            _ => return None,
+        },
+        value => (value, None),
+    };
     let (operator, left_expression, right_expression) = match value {
         Expression::Binary(binary) => (
             runtime_binary_operator(binary.operator)?,
@@ -2676,13 +2706,11 @@ fn select_runtime_binary_mutation_write(
         return None;
     };
 
-    // Atomic fetch_add: `atomic_field = atomic_field + delta` on an `Atomic*`
-    // field lowers to a single `LOCK xadd` (the prior value is captured by the
-    // desugar's preceding `let old = field`). Gated on an Add whose target is an
-    // atomic-typed place AND whose LEFT operand is that same place (a true
-    // self-increment); the `delta` is the right operand. Anything else falls
-    // through to the normal store, so a non-match can never miscompile.
-    if operator == StateGuardOperator::Add
+    // The Atomic wrapper makes the left operand the destination for the prior
+    // value returned by the RMW instruction. An unwrapped `target = target + x`
+    // remains an ordinary write even when the target's carrier is atomic.
+    if let Some(ordering) = atomic_ordering
+        && operator == StateGuardOperator::Add
         && runtime_storage_target_is_atomic(
             input,
             dispatch_index,
@@ -2697,7 +2725,7 @@ fn select_runtime_binary_mutation_write(
             source_state,
             resolved_target,
         )
-        && let Some(left_place) = resolve_runtime_storage_place(
+        && let Some(result_place) = resolve_runtime_storage_place(
             input,
             dispatch_index,
             value_source_key,
@@ -2705,15 +2733,16 @@ fn select_runtime_binary_mutation_write(
             source_state,
             left_expression,
         )
-        && left_place.region == target_place.region
-        && left_place.byte_offset == target_place.byte_offset
         && target_place.byte_count > 0
     {
         return Some(SelectedInstructionKind::AtomicFetchAdd {
             target_region: target_place.region,
             target_offset: target_place.byte_offset,
             byte_size: target_place.byte_count,
+            result_region: result_place.region,
+            result_offset: result_place.byte_offset,
             delta: right,
+            ordering,
         });
     }
 

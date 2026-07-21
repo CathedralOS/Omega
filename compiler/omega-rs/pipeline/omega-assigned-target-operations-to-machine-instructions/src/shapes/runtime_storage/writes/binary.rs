@@ -15,6 +15,8 @@ pub(super) fn selected_binary_write_kind(
         SelectedInstructionKind::WriteRuntimeStorageConvert { .. } => {
             Some(MachineInstructionKind::RuntimeStorageConvert)
         }
+        SelectedInstructionKind::AtomicLoad { .. } => Some(MachineInstructionKind::AtomicLoad),
+        SelectedInstructionKind::AtomicStore { .. } => Some(MachineInstructionKind::AtomicStore),
         SelectedInstructionKind::AtomicFetchAdd { .. } => {
             Some(MachineInstructionKind::AtomicFetchAdd)
         }

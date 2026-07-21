@@ -57,6 +57,17 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     .target
                     .insert(typed::expression::ExpressionNode::ArrayLiteral(values)))
             }
+            resolved::expression::ExpressionNode::Atomic(atomic) => {
+                let value = self.lower(atomic.value)?;
+                Ok(self
+                    .target
+                    .insert(typed::expression::ExpressionNode::Atomic(
+                        typed::expression::TableAtomicExpression {
+                            value,
+                            ordering: atomic.ordering,
+                        },
+                    )))
+            }
             resolved::expression::ExpressionNode::Binary(binary) => {
                 // `==`/`!=` on a conforming record / payload-bearing sum
                 // expands to synthesized structural equality (decision 11).

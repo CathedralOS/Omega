@@ -4,9 +4,10 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_symbol_resolved_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable, FloatLiteral,
-    TableBinaryExpression, TableCallExpression, TableCastExpression, TableIndexedExpression,
-    TableMemberExpression, TableMembershipExpression, TableNamePath, TableRangeExpression,
-    TableStructLiteral, TableStructLiteralField, TableUnaryExpression, UnaryOperator,
+    TableAtomicExpression, TableBinaryExpression, TableCallExpression, TableCastExpression,
+    TableIndexedExpression, TableMemberExpression, TableMembershipExpression, TableNamePath,
+    TableRangeExpression, TableStructLiteral, TableStructLiteralField, TableUnaryExpression,
+    UnaryOperator,
 };
 use omega_symbol_resolved_trees::name::DiagnosticName;
 use omega_syntax_trees as syntax;
@@ -48,6 +49,15 @@ fn lower_expression_node_into_table(
                 );
             }
             Ok(expressions.insert(ExpressionNode::ArrayLiteral(span)))
+        }
+        syntax::expression::ExpressionNode::Atomic(atomic) => {
+            let value = lower_expression_into_table(syntax_trees, expressions, atomic.value)?;
+            Ok(
+                expressions.insert(ExpressionNode::Atomic(TableAtomicExpression {
+                    value,
+                    ordering: atomic.ordering,
+                })),
+            )
         }
         syntax::expression::ExpressionNode::Binary(binary) => {
             let left = lower_expression_into_table(syntax_trees, expressions, binary.left)?;
