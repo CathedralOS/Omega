@@ -192,11 +192,32 @@ shadow space, stack alignment. Inbound entries additionally carry an independent
 and permitted transitive machine-state use. One evaluated boundary-entry plan
 feeds both derivers — the outbound call encoder and the inbound entry stub —
 so caller and callee agree by construction without confusing ABI placement with
-interrupted-state preservation. In practice no code names a convention: the
-`Binding` kind and satisfied requirement in
-the selected `ProviderPlan` implies it (`Syscall(n)` → the target's syscall plan,
-`DllImport`/`VtableSlot` → its C plan). A calling plan is auditable policy
-data, never an unchecked ABI string.
+interrupted-state preservation.
+
+A boundary requirement names its convention through the ordinary generic policy
+relationship `Calling<C>`, where `C` satisfies `CallingPolicy`. The policy's
+compile-time `plan` machine receives the normalized boundary signature and
+returns either `Accepted(BoundaryEntryPlan)` or a structured rejection. The
+compiler validates and canonicalizes accepted results. Only the canonical
+evaluated plan enters contract identity: neither the policy type's name nor the
+source body does. A source refactor that computes the same canonical plan is
+therefore ABI-invisible; a changed observable placement or machine-state promise
+is an ABI change.
+
+This relationship belongs to the requirement, not to a `Binding`. A syscall,
+DLL import, vtable slot, or provider realization must refine the convention the
+requirement already pinned; its mechanism does not silently select an ABI. A
+semantic boundary trait that is reusable across conventions can expose the
+policy as an ordinary type parameter, for example
+`boundary trait Console<C>: Calling<C> where C: CallingPolicy`. Concrete
+instantiations remain distinct boundary contracts, and one instantiation cannot
+mix conventions entry by entry.
+
+The requirement's canonical `CallPlan + StatePlan` is the published promise.
+Register allocation, emitted clobbers, and the final machine-state footprint are
+realization evidence checked against that promise; changing legal evidence
+revalidates the provider artifact without changing caller identity. A calling
+plan is auditable policy data, never an unchecked ABI string.
 
 The plan must cover argument placement, return placement, clobbers, stack
 alignment, and failure behavior — validated before any deriver trusts it.
