@@ -126,6 +126,15 @@ cross the common validator, canonicalize placement-fragment order before
 contract hashing, and are the only result that can produce published identity;
 policy rejection remains distinguishable from a malformed accepted plan for
 declaration-site diagnostics.
+The bundled `std::calling` module now exposes that closed signature, placement,
+register, entry-control, and machine-state vocabulary to ordinary policy
+authors. A policy implementation satisfying `CallingPolicy::plan` can already
+be invoked through the compiler's purity-gated build-time interpreter: the
+compiler materializes `BoundarySignature`, decodes the complete result, and
+returns only a validated canonical plan. Focused end-to-end coverage exercises
+signature-dependent acceptance and structured rejection. Automatic discovery
+from each boundary `Calling<C>` relationship and publication of the resulting
+fingerprint remain in ENT2b.
 
 1. **ENT2b — source policy evaluation and identity.** Implement the settled
    `CallingPolicy::plan(BoundarySignature) -> BoundaryPlanResult` relationship.
