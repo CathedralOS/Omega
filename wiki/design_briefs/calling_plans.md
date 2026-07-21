@@ -309,7 +309,7 @@ register fragments. Fixed non-HFA AAPCS64 records up to 16 bytes now follow the
 normalized consecutive-`x`/whole-value-stack rule, including even-register
 rounding
 for 16-byte alignment; normalized small-aggregate result plans use `x0`/`x1`.
-Provides-authored outbound calls preserve the same small non-HFA record as one
+`Binding`-authored outbound calls preserve the same small non-HFA record as one
 by-value operand: emission loads every planned consecutive `x` fragment or
 copies the whole value into the plan's aligned outgoing stack fragments.
 Small aggregate entry results and outbound result stores consume their
@@ -402,7 +402,7 @@ ceiling containing every fixed caller-saved X/V scratch register used by the
 encoder family. A future policy or evaluator change therefore fails before
 emission instead of silently preserving only the placement projection.
 
-Provides-authored scalar-float imports retain their float result shape,
+`Binding`-authored scalar-float imports retain their float result shape,
 consume the plan-selected `v` result register, and move its raw bits through a
 relocated scalar store. The float result operand's ordinary width already
 equals that store tail, while the result page fixup explicitly accounts for
@@ -430,7 +430,8 @@ a concrete trait argument tuple. Each such instance resolves its policy and
 forwarded signature types independently; provider schemas recover that same
 tuple, while only the evaluated plan fingerprint enters their public identity.
 The canonical call plan itself remains internal lowering evidence. Provider
-selection now carries it through authored `provides`/`via` rows into the host
+selection now carries it through authored `via` leaves (and the remaining
+legacy `provides` rows) into the host
 binding without adding policy source identity to the schema. On x86-64,
 authored imports use the retained plan directly for emission, width, and both
 call and data relocation layout; supplied operand shapes are checked again at
@@ -447,7 +448,7 @@ the source plan. Emission, layout, and data relocation consume that one plan on
 x86-64 and AArch64. Consequently a source-selected SysV indirect call remains
 SysV even in a PE image, and AArch64 field calls preserve exact non-receiver
 register and outgoing-stack placements.
-Provides-authored syscall bindings likewise consume their retained Linux
+`Binding`-authored syscall leaves likewise consume their retained Linux
 syscall plan rather than re-evaluating one from the CPU architecture. The
 encoder rechecks the word signature and syscall contract, then uses the exact
 parameter registers, number register, and supervisor-call immediate on x86-64

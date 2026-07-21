@@ -1,11 +1,9 @@
 // PRV4 step 1c: an EXTERNAL LEAF feeds the host-ABI merge -- the row
-// derived from `satisfies ... via` reaches the SAME general-import lowering
-// as an authored provides row (verified: both compile to the identical call
-// shape; Mach-O symbols are the _-prefixed spellings). COMPILE-scoped: the
+// derived from `satisfies ... via` reaches the general-import lowering
+// (Mach-O symbols are the _-prefixed spellings). COMPILE-scoped: the
 // general import path has a PRE-EXISTING argument-marshaling gap (the
-// authored-row twin also loses the argument -- see
-// pending/providers/import_call_argument_lost), so the runtime exit pins
-// land with that fix, not here.
+// old compatibility-row twin also lost the argument; the runtime exit pins
+// landed with that fix rather than in this structural canary.
 boundary trait Leaf {
     machine exit(code: i32) -> i32;
 }
