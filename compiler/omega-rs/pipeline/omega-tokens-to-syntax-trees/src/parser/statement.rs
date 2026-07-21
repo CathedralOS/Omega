@@ -93,8 +93,8 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
     // ATOMICS STAGE 1 (ch17, M2): `atomic_place.store(value, ordering);` is
     // desugared here into `atomic_place = value;`. The postfix parser keeps
     // the Call node intact (target="store", 2 arguments) so we can detect it.
-    // On x86_64 all orderings currently lower to a plain aligned `mov` -- see
-    // the postfix.rs comment for the SeqCst / mfence frontier.
+    // The postfix parser has already rejected orderings that stores cannot
+    // express. Exact target ordering strength remains a lowering obligation.
     if let Some(assignment) = try_desugar_atomic_store(syntax_trees, expression) {
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         return Ok((
@@ -944,7 +944,7 @@ fn parse_local_data_statement_handle<'tokens, 'source>(
 
 /// ATOMICS STAGE 1 (ch17, M2): Recognise `atomic_place.store(value, ordering)`
 /// -- a Call expression with target name `"store"` and exactly two arguments
-/// (the value to write and the ordering identifier) -- and desugar it into an
+/// (the value to write and a validated ordering identifier) -- and desugar it into an
 /// Assignment of the receiver place to the first argument. Returns `None` for
 /// any other expression, leaving it to the normal statement paths.
 /// ATOMICS STAGE 1 (ch17, M3): Try to parse and expand

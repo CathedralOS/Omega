@@ -1,9 +1,9 @@
 // RUN canary (ch17 "Atomics" / concurrency stage 1, M2): AtomicU32 store then
 // load round-trips correctly. `store(value, Relaxed)` writes the value;
-// `load(Relaxed)` reads it back. On x86_64 all orderings up to AcqRel lower
-// to a plain aligned `mov` -- the C11 memory model allows this because x86
-// Total Store Order already provides acquire-release without extra fences.
-// SeqCst store would require `xchg` or `mfence+mov` (documented frontier).
+// `load(Relaxed)` reads it back. On x86_64 this Relaxed pair lowers to plain
+// aligned `mov`; the ordering validator separately rejects operation/order
+// combinations that have no meaning. Exact SeqCst store realization remains a
+// documented lowering frontier (`xchg` or an equivalent sequence).
 //
 // Guard ladder: load result matches stored value (exit 70), or exits 71
 // on mismatch (should never fire on a correct implementation).

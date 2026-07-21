@@ -348,7 +348,7 @@ data TicketLine {
 }
 
 machine TicketLine::take(&mut self) -> u32 {
-    self.next_ticket.fetch_add(1, Ordering::Relaxed)
+    self.next_ticket.fetch_add(1, Relaxed)
 }
 ```
 
@@ -359,6 +359,11 @@ Working rules:
 - Every operation names its ordering: `Relaxed`, `Acquire`, `Release`,
   `AcqRel`, `SeqCst` -- the C11/Rust vocabulary, because hardware, existing
   literature, and audit expectations all speak it.
+- Operation legality is checked before lowering: loads allow
+  `Relaxed | Acquire | SeqCst`; stores allow `Relaxed | Release | SeqCst`;
+  read-modify-write success orderings allow the full vocabulary. A
+  `compare_exchange` failure ordering performs only a load, so it cannot be
+  `Release`/`AcqRel` or stronger than the success ordering.
 - The operation set is load, store, swap, `compare_exchange` (with separate
   success/failure orderings), and the fetch-and-modify family.
 - Atomics are exempt from the exclusive-`&mut` aliasing rule by their

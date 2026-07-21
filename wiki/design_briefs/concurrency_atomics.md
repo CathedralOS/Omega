@@ -1,6 +1,6 @@
 # Design Brief: Concurrency And Atomics
 
-Current as of 2026-07-18. This brief records the surviving concurrency model
+Current as of 2026-07-20. This brief records the surviving concurrency model
 after decisions 20–22 and the task-runtime settlement. Chapter 18 is the
 user-facing authority; the detailed lifecycle record is
 [task_runtime_and_lifecycle.md](task_runtime_and_lifecycle.md). The suspension
@@ -91,13 +91,16 @@ shared-access operation.
 
 Omega adopts the C11/Rust ordering vocabulary and SC-DRF model:
 `Relaxed`, `Acquire`, `Release`, `AcqRel`, and `SeqCst`. Atomic operations name
-their ordering. Stage-1 atomic operations and the memory model are landed; the
-remainder is engineering.
+their ordering. Source validation now treats those names as a closed vocabulary:
+loads admit `Relaxed | Acquire | SeqCst`, stores admit
+`Relaxed | Release | SeqCst`, and compare-exchange failure ordering may neither
+release nor be stronger than its success ordering. Stage-1 atomic operations
+and the memory model are landed; exact target realization remains engineering.
 
 Still required:
 
 - the full load/store/swap/fetch/compare-exchange surface;
-- separate success/failure ordering validation;
+- exact ordering propagation through normalized operations and target lowering;
 - standalone fences and target lowering proofs;
 - cross-activation ownership/borrow/access enforcement independent of `[copy]`;
 - volatile/MMIO types and ordering contracts;

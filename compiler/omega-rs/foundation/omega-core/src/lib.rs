@@ -1,6 +1,7 @@
 pub mod allocations;
 pub mod arena;
 pub mod arithmetic;
+pub mod atomic;
 pub mod bignum;
 pub mod byte_predicates;
 pub mod cast_form;
