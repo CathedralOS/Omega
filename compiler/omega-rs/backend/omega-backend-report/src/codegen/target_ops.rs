@@ -127,6 +127,19 @@ fn selected_instruction_name(
              {result_region:?}[{result_offset}] ({})",
             ordering.success().name()
         ),
+        TargetOperationKind::AtomicFetchXor {
+            target_region,
+            target_offset,
+            byte_size,
+            result_region,
+            result_offset,
+            ordering,
+            ..
+        } => format!(
+            "atomic fetch_xor {target_region:?}[{target_offset}] ({byte_size}B) -> \
+             {result_region:?}[{result_offset}] ({})",
+            ordering.success().name()
+        ),
         TargetOperationKind::AtomicSwap {
             target_region,
             target_offset,

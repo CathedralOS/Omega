@@ -369,6 +369,7 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::AtomicStore { .. }
                     | SelectedInstructionKind::AtomicFetchAdd { .. }
                     | SelectedInstructionKind::AtomicFetchSub { .. }
+                    | SelectedInstructionKind::AtomicFetchXor { .. }
                     | SelectedInstructionKind::AtomicSwap { .. }
                     | SelectedInstructionKind::HostOperation { .. }
                     | SelectedInstructionKind::AtomicCompareExchange { .. }

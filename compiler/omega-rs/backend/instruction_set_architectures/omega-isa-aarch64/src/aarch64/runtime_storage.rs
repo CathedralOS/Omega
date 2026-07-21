@@ -22,7 +22,7 @@ use super::primitives::{
     encode_float_convert_double_to_single, encode_float_convert_single_to_double,
     encode_float_divide, encode_float_move_from_gpr, encode_float_move_to_gpr,
     encode_float_multiply, encode_float_sqrt, encode_float_subtract, encode_float_to_signed_int,
-    encode_float_to_unsigned_int, encode_ldadd, encode_load_byte_w_from_x,
+    encode_float_to_unsigned_int, encode_ldadd, encode_ldeor, encode_load_byte_w_from_x,
     encode_load_byte_w_post_increment, encode_load_w_from_x, encode_load_x_from_x,
     encode_lslv_w_register, encode_lslv_x_register, encode_lsrv_w_register, encode_lsrv_x_register,
     encode_move_w_register, encode_move_x_register, encode_movz, encode_movz_w,
@@ -339,6 +339,83 @@ pub fn runtime_atomic_fetch_sub_result_address_offset(
     delta: RuntimeValueOperandHandle,
 ) -> usize {
     runtime_atomic_fetch_add_result_address_offset(runtime_value_operands, target_offset, delta) + 4
+}
+
+pub fn encode_atomic_fetch_xor(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    result_offset: usize,
+    value: RuntimeValueOperandHandle,
+    ordering: omega_core::atomic::MemoryOrdering,
+) -> Result<Vec<u8>, Diagnostic> {
+    if target_offset > 4095 {
+        return Err(Diagnostic::error(format!(
+            "AArch64 atomic fetch_xor target offset `{target_offset}` exceeds the \
+             single-instruction ADD immediate range (4095)"
+        )));
+    }
+    let mut bytes = Vec::with_capacity(runtime_atomic_fetch_xor_width(
+        runtime_value_operands,
+        target_offset,
+        byte_size,
+        result_offset,
+        value,
+    ));
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_runtime_value_operand(
+        runtime_value_operands,
+        &mut bytes,
+        17,
+        RUNTIME_VALUE_LEFT_SCRATCH_REGISTERS,
+        value,
+    )?;
+    append_add_x_constant(&mut bytes, 16, 16, target_offset, 19)?;
+    bytes.extend(encode_ldeor(byte_size, 17, 26, 16, ordering)?);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_add_constant_to_x_register(&mut bytes, 16, result_offset)?;
+    match byte_size {
+        1 | 2 | 4 => bytes.extend(encode_store_w_to_x(26, 16, 0, byte_size)?),
+        8 => bytes.extend(encode_store_x_to_x(26, 16, 0)?),
+        _ => unreachable!("fetch_xor width validated before LDEOR"),
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_atomic_fetch_xor_width(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            result_offset,
+            value
+        )
+    );
+    Ok(bytes)
+}
+
+pub fn runtime_atomic_fetch_xor_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    result_offset: usize,
+    value: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_atomic_fetch_add_width(
+        runtime_value_operands,
+        target_offset,
+        byte_size,
+        result_offset,
+        value,
+    )
+}
+
+pub fn runtime_atomic_fetch_xor_result_address_offset(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    value: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_atomic_fetch_add_result_address_offset(runtime_value_operands, target_offset, value)
 }
 
 pub fn encode_atomic_swap(
@@ -5960,6 +6037,34 @@ mod tests {
             u32::from_le_bytes(bytes[atomic_end - 4..atomic_end].try_into().unwrap()),
             0xB8F1_021A,
             "fetch_sub must emit LDADDAL w17,w26,[x16]"
+        );
+    }
+
+    #[test]
+    fn atomic_fetch_xor_uses_ordered_ldeor_and_returns_prior() {
+        use omega_core::arena::Arena;
+        use omega_target_operations::RuntimeValueOperand;
+
+        let mut operands: Arena<RuntimeValueOperand> = Arena::default();
+        let value = operands.insert(RuntimeValueOperand::Immediate(12));
+        let bytes = encode_atomic_fetch_xor(
+            &operands,
+            0,
+            4,
+            24,
+            value,
+            omega_core::atomic::MemoryOrdering::AcqRel,
+        )
+        .expect("encode");
+        assert_eq!(
+            bytes.len(),
+            runtime_atomic_fetch_xor_width(&operands, 0, 4, 24, value)
+        );
+        let atomic_end = runtime_atomic_fetch_xor_result_address_offset(&operands, 0, value);
+        assert_eq!(
+            u32::from_le_bytes(bytes[atomic_end - 4..atomic_end].try_into().unwrap()),
+            0xB8F1_221A,
+            "fetch_xor must emit LDEORAL w17,w26,[x16]"
         );
     }
 

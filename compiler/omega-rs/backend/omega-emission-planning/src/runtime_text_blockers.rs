@@ -114,6 +114,7 @@ fn state_value_has_planned_storage_write(
                         | SelectedInstructionKind::AtomicStore { .. }
                         | SelectedInstructionKind::AtomicFetchAdd { .. }
                         | SelectedInstructionKind::AtomicFetchSub { .. }
+                        | SelectedInstructionKind::AtomicFetchXor { .. }
                         | SelectedInstructionKind::AtomicSwap { .. }
                         | SelectedInstructionKind::HostOperation { .. }
                         // The console byte-op composites consume a RESOLVED

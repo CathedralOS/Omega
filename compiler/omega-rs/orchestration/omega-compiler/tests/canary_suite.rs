@@ -36992,6 +36992,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "atomics/runtime_atomic_load_store_exit",
     "atomics/runtime_atomic_fetch_add_exit",
     "atomics/runtime_atomic_fetch_sub_exit",
+    "atomics/runtime_atomic_fetch_xor_exit",
     "atomics/runtime_atomic_swap_exit",
     "atomics/runtime_atomic_compare_exchange_exit",
 ];
@@ -37821,6 +37822,61 @@ fn runtime_atomic_fetch_sub_exit_canary_runs() {
     assert!(
         elf.windows(4).any(|word| word == [0x1a, 0x02, 0xf1, 0xb8]),
         "arm64 fetch_sub must contain LDADDAL w17,w26,[x16]"
+    );
+    let _ = fs::remove_dir_all(&arm_source);
+    let _ = fs::remove_dir_all(&arm_dir);
+}
+
+#[test]
+fn runtime_atomic_fetch_xor_exit_canary_runs() {
+    let canary = pass_canary("atomics/runtime_atomic_fetch_xor_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-atomic-fetch-xor-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path.clone(),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("atomic fetch_xor canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("atomic fetch_xor canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected fetch_xor 10^12=6 then 6^15=9; got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+
+    let arm_source = std::env::temp_dir().join(format!(
+        "omega-atomic-fetch-xor-arm-source-{}",
+        std::process::id()
+    ));
+    let arm_dir =
+        std::env::temp_dir().join(format!("omega-atomic-fetch-xor-arm-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&arm_source);
+    let _ = fs::remove_dir_all(&arm_dir);
+    fs::create_dir_all(&arm_source).expect("create arm64 fetch_xor source directory");
+    fs::copy(&main_path, arm_source.join("main.omg")).expect("copy arm64 fetch_xor source");
+    fs::write(arm_source.join("build.omg"), "target linux_arm64 {\n}\n")
+        .expect("write arm64 fetch_xor target frontier");
+    compile(CompileOptions {
+        root_path: arm_source.join("main.omg"),
+        build_dir: Some(arm_dir.clone()),
+        target_name: Some("linux_arm64".to_owned()),
+        write_output: true,
+    })
+    .expect("atomic fetch_xor canary should cross-compile for linux_arm64");
+    let elf = fs::read(arm_dir.join("omega-program")).expect("arm64 fetch_xor ELF should exist");
+    assert!(
+        elf.windows(4).any(|word| word == [0x1a, 0x22, 0xf1, 0xb8]),
+        "arm64 fetch_xor must contain LDEORAL w17,w26,[x16]"
     );
     let _ = fs::remove_dir_all(&arm_source);
     let _ = fs::remove_dir_all(&arm_dir);

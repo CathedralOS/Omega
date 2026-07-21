@@ -1,0 +1,61 @@
+// RUN canary: AtomicU32 fetch_xor returns the instruction-observed prior and
+// atomically XORs the cell. X86_64 uses a locked CMPXCHG retry loop because it
+// has no direct fetch-XOR instruction; AArch64 uses ordering-selected LDEOR.
+
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    counter: AtomicU32;
+}
+
+machine Main::main(&mut self) {
+    self.counter.store(10, Relaxed);
+    let prior: u32 = self.counter.fetch_xor(12, AcqRel);
+    transition prior == 10 {
+        true -> check_first_value()
+        false -> bad_first_prior()
+    }
+
+    state check_first_value(&mut self) {
+        transition self.counter == 6 {
+            true -> do_second_xor()
+            false -> bad_first_value()
+        }
+    }
+
+    state do_second_xor(&mut self) {
+        let prior2: u32 = self.counter.fetch_xor(15, Relaxed);
+        transition prior2 == 6 {
+            true -> check_second_value()
+            false -> bad_second_prior()
+        }
+    }
+
+    state check_second_value(&mut self) {
+        transition self.counter == 9 {
+            true -> good()
+            false -> bad_second_value()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad_first_prior(&mut self) {
+        self.console.exit_process(71);
+    }
+
+    state bad_first_value(&mut self) {
+        self.console.exit_process(72);
+    }
+
+    state bad_second_prior(&mut self) {
+        self.console.exit_process(73);
+    }
+
+    state bad_second_value(&mut self) {
+        self.console.exit_process(74);
+    }
+}

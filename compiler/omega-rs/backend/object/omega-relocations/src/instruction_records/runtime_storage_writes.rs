@@ -285,6 +285,31 @@ pub(super) fn collect_runtime_storage_write_relocations(
             context.insert_data_address_at_relative_offset(result_address_offset, result_symbol);
             true
         }
+        SelectedInstructionKind::AtomicFetchXor {
+            target_region,
+            target_offset,
+            byte_size,
+            result_region,
+            value,
+            ..
+        } => {
+            let target_symbol = context.storage_region_symbol_handle(*target_region);
+            context.insert_data_address_at_instruction_start(target_symbol);
+            let value_offset = context.selected_text_offset
+                + runtime_storage_binary_left_operand_offset(context.input.target.architecture);
+            collect_runtime_value_operand_relocations(context, value_offset, *value);
+            let result_symbol = context.storage_region_symbol_handle(*result_region);
+            let result_address_offset =
+                omega_instruction_selection::runtime_atomic_fetch_xor_result_address_offset(
+                    context.input.target.architecture,
+                    context.input.assigned_target_operations,
+                    *target_offset,
+                    *byte_size,
+                    *value,
+                );
+            context.insert_data_address_at_relative_offset(result_address_offset, result_symbol);
+            true
+        }
         SelectedInstructionKind::AtomicSwap {
             target_region,
             target_offset,
