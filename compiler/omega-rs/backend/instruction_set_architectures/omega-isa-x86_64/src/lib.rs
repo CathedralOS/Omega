@@ -11328,6 +11328,51 @@ pub fn encode_atomic_fetch_add(
     Ok(bytes)
 }
 
+pub fn runtime_atomic_fetch_sub_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
+    _result_offset: usize,
+    delta: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_atomic_fetch_add_width(runtime_value_operands, byte_size, 0, delta)
+        + negate_r10_width(byte_size)
+}
+
+pub fn runtime_atomic_fetch_sub_result_address_offset(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
+    delta: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_atomic_fetch_add_result_address_offset(runtime_value_operands, byte_size, delta)
+        + negate_r10_width(byte_size)
+}
+
+pub fn encode_atomic_fetch_sub(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    result_offset: usize,
+    delta: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_atomic_fetch_sub_width(
+        runtime_value_operands,
+        byte_size,
+        result_offset,
+        delta,
+    ));
+    append_mov_r14_imm64(&mut bytes, 0);
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, delta)?;
+    append_negate_r10(&mut bytes, byte_size)?;
+    append_lock_xadd_r10_to_r14(&mut bytes, target_offset, byte_size)?;
+    append_mov_r14_imm64(&mut bytes, 0);
+    append_store_r10_to_r14(&mut bytes, result_offset, byte_size)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_atomic_fetch_sub_width(runtime_value_operands, byte_size, result_offset, delta)
+    );
+    Ok(bytes)
+}
+
 pub fn runtime_atomic_swap_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     byte_size: usize,
@@ -14470,6 +14515,32 @@ fn lock_xadd_r10_to_r14_width(byte_size: usize) -> usize {
     opcode + 4
 }
 
+/// Negate r10 at the atomic operand width. XADD then adds this truncated
+/// two's-complement value, implementing wrapping fetch_sub while leaving the
+/// prior memory value in r10.
+fn append_negate_r10(bytes: &mut Vec<u8>, byte_size: usize) -> Result<(), Diagnostic> {
+    match byte_size {
+        1 => bytes.extend([0x41, 0xf6, 0xda]),
+        2 => bytes.extend([0x66, 0x41, 0xf7, 0xda]),
+        4 => bytes.extend([0x41, 0xf7, 0xda]),
+        8 => bytes.extend([0x49, 0xf7, 0xda]),
+        other => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 encoder cannot negate a {other}-byte atomic operand"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn negate_r10_width(byte_size: usize) -> usize {
+    match byte_size {
+        2 => 4,
+        1 | 4 | 8 => 3,
+        _ => 3,
+    }
+}
+
 /// `LOCK CMPXCHG [r14+disp32], r10`: compare rax with the place; if equal store
 /// r10 (ZF=1), else load the place into rax (ZF=0). Identical layout to
 /// `append_lock_xadd_r10_to_r14` but with the CMPXCHG opcode (`0F B1`, or
@@ -15559,6 +15630,29 @@ mod atomic_tests {
             runtime_atomic_fetch_add_width(&operands, 4, 32, delta)
         );
 
+        let fetch_sub = encode_atomic_fetch_sub(&operands, 24, 4, 34, delta).unwrap();
+        let fetch_sub_result_base =
+            runtime_atomic_fetch_sub_result_address_offset(&operands, 4, delta);
+        assert_eq!(
+            &fetch_sub[20..23],
+            &[0x41, 0xf7, 0xda],
+            "fetch_sub must negate r10d before the atomic XADD"
+        );
+        assert_eq!(
+            &fetch_sub[23..28],
+            &[0xf0, 0x45, 0x0f, 0xc1, 0x96],
+            "fetch_sub must retain the locked XADD RMW"
+        );
+        assert_eq!(
+            &fetch_sub[fetch_sub_result_base..fetch_sub_result_base + 2],
+            &[0x49, 0xbe]
+        );
+        assert_eq!(&fetch_sub[fetch_sub.len() - 4..], &34i32.to_le_bytes());
+        assert_eq!(
+            fetch_sub.len(),
+            runtime_atomic_fetch_sub_width(&operands, 4, 34, delta)
+        );
+
         let swap = encode_atomic_swap(&operands, 24, 4, 36, new_value).unwrap();
         let swap_result_base = runtime_atomic_swap_result_address_offset(&operands, 4, new_value);
         assert_eq!(
@@ -15628,6 +15722,18 @@ mod atomic_tests {
             assert_eq!(bytes[rex_index + 3], 0x96, "ModRM [r14+disp32], r10");
             // disp32 little-endian tail.
             assert_eq!(&bytes[rex_index + 4..], &0x18i32.to_le_bytes());
+
+            let mut negation = Vec::new();
+            append_negate_r10(&mut negation, byte_size).expect("encode negate");
+            let expected: &[u8] = match byte_size {
+                1 => &[0x41, 0xf6, 0xda],
+                2 => &[0x66, 0x41, 0xf7, 0xda],
+                4 => &[0x41, 0xf7, 0xda],
+                8 => &[0x49, 0xf7, 0xda],
+                _ => unreachable!(),
+            };
+            assert_eq!(negation, expected, "width-specific NEG r10 encoding");
+            assert_eq!(negation.len(), negate_r10_width(byte_size));
         }
     }
 

@@ -1,0 +1,62 @@
+// RUN canary: AtomicU32 fetch_sub returns the instruction-observed prior and
+// subtracts with the atomic operand width. Native lowering negates the operand
+// at that width and uses one LOCK XADD / LDADDAL; it never races a separate
+// ordinary read against the RMW.
+
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    counter: AtomicU32;
+}
+
+machine Main::main(&mut self) {
+    self.counter.store(42, Relaxed);
+    let prior: u32 in Wrapping = self.counter.fetch_sub(12, AcqRel);
+    transition prior == 42 {
+        true -> check_value()
+        false -> bad_prior()
+    }
+
+    state check_value(&mut self) {
+        transition self.counter == 30 {
+            true -> do_wrapping_subtract()
+            false -> bad_value()
+        }
+    }
+
+    state do_wrapping_subtract(&mut self) {
+        let prior2: u32 in Wrapping = self.counter.fetch_sub(31, Relaxed);
+        transition prior2 == 30 {
+            true -> check_wrapped_value()
+            false -> bad_wrapping_prior()
+        }
+    }
+
+    state check_wrapped_value(&mut self) {
+        transition self.counter == 4294967295 {
+            true -> good()
+            false -> bad_wrapped_value()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad_prior(&mut self) {
+        self.console.exit_process(71);
+    }
+
+    state bad_value(&mut self) {
+        self.console.exit_process(72);
+    }
+
+    state bad_wrapping_prior(&mut self) {
+        self.console.exit_process(73);
+    }
+
+    state bad_wrapped_value(&mut self) {
+        self.console.exit_process(74);
+    }
+}

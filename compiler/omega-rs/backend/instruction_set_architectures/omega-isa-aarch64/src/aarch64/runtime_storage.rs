@@ -32,9 +32,9 @@ use super::primitives::{
     encode_sign_extend_halfword_to_x, encode_sign_extend_word_to_x, encode_signed_int_to_float,
     encode_smulh_x, encode_store_byte_w_post_increment, encode_store_byte_w_to_x,
     encode_store_w_to_x, encode_store_w17_to_x16, encode_store_x_to_x, encode_store_x17_to_x16,
-    encode_sub_x_register, encode_subs_x_immediate, encode_subs_x_register, encode_swp,
-    encode_udiv_w_register, encode_udiv_x_register, encode_umulh_x, encode_unconditional_branch,
-    encode_zero_extend_byte_to_w, encode_zero_extend_halfword_to_w,
+    encode_sub_w_register, encode_sub_x_register, encode_subs_x_immediate, encode_subs_x_register,
+    encode_swp, encode_udiv_w_register, encode_udiv_x_register, encode_umulh_x,
+    encode_unconditional_branch, encode_zero_extend_byte_to_w, encode_zero_extend_halfword_to_w,
 };
 use super::widths::{
     add_constant_width, runtime_frame_base_indexed_address_to_runtime_frame_write_width,
@@ -251,6 +251,94 @@ pub fn runtime_atomic_fetch_add_result_address_offset(
 ) -> usize {
     let address_add = if target_offset == 0 { 0 } else { 4 };
     8 + runtime_value_operand_width(runtime_value_operands, delta) + address_add + 4
+}
+
+pub fn encode_atomic_fetch_sub(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    result_offset: usize,
+    delta: RuntimeValueOperandHandle,
+    ordering: omega_core::atomic::MemoryOrdering,
+) -> Result<Vec<u8>, Diagnostic> {
+    if target_offset > 4095 {
+        return Err(Diagnostic::error(format!(
+            "AArch64 atomic fetch_sub target offset `{target_offset}` exceeds the \
+             single-instruction ADD immediate range (4095)"
+        )));
+    }
+    let mut bytes = Vec::with_capacity(runtime_atomic_fetch_sub_width(
+        runtime_value_operands,
+        target_offset,
+        byte_size,
+        result_offset,
+        delta,
+    ));
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_runtime_value_operand(
+        runtime_value_operands,
+        &mut bytes,
+        17,
+        RUNTIME_VALUE_LEFT_SCRATCH_REGISTERS,
+        delta,
+    )?;
+    // LDADD of the width-truncated two's-complement negation implements
+    // wrapping fetch_sub while preserving the instruction-observed prior.
+    bytes.extend(match byte_size {
+        1 | 2 | 4 => encode_sub_w_register(17, 31, 17),
+        8 => encode_sub_x_register(17, 31, 17),
+        other => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 atomic fetch_sub cannot encode a {other}-byte width"
+            )));
+        }
+    });
+    append_add_x_constant(&mut bytes, 16, 16, target_offset, 19)?;
+    bytes.extend(encode_ldadd(byte_size, 17, 26, 16, ordering)?);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_add_constant_to_x_register(&mut bytes, 16, result_offset)?;
+    match byte_size {
+        1 | 2 | 4 => bytes.extend(encode_store_w_to_x(26, 16, 0, byte_size)?),
+        8 => bytes.extend(encode_store_x_to_x(26, 16, 0)?),
+        _ => unreachable!("fetch_sub width validated before LDADD"),
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_atomic_fetch_sub_width(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            result_offset,
+            delta
+        )
+    );
+    Ok(bytes)
+}
+
+pub fn runtime_atomic_fetch_sub_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    _byte_size: usize,
+    result_offset: usize,
+    delta: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_atomic_fetch_add_width(
+        runtime_value_operands,
+        target_offset,
+        0,
+        result_offset,
+        delta,
+    ) + 4
+}
+
+pub fn runtime_atomic_fetch_sub_result_address_offset(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    delta: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_atomic_fetch_add_result_address_offset(runtime_value_operands, target_offset, delta) + 4
 }
 
 pub fn encode_atomic_swap(
@@ -5839,6 +5927,39 @@ mod tests {
                 omega_core::atomic::MemoryOrdering::Relaxed,
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn atomic_fetch_sub_negates_at_width_then_uses_ldaddal() {
+        use omega_core::arena::Arena;
+        use omega_target_operations::RuntimeValueOperand;
+
+        let mut operands: Arena<RuntimeValueOperand> = Arena::default();
+        let delta = operands.insert(RuntimeValueOperand::Immediate(12));
+        let bytes = encode_atomic_fetch_sub(
+            &operands,
+            0,
+            4,
+            24,
+            delta,
+            omega_core::atomic::MemoryOrdering::AcqRel,
+        )
+        .expect("encode");
+        assert_eq!(
+            bytes.len(),
+            runtime_atomic_fetch_sub_width(&operands, 0, 4, 24, delta)
+        );
+        let atomic_end = runtime_atomic_fetch_sub_result_address_offset(&operands, 0, delta);
+        assert_eq!(
+            u32::from_le_bytes(bytes[atomic_end - 8..atomic_end - 4].try_into().unwrap()),
+            0x4B11_03F1,
+            "fetch_sub must emit SUB w17,wzr,w17"
+        );
+        assert_eq!(
+            u32::from_le_bytes(bytes[atomic_end - 4..atomic_end].try_into().unwrap()),
+            0xB8F1_021A,
+            "fetch_sub must emit LDADDAL w17,w26,[x16]"
         );
     }
 

@@ -2,8 +2,8 @@ use crate::parser::context::StateKind;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::statement::{
     parse_asm_block_statement_handles, parse_statement_handle,
-    try_parse_atomic_compare_exchange_let, try_parse_atomic_fetch_add_let,
-    try_parse_atomic_swap_let, try_parse_destructure_let,
+    try_parse_atomic_compare_exchange_let, try_parse_atomic_fetch_let, try_parse_atomic_swap_let,
+    try_parse_destructure_let,
 };
 use crate::parser::transition::parse_transition_block_handles;
 use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
@@ -100,8 +100,7 @@ pub(super) fn parse_state<'tokens, 'source>(
                 .checked_add(new_statements.count())
                 .expect("state statement span count overflow");
             input = rest;
-        } else if let Some((new_statements, rest)) =
-            try_parse_atomic_fetch_add_let(syntax_trees, input)
+        } else if let Some((new_statements, rest)) = try_parse_atomic_fetch_let(syntax_trees, input)
         {
             if statement_count == 0 {
                 statement_start = new_statements.start();

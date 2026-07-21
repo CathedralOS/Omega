@@ -217,12 +217,9 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_binary_muta
         return Some(cas);
     }
 
-    // Atomic fetch_add: `atomic_field = atomic_field + delta` lowers to one
-    // `LOCK xadd` (the prior value is captured by the desugar's preceding `let
-    // old = field`). Gated on an Add whose target is an atomic-typed place and
-    // whose LEFT operand is that same place; the delta is the right operand.
-    // Non-matches fall through to the normal store, so this can never miscompile.
-    if let Some(atomic) = select_runtime_atomic_fetch_add_in_table(
+    // Atomic fetch arithmetic lowers through a target RMW and writes the
+    // instruction-observed prior into the compiler-authored result place.
+    if let Some(atomic) = select_runtime_atomic_fetch_arithmetic_in_table(
         input,
         dispatch_index,
         target_source_key,
@@ -357,7 +354,7 @@ fn select_runtime_atomic_compare_exchange_in_table(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn select_runtime_atomic_fetch_add_in_table(
+fn select_runtime_atomic_fetch_arithmetic_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     target_source_key: StateKey,
@@ -386,7 +383,11 @@ fn select_runtime_atomic_fetch_add_in_table(
     let ExpressionNode::Binary(binary) = expressions.expression(value) else {
         return None;
     };
-    if runtime_binary_operator(binary.operator) != Some(StateGuardOperator::Add) {
+    let operator = runtime_binary_operator(binary.operator)?;
+    if !matches!(
+        operator,
+        StateGuardOperator::Add | StateGuardOperator::Subtract
+    ) {
         return None;
     }
     let right = binary.right;
@@ -423,14 +424,35 @@ fn select_runtime_atomic_fetch_add_in_table(
     // The atomic field's value is volatile; drop any tracked static value so a
     // later read does not fold to a stale constant.
     invalidate_runtime_static_value_in_table(static_values, expressions, target);
-    Some(SelectedInstructionKind::AtomicFetchAdd {
-        target_region: target_place.region,
-        target_offset: target_place.byte_offset,
-        byte_size: target_place.byte_count,
-        result_region: result_place.region,
-        result_offset: result_place.byte_offset,
+    let common = (
+        target_place.region,
+        target_place.byte_offset,
+        target_place.byte_count,
+        result_place.region,
+        result_place.byte_offset,
         delta,
         ordering,
+    );
+    Some(match operator {
+        StateGuardOperator::Add => SelectedInstructionKind::AtomicFetchAdd {
+            target_region: common.0,
+            target_offset: common.1,
+            byte_size: common.2,
+            result_region: common.3,
+            result_offset: common.4,
+            delta: common.5,
+            ordering: common.6,
+        },
+        StateGuardOperator::Subtract => SelectedInstructionKind::AtomicFetchSub {
+            target_region: common.0,
+            target_offset: common.1,
+            byte_size: common.2,
+            result_region: common.3,
+            result_offset: common.4,
+            delta: common.5,
+            ordering: common.6,
+        },
+        _ => unreachable!("fetch arithmetic gate accepts add/sub only"),
     })
 }
 

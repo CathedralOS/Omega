@@ -1129,6 +1129,52 @@ pub fn runtime_atomic_fetch_add_result_address_offset(
     }
 }
 
+pub fn runtime_atomic_fetch_sub_width(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    result_offset: usize,
+    delta: RuntimeValueOperandHandle,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_atomic_fetch_sub_width(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            result_offset,
+            delta,
+        ),
+        Architecture::X86_64 => x86_64::runtime_atomic_fetch_sub_width(
+            runtime_value_operands,
+            byte_size,
+            result_offset,
+            delta,
+        ),
+    }
+}
+
+pub fn runtime_atomic_fetch_sub_result_address_offset(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    delta: RuntimeValueOperandHandle,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_atomic_fetch_sub_result_address_offset(
+            runtime_value_operands,
+            target_offset,
+            delta,
+        ),
+        Architecture::X86_64 => x86_64::runtime_atomic_fetch_sub_result_address_offset(
+            runtime_value_operands,
+            byte_size,
+            delta,
+        ),
+    }
+}
+
 pub fn runtime_atomic_swap_width(
     architecture: Architecture,
     runtime_value_operands: &impl RuntimeValueOperandSource,

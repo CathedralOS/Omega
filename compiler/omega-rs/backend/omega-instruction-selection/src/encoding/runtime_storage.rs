@@ -247,6 +247,39 @@ pub fn encode_atomic_fetch_add(
     }
 }
 
+pub fn encode_atomic_fetch_sub(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    result_offset: usize,
+    delta: RuntimeValueOperandHandle,
+    ordering: omega_core::atomic::AtomicOrderingPlan,
+) -> Result<Vec<u8>, Diagnostic> {
+    let omega_core::atomic::AtomicOrderingPlan::ReadModifyWrite(ordering) = ordering else {
+        return Err(Diagnostic::error(
+            "atomic fetch_sub reached code generation without an RMW ordering plan",
+        ));
+    };
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_atomic_fetch_sub(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            result_offset,
+            delta,
+            ordering,
+        ),
+        Architecture::X86_64 => x86_64::encode_atomic_fetch_sub(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            result_offset,
+            delta,
+        ),
+    }
+}
+
 pub fn encode_atomic_swap(
     architecture: Architecture,
     runtime_value_operands: &impl RuntimeValueOperandSource,
