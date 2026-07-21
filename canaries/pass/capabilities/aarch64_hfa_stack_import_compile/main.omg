@@ -7,9 +7,7 @@ boundary trait HfaStackImport {
     machine call(first: Quad, second: Quad, trailing: Pair) -> i64;
 }
 
-macos_arm64 provides HfaStackImport {
-    call -> DllImport("libSystem.B.dylib", "omega_hfa_stack_probe")
-}
+machine hfa_stack_import(first: Quad, second: Quad, trailing: Pair) -> i64 satisfies HfaStackImport::call via Binding::DllImport("libSystem.B.dylib", "omega_hfa_stack_probe");
 
 data Main {
     foreign: HfaStackImport;

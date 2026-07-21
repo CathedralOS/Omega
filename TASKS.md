@@ -549,7 +549,15 @@ slot owner may override by type. The migration order remains load-bearing.
    consumer. The unused `Binding::Instruction` carrier is already gone:
    instruction realizations are checked `asm` bodies, not provider rows. The
    test-only `HostOperations`/`call_shape` round-trip bridge is gone as well;
-   checked adapters own composite behavior. Keep only the directed retirement
+   checked adapters own composite behavior. The complete direct-import ABI
+   canary family now derives bodyless `satisfies Requirement::method via
+   Binding::DllImport(...)` leaves instead of authored `provides` rows: AArch64
+   scalar, stack, HFA, and direct/indirect aggregate placement; SysV aggregate
+   placement; Win64 scalar and direct/indirect aggregate placement; and the
+   hosted import-argument runtime path all retain their exact lowering checks.
+   Remaining `provides` fixtures either intentionally pin compatibility
+   grammar/diagnostics or still exercise vtable/syscall/value consumers that
+   must migrate with their owning surfaces. Keep only the directed retirement
    diagnostic if useful.
 ### Compile-time machine parameters and generics
 

@@ -9,9 +9,7 @@ boundary trait DirectAggregateResultImport {
     machine receive(seed: u64) -> Pair32;
 }
 
-windows_x64 provides DirectAggregateResultImport {
-    receive -> DllImport("omega_abi_probe.dll", "omega_win64_direct_result_probe")
-}
+machine direct_aggregate_result_import(seed: u64) -> Pair32 satisfies DirectAggregateResultImport::receive via Binding::DllImport("omega_abi_probe.dll", "omega_win64_direct_result_probe");
 
 data Main {
     foreign: DirectAggregateResultImport;

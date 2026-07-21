@@ -10,9 +10,7 @@ boundary trait DirectAggregateImport {
     machine send(before: u64, value: Pair32, after: u64) -> i32;
 }
 
-windows_x64 provides DirectAggregateImport {
-    send -> DllImport("omega_abi_probe.dll", "omega_win64_direct_aggregate_probe")
-}
+machine direct_aggregate_import(before: u64, value: Pair32, after: u64) -> i32 satisfies DirectAggregateImport::send via Binding::DllImport("omega_abi_probe.dll", "omega_win64_direct_aggregate_probe");
 
 data Main {
     foreign: DirectAggregateImport;

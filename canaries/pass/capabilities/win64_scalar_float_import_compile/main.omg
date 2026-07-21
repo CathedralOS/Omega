@@ -5,9 +5,7 @@ boundary trait ScalarFloatImport {
     machine call(before: u64, value: f64, after: u64, fourth: f64, fifth: f64) -> f64;
 }
 
-windows_x64 provides ScalarFloatImport {
-    call -> DllImport("omega_abi_probe.dll", "omega_win64_scalar_float_probe")
-}
+machine scalar_float_import(before: u64, value: f64, after: u64, fourth: f64, fifth: f64) -> f64 satisfies ScalarFloatImport::call via Binding::DllImport("omega_abi_probe.dll", "omega_win64_scalar_float_probe");
 
 data Main {
     foreign: ScalarFloatImport;
