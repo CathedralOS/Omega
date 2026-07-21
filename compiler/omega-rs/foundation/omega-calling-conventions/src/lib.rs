@@ -11,8 +11,9 @@ pub use plans::{
     MachineRegime, MachineRegister, MachineState, MachineStateSet, PlanDiagnostic, Preemption,
     RegisterSet, StateFootprintEvidence, StatePlan, SystemVEightbyteClass,
     ValidatedBoundaryEntryPlan, ValueClass, ValueLocation, ValuePlacement, ValueShape,
-    evaluate_call_plan, evaluate_ordinary_boundary_entry_plan, validate_boundary_entry_plan,
-    validate_boundary_plan_result, validate_call_plan, validate_state_footprint,
+    compose_state_footprints, evaluate_call_plan, evaluate_ordinary_boundary_entry_plan,
+    validate_boundary_entry_plan, validate_boundary_plan_result, validate_call_plan,
+    validate_composed_state_footprint, validate_state_footprint,
 };
 pub use windows::windows_import_library;
 

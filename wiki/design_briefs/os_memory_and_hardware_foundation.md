@@ -376,6 +376,10 @@ registers its generated copy fragment overwrites; derivation unions those
 clobbers into implementation-only `StateFootprintEvidence`, rejects a selected
 input register destroyed before capture, and validates the fragment against the
 plan's state ceiling. This evidence covers only inbound storage realization.
+The normalized calling-plan foundation also composes any number of fragment
+footprints by deterministic register/state union and validates the aggregate
+against one retained boundary plan. Ordering and duplicate fragments cannot
+perturb that implementation-only evidence fingerprint.
 The final certificate must still aggregate the specialized handler body,
 save/restore and exit sequences, relaxation products, veneers/thunks, generated
 stubs, and admitted indirect leaves after final placement.

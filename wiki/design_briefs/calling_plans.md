@@ -235,6 +235,12 @@ Checked Omega leaves produce derived footprint evidence. Raw/admitted leaves
 carry accepted footprint claims under receipt. The trust report must distinguish
 the two.
 
+Independently derived fragment evidence composes by normalized set union before
+state validation. Fragment order and duplicate evidence therefore cannot alter
+the checked transitive footprint or its implementation-only fingerprint. This
+composition is the shared pre-certificate seam; object/final-image validation
+must still prove that it received every realized fragment after placement.
+
 A no-SIMD interrupt root may require a callee clone compiled under a no-SIMD
 state ceiling. This is contextual codegen specialization, not generic type
 monomorphization, although both may share backend cloning and cache machinery.
