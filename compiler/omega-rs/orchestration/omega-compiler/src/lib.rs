@@ -9,5 +9,5 @@ pub use pipeline::{
     LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, MaterializationAction,
     MaterializationContext, MaterializationDiagnostic, MaterializationWrite, RelocationTarget,
     SymbolicFieldValue, SymbolicMaterializationPlan, compile, compile_to_checked,
-    compute_layout_plan, derive_symbolic_materialization,
+    compute_layout_plan, derive_symbolic_materialization, evaluate_calling_policy_plan,
 };
