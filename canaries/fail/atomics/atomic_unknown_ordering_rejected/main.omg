@@ -1,0 +1,8 @@
+// Atomic ordering is a closed compiler-owned vocabulary, not an identifier the
+// parser may silently discard.
+
+data Main { counter: AtomicU32; }
+
+machine Main::main(&mut self) {
+    self.counter.store(1, EventuallyConsistent);
+}

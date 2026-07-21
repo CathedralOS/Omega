@@ -36993,6 +36993,11 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "atomics/atomic_load_release_ordering_rejected",
+    "atomics/atomic_store_acquire_ordering_rejected",
+    "atomics/atomic_compare_exchange_failure_release_rejected",
+    "atomics/atomic_compare_exchange_failure_stronger_rejected",
+    "atomics/atomic_unknown_ordering_rejected",
     "domains/domain_when_clause_retired",
     "generics/negative_const_data_argument_unsigned",
     "generics/signed_const_data_argument_out_of_range",

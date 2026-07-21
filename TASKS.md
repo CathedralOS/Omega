@@ -816,8 +816,12 @@ support; provider row builders remain rejected because they duplicate
   `[u8]`, add the compile-time/runtime mint paths and loop-invariant proofs,
   migrate the corpus, then delete builtin `string`/`String` and backend
   special cases. Follow `wiki/architecture/string_retirement_execution.md`.
-- **Atomics remainder.** Complete the memory-model and operation set beyond the
-  existing first-stage read-modify-write operations.
+- **Atomics remainder.** The closed ordering vocabulary and operation-specific
+  legality rules now reject release-bearing loads, acquire-bearing stores,
+  unknown names, and compare-exchange failure orderings that release or exceed
+  the success ordering. Complete exact ordering propagation into target
+  lowering, standalone fences, swap and the remaining fetch operations, and
+  the cross-activation proof model beyond the existing first-stage operations.
 - **Proof engine.** Continue induction and proof-data support required by
   layouts, quotients, and Real.
 

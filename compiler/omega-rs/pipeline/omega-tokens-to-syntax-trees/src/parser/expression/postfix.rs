@@ -201,22 +201,28 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
             }
 
             // ATOMICS STAGE 1 (ch17, M2): `atomic_place.load(ordering)` is the
-            // IDENTITY on the place (reads the value). On x86_64, Relaxed/
-            // Acquire/Release/AcqRel loads are plain aligned `mov` -- the
-            // ordering argument is accepted syntactically but collapsed here.
-            // SeqCst load is also a plain mov on x86_64 (only SeqCst STORE
-            // requires mfence/xchg). `load` is not reserved at data/machine
+            // IDENTITY on the place (reads the value). The closed ordering
+            // vocabulary is validated before this stage-one desugar erases its
+            // syntax; loads admit Relaxed/Acquire/SeqCst and reject the
+            // release-bearing orderings. Target-specific instruction strength
+            // remains a downstream lowering obligation. `load` is not reserved at data/machine
             // definition sites so this rewrite only fires for the exact
             // one-argument call form; `x.load` stays an ordinary member read.
             if member.as_str() == "load" && rest.at_punctuation(PunctuationKind::LeftParen) {
                 let after_open = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
                 if !after_open.at_punctuation(PunctuationKind::RightParen) {
-                    // Consume the single ordering argument (an identifier like
-                    // `Relaxed`, `Acquire`, etc.) -- we only validate the
-                    // argument count here; the identifier itself is not
-                    // type-checked (it is dropped).
-                    let (_, after_ord) = parse_expression_handle(syntax_trees, after_open)?;
+                    let (ordering_expression, after_ord) =
+                        parse_expression_handle(syntax_trees, after_open)?;
                     if after_ord.at_punctuation(PunctuationKind::RightParen) {
+                        let ordering =
+                            memory_ordering_from_expression(syntax_trees, ordering_expression)
+                                .map_err(|reason| after_open.error_here(reason))?;
+                        if !ordering.valid_for_load() {
+                            return Err(after_open.error_here(format!(
+                                "atomic load cannot use `{}` ordering; use `Relaxed`, `Acquire`, or `SeqCst`",
+                                ordering.name()
+                            )));
+                        }
                         input = after_ord.take_punctuation(PunctuationKind::RightParen, ")")?;
                         // `expression` stays unchanged -- load() is the identity.
                         continue;
@@ -228,11 +234,8 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
             }
 
             // ATOMICS STAGE 1 (ch17, M2): `atomic_place.store(value, ordering)`
-            // is a write to the place.  The ordering argument is consumed and
-            // dropped.  On x86_64 Relaxed/Acquire/Release/AcqRel stores are
-            // plain aligned `mov`; SeqCst store uses `xchg` or `mfence+mov`
-            // (not yet differentiated here -- all orderings lower to plain mov
-            // in stage 1). The Call node with target "store" is preserved so
+            // is a write to the place. The call builder validates the ordering
+            // before the statement desugar drops it. The Call node with target "store" is preserved so
             // the statement parser can recognise it and convert it into an
             // Assignment statement (`place = value`).
             // `x.store` without a following `(` stays an ordinary member read.
@@ -442,6 +445,8 @@ fn build_call_expression_handle(
                     .insert(ExpressionNode::Name(receiver_path))
             };
 
+            validate_atomic_call_orderings(syntax_trees, target.as_str(), receiver, arguments)?;
+
             Ok(syntax_trees
                 .tables
                 .expressions
@@ -453,6 +458,12 @@ fn build_call_expression_handle(
                 })))
         }
         ExpressionNode::Member(member) => {
+            validate_atomic_call_orderings(
+                syntax_trees,
+                member.member.as_str(),
+                member.receiver,
+                arguments,
+            )?;
             Ok(syntax_trees
                 .expressions
                 .insert(ExpressionNode::Call(TableCallExpression {
@@ -466,6 +477,77 @@ fn build_call_expression_handle(
             "call target must be a path or member access",
         )),
     }
+}
+
+fn memory_ordering_from_expression(
+    syntax_trees: &SyntaxTrees,
+    expression: ExpressionHandle,
+) -> Result<omega_core::atomic::MemoryOrdering, String> {
+    let ExpressionNode::Name(path) = syntax_trees.expressions.expression(expression) else {
+        return Err(
+            "atomic ordering must be one of `Relaxed`, `Acquire`, `Release`, `AcqRel`, or `SeqCst`"
+                .to_owned(),
+        );
+    };
+    let members = syntax_trees.expressions.identifier_path_members(*path);
+    if members.len() != 1 {
+        return Err(
+            "atomic ordering must be an unqualified built-in name: `Relaxed`, `Acquire`, `Release`, `AcqRel`, or `SeqCst`"
+                .to_owned(),
+        );
+    }
+    omega_core::atomic::MemoryOrdering::from_name(members[0].as_str()).ok_or_else(|| {
+        format!(
+            "unknown atomic ordering `{}`; expected `Relaxed`, `Acquire`, `Release`, `AcqRel`, or `SeqCst`",
+            members[0].as_str()
+        )
+    })
+}
+
+/// Validate the ordering arguments on the exact postfix shapes the atomic
+/// statement desugars recognize. The receiver gate avoids stealing free
+/// functions with the same names; wrong arities remain ordinary call errors.
+fn validate_atomic_call_orderings(
+    syntax_trees: &SyntaxTrees,
+    target: &str,
+    receiver: ExpressionHandle,
+    arguments: HandleSpan<ExpressionHandle>,
+) -> Result<(), ParseError> {
+    if !receiver.is_valid() {
+        return Ok(());
+    }
+    let arguments = syntax_trees.expressions.expression_handles(arguments);
+    match (target, arguments) {
+        ("store", [_, ordering]) => {
+            let ordering = memory_ordering_from_expression(syntax_trees, *ordering)
+                .map_err(ParseError::new)?;
+            if !ordering.valid_for_store() {
+                return Err(ParseError::new(format!(
+                    "atomic store cannot use `{}` ordering; use `Relaxed`, `Release`, or `SeqCst`",
+                    ordering.name()
+                )));
+            }
+        }
+        ("fetch_add", [_, ordering]) => {
+            let _ = memory_ordering_from_expression(syntax_trees, *ordering)
+                .map_err(ParseError::new)?;
+        }
+        ("compare_exchange", [_, _, success, failure]) => {
+            let success =
+                memory_ordering_from_expression(syntax_trees, *success).map_err(ParseError::new)?;
+            let failure =
+                memory_ordering_from_expression(syntax_trees, *failure).map_err(ParseError::new)?;
+            if !failure.valid_compare_exchange_failure(success) {
+                return Err(ParseError::new(format!(
+                    "atomic compare_exchange failure ordering `{}` is invalid for success ordering `{}`; failure cannot release or be stronger than success",
+                    failure.name(),
+                    success.name()
+                )));
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 /// Recognize the unambiguous postfix shape `<Machine::symbol, ...>(` without

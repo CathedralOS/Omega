@@ -1,0 +1,9 @@
+// A compare-exchange failure ordering cannot be stronger than its success
+// ordering.
+
+data Main { counter: AtomicU32; }
+
+machine Main::main(&mut self) {
+    let prior: u32 in Wrapping =
+        self.counter.compare_exchange(0, 1, Acquire, SeqCst);
+}
