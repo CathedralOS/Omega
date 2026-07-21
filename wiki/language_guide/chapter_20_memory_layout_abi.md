@@ -204,6 +204,13 @@ source body does. A source refactor that computes the same canonical plan is
 therefore ABI-invisible; a changed observable placement or machine-state promise
 is an ABI change.
 
+Policy evaluation is also the signature-admission point. A flexible convention
+such as a platform C ABI commonly computes placements for many legal signatures;
+a hardware-dictated convention may instead reject most signatures. An interrupt
+policy, for example, rejects an incompatible frame parameter, ordinary return
+value, or return-control form directly at the `Calling<C>` relationship. It does
+not manufacture an invalid plan and wait for a later lowering diagnostic.
+
 This relationship belongs to the requirement, not to a `Binding`. A syscall,
 DLL import, vtable slot, or provider realization must refine the convention the
 requirement already pinned; its mechanism does not silently select an ABI. A
@@ -218,6 +225,12 @@ Register allocation, emitted clobbers, and the final machine-state footprint are
 realization evidence checked against that promise; changing legal evidence
 revalidates the provider artifact without changing caller identity. A calling
 plan is auditable policy data, never an unchecked ABI string.
+
+The firewall is observational: a counterparty must agree on register/stack
+placement and preserved machine state, so those normalized promises are contract
+identity. The particular allocation, stub shape, and footprint certificate used
+to prove one provider meets them are implementation evidence and remain outside
+caller identity.
 
 The plan must cover argument placement, return placement, clobbers, stack
 alignment, and failure behavior — validated before any deriver trusts it.

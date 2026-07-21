@@ -275,6 +275,11 @@ reason is reported at the `Calling<C>` relationship. Policy authorship is open,
 but the plan vocabulary and validator are closed compiler interfaces. See the
 calling-plans design brief for the complete boundary rule.
 
+For a hardware-dictated convention, rejection is a normal use of the policy:
+the policy rejects an incompatible frame, result, or control-return shape at the
+relationship site rather than encoding an invalid plan for a later phase to
+discover.
+
 The policy is a type parameter deliberately, not a workaround for unavailable
 machine parameters. Static machine parameters select and directly invoke one
 authored machine. `Calling<C>` selects a policy relationship that may use several
