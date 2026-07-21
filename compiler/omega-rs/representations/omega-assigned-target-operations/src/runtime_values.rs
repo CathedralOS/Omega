@@ -185,14 +185,30 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
     fn text_equals(
         &self,
         handle: omega_target_operations::RuntimeValueOperandHandle,
-    ) -> Option<(RuntimeStorageRegion, usize, RuntimeStorageRegion, usize)> {
+    ) -> Option<(
+        RuntimeStorageRegion,
+        usize,
+        bool,
+        RuntimeStorageRegion,
+        usize,
+        bool,
+    )> {
         match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
             AssignedValueOperandKind::TextEquals {
                 left_region,
                 left_offset,
+                left_is_bounded_buffer,
                 right_region,
                 right_offset,
-            } => Some((*left_region, *left_offset, *right_region, *right_offset)),
+                right_is_bounded_buffer,
+            } => Some((
+                *left_region,
+                *left_offset,
+                *left_is_bounded_buffer,
+                *right_region,
+                *right_offset,
+                *right_is_bounded_buffer,
+            )),
             _ => None,
         }
     }

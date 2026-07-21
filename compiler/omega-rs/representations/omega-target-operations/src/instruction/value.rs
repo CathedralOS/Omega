@@ -80,12 +80,20 @@ pub trait RuntimeValueOperandSource {
     /// Whether a `Convert` operand's integer target is signed.
     fn convert_target_signed(&self, handle: RuntimeValueOperandHandle) -> bool;
     /// A `TextEquals` (value-position text content compare) operand:
-    /// `(left_region, left_offset, right_region, right_offset)` of the two
-    /// `{ptr, len}` text descriptor places. Evaluates to bool 0/1.
+    /// `(left_region, left_offset, left_is_bounded_buffer, right_region,
+    /// right_offset, right_is_bounded_buffer)` of the two text places.
+    /// Evaluates to bool 0/1.
     fn text_equals(
         &self,
         handle: RuntimeValueOperandHandle,
-    ) -> Option<(RuntimeStorageRegion, usize, RuntimeStorageRegion, usize)>;
+    ) -> Option<(
+        RuntimeStorageRegion,
+        usize,
+        bool,
+        RuntimeStorageRegion,
+        usize,
+        bool,
+    )>;
     /// A `TextEqualsLiteral` (guard-position text content compare against an
     /// inline literal) operand: `(place, literal, place_is_bounded_buffer)` where
     /// `place` is the text side's place operand and the bool flags an owned
@@ -270,14 +278,30 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
     fn text_equals(
         &self,
         handle: RuntimeValueOperandHandle,
-    ) -> Option<(RuntimeStorageRegion, usize, RuntimeStorageRegion, usize)> {
+    ) -> Option<(
+        RuntimeStorageRegion,
+        usize,
+        bool,
+        RuntimeStorageRegion,
+        usize,
+        bool,
+    )> {
         match self.get(handle) {
             RuntimeValueOperand::TextEquals {
                 left_region,
                 left_offset,
+                left_is_bounded_buffer,
                 right_region,
                 right_offset,
-            } => Some((*left_region, *left_offset, *right_region, *right_offset)),
+                right_is_bounded_buffer,
+            } => Some((
+                *left_region,
+                *left_offset,
+                *left_is_bounded_buffer,
+                *right_region,
+                *right_offset,
+                *right_is_bounded_buffer,
+            )),
             _ => None,
         }
     }

@@ -901,7 +901,13 @@ stronger operations it needs instead of citing machine parameters generally.
   `Blob::Scanned` canary keeps this out of the text special-case bucket.
   Carrier migration has begun: a two-runtime-source concat now lowers without
   a literal anchor by initializing a distinct bounded destination from the
-  first carrier and appending later segments. Still implement scratch-backed
+  first carrier and appending later segments. Bounded-carrier content equality
+  now covers literal and carrier peers in guard, local, forwarded-local,
+  machine-field, nested-boolean, and `!=` value positions on both ISAs; the
+  migrated canaries retain native/interpreter differential oracles. The old
+  frame-slot comparison writer now consumes the same representation-aware
+  value operand as ordinary writes instead of assuming a `{ptr,len}` String
+  descriptor. Still implement scratch-backed
   overlap handling (or an equivalent proven length route) before migrating the
   in-place `target = target + suffix` regressions; never zero the aliased source
   and call it a copy. Follow

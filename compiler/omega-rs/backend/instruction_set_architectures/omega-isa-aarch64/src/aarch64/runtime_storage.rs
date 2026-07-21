@@ -4175,15 +4175,23 @@ fn append_runtime_value_operand(
             }
         }
         Ok(())
-    } else if let Some((_, left_offset, _, right_offset)) =
-        runtime_value_operands.text_equals(operand)
+    } else if let Some((
+        _,
+        left_offset,
+        left_is_bounded_buffer,
+        _,
+        right_offset,
+        right_is_bounded_buffer,
+    )) = runtime_value_operands.text_equals(operand)
     {
         append_runtime_text_equals_operand(
             bytes,
             destination_register,
             scratch_registers,
             left_offset,
+            left_is_bounded_buffer,
             right_offset,
+            right_is_bounded_buffer,
         )?;
         Ok(())
     } else if let Some((place, literal, place_is_bounded_buffer)) =
@@ -4425,7 +4433,9 @@ fn append_runtime_text_equals_operand(
     destination_register: u8,
     scratch_registers: &[u8],
     left_offset: usize,
+    left_is_bounded_buffer: bool,
     right_offset: usize,
+    right_is_bounded_buffer: bool,
 ) -> Result<(), Diagnostic> {
     let [left_ptr, left_len, right_ptr, right_len, byte_scratch, ..] = *scratch_registers else {
         return Err(Diagnostic::error(
@@ -4437,8 +4447,19 @@ fn append_runtime_text_equals_operand(
     // Left descriptor: page (relocated at the operand start), then ptr and len.
     bytes.extend(encode_adrp_placeholder(19));
     bytes.extend(encode_add_page_offset_placeholder(19));
-    append_fixed_width_load_x_from_x_offset(bytes, left_ptr, 19, left_offset, byte_scratch);
-    append_fixed_width_load_x_from_x_offset(bytes, left_len, 19, left_offset + 8, byte_scratch);
+    if left_is_bounded_buffer {
+        append_fixed_width_address_from_x_offset(
+            bytes,
+            left_ptr,
+            19,
+            left_offset + 8,
+            byte_scratch,
+        );
+        append_fixed_width_load_x_from_x_offset(bytes, left_len, 19, left_offset, byte_scratch);
+    } else {
+        append_fixed_width_load_x_from_x_offset(bytes, left_ptr, 19, left_offset, byte_scratch);
+        append_fixed_width_load_x_from_x_offset(bytes, left_len, 19, left_offset + 8, byte_scratch);
+    }
 
     // Right descriptor: page relocated at the pinned right-base offset.
     debug_assert_eq!(
@@ -4448,8 +4469,25 @@ fn append_runtime_text_equals_operand(
     );
     bytes.extend(encode_adrp_placeholder(19));
     bytes.extend(encode_add_page_offset_placeholder(19));
-    append_fixed_width_load_x_from_x_offset(bytes, right_ptr, 19, right_offset, byte_scratch);
-    append_fixed_width_load_x_from_x_offset(bytes, right_len, 19, right_offset + 8, byte_scratch);
+    if right_is_bounded_buffer {
+        append_fixed_width_address_from_x_offset(
+            bytes,
+            right_ptr,
+            19,
+            right_offset + 8,
+            byte_scratch,
+        );
+        append_fixed_width_load_x_from_x_offset(bytes, right_len, 19, right_offset, byte_scratch);
+    } else {
+        append_fixed_width_load_x_from_x_offset(bytes, right_ptr, 19, right_offset, byte_scratch);
+        append_fixed_width_load_x_from_x_offset(
+            bytes,
+            right_len,
+            19,
+            right_offset + 8,
+            byte_scratch,
+        );
+    }
 
     // result = 0; unequal lengths are unequal text. The b.ne also means a
     // zero-length pair never enters the loop, so an all-zero (default)
@@ -5957,6 +5995,29 @@ fn append_fixed_width_load_x_from_x_offset(
         encode_load_x_from_x(destination_register, scratch_register, 0)
             .expect("zero-offset x-register load should always encode"),
     );
+}
+
+/// Compute `base + byte_offset` in the same fixed 24-byte envelope as
+/// `append_fixed_width_load_x_from_x_offset`. Carrier text equality needs an
+/// inline byte address where descriptor equality performs a pointer load; the
+/// padded self-move keeps relocation offsets and operand widths identical.
+fn append_fixed_width_address_from_x_offset(
+    bytes: &mut Vec<u8>,
+    destination_register: u8,
+    base_register: u8,
+    byte_offset: usize,
+    scratch_register: u8,
+) {
+    append_unsigned_immediate_padded(bytes, scratch_register, byte_offset as u64);
+    bytes.extend(encode_add_x_register(
+        destination_register,
+        base_register,
+        scratch_register,
+    ));
+    bytes.extend(encode_move_x_register(
+        destination_register,
+        destination_register,
+    ));
 }
 
 /// Loads a 32-bit array INDEX (zero-extended into the full X register) from
