@@ -15,11 +15,11 @@ data Worker {
     observed: i32;
 }
 
-windows_x64 machine Worker::capture(&mut self) {
+machine Worker::capture(&mut self) {
     self.observed = self.stored.first | self.stored.second | self.stored.stale;
 }
 
-windows_x64 machine Worker::forward(&mut self, pair: Pair) -> i32 {
+machine Worker::forward(&mut self, pair: Pair) -> i32 {
     // Construction is whole-value replacement: `pair` omits `stale`, so this
     // prior byte must be reset to its ZII value when the record is assigned.
     self.stored.stale = 1;
