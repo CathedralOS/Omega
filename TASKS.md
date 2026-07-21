@@ -531,6 +531,10 @@ relocation source, or dynamically registered callback. `Calling<C>` remains a
 policy-type relationship by design, not as a workaround for machine-parameter
 support; provider row builders remain rejected because they duplicate
 `satisfies`, not because they require an unavailable parameter form.
+Static IDT/provider selection and generic replacement orchestration may consume
+the implemented type-parameter form; only their runtime entry/relocation edges
+remain fenced on reification. Any future deferral must state which of those
+stronger operations it needs instead of citing machine parameters generally.
 
 1. **MP6 — remaining consuming slices.** `Seq`'s consuming `map`/`filter` are
    now core machines: recursive static-machine selections specialize to direct

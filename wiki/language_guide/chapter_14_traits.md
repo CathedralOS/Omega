@@ -270,9 +270,10 @@ be a `boundary trait`.
 boundary signature to `Accepted(BoundaryEntryPlan)` or a structured `Rejected`
 reason. The compiler validates and canonicalizes accepted plans; their evaluated
 identity, not the policy symbol or machine body, becomes part of the boundary
-contract. Policy authorship is open, but the plan vocabulary and validator are
-closed compiler interfaces. See the calling-plans design brief for the complete
-boundary rule.
+contract. A rejected result has no boundary-plan identity and its structured
+reason is reported at the `Calling<C>` relationship. Policy authorship is open,
+but the plan vocabulary and validator are closed compiler interfaces. See the
+calling-plans design brief for the complete boundary rule.
 
 This avoids making traits magic. They are named requirement sets.
 

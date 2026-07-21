@@ -88,7 +88,11 @@ boundary trait TimerInterrupt:
 Its `plan` machine is compile-time-only, deterministic, terminating, and
 build-time-admissible. It receives the normalized requirement signature and
 either returns an accepted plan or a structured rejection. Rejection produces a
-diagnostic at the `Calling<C>` relationship and contributes no contract identity.
+diagnostic at the `Calling<C>` relationship and contributes no contract identity:
+there is no boundary requirement to fingerprint until policy evaluation accepts
+the signature. The rejection value identifies the incompatible signature feature
+(for example, a forbidden result, frame parameter, or return control) so the
+diagnostic does not degrade into a later generic "invalid plan" failure.
 Hardware conventions are often validators first: an interrupt policy rejects a
 return value, frame shape, parameter, or entry-control form the hardware cannot
 honor instead of manufacturing a deliberately invalid plan.
@@ -112,6 +116,18 @@ relationship whose normalized result is part of the requirement. It also leaves
 the policy free to contain several ordinary machines without turning one helper
 symbol into the public ABI name. Neither mechanism reifies a machine as a
 runtime value or exposes its code address.
+
+The capability audit is therefore graded rather than binary:
+
+- compile-time machine selection and direct specialized invocation are live;
+- policy evaluation such as `Calling<C>` is live and does not require machine
+  identity as a value;
+- deriving a relocation from a selected entry, storing an entry reference, or
+  registering a runtime callback requires sealed reification machinery and is a
+  separate customer.
+
+No downstream slice may cite a blanket "machine parameters are unbuilt" fence.
+It must name the stronger reification operation it actually requires.
 
 The implementation dependency is therefore explicit: calling-policy work does
 not wait on machine-parameter support. Static selection and invocation are
