@@ -1,12 +1,12 @@
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_abstract_operations::{
-    RuntimeStorageRegion, SelectedInstruction, SelectedInstructionKind, StateGuardOperator,
+    RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
+    StateGuardOperator,
 };
-use omega_checked_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
-};
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_control_flow::StateKey;
+use omega_core::arena::Arena;
 
 use super::super::super::storage_places::{
     resolve_runtime_frame_fixed_indexed_target_in_table,
@@ -24,6 +24,7 @@ pub(in crate::selection) fn emit_runtime_frame_slot_text_comparison_write_in_tab
     expressions: &ExpressionTable,
     slot: &omega_runtime_storage::RuntimeFrameSlot,
     value: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) -> bool {
     if slot.byte_size != 1 {
@@ -33,89 +34,30 @@ pub(in crate::selection) fn emit_runtime_frame_slot_text_comparison_write_in_tab
     let ExpressionNode::Binary(binary) = expressions.expression(value) else {
         return false;
     };
-    let operator = match binary.operator {
-        BinaryOperator::Equal => StateGuardOperator::Equal,
-        BinaryOperator::NotEqual => StateGuardOperator::NotEqual,
-        _ => return false,
-    };
-
-    let left_place = resolve_runtime_storage_place_in_table(
+    let Some(text_equals) = super::mutation::resolve_runtime_text_equals_operand_in_table(
         input,
         dispatch_index,
         value_source_key,
         expressions,
+        binary.operator,
         binary.left,
-    );
-    let right_place = resolve_runtime_storage_place_in_table(
-        input,
-        dispatch_index,
-        value_source_key,
-        expressions,
         binary.right,
-    );
-    let string_descriptor_size = input.runtime_abi.string_descriptor_size();
-    if std::env::var_os("OMEGA_DEBUG_CALL_RESULT").is_some() {
-        eprintln!(
-            "TEXTW: dispatch {dispatch_index} src m{} s{} left {:?} right {:?} (need {string_descriptor_size})",
-            value_source_key.machine.arena_index(),
-            value_source_key.state.arena_index(),
-            left_place.as_ref().map(|p| (p.byte_offset, p.byte_count)),
-            right_place.as_ref().map(|p| (p.byte_offset, p.byte_count)),
-        );
-    }
-
-    let literal_buffer_and_place = if let Some(literal) =
-        expressions.string_literal_value(binary.left)
-    {
-        let source_place = right_place.filter(|place| place.byte_count == string_descriptor_size);
-        source_place.map(|source_place| {
-            (
-                string_literal_data_handle(input, value_source_key, statement_index, &literal),
-                source_place,
-            )
-        })
-    } else if let Some(literal) = expressions.string_literal_value(binary.right) {
-        let source_place = left_place.filter(|place| place.byte_count == string_descriptor_size);
-        source_place.map(|source_place| {
-            (
-                string_literal_data_handle(input, value_source_key, statement_index, &literal),
-                source_place,
-            )
-        })
-    } else {
-        None
-    };
-
-    let Some((buffer, source_place)) = literal_buffer_and_place else {
+        runtime_value_operands,
+    ) else {
         return false;
     };
-
+    let zero = runtime_value_operands.insert(RuntimeValueOperand::Immediate(0));
     selected_instructions.push(SelectedInstruction {
-        kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+        kind: crate::selection::runtime_dispatch::write_place_binary_direct(
             RuntimeStorageRegion::RuntimeFrame,
             slot.byte_offset,
-            1,
             slot.byte_size,
-        ),
-        source_key: value_source_key,
-        source_statement: statement_index,
-    });
-    selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::CompareRuntimeTextStorage {
-            buffer,
-            source_region: source_place.region,
-            source_offset: source_place.byte_offset,
-            operator,
-        },
-        source_key: value_source_key,
-        source_statement: statement_index,
-    });
-    selected_instructions.push(SelectedInstruction {
-        kind: crate::selection::runtime_dispatch::write_place_integer_direct(
-            RuntimeStorageRegion::RuntimeFrame,
-            slot.byte_offset,
-            0,
-            slot.byte_size,
+            text_equals,
+            StateGuardOperator::Or,
+            zero,
+            false,
+            omega_core::arithmetic::ArithmeticDomain::Exact,
+            false,
         ),
         source_key: value_source_key,
         source_statement: statement_index,

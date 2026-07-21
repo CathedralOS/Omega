@@ -873,77 +873,31 @@ fn runtime_text_equals_literal_guard_in_table(
         } else {
             return None;
         };
-    // An owned `[u8; N]` carrier is excluded from the String/slice `place_is_string`
-    // gate by design (its `{len, bytes}` layout is not a `{ptr, len}` descriptor),
-    // so resolve its storage place to a `Storage` ADDRESS operand directly and flag
-    // carrier addressing for the encoder; otherwise take the descriptor place path.
-    let (place, place_is_bounded_buffer) =
-        if resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
+    // An owned `[u8; N]` carrier is excluded from the String/slice
+    // `place_is_string` gate by design (its `{len, bytes}` layout is not a
+    // `{ptr, len}` descriptor). Resolve the same inline carrier operand used by
+    // value/write comparisons; otherwise take the descriptor place path.
+    let (place, place_is_bounded_buffer) = if let Some(operand) =
+        resolve_runtime_bounded_byte_buffer_place_operand_in_table(
             input,
             dispatch_index,
             source_key,
             expressions,
             place_expression,
+            runtime_value_operands,
         ) {
-            // A DIRECT (machine/frame) carrier resolves to a `Storage` ADDRESS
-            // operand. A carrier reached THROUGH a pointer -- a slice element
-            // `r[0].label` where `r: &[Room]` is a value-call param, or a `&mut
-            // Room` field -- resolves to a `Pointee` ADDRESS operand instead: the
-            // encoder loads the stored pointer first, then the carrier `{len,
-            // bytes}` sits at `*ptr + field` (len @ 0, bytes @ +pointer_size), the
-            // SAME bounded-buffer compare body, only the address setup differs.
-            // Without this pointee fallback the storage resolver returned `None`
-            // and the whole guard silently dropped -- the value-call
-            // slice-element text-compare arm-drop bug (task #14).
-            if let Some(storage) = resolve_runtime_storage_place_in_table(
-                input,
-                dispatch_index,
-                source_key,
-                expressions,
-                place_expression,
-            ) {
-                let operand = runtime_value_operands.insert(RuntimeValueOperand::Storage {
-                    region: storage.region,
-                    byte_offset: storage.byte_offset,
-                    byte_size: storage.byte_count,
-                });
-                (operand, true)
-            } else if let Some(pointee) = resolve_runtime_pointee_fixed_indexed_target_in_table(
-                input,
-                dispatch_index,
-                source_key,
-                expressions,
-                place_expression,
-            )
-            .or_else(|| {
-                resolve_runtime_pointee_slot_offset_in_table(
-                    input,
-                    dispatch_index,
-                    source_key,
-                    expressions,
-                    place_expression,
-                )
-            }) {
-                let operand = runtime_value_operands.insert(RuntimeValueOperand::Pointee {
-                    pointer_byte_offset: pointee.pointer_byte_offset,
-                    field_byte_offset: pointee.field_byte_offset,
-                    byte_size: pointee.pointee_byte_size,
-                });
-                (operand, true)
-            } else {
-                return None;
-            }
-        } else {
-            let operand = resolve_runtime_text_descriptor_place_operand_in_table(
-                input,
-                dispatch_index,
-                source_key,
-                expressions,
-                place_expression,
-                runtime_value_operands,
-            )?;
-            (operand, false)
-        };
+        (operand, true)
+    } else {
+        let operand = resolve_runtime_text_descriptor_place_operand_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            place_expression,
+            runtime_value_operands,
+        )?;
+        (operand, false)
+    };
     let text_equals = runtime_value_operands.insert(RuntimeValueOperand::TextEqualsLiteral {
         place,
         literal: literal.to_string(),
@@ -957,6 +911,66 @@ fn runtime_text_equals_literal_guard_in_table(
         byte_size: 1,
         operator,
     })
+}
+
+/// Resolve an owned `[u8; N]` carrier place to the address operand expected by
+/// `TextEqualsLiteral` when `place_is_bounded_buffer` is true. Direct
+/// machine/frame carriers use `Storage`; carriers reached through a pointer use
+/// `Pointee`. Keeping this resolver shared prevents guard and value/write
+/// equality from disagreeing about the carrier's inline `{len, bytes}` layout.
+pub(in crate::selection::runtime_dispatch) fn resolve_runtime_bounded_byte_buffer_place_operand_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<RuntimeValueOperandHandle> {
+    if !resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return None;
+    }
+
+    if let Some(storage) = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
+            region: storage.region,
+            byte_offset: storage.byte_offset,
+            byte_size: storage.byte_count,
+        }));
+    }
+
+    let pointee = resolve_runtime_pointee_fixed_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    )
+    .or_else(|| {
+        resolve_runtime_pointee_slot_offset_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            expression,
+        )
+    })?;
+    Some(runtime_value_operands.insert(RuntimeValueOperand::Pointee {
+        pointer_byte_offset: pointee.pointer_byte_offset,
+        field_byte_offset: pointee.field_byte_offset,
+        byte_size: pointee.pointee_byte_size,
+    }))
 }
 
 /// `String place ==/!= String place` in guard position (the String clause of

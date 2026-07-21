@@ -100,9 +100,10 @@ pub enum ValueOperand {
         operands_signed: bool,
     },
     /// Runtime text CONTENT equality in VALUE position (Equatable synthesis
-    /// over `String` fields, chapter 13): both sides are `{ptr @ +0, len @ +8}`
-    /// text descriptor places; the operand evaluates to bool 1 when the
-    /// lengths match AND every byte matches, else 0. A LEAF of the operand
+    /// over text fields, chapter 13): each side is either a `{ptr @ +0,
+    /// len @ +8}` descriptor or an owned `{len @ +0, bytes @ +8}` bounded
+    /// carrier; the operand evaluates to bool 1 when the lengths match AND
+    /// every byte matches, else 0. A LEAF of the operand
     /// tree (its inputs are places, not nested operands), so the AND/OR
     /// boolean tree the structural-equality expansion builds consumes it like
     /// any other compare. Lowered as a length compare plus a bounded byte
@@ -111,8 +112,10 @@ pub enum ValueOperand {
     TextEquals {
         left_region: RuntimeStorageRegion,
         left_offset: usize,
+        left_is_bounded_buffer: bool,
         right_region: RuntimeStorageRegion,
         right_offset: usize,
+        right_is_bounded_buffer: bool,
     },
     /// Runtime text CONTENT equality against an inline string literal
     /// (`transition items[i].name == "expected"`): `place` names the String

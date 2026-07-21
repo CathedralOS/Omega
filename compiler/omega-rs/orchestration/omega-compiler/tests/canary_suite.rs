@@ -19616,10 +19616,19 @@ fn runtime_text_not_equals_exit_canary_runs() {
     // Text != in value + guard positions; the equal-strings leg is the pin
     // (the negation flag was ignored and != behaved as == on both ISAs).
     let canary = pass_canary("text/runtime_text_not_equals_exit");
+    let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("carrier text not-equals canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should pass all carrier not-equals legs (exit 70), got {}",
+        outcome.exit_code
+    );
     let build_dir = std::env::temp_dir().join(format!("omega-texteqne-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
-        root_path: canary.join("main.omg"),
+        root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
         write_output: true,
@@ -19643,10 +19652,19 @@ fn runtime_text_equals_boolean_operand_exit_canary_runs() {
     // the right-operand legs pin the pool-drawn address register (a fixed
     // x15 collided with the right pool's first pick and read garbage).
     let canary = pass_canary("text/runtime_text_equals_boolean_operand_exit");
+    let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("carrier text boolean-operand canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should pass all nested carrier equality legs (exit 70), got {}",
+        outcome.exit_code
+    );
     let build_dir = std::env::temp_dir().join(format!("omega-texteqbool-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
-        root_path: canary.join("main.omg"),
+        root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
         write_output: true,
@@ -19722,14 +19740,23 @@ fn case_literal_texteq_field_store_exit_canary_runs() {
 
 #[test]
 fn runtime_text_equals_value_positions_exit_canary_runs() {
-    // String content equality in every value/write position: let-local,
+    // Carrier content equality in every value/write position: let-local,
     // field store vs literal, field store vs place. Exits 71/72/73 name the
     // leg that broke.
     let canary = pass_canary("text/runtime_text_equals_value_positions_exit");
+    let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("carrier text value-position canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should pass all carrier value-position legs (exit 70), got {}",
+        outcome.exit_code
+    );
     let build_dir = std::env::temp_dir().join(format!("omega-texteqval-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
-        root_path: canary.join("main.omg"),
+        root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
         write_output: true,
@@ -26000,6 +26027,14 @@ fn runtime_multiarm_same_named_locals_exit_canary_runs() {
 fn runtime_multiarm_texteq_local_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_multiarm_texteq_local_exit");
     let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("multi-arm carrier text-equality local canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should preserve both multi-arm carrier comparisons (exit 70), got {}",
+        outcome.exit_code
+    );
     let build_dir = std::env::temp_dir().join(format!(
         "omega-multiarm-texteq-local-{}",
         std::process::id()
@@ -26032,6 +26067,14 @@ fn runtime_multiarm_texteq_local_exit_canary_runs() {
 fn runtime_pre_guard_texteq_local_guard_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_pre_guard_texteq_local_guard_exit");
     let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("pre-guard carrier text-equality canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should observe the initialized carrier comparison (exit 70), got {}",
+        outcome.exit_code
+    );
     let build_dir = std::env::temp_dir().join(format!(
         "omega-pre-guard-texteq-local-guard-{}",
         std::process::id()
@@ -26063,6 +26106,14 @@ fn runtime_pre_guard_texteq_local_guard_exit_canary_runs() {
 fn runtime_pre_guard_texteq_local_arg_forward_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_pre_guard_texteq_local_arg_forward_exit");
     let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("forwarded carrier text-equality local canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should forward the initialized carrier comparison (exit 70), got {}",
+        outcome.exit_code
+    );
     let build_dir = std::env::temp_dir().join(format!(
         "omega-pre-guard-texteq-local-arg-{}",
         std::process::id()

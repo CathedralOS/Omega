@@ -144,14 +144,28 @@ pub(super) fn runtime_value_operand_name(
         RuntimeValueOperand::TextEquals {
             left_region,
             left_offset,
+            left_is_bounded_buffer,
             right_region,
             right_offset,
+            right_is_bounded_buffer,
         } => {
             let left_symbol =
                 storage_region_symbol_name(*left_region, backend_plan.entry_machine_name());
             let right_symbol =
                 storage_region_symbol_name(*right_region, backend_plan.entry_machine_name());
-            format!("text_equals({left_symbol}@{left_offset}, {right_symbol}@{right_offset})")
+            format!(
+                "text_equals({left_symbol}@{left_offset}{}, {right_symbol}@{right_offset}{})",
+                if *left_is_bounded_buffer {
+                    ", carrier"
+                } else {
+                    ""
+                },
+                if *right_is_bounded_buffer {
+                    ", carrier"
+                } else {
+                    ""
+                },
+            )
         }
         RuntimeValueOperand::TextEqualsLiteral {
             place,

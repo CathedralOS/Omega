@@ -531,8 +531,8 @@ pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_equals_operan
     // blocker refused it -- the field-store leg of the texteq matrix, while
     // the `let` leg rode the frame-slot text-comparison writer and the
     // place==place field store rode `TextEquals` below. Build the literal
-    // leaf here so all four legs lower identically. (Bounded `[u8; N]`
-    // carriers stay guard-only: the descriptor place resolver declines them.)
+    // leaf here so all four legs lower identically. Owned `[u8; N]` carriers
+    // use their inline `{len, bytes}` place rather than the descriptor path.
     let literal_pairing = match (
         expressions.expression(left_expression),
         expressions.expression(right_expression),
@@ -542,18 +542,32 @@ pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_equals_operan
         _ => None,
     };
     let text_equals = if let Some((place_expression, literal)) = literal_pairing {
-        let place = crate::selection::runtime_dispatch::guards::resolve_runtime_text_descriptor_place_operand_in_table(
-            input,
-            dispatch_index,
-            source_key,
-            expressions,
-            place_expression,
-            runtime_value_operands,
-        )?;
+        let (place, place_is_bounded_buffer) = if let Some(place) =
+            crate::selection::runtime_dispatch::guards::resolve_runtime_bounded_byte_buffer_place_operand_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                place_expression,
+                runtime_value_operands,
+            )
+        {
+            (place, true)
+        } else {
+            let place = crate::selection::runtime_dispatch::guards::resolve_runtime_text_descriptor_place_operand_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                place_expression,
+                runtime_value_operands,
+            )?;
+            (place, false)
+        };
         runtime_value_operands.insert(RuntimeValueOperand::TextEqualsLiteral {
             place,
             literal,
-            place_is_bounded_buffer: false,
+            place_is_bounded_buffer,
         })
     } else {
         // A `&[u8] in Utf8` view shares the identical 16-byte `{ptr, len}` descriptor
@@ -572,6 +586,12 @@ pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_equals_operan
                 ),
                 Some(PrimitiveType::String)
             ) || resolve_runtime_storage_place_is_fat_slice_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                expression,
+            ) || crate::selection::storage_places::resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
                 input,
                 dispatch_index,
                 source_key,
@@ -596,20 +616,29 @@ pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_equals_operan
             expressions,
             right_expression,
         )?;
-        // A String place is its 16-byte `{ptr, len}` text descriptor.
-        debug_assert_eq!(
-            left_place.byte_count, 16,
-            "String place must be a text descriptor"
+        let left_is_bounded_buffer = crate::selection::storage_places::resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            left_expression,
         );
-        debug_assert_eq!(
-            right_place.byte_count, 16,
-            "String place must be a text descriptor"
+        let right_is_bounded_buffer = crate::selection::storage_places::resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            right_expression,
         );
+        debug_assert!(left_is_bounded_buffer || left_place.byte_count == 16);
+        debug_assert!(right_is_bounded_buffer || right_place.byte_count == 16);
         runtime_value_operands.insert(RuntimeValueOperand::TextEquals {
             left_region: left_place.region,
             left_offset: left_place.byte_offset,
+            left_is_bounded_buffer,
             right_region: right_place.region,
             right_offset: right_place.byte_offset,
+            right_is_bounded_buffer,
         })
     };
     if !negated {

@@ -23,6 +23,13 @@
 > preserve the native/interpreter regression coverage, and then remove the
 > builtin type and backend branches. Only the genuinely growable surface remains
 > allocator-gated.
+>
+> Fixed-carrier equality is no longer a migration blocker. The shared
+> representation-aware equality operands now read `{len, bytes}` carriers and
+> `{ptr, len}` views correctly in literal, carrier-to-carrier, guard, local,
+> forwarded-local, field-store, nested-boolean, and inequality positions on
+> x86-64 and AArch64. The migrated regression canaries preserve interpreter
+> oracles alongside native execution.
 
 > **Migration-cost lesson:** this is not a mechanical keyword deletion. The
 > historical corpus exercised owned `String` natively across fields, copies,

@@ -12620,10 +12620,23 @@ fn append_runtime_value_operand(
             byte_size,
         )?;
         Ok(())
-    } else if let Some((_, left_offset, _, right_offset)) =
-        runtime_value_operands.text_equals(operand)
+    } else if let Some((
+        _,
+        left_offset,
+        left_is_bounded_buffer,
+        _,
+        right_offset,
+        right_is_bounded_buffer,
+    )) = runtime_value_operands.text_equals(operand)
     {
-        append_runtime_text_equals_operand(bytes, destination, left_offset, right_offset)?;
+        append_runtime_text_equals_operand(
+            bytes,
+            destination,
+            left_offset,
+            left_is_bounded_buffer,
+            right_offset,
+            right_is_bounded_buffer,
+        )?;
         Ok(())
     } else if let Some((place, literal, place_is_bounded_buffer)) =
         runtime_value_operands.text_equals_literal(operand)
@@ -12831,16 +12844,25 @@ fn append_runtime_text_equals_operand(
     bytes: &mut Vec<u8>,
     destination: Reg64,
     left_offset: usize,
+    left_is_bounded_buffer: bool,
     right_offset: usize,
+    right_is_bounded_buffer: bool,
 ) -> Result<(), Diagnostic> {
     let operand_start = bytes.len();
 
     // Left descriptor: base (imm64 relocated at the operand start), ptr, len.
     append_mov_r15_imm64(bytes, 0);
-    bytes.extend([0x49, 0x8b, 0x87]); // mov rax, [r15+disp32] (left ptr)
-    bytes.extend(disp32(left_offset)?.to_le_bytes());
-    bytes.extend([0x49, 0x8b, 0x8f]); // mov rcx, [r15+disp32] (left len)
-    bytes.extend(disp32(left_offset + 8)?.to_le_bytes());
+    if left_is_bounded_buffer {
+        bytes.extend([0x49, 0x8d, 0x87]); // lea rax, [r15+disp32] (left bytes)
+        bytes.extend(disp32(left_offset + 8)?.to_le_bytes());
+        bytes.extend([0x49, 0x8b, 0x8f]); // mov rcx, [r15+disp32] (left len)
+        bytes.extend(disp32(left_offset)?.to_le_bytes());
+    } else {
+        bytes.extend([0x49, 0x8b, 0x87]); // mov rax, [r15+disp32] (left ptr)
+        bytes.extend(disp32(left_offset)?.to_le_bytes());
+        bytes.extend([0x49, 0x8b, 0x8f]); // mov rcx, [r15+disp32] (left len)
+        bytes.extend(disp32(left_offset + 8)?.to_le_bytes());
+    }
 
     // Right descriptor: base relocated at the pinned right-base offset; the
     // length load consumes r15 LAST (the base is no longer needed after it).
@@ -12850,10 +12872,17 @@ fn append_runtime_text_equals_operand(
         "right descriptor base must sit at the pinned relocation offset"
     );
     append_mov_r15_imm64(bytes, 0);
-    bytes.extend([0x49, 0x8b, 0x97]); // mov rdx, [r15+disp32] (right ptr)
-    bytes.extend(disp32(right_offset)?.to_le_bytes());
-    bytes.extend([0x4d, 0x8b, 0xbf]); // mov r15, [r15+disp32] (right len)
-    bytes.extend(disp32(right_offset + 8)?.to_le_bytes());
+    if right_is_bounded_buffer {
+        bytes.extend([0x49, 0x8d, 0x97]); // lea rdx, [r15+disp32] (right bytes)
+        bytes.extend(disp32(right_offset + 8)?.to_le_bytes());
+        bytes.extend([0x4d, 0x8b, 0xbf]); // mov r15, [r15+disp32] (right len)
+        bytes.extend(disp32(right_offset)?.to_le_bytes());
+    } else {
+        bytes.extend([0x49, 0x8b, 0x97]); // mov rdx, [r15+disp32] (right ptr)
+        bytes.extend(disp32(right_offset)?.to_le_bytes());
+        bytes.extend([0x4d, 0x8b, 0xbf]); // mov r15, [r15+disp32] (right len)
+        bytes.extend(disp32(right_offset + 8)?.to_le_bytes());
+    }
 
     // result = 0; unequal lengths are unequal text. The jne also means a
     // zero-length pair never enters the loop, so an all-zero (default)
@@ -15693,7 +15722,14 @@ mod machine_control_tests {
         fn text_equals(
             &self,
             _: RuntimeValueOperandHandle,
-        ) -> Option<(RuntimeStorageRegion, usize, RuntimeStorageRegion, usize)> {
+        ) -> Option<(
+            RuntimeStorageRegion,
+            usize,
+            bool,
+            RuntimeStorageRegion,
+            usize,
+            bool,
+        )> {
             None
         }
         fn text_equals_literal(
