@@ -1,5 +1,5 @@
-// Regression: copying a `let` local struct's String field out through a
-// `&mut String` parameter must reach the caller. The local-field write was
+// Regression: copying a `let` local struct's bounded text field out through a
+// mutable carrier parameter must reach the caller. The local-field write was
 // mis-lowered as a machine-storage write at the frame slot's numeric offset
 // (aliasing the machine-storage region base), so the pointee stayed empty.
 // Fixed by honoring the resolved storage region (frame vs machine) in the
@@ -7,13 +7,21 @@
 
 use omega::language::std::console;
 
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+
+domain [u8; 32]::Utf8 {
+    valid_utf8(self);
+}
+
 data Holder {
-    stored: String;
+    stored: [u8; 32] in Utf8;
 }
 
 data Main {
     console: Console;
-    line: String;
+    line: [u8; 32] in Utf8;
 }
 
 machine Main::main(&mut self) {
@@ -34,7 +42,7 @@ machine Main::main(&mut self) {
     }
 }
 
-machine Main::set_from_local_field(&mut self, out_line: &mut String) {
+machine Main::set_from_local_field(&mut self, out_line: &mut [u8; 32] in Utf8) {
     let local: Holder;
     local.stored = "FROM_LOCAL_FIELD";
     out_line = local.stored;

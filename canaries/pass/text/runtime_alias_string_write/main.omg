@@ -1,8 +1,15 @@
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
+
 data Main {
-    label: String;
+    label: [u8; 8] in Utf8;
 }
 
 machine Main::main(&mut self) {
-    let label_alias: &mut String = &mut self.label;
+    let label_alias: &mut [u8; 8] in Utf8 = &mut self.label;
     label_alias = "hello";
 }

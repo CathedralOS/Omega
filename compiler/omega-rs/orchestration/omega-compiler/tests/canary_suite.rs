@@ -19529,13 +19529,22 @@ fn zii_string_host_write_exit_canary_runs() {
 
 #[test]
 fn zii_default_string_equality_exit_canary_runs() {
-    // ZII default strings ARE the empty string through content equality;
-    // the non-empty-literal leg must not dereference the null pointer.
+    // A ZII bounded text carrier is empty through content equality; the
+    // non-empty-literal leg must not read beyond its zero length.
     let canary = pass_canary("text/zii_default_string_equality_exit");
+    let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("ZII carrier equality canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should treat ZII carriers as empty text (exit 70), got {}",
+        outcome.exit_code
+    );
     let build_dir = std::env::temp_dir().join(format!("omega-ziistr-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
-        root_path: canary.join("main.omg"),
+        root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
         write_output: true,
@@ -19689,10 +19698,19 @@ fn case_literal_texteq_terminal_exit_canary_runs() {
     // frame staging slot, and the TextEqualsLiteral operand encoder must not
     // clobber the write's target base (x15, not x16).
     let canary = pass_canary("text/case_literal_texteq_terminal_exit");
+    let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("carrier texteq terminal canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should deliver carrier equality in the terminal payload (exit 70), got {}",
+        outcome.exit_code
+    );
     let build_dir = std::env::temp_dir().join(format!("omega-texteqterm-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
-        root_path: canary.join("main.omg"),
+        root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
         write_output: true,
@@ -19717,10 +19735,19 @@ fn case_literal_texteq_field_store_exit_canary_runs() {
     // landed in the value-operand resolver (was: silently dropped, then
     // poisoned). Exit 70 proves content delivery, not just compilation.
     let canary = pass_canary("text/case_literal_texteq_field_store_exit");
+    let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("carrier texteq field-store canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should deliver carrier equality in the stored payload (exit 70), got {}",
+        outcome.exit_code
+    );
     let build_dir = std::env::temp_dir().join(format!("omega-texteqstore-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
-        root_path: canary.join("main.omg"),
+        root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
         write_output: true,

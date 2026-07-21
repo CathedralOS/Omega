@@ -11,9 +11,15 @@
 // position; wild store under a write; the machine-target field store only
 // survived by an offset-0 accident). The encoder now uses x15, mirroring the
 // frame-indexed operand precedent. exit 73 = z false/dropped or tag wrong.
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
 use omega::language::std::console;
 data Msg { case Ping(x: i32); case Pong(y: i32, z: bool); }
-data Main { console: Console; name: String; }
+data Main { console: Console; name: [u8; 8] in Utf8; }
 machine Main::mk(&mut self) -> Msg {
     transition true { true -> Msg::Pong { y: 5, z: self.name == "omega" } }
 }
