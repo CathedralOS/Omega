@@ -413,6 +413,15 @@ Generic boundary declarations are inert until a standalone conformance supplies
 a concrete trait argument tuple. Each such instance resolves its policy and
 forwarded signature types independently; provider schemas recover that same
 tuple, while only the evaluated plan fingerprint enters their public identity.
+The canonical call plan itself remains internal lowering evidence. Provider
+selection now carries it through authored `provides`/`via` rows into the host
+binding without adding policy source identity to the schema. On x86-64,
+authored imports use the retained plan directly for emission, width, and both
+call and data relocation layout; supplied operand shapes are checked again at
+that seam. Thus a source-selected SysV placement can govern an import in a PE
+image instead of being silently replaced by Microsoft x64. AArch64 source-plan
+consumption is the next slice and currently fails closed rather than reverting
+to target-derived AAPCS64.
 
 While compatibility syscall rows coexist with normalized plans, evaluation
 differentially checks their historical register-slot and supervisor-call facts

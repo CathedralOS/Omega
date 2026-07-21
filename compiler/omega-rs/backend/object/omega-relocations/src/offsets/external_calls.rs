@@ -3,6 +3,7 @@ use omega_object_file::RelocationKind;
 use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::InstructionOperandLike;
 
+#[cfg(test)]
 pub(crate) fn external_call_relocation_offset<T: InstructionOperandLike>(
     target: NativeTarget,
     operation_key: HostOperationKey,
@@ -10,7 +11,33 @@ pub(crate) fn external_call_relocation_offset<T: InstructionOperandLike>(
     operands: &[T],
     authored_import: bool,
 ) -> usize {
+    external_call_relocation_offset_with_plan(
+        target,
+        operation_key,
+        selected_text_offset,
+        operands,
+        authored_import,
+        None,
+    )
+}
+
+pub(crate) fn external_call_relocation_offset_with_plan<T: InstructionOperandLike>(
+    target: NativeTarget,
+    operation_key: HostOperationKey,
+    selected_text_offset: usize,
+    operands: &[T],
+    authored_import: bool,
+    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+) -> usize {
     let architecture = target.architecture;
+    if architecture == Architecture::X86_64
+        && let Some(plan) = authoritative_plan
+        && let Some(site) = omega_isa_x86_64::authored_import_relocation_sites(plan, operands)
+            .into_iter()
+            .find(|site| site.kind == omega_isa_x86_64::X86_64RelocationSiteKind::Relative32)
+    {
+        return selected_text_offset + site.byte_offset;
+    }
     if architecture == Architecture::X86_64
         && let Some(site) = omega_isa_x86_64::host_call_external_relocation_site_for_policy(
             omega_calling_conventions::CallingPolicy::native_for_target(target),

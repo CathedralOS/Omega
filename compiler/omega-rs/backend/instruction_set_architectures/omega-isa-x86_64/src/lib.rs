@@ -1578,6 +1578,40 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
     }
 }
 
+/// Encode an authored import from the exact validated source-selected plan.
+/// The concrete image target does not replace the boundary's policy choice.
+pub fn encode_authored_import_call_sequence<T: InstructionOperandLike>(
+    plan: &CallPlan,
+    operands: &[T],
+) -> Result<Vec<u8>, Diagnostic> {
+    match plan.policy {
+        CallingPolicy::MicrosoftX64 => {
+            encode_win64_import_call_with_plan(operands, true, false, Some(plan))
+        }
+        CallingPolicy::SystemVAMD64 => {
+            Ok(sysv_import_layout_with_plan(operands, true, Some(plan))?.bytes)
+        }
+        policy => Err(Diagnostic::error(format!(
+            "x86-64 authored import encoder cannot realize {policy:?}"
+        ))),
+    }
+}
+
+pub fn authored_import_relocation_sites<T: InstructionOperandLike>(
+    plan: &CallPlan,
+    operands: &[T],
+) -> Vec<X86_64RelocationSite> {
+    match plan.policy {
+        CallingPolicy::MicrosoftX64 => {
+            win64_import_call_relocation_sites_with_plan(operands, true, false, Some(plan))
+        }
+        CallingPolicy::SystemVAMD64 => sysv_import_layout_with_plan(operands, true, Some(plan))
+            .map(|layout| layout.relocation_sites)
+            .unwrap_or_default(),
+        _ => Vec::new(),
+    }
+}
+
 /// `GetAsyncKeyState(vk)` -- a value-returning USER32 import (the multi-DLL
 /// proof): shadow space, the vk marshalled into ecx from operands[1] (constant
 /// or runtime scalar), the relocated `call rel32`, the shadow restore, then
@@ -2671,6 +2705,15 @@ fn encode_win64_import_call<T: InstructionOperandLike>(
     returns_value: bool,
     dereferences_result: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
+    encode_win64_import_call_with_plan(operands, returns_value, dereferences_result, None)
+}
+
+fn encode_win64_import_call_with_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    returns_value: bool,
+    dereferences_result: bool,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<Vec<u8>, Diagnostic> {
     if returns_value && operands.is_empty() {
         return Err(Diagnostic::error(
             "cannot encode X86_64 import call: the result storage place did not lower to a \
@@ -2678,7 +2721,13 @@ fn encode_win64_import_call<T: InstructionOperandLike>(
         ));
     }
     let arg_start = usize::from(returns_value);
-    let plan = normalized_win64_import_plan(operands, returns_value)?;
+    let plan = if let Some(plan) = authoritative_plan {
+        validate_win64_encoder_plan(plan)?;
+        validate_win64_plan_operand_shapes(plan, operands, returns_value)?;
+        plan.clone()
+    } else {
+        normalized_win64_import_plan(operands, returns_value)?
+    };
     let indirect_result = plan.result.as_ref().is_some_and(win64_result_is_indirect);
     let result_register = if indirect_result {
         None
@@ -2978,13 +3027,27 @@ fn sysv_import_layout<T: InstructionOperandLike>(
     operands: &[T],
     returns_value: bool,
 ) -> Result<SysvImportLayout, Diagnostic> {
+    sysv_import_layout_with_plan(operands, returns_value, None)
+}
+
+fn sysv_import_layout_with_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    returns_value: bool,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<SysvImportLayout, Diagnostic> {
     if returns_value && operands.is_empty() {
         return Err(Diagnostic::error(
             "cannot encode SysV AMD64 import call without its result storage operand",
         ));
     }
     let arg_start = usize::from(returns_value);
-    let plan = normalized_sysv_import_plan(operands, returns_value)?;
+    let plan = if let Some(plan) = authoritative_plan {
+        validate_sysv_import_plan(plan)?;
+        validate_sysv_plan_operand_shapes(plan, operands, returns_value)?;
+        plan.clone()
+    } else {
+        normalized_sysv_import_plan(operands, returns_value)?
+    };
     let stack_bytes = plan
         .parameters
         .iter()
@@ -3612,6 +3675,40 @@ fn normalized_sysv_import_plan<T: InstructionOperandLike>(
     Ok(plan)
 }
 
+fn validate_sysv_plan_operand_shapes<T: InstructionOperandLike>(
+    plan: &CallPlan,
+    operands: &[T],
+    returns_value: bool,
+) -> Result<(), Diagnostic> {
+    let arg_start = usize::from(returns_value);
+    let parameter_shapes = operands
+        .get(arg_start..)
+        .ok_or_else(|| Diagnostic::error("SysV AMD64 authored import has no arguments"))?
+        .iter()
+        .map(sysv_operand_shape)
+        .collect::<Result<Vec<_>, _>>()?;
+    let result_shape = if returns_value {
+        Some(sysv_operand_shape(operands.first().ok_or_else(|| {
+            Diagnostic::error("SysV AMD64 authored import has no result operand")
+        })?)?)
+    } else {
+        None
+    };
+    if plan.parameters.len() != parameter_shapes.len()
+        || plan
+            .parameters
+            .iter()
+            .map(|placement| placement.shape)
+            .ne(parameter_shapes)
+        || plan.result.as_ref().map(|placement| placement.shape) != result_shape
+    {
+        return Err(Diagnostic::error(
+            "SysV AMD64 source calling plan does not match the selected authored import operands",
+        ));
+    }
+    Ok(())
+}
+
 fn sysv_operand_shape<T: InstructionOperandLike>(operand: &T) -> Result<ValueShape, Diagnostic> {
     if let Some((_, _, byte_count, alignment, sse_eightbytes)) =
         operand.runtime_system_v_aggregate()
@@ -3977,6 +4074,40 @@ fn normalized_win64_call_plan<T: InstructionOperandLike>(
         result,
     };
     evaluate_normalized_win64_plan(&signature)
+}
+
+fn validate_win64_plan_operand_shapes<T: InstructionOperandLike>(
+    plan: &CallPlan,
+    operands: &[T],
+    returns_value: bool,
+) -> Result<(), Diagnostic> {
+    let arg_start = usize::from(returns_value);
+    let parameter_shapes = operands
+        .get(arg_start..)
+        .ok_or_else(|| Diagnostic::error("Microsoft x64 authored import has no arguments"))?
+        .iter()
+        .map(win64_operand_shape)
+        .collect::<Result<Vec<_>, _>>()?;
+    let result_shape = if returns_value {
+        Some(win64_operand_shape(operands.first().ok_or_else(|| {
+            Diagnostic::error("Microsoft x64 authored import has no result operand")
+        })?)?)
+    } else {
+        None
+    };
+    if plan.parameters.len() != parameter_shapes.len()
+        || plan
+            .parameters
+            .iter()
+            .map(|placement| placement.shape)
+            .ne(parameter_shapes)
+        || plan.result.as_ref().map(|placement| placement.shape) != result_shape
+    {
+        return Err(Diagnostic::error(
+            "Microsoft x64 source calling plan does not match the selected authored import operands",
+        ));
+    }
+    Ok(())
 }
 
 fn evaluate_normalized_win64_plan(signature: &CallSignature) -> Result<CallPlan, Diagnostic> {
@@ -4587,6 +4718,57 @@ mod x86_import_plan_tests {
             .expect_err("the Win64 compatibility encoder must not silently choose its ABI");
 
         assert!(error.message.contains("not SystemVAMD64"));
+    }
+
+    #[test]
+    fn authored_import_consumes_the_supplied_plan_and_matching_relocation_walk() {
+        let operands = [
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 8,
+            }),
+            operand(TargetInstructionOperandKind::ImmediateInteger(7)),
+        ];
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: Some(ValueShape::integer(8, 8)),
+        };
+        let mut plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature)
+            .expect("baseline SysV plan");
+        plan.parameters[0].locations = vec![ValueLocation::Register {
+            register: MachineRegister::X86Rcx,
+            value_byte_offset: 0,
+            byte_size: 8,
+        }];
+        omega_calling_conventions::validate_call_plan(&plan, &signature)
+            .expect("source-selected nondefault placement remains structurally valid");
+
+        let bytes = encode_authored_import_call_sequence(&plan, &operands)
+            .expect("source-selected authored import");
+        assert!(
+            bytes.windows(2).any(|window| window == [0x48, 0xb9]),
+            "the authored parameter placement must select rcx"
+        );
+        assert!(
+            !bytes.windows(2).any(|window| window == [0x48, 0xbf]),
+            "the target-derived SysV rdi placement must not replace the authored plan"
+        );
+
+        let sites = authored_import_relocation_sites(&plan, &operands);
+        let call = sites
+            .iter()
+            .find(|site| site.kind == X86_64RelocationSiteKind::Relative32)
+            .expect("call relocation");
+        assert_eq!(bytes[call.byte_offset - 1], 0xe8);
+        assert_eq!(
+            sites
+                .iter()
+                .filter(|site| site.kind == X86_64RelocationSiteKind::Absolute64)
+                .map(|site| site.operand_index)
+                .collect::<Vec<_>>(),
+            [Some(0)]
+        );
     }
 
     #[test]
@@ -5509,9 +5691,29 @@ fn win64_import_call_relocation_sites<T: InstructionOperandLike>(
     returns_value: bool,
     dereferences_result: bool,
 ) -> Vec<X86_64RelocationSite> {
+    win64_import_call_relocation_sites_with_plan(operands, returns_value, dereferences_result, None)
+}
+
+fn win64_import_call_relocation_sites_with_plan<T: InstructionOperandLike>(
+    operands: &[T],
+    returns_value: bool,
+    dereferences_result: bool,
+    authoritative_plan: Option<&CallPlan>,
+) -> Vec<X86_64RelocationSite> {
     let arg_start = usize::from(returns_value);
     let arg_count = operands.len().saturating_sub(arg_start);
-    let plan = normalized_win64_import_plan(operands, returns_value).ok();
+    let plan = authoritative_plan
+        .filter(|plan| {
+            validate_win64_encoder_plan(plan).is_ok()
+                && validate_win64_plan_operand_shapes(plan, operands, returns_value).is_ok()
+        })
+        .cloned()
+        .or_else(|| {
+            authoritative_plan
+                .is_none()
+                .then(|| normalized_win64_import_plan(operands, returns_value).ok())
+                .flatten()
+        });
     let reserve = plan
         .as_ref()
         .map(win64_import_reserve_for_plan)

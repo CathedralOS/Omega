@@ -461,8 +461,12 @@ pub fn encode_authored_import_call_sequence<T: InstructionOperandLike>(
     target: NativeTarget,
     operation_key: HostOperationKey,
     operands: &[T],
+    authoritative_plan: Option<&CallPlan>,
 ) -> Result<Vec<u8>, Diagnostic> {
     match target.architecture {
+        Architecture::Aarch64 if authoritative_plan.is_some() => Err(Diagnostic::error(
+            "AArch64 authored import lowering cannot yet realize a source-selected calling plan",
+        )),
         Architecture::Aarch64 => {
             let (arguments, result) =
                 normalized_aarch64_import_plan(operands, Aarch64ImportResult::Authored, false)?;
@@ -511,11 +515,14 @@ pub fn encode_authored_import_call_sequence<T: InstructionOperandLike>(
                 ),
             }
         }
-        Architecture::X86_64 => x86_64::encode_host_call_sequence(
-            CallingPolicy::native_for_target(target),
-            operation_key,
-            operands,
-        ),
+        Architecture::X86_64 => match authoritative_plan {
+            Some(plan) => x86_64::encode_authored_import_call_sequence(plan, operands),
+            None => x86_64::encode_host_call_sequence(
+                CallingPolicy::native_for_target(target),
+                operation_key,
+                operands,
+            ),
+        },
     }
 }
 
@@ -1875,6 +1882,7 @@ mod aarch64_import_plan_tests {
             omega_target::NativeTarget::linux_arm64(),
             HostOperationKey::default(),
             &operands,
+            None,
         )
         .expect("authored indirect aggregate call");
         assert_eq!(
@@ -1901,6 +1909,7 @@ mod aarch64_import_plan_tests {
             omega_target::NativeTarget::linux_arm64(),
             HostOperationKey::default(),
             &operands,
+            None,
         )
         .expect("authored scalar-float import");
 

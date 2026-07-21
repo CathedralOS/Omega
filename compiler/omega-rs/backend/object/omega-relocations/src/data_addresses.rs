@@ -2,7 +2,7 @@ use crate::RelocationPlanningInput;
 use crate::data_address_records::insert_data_address_relocations;
 use crate::lookups::find_host_binding;
 use crate::offsets::FieldModelCallShape;
-use crate::offsets::data_address_relocation_offset_for_target;
+use crate::offsets::data_address_relocation_offset_for_target_with_plan;
 use omega_calling_conventions::{HostBindingMechanism, HostOperationKey};
 use omega_object_file::{
     ObjectSymbolHandle, RelocationPlan, object_symbol_handle_by_name, storage_region_symbol_name,
@@ -41,6 +41,9 @@ pub(super) fn collect_data_address_relocations(
         ) && find_host_binding(input, key)
             .is_some_and(|binding| matches!(binding.mechanism, HostBindingMechanism::Import { .. }))
     });
+    let authoritative_plan = operation_key
+        .and_then(|key| find_host_binding(input, key))
+        .and_then(|binding| binding.call_plan.as_ref());
     // A field-model call's fixup layout depends on the mechanism's shape:
     // whether the receiver is a wire argument (This-call vtable) or
     // dispatch-only (service table), and whether a result place leads the
@@ -81,7 +84,7 @@ pub(super) fn collect_data_address_relocations(
                 relocation_plan,
                 function_symbol_handle,
                 selected_instruction_index,
-                data_address_relocation_offset_for_target(
+                data_address_relocation_offset_for_target_with_plan(
                     input.target,
                     operation_key,
                     operands,
@@ -90,6 +93,7 @@ pub(super) fn collect_data_address_relocations(
                     is_syscall,
                     field_model_shape,
                     authored_import,
+                    authoritative_plan,
                 ),
                 symbol,
             );
@@ -141,7 +145,7 @@ pub(super) fn collect_data_address_relocations(
                 relocation_plan,
                 function_symbol_handle,
                 selected_instruction_index,
-                data_address_relocation_offset_for_target(
+                data_address_relocation_offset_for_target_with_plan(
                     input.target,
                     operation_key,
                     operands,
@@ -150,6 +154,7 @@ pub(super) fn collect_data_address_relocations(
                     is_syscall,
                     field_model_shape,
                     authored_import,
+                    authoritative_plan,
                 ),
                 symbol,
             );

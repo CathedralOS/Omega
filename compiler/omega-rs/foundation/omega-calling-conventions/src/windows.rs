@@ -705,5 +705,6 @@ fn windows_import(
         // Share ONE policy allocation across every binding (all name the same
         // target path) -- an Arc refcount bump, not a fresh string per row.
         boundary_policy: std::sync::Arc::clone(policy),
+        call_plan: None,
     }
 }

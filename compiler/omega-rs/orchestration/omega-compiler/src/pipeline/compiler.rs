@@ -66,6 +66,8 @@ fn extract_provides_rows(
     syntax_trees: &omega_syntax_trees::SyntaxTrees,
     selected_target: Option<&str>,
     selected_plan_names: &[String],
+    provider_plans: &[omega_effects::provider_plan::ProviderPlan],
+    typed: &omega_typed_trees::TypedTrees,
 ) -> Vec<omega_calling_conventions::ProvidesRow> {
     use omega_calling_conventions::{ProvidesBindingKind, ProvidesRow};
     use omega_syntax_trees::item::HostProviderMappingKind;
@@ -92,6 +94,7 @@ fn extract_provides_rows(
             .last()
             .map(|member| member.as_str().to_owned())
             .unwrap_or_default();
+        let provider_plan_name = format!("{}::{}", provider.target.as_str(), trait_item_name);
         for mapping in syntax_trees.items.host_provider_mappings(provider.mappings) {
             let binding = match &mapping.binding {
                 HostProviderMappingKind::Syscall { number } => {
@@ -127,6 +130,14 @@ fn extract_provides_rows(
                 vtable_struct: provider.vtable_struct.as_str().to_owned(),
                 parameter_count: boundary_trait_method_parameter_count(
                     syntax_trees,
+                    &trait_item_name,
+                    mapping.machine.as_str(),
+                ),
+                call_plan: selected_source_call_plan(
+                    typed,
+                    provider_plans,
+                    selected_plan_names,
+                    &provider_plan_name,
                     &trait_item_name,
                     mapping.machine.as_str(),
                 ),
@@ -214,11 +225,75 @@ fn extract_provides_rows(
                     clause.trait_name.as_str(),
                     requirement.as_str(),
                 ),
+                call_plan: selected_source_call_plan(
+                    typed,
+                    provider_plans,
+                    selected_plan_names,
+                    &plan_name,
+                    clause.trait_name.as_str(),
+                    requirement.as_str(),
+                ),
                 binding,
             });
         }
     }
     rows
+}
+
+/// Resolve implementation evidence only through the provider candidate that
+/// selection admitted. The public provider/schema identity carries the
+/// canonical fingerprint; the typed program retains the corresponding plan
+/// internally so lowering never has to rediscover or re-run policy source.
+fn selected_source_call_plan(
+    typed: &omega_typed_trees::TypedTrees,
+    provider_plans: &[omega_effects::provider_plan::ProviderPlan],
+    selected_plan_names: &[String],
+    provider_plan_name: &str,
+    trait_name: &str,
+    method_name: &str,
+) -> Option<omega_calling_conventions::CallPlan> {
+    if !selected_plan_names
+        .iter()
+        .any(|selected| selected == provider_plan_name)
+    {
+        return None;
+    }
+    let fingerprint = provider_plans
+        .iter()
+        .find(|plan| plan.name == provider_plan_name)
+        .and_then(|plan| {
+            plan.schema
+                .methods
+                .iter()
+                .find(|method| method.name == method_name)
+        })?
+        .calling_plan_fingerprint?;
+    let trait_leaf = trait_name.rsplit("::").next().unwrap_or(trait_name);
+    typed
+        .boundary_calling_plans
+        .iter()
+        .find(|identity| {
+            identity.fingerprint == fingerprint
+                && typed.traits().iter().any(|definition| {
+                    definition.symbol == identity.boundary_trait
+                        && definition
+                            .name
+                            .as_str()
+                            .rsplit("::")
+                            .next()
+                            .is_some_and(|name| name == trait_leaf)
+                })
+                && typed.traits().iter().any(|definition| {
+                    typed
+                        .trait_machine_signatures(definition)
+                        .iter()
+                        .any(|signature| {
+                            signature.symbol == identity.requirement_machine
+                                && signature.name.as_str() == method_name
+                        })
+                })
+        })
+        .map(|identity| identity.call_plan.clone())
 }
 
 /// The declared parameter count of `method` on the boundary trait named
@@ -411,6 +486,17 @@ impl Compiler {
         )?;
         crate::pipeline::wire_report::write_wire_protocol_report(&self.options, &typed)?;
 
+        // Capture the selected provider's validated source calling plans
+        // before typed ownership moves into checked lowering. The rows carry
+        // them beside their mechanisms into the host-ABI/backend path.
+        let provides_rows = extract_provides_rows(
+            &syntax_trees,
+            self.options.target_name.as_deref(),
+            &selected_provider_plans,
+            &provider_plans,
+            &typed,
+        );
+
         let checked = typed_trees_to_checked_trees(typed, &mut timings)?;
         write_checked_snapshot(&self.options, &checked.program)?;
         write_boundary_report_with_capabilities(&self.options, &syntax_trees, &checked.program)?;
@@ -434,12 +520,6 @@ impl Compiler {
         let (subsystem, freestanding) = (build_config.subsystem, build_config.freestanding);
         // provides-sourced bindings (extern brief §12): parsed rows become
         // the freestanding target's authored platform surface.
-        let provides_rows = extract_provides_rows(
-            &syntax_trees,
-            self.options.target_name.as_deref(),
-            &selected_provider_plans,
-        );
-
         let backend = control_flow_to_backend_plan(
             checked,
             self.options.target_name.as_deref(),

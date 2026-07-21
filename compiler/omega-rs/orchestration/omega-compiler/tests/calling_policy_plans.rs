@@ -82,6 +82,13 @@ fn source_policy_receives_signature_and_publishes_only_validated_acceptance() {
         schema.methods[0].calling_plan_fingerprint,
         Some(validated.contract_fingerprint())
     );
+    let retained = checked
+        .typed
+        .boundary_calling_plans
+        .iter()
+        .find(|identity| identity.fingerprint == validated.contract_fingerprint())
+        .expect("typed lowering evidence for the published identity");
+    assert_eq!(retained.call_plan, validated.plan().call);
 }
 
 #[test]
