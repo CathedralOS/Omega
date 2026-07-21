@@ -191,7 +191,7 @@ pub(crate) fn compute_boundary_calling_plans(
                 boundary_arguments,
                 requirement_machine,
                 fingerprint: validated.contract_fingerprint(),
-                call_plan: validated.plan().call.clone(),
+                boundary_entry_plan: validated.plan().clone(),
             },
         );
     }

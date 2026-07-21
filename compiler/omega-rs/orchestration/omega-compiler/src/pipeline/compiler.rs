@@ -293,7 +293,7 @@ fn selected_source_call_plan(
                         })
                 })
         })
-        .map(|identity| identity.call_plan.clone())
+        .map(|identity| identity.boundary_entry_plan.call.clone())
 }
 
 /// The declared parameter count of `method` on the boundary trait named
