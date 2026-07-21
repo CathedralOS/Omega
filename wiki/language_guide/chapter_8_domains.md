@@ -804,9 +804,11 @@ boundary and the operators.
 > a `&[u8]` bytes field through the wire layer, plus replacing the builtin
 > Domains over byte views and bounded carriers, direct literal construction,
 > bounded return values, and native/interpreter carrier lowering are now built.
-> Wholesale `string`/`String` removal waits on the remaining corpus migration,
-> mutable-boundary establishment fact transfer, and the allocator-backed
-> growable carrier surface.
+> Wholesale `string`/`String` removal waits on the remaining corpus migration
+> and the allocator-backed growable carrier surface. Mutable boundary/operator
+> statement calls already invalidate facts for their exact mutable operands and
+> re-establish declared domain-membership guarantees on those caller places;
+> the text canaries exercise this rule over `[u8]`, not builtin `String`.
 
 ### Establishing the domain: construction, validation, and the wire
 

@@ -1,20 +1,25 @@
-use omega::language::core::str;
+// Companion to the UTF-8 boundary canary for the second byte-shape domain,
+// established directly on the ordinary byte-view carrier.
 
-// Companion to the UTF-8 boundary canary for the second byte-shape domain.
-// `String::NoNul` is likewise boundary-established (via `String::validate_no_nul`)
-// and carried as a fact to satisfy a later `requires text in String::NoNul`.
-
-data Main {
-    text: String;
+domain [u8]::NoNul {
+    no_nul(self);
 }
 
-machine Main::consume(&self, text: &String)
+boundary operator Text::validate_no_nul(text: &mut [u8]) -> ()
+ensures
+    text in NoNul;
+
+data Main {
+    text: &mut [u8];
+}
+
+machine Main::consume(&self, text: &[u8])
 requires
-    text in String::NoNul
+    text in NoNul
 {
 }
 
 machine Main::main(&mut self) {
-    self.text.validate_no_nul();
-    self.consume(&self.text);
+    Text::validate_no_nul(self.text);
+    self.consume(self.text);
 }

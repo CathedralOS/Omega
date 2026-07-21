@@ -251,38 +251,22 @@ pub(in crate::flow::ownership) fn append_move_events_for_operator_statement_call
     // A valid receiver symbol that resolves to a typed value (a local,
     // parameter, or field) is a method-form receiver place; a static path
     // receiver (`Sink::consume(...)`) names no runtime value.
-    let receiver_is_value = call.receiver_symbol.is_valid()
-        && symbol_type_symbol(program, call.receiver_symbol).is_some();
-    let receiver_segments: Vec<&str> = if receiver_is_value {
-        Vec::new()
-    } else {
-        program
-            .statement_table
-            .name_path_members(call.receiver)
-            .iter()
-            .map(|identifier| identifier.as_str())
-            .collect()
-    };
-
     // Statement-call argument spans live in the statement table (unlike
     // expression-call spans, which live in the expression table).
     let arguments = program.statement_table.expression_handles(call.arguments);
-    let Some(operator) = resolve_operator_for_call(
-        program,
-        call.target_symbol,
-        (!receiver_segments.is_empty()).then_some(receiver_segments.as_slice()),
-        call.target.as_str(),
-        arguments.len(),
-        receiver_is_value,
-    ) else {
+    let Some(resolved) = crate::flow::resolve_operator_statement_call(program, call) else {
         // Not a known operator: a machine/state statement call (owned by the
         // call-flow pass) or an unresolved target (no policy to apply).
         return;
     };
-    let policy =
-        operator_call_ownership_policy(program, Some(operator), arguments.len(), receiver_is_value);
+    let policy = operator_call_ownership_policy(
+        program,
+        Some(resolved.operator),
+        arguments.len(),
+        resolved.receiver_is_value,
+    );
 
-    if receiver_is_value && policy.receiver_transfers() {
+    if resolved.receiver_is_value && policy.receiver_transfers() {
         if let Some(place) = canonical_place_from_symbol(call.receiver_symbol) {
             append_move_event_for_place(program, sink, place, source);
         }
@@ -467,96 +451,4 @@ pub(in crate::flow::ownership) fn initializer_produces_owned_value(
             == OperatorResultOwnership::OwnedValue
     })
     .unwrap_or(false)
-}
-
-/// Resolve the operator/boundary definition a call dispatches to.
-///
-/// A direct symbol match wins when typing resolved one. Source-level operator
-/// calls usually carry NO resolved operator symbol today (call-target
-/// resolution binds machine states and builtins, not operators), so this falls
-/// back to matching the call's spelled path -- the static receiver segments
-/// plus the target name -- against each operator's declared name path, and
-/// requires the argument count to fit the declaration's shape. The match must
-/// be unambiguous: competing overloads yield `None` (no event) rather than a
-/// guessed policy.
-fn resolve_operator_for_call<'program>(
-    program: &'program omega_typed_trees::TypedTrees,
-    target_symbol: SymbolHandle,
-    static_receiver_segments: Option<&[&str]>,
-    target_name: &str,
-    argument_count: usize,
-    has_value_receiver: bool,
-) -> Option<&'program omega_typed_trees::operator::OperatorDefinition> {
-    if target_symbol.is_valid() {
-        if let Some(operator) = program
-            .operators()
-            .iter()
-            .find(|operator| operator.symbol == target_symbol)
-        {
-            return Some(operator);
-        }
-    }
-
-    let mut candidates = program.operators().iter().filter(|operator| {
-        operator_path_matches_call(program, operator, static_receiver_segments, target_name)
-            && operator_arity_fits_call(program, operator, argument_count, has_value_receiver)
-    });
-
-    let first = candidates.next()?;
-    candidates.next().is_none().then_some(first)
-}
-
-/// Whether an operator's declared name path spells this call: the last segment
-/// is the call target, and -- for a static-path call -- the leading segments
-/// equal the receiver path. A value-receiver method call constrains only the
-/// final segment; arity matching narrows the rest.
-fn operator_path_matches_call(
-    program: &omega_typed_trees::TypedTrees,
-    operator: &omega_typed_trees::operator::OperatorDefinition,
-    static_receiver_segments: Option<&[&str]>,
-    target_name: &str,
-) -> bool {
-    let path = program.operator_path_members(operator.name);
-    let Some((last, prefix)) = path.split_last() else {
-        return false;
-    };
-    if last.as_str() != target_name {
-        return false;
-    }
-
-    match static_receiver_segments {
-        Some(segments) => {
-            prefix.len() == segments.len()
-                && prefix
-                    .iter()
-                    .zip(segments.iter())
-                    .all(|(member, segment)| member.as_str() == *segment)
-        }
-        None => true,
-    }
-}
-
-/// Whether the call site's operand count fits the operator declaration: a
-/// declared `self` parameter or a leading method-form parameter absorbs the
-/// value receiver, otherwise every parameter binds positionally.
-fn operator_arity_fits_call(
-    program: &omega_typed_trees::TypedTrees,
-    operator: &omega_typed_trees::operator::OperatorDefinition,
-    argument_count: usize,
-    has_value_receiver: bool,
-) -> bool {
-    let parameters = program.operator_parameters(operator);
-    let has_self = parameters.iter().any(|parameter| parameter.is_self);
-    let positional = parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .count();
-
-    if has_self {
-        return has_value_receiver && positional == argument_count;
-    }
-    if has_value_receiver {
-        return positional == argument_count + 1;
-    }
-    positional == argument_count
 }

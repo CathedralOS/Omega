@@ -47,12 +47,15 @@
 > reinterprets the carrier's leading length word as a pointer or exposes the
 > full capacity as the live view length.
 >
-> One establishment route remains deliberately on builtin `String`: a boundary
-> operator whose mutable slice parameter `ensures text in D` does not yet
-> substitute that established fact back onto the caller's borrowed field place.
-> Keep `utf8_boundary_established` and `no_nul_boundary_established` as honest
-> regressions until that fact-transfer rule is implemented; changing their
-> consumers to avoid the carried fact would hide the missing semantics.
+> Mutable boundary establishment is now carrier-generic. Named boundary/operator
+> statement calls map declared parameters to exact caller places, invalidate
+> facts for every mutable operand, and only then instantiate domain-membership
+> `ensures` facts onto those places. `utf8_boundary_established` and
+> `no_nul_boundary_established` now exercise `[u8]` carriers directly; the
+> negative `boundary_operator_mutation_invalidates_domain` canary proves that a
+> mutating boundary with no matching guarantee cannot preserve a stale fact.
+> General boolean postcondition substitution remains ordinary frame work, not a
+> text-retirement blocker.
 
 > **Migration-cost lesson:** this is not a mechanical keyword deletion. The
 > historical corpus exercised owned `String` natively across fields, copies,

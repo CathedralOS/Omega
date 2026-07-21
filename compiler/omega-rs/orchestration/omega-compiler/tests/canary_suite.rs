@@ -15616,6 +15616,29 @@ fn runtime_call_value_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn boundary_operator_domain_ensures_flow_to_mutable_operand() {
+    // Named boundary/operator calls do not produce ordinary state-call facts.
+    // Their mutable-operand invalidation and domain postcondition flow must
+    // nevertheless establish the exact caller place for the next call.
+    for name in [
+        "text/utf8_boundary_established",
+        "text/no_nul_boundary_established",
+    ] {
+        let main_path = pass_canary(name).join("main.omg");
+        compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+            panic!(
+                "boundary operator domain establishment should check for {name}:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+    }
+}
+
 /// Regression guard: a value-call (min/max builtin) result bound to a local and
 /// then used in ARITHMETIC. The min-result local was elided as dead (the
 /// liveness scan ignored later LocalData initializers), so `s = bounded + 70`
@@ -37228,6 +37251,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/array_literal_too_many_rejected",
     "text/bounded_carrier_construction_over_capacity_rejected",
     "text/bounded_carrier_return_over_capacity_rejected",
+    "domains/boundary_operator_mutation_invalidates_domain",
     "collections/triple_runtime_indexed_read_rejected",
     "drops/nonempty_drop_body_rejected",
     "drops/drop_ensures_nonempty_body_rejected",

@@ -109,13 +109,25 @@ pub(super) fn append_state_statement_flow_facts(
             );
         }
 
-        if let Some(place) = statement_mutated_place(
+        let mut mutated_places = statement_mutated_place(
             program,
             machine.symbol,
             state.symbol,
             statement_index,
             statement,
-        ) {
+        )
+        .into_iter()
+        .collect::<Vec<_>>();
+        if let StatementNode::Call(call) = statement {
+            mutated_places.extend(operator_statement_call_mutated_places(
+                program,
+                machine.symbol,
+                state.symbol,
+                statement_index,
+                call,
+            ));
+        }
+        if !mutated_places.is_empty() {
             *active_contexts = filter_contexts_after_place_mutations(
                 program,
                 semantic,
@@ -124,7 +136,7 @@ pub(super) fn append_state_statement_flow_facts(
                 &mut ctx.invalidations.segments,
                 &mut ctx.invalidations.events,
                 *active_contexts,
-                &[place],
+                &mutated_places,
                 FlowInvalidationSource::Statement { statement_index },
             );
             *active_constraints = project_constraint_refs_to_active_contexts(
@@ -145,6 +157,20 @@ pub(super) fn append_state_statement_flow_facts(
             statement_index,
             statement,
         );
+
+        if let StatementNode::Call(call) = statement {
+            append_operator_statement_domain_ensures(
+                program,
+                semantic,
+                ctx,
+                machine.symbol,
+                state.symbol,
+                statement_index,
+                call,
+                active_contexts,
+                active_constraints,
+            );
+        }
 
         propagate_statement_transfers(
             program,
