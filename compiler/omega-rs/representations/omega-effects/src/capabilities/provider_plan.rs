@@ -34,6 +34,9 @@ pub struct ServiceMethod {
     pub has_result: bool,
     /// The method's declared effect names (`stdout_io`, `filesystem_io`).
     pub effects: Vec<String>,
+    /// Canonical validated `BoundaryEntryPlan` identity selected by a concrete
+    /// `Calling<C>` relationship. Policy type/source identity is excluded.
+    pub calling_plan_fingerprint: Option<u64>,
 }
 
 /// How one method binds on one target -- the Binding sum's union with the
@@ -131,7 +134,13 @@ impl ServiceSchema {
         }
         let mut methods = Vec::new();
         let mut visited = Vec::new();
-        collect_service_methods(program, trait_definition, &mut visited, &mut methods);
+        collect_service_methods(
+            program,
+            trait_definition,
+            trait_definition.symbol,
+            &mut visited,
+            &mut methods,
+        );
         Some(Self {
             trait_name: trait_definition.name.as_str().to_owned(),
             methods,
@@ -142,6 +151,7 @@ impl ServiceSchema {
 fn collect_service_methods(
     program: &omega_typed_trees::TypedTrees,
     trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
+    policy_owner: omega_core::symbols::SymbolHandle,
     visited: &mut Vec<omega_core::symbols::SymbolHandle>,
     methods: &mut Vec<ServiceMethod>,
 ) {
@@ -158,7 +168,7 @@ fn collect_service_methods(
         else {
             continue;
         };
-        collect_service_methods(program, parent, visited, methods);
+        collect_service_methods(program, parent, policy_owner, visited, methods);
     }
 
     for signature in program.trait_machine_signatures(trait_definition) {
@@ -181,6 +191,8 @@ fn collect_service_methods(
                 .iter()
                 .map(|effect| effect.as_str().to_owned())
                 .collect(),
+            calling_plan_fingerprint: program
+                .boundary_calling_plan_fingerprint(policy_owner, signature.symbol),
         });
     }
 }
@@ -205,6 +217,9 @@ impl ProviderPlan {
                 method.has_result,
                 method.effects.join(",")
             ));
+            if let Some(fingerprint) = method.calling_plan_fingerprint {
+                rendered.push_str(&format!("/calling:{fingerprint:016x}"));
+            }
         }
         let mut rows: Vec<&ProviderPlanRow> = self.rows.iter().collect();
         rows.sort_by(|left, right| left.method.cmp(&right.method));
@@ -312,18 +327,21 @@ mod tests {
                     parameter_count: 1,
                     has_result: false,
                     effects: vec!["stdout_io".to_owned()],
+                    calling_plan_fingerprint: None,
                 },
                 ServiceMethod {
                     name: "read_byte".to_owned(),
                     parameter_count: 0,
                     has_result: true,
                     effects: vec!["stdin_io".to_owned()],
+                    calling_plan_fingerprint: None,
                 },
                 ServiceMethod {
                     name: "exit_process".to_owned(),
                     parameter_count: 1,
                     has_result: false,
                     effects: Vec::new(),
+                    calling_plan_fingerprint: None,
                 },
             ],
         };
@@ -361,6 +379,21 @@ mod tests {
             effect_set: EffectSet::empty(),
             origin_package: "omega::language::std".to_owned(),
         }
+    }
+
+    #[test]
+    fn evaluated_calling_plan_is_published_provider_identity() {
+        let mut first = windows_console_plan();
+        let baseline = first.identity_fingerprint();
+        first.schema.methods[0].calling_plan_fingerprint = Some(0x1234);
+        assert_ne!(baseline, first.identity_fingerprint());
+
+        let mut refactored = first.clone();
+        refactored.schema.methods[0].calling_plan_fingerprint = Some(0x1234);
+        assert_eq!(
+            first.identity_fingerprint(),
+            refactored.identity_fingerprint()
+        );
     }
 
     #[test]

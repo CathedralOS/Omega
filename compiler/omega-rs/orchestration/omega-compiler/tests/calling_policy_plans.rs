@@ -45,6 +45,10 @@ machine NoResultPolicy::plan(
     }
 }
 
+boundary trait Tick: Calling<NoResultPolicy> {
+    machine tick();
+}
+
 data Main { }
 machine Main::main(&mut self) { }
 "#;
@@ -64,6 +68,20 @@ fn source_policy_receives_signature_and_publishes_only_validated_acceptance() {
     assert_eq!(validated.plan().call.policy, CallingPolicy::MicrosoftX64);
     assert_eq!(validated.plan().call.stack_alignment, 16);
     assert_ne!(validated.contract_fingerprint(), 0);
+
+    let tick = checked
+        .typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Tick")
+        .expect("Tick boundary trait");
+    let schema = omega_effects::provider_plan::ServiceSchema::from_typed(&checked.typed, tick)
+        .expect("Tick service schema");
+    assert_eq!(schema.methods.len(), 1);
+    assert_eq!(
+        schema.methods[0].calling_plan_fingerprint,
+        Some(validated.contract_fingerprint())
+    );
 }
 
 #[test]
@@ -83,4 +101,48 @@ fn source_policy_rejection_preserves_the_authored_reason() {
 
     assert!(error.contains("calling policy rejected the boundary"));
     assert!(error.contains("return values are not supported"));
+}
+
+#[test]
+fn rejected_calling_relationship_is_a_compile_diagnostic() {
+    let source = POLICY.replace("machine tick();", "machine tick() -> i64;");
+    let main_path = write_program("relationship-rejected", &source);
+    let diagnostics = compile_to_checked(&main_path, None)
+        .expect_err("a rejected Calling<C> relationship must fail compilation");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        rendered.contains("calling policy rejected the boundary"),
+        "unexpected diagnostics:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("return values are not supported"),
+        "unexpected diagnostics:\n{rendered}"
+    );
+}
+
+#[test]
+fn policy_source_identity_is_absent_from_the_published_fingerprint() {
+    let fingerprint = |name: &str| {
+        let source = POLICY.replace("NoResultPolicy", name);
+        let main_path = write_program(name, &source);
+        let checked = compile_to_checked(&main_path, None).expect("policy program should compile");
+        let tick = checked
+            .typed
+            .traits()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Tick")
+            .expect("Tick boundary trait");
+        omega_effects::provider_plan::ServiceSchema::from_typed(&checked.typed, tick)
+            .expect("Tick service schema")
+            .methods[0]
+            .calling_plan_fingerprint
+            .expect("evaluated calling identity")
+    };
+
+    assert_eq!(fingerprint("FirstPolicy"), fingerprint("RenamedPolicy"));
 }

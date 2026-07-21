@@ -132,21 +132,21 @@ authors. A policy implementation satisfying `CallingPolicy::plan` can already
 be invoked through the compiler's purity-gated build-time interpreter: the
 compiler materializes `BoundarySignature`, decodes the complete result, and
 returns only a validated canonical plan. Focused end-to-end coverage exercises
-signature-dependent acceptance and structured rejection. ENT2b now begins at
-the integration seam: automatically discover the policy from each boundary
-`Calling<C>` relationship, evaluate it at the declaration site, publish the
-resulting fingerprint, and make rejection diagnostics identify the offending
-signature feature.
+signature-dependent acceptance and structured rejection. Concrete boundary
+`Calling<C>` relationships are now discovered automatically in both compiler
+entry paths; every inherited/declared boundary method is materialized and
+evaluated, and its canonical plan fingerprint enters provider requirement
+identity without perturbing identities that do not opt into calling policies.
+Generic boundary-trait instantiations and source-span attachment for policy
+diagnostics remain in ENT2b.
 
-1. **ENT2b — policy discovery and identity publication.** Starting from each
-   boundary `Calling<C>` relationship, resolve `C`'s
-   `CallingPolicy::plan(BoundarySignature) -> BoundaryPlanResult` satisfier and
-   invoke the implemented source evaluator automatically. Report `Rejected` at
-   that relationship with the offending signature component, and put the
-   validated canonical evaluated fingerprint—not `C`'s symbol or source
-   body—into published requirement identity. Policy authorship stays open to
-   ordinary packages; the plan vocabulary and validator remain compiler-owned
-   and closed.
+1. **ENT2b — complete policy instantiation and diagnostics.** Extend the
+   implemented concrete `Calling<C>` discovery, source evaluation, and
+   canonical identity publication to generic boundary-trait instantiations.
+   Retain the relationship source span so `Rejected` and malformed accepted
+   plans point at the authored declaration and offending signature component.
+   Policy authorship stays open to ordinary packages; the plan vocabulary and
+   validator remain compiler-owned and closed.
 2. **ENT2c — lowering migration and concrete entry state.** Express the
    existing MS-x64, SysV-x64, AAPCS64, Linux-syscall, and firmware lowering
    choices through the normalized plan; continue beyond the completed
