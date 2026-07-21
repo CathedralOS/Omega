@@ -831,5 +831,6 @@ fn darwin_import(
             symbol: symbol.into(),
         },
         boundary_policy: std::sync::Arc::clone(policy),
+        call_plan: None,
     }
 }

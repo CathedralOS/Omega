@@ -4,14 +4,15 @@ use omega_calling_conventions::{HostBindingMechanism, HostOperationKey};
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
 
-use crate::host_bindings::host_binding_mechanism;
+use crate::host_bindings::host_binding;
 
 pub(super) fn encode_host_operation(
     input: MachineEmissionContext<'_>,
     operation_key: HostOperationKey,
     operands: &[InstructionOperand],
 ) -> Result<Vec<u8>, Diagnostic> {
-    match host_binding_mechanism(input, operation_key) {
+    let binding = host_binding(input, operation_key);
+    match binding.map(|binding| &binding.mechanism) {
         Some(HostBindingMechanism::Syscall { number, .. }) => {
             architecture::encode_syscall_sequence(input.target.architecture, operands, *number)
         }
@@ -49,6 +50,7 @@ pub(super) fn encode_host_operation(
                 input.target,
                 operation_key,
                 operands,
+                binding.and_then(|binding| binding.call_plan.as_ref()),
             )
         }
         _ => architecture::encode_host_call_sequence(input.target, operation_key, operands),

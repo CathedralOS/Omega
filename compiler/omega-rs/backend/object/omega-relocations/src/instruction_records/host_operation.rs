@@ -1,7 +1,8 @@
 use super::super::data_addresses::collect_data_address_relocations;
 use super::super::lookups::find_host_binding;
 use super::super::offsets::{
-    external_call_relocation_kind, external_call_relocation_offset, external_call_relocation_width,
+    external_call_relocation_kind, external_call_relocation_offset_with_plan,
+    external_call_relocation_width,
 };
 use super::context::InstructionRelocationContext;
 use super::queries::selected_host_operation;
@@ -58,7 +59,7 @@ fn collect_host_operation_call_relocation(
                 selected_instruction_index: context.selected_instruction_index,
             },
             section: omega_object_file::SectionKind::Text,
-            offset: external_call_relocation_offset(
+            offset: external_call_relocation_offset_with_plan(
                 context.input.target,
                 operation_key,
                 context.selected_text_offset,
@@ -68,6 +69,7 @@ fn collect_host_operation_call_relocation(
                     .instruction_operands(operands)
                     .unwrap_or(&[]),
                 authored_import,
+                binding.call_plan.as_ref(),
             ),
             byte_width: external_call_relocation_width(context.input.target.architecture),
             symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol.as_ref()),

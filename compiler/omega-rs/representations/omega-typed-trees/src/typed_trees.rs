@@ -41,7 +41,7 @@ pub struct TypedTrees {
     pub boundary_calling_plans: Vec<BoundaryCallingPlanIdentity>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryCallingPlanIdentity {
     pub boundary_trait: omega_core::symbols::SymbolHandle,
     /// Concrete boundary trait argument tuple. These handles are internal
@@ -50,6 +50,10 @@ pub struct BoundaryCallingPlanIdentity {
     pub boundary_arguments: Vec<crate::types::TypeReferenceHandle>,
     pub requirement_machine: omega_core::symbols::SymbolHandle,
     pub fingerprint: u64,
+    /// Canonical implementation input retained for lowering. Provider
+    /// schemas publish only `fingerprint`; a selected provider may carry this
+    /// exact validated plan to its authored boundary binding.
+    pub call_plan: omega_calling_conventions::CallPlan,
 }
 
 /// One compile-time machine specialization. Static machine arguments are

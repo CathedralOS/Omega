@@ -866,6 +866,9 @@ pub struct HostBinding {
     pub operation_key: HostOperationKey,
     pub mechanism: HostBindingMechanism,
     pub boundary_policy: Arc<str>,
+    /// Source-selected validated plan. Built-in compatibility bindings leave
+    /// this empty and derive their plan from the concrete target.
+    pub call_plan: Option<CallPlan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -883,6 +886,7 @@ impl Default for HostBinding {
                 symbol: Arc::from(""),
             },
             boundary_policy: Arc::from(""),
+            call_plan: None,
         }
     }
 }
@@ -1055,6 +1059,8 @@ pub struct ProvidesRow {
     /// prepended result place. Zero for the static mechanisms and value
     /// rows (unused there).
     pub parameter_count: usize,
+    /// Canonical source-selected plan for this concrete service method.
+    pub call_plan: Option<CallPlan>,
     pub binding: ProvidesBindingKind,
 }
 
@@ -1219,6 +1225,7 @@ pub fn merge_provides_rows(plan: &mut HostAbiPlan, provides: &[ProvidesRow]) -> 
             operation_key: key,
             mechanism,
             boundary_policy: PROVIDES_BOUNDARY_POLICY.into(),
+            call_plan: row.call_plan.clone(),
         });
         // The call-site lowering: the receiver's boundary-trait name is the
         // platform, the method name is the state; one operation per call.
@@ -1308,6 +1315,22 @@ impl HostAbiPlan {
         }
         Ok(plan)
     }
+
+    /// Resolve the authoritative plan for a complete binding. Authored
+    /// source plans win; compatibility bindings retain target-derived
+    /// evaluation. Revalidation against the concrete selected signature keeps
+    /// a stale carrier from shifting operands silently.
+    pub fn binding_call_plan(
+        &self,
+        binding: &HostBinding,
+        signature: &CallSignature,
+    ) -> Result<CallPlan, PlanDiagnostic> {
+        if let Some(plan) = &binding.call_plan {
+            plans::validate_call_plan(plan, signature)?;
+            return Ok(plan.clone());
+        }
+        self.evaluate_binding_call_plan(&binding.mechanism, signature)
+    }
 }
 
 fn insert_platform_lowering<const COUNT: usize>(
@@ -1351,7 +1374,8 @@ pub fn host_operation_fixed_leading_immediate(
 #[cfg(test)]
 mod compatibility_binding_tests {
     use super::{
-        CallSignature, CallingPolicy, HostBindingMechanism, ValueShape, build_host_abi_plan,
+        CallSignature, CallingPolicy, HostBindingMechanism, ProvidesBindingKind, ProvidesRow,
+        ValueShape, build_host_abi_plan, evaluate_call_plan, merge_provides_rows,
     };
     use omega_target::NativeTarget;
 
@@ -1383,6 +1407,49 @@ mod compatibility_binding_tests {
             .evaluate_binding_call_plan(&linux_binding.mechanism, &signature)
             .expect("Linux syscall plan");
         assert_eq!(linux_plan.policy, CallingPolicy::LinuxSyscallAarch64);
+    }
+
+    #[test]
+    fn provides_binding_retains_and_resolves_its_source_selected_plan() {
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: Some(ValueShape::integer(8, 8)),
+        };
+        let source_plan =
+            evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature).expect("source plan");
+        let mut abi = build_host_abi_plan(NativeTarget::windows_x64());
+        merge_provides_rows(
+            &mut abi,
+            &[ProvidesRow {
+                target_name: "windows_x64".to_owned(),
+                trait_name: "SourceService".to_owned(),
+                method: "invoke".to_owned(),
+                vtable_struct: String::new(),
+                parameter_count: 1,
+                call_plan: Some(source_plan.clone()),
+                binding: ProvidesBindingKind::DllImport {
+                    module: "source.dll".to_owned(),
+                    symbol: "invoke".to_owned(),
+                },
+            }],
+        )
+        .expect("merge authored binding");
+        let (_, binding) = abi
+            .bindings
+            .iter()
+            .find(|(_, binding)| {
+                binding.operation_key.capability_name() == "SourceService"
+                    && binding.operation_key.operation_name() == "invoke"
+            })
+            .expect("authored binding");
+
+        assert_eq!(binding.call_plan.as_ref(), Some(&source_plan));
+        assert_eq!(
+            abi.binding_call_plan(binding, &signature)
+                .expect("authoritative source plan"),
+            source_plan,
+            "the Windows target must not replace a source-selected SysV plan"
+        );
     }
 
     #[test]

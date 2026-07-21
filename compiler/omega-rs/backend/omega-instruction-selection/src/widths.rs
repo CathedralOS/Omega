@@ -215,6 +215,23 @@ pub fn host_call_sequence_width<T: InstructionOperandLike>(
     }
 }
 
+pub fn authored_import_call_sequence_width<T: InstructionOperandLike>(
+    target: NativeTarget,
+    operation_key: HostOperationKey,
+    operands: &[T],
+    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+) -> usize {
+    match (target.architecture, authoritative_plan) {
+        (Architecture::X86_64, Some(plan)) => {
+            x86_64::encode_authored_import_call_sequence(plan, operands)
+                .map(|bytes| bytes.len())
+                .unwrap_or(0)
+        }
+        (Architecture::Aarch64, Some(_)) => 0,
+        _ => host_call_sequence_width(target, operation_key, operands),
+    }
+}
+
 fn aarch64_call_operands_width<T: InstructionOperandLike>(
     operands: &[T],
     result_present: bool,

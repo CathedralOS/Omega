@@ -1000,6 +1000,7 @@ dependencies = [
 name = "omega-typed-trees"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-control-flow",
  "omega-core",
  "omega-effects",

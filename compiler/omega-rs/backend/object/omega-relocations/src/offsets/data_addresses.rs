@@ -13,6 +13,7 @@ pub(crate) struct FieldModelCallShape {
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 pub(crate) fn data_address_relocation_offset_for_target(
     target: NativeTarget,
     operation_key: Option<HostOperationKey>,
@@ -23,6 +24,42 @@ pub(crate) fn data_address_relocation_offset_for_target(
     field_model_shape: Option<FieldModelCallShape>,
     authored_import: bool,
 ) -> usize {
+    data_address_relocation_offset_for_target_with_plan(
+        target,
+        operation_key,
+        operands,
+        selected_text_offset,
+        operand_index,
+        is_syscall,
+        field_model_shape,
+        authored_import,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn data_address_relocation_offset_for_target_with_plan(
+    target: NativeTarget,
+    operation_key: Option<HostOperationKey>,
+    operands: &[InstructionOperand],
+    selected_text_offset: usize,
+    operand_index: usize,
+    is_syscall: bool,
+    field_model_shape: Option<FieldModelCallShape>,
+    authored_import: bool,
+    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+) -> usize {
+    if target.architecture == Architecture::X86_64
+        && let Some(plan) = authoritative_plan
+        && let Some(site) = omega_isa_x86_64::authored_import_relocation_sites(plan, operands)
+            .into_iter()
+            .find(|site| {
+                site.operand_index == Some(operand_index)
+                    && site.kind == omega_isa_x86_64::X86_64RelocationSiteKind::Absolute64
+            })
+    {
+        return selected_text_offset + site.byte_offset;
+    }
     if target.architecture == Architecture::X86_64
         && omega_calling_conventions::CallingPolicy::native_for_target(target)
             == omega_calling_conventions::CallingPolicy::SystemVAMD64

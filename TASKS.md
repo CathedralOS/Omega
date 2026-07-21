@@ -289,6 +289,14 @@ schemas recover the same instance without publishing policy type identity.
    contract, or ordinary-clobber ceiling cannot cover the encoder's fixed
    caller-saved scratch set; placement is no longer the only enforced plan
    facet. Continue making the plan authoritative across compatibility paths.
+   Selected source policy plans now survive typed lowering beside their public
+   fingerprints and attach only to the admitted provider's authored binding.
+   Provides-authored x86-64 imports consume that exact plan for byte emission,
+   width, and call/data relocation walks; a source-selected SysV placement on
+   a Windows image is no longer replaced by the target-native Microsoft plan.
+   The encoder rechecks the selected operand shapes and fails closed for
+   unsupported policies. AArch64 source-selected import consumption remains;
+   it now refuses rather than silently falling back to target-derived AAPCS64.
    Fixed non-HFA AAPCS64 entry records up to 16 bytes now consume consecutive
    plan-selected `x` fragments with 16-byte register alignment, fall wholly to
    aligned stack fragments when the remaining register bank is too small,

@@ -122,5 +122,6 @@ fn linux_syscall(
             supervisor_call: 0,
         },
         boundary_policy: std::sync::Arc::clone(policy),
+        call_plan: None,
     }
 }

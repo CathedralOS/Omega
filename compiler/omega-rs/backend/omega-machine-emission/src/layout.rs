@@ -1,5 +1,5 @@
 use crate::MachineEmissionContext;
-use crate::host_bindings::host_binding_mechanism;
+use crate::host_bindings::host_binding;
 use crate::selected_instruction_queries::{selected_host_operation, selected_host_text_read};
 use omega_assigned_target_operations::{
     RuntimeTextReadSource, SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
@@ -7,9 +7,9 @@ use omega_assigned_target_operations::{
 use omega_calling_conventions::HostBindingMechanism;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection::{
-    control_register_read_width, control_register_write_width, dispatch_case_enter_width,
-    dispatch_case_leave_width, dispatch_guard_compare_static_width, dispatch_loop_enter_width,
-    dispatch_state_write_width, entry_argument_register_write_width,
+    authored_import_call_sequence_width, control_register_read_width, control_register_write_width,
+    dispatch_case_enter_width, dispatch_case_leave_width, dispatch_guard_compare_static_width,
+    dispatch_loop_enter_width, dispatch_state_write_width, entry_argument_register_write_width,
     entry_arguments_slice_descriptor_write_width, entry_indirect_argument_write_width,
     entry_stack_argument_write_width, flags_restore_width, flags_snapshot_width,
     function_enter_width, host_call_sequence_width, interrupt_control_width, machine_halt_width,
@@ -109,7 +109,8 @@ fn machine_instruction_width(
             .assigned_target_operations
             .instruction_operands(host_operation.operands)
             .unwrap_or(&[]);
-        let width = match host_binding_mechanism(input, host_operation.operation_key) {
+        let binding = host_binding(input, host_operation.operation_key);
+        let width = match binding.map(|binding| &binding.mechanism) {
             Some(HostBindingMechanism::Syscall { number, .. }) => {
                 syscall_sequence_width(input.target.architecture, operands, *number)
             }
@@ -140,6 +141,20 @@ fn machine_instruction_width(
                 *byte_offset,
                 operands.len() > *parameter_count,
             ),
+            Some(HostBindingMechanism::Import { .. })
+                if matches!(
+                    host_operation.operation_key.capability,
+                    omega_calling_conventions::HostCapability::Custom(_)
+                        | omega_calling_conventions::HostCapability::Unknown
+                ) =>
+            {
+                authored_import_call_sequence_width(
+                    input.target,
+                    host_operation.operation_key,
+                    operands,
+                    binding.and_then(|binding| binding.call_plan.as_ref()),
+                )
+            }
             _ => host_call_sequence_width(input.target, host_operation.operation_key, operands),
         };
         // A host call is never legitimately empty: a zero width means the
