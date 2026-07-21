@@ -655,9 +655,12 @@ Ordinary generic trait-parent composition for `Calling<C>` is implemented. The
 compiler also has the first normalized `CallPlan + StatePlan` model, built-in
 evaluators for the currently supported x86-64/AArch64 host and syscall
 policies, deterministic contract fingerprints, and a separate validated
-footprint-evidence carrier. Source-policy semantics are settled; its compiler
-integration, authoritative lowering, and the concrete interrupt state policy
-remain. Remaining order:
+footprint-evidence carrier. Concrete and generic `Calling<C>` relationships
+are discovered, their policy machines are evaluated through the build-time
+interpreter, accepted results are validated and canonicalized, and the
+complete plan is retained through checked lowering. Authoritative stub
+derivation, state-ceiling-aware codegen, final footprint validation, and the
+concrete interrupt state policy remain. Remaining order:
 
 1. Complete the checked-assembly instruction-contract catalog needed by the
    entry provider. No raw-byte shortcut.
@@ -691,10 +694,11 @@ remain. Remaining order:
    then lower exact external/atomic primitives. Geometry, provenance, space,
    rights, size, static reach, and loan-derived borrow polarity are already
    checked.
-5. Implement `CallingPolicy::plan` source evaluation with structured rejection
-   and accepted-plan canonicalization; connect `Calling<C>` to evaluated
-   boundary-plan identity, migrate lowering to the normalized plans, constrain
-   codegen, emit footprint evidence, and validate final artifacts.
+5. Finish migrating lowering to the retained normalized boundary plan, derive
+   inbound entry/exit stubs, constrain codegen by the selected `StatePlan`, emit
+   footprint evidence, and validate final artifacts. Source policy evaluation,
+   structured rejection, accepted-plan canonicalization, and evaluated-plan
+   contract identity are complete.
 6. Connect the live placement constraints to admitted-artifact validation and
    scoped executable installation.
 7. Add the external-root ledger and IDT/timer vertical slice.
