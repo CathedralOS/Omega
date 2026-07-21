@@ -77,7 +77,7 @@ pub(crate) fn call_receiver_mutated_place(
     )
 }
 
-pub(super) fn canonical_receiver_place_for_call_site(
+pub(crate) fn canonical_receiver_place_for_call_site(
     program: &omega_typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,

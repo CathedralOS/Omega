@@ -59,11 +59,11 @@ domain String::Utf8 {
 // re-scans bytes per use, and ordinary code cannot mint these memberships
 // without flowing through one of these boundaries.
 //
-// The in-place validators (`validate_utf8` / `validate_no_nul`) establish the
-// fact on their `&mut String` argument; the membership is carried on that place
-// afterwards. This is the working establishment path (the boundary's `ensures`
-// attaches the fact to the named argument place via the existing call-contract
-// machinery).
+// The compatibility in-place validators (`validate_utf8` / `validate_no_nul`)
+// establish the fact on their `&mut String` argument; the membership is carried
+// on that place afterwards. The same operator-contract mechanism now works for
+// domain-qualified byte carriers: it first invalidates the exact mutable caller
+// operand, then attaches the declared membership guarantee to that place.
 boundary operator String::validate_utf8(text: &mut String) -> ()
 ensures
     text in String::Utf8;

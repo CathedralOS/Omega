@@ -5,6 +5,7 @@ mod summary;
 
 pub(crate) use receiver::{
     call_may_mutate_contract_state, call_receiver_is_mutable, call_receiver_mutated_place,
+    canonical_receiver_place_for_call_site,
 };
 pub(crate) use summary::StateMutationSummaryCache;
 use summary::instantiate_known_call_mutation_summary_places;

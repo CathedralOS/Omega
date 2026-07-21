@@ -15,6 +15,7 @@ mod context;
 mod domain;
 mod exits;
 mod mutation;
+mod operator_calls;
 mod ownership;
 mod place;
 mod state;
@@ -45,6 +46,10 @@ use exits::append_state_exit_facts;
 use mutation::call_may_mutate_contract_state;
 pub(crate) use mutation::{
     StateMutationSummaryCache, call_mutated_places, statement_mutated_place,
+};
+use operator_calls::{
+    append_operator_statement_domain_ensures, operator_statement_call_mutated_places,
+    resolve_operator_for_call, resolve_operator_statement_call,
 };
 pub(crate) use ownership::{DiscoveredMoveEvent, discover_state_move_events};
 use ownership::{

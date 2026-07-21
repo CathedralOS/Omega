@@ -622,9 +622,13 @@ stronger operations it needs instead of citing machine parameters generally.
   same summaries recursively; when body analysis is unavailable (unknown,
   transitioning, static-machine, or cyclic callees), their ownership-bounded
   fallback invalidates the whole receiver plus explicit mutable arguments but
-  preserves unpassed caller locals. Finish the `stores` clause, explicit
-  state-arrival contracts, and broader Houdini-style inference for facts
-  crossing sibling calls.
+  preserves unpassed caller locals. Named boundary/operator statement calls now
+  use the same exact operand-place mapping: mutable operands invalidate stale
+  facts, then domain-membership `ensures` facts are instantiated back onto the
+  caller place. Boolean operator postconditions still need general expression
+  substitution rather than domain-specific handling. Finish the `stores`
+  clause, explicit state-arrival contracts, that substitution, and broader
+  Houdini-style inference for facts crossing sibling calls.
 
 ### Domain facets, effects, termination, and trust
 
@@ -916,10 +920,12 @@ stronger operations it needs instead of citing machine parameters generally.
   the literal exceeds `N`; bounded-carrier calls contribute their declared
   return capacity to assignment proofs. Direct carrier-to-`&[u8]` projection
   now builds `{ptr, runtime_len}` rather than raw-copying the inline carrier
-  prefix. The remaining boundary-establishment migration needs mutable
-  parameter `ensures` facts to substitute back onto the caller's borrowed field
-  place (`utf8_boundary_established` / `no_nul_boundary_established`). Still
-  implement scratch-backed
+  prefix. Named boundary/operator calls now substitute domain-membership
+  `ensures` facts back onto the exact mutable caller place; the migrated
+  `utf8_boundary_established` / `no_nul_boundary_established` canaries pin the
+  positive route, while a negative canary proves mutation without such an
+  `ensures` invalidates the old fact. Nineteen pass-canary sources still name
+  builtin `String`/`string`. Continue that migration, and implement scratch-backed
   overlap handling (or an equivalent proven length route) before migrating the
   in-place `target = target + suffix` regressions; never zero the aliased source
   and call it a copy. Follow
