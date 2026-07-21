@@ -24,6 +24,9 @@ pub(super) fn selected_binary_write_kind(
         SelectedInstructionKind::AtomicFetchXor { .. } => {
             Some(MachineInstructionKind::AtomicFetchXor)
         }
+        SelectedInstructionKind::AtomicFetchOr { .. } => {
+            Some(MachineInstructionKind::AtomicFetchOr)
+        }
         SelectedInstructionKind::AtomicSwap { .. } => Some(MachineInstructionKind::AtomicSwap),
         SelectedInstructionKind::AtomicCompareExchange { .. } => {
             Some(MachineInstructionKind::AtomicCompareExchange)

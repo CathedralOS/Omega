@@ -370,6 +370,7 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::AtomicFetchAdd { .. }
                     | SelectedInstructionKind::AtomicFetchSub { .. }
                     | SelectedInstructionKind::AtomicFetchXor { .. }
+                    | SelectedInstructionKind::AtomicFetchOr { .. }
                     | SelectedInstructionKind::AtomicSwap { .. }
                     | SelectedInstructionKind::HostOperation { .. }
                     | SelectedInstructionKind::AtomicCompareExchange { .. }

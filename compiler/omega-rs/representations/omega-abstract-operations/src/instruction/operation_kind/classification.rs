@@ -34,6 +34,7 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::AtomicFetchAdd { .. }
             | Self::AtomicFetchSub { .. }
             | Self::AtomicFetchXor { .. }
+            | Self::AtomicFetchOr { .. }
             | Self::AtomicSwap { .. }
             | Self::AtomicCompareExchange { .. }
             | Self::WriteEntryArgumentRegister { .. }

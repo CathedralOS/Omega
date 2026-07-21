@@ -44,6 +44,7 @@ pub enum MachineInstructionKind {
     AtomicFetchAdd,
     AtomicFetchSub,
     AtomicFetchXor,
+    AtomicFetchOr,
     AtomicSwap,
     AtomicCompareExchange,
     RuntimePointeeBinaryWrite,

@@ -41,10 +41,11 @@ pub use host::{
 };
 pub use runtime_storage::{
     CopyPlacesShape, WritePlaceShape, classify_copy_places_shape, classify_write_place_shape,
-    encode_atomic_compare_exchange, encode_atomic_fetch_add, encode_atomic_fetch_sub,
-    encode_atomic_fetch_xor, encode_atomic_load_to_storage, encode_atomic_store_from_operand,
-    encode_atomic_swap, encode_copy_places, encode_place_compare_bytes,
-    encode_place_value_compare_bytes, encode_runtime_frame_base_indexed_binary_write,
+    encode_atomic_compare_exchange, encode_atomic_fetch_add, encode_atomic_fetch_or,
+    encode_atomic_fetch_sub, encode_atomic_fetch_xor, encode_atomic_load_to_storage,
+    encode_atomic_store_from_operand, encode_atomic_swap, encode_copy_places,
+    encode_place_compare_bytes, encode_place_value_compare_bytes,
+    encode_runtime_frame_base_indexed_binary_write,
     encode_runtime_frame_base_indexed_integer_write, encode_runtime_frame_indexed_binary_write,
     encode_runtime_frame_indexed_integer_write,
     encode_runtime_machine_bounded_buffer_literal_append,

@@ -366,7 +366,7 @@ Working rules:
   `Release`/`AcqRel` or stronger than the success ordering.
 - The operation set is load, store, swap, `compare_exchange` (with separate
   success/failure orderings), and the fetch-and-modify family.
-- The implemented load/store/fetch_add/fetch_sub/fetch_xor/swap/
+- The implemented load/store/fetch_add/fetch_sub/fetch_xor/fetch_or/swap/
   compare_exchange slice carries
   ordering as normalized operation data through both backends. AArch64 selects
   the LSE acquire/release form; x86 may realize a request with its stronger
@@ -377,6 +377,8 @@ Working rules:
   locked `XADD`/ordered `LDADD`. `fetch_xor` lowers to an ordering-selected
   `LDEOR` on AArch64 and to a locked `CMPXCHG` retry loop on x86_64; its result
   is the prior value observed by the successful attempt.
+  `fetch_or` uses the same successful-attempt rule, lowering to ordered `LDSET`
+  on AArch64 and the shared locked retry loop on x86_64.
 - Atomics are exempt from the exclusive-`&mut` aliasing rule by their
   contracts: shared access is the type's documented purpose, not a borrow
   checker escape used elsewhere.

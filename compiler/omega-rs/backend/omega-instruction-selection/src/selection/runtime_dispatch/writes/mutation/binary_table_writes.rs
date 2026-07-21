@@ -386,7 +386,10 @@ fn select_runtime_atomic_fetch_arithmetic_in_table(
     let operator = runtime_binary_operator(binary.operator)?;
     if !matches!(
         operator,
-        StateGuardOperator::Add | StateGuardOperator::Subtract | StateGuardOperator::BitwiseXor
+        StateGuardOperator::Add
+            | StateGuardOperator::Subtract
+            | StateGuardOperator::BitwiseXor
+            | StateGuardOperator::BitwiseOr
     ) {
         return None;
     }
@@ -461,7 +464,16 @@ fn select_runtime_atomic_fetch_arithmetic_in_table(
             value: common.5,
             ordering: common.6,
         },
-        _ => unreachable!("fetch arithmetic gate accepts add/sub/xor only"),
+        StateGuardOperator::BitwiseOr => SelectedInstructionKind::AtomicFetchOr {
+            target_region: common.0,
+            target_offset: common.1,
+            byte_size: common.2,
+            result_region: common.3,
+            result_offset: common.4,
+            value: common.5,
+            ordering: common.6,
+        },
+        _ => unreachable!("fetch arithmetic gate accepts add/sub/xor/or only"),
     })
 }
 

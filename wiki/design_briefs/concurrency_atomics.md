@@ -96,8 +96,8 @@ loads admit `Relaxed | Acquire | SeqCst`, stores admit
 `Relaxed | Release | SeqCst`, and compare-exchange failure ordering may neither
 release nor be stronger than its success ordering. Stage-1 atomic operations
 and the memory model are landed.
-Load/store/fetch_add/fetch_sub/fetch_xor/swap/compare_exchange preserve their
-ordering through normalized operations and exact x86_64/aarch64 target lowering.
+Load/store/fetch_add/fetch_sub/fetch_xor/fetch_or/swap/compare_exchange preserve
+their ordering through normalized operations and exact x86_64/aarch64 target lowering.
 Fetch/swap/CAS write the instruction-observed
 prior into the language result; a separate ordinary read is forbidden because
 it races the RMW. Swap is a first-class carrier rather than synthetic
@@ -112,6 +112,9 @@ has no single instruction that both XORs memory and returns its prior value, it
 uses a locked `CMPXCHG` retry loop; only the successful instruction's observed
 prior is returned. The retry loop is part of target lowering, not source-level
 control flow and not a license for a racing ordinary read.
+`fetch_or` follows the same returned-prior contract: aarch64 uses its
+ordering-selected `LDSET` form, while x86_64 reuses the locked `CMPXCHG` retry
+lowering and returns the successful attempt's observation.
 
 Still required:
 

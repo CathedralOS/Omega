@@ -2712,7 +2712,10 @@ fn select_runtime_binary_mutation_write(
     if let Some(ordering) = atomic_ordering
         && matches!(
             operator,
-            StateGuardOperator::Add | StateGuardOperator::Subtract | StateGuardOperator::BitwiseXor
+            StateGuardOperator::Add
+                | StateGuardOperator::Subtract
+                | StateGuardOperator::BitwiseXor
+                | StateGuardOperator::BitwiseOr
         )
         && runtime_storage_target_is_atomic(
             input,
@@ -2766,7 +2769,16 @@ fn select_runtime_binary_mutation_write(
                 value: right,
                 ordering,
             },
-            _ => unreachable!("fetch arithmetic gate accepts add/sub/xor only"),
+            StateGuardOperator::BitwiseOr => SelectedInstructionKind::AtomicFetchOr {
+                target_region: target_place.region,
+                target_offset: target_place.byte_offset,
+                byte_size: target_place.byte_count,
+                result_region: result_place.region,
+                result_offset: result_place.byte_offset,
+                value: right,
+                ordering,
+            },
+            _ => unreachable!("fetch arithmetic gate accepts add/sub/xor/or only"),
         });
     }
 

@@ -974,6 +974,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("atomics/runtime_atomic_fetch_add_exit", 70),
     ("atomics/runtime_atomic_fetch_sub_exit", 70),
     ("atomics/runtime_atomic_fetch_xor_exit", 70),
+    ("atomics/runtime_atomic_fetch_or_exit", 75),
     ("atomics/runtime_atomic_swap_exit", 70),
     ("atomics/runtime_atomic_compare_exchange_exit", 70),
     // --- 2026-07-07 sync: the range/render sweep's canaries + the windows fs/gui work ---
@@ -1530,13 +1531,14 @@ fn interpreter_matches_native_on_supported_canaries() {
 
 #[test]
 fn interpreter_preserves_atomic_instruction_results() {
-    for name in [
-        "atomics/runtime_atomic_load_store_exit",
-        "atomics/runtime_atomic_fetch_add_exit",
-        "atomics/runtime_atomic_fetch_sub_exit",
-        "atomics/runtime_atomic_fetch_xor_exit",
-        "atomics/runtime_atomic_swap_exit",
-        "atomics/runtime_atomic_compare_exchange_exit",
+    for (name, expected) in [
+        ("atomics/runtime_atomic_load_store_exit", 70),
+        ("atomics/runtime_atomic_fetch_add_exit", 70),
+        ("atomics/runtime_atomic_fetch_sub_exit", 70),
+        ("atomics/runtime_atomic_fetch_xor_exit", 70),
+        ("atomics/runtime_atomic_fetch_or_exit", 75),
+        ("atomics/runtime_atomic_swap_exit", 70),
+        ("atomics/runtime_atomic_compare_exchange_exit", 70),
     ] {
         let main_path = pass_canary(name).join("main.omg");
         let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
@@ -1548,7 +1550,7 @@ fn interpreter_preserves_atomic_instruction_results() {
         let outcome = interpret(&checked, b"");
         assert_eq!(outcome.error, None, "{name}: interpreter trapped");
         assert_eq!(
-            outcome.exit_code, 70,
+            outcome.exit_code, expected,
             "{name}: interpreter did not return the instruction-observed atomic result"
         );
     }

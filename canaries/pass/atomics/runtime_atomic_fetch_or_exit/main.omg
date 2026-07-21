@@ -1,0 +1,61 @@
+// RUN canary: AtomicU32 fetch_or returns the instruction-observed prior and
+// atomically ORs the cell. X86_64 uses a locked CMPXCHG retry loop; AArch64
+// uses ordering-selected LDSET.
+
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    counter: AtomicU32;
+}
+
+machine Main::main(&mut self) {
+    self.counter.store(10, Relaxed);
+    let prior: u32 = self.counter.fetch_or(5, AcqRel);
+    transition prior == 10 {
+        true -> check_first_value()
+        false -> bad_first_prior()
+    }
+
+    state check_first_value(&mut self) {
+        transition self.counter == 15 {
+            true -> do_second_or()
+            false -> bad_first_value()
+        }
+    }
+
+    state do_second_or(&mut self) {
+        let prior2: u32 = self.counter.fetch_or(16, Relaxed);
+        transition prior2 == 15 {
+            true -> check_second_value()
+            false -> bad_second_prior()
+        }
+    }
+
+    state check_second_value(&mut self) {
+        transition self.counter == 31 {
+            true -> good()
+            false -> bad_second_value()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(75);
+    }
+
+    state bad_first_prior(&mut self) {
+        self.console.exit_process(76);
+    }
+
+    state bad_first_value(&mut self) {
+        self.console.exit_process(77);
+    }
+
+    state bad_second_prior(&mut self) {
+        self.console.exit_process(78);
+    }
+
+    state bad_second_value(&mut self) {
+        self.console.exit_process(79);
+    }
+}
