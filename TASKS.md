@@ -474,10 +474,12 @@ slot owner may override by type. The migration order remains load-bearing.
    selected covering candidate reaches adapter or leaf lowering. Explicit
    type-per-slot `build.omg` selection now validates the provider against the
    loaded dependency closure and is confined to the build root's slot-owner
-   authority. Add target-package default provider declarations and extend the
-   same contract to test/component slot owners. Coverage, signature conformance,
-   transitive effect refinement, normalized identity, and selected-target-only
-   ambiguity are already enforced.
+   authority. Target-scoped package-owned `provider_defaults` machines now
+   supply ordinary defaults, explicit build selection overrides them per slot,
+   and conflicting target defaults reject. Extend the same selection contract
+   to test/component slot owners. Coverage, signature conformance, transitive
+   effect refinement, normalized identity, and selected-target-only ambiguity
+   are already enforced.
 3. **PRV4e — foreign format facts.** Move foreign offsets and bit constants
    from `Binding::Value` into programmable layout/format declarations and
    migrate filesystem leaves. Open-option flags have moved: portable code now
