@@ -228,9 +228,13 @@ None block current compiler development; all should stay visible.
   `LayoutPlan` geometry, name-keyed fragments, separate `AccessPlan`, extent
   authority, and plan-derived field access. The public Extent/access model is
   settled; implementation is tracked in TASKS.md.
-- **TBD: function pointers / first-class machine references** — driver
-  dispatch tables; partially covered by `dyn Trait` (single-impl works,
-  multi-impl backend pending).
+- **TBD: runtime sealed entry references** — driver dispatch tables and
+  dynamic callbacks need a stored, identity-bearing callable carrier.
+  Compile-time machine parameters already select and invoke static symbols but
+  deliberately do not reify them into values, addresses, or relocation sources.
+  `dyn Trait` partially covers behavioral dispatch (single-implementation works;
+  multi-implementation backend pending), but does not by itself settle external
+  entry identity, registration, or revocation.
 - **TBD: const evaluation** — const params are structural; compile-time
   function evaluation is unspecified. Kernels lean on this hard.
 - **TBD: authority-flow completeness** — facts through returns/derives across

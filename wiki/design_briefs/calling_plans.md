@@ -113,6 +113,13 @@ the policy free to contain several ordinary machines without turning one helper
 symbol into the public ABI name. Neither mechanism reifies a machine as a
 runtime value or exposes its code address.
 
+The implementation dependency is therefore explicit: calling-policy work does
+not wait on machine-parameter support. Static selection and invocation are
+already available. Source-visible sealed entry references, callback values, and
+relocation-bearing machine identities are stronger reification features and
+remain separate work; their absence does not constrain `Calling<C>` evaluation
+or plan-driven lowering.
+
 A target-specific requirement may layer over a portable semantic service trait.
 When the boundary declaration itself is reusable across conventions, make the
 policy an ordinary type parameter:

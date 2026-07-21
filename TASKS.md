@@ -514,6 +514,16 @@ its selected static machines, and exports that relation in the machine-contract
 manifest. Contract changes invalidate instances; implementation-body-only edits
 remain contract-invisible.
 
+The former blanket "machine parameters are unbuilt" blocker is retired.
+Compile-time selection, modular checking, direct invocation, specialization,
+and manifest identity are implemented and must not defer downstream customers.
+The blocker audit leaves only genuinely stronger requests separate: turning a
+machine into a stored runtime value, sealed entry reference, address-bearing
+relocation source, or dynamically registered callback. `Calling<C>` remains a
+policy-type relationship by design, not as a workaround for machine-parameter
+support; provider row builders remain rejected because they duplicate
+`satisfies`, not because they require an unavailable parameter form.
+
 1. **MP6 — remaining consuming slices.** `Seq`'s consuming `map`/`filter` are
    now core machines: recursive static-machine selections specialize to direct
    calls, with no runtime callable, dictionary, or capture inference. Still add
