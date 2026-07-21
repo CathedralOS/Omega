@@ -169,6 +169,14 @@ fn is_known_runtime_text_place(
                 expressions,
                 expression,
             )
+    }) || plan.uses.iter().any(|(_, text_use)| {
+        text_use.source == crate::RuntimeTextSource::StoredPlace
+            && expression_place_eq_across_tables(
+                &plan.expressions,
+                text_use.expression,
+                expressions,
+                expression,
+            )
     })
 }
 

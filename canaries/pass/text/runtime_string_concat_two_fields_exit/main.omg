@@ -1,21 +1,36 @@
-// Regression: concatenating two runtime String places with no string-literal
-// anchor (`self.line = self.line + self.suffix`) was rejected by the runtime-
-// text planner ("needs runtime value lowering") because the text-vs-numeric
-// heuristic keyed on a literal segment. A write to a place already established
-// as text (here `self.line = "prefix "`) is now recognized as a text concat.
+// Regression: concatenating two runtime bounded text carriers with no
+// string-literal anchor (`self.line = self.prefix + self.suffix`) was rejected by
+// the runtime-text planner ("needs runtime value lowering") because the
+// text-vs-numeric heuristic keyed on a literal segment. Two places already
+// established as text are recognized as a text concat without relying on
+// builtin `String`. A distinct destination keeps the static capacity proof
+// honest: `8 + 8 <= 16`.
+
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
+
+domain [u8; 16]::Utf8 {
+    valid_utf8(self);
+}
 
 use omega::language::std::console;
 
 data Main {
     console: Console;
-    line: String;
-    suffix: String;
+    prefix: [u8; 8] in Utf8;
+    line: [u8; 16] in Utf8;
+    suffix: [u8; 8] in Utf8;
 }
 
 machine Main::main(&mut self) {
     self.suffix = "omega";
-    self.line = "prefix ";
-    self.line = self.line + self.suffix;
+    self.prefix = "prefix ";
+    self.line = self.prefix + self.suffix;
     self.console.write_line(self.line);
 
     transition self.line == "prefix omega" {

@@ -15471,6 +15471,15 @@ fn runtime_chained_string_append_exit_canary_runs() {
 fn runtime_string_concat_two_fields_exit_canary_runs() {
     let canary = pass_canary("text/runtime_string_concat_two_fields_exit");
     let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("two-carrier text concat canary should compile to checked trees");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        interpreted.exit_code, 70,
+        "interpreter should join the same two runtime bounded text carriers"
+    );
+
     let build_dir = std::env::temp_dir().join(format!(
         "omega-string-concat-two-fields-{}",
         std::process::id()
@@ -15483,16 +15492,16 @@ fn runtime_string_concat_two_fields_exit_canary_runs() {
         target_name: None,
         write_output: true,
     })
-    .expect("two-field string concat canary should compile");
+    .expect("two-carrier text concat canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
-        .expect("two-field string concat canary should run");
+        .expect("two-carrier text concat canary should run");
 
     assert_eq!(
         output.status.code(),
         Some(70),
-        "expected concat of two runtime String fields (no literal anchor) to produce the joined text (exit 70), got {:?}\nstdout:\n{}\nstderr:\n{}",
+        "expected concat of two runtime bounded text carriers (no literal anchor) to produce the joined text (exit 70), got {:?}\nstdout:\n{}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)

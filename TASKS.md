@@ -895,7 +895,17 @@ stronger operations it needs instead of citing machine parameters generally.
 - **Text domains and String retirement.** Establish `Utf8`/`NoNul` over
   `[u8]`, add the compile-time/runtime mint paths and loop-invariant proofs,
   migrate the corpus, then delete builtin `string`/`String` and backend
-  special cases. Follow `wiki/architecture/string_retirement_execution.md`.
+  special cases. Generic domain-fact forwarding is complete across immutable
+  parameters, guarded-transition fallthrough, declared fields/nested fields,
+  indexed reads, and destructured case payloads; the non-text
+  `Blob::Scanned` canary keeps this out of the text special-case bucket.
+  Carrier migration has begun: a two-runtime-source concat now lowers without
+  a literal anchor by initializing a distinct bounded destination from the
+  first carrier and appending later segments. Still implement scratch-backed
+  overlap handling (or an equivalent proven length route) before migrating the
+  in-place `target = target + suffix` regressions; never zero the aliased source
+  and call it a copy. Follow
+  `wiki/architecture/string_retirement_execution.md`.
 - **Atomics remainder.** The closed ordering vocabulary and operation-specific
   legality rules now reject release-bearing loads, acquire-bearing stores,
   unknown names, and compare-exchange failure orderings that release or exceed
