@@ -275,6 +275,18 @@ reason is reported at the `Calling<C>` relationship. Policy authorship is open,
 but the plan vocabulary and validator are closed compiler interfaces. See the
 calling-plans design brief for the complete boundary rule.
 
+The policy is a type parameter deliberately, not a workaround for unavailable
+machine parameters. Static machine parameters select and directly invoke one
+authored machine. `Calling<C>` selects a policy relationship that may use several
+ordinary machines and whose canonical result, rather than any helper symbol,
+defines the boundary promise. Neither form reifies a machine as a runtime value,
+code address, or relocation source.
+
+The canonical plan is contract identity because the counterparty observes its
+placement and state promises. A provider's emitted register/state footprint is
+separate realization evidence: the validator checks that it refines the plan,
+but a legal evidence-only change does not change the requirement identity.
+
 This avoids making traits magic. They are named requirement sets.
 
 ## Versioned Data

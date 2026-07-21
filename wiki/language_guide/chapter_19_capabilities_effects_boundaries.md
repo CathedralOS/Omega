@@ -686,6 +686,12 @@ policy. "No host" is `b.freestanding = true` in
 guarantees are normalized provider/entry-plan facts surfaced by the build
 artifact and checked or accepted through the ordinary admission spine.
 
+The selected provider binding does not choose a calling convention from its
+mechanism name. `DllImport`, `Syscall`, `VtableSlot`, and similar realizations
+must validate against the policy already pinned by the satisfied requirement.
+Provider-specific register allocation and footprint certificates remain
+implementation evidence behind that published plan identity.
+
 Hardware entry points with no Omega caller are external artifact roots. Their
 effects, trust receipts, state footprints, stack domains, nesting relations,
 and version pins must enter whole-artifact analysis at installation; otherwise
