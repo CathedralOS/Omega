@@ -763,6 +763,11 @@ pub(super) fn rewrite_destructure_guard_expression(
                 subject,
                 fields,
             ),
+            result: if atomic.result.is_valid() {
+                rewrite_destructure_guard_expression(syntax_trees, atomic.result, subject, fields)
+            } else {
+                ExpressionHandle::invalid()
+            },
             ordering: atomic.ordering,
         }),
         ExpressionNode::ArrayLiteral(values) => {

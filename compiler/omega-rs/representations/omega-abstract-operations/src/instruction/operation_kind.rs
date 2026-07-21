@@ -388,6 +388,17 @@ pub enum AbstractOperationKind {
         delta: AbstractValueOperandHandle,
         ordering: omega_core::atomic::AtomicOrderingPlan,
     },
+    /// Atomically replace the storage value and return the instruction-observed
+    /// prior value through a distinct result place.
+    AtomicSwap {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_size: usize,
+        result_region: RuntimeStorageRegion,
+        result_offset: usize,
+        new_value: AbstractValueOperandHandle,
+        ordering: omega_core::atomic::AtomicOrderingPlan,
+    },
     /// An atomic `compare_exchange`: atomically compare the storage place against
     /// `expected` and, only if equal, swap in `new_value`, via a single `LOCK
     /// CMPXCHG` (x86) / `CAS*` (aarch64). The instruction-observed prior value

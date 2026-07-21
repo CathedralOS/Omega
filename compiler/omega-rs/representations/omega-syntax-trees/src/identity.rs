@@ -487,6 +487,9 @@ fn count_expression_handle(
         }
         crate::expression::ExpressionNode::Atomic(atomic) => {
             count_expression_handle(syntax_trees, atomic.value, counts);
+            if atomic.result.is_valid() {
+                count_expression_handle(syntax_trees, atomic.result, counts);
+            }
         }
         crate::expression::ExpressionNode::Binary(binary) => {
             count_expression_handle(syntax_trees, binary.left, counts);

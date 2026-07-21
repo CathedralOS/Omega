@@ -95,17 +95,19 @@ their ordering. Source validation now treats those names as a closed vocabulary:
 loads admit `Relaxed | Acquire | SeqCst`, stores admit
 `Relaxed | Release | SeqCst`, and compare-exchange failure ordering may neither
 release nor be stronger than its success ordering. Stage-1 atomic operations
-and the memory model are landed. Load/store/fetch_add/compare_exchange preserve
-their ordering through normalized operations and exact x86_64/aarch64 target
-lowering. Fetch/CAS write the instruction-observed prior into the language
-result; a separate ordinary read is forbidden because it races the RMW. The
-serial interpreter models the same observation explicitly and is pinned by a
-focused differential test rather than treating the carrier as an ordinary
-transparent expression.
+and the memory model are landed. Load/store/fetch_add/swap/compare_exchange
+preserve their ordering through normalized operations and exact
+x86_64/aarch64 target lowering. Fetch/swap/CAS write the instruction-observed
+prior into the language result; a separate ordinary read is forbidden because
+it races the RMW. Swap is a first-class carrier rather than synthetic
+arithmetic and lowers to implicitly locked `XCHG` on x86_64 or the selected LSE
+`SWP` form on aarch64. The serial interpreter models the same observation
+explicitly and is pinned by a focused differential test rather than treating
+the carrier as an ordinary transparent expression.
 
 Still required:
 
-- swap and the remaining fetch-and-modify surface;
+- the remaining fetch-and-modify surface;
 - contention tests once concurrent activation is runnable;
 - standalone fences and target lowering proofs;
 - cross-activation ownership/borrow/access enforcement independent of `[copy]`;

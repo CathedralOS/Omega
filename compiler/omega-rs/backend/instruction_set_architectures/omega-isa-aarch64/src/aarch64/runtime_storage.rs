@@ -32,8 +32,8 @@ use super::primitives::{
     encode_sign_extend_halfword_to_x, encode_sign_extend_word_to_x, encode_signed_int_to_float,
     encode_smulh_x, encode_store_byte_w_post_increment, encode_store_byte_w_to_x,
     encode_store_w_to_x, encode_store_w17_to_x16, encode_store_x_to_x, encode_store_x17_to_x16,
-    encode_sub_x_register, encode_subs_x_immediate, encode_subs_x_register, encode_udiv_w_register,
-    encode_udiv_x_register, encode_umulh_x, encode_unconditional_branch,
+    encode_sub_x_register, encode_subs_x_immediate, encode_subs_x_register, encode_swp,
+    encode_udiv_w_register, encode_udiv_x_register, encode_umulh_x, encode_unconditional_branch,
     encode_zero_extend_byte_to_w, encode_zero_extend_halfword_to_w,
 };
 use super::widths::{
@@ -251,6 +251,84 @@ pub fn runtime_atomic_fetch_add_result_address_offset(
 ) -> usize {
     let address_add = if target_offset == 0 { 0 } else { 4 };
     8 + runtime_value_operand_width(runtime_value_operands, delta) + address_add + 4
+}
+
+pub fn encode_atomic_swap(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    result_offset: usize,
+    new_value: RuntimeValueOperandHandle,
+    ordering: omega_core::atomic::MemoryOrdering,
+) -> Result<Vec<u8>, Diagnostic> {
+    if target_offset > 4095 {
+        return Err(Diagnostic::error(format!(
+            "AArch64 atomic swap target offset `{target_offset}` exceeds the \
+             single-instruction ADD immediate range (4095)"
+        )));
+    }
+    let mut bytes = Vec::with_capacity(runtime_atomic_swap_width(
+        runtime_value_operands,
+        target_offset,
+        byte_size,
+        result_offset,
+        new_value,
+    ));
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_runtime_value_operand(
+        runtime_value_operands,
+        &mut bytes,
+        17,
+        RUNTIME_VALUE_LEFT_SCRATCH_REGISTERS,
+        new_value,
+    )?;
+    append_add_x_constant(&mut bytes, 16, 16, target_offset, 19)?;
+    bytes.extend(encode_swp(byte_size, 17, 26, 16, ordering)?);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_add_constant_to_x_register(&mut bytes, 16, result_offset)?;
+    match byte_size {
+        1 | 2 | 4 => bytes.extend(encode_store_w_to_x(26, 16, 0, byte_size)?),
+        8 => bytes.extend(encode_store_x_to_x(26, 16, 0)?),
+        _ => unreachable!("SWP width validation accepts only 1, 2, 4, or 8 bytes"),
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_atomic_swap_width(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            result_offset,
+            new_value
+        )
+    );
+    Ok(bytes)
+}
+
+pub fn runtime_atomic_swap_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    _byte_size: usize,
+    result_offset: usize,
+    new_value: RuntimeValueOperandHandle,
+) -> usize {
+    let address_add = if target_offset == 0 { 0 } else { 4 };
+    8 + runtime_value_operand_width(runtime_value_operands, new_value)
+        + address_add
+        + 4
+        + 8
+        + add_constant_width(result_offset)
+        + 4
+}
+
+pub fn runtime_atomic_swap_result_address_offset(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    new_value: RuntimeValueOperandHandle,
+) -> usize {
+    let address_add = if target_offset == 0 { 0 } else { 4 };
+    8 + runtime_value_operand_width(runtime_value_operands, new_value) + address_add + 4
 }
 
 pub fn encode_atomic_compare_exchange(
@@ -5651,6 +5729,41 @@ mod tests {
                 0xB8F1_021A,
             ]
         );
+    }
+
+    #[test]
+    fn swp_encodes_per_width_and_ordering() {
+        let words = [
+            omega_core::atomic::MemoryOrdering::Relaxed,
+            omega_core::atomic::MemoryOrdering::Acquire,
+            omega_core::atomic::MemoryOrdering::Release,
+            omega_core::atomic::MemoryOrdering::AcqRel,
+            omega_core::atomic::MemoryOrdering::SeqCst,
+        ]
+        .map(|ordering| u32::from_le_bytes(encode_swp(4, 17, 26, 16, ordering).unwrap()));
+        assert_eq!(
+            words,
+            [
+                0xB831_821A,
+                0xB8B1_821A,
+                0xB871_821A,
+                0xB8F1_821A,
+                0xB8F1_821A,
+            ]
+        );
+        for byte_size in [1usize, 2, 4, 8] {
+            assert!(
+                encode_swp(
+                    byte_size,
+                    17,
+                    26,
+                    16,
+                    omega_core::atomic::MemoryOrdering::AcqRel,
+                )
+                .is_ok()
+            );
+        }
+        assert!(encode_swp(3, 17, 26, 16, omega_core::atomic::MemoryOrdering::Relaxed).is_err());
     }
 
     #[test]

@@ -183,8 +183,14 @@ impl ExpressionTable {
             }
             ExpressionNode::Atomic(atomic) => {
                 let value = self.copy_from(source, atomic.value);
+                let result = atomic
+                    .result
+                    .is_valid()
+                    .then(|| self.copy_from(source, atomic.result))
+                    .unwrap_or_else(ExpressionHandle::invalid);
                 self.insert(ExpressionNode::Atomic(TableAtomicExpression {
                     value,
+                    result,
                     ordering: atomic.ordering,
                 }))
             }
@@ -568,8 +574,14 @@ impl ExpressionTable {
             }
             ExpressionNode::Atomic(atomic) => {
                 let value = self.copy_from_self(atomic.value);
+                let result = atomic
+                    .result
+                    .is_valid()
+                    .then(|| self.copy_from_self(atomic.result))
+                    .unwrap_or_else(ExpressionHandle::invalid);
                 self.insert(ExpressionNode::Atomic(TableAtomicExpression {
                     value,
+                    result,
                     ordering: atomic.ordering,
                 }))
             }
@@ -887,6 +899,7 @@ pub enum ExpressionNode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TableAtomicExpression {
     pub value: ExpressionHandle,
+    pub result: ExpressionHandle,
     pub ordering: omega_core::atomic::AtomicOrderingPlan,
 }
 

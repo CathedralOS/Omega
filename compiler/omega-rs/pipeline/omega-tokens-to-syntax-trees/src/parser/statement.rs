@@ -1104,6 +1104,7 @@ pub(super) fn try_parse_atomic_compare_exchange_let<'tokens, 'source>(
         .expressions
         .insert(ExpressionNode::Atomic(TableAtomicExpression {
             value: add_expr,
+            result: prior_for_add,
             ordering: omega_core::atomic::AtomicOrderingPlan::CompareExchange {
                 success: success_ordering,
                 failure: failure_ordering,
@@ -1354,6 +1355,7 @@ pub(super) fn try_parse_atomic_fetch_add_let<'tokens, 'source>(
         .expressions
         .insert(ExpressionNode::Atomic(TableAtomicExpression {
             value: add_expr,
+            result: result_name,
             ordering: omega_core::atomic::AtomicOrderingPlan::ReadModifyWrite(ordering),
         }));
     let place_for_assign = copy_expression_as_place(syntax_trees, place_expr)?;
@@ -1367,6 +1369,89 @@ pub(super) fn try_parse_atomic_fetch_add_let<'tokens, 'source>(
 
     let span = HandleSpan::from_parts(first_handle, 2);
     Some((span, after_semi))
+}
+
+/// Parse `let prior: T = place.swap(replacement, ordering);`. The result local
+/// is reserved without reading `place`; the atomic carrier names it as the
+/// destination for the instruction-observed prior value.
+pub(super) fn try_parse_atomic_swap_let<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> Option<(
+    HandleSpan<omega_syntax_trees::statement::StatementHandle>,
+    Input<'tokens, 'source>,
+)> {
+    if !input.at_keyword(KeywordKind::Let) {
+        return None;
+    }
+    let after_let = input.take_keyword(KeywordKind::Let, "let").ok()?;
+    let (name, after_name) = after_let.take_identifier().ok()?;
+    let after_colon = after_name
+        .take_punctuation(PunctuationKind::Colon, ":")
+        .ok()?;
+    let (type_reference, after_type) =
+        parse_type_reference_handle_allowing_borrow(syntax_trees, after_colon).ok()?;
+    let after_eq = after_type
+        .take_punctuation(PunctuationKind::Equal, "=")
+        .ok()?;
+    let (rhs, after_rhs) = parse_expression_handle(syntax_trees, after_eq).ok()?;
+    let after_semi = after_rhs
+        .take_punctuation(PunctuationKind::Semicolon, ";")
+        .ok()?;
+
+    let (place, replacement, ordering) = {
+        let ExpressionNode::Call(call) = syntax_trees.expressions.expression(rhs).clone() else {
+            return None;
+        };
+        if call.target.as_str() != "swap" || !call.receiver.is_valid() {
+            return None;
+        }
+        let arguments = syntax_trees
+            .tables
+            .expressions
+            .expression_handles(call.arguments);
+        let [replacement, ordering] = arguments else {
+            return None;
+        };
+        let ordering = memory_ordering_from_expression(syntax_trees, *ordering).ok()?;
+        (call.receiver, *replacement, ordering)
+    };
+
+    let zero = syntax_trees
+        .expressions
+        .insert(ExpressionNode::Integer(IntegerLiteral::zero()));
+    let local = syntax_trees
+        .statements
+        .insert(StatementNode::LocalData(TableLocalData {
+            name: name.clone(),
+            type_reference,
+            initial_value: zero,
+            is_mutable: false,
+        }));
+    let first = syntax_trees.items.append_statement_handle(local);
+
+    let result = {
+        let identifier = Identifier::generated(name.as_str());
+        let member = syntax_trees
+            .expressions
+            .append_identifier_path_member(identifier);
+        let path = HandleSpan::from_parts(member, 1);
+        syntax_trees.expressions.insert(ExpressionNode::Name(path))
+    };
+    let value = syntax_trees
+        .expressions
+        .insert(ExpressionNode::Atomic(TableAtomicExpression {
+            value: replacement,
+            result,
+            ordering: omega_core::atomic::AtomicOrderingPlan::Swap(ordering),
+        }));
+    let target = copy_expression_as_place(syntax_trees, place)?;
+    let assignment = syntax_trees
+        .statements
+        .insert(StatementNode::Assignment(TableAssignment { target, value }));
+    syntax_trees.items.append_statement_handle(assignment);
+
+    Some((HandleSpan::from_parts(first, 2), after_semi))
 }
 
 /// Deep-copy an expression that is a valid place (member / name / indexed /
@@ -1440,6 +1525,7 @@ fn try_desugar_atomic_store(
         .expressions
         .insert(ExpressionNode::Atomic(TableAtomicExpression {
             value,
+            result: ExpressionHandle::invalid(),
             ordering: omega_core::atomic::AtomicOrderingPlan::Store(ordering),
         }));
     let receiver = call.receiver;

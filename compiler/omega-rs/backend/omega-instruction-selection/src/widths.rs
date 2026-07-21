@@ -1129,6 +1129,52 @@ pub fn runtime_atomic_fetch_add_result_address_offset(
     }
 }
 
+pub fn runtime_atomic_swap_width(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    result_offset: usize,
+    new_value: RuntimeValueOperandHandle,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_atomic_swap_width(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            result_offset,
+            new_value,
+        ),
+        Architecture::X86_64 => x86_64::runtime_atomic_swap_width(
+            runtime_value_operands,
+            byte_size,
+            result_offset,
+            new_value,
+        ),
+    }
+}
+
+pub fn runtime_atomic_swap_result_address_offset(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    new_value: RuntimeValueOperandHandle,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_atomic_swap_result_address_offset(
+            runtime_value_operands,
+            target_offset,
+            new_value,
+        ),
+        Architecture::X86_64 => x86_64::runtime_atomic_swap_result_address_offset(
+            runtime_value_operands,
+            byte_size,
+            new_value,
+        ),
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn runtime_atomic_compare_exchange_width(
     architecture: Architecture,

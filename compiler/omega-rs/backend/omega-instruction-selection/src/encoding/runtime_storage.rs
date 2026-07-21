@@ -247,6 +247,39 @@ pub fn encode_atomic_fetch_add(
     }
 }
 
+pub fn encode_atomic_swap(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    result_offset: usize,
+    new_value: RuntimeValueOperandHandle,
+    ordering: omega_core::atomic::AtomicOrderingPlan,
+) -> Result<Vec<u8>, Diagnostic> {
+    let omega_core::atomic::AtomicOrderingPlan::Swap(ordering) = ordering else {
+        return Err(Diagnostic::error(
+            "atomic swap reached code generation without a swap ordering plan",
+        ));
+    };
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_atomic_swap(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            result_offset,
+            new_value,
+            ordering,
+        ),
+        Architecture::X86_64 => x86_64::encode_atomic_swap(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            result_offset,
+            new_value,
+        ),
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn encode_atomic_compare_exchange(
     architecture: Architecture,

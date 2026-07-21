@@ -308,6 +308,16 @@ pub enum TargetOperationKind {
         delta: TargetValueOperandHandle,
         ordering: omega_core::atomic::AtomicOrderingPlan,
     },
+    /// Atomic exchange returning the instruction-observed prior value.
+    AtomicSwap {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_size: usize,
+        result_region: RuntimeStorageRegion,
+        result_offset: usize,
+        new_value: TargetValueOperandHandle,
+        ordering: omega_core::atomic::AtomicOrderingPlan,
+    },
     /// Atomic `compare_exchange`: `LOCK CMPXCHG` (x86) / `CASAL` (aarch64) of the
     /// storage place against `expected`, swapping in `new_value` only on match.
     AtomicCompareExchange {

@@ -227,6 +227,7 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                         expression = syntax_trees.expressions.insert(ExpressionNode::Atomic(
                             omega_syntax_trees::expression::TableAtomicExpression {
                                 value: expression,
+                                result: ExpressionHandle::invalid(),
                                 ordering: omega_core::atomic::AtomicOrderingPlan::Load(ordering),
                             },
                         ));
@@ -533,7 +534,7 @@ fn validate_atomic_call_orderings(
                 )));
             }
         }
-        ("fetch_add", [_, ordering]) => {
+        ("fetch_add" | "swap", [_, ordering]) => {
             let _ = memory_ordering_from_expression(syntax_trees, *ordering)
                 .map_err(ParseError::new)?;
         }

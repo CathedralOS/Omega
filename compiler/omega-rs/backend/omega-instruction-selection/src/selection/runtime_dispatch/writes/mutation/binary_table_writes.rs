@@ -123,6 +123,54 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_atomic_load
                 ordering: atomic.ordering,
             })
         }
+        omega_core::atomic::AtomicOrderingPlan::Swap(_) => {
+            if !runtime_storage_target_is_atomic_in_table(
+                input,
+                dispatch_index,
+                target_source_key,
+                expressions,
+                target,
+            ) {
+                return None;
+            }
+            let target_place = resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index,
+                target_source_key,
+                expressions,
+                target,
+            )?;
+            let result_place = resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index,
+                value_source_key,
+                expressions,
+                atomic.result,
+            )?;
+            if target_place.byte_count == 0 || target_place.byte_count != result_place.byte_count {
+                return None;
+            }
+            let new_value = resolve_runtime_value_operand_in_table(
+                input,
+                dispatch_index,
+                value_source_key,
+                statement_index,
+                expressions,
+                atomic.value,
+                static_values,
+                runtime_value_operands,
+            )?;
+            invalidate_runtime_static_value_in_table(static_values, expressions, target);
+            Some(SelectedInstructionKind::AtomicSwap {
+                target_region: target_place.region,
+                target_offset: target_place.byte_offset,
+                byte_size: target_place.byte_count,
+                result_region: result_place.region,
+                result_offset: result_place.byte_offset,
+                new_value,
+                ordering: atomic.ordering,
+            })
+        }
         omega_core::atomic::AtomicOrderingPlan::ReadModifyWrite(_)
         | omega_core::atomic::AtomicOrderingPlan::CompareExchange { .. } => None,
     }
@@ -237,8 +285,8 @@ fn select_runtime_atomic_compare_exchange_in_table(
     // extracting `expected` (the Equal's right) and `new_value` (the Subtract's
     // left). Handles are copied out of each node before the next lookup to keep
     // the immutable borrows from overlapping.
-    let (result_expr, add_right) = match expressions.expression(value) {
-        ExpressionNode::Binary(add) if add.operator == BinaryOperator::Add => (add.left, add.right),
+    let add_right = match expressions.expression(value) {
+        ExpressionNode::Binary(add) if add.operator == BinaryOperator::Add => add.right,
         _ => return None,
     };
     let (mul_left, mul_right) = match expressions.expression(add_right) {
@@ -270,7 +318,7 @@ fn select_runtime_atomic_compare_exchange_in_table(
         dispatch_index,
         value_source_key,
         expressions,
-        result_expr,
+        atomic.result,
     )?;
     if target_place.byte_count == 0 {
         return None;
@@ -341,7 +389,7 @@ fn select_runtime_atomic_fetch_add_in_table(
     if runtime_binary_operator(binary.operator) != Some(StateGuardOperator::Add) {
         return None;
     }
-    let (result_expr, right) = (binary.left, binary.right);
+    let right = binary.right;
     if !runtime_storage_target_is_atomic_in_table(
         input,
         dispatch_index,
@@ -357,7 +405,7 @@ fn select_runtime_atomic_fetch_add_in_table(
         dispatch_index,
         value_source_key,
         expressions,
-        result_expr,
+        atomic.result,
     )?;
     if target_place.byte_count == 0 {
         return None;

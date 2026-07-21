@@ -59,11 +59,17 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             }
             resolved::expression::ExpressionNode::Atomic(atomic) => {
                 let value = self.lower(atomic.value)?;
+                let result = if atomic.result.is_valid() {
+                    self.lower(atomic.result)?
+                } else {
+                    typed::expression::ExpressionHandle::invalid()
+                };
                 Ok(self
                     .target
                     .insert(typed::expression::ExpressionNode::Atomic(
                         typed::expression::TableAtomicExpression {
                             value,
+                            result,
                             ordering: atomic.ordering,
                         },
                     )))

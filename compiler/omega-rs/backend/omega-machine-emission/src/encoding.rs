@@ -244,6 +244,21 @@ pub(super) fn encode_machine_instruction_bytes(
             *delta,
             *ordering,
         ),
+        SelectedInstructionKind::AtomicSwap {
+            target_offset,
+            byte_size,
+            result_offset,
+            new_value,
+            ordering,
+            ..
+        } => runtime_storage::encode_atomic_swap(
+            input,
+            *target_offset,
+            *byte_size,
+            *result_offset,
+            *new_value,
+            *ordering,
+        ),
         SelectedInstructionKind::AtomicCompareExchange {
             target_offset,
             byte_size,

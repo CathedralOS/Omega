@@ -1,0 +1,39 @@
+// RUN canary: AtomicU32 swap returns the instruction-observed prior and stores
+// the replacement through one XCHG / SWP operation. The plain `u32` result is
+// intentional: swap has no synthetic arithmetic and therefore needs no
+// arithmetic-domain workaround.
+
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    counter: AtomicU32;
+}
+
+machine Main::main(&mut self) {
+    self.counter.store(10, Relaxed);
+    let prior: u32 = self.counter.swap(42, AcqRel);
+    transition prior == 10 {
+        true -> check_value()
+        false -> bad_prior()
+    }
+
+    state check_value(&mut self) {
+        transition self.counter == 42 {
+            true -> good()
+            false -> bad_value()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad_prior(&mut self) {
+        self.console.exit_process(71);
+    }
+
+    state bad_value(&mut self) {
+        self.console.exit_process(72);
+    }
+}
