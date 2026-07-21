@@ -505,15 +505,6 @@ remain contract-invisible.
    calls, with no runtime callable, dictionary, or capture inference. Still add
    the nested proof schemas used by N5/N6, task-runtime machine selection, and
    the remaining build-surface canaries.
-2. **MP7 — stale machine-parameter fence audit.** Revisit every task or brief
-   deferred on "machine parameters are unbuilt." Compile-time symbol selection
-   and direct monomorphized invocation now exist. Unblock customers needing only
-   that form, including generic orchestration. Keep separately fenced any
-   customer that needs a machine identity reified as a runtime/build-time value,
-   sealed entry reference, relocation source, or artifact record; `Entry::of<H>`
-   is not proven merely because `map<Card::power>()` works. Do not revive the
-   rejected provider-plan builder API: its duplication of `satisfies` remains a
-   semantic objection, not an implementation fence.
 
 ## Type, proof, and semantic-model work
 
