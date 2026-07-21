@@ -167,6 +167,7 @@ fn expression_reads_overlapping_place(
         )
     };
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => recurse(atomic.value),
         ExpressionNode::Name(_) | ExpressionNode::Member(_) => expression_place_may_overlap(
             program,
             state_symbol,

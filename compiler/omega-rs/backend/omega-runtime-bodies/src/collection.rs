@@ -623,6 +623,7 @@ fn assignment_value_calls_in_evaluation_order<'plan>(
     ) {
         let expressions = &context.control_flow.expressions;
         match expressions.expression(expression) {
+            ExpressionNode::Atomic(atomic) => visit(context, atomic.value, calls, cursor, ordered),
             ExpressionNode::ArrayLiteral(values) => {
                 for value in expressions.expression_handles(*values) {
                     visit(context, *value, calls, cursor, ordered);

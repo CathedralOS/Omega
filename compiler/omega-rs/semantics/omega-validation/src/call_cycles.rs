@@ -363,6 +363,7 @@ fn collect_expression_edges(
         collect_expression_edges(program, machine, symbols, index_of, handle, out);
     };
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => recurse(atomic.value, out),
         ExpressionNode::Call(call) => {
             // A bare or `self`-received value call (`self.pong(n - 1)`).
             let receiver_is_selfish = !call.receiver.is_valid()

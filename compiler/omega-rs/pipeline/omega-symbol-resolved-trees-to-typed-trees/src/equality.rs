@@ -138,6 +138,7 @@ fn scan_expression(
 
     let expressions = &program.tables.bodies.expressions;
     match expressions.expression(expression) {
+        ExpressionNode::Atomic(atomic) => scan_expression(program, atomic.value, fact_position),
         ExpressionNode::Binary(binary) => {
             if matches!(
                 binary.operator,

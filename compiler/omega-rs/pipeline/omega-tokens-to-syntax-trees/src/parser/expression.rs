@@ -14,6 +14,7 @@ mod postfix;
 mod primary;
 
 use membership::parse_membership_expression_handle;
+pub(in crate::parser) use postfix::memory_ordering_from_expression;
 pub(super) use postfix::parse_argument_list_after_open_paren_handle;
 use postfix::parse_postfix_expression_handle;
 

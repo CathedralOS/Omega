@@ -27,6 +27,14 @@ pub(super) fn append_move_events_for_expression(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => append_move_events_for_expression(
+            program,
+            sink,
+            state_symbol,
+            statement_index,
+            atomic.value,
+            source,
+        ),
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
                 append_move_events_for_expression(

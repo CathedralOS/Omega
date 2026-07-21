@@ -21,6 +21,9 @@ pub(super) fn check_expression(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => {
+            check_expression(program, machine, state, facts, atomic.value, diagnostics)
+        }
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
                 check_expression(program, machine, state, facts, *value, diagnostics);

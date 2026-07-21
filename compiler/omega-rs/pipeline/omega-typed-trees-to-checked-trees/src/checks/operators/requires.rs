@@ -435,6 +435,11 @@ fn instantiate_operator_expression_label(
     };
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => format!(
+            "atomic[{:?}]({})",
+            atomic.ordering,
+            instantiate(atomic.value)
+        ),
         ExpressionNode::ArrayLiteral(values) => {
             let values = program
                 .expression_table

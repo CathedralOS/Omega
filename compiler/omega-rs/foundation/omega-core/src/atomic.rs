@@ -14,6 +14,38 @@ pub enum MemoryOrdering {
     SeqCst,
 }
 
+/// The operation-specific ordering commitment attached to an atomic source
+/// expression. This survives the temporary arithmetic desugar so later phases
+/// do not have to rediscover semantics from an expression shape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AtomicOrderingPlan {
+    Load(MemoryOrdering),
+    Store(MemoryOrdering),
+    ReadModifyWrite(MemoryOrdering),
+    CompareExchange {
+        success: MemoryOrdering,
+        failure: MemoryOrdering,
+    },
+}
+
+impl AtomicOrderingPlan {
+    pub const fn success(self) -> MemoryOrdering {
+        match self {
+            Self::Load(ordering) | Self::Store(ordering) | Self::ReadModifyWrite(ordering) => {
+                ordering
+            }
+            Self::CompareExchange { success, .. } => success,
+        }
+    }
+
+    pub const fn failure(self) -> Option<MemoryOrdering> {
+        match self {
+            Self::CompareExchange { failure, .. } => Some(failure),
+            _ => None,
+        }
+    }
+}
+
 impl MemoryOrdering {
     pub fn from_name(name: &str) -> Option<Self> {
         match name {
@@ -80,5 +112,16 @@ mod tests {
         assert!(!O::Release.valid_compare_exchange_failure(O::SeqCst));
         assert!(!O::SeqCst.valid_compare_exchange_failure(O::Acquire));
         assert!(!O::Acquire.valid_compare_exchange_failure(O::Release));
+    }
+
+    #[test]
+    fn operation_plan_keeps_compare_exchange_axes_separate() {
+        let plan = super::AtomicOrderingPlan::CompareExchange {
+            success: O::AcqRel,
+            failure: O::Acquire,
+        };
+        assert_eq!(plan.success(), O::AcqRel);
+        assert_eq!(plan.failure(), Some(O::Acquire));
+        assert_eq!(super::AtomicOrderingPlan::Load(O::SeqCst).failure(), None);
     }
 }

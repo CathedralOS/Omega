@@ -1032,11 +1032,61 @@ pub fn runtime_storage_convert_width(
     }
 }
 
+pub fn runtime_atomic_load_to_storage_width(
+    architecture: Architecture,
+    source_offset: usize,
+    byte_size: usize,
+    result_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::runtime_atomic_load_to_storage_width(source_offset, byte_size, result_offset)
+        }
+        Architecture::X86_64 => {
+            x86_64::runtime_atomic_load_to_storage_width(source_offset, byte_size, result_offset)
+        }
+    }
+}
+
+pub fn runtime_atomic_load_result_address_offset(
+    architecture: Architecture,
+    source_offset: usize,
+    byte_size: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_atomic_load_result_address_offset(source_offset),
+        Architecture::X86_64 => x86_64::runtime_atomic_load_result_address_offset(byte_size),
+    }
+}
+
+pub fn runtime_atomic_store_from_operand_width(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    value: RuntimeValueOperandHandle,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_atomic_store_from_operand_width(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            value,
+        ),
+        Architecture::X86_64 => x86_64::runtime_atomic_store_from_operand_width(
+            runtime_value_operands,
+            byte_size,
+            value,
+        ),
+    }
+}
+
 pub fn runtime_atomic_fetch_add_width(
     architecture: Architecture,
     runtime_value_operands: &impl RuntimeValueOperandSource,
     target_offset: usize,
     byte_size: usize,
+    result_offset: usize,
     delta: RuntimeValueOperandHandle,
 ) -> usize {
     match architecture {
@@ -1044,13 +1094,38 @@ pub fn runtime_atomic_fetch_add_width(
             runtime_value_operands,
             target_offset,
             byte_size,
+            result_offset,
             delta,
         ),
         // x86 `lock xadd` carries the offset as a fixed disp32, so its width is
         // offset-independent.
-        Architecture::X86_64 => {
-            x86_64::runtime_atomic_fetch_add_width(runtime_value_operands, byte_size, delta)
-        }
+        Architecture::X86_64 => x86_64::runtime_atomic_fetch_add_width(
+            runtime_value_operands,
+            byte_size,
+            result_offset,
+            delta,
+        ),
+    }
+}
+
+pub fn runtime_atomic_fetch_add_result_address_offset(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    delta: RuntimeValueOperandHandle,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_atomic_fetch_add_result_address_offset(
+            runtime_value_operands,
+            target_offset,
+            delta,
+        ),
+        Architecture::X86_64 => x86_64::runtime_atomic_fetch_add_result_address_offset(
+            runtime_value_operands,
+            byte_size,
+            delta,
+        ),
     }
 }
 
@@ -1060,6 +1135,7 @@ pub fn runtime_atomic_compare_exchange_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     target_offset: usize,
     byte_size: usize,
+    result_offset: usize,
     expected: RuntimeValueOperandHandle,
     new_value: RuntimeValueOperandHandle,
 ) -> usize {
@@ -1068,12 +1144,38 @@ pub fn runtime_atomic_compare_exchange_width(
             runtime_value_operands,
             target_offset,
             byte_size,
+            result_offset,
             expected,
             new_value,
         ),
         // x86 `lock cmpxchg` carries the offset as a fixed disp32, so its width is
         // offset-independent.
         Architecture::X86_64 => x86_64::runtime_atomic_compare_exchange_width(
+            runtime_value_operands,
+            byte_size,
+            result_offset,
+            expected,
+            new_value,
+        ),
+    }
+}
+
+pub fn runtime_atomic_compare_exchange_result_address_offset(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    expected: RuntimeValueOperandHandle,
+    new_value: RuntimeValueOperandHandle,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_atomic_compare_exchange_result_address_offset(
+            runtime_value_operands,
+            target_offset,
+            expected,
+            new_value,
+        ),
+        Architecture::X86_64 => x86_64::runtime_atomic_compare_exchange_result_address_offset(
             runtime_value_operands,
             byte_size,
             expected,

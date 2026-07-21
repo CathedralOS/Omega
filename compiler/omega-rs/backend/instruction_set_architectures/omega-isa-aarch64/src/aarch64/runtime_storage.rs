@@ -8,26 +8,27 @@ use super::primitives::{
     append_unsigned_immediate_w_padded, encode_add_page_offset_placeholder, encode_add_x_immediate,
     encode_add_x_register, encode_adds_x_register, encode_adrp_placeholder, encode_and_w_low_ones,
     encode_and_w_top_bit, encode_and_x_low_ones, encode_and_x_register, encode_and_x_top_bit,
-    encode_asrv_w_register, encode_asrv_x_register, encode_brk, encode_casal, encode_cbz_x,
-    encode_compare_w_immediate, encode_compare_w_register, encode_compare_x_immediate,
-    encode_compare_x_register, encode_compare_x_register_sign_broadcast,
-    encode_conditional_branch_equal, encode_conditional_branch_greater,
-    encode_conditional_branch_greater_or_equal, encode_conditional_branch_higher,
-    encode_conditional_branch_higher_or_same, encode_conditional_branch_less,
-    encode_conditional_branch_less_or_equal, encode_conditional_branch_lower,
-    encode_conditional_branch_lower_or_same, encode_conditional_branch_no_overflow,
-    encode_conditional_branch_not_equal, encode_conditional_branch_plus, encode_csel_x,
-    encode_csinv_x, encode_eor_x_register, encode_float_add, encode_float_compare,
-    encode_float_conditional_select, encode_float_convert_double_to_single,
-    encode_float_convert_single_to_double, encode_float_divide, encode_float_move_from_gpr,
-    encode_float_move_to_gpr, encode_float_multiply, encode_float_sqrt, encode_float_subtract,
-    encode_float_to_signed_int, encode_float_to_unsigned_int, encode_ldaddal_discard,
-    encode_load_byte_w_from_x, encode_load_byte_w_post_increment, encode_load_w_from_x,
-    encode_load_x_from_x, encode_lslv_w_register, encode_lslv_x_register, encode_lsrv_w_register,
-    encode_lsrv_x_register, encode_move_w_register, encode_move_x_register, encode_movz,
-    encode_movz_w, encode_msub_w_register, encode_msub_x_register, encode_mul_x_register,
-    encode_orr_x_register, encode_sdiv_w_register, encode_sdiv_x_register,
-    encode_sign_extend_byte_to_w, encode_sign_extend_byte_to_x, encode_sign_extend_halfword_to_w,
+    encode_asrv_w_register, encode_asrv_x_register, encode_atomic_load, encode_atomic_store,
+    encode_brk, encode_cas, encode_cbz_x, encode_compare_w_immediate, encode_compare_w_register,
+    encode_compare_x_immediate, encode_compare_x_register,
+    encode_compare_x_register_sign_broadcast, encode_conditional_branch_equal,
+    encode_conditional_branch_greater, encode_conditional_branch_greater_or_equal,
+    encode_conditional_branch_higher, encode_conditional_branch_higher_or_same,
+    encode_conditional_branch_less, encode_conditional_branch_less_or_equal,
+    encode_conditional_branch_lower, encode_conditional_branch_lower_or_same,
+    encode_conditional_branch_no_overflow, encode_conditional_branch_not_equal,
+    encode_conditional_branch_plus, encode_csel_x, encode_csinv_x, encode_eor_x_register,
+    encode_float_add, encode_float_compare, encode_float_conditional_select,
+    encode_float_convert_double_to_single, encode_float_convert_single_to_double,
+    encode_float_divide, encode_float_move_from_gpr, encode_float_move_to_gpr,
+    encode_float_multiply, encode_float_sqrt, encode_float_subtract, encode_float_to_signed_int,
+    encode_float_to_unsigned_int, encode_ldadd, encode_load_byte_w_from_x,
+    encode_load_byte_w_post_increment, encode_load_w_from_x, encode_load_x_from_x,
+    encode_lslv_w_register, encode_lslv_x_register, encode_lsrv_w_register, encode_lsrv_x_register,
+    encode_move_w_register, encode_move_x_register, encode_movz, encode_movz_w,
+    encode_msub_w_register, encode_msub_x_register, encode_mul_x_register, encode_orr_x_register,
+    encode_sdiv_w_register, encode_sdiv_x_register, encode_sign_extend_byte_to_w,
+    encode_sign_extend_byte_to_x, encode_sign_extend_halfword_to_w,
     encode_sign_extend_halfword_to_x, encode_sign_extend_word_to_x, encode_signed_int_to_float,
     encode_smulh_x, encode_store_byte_w_post_increment, encode_store_byte_w_to_x,
     encode_store_w_to_x, encode_store_w17_to_x16, encode_store_x_to_x, encode_store_x17_to_x16,
@@ -36,7 +37,7 @@ use super::primitives::{
     encode_zero_extend_byte_to_w, encode_zero_extend_halfword_to_w,
 };
 use super::widths::{
-    runtime_frame_base_indexed_address_to_runtime_frame_write_width,
+    add_constant_width, runtime_frame_base_indexed_address_to_runtime_frame_write_width,
     runtime_frame_base_indexed_binary_write_width, runtime_frame_base_indexed_integer_write_width,
     runtime_frame_fixed_indexed_address_to_runtime_frame_write_width,
     runtime_frame_indexed_address_to_runtime_frame_write_width,
@@ -63,22 +64,113 @@ use super::widths::{
 const RUNTIME_VALUE_LEFT_SCRATCH_REGISTERS: &[u8] = &[26, 15, 14, 13, 12, 11, 10, 9];
 const RUNTIME_VALUE_RIGHT_SCRATCH_REGISTERS: &[u8] = &[15, 14, 13, 12, 11, 10, 9];
 
+pub fn encode_atomic_load_to_storage(
+    source_offset: usize,
+    byte_size: usize,
+    result_offset: usize,
+    ordering: omega_core::atomic::MemoryOrdering,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_atomic_load_to_storage_width(
+        source_offset,
+        byte_size,
+        result_offset,
+    ));
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_add_constant_to_x_register(&mut bytes, 16, source_offset)?;
+    bytes.extend(encode_atomic_load(17, 16, byte_size, ordering)?);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_add_constant_to_x_register(&mut bytes, 16, result_offset)?;
+    match byte_size {
+        1 | 2 | 4 => bytes.extend(encode_store_w_to_x(17, 16, 0, byte_size)?),
+        8 => bytes.extend(encode_store_x_to_x(17, 16, 0)?),
+        _ => unreachable!("atomic-load width validation accepts only 1, 2, 4, or 8 bytes"),
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_atomic_load_to_storage_width(source_offset, byte_size, result_offset)
+    );
+    Ok(bytes)
+}
+
+pub fn runtime_atomic_load_to_storage_width(
+    source_offset: usize,
+    _byte_size: usize,
+    result_offset: usize,
+) -> usize {
+    8 + add_constant_width(source_offset) + 4 + 8 + add_constant_width(result_offset) + 4
+}
+
+pub fn runtime_atomic_load_result_address_offset(source_offset: usize) -> usize {
+    8 + add_constant_width(source_offset) + 4
+}
+
+pub fn encode_atomic_store_from_operand(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    value: RuntimeValueOperandHandle,
+    ordering: omega_core::atomic::MemoryOrdering,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_atomic_store_from_operand_width(
+        runtime_value_operands,
+        target_offset,
+        byte_size,
+        value,
+    ));
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_runtime_value_operand(
+        runtime_value_operands,
+        &mut bytes,
+        17,
+        RUNTIME_VALUE_LEFT_SCRATCH_REGISTERS,
+        value,
+    )?;
+    append_add_constant_to_x_register(&mut bytes, 16, target_offset)?;
+    bytes.extend(encode_atomic_store(17, 16, byte_size, ordering)?);
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_atomic_store_from_operand_width(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            value
+        )
+    );
+    Ok(bytes)
+}
+
+pub fn runtime_atomic_store_from_operand_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    _byte_size: usize,
+    value: RuntimeValueOperandHandle,
+) -> usize {
+    8 + runtime_value_operand_width(runtime_value_operands, value)
+        + add_constant_width(target_offset)
+        + 4
+}
+
 /// `target = source as T`: hold the target base in x16 (untouched by source
 /// evaluation, which uses x17/x26/x19), load the source bits into x17, convert
 /// them in place between integer/float representations, then store the result at
 /// `target_offset`. Mirrors the x86_64 convert path (`cvttsd2si`/`cvtsi2sd`/
 /// `cvtsd2ss`/`cvtss2sd` + sized int moves).
 #[allow(clippy::too_many_arguments)]
-/// AArch64 atomic `fetch_add` via LSE `LDADDAL` (acquire+release, prior value
-/// discarded into the zero register). Single-instruction RMW -- no ldxr/stxr
-/// retry loop -- so the width pairing below is a constant per operand shape.
+/// AArch64 atomic `fetch_add` via the ordering-selected LSE `LDADD*` form.
+/// The single RMW returns its observed prior in x26, which is then stored into
+/// the language result place.
 /// (An earlier fence-era comment here claimed this was unimplemented; the
 /// LDADDAL path is live and pinned by canaries/pass/atomics on arm64 hosts.)
 pub fn encode_atomic_fetch_add(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     target_offset: usize,
     byte_size: usize,
+    result_offset: usize,
     delta: RuntimeValueOperandHandle,
+    ordering: omega_core::atomic::MemoryOrdering,
 ) -> Result<Vec<u8>, Diagnostic> {
     if target_offset > 4095 {
         // The field address is `base + target_offset`; a single ADD immediate
@@ -93,6 +185,7 @@ pub fn encode_atomic_fetch_add(
         runtime_value_operands,
         target_offset,
         byte_size,
+        result_offset,
         delta,
     ));
     // x16 = the atomic field's storage-region base, relocated at the instruction
@@ -110,11 +203,25 @@ pub fn encode_atomic_fetch_add(
         delta,
     )?;
     append_add_x_constant(&mut bytes, 16, 16, target_offset, 19)?;
-    // LDADDAL w17/x17, wzr/xzr, [x16] — atomic [x16] += x17, prior discarded.
-    bytes.extend(encode_ldaddal_discard(byte_size, 17, 16)?);
+    // LDADD* w17/x17, w26/x26, [x16] -- prior returned in x26.
+    bytes.extend(encode_ldadd(byte_size, 17, 26, 16, ordering)?);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_add_constant_to_x_register(&mut bytes, 16, result_offset)?;
+    match byte_size {
+        1 | 2 | 4 => bytes.extend(encode_store_w_to_x(26, 16, 0, byte_size)?),
+        8 => bytes.extend(encode_store_x_to_x(26, 16, 0)?),
+        _ => unreachable!("LDADD width validation accepts only 1, 2, 4, or 8 bytes"),
+    }
     debug_assert_eq!(
         bytes.len(),
-        runtime_atomic_fetch_add_width(runtime_value_operands, target_offset, byte_size, delta)
+        runtime_atomic_fetch_add_width(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            result_offset,
+            delta
+        )
     );
     Ok(bytes)
 }
@@ -123,10 +230,25 @@ pub fn runtime_atomic_fetch_add_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     target_offset: usize,
     _byte_size: usize,
+    result_offset: usize,
     delta: RuntimeValueOperandHandle,
 ) -> usize {
     // adrp + add-page-offset (8) + delta operand load + the address ADD (0 when
     // the offset is 0, else 4) + the single LDADDAL (4).
+    let address_add = if target_offset == 0 { 0 } else { 4 };
+    8 + runtime_value_operand_width(runtime_value_operands, delta)
+        + address_add
+        + 4
+        + 8
+        + add_constant_width(result_offset)
+        + 4
+}
+
+pub fn runtime_atomic_fetch_add_result_address_offset(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    delta: RuntimeValueOperandHandle,
+) -> usize {
     let address_add = if target_offset == 0 { 0 } else { 4 };
     8 + runtime_value_operand_width(runtime_value_operands, delta) + address_add + 4
 }
@@ -135,8 +257,10 @@ pub fn encode_atomic_compare_exchange(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     target_offset: usize,
     byte_size: usize,
+    result_offset: usize,
     expected: RuntimeValueOperandHandle,
     new_value: RuntimeValueOperandHandle,
+    success_ordering: omega_core::atomic::MemoryOrdering,
 ) -> Result<Vec<u8>, Diagnostic> {
     if target_offset > 4095 {
         return Err(Diagnostic::error(format!(
@@ -148,14 +272,15 @@ pub fn encode_atomic_compare_exchange(
         runtime_value_operands,
         target_offset,
         byte_size,
+        result_offset,
         expected,
         new_value,
     ));
     // x16 = the atomic field's region base (relocated at the instruction start).
     // new_value loads FIRST at offset 8 (the binary-write left-operand offset, so
     // its relocations land correctly), then expected; the address ADD comes after
-    // so it never shifts the operand positions. CASAL clobbers x26 (expected ->
-    // prior, discarded) and stores x17 (new_value) only on a match.
+    // so it never shifts the operand positions. CAS* clobbers x26 (expected ->
+    // prior) and stores x17 (new_value) only on a match.
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     append_runtime_value_operand(
@@ -174,13 +299,22 @@ pub fn encode_atomic_compare_exchange(
     )?;
     append_add_x_constant(&mut bytes, 16, 16, target_offset, 19)?;
     // CASAL Ws=x26 (expected), Wt=x17 (new_value), [x16].
-    bytes.extend(encode_casal(byte_size, 26, 17, 16)?);
+    bytes.extend(encode_cas(byte_size, 26, 17, 16, success_ordering)?);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_add_constant_to_x_register(&mut bytes, 16, result_offset)?;
+    match byte_size {
+        1 | 2 | 4 => bytes.extend(encode_store_w_to_x(26, 16, 0, byte_size)?),
+        8 => bytes.extend(encode_store_x_to_x(26, 16, 0)?),
+        _ => unreachable!("CAS width validation accepts only 1, 2, 4, or 8 bytes"),
+    }
     debug_assert_eq!(
         bytes.len(),
         runtime_atomic_compare_exchange_width(
             runtime_value_operands,
             target_offset,
             byte_size,
+            result_offset,
             expected,
             new_value
         )
@@ -192,11 +326,28 @@ pub fn runtime_atomic_compare_exchange_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     target_offset: usize,
     _byte_size: usize,
+    result_offset: usize,
     expected: RuntimeValueOperandHandle,
     new_value: RuntimeValueOperandHandle,
 ) -> usize {
     // adrp + add-page-offset (8) + new_value load + expected load + the address
     // ADD (0 when offset is 0, else 4) + the single CASAL (4).
+    let address_add = if target_offset == 0 { 0 } else { 4 };
+    8 + runtime_value_operand_width(runtime_value_operands, new_value)
+        + runtime_value_operand_width(runtime_value_operands, expected)
+        + address_add
+        + 4
+        + 8
+        + add_constant_width(result_offset)
+        + 4
+}
+
+pub fn runtime_atomic_compare_exchange_result_address_offset(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    expected: RuntimeValueOperandHandle,
+    new_value: RuntimeValueOperandHandle,
+) -> usize {
     let address_add = if target_offset == 0 { 0 } else { 4 };
     8 + runtime_value_operand_width(runtime_value_operands, new_value)
         + runtime_value_operand_width(runtime_value_operands, expected)
@@ -5454,35 +5605,82 @@ mod tests {
     use super::super::widths;
     use super::*;
 
-    /// `LDADDAL <Ws/Xs>, WZR/XZR, [<Xn>]` per width: the size field selects the
-    /// access size, the acquire+release bits (23,22) are set, Rs = the add
-    /// register, Rn = the address register, and Rt = 31 (the prior value is
-    /// discarded). Byte-exact so it stays in lockstep with disassembly.
+    /// `LDADDAL <Ws/Xs>, <Wt/Xt>, [<Xn>]` per width: the size field selects the
+    /// access size, the acquire+release bits are set, and Rt receives the prior.
     #[test]
-    fn ldaddal_discard_encodes_per_width() {
+    fn ldadd_encodes_per_width_and_ordering() {
         // (byte_size, expected size field in bits 31:30)
         for &(byte_size, size) in &[(1usize, 0u32), (2, 1), (4, 2), (8, 3)] {
-            let bytes = encode_ldaddal_discard(byte_size, 17, 16).expect("encode");
+            let bytes = encode_ldadd(
+                byte_size,
+                17,
+                26,
+                16,
+                omega_core::atomic::MemoryOrdering::AcqRel,
+            )
+            .expect("encode");
             assert_eq!(bytes.len(), 4, "atomic add is a single instruction");
             let word = u32::from_le_bytes(bytes[..].try_into().unwrap());
-            let expected = 0x38E0_0000 | (size << 30) | (17u32 << 16) | (16u32 << 5) | 31;
+            let expected = 0x38E0_0000 | (size << 30) | (17u32 << 16) | (16u32 << 5) | 26;
             assert_eq!(word, expected, "byte_size={byte_size}");
             assert_eq!(word >> 30, size, "size field");
             assert_eq!((word >> 22) & 0b11, 0b11, "acquire+release ordering bits");
             assert_eq!((word >> 16) & 0x1F, 17, "Rs = add register");
             assert_eq!((word >> 5) & 0x1F, 16, "Rn = address register");
-            assert_eq!(word & 0x1F, 31, "Rt = WZR/XZR (discard prior value)");
+            assert_eq!(word & 0x1F, 26, "Rt = prior-value result register");
         }
         assert!(
-            encode_ldaddal_discard(3, 17, 16).is_err(),
+            encode_ldadd(3, 17, 26, 16, omega_core::atomic::MemoryOrdering::Relaxed,).is_err(),
             "non-power-of-two width must error, not miscompile"
+        );
+        let words = [
+            omega_core::atomic::MemoryOrdering::Relaxed,
+            omega_core::atomic::MemoryOrdering::Acquire,
+            omega_core::atomic::MemoryOrdering::Release,
+            omega_core::atomic::MemoryOrdering::AcqRel,
+            omega_core::atomic::MemoryOrdering::SeqCst,
+        ]
+        .map(|ordering| u32::from_le_bytes(encode_ldadd(4, 17, 26, 16, ordering).unwrap()));
+        assert_eq!(
+            words,
+            [
+                0xB831_021A,
+                0xB8B1_021A,
+                0xB871_021A,
+                0xB8F1_021A,
+                0xB8F1_021A,
+            ]
         );
     }
 
+    #[test]
+    fn atomic_load_store_select_relaxed_and_ordered_encodings() {
+        use omega_core::atomic::MemoryOrdering as O;
+
+        assert_eq!(
+            u32::from_le_bytes(encode_atomic_load(17, 16, 4, O::Relaxed).unwrap()),
+            0xB940_0211
+        );
+        assert_eq!(
+            u32::from_le_bytes(encode_atomic_load(17, 16, 4, O::Acquire).unwrap()),
+            0x88DF_FE11
+        );
+        assert_eq!(
+            u32::from_le_bytes(encode_atomic_store(17, 16, 4, O::Relaxed).unwrap()),
+            0xB900_0211
+        );
+        assert_eq!(
+            u32::from_le_bytes(encode_atomic_store(17, 16, 4, O::Release).unwrap()),
+            0x889F_FE11
+        );
+        assert!(encode_atomic_load(17, 16, 4, O::Release).is_err());
+        assert!(encode_atomic_store(17, 16, 4, O::Acquire).is_err());
+    }
+
     /// The full `encode_atomic_fetch_add` path: the emitted length must equal
-    /// its width function at every offset, and the final instruction must be the
-    /// `LDADDAL w17, wzr, [x16]` (atomic add, prior discarded). The delta is an
-    /// immediate so the operand load is offset-independent.
+    /// its width function at every offset, and its RMW must be
+    /// `LDADDAL w17, w26, [x16]`. The delta is an immediate so the operand load
+    /// is offset-independent.
     #[test]
     fn atomic_fetch_add_encoder_matches_width_and_ends_in_ldaddal() {
         use omega_core::arena::Arena;
@@ -5491,24 +5689,44 @@ mod tests {
         for &target_offset in &[0usize, 8, 4095] {
             let mut operands: Arena<RuntimeValueOperand> = Arena::default();
             let delta = operands.insert(RuntimeValueOperand::Immediate(5));
-            let bytes =
-                encode_atomic_fetch_add(&operands, target_offset, 4, delta).expect("encode");
+            let result_offset = 24;
+            let bytes = encode_atomic_fetch_add(
+                &operands,
+                target_offset,
+                4,
+                result_offset,
+                delta,
+                omega_core::atomic::MemoryOrdering::AcqRel,
+            )
+            .expect("encode");
             assert_eq!(
                 bytes.len(),
-                runtime_atomic_fetch_add_width(&operands, target_offset, 4, delta),
+                runtime_atomic_fetch_add_width(&operands, target_offset, 4, result_offset, delta,),
                 "width mismatch at offset {target_offset}"
             );
-            let last = u32::from_le_bytes(bytes[bytes.len() - 4..].try_into().unwrap());
+            let atomic_end =
+                runtime_atomic_fetch_add_result_address_offset(&operands, target_offset, delta);
+            let last = u32::from_le_bytes(bytes[atomic_end - 4..atomic_end].try_into().unwrap());
             assert_eq!(
-                last, 0xB8F1_021F,
-                "final instruction must be LDADDAL w17, wzr, [x16] at offset {target_offset}"
+                last, 0xB8F1_021A,
+                "atomic instruction must be LDADDAL w17, w26, [x16] at offset {target_offset}"
             );
         }
 
         // An offset past the single ADD-immediate reach errors, not miscompiles.
         let mut operands: Arena<RuntimeValueOperand> = Arena::default();
         let delta = operands.insert(RuntimeValueOperand::Immediate(1));
-        assert!(encode_atomic_fetch_add(&operands, 4096, 4, delta).is_err());
+        assert!(
+            encode_atomic_fetch_add(
+                &operands,
+                4096,
+                4,
+                0,
+                delta,
+                omega_core::atomic::MemoryOrdering::Relaxed,
+            )
+            .is_err()
+        );
     }
 
     /// `CASAL <Ws/Xs>, <Wt/Xt>, [<Xn>]` per width: size field selects the access
@@ -5516,10 +5734,17 @@ mod tests {
     /// (bits 4:0) = new value, with the acquire(L)/release(o0)/Rt2 fixed bits set.
     #[test]
     fn casal_encodes_per_width() {
-        use super::super::primitives::encode_casal;
+        use super::super::primitives::encode_cas;
         for &(byte_size, size) in &[(1usize, 0u32), (2, 1), (4, 2), (8, 3)] {
             let word = u32::from_le_bytes(
-                encode_casal(byte_size, 26, 17, 16).expect("encode")[..]
+                encode_cas(
+                    byte_size,
+                    26,
+                    17,
+                    16,
+                    omega_core::atomic::MemoryOrdering::AcqRel,
+                )
+                .expect("encode")[..]
                     .try_into()
                     .unwrap(),
             );
@@ -5532,8 +5757,26 @@ mod tests {
             assert_eq!((word >> 10) & 0x1F, 0x1F, "Rt2 fixed 11111");
         }
         assert!(
-            encode_casal(3, 26, 17, 16).is_err(),
+            encode_cas(3, 26, 17, 16, omega_core::atomic::MemoryOrdering::Relaxed,).is_err(),
             "non-power-of-two errors"
+        );
+        let words = [
+            omega_core::atomic::MemoryOrdering::Relaxed,
+            omega_core::atomic::MemoryOrdering::Acquire,
+            omega_core::atomic::MemoryOrdering::Release,
+            omega_core::atomic::MemoryOrdering::AcqRel,
+            omega_core::atomic::MemoryOrdering::SeqCst,
+        ]
+        .map(|ordering| u32::from_le_bytes(encode_cas(4, 26, 17, 16, ordering).unwrap()));
+        assert_eq!(
+            words,
+            [
+                0x88BA_7E11,
+                0x88FA_7E11,
+                0x88BA_FE11,
+                0x88FA_FE11,
+                0x88FA_FE11,
+            ]
         );
     }
 
@@ -5548,21 +5791,36 @@ mod tests {
             let mut operands: Arena<RuntimeValueOperand> = Arena::default();
             let expected = operands.insert(RuntimeValueOperand::Immediate(10));
             let new_value = operands.insert(RuntimeValueOperand::Immediate(99));
-            let bytes =
-                encode_atomic_compare_exchange(&operands, target_offset, 4, expected, new_value)
-                    .expect("encode");
+            let result_offset = 32;
+            let bytes = encode_atomic_compare_exchange(
+                &operands,
+                target_offset,
+                4,
+                result_offset,
+                expected,
+                new_value,
+                omega_core::atomic::MemoryOrdering::AcqRel,
+            )
+            .expect("encode");
             assert_eq!(
                 bytes.len(),
                 runtime_atomic_compare_exchange_width(
                     &operands,
                     target_offset,
                     4,
+                    result_offset,
                     expected,
                     new_value
                 ),
                 "width mismatch at offset {target_offset}"
             );
-            let last = u32::from_le_bytes(bytes[bytes.len() - 4..].try_into().unwrap());
+            let atomic_end = runtime_atomic_compare_exchange_result_address_offset(
+                &operands,
+                target_offset,
+                expected,
+                new_value,
+            );
+            let last = u32::from_le_bytes(bytes[atomic_end - 4..atomic_end].try_into().unwrap());
             assert_eq!(
                 last, 0x88FA_FE11,
                 "final instruction must be CASAL w26, w17, [x16] at offset {target_offset}"
@@ -5572,7 +5830,18 @@ mod tests {
         let mut operands: Arena<RuntimeValueOperand> = Arena::default();
         let expected = operands.insert(RuntimeValueOperand::Immediate(1));
         let new_value = operands.insert(RuntimeValueOperand::Immediate(2));
-        assert!(encode_atomic_compare_exchange(&operands, 4096, 4, expected, new_value).is_err());
+        assert!(
+            encode_atomic_compare_exchange(
+                &operands,
+                4096,
+                4,
+                0,
+                expected,
+                new_value,
+                omega_core::atomic::MemoryOrdering::Relaxed,
+            )
+            .is_err()
+        );
     }
 
     /// The zero-extending index load must keep the exact byte width of the

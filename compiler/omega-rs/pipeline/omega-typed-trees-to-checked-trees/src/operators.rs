@@ -52,6 +52,9 @@ fn collect_expression_operator_use(
     seen.push((expression, origin));
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => {
+            collect_expression_operator_use(program, atomic.value, origin, seen, uses, candidates)
+        }
         ExpressionNode::Indexed(indexed) => {
             let spelling = indexed_operator_spelling(program, indexed.index);
             let receiver_type =

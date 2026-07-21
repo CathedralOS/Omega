@@ -17,6 +17,13 @@ pub(super) fn collect_state_argument_facts_from_expression(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => collect_state_argument_facts_from_expression(
+            program,
+            machine,
+            facts,
+            atomic.value,
+            collected,
+        ),
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
                 collect_state_argument_facts_from_expression(

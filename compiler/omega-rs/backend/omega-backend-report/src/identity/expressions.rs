@@ -39,6 +39,9 @@ pub(in crate::identity) fn count_control_flow_expression_strings(
     storage: &mut BackendStringStorage,
 ) {
     match table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => {
+            count_control_flow_expression_strings(table, atomic.value, storage)
+        }
         ExpressionNode::ArrayLiteral(values) => {
             count_control_flow_expression_span_strings(table, *values, storage);
         }

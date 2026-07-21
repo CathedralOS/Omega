@@ -195,6 +195,9 @@ fn estimate_static_string_expression_capacity(
     capacity: &mut TargetDataCapacity,
 ) {
     match expressions.expression(expression) {
+        ExpressionNode::Atomic(atomic) => {
+            estimate_static_string_expression_capacity(expressions, atomic.value, capacity)
+        }
         ExpressionNode::String(value) => {
             capacity.objects = capacity.objects.saturating_add(1);
             capacity.bytes = capacity.bytes.saturating_add(value.len().max(1));

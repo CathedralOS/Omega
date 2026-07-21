@@ -15,6 +15,7 @@ pub(crate) fn borrow_access_place(
     machine_symbol: SymbolHandle,
 ) -> Option<BorrowAccessPlace> {
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(_) => None,
         ExpressionNode::Indexed(indexed) => {
             let mut place = borrow_access_place(
                 program,

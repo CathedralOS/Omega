@@ -224,7 +224,12 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                             )));
                         }
                         input = after_ord.take_punctuation(PunctuationKind::RightParen, ")")?;
-                        // `expression` stays unchanged -- load() is the identity.
+                        expression = syntax_trees.expressions.insert(ExpressionNode::Atomic(
+                            omega_syntax_trees::expression::TableAtomicExpression {
+                                value: expression,
+                                ordering: omega_core::atomic::AtomicOrderingPlan::Load(ordering),
+                            },
+                        ));
                         continue;
                     }
                 }
@@ -479,7 +484,7 @@ fn build_call_expression_handle(
     }
 }
 
-fn memory_ordering_from_expression(
+pub(in crate::parser) fn memory_ordering_from_expression(
     syntax_trees: &SyntaxTrees,
     expression: ExpressionHandle,
 ) -> Result<omega_core::atomic::MemoryOrdering, String> {

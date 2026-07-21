@@ -1,8 +1,6 @@
-use std::fmt;
-
 use crate::expression::{
     BinaryExpression, BinaryOperator, CallExpression, CastExpression, Expression, ExpressionNode,
-    ExpressionTable, FloatLiteral, RangeExpression, TableBinaryExpression, TableCallExpression,
+    ExpressionTable, RangeExpression, TableBinaryExpression, TableCallExpression,
     TableCastExpression, TableUnaryExpression, UnaryExpression, UnaryOperator,
 };
 use crate::name::Identifier;
@@ -13,6 +11,11 @@ impl Expression {
             Expression::ArrayLiteral(values) => {
                 bracketed_display_names(values.iter(), Expression::display_name)
             }
+            Expression::Atomic(atomic) => format!(
+                "atomic[{:?}]({})",
+                atomic.ordering,
+                atomic.value.display_name()
+            ),
             Expression::Binary(binary) => binary.display_name(),
             Expression::Boolean(value) => value.to_string(),
             Expression::Cast(cast) => cast.display_name(),
@@ -47,6 +50,11 @@ impl ExpressionNode {
                     table.display_name(*value)
                 })
             }
+            Self::Atomic(atomic) => format!(
+                "atomic[{:?}]({})",
+                atomic.ordering,
+                table.display_name(atomic.value)
+            ),
             Self::Binary(binary) => binary.display_name(table),
             Self::Boolean(value) => value.to_string(),
             Self::Cast(cast) => cast.display_name(table),

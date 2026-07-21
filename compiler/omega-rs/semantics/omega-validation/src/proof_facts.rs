@@ -127,6 +127,7 @@ fn is_implicit_case_domain(
 
 fn is_boolean_fact_expression(program: &TypedTrees, expression: ExpressionHandle) -> bool {
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => is_boolean_fact_expression(program, atomic.value),
         ExpressionNode::Binary(binary) => match binary.operator {
             BinaryOperator::And
             | BinaryOperator::Equal

@@ -1,8 +1,8 @@
 // RUN canary (ch17 "Atomics" / concurrency stage 1, M3): AtomicU32 fetch_add.
 // `fetch_add(n, Relaxed)` returns the PRIOR value and adds n to the cell.
-// Stage-1 desugar: `let old = place.fetch_add(n, ord)` expands at the parser
-// to `let old = place; place = place + n;` -- correct under single-threaded
-// execution. A future pass will lower this to a single LOCK xadd instruction.
+// The parser carries the ordering and result place through the arithmetic-shaped
+// frontend form. Native lowering emits one LOCK XADD / LDADD* and stores the
+// instruction-observed prior -- there is no separate ordinary read.
 //
 // Guard ladder (exits 70..73):
 //   - old1 == 10 (prior value before first fetch_add)           exit 71 on miss

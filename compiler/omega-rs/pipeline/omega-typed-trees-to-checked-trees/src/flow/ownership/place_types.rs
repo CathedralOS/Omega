@@ -11,6 +11,9 @@ pub(in crate::flow::ownership) fn expression_type_reference_in_state(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => {
+            expression_type_reference_in_state(program, state_symbol, statement_index, atomic.value)
+        }
         ExpressionNode::Mutable(inner) => {
             expression_type_reference_in_state(program, state_symbol, statement_index, *inner)
         }

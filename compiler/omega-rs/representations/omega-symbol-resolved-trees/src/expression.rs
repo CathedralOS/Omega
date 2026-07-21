@@ -181,6 +181,13 @@ impl ExpressionTable {
 
                 self.insert(ExpressionNode::ArrayLiteral(copied_values))
             }
+            ExpressionNode::Atomic(atomic) => {
+                let value = self.copy_from(source, atomic.value);
+                self.insert(ExpressionNode::Atomic(TableAtomicExpression {
+                    value,
+                    ordering: atomic.ordering,
+                }))
+            }
             ExpressionNode::Binary(binary) => {
                 let left = self.copy_from(source, binary.left);
                 let right = self.copy_from(source, binary.right);
@@ -559,6 +566,13 @@ impl ExpressionTable {
 
                 self.insert(ExpressionNode::ArrayLiteral(copied_values))
             }
+            ExpressionNode::Atomic(atomic) => {
+                let value = self.copy_from_self(atomic.value);
+                self.insert(ExpressionNode::Atomic(TableAtomicExpression {
+                    value,
+                    ordering: atomic.ordering,
+                }))
+            }
             ExpressionNode::Binary(binary) => {
                 let left = self.copy_from_self(binary.left);
                 let right = self.copy_from_self(binary.right);
@@ -852,6 +866,7 @@ impl Default for ExpressionTable {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExpressionNode {
     ArrayLiteral(HandleSpan<ExpressionHandle>),
+    Atomic(TableAtomicExpression),
     Binary(TableBinaryExpression),
     Boolean(bool),
     Cast(TableCastExpression),
@@ -867,6 +882,12 @@ pub enum ExpressionNode {
     StructLiteral(TableStructLiteral),
     String(SourceText),
     Unary(TableUnaryExpression),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TableAtomicExpression {
+    pub value: ExpressionHandle,
+    pub ordering: omega_core::atomic::AtomicOrderingPlan,
 }
 
 impl Default for ExpressionNode {

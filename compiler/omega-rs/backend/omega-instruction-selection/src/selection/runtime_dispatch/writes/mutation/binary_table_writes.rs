@@ -30,6 +30,104 @@ use super::value_operands::{
     resolve_runtime_value_operand_in_table,
 };
 
+#[allow(clippy::too_many_arguments)]
+pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_atomic_load_or_store_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    target_source_key: StateKey,
+    value_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+    value: ExpressionHandle,
+    static_values: &mut RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    let ExpressionNode::Atomic(atomic) = expressions.expression(value) else {
+        return None;
+    };
+    match atomic.ordering {
+        omega_core::atomic::AtomicOrderingPlan::Load(_) => {
+            if !runtime_storage_target_is_atomic_in_table(
+                input,
+                dispatch_index,
+                value_source_key,
+                expressions,
+                atomic.value,
+            ) {
+                return None;
+            }
+            let source = resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index,
+                value_source_key,
+                expressions,
+                atomic.value,
+            )?;
+            let result = resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index,
+                target_source_key,
+                expressions,
+                target,
+            )?;
+            if source.byte_count == 0 || source.byte_count != result.byte_count {
+                return None;
+            }
+            invalidate_runtime_static_value_in_table(static_values, expressions, target);
+            Some(SelectedInstructionKind::AtomicLoad {
+                source_region: source.region,
+                source_offset: source.byte_offset,
+                byte_size: source.byte_count,
+                result_region: result.region,
+                result_offset: result.byte_offset,
+                ordering: atomic.ordering,
+            })
+        }
+        omega_core::atomic::AtomicOrderingPlan::Store(_) => {
+            if !runtime_storage_target_is_atomic_in_table(
+                input,
+                dispatch_index,
+                target_source_key,
+                expressions,
+                target,
+            ) {
+                return None;
+            }
+            let target_place = resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index,
+                target_source_key,
+                expressions,
+                target,
+            )?;
+            if target_place.byte_count == 0 {
+                return None;
+            }
+            let stored = resolve_runtime_value_operand_in_table(
+                input,
+                dispatch_index,
+                value_source_key,
+                statement_index,
+                expressions,
+                atomic.value,
+                static_values,
+                runtime_value_operands,
+            )?;
+            invalidate_runtime_static_value_in_table(static_values, expressions, target);
+            Some(SelectedInstructionKind::AtomicStore {
+                target_region: target_place.region,
+                target_offset: target_place.byte_offset,
+                byte_size: target_place.byte_count,
+                value: stored,
+                ordering: atomic.ordering,
+            })
+        }
+        omega_core::atomic::AtomicOrderingPlan::ReadModifyWrite(_)
+        | omega_core::atomic::AtomicOrderingPlan::CompareExchange { .. } => None,
+    }
+}
+
 pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_binary_mutation_write_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -121,13 +219,26 @@ fn select_runtime_atomic_compare_exchange_in_table(
     static_values: &mut RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
+    let atomic = match expressions.expression(value) {
+        ExpressionNode::Atomic(atomic)
+            if matches!(
+                atomic.ordering,
+                omega_core::atomic::AtomicOrderingPlan::CompareExchange { .. }
+            ) =>
+        {
+            atomic
+        }
+        _ => return None,
+    };
+    let ordering = atomic.ordering;
+    let value = atomic.value;
     // Match the compare_exchange desugar tree:
     //   Add(_, Multiply(Equal(_, expected), Subtract(new_value, _)))
     // extracting `expected` (the Equal's right) and `new_value` (the Subtract's
     // left). Handles are copied out of each node before the next lookup to keep
     // the immutable borrows from overlapping.
-    let add_right = match expressions.expression(value) {
-        ExpressionNode::Binary(add) if add.operator == BinaryOperator::Add => add.right,
+    let (result_expr, add_right) = match expressions.expression(value) {
+        ExpressionNode::Binary(add) if add.operator == BinaryOperator::Add => (add.left, add.right),
         _ => return None,
     };
     let (mul_left, mul_right) = match expressions.expression(add_right) {
@@ -154,6 +265,13 @@ fn select_runtime_atomic_compare_exchange_in_table(
         return None;
     }
     let target_place = target_place?;
+    let result_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        result_expr,
+    )?;
     if target_place.byte_count == 0 {
         return None;
     }
@@ -182,8 +300,11 @@ fn select_runtime_atomic_compare_exchange_in_table(
         target_region: target_place.region,
         target_offset: target_place.byte_offset,
         byte_size: target_place.byte_count,
+        result_region: result_place.region,
+        result_offset: result_place.byte_offset,
         expected,
         new_value,
+        ordering,
     })
 }
 
@@ -201,13 +322,26 @@ fn select_runtime_atomic_fetch_add_in_table(
     static_values: &mut RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
+    let atomic = match expressions.expression(value) {
+        ExpressionNode::Atomic(atomic)
+            if matches!(
+                atomic.ordering,
+                omega_core::atomic::AtomicOrderingPlan::ReadModifyWrite(_)
+            ) =>
+        {
+            atomic
+        }
+        _ => return None,
+    };
+    let ordering = atomic.ordering;
+    let value = atomic.value;
     let ExpressionNode::Binary(binary) = expressions.expression(value) else {
         return None;
     };
     if runtime_binary_operator(binary.operator) != Some(StateGuardOperator::Add) {
         return None;
     }
-    let (left, right) = (binary.left, binary.right);
+    let (result_expr, right) = (binary.left, binary.right);
     if !runtime_storage_target_is_atomic_in_table(
         input,
         dispatch_index,
@@ -218,20 +352,14 @@ fn select_runtime_atomic_fetch_add_in_table(
         return None;
     }
     let target_place = target_place?;
-    if target_place.byte_count == 0 {
-        return None;
-    }
-    // Confirm the LEFT operand is the target place itself (a true self-add).
-    let left_place = resolve_runtime_storage_place_in_table(
+    let result_place = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index,
-        target_source_key,
+        value_source_key,
         expressions,
-        left,
+        result_expr,
     )?;
-    if left_place.region != target_place.region
-        || left_place.byte_offset != target_place.byte_offset
-    {
+    if target_place.byte_count == 0 {
         return None;
     }
     let delta = resolve_runtime_value_operand_in_table(
@@ -251,7 +379,10 @@ fn select_runtime_atomic_fetch_add_in_table(
         target_region: target_place.region,
         target_offset: target_place.byte_offset,
         byte_size: target_place.byte_count,
+        result_region: result_place.region,
+        result_offset: result_place.byte_offset,
         delta,
+        ordering,
     })
 }
 

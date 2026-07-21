@@ -283,12 +283,30 @@ pub enum TargetOperationKind {
         /// this false because their range obligation was already discharged.
         saturating: bool,
     },
+    AtomicLoad {
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        byte_size: usize,
+        result_region: RuntimeStorageRegion,
+        result_offset: usize,
+        ordering: omega_core::atomic::AtomicOrderingPlan,
+    },
+    AtomicStore {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_size: usize,
+        value: TargetValueOperandHandle,
+        ordering: omega_core::atomic::AtomicOrderingPlan,
+    },
     /// Atomic `fetch_add`: `LOCK xadd` of `delta` into the storage place.
     AtomicFetchAdd {
         target_region: RuntimeStorageRegion,
         target_offset: usize,
         byte_size: usize,
+        result_region: RuntimeStorageRegion,
+        result_offset: usize,
         delta: TargetValueOperandHandle,
+        ordering: omega_core::atomic::AtomicOrderingPlan,
     },
     /// Atomic `compare_exchange`: `LOCK CMPXCHG` (x86) / `CASAL` (aarch64) of the
     /// storage place against `expected`, swapping in `new_value` only on match.
@@ -296,8 +314,11 @@ pub enum TargetOperationKind {
         target_region: RuntimeStorageRegion,
         target_offset: usize,
         byte_size: usize,
+        result_region: RuntimeStorageRegion,
+        result_offset: usize,
         expected: TargetValueOperandHandle,
         new_value: TargetValueOperandHandle,
+        ordering: omega_core::atomic::AtomicOrderingPlan,
     },
     /// Append a source carrier's content onto a target carrier (concat builder
     /// source segment). See the abstract-operations twin.

@@ -89,6 +89,18 @@ pub(crate) fn instantiate_call_contract_expression_label(
     expression: omega_typed_trees::expression::ExpressionHandle,
 ) -> String {
     match program.expression_table.expression(expression) {
+        omega_typed_trees::expression::ExpressionNode::Atomic(atomic) => format!(
+            "atomic[{:?}]({})",
+            atomic.ordering,
+            instantiate_call_contract_expression_label(
+                program,
+                caller_state_symbol,
+                statement_index,
+                call_site,
+                target_state,
+                atomic.value,
+            )
+        ),
         omega_typed_trees::expression::ExpressionNode::ArrayLiteral(values) => {
             let values = program
                 .expression_table

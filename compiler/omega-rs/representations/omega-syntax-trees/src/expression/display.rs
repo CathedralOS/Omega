@@ -12,6 +12,11 @@ impl ExpressionNode {
                     table.display_name(*value)
                 })
             }
+            Self::Atomic(atomic) => format!(
+                "atomic[{:?}]({})",
+                atomic.ordering,
+                table.display_name(atomic.value)
+            ),
             Self::Binary(binary) => binary.display_name(table),
             Self::Boolean(value) => value.to_string(),
             Self::Cast(cast) => cast.display_name(table),

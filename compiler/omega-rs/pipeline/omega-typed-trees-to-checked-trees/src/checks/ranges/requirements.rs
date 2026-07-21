@@ -70,6 +70,9 @@ fn seed_index_proofs_from_expression(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => {
+            seed_index_proofs_from_expression(program, facts, atomic.value)
+        }
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
                 seed_index_proofs_from_expression(program, facts, *value);

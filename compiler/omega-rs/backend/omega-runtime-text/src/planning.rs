@@ -299,6 +299,7 @@ fn classify_runtime_text_builder_segment(
             unreachable!("stored places are classified before expression node matching")
         }
         ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Atomic(_)
         | ExpressionNode::Binary(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Call(_)
@@ -357,7 +358,9 @@ fn is_runtime_text_segment_like(table: &ExpressionTable, expression: ExpressionH
         | ExpressionNode::Cast(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_) => true,
-        ExpressionNode::ArrayLiteral(_) | ExpressionNode::StructLiteral(_) => false,
+        ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Atomic(_)
+        | ExpressionNode::StructLiteral(_) => false,
     }
 }
 
@@ -371,6 +374,7 @@ fn contains_runtime_text_anchor(table: &ExpressionTable, expression: ExpressionH
         ExpressionNode::Mutable(inner) => contains_runtime_text_anchor(table, *inner),
         ExpressionNode::Unary(unary) => contains_runtime_text_anchor(table, unary.operand),
         ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Atomic(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Call(_)
         | ExpressionNode::Cast(_)
@@ -399,6 +403,7 @@ fn classify_runtime_text_write(
         }
         ExpressionNode::Binary(_) => RuntimeTextWriteKind::GeneratedString,
         ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Atomic(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Call(_)
         | ExpressionNode::Cast(_)

@@ -427,6 +427,16 @@ fn collect_expression_state_calls_in_table(
     calls: &mut Vec<CollectedStateCall>,
 ) {
     match context.control_flow.expressions.expression(expression) {
+        ExpressionNode::Atomic(atomic) => collect_expression_state_calls_in_table(
+            context,
+            machine,
+            source_key,
+            statement_index,
+            call_ordinal,
+            role,
+            atomic.value,
+            calls,
+        ),
         ExpressionNode::ArrayLiteral(values) => {
             for value in context.control_flow.expressions.expression_handles(*values) {
                 collect_expression_state_calls_in_table(

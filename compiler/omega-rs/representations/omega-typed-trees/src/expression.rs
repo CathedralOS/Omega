@@ -16,6 +16,7 @@ pub type ExpressionHandle = Handle<ExpressionNode>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expression {
     ArrayLiteral(Arc<[Expression]>),
+    Atomic(Box<AtomicExpression>),
     Binary(Box<BinaryExpression>),
     Boolean(bool),
     Cast(Box<CastExpression>),
@@ -30,6 +31,12 @@ pub enum Expression {
     StructLiteral(StructLiteral),
     String(Arc<str>),
     Unary(Box<UnaryExpression>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AtomicExpression {
+    pub value: Expression,
+    pub ordering: omega_core::atomic::AtomicOrderingPlan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -253,6 +260,13 @@ impl ExpressionTable {
                 let values = self.copy_expression_handles_from(source, *source_values);
                 self.insert(ExpressionNode::ArrayLiteral(values))
             }
+            ExpressionNode::Atomic(atomic) => {
+                let value = self.copy_from(source, atomic.value);
+                self.insert(ExpressionNode::Atomic(TableAtomicExpression {
+                    value,
+                    ordering: atomic.ordering,
+                }))
+            }
             ExpressionNode::Binary(binary) => {
                 let left = self.copy_from(source, binary.left);
                 let right = self.copy_from(source, binary.right);
@@ -391,6 +405,9 @@ impl ExpressionTable {
                 for child in children {
                     self.remap_symbols_in_inner(child, symbols, visited);
                 }
+            }
+            ExpressionNode::Atomic(atomic) => {
+                self.remap_symbols_in_inner(atomic.value, symbols, visited)
             }
             ExpressionNode::Binary(binary) => {
                 self.remap_symbols_in_inner(binary.left, symbols, visited);
@@ -1146,6 +1163,13 @@ impl ExpressionTable {
                 let values = self.copy_own_expression_handles(values);
                 self.insert(ExpressionNode::ArrayLiteral(values))
             }
+            ExpressionNode::Atomic(atomic) => {
+                let value = self.insert_copy(atomic.value);
+                self.insert(ExpressionNode::Atomic(TableAtomicExpression {
+                    value,
+                    ordering: atomic.ordering,
+                }))
+            }
             ExpressionNode::Binary(binary) => {
                 let left = self.insert_copy(binary.left);
                 let right = self.insert_copy(binary.right);
@@ -1329,6 +1353,13 @@ impl ExpressionTable {
                 let values = self.insert_expression_handle_span_from_trees(values);
                 self.insert(ExpressionNode::ArrayLiteral(values))
             }
+            Expression::Atomic(atomic) => {
+                let value = self.insert_tree(&atomic.value);
+                self.insert(ExpressionNode::Atomic(TableAtomicExpression {
+                    value,
+                    ordering: atomic.ordering,
+                }))
+            }
             Expression::Binary(binary) => {
                 let left = self.insert_tree(&binary.left);
                 let right = self.insert_tree(&binary.right);
@@ -1444,6 +1475,10 @@ impl ExpressionTable {
                     .map(|value| self.to_tree(*value))
                     .collect::<Arc<[_]>>(),
             ),
+            ExpressionNode::Atomic(atomic) => Expression::Atomic(Box::new(AtomicExpression {
+                value: self.to_tree(atomic.value),
+                ordering: atomic.ordering,
+            })),
             ExpressionNode::Binary(binary) => Expression::Binary(Box::new(BinaryExpression {
                 left: self.to_tree(binary.left),
                 operator: binary.operator,
@@ -1674,6 +1709,7 @@ fn remapped(symbol: SymbolHandle, symbols: &[(SymbolHandle, SymbolHandle)]) -> S
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExpressionNode {
     ArrayLiteral(HandleSpan<ExpressionHandle>),
+    Atomic(TableAtomicExpression),
     Binary(TableBinaryExpression),
     Boolean(bool),
     Cast(TableCastExpression),
@@ -1688,6 +1724,12 @@ pub enum ExpressionNode {
     StructLiteral(TableStructLiteral),
     String(Arc<str>),
     Unary(TableUnaryExpression),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TableAtomicExpression {
+    pub value: ExpressionHandle,
+    pub ordering: omega_core::atomic::AtomicOrderingPlan,
 }
 
 impl Default for ExpressionNode {

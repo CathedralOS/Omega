@@ -397,6 +397,10 @@ pub enum ExpressionSnapshot {
     ArrayLiteral {
         values: Vec<ExpressionSnapshot>,
     },
+    Atomic {
+        value: Box<ExpressionSnapshot>,
+        ordering: String,
+    },
     Binary {
         left: Box<ExpressionSnapshot>,
         operator: &'static str,
@@ -912,6 +916,10 @@ fn table_expression_snapshot(
                 .iter()
                 .map(|value| table_expression_snapshot(program, *value))
                 .collect(),
+        },
+        ExpressionNode::Atomic(atomic) => ExpressionSnapshot::Atomic {
+            value: Box::new(table_expression_snapshot(program, atomic.value)),
+            ordering: format!("{:?}", atomic.ordering),
         },
         ExpressionNode::Binary(binary) => ExpressionSnapshot::Binary {
             left: Box::new(table_expression_snapshot(program, binary.left)),

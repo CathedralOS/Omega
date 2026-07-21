@@ -53,44 +53,24 @@ irreversible; flag any you dislike.
    and I did NOT add atomics, Mutex, scopes, cancellation, or select — those
    wait for C2–C5 sign-off and a real scheduler.
 
-## 1b. LANDMINE to fix before real concurrency (flagged, not yet fixed)
+## 1b. Atomic RMW landmine (fixed 2026-07-20)
 
-Atomics stage 1 landed (M1 types + M2 load/store + M3 fetch_add + M4
-compare_exchange). CORRECTION (verified from the canary headers): BOTH RMW
-ops — fetch_add AND compare_exchange — are currently PARSER DESUGARS into
-non-atomic integer read-modify-write sequences, NOT real `LOCK`-prefixed
-instructions. (An earlier note here wrongly said fetch_add was a real atomic
-RMW; it is not.) They are value-correct and unobservably non-atomic in stage
-1 (no scheduler/threads), but each is a silent data race the moment true
-parallelism exists. load/store (M2) are genuinely fine — a plain aligned
-`mov` IS atomic on x86; only the RMW ops need `LOCK`. BEFORE the scheduler
-arc, every atomic RMW (fetch_add, compare_exchange, and any later
-swap/fetch_sub/and/or) must become a real `LOCK`-prefixed instruction
-(`LOCK xadd` / `LOCK cmpxchg`). Flagged in the canary headers + a tracked
-task chip. Do NOT ship concurrency on the desugar RMWs.
+This review correctly identified that the original parser desugars would race
+under real concurrency. The first atomic slice now carries operation/order data
+through typed trees and target operations. x86_64 emits LOCK XADD/CMPXCHG (and
+XCHG for SeqCst stores); aarch64 emits ordering-selected LDR/LDAR, STR/STLR,
+LDADD*, and CAS*. Fetch/CAS store the prior returned by the atomic instruction,
+so there is no separate ordinary read. The carrier is opaque to algebraic
+simplification until instruction selection.
 
-TURNKEY RECIPE (do this WITH the scheduler, when atomicity is testable against
-real interleaving — not before; there is no observable difference single-threaded):
-1. STOP desugaring at parse. `try_parse_atomic_fetch_add_let` /
-   `try_parse_atomic_compare_exchange_let` (omega-tokens-to-syntax-trees
-   parser/statement.rs) expand into ordinary statement pairs today. Instead emit
-   a dedicated atomic-RMW node that survives lowering, carrying {place,
-   delta-or-(expected,new), ordering, returns-old}.
-2. Add an atomic-RMW storage op-kind and thread it abstract -> target ->
-   assigned -> machine-instructions, exactly like the float
-   `WriteRuntimeStorageConvert` op-kind was added: a new storage-write op-kind
-   must ALSO be added to BOTH emission-planning blocker lists (storage_blockers
-   + runtime_text_blockers) or it errors "needs lowering" despite emitting.
-3. x86_64 emission: `LOCK XADD r/m,r` (F0 0F C1 /r) for fetch_add; `LOCK
-   CMPXCHG r/m,r` (F0 0F B1 /r, rax = expected, ZF/result handling) for
-   compare_exchange. Add the width fn + relocation record (reloc offset fns live
-   in BOTH omega-instruction-selection widths.rs AND omega-relocations/offsets —
-   keep in lockstep).
-4. aarch64: `LDADD`/`CAS` (ARMv8.1-LSE) or an LL/SC `LDXR`/`STXR` loop, or a loud
-   "not implemented" error if no canary needs it yet.
-5. Interpreter: model the op (single-threaded, value semantics already match the
-   old desugar — keep returning the prior value). Register a RUN canary in
-   canary_suite.rs AND differential.rs (drift guard).
+Implementation notes: the parser retains an arithmetic-shaped value for the
+interpreter while wrapping it in an opaque atomic carrier that preserves the
+operation and ordering. Instruction selection converts that carrier to explicit
+atomic load/store/RMW operations, including separate result storage. Width and
+relocation planning account for both the target and returned-prior destinations;
+emission blockers recognize every atomic operation. Native canaries and
+architecture byte tests pin the first slice. True contention tests still await
+runnable concurrent activation.
 
 ## 1c. Float-codegen pending canaries — investigation 2026-06-14
 

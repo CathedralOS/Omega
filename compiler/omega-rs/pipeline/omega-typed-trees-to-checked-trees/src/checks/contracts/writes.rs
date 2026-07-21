@@ -228,6 +228,14 @@ fn scan_construction_field_domains(
         return;
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => scan_construction_field_domains(
+            program,
+            facts,
+            state_flow,
+            statement_index,
+            atomic.value,
+            diagnostics,
+        ),
         ExpressionNode::StructLiteral(literal) => {
             let type_name = literal.type_name.clone();
             let case_name = literal.case_name.clone();

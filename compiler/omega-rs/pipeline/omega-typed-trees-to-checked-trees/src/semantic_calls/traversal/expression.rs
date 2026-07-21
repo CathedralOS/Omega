@@ -8,6 +8,7 @@ pub(super) fn find_call_site_in_expression<'program>(
     expression: ExpressionHandle,
 ) -> Option<CallSite<'program>> {
     match traversal.program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => find_call_site_in_expression(traversal, atomic.value),
         ExpressionNode::ArrayLiteral(values) => {
             for value in traversal
                 .program

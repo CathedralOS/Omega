@@ -121,6 +121,9 @@ fn copied_expression_capacity(
         ..ExpressionTableCapacity::default()
     };
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => {
+            capacity.saturating_add_assign(copied_expression_capacity(program, atomic.value));
+        }
         ExpressionNode::ArrayLiteral(values) => {
             capacity.saturating_add_assign(expression_table_span_capacity(program, *values));
         }

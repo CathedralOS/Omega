@@ -2009,6 +2009,7 @@ fn fact_mentions_proof_only_data(
             .map(|definition| definition.name.clone())
     };
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => recurse(atomic.value),
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
             match members {

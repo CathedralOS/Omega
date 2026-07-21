@@ -7,6 +7,9 @@ pub(super) fn expression_uses_symbol(
     symbol: SymbolHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
+        omega_typed_trees::expression::ExpressionNode::Atomic(atomic) => {
+            expression_uses_symbol(program, atomic.value, symbol)
+        }
         omega_typed_trees::expression::ExpressionNode::ArrayLiteral(values) => program
             .expression_table
             .expression_handles(*values)
@@ -73,6 +76,9 @@ pub(super) fn expression_uses_local_name(
     local_name: &str,
 ) -> bool {
     match program.expression_table.expression(expression) {
+        omega_typed_trees::expression::ExpressionNode::Atomic(atomic) => {
+            expression_uses_local_name(program, atomic.value, local_name)
+        }
         omega_typed_trees::expression::ExpressionNode::ArrayLiteral(values) => program
             .expression_table
             .expression_handles(*values)
@@ -153,6 +159,15 @@ pub(super) fn expression_uses_place_symbol(
     }
 
     match program.expression_table.expression(expression) {
+        omega_typed_trees::expression::ExpressionNode::Atomic(atomic) => {
+            expression_uses_place_symbol(
+                program,
+                state_symbol,
+                statement_index,
+                atomic.value,
+                symbol,
+            )
+        }
         omega_typed_trees::expression::ExpressionNode::ArrayLiteral(values) => program
             .expression_table
             .expression_handles(*values)

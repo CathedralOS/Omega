@@ -2,6 +2,80 @@ use omega_core::diagnostics::Diagnostic;
 
 use super::instruction::encode_instruction;
 
+pub(in crate::aarch64) fn encode_atomic_load(
+    destination_register: u8,
+    address_register: u8,
+    byte_size: usize,
+    ordering: omega_core::atomic::MemoryOrdering,
+) -> Result<[u8; 4], Diagnostic> {
+    let size = match byte_size {
+        1 => 0u32,
+        2 => 1,
+        4 => 2,
+        8 => 3,
+        other => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 atomic load cannot encode a {other}-byte width"
+            )));
+        }
+    };
+    match ordering {
+        omega_core::atomic::MemoryOrdering::Relaxed => match byte_size {
+            1 | 2 | 4 => encode_load_w_from_x(destination_register, address_register, 0, byte_size),
+            8 => encode_load_x_from_x(destination_register, address_register, 0),
+            _ => unreachable!(),
+        },
+        omega_core::atomic::MemoryOrdering::Acquire
+        | omega_core::atomic::MemoryOrdering::SeqCst => Ok(encode_instruction(
+            0x08DF_FC00
+                | (size << 30)
+                | (u32::from(address_register) << 5)
+                | u32::from(destination_register),
+        )),
+        omega_core::atomic::MemoryOrdering::Release
+        | omega_core::atomic::MemoryOrdering::AcqRel => Err(Diagnostic::error(
+            "release-bearing ordering reached AArch64 atomic-load encoding",
+        )),
+    }
+}
+
+pub(in crate::aarch64) fn encode_atomic_store(
+    source_register: u8,
+    address_register: u8,
+    byte_size: usize,
+    ordering: omega_core::atomic::MemoryOrdering,
+) -> Result<[u8; 4], Diagnostic> {
+    let size = match byte_size {
+        1 => 0u32,
+        2 => 1,
+        4 => 2,
+        8 => 3,
+        other => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 atomic store cannot encode a {other}-byte width"
+            )));
+        }
+    };
+    match ordering {
+        omega_core::atomic::MemoryOrdering::Relaxed => match byte_size {
+            1 | 2 | 4 => encode_store_w_to_x(source_register, address_register, 0, byte_size),
+            8 => encode_store_x_to_x(source_register, address_register, 0),
+            _ => unreachable!(),
+        },
+        omega_core::atomic::MemoryOrdering::Release
+        | omega_core::atomic::MemoryOrdering::SeqCst => Ok(encode_instruction(
+            0x089F_FC00
+                | (size << 30)
+                | (u32::from(address_register) << 5)
+                | u32::from(source_register),
+        )),
+        omega_core::atomic::MemoryOrdering::Acquire
+        | omega_core::atomic::MemoryOrdering::AcqRel => Err(Diagnostic::error(
+            "acquire-bearing ordering reached AArch64 atomic-store encoding",
+        )),
+    }
+}
+
 pub(in crate::aarch64) fn encode_load_w_from_x(
     destination_register: u8,
     base_register: u8,

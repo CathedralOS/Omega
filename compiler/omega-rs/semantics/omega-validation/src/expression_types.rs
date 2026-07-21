@@ -1564,6 +1564,7 @@ pub(crate) fn expression_type_name_handle(
     argument: ExpressionHandle,
 ) -> &'static str {
     match program.expression_table.expression(argument) {
+        ExpressionNode::Atomic(atomic) => expression_type_name_handle(program, atomic.value),
         ExpressionNode::ArrayLiteral(_) => "array literal",
         ExpressionNode::Binary(_) => "binary expression",
         ExpressionNode::Boolean(_) => "bool",

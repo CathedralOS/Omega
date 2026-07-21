@@ -5,6 +5,7 @@ pub(super) fn collect_read_accesses(
     expression: ExpressionHandle,
 ) {
     match collection.program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => collect_read_accesses(collection, atomic.value),
         ExpressionNode::ArrayLiteral(values) => {
             for value in collection
                 .program

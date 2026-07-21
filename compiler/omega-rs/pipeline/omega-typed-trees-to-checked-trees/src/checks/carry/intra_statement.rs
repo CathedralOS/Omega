@@ -106,6 +106,7 @@ impl EvaluationTraversal<'_, '_> {
             return;
         }
         match self.program.expression_table.expression(expression) {
+            ExpressionNode::Atomic(atomic) => self.visit_expression(atomic.value),
             ExpressionNode::ArrayLiteral(values) => {
                 for value in self.program.expression_table.expression_handles(*values) {
                     self.visit_expression(*value);

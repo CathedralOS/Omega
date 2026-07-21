@@ -1589,6 +1589,9 @@ fn expression_constraints(
     expression: ExpressionHandle,
 ) -> ConstraintBuffer {
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => {
+            expression_constraints(program, machine, state, atomic.value)
+        }
         ExpressionNode::Binary(binary) => {
             let left = expression_constraints(program, machine, state, binary.left);
             let right = expression_constraints(program, machine, state, binary.right);

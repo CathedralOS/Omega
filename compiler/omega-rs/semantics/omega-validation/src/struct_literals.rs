@@ -106,6 +106,9 @@ fn scan_expression(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => {
+            scan_expression(program, machine, state, atomic.value, diagnostics)
+        }
         ExpressionNode::StructLiteral(literal) => {
             validate_literal_field_names(program, machine, state, &literal, diagnostics);
             enforce_construction_field_obligations(program, machine, state, &literal, diagnostics);

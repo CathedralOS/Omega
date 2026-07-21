@@ -136,6 +136,7 @@ impl Default for ExpressionTable {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExpressionNode {
     ArrayLiteral(HandleSpan<ExpressionHandle>),
+    Atomic(TableAtomicExpression),
     Binary(TableBinaryExpression),
     Boolean(bool),
     Cast(TableCastExpression),
@@ -152,6 +153,12 @@ pub enum ExpressionNode {
     StructLiteral(TableStructLiteral),
     String(SourceText),
     Unary(TableUnaryExpression),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TableAtomicExpression {
+    pub value: ExpressionHandle,
+    pub ordering: omega_core::atomic::AtomicOrderingPlan,
 }
 
 impl Default for ExpressionNode {

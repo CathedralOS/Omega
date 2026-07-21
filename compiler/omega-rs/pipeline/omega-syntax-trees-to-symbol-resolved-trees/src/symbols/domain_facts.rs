@@ -173,6 +173,14 @@ fn assign_proof_expression_membership_symbols(
 ) {
     let expression_node = expression_table.expression(expression).clone();
     match expression_node {
+        omega_symbol_resolved_trees::expression::ExpressionNode::Atomic(atomic) => {
+            assign_proof_expression_membership_symbols(
+                symbols,
+                domain_symbols,
+                expression_table,
+                atomic.value,
+            );
+        }
         omega_symbol_resolved_trees::expression::ExpressionNode::ArrayLiteral(values) => {
             for value in expression_table.expression_handles(values).to_vec() {
                 assign_proof_expression_membership_symbols(
