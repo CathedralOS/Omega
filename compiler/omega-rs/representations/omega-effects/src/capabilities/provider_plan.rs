@@ -41,9 +41,9 @@ pub struct ServiceMethod {
 
 /// How one method binds on one target -- the Binding sum's union with the
 /// platform tables' mechanisms. Aligned with the host-ABI plan's
-/// `HostBindingMechanism` so PRV4's relocation is a rename, with room for
-/// F7's `Instruction` arm (today's hardcoded IEEE float lowering IS the
-/// built-in instruction binding; formalization, not new behavior).
+/// `HostBindingMechanism` so PRV4's relocation is a rename. Instructions are
+/// checked `asm` bodies whose catalog contracts contribute their obligations;
+/// they are deliberately not a second, bodiless provider-binding mechanism.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProviderBinding {
     /// Dynamic-library import (`DllImport { module, symbol }`).
@@ -60,10 +60,6 @@ pub enum ProviderBinding {
     /// A portable compile-time constant (`provides` Value rows): no call,
     /// the name substitutes to the integer before resolution.
     Value { value: i64 },
-    /// F7 (room reserved): the binding IS an instruction sequence the
-    /// backend emits directly -- the float-operation shape. Carried as the
-    /// operation's name until the instruction-plan machinery lands.
-    Instruction { operation: String },
     /// An ORDINARY CHECKED MACHINE realizing the requirement (the ruling's
     /// composite form: lowering sequences and argument adaptation are
     /// checked Omega code with an explicit satisfies edge, never authored
