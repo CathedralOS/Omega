@@ -483,9 +483,11 @@ slot owner may override by type. The migration order remains load-bearing.
    migrate filesystem leaves. Open-option flags have moved: portable code now
    supplies semantic `OpenOptions`, checked target-package machines own the
    Darwin/Linux/MSVCRT encodings, and no flag constant remains in a provider
-   row. The dynamic `open_with` target bodies temporarily repeat their target
-   encoder expression because record-valued helper calls still mis-lower
-   natively; collapse that duplication with the value-call fix. The remaining
+   row. Target `open_with` implementations now copy the semantic record once
+   and call their ordinary target encoder. Native lowering defers an outer
+   value result until the complete nested statement-call splice has executed,
+   and direct aggregate construction restores omitted fields and padding to
+   their zero representation before applying named fields. The remaining
    `Binding::Value` filesystem consumers are `struct stat` offsets, which move
    when programmable foreign-record views can project the validated plan.
 4. **PRV4f — compatibility deletion.** After the last consumers move, delete

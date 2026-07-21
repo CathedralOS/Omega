@@ -7349,6 +7349,47 @@ fn runtime_attached_machine_struct_arg_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_record_forwarding_statement_call_exit_canary_runs() {
+    // An inlined value call may execute ordinary statement callees before its
+    // terminal value is delivered. The deferred leaf selector used to stop at
+    // the outer callee's last direct mutation, so it copied `self.observed`
+    // before the nested `capture()` mutation ran (native 0, interpreter 70).
+    // The complete contiguous splice, including nested-callee operations, must
+    // finish before the outer result slot is written. The same canary seeds an
+    // omitted record field with 1 first, pinning whole-construction ZII reset
+    // rather than merely the two explicitly named field writes.
+    let canary = pass_canary("calls/runtime_record_forwarding_statement_call_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-record-forwarding-statement-call-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("record-forwarding statement-call canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("record-forwarding statement-call canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected nested statement effects to precede outer value delivery (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_free_machine_struct_return_exit_canary_runs() {
     // A FREE machine RETURNING a struct BY VALUE (`let lit: Pair = make(seed)`)
     // must deliver both field values into the caller's local. Two leaf
@@ -36328,6 +36369,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/mutable_output_host_call",
     "calls/nested_machine_continuation",
     "calls/runtime_attached_machine_struct_arg_exit",
+    "calls/runtime_record_forwarding_statement_call_exit",
     "calls/by_value_case_param_self_write_exit",
     "calls/runtime_explicit_discard_executes_exit",
     "calls/runtime_free_machine_struct_arg_exit",

@@ -3196,13 +3196,18 @@ fn strip_recast_initializer(
 /// Fires every deferred value-call leaf whose callee has NO further body ops
 /// in its contiguous spliced run -- the shared tail of the three fire sites
 /// (after a spliced LocalStorage initializer, a spliced Mutation field write,
-/// and a spliced HostCall result store). A deferred leaf belongs to the
-/// current op's callee when `state_call_target_key(deferred)` matches the
-/// op's `source_key`; the splice run ends at the CALLER's next own op
-/// (`deferred.source_key`), NOT at the first foreign key, because a NESTED
-/// value call splices a third source_key between the callee's own ops
-/// (face #5). Fires straight-line (arm locals) THEN leaf expansions, in
-/// reverse-index order so removal doesn't shift earlier indices.
+/// and a spliced HostCall result store).
+///
+/// A call's splice ends when its CALLER source key resumes. Every operation
+/// between the deferred StateCall and that boundary belongs to the call,
+/// including operations from nested statement callees. Matching only the
+/// outer target key fired a return after the outer callee's last direct write
+/// but before a nested helper's write (`forward` returned PRE-`capture`
+/// state). The deferred operation is already live only after its StateCall has
+/// been visited, so any current foreign-key operation before caller resumption
+/// is inside that contiguous splice. Fires straight-line (arm locals) THEN
+/// leaf expansions, in reverse-index order so removal doesn't shift earlier
+/// indices.
 ///
 /// Keep this the ONLY copy: the three sites drifted twice before extraction
 /// (faces #4 and #5 each patched four hand-copied scans in lockstep).
@@ -3226,22 +3231,16 @@ fn fire_ready_deferred_leaf_expansions(
         .iter()
         .enumerate()
         .filter_map(|(deferred_index, deferred)| {
-            let target_key = state_call_target_key(deferred)?;
-            if target_key != operation.source_key {
+            state_call_target_key(deferred)?;
+            if operation.source_key == deferred.source_key {
                 return None;
             }
             let has_more = operations
                 .iter()
                 .skip(operation_index + 1)
                 .take_while(|later| later.source_key != deferred.source_key)
-                .any(|later| {
-                    matches!(
-                        later.kind,
-                        RuntimeDispatchBodyOperationKind::LocalStorage { .. }
-                            | RuntimeDispatchBodyOperationKind::HostCall
-                            | RuntimeDispatchBodyOperationKind::Mutation { .. }
-                    ) && later.source_key == target_key
-                });
+                .next()
+                .is_some();
             if has_more { None } else { Some(deferred_index) }
         })
         .collect();

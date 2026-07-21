@@ -1,0 +1,40 @@
+// RUN CANARY (exit 70) -- a statement-position machine call forwards one
+// runtime record parameter to a same-named record parameter in its callee.
+// Native lowering must substitute the complete caller place before applying
+// member suffixes; leaving the callee parameter unbound reads its ZII storage.
+use omega::language::std::console;
+
+data Pair {
+    first: i32;
+    second: i32;
+    stale: i32;
+}
+
+data Worker {
+    stored: Pair;
+    observed: i32;
+}
+
+windows_x64 machine Worker::capture(&mut self) {
+    self.observed = self.stored.first | self.stored.second | self.stored.stale;
+}
+
+windows_x64 machine Worker::forward(&mut self, pair: Pair) -> i32 {
+    // Construction is whole-value replacement: `pair` omits `stale`, so this
+    // prior byte must be reset to its ZII value when the record is assigned.
+    self.stored.stale = 1;
+    self.stored = pair;
+    self.capture();
+    transition { _ -> done() }
+    state done(&mut self) -> i32 { self.observed }
+}
+
+data Main {
+    console: Console;
+    worker: Worker;
+}
+
+machine Main::main(&mut self) {
+    let result: i32 = self.worker.forward(Pair { first: 6, second: 64 });
+    self.console.exit_process(result);
+}

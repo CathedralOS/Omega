@@ -88,24 +88,6 @@ impl RuntimeStaticValues {
             .map(|(_, value)| *value)
     }
 
-    /// Forget any recorded constant for `target`. Used after a write whose new
-    /// value is not a compile-time constant (binary read-modify-write, copies,
-    /// call results): subsequent reads must come from live storage, not the
-    /// stale entry-value constant. Inline slots become `None` holes (skipped by
-    /// `iter`); overflow entries are dropped.
-    fn invalidate(&mut self, target: &PlaceKey) {
-        for slot in self
-            .inline
-            .iter_mut()
-            .take(self.len.min(INLINE_RUNTIME_STATIC_VALUE_COUNT))
-        {
-            if matches!(slot, Some((existing, _)) if existing == target) {
-                *slot = None;
-            }
-        }
-        self.overflow.retain(|(existing, _)| existing != target);
-    }
-
     /// Forget every recorded constant for a whole place subtree -- every key
     /// that `starts_with(prefix)`. Used after a RUNTIME-indexed write `arr[i] =
     /// ..` (non-constant index), which can land on ANY element of `arr`: each
@@ -599,7 +581,11 @@ pub(super) fn invalidate_runtime_static_value_in_table(
         return;
     };
 
-    static_values.invalidate(&target);
+    // A whole-place write invalidates constants for every descendant field;
+    // for scalar/member targets this is equivalent to exact invalidation.
+    // Aggregate reconstruction relies on the stronger form so omitted fields
+    // cannot retain stale compile-time facts after the target is zero-filled.
+    static_values.invalidate_prefix(&target);
 }
 
 /// If `target` is a runtime-indexed write `arr[i]` (non-constant index), void
