@@ -20,18 +20,9 @@ linux_x64 machine Filesystem::encode_open_options(&mut self) {
         | ((self.open_options.create_new as i32) << 7));
 }
 
-// Temporary native-lowering fence; see the Windows target's matching note.
 linux_x64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptions) -> OpenResult {
-    let writable: i32 = (options.write as i32) | (options.append as i32);
-    let readable: i32 = options.read as i32;
-    let write_only: i32 = writable & (readable ^ 1);
-    let read_write: i32 = (writable & readable) << 1;
-    let creating: i32 = (options.create as i32) | (options.create_new as i32);
-    let append_flag: i32 = (options.append as i32) << 10;
-    let create_flag: i32 = creating << 6;
-    let truncate_flag: i32 = (options.truncate as i32) << 9;
-    let exclusive_flag: i32 = (options.create_new as i32) << 7;
-    self.open_flags = write_only | read_write | append_flag | create_flag | truncate_flag | exclusive_flag;
+    self.open_options = options;
+    self.encode_open_options();
     let fd: i32 = self.host.open_create(path, self.open_flags, 438);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }

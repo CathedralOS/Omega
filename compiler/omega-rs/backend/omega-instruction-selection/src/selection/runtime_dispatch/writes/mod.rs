@@ -422,7 +422,25 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
     }
 
     if let ExpressionNode::StructLiteral(struct_literal) = expressions.expression(value).clone() {
-        let mut emitted = false;
+        // Construction replaces the WHOLE value. Zero the complete direct
+        // target first so fields omitted from the literal regain their ZII
+        // representation instead of retaining bytes from a prior value. This
+        // is observable for repeated OpenOptions assignments: `{ read: true }`
+        // must clear an earlier `{ write: true, create: true }` before the
+        // target encoder reads it. Named fields overwrite the zeroes below.
+        // Non-direct targets retain the existing field-by-field paths until
+        // their generalized fill operation lands.
+        let mut emitted = zero_direct_struct_target(
+            input,
+            dispatch_index,
+            operation_source_key,
+            target_source_key,
+            statement_index,
+            expressions,
+            target,
+            static_values,
+            selected_instructions,
+        );
         let mut any_field_failed = false;
         // Constructing a CASE (`Command::Move { steps: 70 }`) writes the i32
         // tag prefix before the payload fields. The payload fields then write
@@ -895,6 +913,59 @@ fn push_unlowered_literal_field_poison(
         source_key: operation_source_key,
         source_statement: statement_index,
     });
+}
+
+/// Zero a directly addressable aggregate target in machine/frame storage.
+/// Struct/case construction is whole-value replacement, and omitted fields are
+/// represented by zero. Chunked scalar writes keep the operation target-neutral
+/// while covering arbitrary record sizes and padding.
+#[allow(clippy::too_many_arguments)]
+fn zero_direct_struct_target(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    operation_source_key: StateKey,
+    target_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+    static_values: &mut RuntimeStaticValues,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    let Some(place) = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) else {
+        return false;
+    };
+    if place.byte_count == 0 {
+        return false;
+    }
+
+    invalidate_runtime_static_value_in_table(static_values, expressions, target);
+    let mut zeroed = 0usize;
+    while zeroed < place.byte_count {
+        let step = match place.byte_count - zeroed {
+            remaining if remaining >= 8 => 8,
+            remaining if remaining >= 4 => 4,
+            remaining if remaining >= 2 => 2,
+            _ => 1,
+        };
+        selected_instructions.push(SelectedInstruction {
+            kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                place.region,
+                place.byte_offset + zeroed,
+                0,
+                step,
+            ),
+            source_key: operation_source_key,
+            source_statement: statement_index,
+        });
+        zeroed += step;
+    }
+    true
 }
 
 /// Write the i32 CASE TAG of a case construction (`target = Type::Case { .. }`)
