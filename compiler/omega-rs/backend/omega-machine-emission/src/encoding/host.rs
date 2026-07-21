@@ -14,7 +14,12 @@ pub(super) fn encode_host_operation(
     let binding = host_binding(input, operation_key);
     match binding.map(|binding| &binding.mechanism) {
         Some(HostBindingMechanism::Syscall { number, .. }) => {
-            architecture::encode_syscall_sequence(input.target.architecture, operands, *number)
+            architecture::encode_syscall_sequence_with_plan(
+                input.target.architecture,
+                operands,
+                *number,
+                binding.and_then(|binding| binding.call_plan.as_ref()),
+            )
         }
         Some(HostBindingMechanism::VtableSlot { index }) => {
             architecture::encode_vtable_call_sequence_with_plan(

@@ -341,6 +341,25 @@ pub fn syscall_sequence_width<T: InstructionOperandLike>(
     operands: &[T],
     syscall_number: u32,
 ) -> usize {
+    syscall_sequence_width_with_plan(architecture, operands, syscall_number, None)
+}
+
+pub fn syscall_sequence_width_with_plan<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    syscall_number: u32,
+    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+) -> usize {
+    if let Some(plan) = authoritative_plan {
+        return crate::encode_syscall_sequence_with_plan(
+            architecture,
+            operands,
+            syscall_number,
+            Some(plan),
+        )
+        .map(|bytes| bytes.len())
+        .unwrap_or(0);
+    }
     match architecture {
         Architecture::Aarch64 => aarch64::syscall_sequence_width_from_operands(
             operands.iter().map(aarch64_call_operand),

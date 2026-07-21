@@ -447,6 +447,11 @@ the source plan. Emission, layout, and data relocation consume that one plan on
 x86-64 and AArch64. Consequently a source-selected SysV indirect call remains
 SysV even in a PE image, and AArch64 field calls preserve exact non-receiver
 register and outgoing-stack placements.
+Provides-authored syscall bindings likewise consume their retained Linux
+syscall plan rather than re-evaluating one from the CPU architecture. The
+encoder rechecks the word signature and syscall contract, then uses the exact
+parameter registers, number register, and supervisor-call immediate on x86-64
+or AArch64; layout measures those same emitted bytes.
 
 While compatibility syscall rows coexist with normalized plans, evaluation
 differentially checks their historical register-slot and supervisor-call facts
