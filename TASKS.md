@@ -137,15 +137,17 @@ signature-dependent acceptance and structured rejection. Concrete boundary
 entry paths; every inherited/declared boundary method is materialized and
 evaluated, and its canonical plan fingerprint enters provider requirement
 identity without perturbing identities that do not opt into calling policies.
-Generic boundary-trait instantiations and source-span attachment for policy
-diagnostics remain in ENT2b.
+Policy evaluation, authored rejection, and invalid accepted-plan diagnostics
+retain the `Calling<C>` relationship source span. Generic boundary-trait
+instantiations remain in ENT2b.
 
 1. **ENT2b — complete policy instantiation and diagnostics.** Extend the
    implemented concrete `Calling<C>` discovery, source evaluation, and
    canonical identity publication to generic boundary-trait instantiations.
-   Retain the relationship source span so `Rejected` and malformed accepted
-   plans point at the authored declaration and offending signature component.
-   Policy authorship stays open to ordinary packages; the plan vocabulary and
+   The relationship source span now survives typed lowering and is attached to
+   `Rejected`, malformed accepted-plan, and materialization diagnostics; keep
+   naming the offending signature component in their structured reason. Policy
+   authorship stays open to ordinary packages; the plan vocabulary and
    validator remain compiler-owned and closed.
 2. **ENT2c — lowering migration and concrete entry state.** Express the
    existing MS-x64, SysV-x64, AAPCS64, Linux-syscall, and firmware lowering

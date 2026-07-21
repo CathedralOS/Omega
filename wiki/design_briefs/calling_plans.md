@@ -5,9 +5,9 @@ Omega's internal calling convention remains compiler-sovereign. This brief now
 includes inbound machine-state preservation, which ordinary calls do not expose.
 Engineering is incomplete. The normalized compiler model, initial built-in
 policy evaluators, direct source-policy evaluation, concrete `Calling<C>`
-discovery, and publication of the evaluated identity are implemented. Generic
-boundary-policy instantiation, source-span diagnostics, and authoritative
-lowering remain.
+discovery, publication of the evaluated identity, and relationship-span
+diagnostics are implemented. Generic boundary-policy instantiation and
+authoritative lowering remain.
 
 ## One boundary entry plan, two independent facets
 
@@ -400,7 +400,9 @@ materialize every inherited and declared method signature, purity-gate and run
 `C::plan`, validate/canonicalize acceptance, report authored rejection, and
 publish only the evaluated plan fingerprint through provider requirement
 identity. Policy type names and source bodies do not enter that fingerprint;
-boundaries without a calling policy retain their prior identities.
+boundaries without a calling policy retain their prior identities. The authored
+relationship span survives typed lowering and is attached to evaluation,
+rejection, invalid-plan, and signature-materialization diagnostics.
 
 While compatibility syscall rows coexist with normalized plans, evaluation
 differentially checks their historical register-slot and supervisor-call facts
@@ -410,8 +412,8 @@ being ignored by the plan-driven encoder.
 Remaining order:
 
 1. Extend source policy evaluation from concrete `Calling<C>` relationships to
-   generic boundary-trait instantiations, and retain the relationship source
-   span so rejection diagnostics point at the authored declaration.
+   generic boundary-trait instantiations while preserving the implemented
+   relationship-site diagnostics.
 2. Complete plan-driven outbound calls and their results;
    differential-check every supported compatibility encoder against the plan,
    add the concrete firmware/interrupt state policies, and make the plan

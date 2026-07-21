@@ -55,6 +55,7 @@ pub(crate) fn lower_trait_definition(
                 symbol: requirement.symbol,
                 name: crate::name::lower_name(&requirement.name),
                 arguments,
+                source_span: requirement.name.source_span(),
             },
         );
     }

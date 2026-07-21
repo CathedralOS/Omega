@@ -123,6 +123,19 @@ fn rejected_calling_relationship_is_a_compile_diagnostic() {
         rendered.contains("return values are not supported"),
         "unexpected diagnostics:\n{rendered}"
     );
+    let rejection = diagnostics
+        .iter()
+        .find(|diagnostic| {
+            diagnostic
+                .message
+                .contains("calling policy rejected the boundary")
+        })
+        .expect("policy rejection diagnostic");
+    let span = rejection
+        .source_span
+        .expect("policy rejection should retain the Calling<C> source span")
+        .span;
+    assert_eq!(&source[span.start..span.end], "Calling");
 }
 
 #[test]
