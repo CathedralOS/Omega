@@ -11373,6 +11373,75 @@ pub fn encode_atomic_fetch_sub(
     Ok(bytes)
 }
 
+pub fn runtime_atomic_fetch_xor_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
+    _result_offset: usize,
+    value: RuntimeValueOperandHandle,
+) -> usize {
+    10 + runtime_value_operand_width(runtime_value_operands, value)
+        + 3 // mov r11, r10: preserve XOR operand
+        + load_rax_from_r14_width(byte_size)
+        + 3 // loop: mov r10, rax
+        + runtime_binary_operation_width(StateGuardOperator::BitwiseXor, byte_size)
+        + lock_cmpxchg_r10_to_r14_width(byte_size)
+        + 2 // jne rel8 back to retry
+        + 3 // mov r10, rax: instruction-observed prior
+        + 10 // mov r14, result base
+        + store_width(byte_size)
+}
+
+pub fn runtime_atomic_fetch_xor_result_address_offset(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
+    value: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_atomic_fetch_xor_width(runtime_value_operands, byte_size, 0, value)
+        - 10
+        - store_width(byte_size)
+}
+
+/// X86 has no fetch-XOR instruction that returns the old value. Use a genuine
+/// locked CMPXCHG retry loop: the initial ordinary load is only a guess, every
+/// failed CAS refreshes rax from the atomic instruction, and the successful
+/// instruction's expected/old value is the language result.
+pub fn encode_atomic_fetch_xor(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    result_offset: usize,
+    value: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_atomic_fetch_xor_width(
+        runtime_value_operands,
+        byte_size,
+        result_offset,
+        value,
+    ));
+    append_mov_r14_imm64(&mut bytes, 0);
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, value)?;
+    append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10);
+    append_load_rax_from_r14(&mut bytes, target_offset, byte_size)?;
+    let retry_offset = bytes.len();
+    bytes.extend([0x49, 0x89, 0xc2]); // mov r10, rax
+    append_runtime_binary_operation(&mut bytes, StateGuardOperator::BitwiseXor, byte_size)?;
+    append_lock_cmpxchg_r10_to_r14(&mut bytes, target_offset, byte_size)?;
+    let branch_end = bytes.len() + 2;
+    let retry_distance = isize::try_from(retry_offset).unwrap_or(isize::MAX)
+        - isize::try_from(branch_end).unwrap_or(isize::MIN);
+    let retry_distance = i8::try_from(retry_distance)
+        .map_err(|_| Diagnostic::error("X86_64 atomic fetch_xor retry loop exceeds rel8 reach"))?;
+    bytes.extend([0x75, retry_distance as u8]); // jne retry
+    bytes.extend([0x49, 0x89, 0xc2]); // mov r10, rax (prior)
+    append_mov_r14_imm64(&mut bytes, 0);
+    append_store_r10_to_r14(&mut bytes, result_offset, byte_size)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_atomic_fetch_xor_width(runtime_value_operands, byte_size, result_offset, value)
+    );
+    Ok(bytes)
+}
+
 pub fn runtime_atomic_swap_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     byte_size: usize,
@@ -14204,6 +14273,7 @@ fn append_load_rax_from_r14(
     let displacement = disp32(byte_offset)?;
     match byte_size {
         1 => bytes.extend([0x41, 0x8a, 0x86]),
+        2 => bytes.extend([0x66, 0x41, 0x8b, 0x86]),
         4 => bytes.extend([0x41, 0x8b, 0x86]),
         8 => bytes.extend([0x49, 0x8b, 0x86]),
         _ => {
@@ -14214,6 +14284,14 @@ fn append_load_rax_from_r14(
     }
     bytes.extend(displacement.to_le_bytes());
     Ok(())
+}
+
+fn load_rax_from_r14_width(byte_size: usize) -> usize {
+    match byte_size {
+        2 => 8,
+        1 | 4 | 8 => 7,
+        _ => 7,
+    }
 }
 
 fn append_load_reg_from_r15(
@@ -15651,6 +15729,26 @@ mod atomic_tests {
         assert_eq!(
             fetch_sub.len(),
             runtime_atomic_fetch_sub_width(&operands, 4, 34, delta)
+        );
+
+        let fetch_xor = encode_atomic_fetch_xor(&operands, 24, 4, 35, delta).unwrap();
+        let fetch_xor_result_base =
+            runtime_atomic_fetch_xor_result_address_offset(&operands, 4, delta);
+        assert_eq!(&fetch_xor[33..36], &[0x4d, 0x31, 0xda], "xor r10,r11");
+        assert_eq!(
+            &fetch_xor[36..41],
+            &[0xf0, 0x45, 0x0f, 0xb1, 0x96],
+            "fetch_xor retries with locked CMPXCHG"
+        );
+        assert_eq!(&fetch_xor[45..47], &[0x75, 0xef], "jne -17 to retry");
+        assert_eq!(
+            &fetch_xor[fetch_xor_result_base..fetch_xor_result_base + 2],
+            &[0x49, 0xbe]
+        );
+        assert_eq!(&fetch_xor[fetch_xor.len() - 4..], &35i32.to_le_bytes());
+        assert_eq!(
+            fetch_xor.len(),
+            runtime_atomic_fetch_xor_width(&operands, 4, 35, delta)
         );
 
         let swap = encode_atomic_swap(&operands, 24, 4, 36, new_value).unwrap();

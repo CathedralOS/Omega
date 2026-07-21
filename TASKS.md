@@ -892,14 +892,17 @@ stronger operations it needs instead of citing machine parameters generally.
   legality rules now reject release-bearing loads, acquire-bearing stores,
   unknown names, and compare-exchange failure orderings that release or exceed
   the success ordering.
-  Load/store/fetch_add/fetch_sub/swap/compare_exchange now preserve their
-  normalized order through target lowering on x86_64 and aarch64; RMW
+  Load/store/fetch_add/fetch_sub/fetch_xor/swap/compare_exchange now preserve
+  their normalized order through target lowering on x86_64 and aarch64; RMW
   returns come from the atomic instruction itself, never a racing ordinary
   read, and the interpreter preserves that same returned-prior contract. Swap
   lowers to implicitly locked `XCHG` on x86_64 and ordering-selected LSE `SWP`
   on aarch64 without a synthetic arithmetic-domain obligation. Fetch-sub uses
   exact-width two's-complement negation plus one locked `XADD`/ordered `LDADD`,
   with native, interpreter, and ARM64 byte verification.
+  Fetch-xor uses ordering-selected `LDEOR` on ARM64 and a locked `CMPXCHG`
+  retry loop on x86_64; its returned prior is taken from the successful atomic
+  attempt, with native, interpreter, and exact-encoding coverage.
   Complete standalone fences and the remaining fetch operations, and the
   cross-activation proof model beyond these first operations.
 - **Proof engine.** Continue induction and proof-data support required by

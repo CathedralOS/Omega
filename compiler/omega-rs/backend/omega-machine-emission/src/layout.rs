@@ -15,7 +15,7 @@ use omega_instruction_selection::{
     function_enter_width, host_call_sequence_width, interrupt_control_width, machine_halt_width,
     memory_fence_width, msr_read_width, msr_write_width, port_read_width, port_write_width,
     return_register_integer_write_width, return_width, runtime_atomic_compare_exchange_width,
-    runtime_atomic_fetch_add_width, runtime_atomic_fetch_sub_width,
+    runtime_atomic_fetch_add_width, runtime_atomic_fetch_sub_width, runtime_atomic_fetch_xor_width,
     runtime_atomic_load_to_storage_width, runtime_atomic_store_from_operand_width,
     runtime_atomic_swap_width, runtime_byte_read_width, runtime_byte_write_width,
     runtime_frame_base_indexed_binary_write_width, runtime_frame_base_indexed_integer_write_width,
@@ -456,6 +456,20 @@ fn machine_instruction_width(
             *byte_size,
             *result_offset,
             *delta,
+        ),
+        SelectedInstructionKind::AtomicFetchXor {
+            target_offset,
+            byte_size,
+            result_offset,
+            value,
+            ..
+        } => runtime_atomic_fetch_xor_width(
+            input.target.architecture,
+            input.assigned_target_operations,
+            *target_offset,
+            *byte_size,
+            *result_offset,
+            *value,
         ),
         SelectedInstructionKind::AtomicSwap {
             target_offset,
