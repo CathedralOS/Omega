@@ -5,7 +5,10 @@ mod selection;
 pub mod widths;
 
 pub use encoding::*;
-pub use entry::{DerivedBoundaryExit, derive_boundary_entry_storage_writes, derive_boundary_exit};
+pub use entry::{
+    DerivedBoundaryEntryStorage, DerivedBoundaryExit, derive_boundary_entry_storage,
+    derive_boundary_entry_storage_writes, derive_boundary_exit,
+};
 pub use operands::*;
 pub use selection::build_instruction_plan;
 pub use widths::*;

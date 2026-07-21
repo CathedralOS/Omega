@@ -9,8 +9,8 @@ pub use place_copy::{
 
 use omega_calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, EntryControl, HostCapability, HostOperation,
-    HostOperationKey, IndirectPointerLocation, MachineRegister, SystemVEightbyteClass, ValueClass,
-    ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan, validate_call_plan,
+    HostOperationKey, IndirectPointerLocation, MachineRegister, RegisterSet, SystemVEightbyteClass,
+    ValueClass, ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan, validate_call_plan,
 };
 use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::diagnostics::Diagnostic;
@@ -407,6 +407,12 @@ pub fn entry_argument_register_write_width(
     }
 }
 
+/// Registers overwritten by one inbound register-to-frame copy. Source
+/// registers are reads, not clobbers, and therefore are deliberately absent.
+pub fn entry_argument_register_write_clobbers() -> RegisterSet {
+    RegisterSet::new([MachineRegister::X86R15])
+}
+
 /// The ENTRY PROLOGUE's inbound unmarshal: store the exact GPR selected by the
 /// normalized call plan into the entry parameter's runtime-frame slot. Runs
 /// before anything else at the entry because argument registers are volatile.
@@ -415,6 +421,11 @@ pub fn encode_entry_argument_register_write_bytes(
     byte_offset: usize,
     byte_size: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
+    if register == MachineRegister::X86R15 {
+        return Err(Diagnostic::error(
+            "x86-64 entry prologue cannot read an argument from its r15 frame-base scratch",
+        ));
+    }
     if let omega_calling_conventions::MachineRegister::X86Xmm(register_index) = register {
         if register_index > 15 || !matches!(byte_size, 4 | 8) {
             return Err(Diagnostic::error(format!(
@@ -468,6 +479,12 @@ pub fn encode_entry_argument_register_write_bytes(
 /// while the operand-size prefixes make the word form two bytes longer.
 pub fn entry_stack_argument_write_width(byte_size: usize) -> usize {
     if byte_size == 2 { 27 } else { 25 }
+}
+
+/// Registers overwritten while copying one incoming stack fragment. `rsp` is
+/// only used as an address base and is not clobbered by this fragment.
+pub fn entry_stack_argument_write_clobbers() -> RegisterSet {
+    RegisterSet::new([MachineRegister::X86R10, MachineRegister::X86R15])
 }
 
 /// Copy an incoming x86-64 stack argument into runtime-frame storage. Calling
@@ -543,6 +560,15 @@ pub fn entry_indirect_argument_frame_base_offset(pointer: IndirectPointerLocatio
         IndirectPointerLocation::Register(_) => 3,
         IndirectPointerLocation::Stack { .. } => 8,
     }
+}
+
+/// Registers overwritten while copying one indirectly passed aggregate.
+pub fn entry_indirect_argument_write_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::X86R10,
+        MachineRegister::X86R11,
+        MachineRegister::X86R15,
+    ])
 }
 
 /// Copy one indirectly passed Microsoft x64 aggregate into its runtime-frame
@@ -648,6 +674,13 @@ mod entry_argument_register_tests {
         let error = encode_entry_argument_register_write_bytes(MachineRegister::X86Xmm(0), 0, 16)
             .expect_err("unclassified vector argument must reject");
         assert!(error.message.contains("cannot store 16 bytes"));
+    }
+
+    #[test]
+    fn entry_argument_cannot_alias_the_frame_base_scratch() {
+        let error = encode_entry_argument_register_write_bytes(MachineRegister::X86R15, 0, 8)
+            .expect_err("r15 input would be destroyed while materializing the frame base");
+        assert!(error.message.contains("r15 frame-base scratch"));
     }
 
     #[test]

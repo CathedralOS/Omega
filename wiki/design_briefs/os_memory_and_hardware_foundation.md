@@ -370,6 +370,16 @@ Checked Omega code produces checkable footprint evidence. Admitted leaves
 supply accepted footprint claims under receipt. The validator, not backend
 optimism, decides acceptance.
 
+The first backend consumer now derives inbound runtime-frame storage writes
+from the complete validated boundary plan. Each target encoder publishes the
+registers its generated copy fragment overwrites; derivation unions those
+clobbers into implementation-only `StateFootprintEvidence`, rejects a selected
+input register destroyed before capture, and validates the fragment against the
+plan's state ceiling. This evidence covers only inbound storage realization.
+The final certificate must still aggregate the specialized handler body,
+save/restore and exit sequences, relaxation products, veneers/thunks, generated
+stubs, and admitted indirect leaves after final placement.
+
 ## Symbolic materialization and admitted executable installation
 
 Runtime-known addresses are ordinary `addr` data, used only with separate

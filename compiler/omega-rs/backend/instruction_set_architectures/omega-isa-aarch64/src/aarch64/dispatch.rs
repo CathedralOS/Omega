@@ -1,4 +1,4 @@
-use omega_calling_conventions::{IndirectPointerLocation, MachineRegister};
+use omega_calling_conventions::{IndirectPointerLocation, MachineRegister, RegisterSet};
 use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::StateGuardOperator;
 
@@ -256,6 +256,11 @@ pub fn encode_entry_argument_register_write_bytes(
     byte_offset: usize,
     byte_size: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
+    if register == MachineRegister::Aarch64X(16) {
+        return Err(Diagnostic::error(
+            "AArch64 entry prologue cannot read an argument from its x16 frame-base scratch",
+        ));
+    }
     let (register_index, is_vector) = match register {
         omega_calling_conventions::MachineRegister::Aarch64X(index) => (index, false),
         omega_calling_conventions::MachineRegister::Aarch64V(index) => (index, true),
@@ -303,6 +308,12 @@ pub fn encode_entry_argument_register_write_bytes(
     Ok(bytes)
 }
 
+/// Registers overwritten by one inbound register-to-frame copy. The selected
+/// argument register is read rather than clobbered.
+pub fn entry_argument_register_write_clobbers() -> RegisterSet {
+    RegisterSet::new([MachineRegister::Aarch64X(16)])
+}
+
 /// Copy one AAPCS64 incoming stack fragment into runtime-frame storage. The
 /// normalized offset is relative to the caller's SP; the ordinary function
 /// prologue has already reserved `FUNCTION_FRAME_BYTES` beneath it.
@@ -338,6 +349,12 @@ pub fn encode_entry_stack_argument_write_bytes(
         super::widths::entry_stack_argument_write_width()
     );
     Ok(bytes)
+}
+
+/// Registers overwritten while copying one incoming stack fragment. The
+/// architectural stack pointer is only read as an address base.
+pub fn entry_stack_argument_write_clobbers() -> RegisterSet {
+    RegisterSet::new([MachineRegister::Aarch64X(16), MachineRegister::Aarch64X(17)])
 }
 
 /// Copy one indirectly passed AAPCS64 aggregate into its runtime-frame slot.
@@ -411,6 +428,22 @@ pub fn encode_entry_indirect_argument_write_bytes(
     Ok(bytes)
 }
 
+/// Registers overwritten while copying one indirectly passed aggregate. A
+/// stack-carried pointer occupies x17, so x10 becomes the fragment scratch;
+/// a register-carried pointer leaves x17 available for fragment data.
+pub fn entry_indirect_argument_write_clobbers(pointer: IndirectPointerLocation) -> RegisterSet {
+    match pointer {
+        IndirectPointerLocation::Register(_) => {
+            RegisterSet::new([MachineRegister::Aarch64X(16), MachineRegister::Aarch64X(17)])
+        }
+        IndirectPointerLocation::Stack { .. } => RegisterSet::new([
+            MachineRegister::Aarch64X(10),
+            MachineRegister::Aarch64X(16),
+            MachineRegister::Aarch64X(17),
+        ]),
+    }
+}
+
 fn encode_entry_vector_store(
     source_register: u8,
     base_register: u8,
@@ -457,6 +490,13 @@ mod entry_argument_register_tests {
         let error = encode_entry_argument_register_write_bytes(MachineRegister::Aarch64V(0), 0, 16)
             .expect_err("unclassified vector argument must reject");
         assert!(error.message.contains("cannot store 16 bytes"));
+    }
+
+    #[test]
+    fn entry_argument_cannot_alias_the_frame_base_scratch() {
+        let error = encode_entry_argument_register_write_bytes(MachineRegister::Aarch64X(16), 0, 8)
+            .expect_err("x16 input would be destroyed while materializing the frame base");
+        assert!(error.message.contains("x16 frame-base scratch"));
     }
 
     #[test]

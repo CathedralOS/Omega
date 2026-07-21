@@ -1,7 +1,8 @@
 use omega_abstract_operations::SelectedInstructionKind;
 use omega_calling_conventions::{
-    BoundaryEntryPlan, CallSignature, EntryControl, IndirectPointerLocation, PlanDiagnostic,
-    ValueLocation, ValueShape, validate_boundary_entry_plan,
+    BoundaryEntryPlan, CallSignature, EntryControl, IndirectPointerLocation, MachineStateSet,
+    PlanDiagnostic, RegisterSet, StateFootprintEvidence, ValueLocation, ValueShape,
+    validate_boundary_entry_plan, validate_state_footprint,
 };
 
 /// The observable exit half of one validated boundary plan. Result fragments
@@ -10,6 +11,16 @@ use omega_calling_conventions::{
 pub struct DerivedBoundaryExit {
     pub control: EntryControl,
     pub result_locations: Vec<ValueLocation>,
+}
+
+/// Target-specific inbound storage writes together with the exact registers
+/// those generated fragments overwrite. This is a checkable fragment of the
+/// eventual whole-artifact footprint certificate; it intentionally does not
+/// claim to cover the handler body, veneers, thunks, or exit lowering.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DerivedBoundaryEntryStorage {
+    pub writes: Vec<SelectedInstructionKind>,
+    pub footprint: StateFootprintEvidence,
 }
 
 /// Derive result placement and exit control for a compiler-owned entry stub.
@@ -54,6 +65,25 @@ pub fn derive_boundary_entry_storage_writes(
     result: Option<ValueShape>,
     indirect_result_pointer_byte_offset: Option<usize>,
 ) -> Result<Vec<SelectedInstructionKind>, PlanDiagnostic> {
+    Ok(derive_boundary_entry_storage(
+        boundary,
+        parameter_destinations,
+        result,
+        indirect_result_pointer_byte_offset,
+    )?
+    .writes)
+}
+
+/// Derive and state-check the inbound storage fragment of a compiler-owned
+/// entry stub. Scratch clobbers come from the same ISA modules as the concrete
+/// encoders, and a selected input register may not overlap scratch destroyed
+/// before that input is captured.
+pub fn derive_boundary_entry_storage(
+    boundary: &BoundaryEntryPlan,
+    parameter_destinations: &[(usize, ValueShape)],
+    result: Option<ValueShape>,
+    indirect_result_pointer_byte_offset: Option<usize>,
+) -> Result<DerivedBoundaryEntryStorage, PlanDiagnostic> {
     let signature = CallSignature {
         parameters: parameter_destinations
             .iter()
@@ -127,7 +157,75 @@ pub fn derive_boundary_entry_storage_writes(
         }
     }
 
-    Ok(writes)
+    let mut prior_clobbers = Vec::new();
+    for write in &writes {
+        let clobbers =
+            entry_storage_write_clobbers(boundary.plan().call.policy.architecture(), write)?;
+        if let Some(source) = entry_storage_write_register_source(write)
+            && (clobbers.contains(source) || prior_clobbers.contains(&source))
+        {
+            return Err(PlanDiagnostic(format!(
+                "entry storage lowering would clobber selected input register {source:?} before capturing it"
+            )));
+        }
+        prior_clobbers.extend_from_slice(clobbers.as_slice());
+    }
+    let footprint =
+        StateFootprintEvidence::new(RegisterSet::new(prior_clobbers), MachineStateSet::empty());
+    validate_state_footprint(&boundary, &footprint)?;
+
+    Ok(DerivedBoundaryEntryStorage { writes, footprint })
+}
+
+fn entry_storage_write_register_source(
+    write: &SelectedInstructionKind,
+) -> Option<omega_calling_conventions::MachineRegister> {
+    match write {
+        SelectedInstructionKind::WriteEntryArgumentRegister { register, .. } => Some(*register),
+        SelectedInstructionKind::WriteEntryIndirectArgument {
+            pointer: IndirectPointerLocation::Register(register),
+            ..
+        } => Some(*register),
+        _ => None,
+    }
+}
+
+fn entry_storage_write_clobbers(
+    architecture: omega_target::Architecture,
+    write: &SelectedInstructionKind,
+) -> Result<RegisterSet, PlanDiagnostic> {
+    Ok(match (architecture, write) {
+        (
+            omega_target::Architecture::X86_64,
+            SelectedInstructionKind::WriteEntryArgumentRegister { .. },
+        ) => omega_isa_x86_64::entry_argument_register_write_clobbers(),
+        (
+            omega_target::Architecture::X86_64,
+            SelectedInstructionKind::WriteEntryStackArgument { .. },
+        ) => omega_isa_x86_64::entry_stack_argument_write_clobbers(),
+        (
+            omega_target::Architecture::X86_64,
+            SelectedInstructionKind::WriteEntryIndirectArgument { .. },
+        ) => omega_isa_x86_64::entry_indirect_argument_write_clobbers(),
+        (
+            omega_target::Architecture::Aarch64,
+            SelectedInstructionKind::WriteEntryArgumentRegister { .. },
+        ) => omega_isa_aarch64::entry_argument_register_write_clobbers(),
+        (
+            omega_target::Architecture::Aarch64,
+            SelectedInstructionKind::WriteEntryStackArgument { .. },
+        ) => omega_isa_aarch64::entry_stack_argument_write_clobbers(),
+        (
+            omega_target::Architecture::Aarch64,
+            SelectedInstructionKind::WriteEntryIndirectArgument { pointer, .. },
+        ) => omega_isa_aarch64::entry_indirect_argument_write_clobbers(*pointer),
+        _ => {
+            return Err(PlanDiagnostic(
+                "entry storage derivation produced an instruction without target footprint evidence"
+                    .into(),
+            ));
+        }
+    })
 }
 
 fn pointer_storage_write(
@@ -156,7 +254,7 @@ fn pointer_storage_write(
 mod tests {
     use super::*;
     use omega_calling_conventions::{
-        CallingPolicy, MachineRegime, MachineRegister, ValueShape,
+        CallingPolicy, MachineRegime, MachineRegister, MachineState, ValueShape,
         evaluate_ordinary_boundary_entry_plan,
     };
 
@@ -244,6 +342,83 @@ mod tests {
         .expect_err("architecture-mismatched state must fail closed");
 
         assert!(error.0.contains("different architectures"));
+    }
+
+    #[test]
+    fn inbound_storage_carries_exact_x86_fragment_clobbers() {
+        let parameters = vec![ValueShape::integer(8, 8); 7];
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: parameters.clone(),
+                result: None,
+            },
+        )
+        .expect("SysV boundary with one stack argument");
+        let destinations = parameters
+            .into_iter()
+            .enumerate()
+            .map(|(index, shape)| (index * 8, shape))
+            .collect::<Vec<_>>();
+
+        let derived = derive_boundary_entry_storage(boundary.plan(), &destinations, None, None)
+            .expect("state-checked inbound storage");
+
+        assert_eq!(
+            derived.footprint.registers().as_slice(),
+            &[MachineRegister::X86R10, MachineRegister::X86R15]
+        );
+        assert_eq!(
+            derived.footprint.machine_state(),
+            MachineStateSet::new([MachineState::GeneralRegisters])
+        );
+    }
+
+    #[test]
+    fn inbound_storage_rejects_a_selected_register_destroyed_by_scratch() {
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: None,
+        };
+        let mut boundary =
+            evaluate_ordinary_boundary_entry_plan(CallingPolicy::SystemVAMD64, &signature)
+                .expect("SysV boundary")
+                .plan()
+                .clone();
+        let ValueLocation::Register { register, .. } =
+            &mut boundary.call.parameters[0].locations[0]
+        else {
+            panic!("register parameter");
+        };
+        *register = MachineRegister::X86R15;
+
+        let error =
+            derive_boundary_entry_storage(&boundary, &[(0, ValueShape::integer(8, 8))], None, None)
+                .expect_err("frame-base scratch cannot also carry an input");
+
+        assert!(error.0.contains("before capturing it"));
+        assert!(error.0.contains("X86R15"));
+    }
+
+    #[test]
+    fn inbound_storage_tracks_aarch64_indirect_copy_scratch() {
+        let parameter = ValueShape::integer(24, 8);
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: vec![parameter],
+                result: None,
+            },
+        )
+        .expect("AAPCS64 indirect boundary");
+
+        let derived = derive_boundary_entry_storage(boundary.plan(), &[(0, parameter)], None, None)
+            .expect("state-checked indirect copy");
+
+        assert_eq!(
+            derived.footprint.registers().as_slice(),
+            &[MachineRegister::Aarch64X(16), MachineRegister::Aarch64X(17),]
+        );
     }
 
     #[test]
