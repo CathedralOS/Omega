@@ -370,18 +370,17 @@ pub enum TargetOperationKind {
         new_value: TargetValueOperandHandle,
         ordering: omega_core::atomic::AtomicOrderingPlan,
     },
-    /// Append a source carrier's content onto a target carrier (concat builder
-    /// source segment). See the abstract-operations twin.
-    AppendRuntimeMachineBoundedBufferSource {
-        target_byte_offset: usize,
-        source_byte_offset: usize,
-        source_in_frame: bool,
+    /// Append a source carrier's content onto a target carrier through two
+    /// place-shaped operands. See the abstract-operations twin.
+    AppendPlaceBoundedBufferSource {
+        target: Place,
+        source: Place,
     },
     /// Append a string LITERAL onto an owned `[u8; N]` carrier at its running
     /// length (a later concat segment such as the trailing `" =="`). See the
     /// abstract-operations twin.
-    AppendRuntimeMachineBoundedBufferLiteral {
-        target_byte_offset: usize,
+    AppendPlaceBoundedBufferLiteral {
+        target: Place,
         literal: std::sync::Arc<str>,
     },
     ReadRuntimeTextLine {

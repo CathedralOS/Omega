@@ -512,24 +512,20 @@ pub(super) fn encode_machine_instruction_bytes(
             *byte_size,
             *zigzag,
         ),
-        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
-            target_byte_offset,
-            source_byte_offset,
-            source_in_frame,
-        } => runtime_storage::encode_runtime_machine_bounded_buffer_source_append(
-            input,
-            *target_byte_offset,
-            *source_byte_offset,
-            *source_in_frame,
-        ),
-        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral {
-            target_byte_offset,
-            literal,
-        } => runtime_storage::encode_runtime_machine_bounded_buffer_literal_append(
-            input,
-            *target_byte_offset,
-            literal,
-        ),
+        SelectedInstructionKind::AppendPlaceBoundedBufferSource { target, source } => {
+            omega_instruction_selection::encode_append_place_bounded_buffer_source(
+                input.target.architecture,
+                target,
+                source,
+            )
+        }
+        SelectedInstructionKind::AppendPlaceBoundedBufferLiteral { target, literal } => {
+            omega_instruction_selection::encode_append_place_bounded_buffer_literal(
+                input.target.architecture,
+                target,
+                literal,
+            )
+        }
         SelectedInstructionKind::ReadRuntimeTextLine { .. } => {
             let Some(read) = selected_host_text_read(kind) else {
                 return Err(Diagnostic::error(

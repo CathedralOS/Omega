@@ -119,16 +119,21 @@ pub(super) fn propagate_statement_transfers(
         }
     }
 
-    // #66 read-narrowing across a write: an assignment into a domain-refined
-    // field RE-ESTABLISHES that field's domain invariant. The machine-entry
-    // field-domain fact is invalidated by the mutation just above; re-add it so
-    // a read after the write still carries `<field> in Domain`. SOUND because
-    // every write is separately enforced in-domain (checks::contracts::writes);
-    // this only carries forward the invariant that enforcement guarantees.
+    // #66 read-narrowing across a write: an assignment into any domain-refined
+    // declared place RE-ESTABLISHES that destination's domain. The old fact was
+    // invalidated by the mutation just above; re-add it only because the write
+    // checker separately proves the assigned value in the same declaration's
+    // domain. This covers attached fields, mutable parameters, and direct
+    // locals without trusting assignment syntax by itself.
     if let StatementNode::Assignment(assignment) = statement
         && let Some(machine) = crate::field_domain::machine_by_symbol(program, machine_symbol)
-        && let Some(domain_symbol) =
-            crate::field_domain::target_field_domain_symbol(program, machine, assignment.target)
+        && let Some(state) = crate::find_state_in_machine(program, machine_symbol, state_symbol)
+        && let Some(domain_symbol) = crate::field_domain::assignment_target_domain_symbol(
+            program,
+            machine,
+            state,
+            assignment.target,
+        )
     {
         let fact = semantic.append_fact(Fact {
             place: FactPlace::Place(target_place),
@@ -137,7 +142,7 @@ pub(super) fn propagate_statement_transfers(
                 state_symbol,
                 statement_index,
             },
-            origin: FactOrigin::MachineFieldDomain { machine_symbol },
+            origin: FactOrigin::StatementTransfer,
             payload: FactPayload::DomainMembership {
                 value: ExpressionHandle::invalid(),
                 domain: HandleSpan::empty(),

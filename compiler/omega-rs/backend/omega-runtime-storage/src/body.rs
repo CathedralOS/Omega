@@ -12,7 +12,7 @@ use omega_state_calls::{StateCall, StateCallLowering, StateCallRole};
 use omega_state_storage::{StateLocalStorage, StateMutation, StateMutationLowering};
 use std::sync::Arc;
 
-use super::layout::{align_to, layout_for_type_reference};
+use super::layout::{align_to, bounded_byte_buffer_shape, layout_for_type_reference};
 
 const BRANCH_STORAGE_VISITING_COUNT: usize = 32;
 
@@ -1259,17 +1259,28 @@ fn type_descriptor(
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
-        } => omega_layout::TypeLayoutDescriptor::Constrained {
-            base_type: Box::new(type_descriptor(table, *base_type)),
-            domain: table
-                .constraints(*constraints)
-                .iter()
-                .find_map(|constraint| match constraint {
-                    TypeConstraintNode::ArithmeticDomain(domain) => Some(*domain),
-                    _ => None,
-                })
-                .unwrap_or(omega_core::arithmetic::ArithmeticDomain::Exact),
-        },
+        } => {
+            if let Some((element_type, capacity)) =
+                bounded_byte_buffer_shape(table, *base_type, *constraints)
+            {
+                omega_layout::TypeLayoutDescriptor::BoundedByteBuffer {
+                    element_type: Box::new(type_descriptor(table, element_type)),
+                    capacity,
+                }
+            } else {
+                omega_layout::TypeLayoutDescriptor::Constrained {
+                    base_type: Box::new(type_descriptor(table, *base_type)),
+                    domain: table
+                        .constraints(*constraints)
+                        .iter()
+                        .find_map(|constraint| match constraint {
+                            TypeConstraintNode::ArithmeticDomain(domain) => Some(*domain),
+                            _ => None,
+                        })
+                        .unwrap_or(omega_core::arithmetic::ArithmeticDomain::Exact),
+                }
+            }
+        }
         TypeReferenceNode::FixedArray {
             element_type,
             length,

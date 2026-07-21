@@ -446,29 +446,3 @@ pub(super) fn encode_atomic_compare_exchange(
         ordering,
     )
 }
-
-pub(super) fn encode_runtime_machine_bounded_buffer_source_append(
-    input: MachineEmissionContext<'_>,
-    target_byte_offset: usize,
-    source_byte_offset: usize,
-    source_in_frame: bool,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_machine_bounded_buffer_source_append(
-        input.target.architecture,
-        target_byte_offset,
-        source_byte_offset,
-        source_in_frame,
-    )
-}
-
-pub(super) fn encode_runtime_machine_bounded_buffer_literal_append(
-    input: MachineEmissionContext<'_>,
-    target_byte_offset: usize,
-    literal: &str,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_machine_bounded_buffer_literal_append(
-        input.target.architecture,
-        target_byte_offset,
-        literal,
-    )
-}

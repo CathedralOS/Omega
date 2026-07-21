@@ -83,6 +83,41 @@ pub(super) use static_writes::select_runtime_static_mutation_write_in_table;
 pub(in crate::selection::runtime_dispatch) use value_operands::resolve_runtime_text_equals_operand_in_table;
 use value_operands::resolve_runtime_value_operand;
 
+fn resolve_bounded_buffer_place(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    source_machine: &str,
+    source_state: &str,
+    expression: &Expression,
+) -> Option<omega_abstract_operations::Place> {
+    if let Some(target) =
+        resolve_runtime_pointee_slot_offset(input, dispatch_index, source_key, expression)
+    {
+        return omega_abstract_operations::Place::at(
+            omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            target.pointer_byte_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::Deref)?
+        .with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+            target.field_byte_offset,
+        ));
+    }
+
+    let place = resolve_runtime_storage_place(
+        input,
+        dispatch_index,
+        source_key,
+        source_machine,
+        source_state,
+        expression,
+    )?;
+    Some(omega_abstract_operations::Place::at(
+        place.region,
+        place.byte_offset,
+    ))
+}
+
 fn append_tree_expression_path<'a>(expression: &'a Expression, path: &mut Vec<&'a str>) {
     match expression {
         Expression::Mutable(inner) => append_tree_expression_path(inner, path),
@@ -1532,9 +1567,9 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
     // walk the left-associative `+` tree into segments. A first literal initializes
     // the target directly; a distinct first carrier initializes it through an empty
     // write followed by the normal source append. Each later segment is appended
-    // onto the target's inline bytes at the running length -- a literal via
-    // `AppendRuntimeMachineBoundedBufferLiteral`, another machine-resident carrier
-    // via `AppendRuntimeMachineBoundedBufferSource`.
+    // onto the target's inline bytes at the running length. Both target and
+    // source use the ordinary Place algebra, so direct fields and mutable
+    // parameter pointees share one lowering.
     // The length-fits guard already proved the result fits the target's N. (Handles
     // the 2-segment `runtime_text_builder` shape as the n=2 special case.)
     if let Expression::Binary(binary) = value
@@ -1545,7 +1580,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             target_source_key,
             resolved_target,
         )
-        && let Some(target_place) = resolve_runtime_storage_place(
+        && let Some(target_place) = resolve_bounded_buffer_place(
             input,
             dispatch_index,
             target_source_key,
@@ -1553,7 +1588,6 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             source_state,
             resolved_target,
         )
-        && target_place.region == omega_abstract_operations::RuntimeStorageRegion::Machine
     {
         let segments = flatten_string_concat_segments(value);
         if let Some((first, rest)) = segments.split_first() {
@@ -1561,103 +1595,67 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             let mut all_segments_resolved = true;
 
             // Initialize the destination from the first segment. A literal can
-            // write it directly. A carrier source first establishes the empty
-            // destination and then uses the same checked append primitive as
-            // later carrier segments. This is valid only for a distinct source:
-            // zeroing an aliased target would destroy the source before it was
-            // copied, so that shape deliberately falls through to a future
-            // scratch-backed/in-place lowering.
+            // write it directly. A distinct carrier source first establishes
+            // the empty destination and then uses the common checked append;
+            // an aliased source already supplies the running prefix in place.
             if let Expression::String(prefix) = first {
-                kinds.push(
-                    crate::selection::runtime_dispatch::write_place_bounded_buffer_direct(
-                        omega_abstract_operations::RuntimeStorageRegion::Machine,
-                        target_place.byte_offset,
-                        std::sync::Arc::from(prefix.to_string()),
-                    ),
-                );
+                kinds.push(SelectedInstructionKind::WritePlaceBoundedBuffer {
+                    target: target_place,
+                    literal: std::sync::Arc::from(prefix.to_string()),
+                });
             } else if resolve_runtime_storage_place_is_bounded_byte_buffer(
                 input,
                 dispatch_index,
                 target_source_key,
                 first,
-            ) && let Some(source_place) = resolve_runtime_storage_place(
+            ) && let Some(source_place) = resolve_bounded_buffer_place(
                 input,
                 dispatch_index,
                 target_source_key,
                 source_machine,
                 source_state,
                 first,
-            ) && matches!(
-                source_place.region,
-                omega_abstract_operations::RuntimeStorageRegion::Machine
-                    | omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
-            ) && !(source_place.region
-                == omega_abstract_operations::RuntimeStorageRegion::Machine
-                && source_place.byte_offset == target_place.byte_offset)
-            {
-                kinds.push(
-                    crate::selection::runtime_dispatch::write_place_bounded_buffer_direct(
-                        omega_abstract_operations::RuntimeStorageRegion::Machine,
-                        target_place.byte_offset,
-                        std::sync::Arc::from(""),
-                    ),
-                );
-                kinds.push(
-                    SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
-                        target_byte_offset: target_place.byte_offset,
-                        source_byte_offset: source_place.byte_offset,
-                        source_in_frame: matches!(
-                            source_place.region,
-                            omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
-                        ),
-                    },
-                );
+            ) {
+                // `target = target + suffix` starts with the target's existing
+                // content. A distinct source initializes through an empty value
+                // before the common append operation.
+                if source_place != target_place {
+                    kinds.push(SelectedInstructionKind::WritePlaceBoundedBuffer {
+                        target: target_place,
+                        literal: std::sync::Arc::from(""),
+                    });
+                    kinds.push(SelectedInstructionKind::AppendPlaceBoundedBufferSource {
+                        target: target_place,
+                        source: source_place,
+                    });
+                }
             } else {
                 all_segments_resolved = false;
             }
 
             for segment in rest {
                 if let Expression::String(literal) = segment {
-                    kinds.push(
-                        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral {
-                            target_byte_offset: target_place.byte_offset,
-                            literal: std::sync::Arc::from(literal.to_string()),
-                        },
-                    );
+                    kinds.push(SelectedInstructionKind::AppendPlaceBoundedBufferLiteral {
+                        target: target_place,
+                        literal: std::sync::Arc::from(literal.to_string()),
+                    });
                 } else if resolve_runtime_storage_place_is_bounded_byte_buffer(
                     input,
                     dispatch_index,
                     target_source_key,
                     segment,
-                ) && let Some(source_place) = resolve_runtime_storage_place(
+                ) && let Some(source_place) = resolve_bounded_buffer_place(
                     input,
                     dispatch_index,
                     target_source_key,
                     source_machine,
                     source_state,
                     segment,
-                ) && matches!(
-                    source_place.region,
-                    omega_abstract_operations::RuntimeStorageRegion::Machine
-                        | omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
                 ) {
-                    // The source carrier is usually machine-resident, but a
-                    // `let`-local (`room.label` in a render machine) lives in the
-                    // runtime frame -- read it from the frame base instead. Without
-                    // this the append bailed and the concat fell to the String
-                    // builder, which writes a `{ptr, len}` descriptor into the
-                    // carrier target (a garbage len -> `rep movsb` overrun -> SIGSEGV).
-                    let source_in_frame = matches!(
-                        source_place.region,
-                        omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
-                    );
-                    kinds.push(
-                        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
-                            target_byte_offset: target_place.byte_offset,
-                            source_byte_offset: source_place.byte_offset,
-                            source_in_frame,
-                        },
-                    );
+                    kinds.push(SelectedInstructionKind::AppendPlaceBoundedBufferSource {
+                        target: target_place,
+                        source: source_place,
+                    });
                 } else {
                     all_segments_resolved = false;
                     break;

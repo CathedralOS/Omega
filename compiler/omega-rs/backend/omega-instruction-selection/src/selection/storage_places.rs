@@ -74,7 +74,7 @@ fn runtime_slice_descriptor_member_place(
 /// arbitrary 16-byte aggregate must NOT be misread as a descriptor, so this is
 /// type-driven rather than size-driven. Mirrors the fat-pointer classification
 /// in omega-layout's reference layout.
-fn descriptor_is_fat_slice(descriptor: &TypeLayoutDescriptor) -> bool {
+pub(super) fn descriptor_is_fat_slice(descriptor: &TypeLayoutDescriptor) -> bool {
     match descriptor {
         TypeLayoutDescriptor::Constrained { base_type, .. } => descriptor_is_fat_slice(base_type),
         TypeLayoutDescriptor::Reference { referee, .. } => {
@@ -94,6 +94,7 @@ fn descriptor_is_fat_slice(descriptor: &TypeLayoutDescriptor) -> bool {
             }
         }
         TypeLayoutDescriptor::Slice { .. } => true,
+        TypeLayoutDescriptor::Named { name, .. } => name.as_str() == "string",
         _ => false,
     }
 }
@@ -969,6 +970,9 @@ fn descriptor_is_bounded_byte_buffer(descriptor: &TypeLayoutDescriptor) -> bool 
     match descriptor {
         TypeLayoutDescriptor::Constrained { base_type, .. } => {
             descriptor_is_bounded_byte_buffer(base_type)
+        }
+        TypeLayoutDescriptor::Reference { referee, .. } => {
+            descriptor_is_bounded_byte_buffer(referee)
         }
         TypeLayoutDescriptor::BoundedByteBuffer { .. } => true,
         _ => false,

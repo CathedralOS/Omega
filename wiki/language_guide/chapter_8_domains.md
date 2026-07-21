@@ -809,6 +809,11 @@ boundary and the operators.
 > statement calls already invalidate facts for their exact mutable operands and
 > re-establish declared domain-membership guarantees on those caller places;
 > the text canaries exercise this rule over `[u8]`, not builtin `String`.
+> Ordinary state parameters follow the same place rule. An immutable data
+> parameter carries the declared-domain facts of its nested fields, while a write
+> through `&mut Data.field` must prove the assigned value is in that field's
+> declared domain (or obtain the fact from a checked guarantee). Merely naming a
+> domain on the field never blesses arbitrary bytes written through a parameter.
 
 ### Establishing the domain: construction, validation, and the wire
 

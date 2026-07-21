@@ -623,22 +623,12 @@ fn selected_instruction_name(
                 runtime_value_operand_name(backend_plan, *source),
             )
         }
-        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
-            target_byte_offset,
-            source_byte_offset,
-            source_in_frame,
-        } => {
-            let region = if *source_in_frame { "frame" } else { "machine" };
-            format!(
-                "append runtime machine bounded buffer source target@{target_byte_offset} {region}-source@{source_byte_offset}"
-            )
+        SelectedInstructionKind::AppendPlaceBoundedBufferSource { target, source } => {
+            format!("append place bounded buffer source target={target:?} source={source:?}")
         }
-        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral {
-            target_byte_offset,
-            literal,
-        } => format!(
-            "append runtime machine bounded buffer literal target@{target_byte_offset} {literal:?}"
-        ),
+        SelectedInstructionKind::AppendPlaceBoundedBufferLiteral { target, literal } => {
+            format!("append place bounded buffer literal target={target:?} {literal:?}")
+        }
         SelectedInstructionKind::ReadRuntimeTextLine {
             buffer,
             target_region,

@@ -31437,11 +31437,11 @@ fn runtime_pointee_string_guard_exit_canary_runs() {
 }
 
 #[test]
-fn runtime_mutable_string_parameter_concat_exit_canary_runs() {
+fn runtime_mutable_carrier_parameter_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_mutable_string_parameter_concat_exit");
     let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
-        "omega-runtime-mutable-string-parameter-concat-{}",
+        "omega-runtime-mutable-carrier-parameter-concat-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
@@ -31452,16 +31452,16 @@ fn runtime_mutable_string_parameter_concat_exit_canary_runs() {
         target_name: None,
         write_output: true,
     })
-    .expect("runtime mutable string parameter concat canary should compile");
+    .expect("runtime mutable carrier parameter concat canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
-        .expect("runtime mutable string parameter concat canary should run");
+        .expect("runtime mutable carrier parameter concat canary should run");
 
     assert_eq!(
         output.status.code(),
         Some(77),
-        "expected runtime mutable string parameter concat canary to preserve pointee string writes and exit 77, got {:?}\nstderr:\n{}",
+        "expected runtime mutable carrier parameter concat canary to preserve pointee carrier writes and exit 77, got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -31548,11 +31548,11 @@ fn runtime_mutable_string_parameter_wrapped_concat_write_line_canary_runs() {
 }
 
 #[test]
-fn runtime_mutable_struct_string_field_copy_concat_exit_canary_runs() {
+fn runtime_mutable_struct_carrier_field_copy_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_mutable_struct_string_field_copy_concat_exit");
     let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
-        "omega-runtime-mutable-struct-string-field-copy-concat-{}",
+        "omega-runtime-mutable-struct-carrier-field-copy-concat-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
@@ -31563,16 +31563,16 @@ fn runtime_mutable_struct_string_field_copy_concat_exit_canary_runs() {
         target_name: None,
         write_output: true,
     })
-    .expect("runtime mutable struct string field copy concat canary should compile");
+    .expect("runtime mutable struct carrier field copy concat canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
-        .expect("runtime mutable struct string field copy concat canary should run");
+        .expect("runtime mutable struct carrier field copy concat canary should run");
 
     assert_eq!(
         output.status.code(),
         Some(77),
-        "expected runtime mutable struct string field copy concat canary to preserve copied string fields and exit 77, got {:?}\nstderr:\n{}",
+        "expected runtime mutable struct carrier field copy concat canary to preserve copied carrier fields and exit 77, got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -31743,6 +31743,47 @@ fn runtime_call_argument_struct_string_field_slice_alias_exit_canary_runs() {
     );
 
     let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn mutable_carrier_place_append_compiles_on_aarch64() {
+    for (index, canary_name) in [
+        "text/runtime_mutable_string_parameter_concat_exit",
+        "text/runtime_mutable_struct_string_field_copy_concat_exit",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let canary = pass_canary(canary_name);
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-carrier-place-arm64-{}-{index}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source = scratch.join("src");
+        fs::create_dir_all(&source).expect("AArch64 carrier scratch source directory");
+        fs::copy(canary.join("main.omg"), source.join("main.omg"))
+            .expect("copy carrier canary into AArch64 scratch source");
+        fs::write(source.join("build.omg"), "target linux_arm64 {\n}\n")
+            .expect("write AArch64 carrier target manifest");
+        compile(CompileOptions {
+            root_path: source.join("main.omg"),
+            build_dir: Some(scratch.join("out")),
+            target_name: Some("linux_arm64".into()),
+            write_output: false,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "AArch64 Place-shaped carrier append should compile for {canary_name}:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+        let _ = fs::remove_dir_all(&scratch);
+    }
 }
 
 #[test]
@@ -37446,6 +37487,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/domain_carrier_mismatch",
     "domains/domain_param_requires_membership",
     "domains/domain_field_write_raw_value",
+    "domains/state_parameter_field_domain_write_unestablished",
     "domains/literal_violates_domain_fact",
     "domains/domain_field_read_no_write_unproven",
     "expressions/arithmetic_domain_literal_target_overflow",

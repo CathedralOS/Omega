@@ -22,17 +22,126 @@ use omega_typed_trees::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
-/// The declared encoding-domain symbol of a `self.field` target, resolved
-/// through the machine's ATTACHED DATA (`self` is not itself a place type).
-/// `None` for any non-domained or non-`self.field` target.
-pub(crate) fn target_field_domain_symbol(
+/// The declared type of an assignment destination, preserving domain and
+/// capacity constraints. Machine-attached fields and direct state
+/// parameter/local places share the same write-establishment rule; only the
+/// lookup route differs.
+pub(crate) fn assignment_target_type_reference(
     program: &omega_typed_trees::TypedTrees,
     machine: &Machine,
+    state: &omega_typed_trees::state::State,
+    target: omega_typed_trees::expression::ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    attached_data_field_type(program, machine, target)
+        .or_else(|| direct_state_place_type_reference(program, state, target))
+}
+
+/// The domain refinement declared on an assignment destination. This is the
+/// common source for write checking and post-write flow establishment so a
+/// mutable parameter cannot regain a domain fact unless the assigned value was
+/// checked against that same declaration.
+pub(crate) fn assignment_target_domain_symbol(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &omega_typed_trees::state::State,
     target: omega_typed_trees::expression::ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    let type_reference = attached_data_field_type(program, machine, target)?;
+    let type_reference = assignment_target_type_reference(program, machine, state, target)?;
     let domain_name = domain_constraint_name(program, type_reference)?;
     resolve_domain_symbol(program, &domain_name)
+}
+
+/// Resolve a state parameter/local target, including nested data members, to
+/// its declared leaf type. This is the non-`self` sibling of
+/// [`attached_data_field_type`]: the root type comes from the parameter/local,
+/// then each member descends through the ordinary data declaration.
+pub(crate) fn direct_state_place_type_reference(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    expression: omega_typed_trees::expression::ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    let (symbol, members) = state_place_path(program, state, expression)?;
+    let mut type_reference = if let Some(parameter) = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == symbol)
+    {
+        parameter
+            .type_reference
+            .is_valid()
+            .then_some(parameter.type_reference)?
+    } else {
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .find_map(|statement| match statement {
+                omega_typed_trees::statement::StatementNode::LocalData(local)
+                    if local.symbol == symbol && local.type_reference.is_valid() =>
+                {
+                    Some(local.type_reference)
+                }
+                _ => None,
+            })?
+    };
+
+    for member in members {
+        let data = data_definition_for_field_type(program, type_reference)?;
+        type_reference = data_field_type_by_name(program, data, &member)?;
+    }
+    Some(type_reference)
+}
+
+fn state_place_path(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    expression: omega_typed_trees::expression::ExpressionHandle,
+) -> Option<(SymbolHandle, Vec<String>)> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => state_place_path(program, state, *inner),
+        ExpressionNode::Member(member) => {
+            let (symbol, mut members) = state_place_path(program, state, member.receiver)?;
+            members.push(member.member.as_str().to_owned());
+            Some((symbol, members))
+        }
+        ExpressionNode::Name(path) => {
+            let names = program.expression_table.name_path_members(path.members);
+            let symbol = path
+                .head_symbol
+                .is_valid()
+                .then_some(path.head_symbol)
+                .or_else(|| path.symbol.is_valid().then_some(path.symbol))
+                .or_else(|| {
+                    let root_name = names.first()?.as_str();
+                    program
+                        .state_parameters(state)
+                        .iter()
+                        .find(|parameter| parameter.name.as_str() == root_name)
+                        .map(|parameter| parameter.symbol)
+                        .or_else(|| {
+                            program
+                                .statement_table
+                                .statements(state.statement_nodes)
+                                .iter()
+                                .find_map(|statement| match statement {
+                                    omega_typed_trees::statement::StatementNode::LocalData(
+                                        local,
+                                    ) if local.name.as_str() == root_name => Some(local.symbol),
+                                    _ => None,
+                                })
+                        })
+                })?;
+            Some((
+                symbol,
+                names
+                    .iter()
+                    .skip(1)
+                    .map(|name| name.as_str().to_owned())
+                    .collect(),
+            ))
+        }
+        _ => None,
+    }
 }
 
 /// The machine whose attached data owns the place a `self.field` target refers to.

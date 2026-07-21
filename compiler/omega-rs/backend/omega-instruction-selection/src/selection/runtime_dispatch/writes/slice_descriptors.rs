@@ -10,9 +10,9 @@ use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 
 use super::super::super::storage_places::{
-    RuntimeStoragePlace, resolve_fixed_array_length, resolve_fixed_array_length_in_table,
-    resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_base_indexed_target_in_table,
-    resolve_runtime_frame_fixed_indexed_target,
+    RuntimeStoragePlace, descriptor_is_fat_slice, resolve_fixed_array_length,
+    resolve_fixed_array_length_in_table, resolve_runtime_frame_base_indexed_target,
+    resolve_runtime_frame_base_indexed_target_in_table, resolve_runtime_frame_fixed_indexed_target,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place,
     resolve_runtime_storage_place_in_table,
@@ -603,7 +603,9 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) -> bool {
-    if slot.byte_size != input.runtime_abi.slice_descriptor_size() {
+    if slot.byte_size != input.runtime_abi.slice_descriptor_size()
+        || !descriptor_is_fat_slice(&slot.type_descriptor)
+    {
         return false;
     }
 

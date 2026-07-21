@@ -1,10 +1,12 @@
 mod place_copy;
 pub use place_copy::{
     PLACE_COPY_MAX_SITES, PlaceCopySide, PlaceCopySites, encode_copy_places,
-    encode_place_address_write, encode_place_binary_write, encode_place_bounded_buffer_write,
-    encode_place_compare, encode_place_copy, encode_place_copy_shared_base,
-    encode_place_integer_write, encode_place_string_write, encode_place_value_compare,
-    place_binary_index_base_positions, place_binary_operand_start_width,
+    encode_place_address_write, encode_place_binary_write,
+    encode_place_bounded_buffer_literal_append, encode_place_bounded_buffer_source_append,
+    encode_place_bounded_buffer_write, encode_place_compare, encode_place_copy,
+    encode_place_copy_shared_base, encode_place_integer_write, encode_place_string_write,
+    encode_place_value_compare, place_binary_index_base_positions,
+    place_binary_operand_start_width,
 };
 
 use omega_calling_conventions::{

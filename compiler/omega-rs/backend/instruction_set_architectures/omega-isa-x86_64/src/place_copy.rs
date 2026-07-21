@@ -419,6 +419,68 @@ pub fn encode_place_bounded_buffer_write(
     Ok((bytes, sites))
 }
 
+/// Append one bounded byte carrier to another after materializing both
+/// addresses through the common Place walk. The caller's domain/capacity
+/// proof guarantees that the resulting length fits the destination.
+pub fn encode_place_bounded_buffer_source_append(
+    target: &Place,
+    source: &Place,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
+    let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
+    let target_displacement =
+        materialize_place_address(&mut bytes, &mut sites, target, AddressRegister::Target)?;
+    let source_displacement =
+        materialize_place_address(&mut bytes, &mut sites, source, AddressRegister::Source)?;
+
+    super::append_load_rax_from_r15(&mut bytes, target_displacement)?;
+    bytes.extend([0x49, 0x8b, 0x8e]); // mov rcx,[r14 + source len]
+    bytes.extend(super::disp32(source_displacement)?.to_le_bytes());
+    bytes.extend([0x49, 0x8d, 0xbf]); // lea rdi,[r15 + target bytes]
+    bytes.extend(super::disp32(target_displacement + 8)?.to_le_bytes());
+    bytes.extend([0x48, 0x01, 0xc7]); // add rdi,rax
+    bytes.extend([0x48, 0x01, 0xc8]); // add rax,rcx
+    bytes.extend([0x49, 0x8d, 0xb6]); // lea rsi,[r14 + source bytes]
+    bytes.extend(super::disp32(source_displacement + 8)?.to_le_bytes());
+    super::append_rep_movsb(&mut bytes);
+    super::append_store_rax_to_r15(&mut bytes, target_displacement, 8)?;
+    Ok((bytes, sites))
+}
+
+/// Append immediate literal bytes to a bounded byte carrier addressed through
+/// a Place. This is the place-shaped successor of the machine-only encoder.
+pub fn encode_place_bounded_buffer_literal_append(
+    target: &Place,
+    literal: &str,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
+    let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
+    let displacement =
+        materialize_place_address(&mut bytes, &mut sites, target, AddressRegister::Target)?;
+    super::append_load_rax_from_r15(&mut bytes, displacement)?;
+    bytes.extend([0x49, 0x8d, 0xbf]); // lea rdi,[r15 + target bytes]
+    bytes.extend(super::disp32(displacement + 8)?.to_le_bytes());
+    bytes.extend([0x48, 0x01, 0xc7]); // add rdi,rax
+    for (index, byte) in literal.as_bytes().iter().enumerate() {
+        let index = i8::try_from(index).map_err(|_| {
+            Diagnostic::error(
+                "X86_64 encoder cannot append a carrier literal longer than 127 bytes",
+            )
+        })?;
+        bytes.extend([0xc6, 0x47, index as u8, *byte]);
+    }
+    let literal_len = u32::try_from(literal.len()).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 encoder cannot append a carrier literal of {} bytes",
+            literal.len()
+        ))
+    })?;
+    bytes.extend([0x48, 0x05]);
+    bytes.extend(literal_len.to_le_bytes());
+    super::append_store_rax_to_r15(&mut bytes, displacement, 8)?;
+    Ok((bytes, sites))
+}
+
 /// The ADDRESS-family materializer entry (task #131): compute the address
 /// OF a place-shaped source and store that POINTER into the runtime-frame
 /// slot at `target_offset`. The source address rides the standard walk into

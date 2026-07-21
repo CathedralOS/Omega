@@ -8,19 +8,6 @@ pub(crate) fn string_descriptor_machine_address_offset(architecture: Architectur
     }
 }
 
-/// Offset of the frame-base materialization inside the carrier source-append
-/// encoder when the source is frame-local: it sits immediately after the
-/// leading machine-base materialization (`adrp`+`add` pair on aarch64,
-/// `mov r15, imm64` on x86_64).
-pub(crate) fn bounded_buffer_source_append_frame_address_offset(
-    architecture: Architecture,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => 8,
-        Architecture::X86_64 => 10,
-    }
-}
-
 pub(crate) fn string_descriptor_pointee_address_offset(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => 8,
