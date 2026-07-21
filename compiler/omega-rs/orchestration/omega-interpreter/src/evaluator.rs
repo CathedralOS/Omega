@@ -1443,6 +1443,41 @@ impl<'program> Evaluator<'program> {
             // evaluation in either interpreter or native execution.
             StatementNode::AssemblyFact(_) => Ok(()),
             StatementNode::Assignment(assignment) => {
+                // Atomic RMW source syntax is carried as an opaque expression so
+                // native instruction selection can replace the whole assignment
+                // with one instruction. The interpreter executes serially, but it
+                // must preserve the same observable contract: the result local is
+                // the value observed by that RMW, not a separate earlier read.
+                // Seed the compiler-authored result place from the target before
+                // evaluating the arithmetic-shaped single-threaded model.
+                if let ExpressionNode::Atomic(atomic) = self
+                    .program
+                    .expression_table
+                    .expression(assignment.value)
+                    .clone()
+                    && matches!(
+                        atomic.ordering,
+                        omega_core::atomic::AtomicOrderingPlan::ReadModifyWrite(_)
+                            | omega_core::atomic::AtomicOrderingPlan::CompareExchange { .. }
+                    )
+                {
+                    let ExpressionNode::Binary(operation) = self
+                        .program
+                        .expression_table
+                        .expression(atomic.value)
+                        .clone()
+                    else {
+                        return Err(Halt::Trap(
+                            "atomic RMW carrier lost its result place".to_owned(),
+                        ));
+                    };
+                    let target = self.resolve_place(assignment.target, frame)?;
+                    let target = self.deref_cell(target);
+                    let prior = target.borrow().clone();
+                    let result = self.resolve_place(operation.left, frame)?;
+                    let result = self.deref_cell(result);
+                    *result.borrow_mut() = prior;
+                }
                 // A STRUCT, or a whole owned ARRAY, assignment is a VALUE copy: deep-clone so
                 // mutating the destination later does not alias the source (`self.f =
                 // self.arr[1]; self.f.x = 50` must not touch arr[1]; `self.b = self.a;

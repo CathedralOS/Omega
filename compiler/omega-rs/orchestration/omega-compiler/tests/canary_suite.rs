@@ -37728,9 +37728,8 @@ fn runtime_atomic_load_store_exit_canary_runs() {
 }
 
 /// M3 -- AtomicU32 fetch_add: returns PRIOR value, increments cell.
-/// Stage-1 desugar: `let old = place.fetch_add(n, ord)` → `let old = place;
-/// place = place + n;`.  Two successive fetch_add calls; guard ladder checks
-/// both prior values AND the post-add cell values.
+/// Native lowering uses one RMW instruction and returns that instruction's
+/// observed prior. Two successive calls check both returned and stored values.
 #[test]
 fn runtime_atomic_fetch_add_exit_canary_runs() {
     let canary = pass_canary("atomics/runtime_atomic_fetch_add_exit");
@@ -37766,8 +37765,6 @@ fn runtime_atomic_fetch_add_exit_canary_runs() {
 
 /// M4 -- AtomicU32 compare_exchange: returns PRIOR value; swaps only when
 /// *place == expected.
-/// Stage-1 desugar: `let prior = place.compare_exchange(expected, new, s, f)`
-/// → `let prior = place; place = prior + (prior == expected) * (new - prior);`
 /// Success path: CAS(10, 99) when counter==10 → prior==10, counter becomes 99.
 /// Failure path: CAS(10, 42) when counter==99 → prior==99, counter stays 99.
 #[test]
