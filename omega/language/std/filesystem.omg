@@ -323,6 +323,13 @@ data Filesystem {
     // per-target flags into this field, then pass the field (the read_flags
     // idiom).
     open_flags: i32;
+    // Semantic input to the selected target's checked foreign-flag encoder.
+    // Keeping it in machine storage also satisfies the current native
+    // value-call receiver rule; no foreign bit position escapes this package.
+    open_options: OpenOptions;
+    open_writable: i32;
+    open_readable: i32;
+    open_creating: i32;
     // Scratch for a by-value File param's fd: a host-call arg must be a
     // simple storage place, and a param MEMBER (`file.fd`) is not one (a let
     // folds back to the member) -- the field capture is (try_exists' idiom).
@@ -476,16 +483,21 @@ data Filesystem {
 }
 
 // Create (or truncate) a file for writing, returning an open `File`. Composed
-// as O_WRONLY|O_CREATE|O_TRUNC (`creat` semantics) + O_BINARY (windows msvcrt
-// text-mode opt-out, 0 on posix) via `open_create` -- the raw `create`
+// as the target format's write/create/truncate word (including binary mode on
+// windows) via `open_create` -- the raw `create`
 // (`_creat`) row stays for raw-seam callers, but the wrapper composes flags so
 // windows writes are byte-exact (Rust File::create is binary; msvcrt `_creat`
 // is TEXT mode).
 machine Filesystem::create(&mut self, path: &[u8] in Path) -> OpenResult {
-    self.open_flags = FilesystemHost::O_WRONLY
-        | (1 << FilesystemHost::O_CREATE_BIT)
-        | (1 << FilesystemHost::O_TRUNC_BIT)
-        | FilesystemHost::O_BINARY;
+    self.open_options = OpenOptions {
+        read: false,
+        write: true,
+        append: false,
+        truncate: true,
+        create: true,
+        create_new: false,
+    };
+    self.encode_open_options();
     // Mode is a LITERAL (438 = 0o666, Rust's create mode; the umask trims it):
     // the darwin arm64 variadic encoder marshals the trailing mode on the
     // STACK and requires a compile-time immediate -- a field-held mode
@@ -501,84 +513,61 @@ machine Filesystem::create(&mut self, path: &[u8] in Path) -> OpenResult {
 // `File::create_new`). O_RDWR|O_CREAT|O_EXCL (2|512|2048 = 2562), mode 0o666
 // (438). An existing path yields `Error { kind: AlreadyExists }`.
 machine Filesystem::create_new(&mut self, path: &[u8] in Path) -> OpenResult {
-    self.open_flags = FilesystemHost::O_RDWR
-        | (1 << FilesystemHost::O_CREATE_BIT)
-        | (1 << FilesystemHost::O_EXCL_BIT)
-        | FilesystemHost::O_BINARY;
+    self.open_options = OpenOptions {
+        read: true,
+        write: true,
+        append: false,
+        truncate: false,
+        create: false,
+        create_new: true,
+    };
+    self.encode_open_options();
     let fd: i32 = self.host.open_create(path, self.open_flags, 438);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
     state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
 }
 
-// Open an existing file for reading (O_RDONLY + O_BINARY; the latter is the
-// windows msvcrt text-mode opt-out, 0 on posix -- Rust reads are byte-exact).
+// Open an existing file for reading. The selected target format supplies its
+// read-only encoding and any binary-mode requirement.
 machine Filesystem::open(&mut self, path: &[u8] in Path) -> OpenResult {
-    self.read_flags = FilesystemHost::O_BINARY;
+    self.open_options = OpenOptions {
+        read: false,
+        write: false,
+        append: false,
+        truncate: false,
+        create: false,
+        create_new: false,
+    };
+    self.encode_open_options();
+    self.read_flags = self.open_flags;
     let fd: i32 = self.host.open(path, self.read_flags);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
     state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
 }
 
-// Open an existing file with explicit `OpenOptions` (Rust
-// `OpenOptions::open`). Composes the POSIX access mode + O_APPEND/O_TRUNC bits
-// from the option flags, then calls the raw `open`. Access mode: read+write
-// (or read+append) -> O_RDWR(2); write/append only -> O_WRONLY(1); otherwise
-// O_RDONLY(0). append -> O_APPEND(8); truncate -> O_TRUNC(1024). No O_CREAT:
-// opening a missing path fails (POSIX ENOENT), matching Rust without `.create`.
-// The flag math is BRANCH-FREE and purely bitwise: Omega's exact-arithmetic
-// proof obligation (decision 17) rejects `*`/`+` on `bool as i32` (it can't
-// prove the {0,1} range), but `&`/`|`/`^`/`<<` carry no overflow obligation.
-// `wbit` = writable (write OR append); access mode is the mutually-exclusive
-// O_WRONLY(1)/O_RDWR(2) pair selected by `read`, then O_APPEND(8)/O_TRUNC(1024)
-// OR'd in.
-machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptions) -> OpenResult {
-    let wbit: i32 = (options.write as i32) | (options.append as i32);
-    let rbit: i32 = options.read as i32;
-    // Access mode (O_RDONLY 0 / O_WRONLY 1 / O_RDWR 2) is UNIVERSAL across
-    // targets, so it stays a literal 0/1/2 composition.
-    let wronly: i32 = wbit & (rbit ^ 1);
-    let rdwr: i32 = (wbit & rbit) << 1;
-    // The single-bit FLAGS (O_APPEND/O_TRUNC/O_CREAT/O_EXCL) differ per target,
-    // so each is a bool shifted into the SELECTED TARGET's bit position:
-    // `(bool as i32) << O_XXX_BIT` is the flag (bit set) or 0. (D8: exact-arith
-    // rejects `*`/`+` on bool casts; `<<` carries no overflow obligation, and a
-    // shift of a small positive agrees between the native i32 backend and the
-    // i64 interpreter.)
-    let append_flag: i32 = (options.append as i32) << FilesystemHost::O_APPEND_BIT;
-    let truncate_flag: i32 = (options.truncate as i32) << FilesystemHost::O_TRUNC_BIT;
-    // Creating opens: O_CREAT when `create` OR `create_new`; O_EXCL only for
-    // `create_new`. Routed through `open_create`, which SUBSUMES `open` (with no
-    // O_CREAT it behaves exactly like it), so existing-file opens are unchanged.
-    let creating: i32 = (options.create as i32) | (options.create_new as i32);
-    let creat_flag: i32 = creating << FilesystemHost::O_CREATE_BIT;
-    let excl_flag: i32 = (options.create_new as i32) << FilesystemHost::O_EXCL_BIT;
-    // The composed word lands in a FIELD (host-call scalar-arg idiom). With a
-    // struct-LITERAL OpenOptions at the call site the whole tree folds to one
-    // constant at mutation-write selection (fold_substituted_constant_integer);
-    // a runtime-valued OpenOptions still refuses loudly (the let-local
-    // write-value face) -- pinned by filesystem/wrapper_open_with_exit.
-    self.open_flags = wronly | rdwr | append_flag | truncate_flag | creat_flag | excl_flag
-        | FilesystemHost::O_BINARY;
-    let fd: i32 = self.host.open_create(path, self.open_flags, 438);
-    transition fd >= 0 { true -> ok(fd) _ -> err() }
-    state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
-    state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
-}
+// `Filesystem::open_with` is implemented in each target format package beside
+// `encode_open_options`. The portable API remains `OpenOptions`; only the
+// selected target implementation sees the foreign bit positions.
 
 
 
 // Open an existing file for appending (Rust `OpenOptions::new().append(true)`).
 // Writes land at end-of-file; opening a missing path fails (no O_CREAT).
-// COMPOSED per-target (2026-07-08): the old literal `9` (O_WRONLY|O_APPEND bit
-// 3) happened to agree on darwin==msvcrt but is WRONG on linux (O_APPEND is
-// bit 10 there) -- the provides O_APPEND_BIT fixes it; O_BINARY is the windows
-// text-mode opt-out (0 on posix).
+// Append uses different foreign bit positions on Darwin, Linux, and Windows;
+// Windows additionally requires binary mode. Those facts remain inside the
+// selected target encoder.
 machine Filesystem::append(&mut self, path: &[u8] in Path) -> OpenResult {
-    self.open_flags = FilesystemHost::O_WRONLY
-        | (1 << FilesystemHost::O_APPEND_BIT)
-        | FilesystemHost::O_BINARY;
+    self.open_options = OpenOptions {
+        read: false,
+        write: false,
+        append: true,
+        truncate: false,
+        create: false,
+        create_new: false,
+    };
+    self.encode_open_options();
     let fd: i32 = self.host.open(path, self.open_flags);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
@@ -636,12 +625,16 @@ machine Filesystem::close(&mut self, file: File) -> i32 {
 // `n >= 0` guard reports Error. Success requires the write to have returned a
 // non-negative count.
 machine Filesystem::write_all(&mut self, path: &[u8] in Path, bytes: &[u8]) -> UnitResult {
-    // `open_create` with composed creat-semantics flags + O_BINARY (windows
-    // text-mode opt-out, 0 on posix) -- same migration as `create`/`copy`.
-    self.open_flags = FilesystemHost::O_WRONLY
-        | (1 << FilesystemHost::O_CREATE_BIT)
-        | (1 << FilesystemHost::O_TRUNC_BIT)
-        | FilesystemHost::O_BINARY;
+    // `open_create` with the selected target's checked create/truncate format.
+    self.open_options = OpenOptions {
+        read: false,
+        write: true,
+        append: false,
+        truncate: true,
+        create: true,
+        create_new: false,
+    };
+    self.encode_open_options();
     let fd: i32 = self.host.open_create(path, self.open_flags, 438);
     let n: i64 = self.host.write(fd, bytes);
     let rc: i32 = self.host.close(fd);
@@ -657,7 +650,16 @@ machine Filesystem::write_all(&mut self, path: &[u8] in Path, bytes: &[u8]) -> U
 // the file, sized via `metadata().len`.) Like `write_all`, all raw ops run in
 // the entry so an open failure flows to Error via the `n >= 0` guard.
 machine Filesystem::read_all(&mut self, path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult {
-    self.read_flags = FilesystemHost::O_BINARY;
+    self.open_options = OpenOptions {
+        read: false,
+        write: false,
+        append: false,
+        truncate: false,
+        create: false,
+        create_new: false,
+    };
+    self.encode_open_options();
+    self.read_flags = self.open_flags;
     let fd: i32 = self.host.open(path, self.read_flags);
     let n: i64 = self.host.read(fd, buffer, count);
     let rc: i32 = self.host.close(fd);
@@ -680,20 +682,31 @@ machine Filesystem::read_all(&mut self, path: &[u8] in Path, buffer: &mut [u8], 
 // A faithful version (branch after the read; write only `buffer[0..n]`) lands
 // once the interpreter threads slices through states.
 machine Filesystem::copy(&mut self, from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult {
-    // BINARY-SAFE on windows (2026-07-08): O_BINARY (32768 there, 0 on posix --
-    // a per-target provides VALUE) keeps msvcrt from CRLF-translating reads or
-    // stopping at a ^Z. The destination switches from `create` (msvcrt `_creat`
-    // = TEXT mode, no flags arg) to `open_create` with the composed
-    // O_WRONLY|O_CREATE|O_TRUNC|O_BINARY word -- the same per-target bit
-    // composition create_new/open_with use.
-    self.read_flags = FilesystemHost::O_BINARY;
+    // BINARY-SAFE on windows: the selected target encoder prevents msvcrt
+    // CRLF/^Z translation on both source read and destination write. The
+    // destination uses the same checked create/truncate encoding as `create`.
+    self.open_options = OpenOptions {
+        read: false,
+        write: false,
+        append: false,
+        truncate: false,
+        create: false,
+        create_new: false,
+    };
+    self.encode_open_options();
+    self.read_flags = self.open_flags;
     let src: i32 = self.host.open(from, self.read_flags);
     let n: i64 = self.host.read(src, buffer, cap);
     let closed_src: i32 = self.host.close(src);
-    self.open_flags = FilesystemHost::O_WRONLY
-        | (1 << FilesystemHost::O_CREATE_BIT)
-        | (1 << FilesystemHost::O_TRUNC_BIT)
-        | FilesystemHost::O_BINARY;
+    self.open_options = OpenOptions {
+        read: false,
+        write: true,
+        append: false,
+        truncate: true,
+        create: true,
+        create_new: false,
+    };
+    self.encode_open_options();
     let dst: i32 = self.host.open_create(to, self.open_flags, 438);
     let written: i64 = self.host.write(dst, buffer);
     let truncated: i32 = self.host.set_len(dst, n);

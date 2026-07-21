@@ -90,6 +90,38 @@ fn retired_domain_when_surface_is_absent_from_authored_corpus() {
     );
 }
 
+#[test]
+fn filesystem_open_flags_are_not_provider_values() {
+    let root = repo_root();
+    let portable = fs::read_to_string(root.join("omega/language/std/filesystem.omg"))
+        .expect("read portable filesystem module");
+    assert!(
+        !portable.contains("FilesystemHost::O_"),
+        "portable filesystem code must use semantic OpenOptions, not foreign provider constants"
+    );
+
+    let retired = [
+        "O_WRONLY",
+        "O_RDWR",
+        "O_APPEND_BIT",
+        "O_CREATE_BIT",
+        "O_TRUNC_BIT",
+        "O_EXCL_BIT",
+        "O_BINARY",
+    ];
+    for target in ["windows_x64", "macos_arm64", "linux_x64", "linux_arm64"] {
+        let relative = format!("omega/language/std/targets/{target}/filesystem.provides.omg");
+        let source = fs::read_to_string(root.join(&relative))
+            .unwrap_or_else(|error| panic!("read {relative}: {error}"));
+        for name in retired {
+            assert!(
+                !source.contains(name),
+                "{relative} must not restore foreign open flag `{name}` as a provider Value row"
+            );
+        }
+    }
+}
+
 #[cfg(windows)]
 #[test]
 fn windows_x64_cli_mvp_emits_runnable_pe() {
@@ -27818,10 +27850,8 @@ fn windows_fs_wrapper_param_shadow_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
-// `Filesystem::open_with` (Rust OpenOptions) end-to-end: the composed flag
-// word folds to one constant per call site at mutation-write selection
-// (fold_substituted_constant_integer) -- before that fold the machine was
-// natively uncompilable in value position. Six legs: write+create / read /
+// `Filesystem::open_with` (Rust OpenOptions) end-to-end through the selected
+// target package's checked foreign-flag encoder. Six legs: write+create / read /
 // truncate / append / create_new-on-existing / read-absent.
 #[cfg(windows)]
 #[test]

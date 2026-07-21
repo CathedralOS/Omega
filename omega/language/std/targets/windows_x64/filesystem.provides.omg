@@ -1,20 +1,8 @@
-// Per-target `FilesystemHost` provides VALUES (portable-values settle
-// 2026-07-07; std/targets file shape settled 2026-07-07): open-flag constants
-// and `struct stat` byte offsets consumed by the portable wrapper. The
-// single-bit open flags are BIT POSITIONS (`_BIT`), not values, so the wrapper
-// composes them as `(bool as i32) << BIT` -- a shift of a small positive,
-// which the native i32 backend and the i64 interpreter agree on. Access mode
-// O_WRONLY(1)/O_RDWR(2) is a universal 2-bit value; O_BINARY is a windows-only
-// whole value (0 elsewhere). darwin O_CREAT (0x200) equals msvcrt O_TRUNC
-// (0x200), which is exactly why none of this can be hardcoded portably.
+// Transitional per-target `FilesystemHost` VALUE rows for `struct _stat64`
+// byte offsets. Open flags have moved to the checked target format encoder in
+// `filesystem_impl.omg`; offsets remain only until foreign record views consume
+// the programmable layout plan directly.
 windows_x64 provides FilesystemHost {
-    O_WRONLY     -> 1;
-    O_RDWR       -> 2;
-    O_APPEND_BIT -> 3;
-    O_CREATE_BIT -> 8;
-    O_TRUNC_BIT  -> 9;
-    O_EXCL_BIT   -> 10;
-    O_BINARY     -> 32768;
     // `struct _stat64` (msvcrt) byte offsets, consumed by `decode_metadata` /
     // `copy` as `stat_buf[ST_*_OFF + k]`. `_stat64` is 56 bytes; the DEV/MODE/
     // NLINK/RDEV/SIZE/ATIME/MTIME + creation-as-BTIME fields sit at their real

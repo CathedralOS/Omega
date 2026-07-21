@@ -485,7 +485,14 @@ slot owner may override by type. The migration order remains load-bearing.
    ambiguity are already enforced.
 3. **PRV4e — foreign format facts.** Move foreign offsets and bit constants
    from `Binding::Value` into programmable layout/format declarations and
-   migrate filesystem leaves.
+   migrate filesystem leaves. Open-option flags have moved: portable code now
+   supplies semantic `OpenOptions`, checked target-package machines own the
+   Darwin/Linux/MSVCRT encodings, and no flag constant remains in a provider
+   row. The dynamic `open_with` target bodies temporarily repeat their target
+   encoder expression because record-valued helper calls still mis-lower
+   natively; collapse that duplication with the value-call fix. The remaining
+   `Binding::Value` filesystem consumers are `struct stat` offsets, which move
+   when programmable foreign-record views can project the validated plan.
 4. **PRV4f — compatibility deletion.** After the last consumers move, delete
    `call_shape`, `HostOperations`, `Value`, populate tables, `provides` syntax,
    and every compatibility consumer. Keep only the directed retirement

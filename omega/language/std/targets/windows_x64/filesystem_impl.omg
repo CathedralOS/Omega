@@ -4,6 +4,44 @@
 // filesystem.omg's directory-walk contract block; every machine here is
 // target-scoped (`windows_x64 machine ...`), selected only for this target.
 //
+// MSVCRT open flags are a foreign bitfield format, encoded by checked target
+// package code rather than smuggled through provider-plan VALUE rows. The
+// semantic `OpenOptions` value is portable; only this encoder owns MSVCRT's bit
+// positions and its mandatory binary-mode bit. Access mode 0/1/2 is the CRT
+// O_RDONLY/O_WRONLY/O_RDWR field.
+windows_x64 machine Filesystem::encode_open_options(&mut self) {
+    self.open_writable = (self.open_options.write as i32) | (self.open_options.append as i32);
+    self.open_readable = self.open_options.read as i32;
+    self.open_creating = (self.open_options.create as i32) | (self.open_options.create_new as i32);
+    self.open_flags = ((self.open_writable & (self.open_readable ^ 1))
+        | ((self.open_writable & self.open_readable) << 1)
+        | ((self.open_options.append as i32) << 3)
+        | (self.open_creating << 8)
+        | ((self.open_options.truncate as i32) << 9)
+        | ((self.open_options.create_new as i32) << 10)
+        | 32768);
+}
+
+// Temporary native-lowering fence: a record-valued helper call from this
+// dynamic parameter path loses option values. Keep this target-local formula
+// beside the canonical encoder until PRV4e's value-call fix collapses them.
+windows_x64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptions) -> OpenResult {
+    let writable: i32 = (options.write as i32) | (options.append as i32);
+    let readable: i32 = options.read as i32;
+    let write_only: i32 = writable & (readable ^ 1);
+    let read_write: i32 = (writable & readable) << 1;
+    let creating: i32 = (options.create as i32) | (options.create_new as i32);
+    let append_flag: i32 = (options.append as i32) << 3;
+    let create_flag: i32 = creating << 8;
+    let truncate_flag: i32 = (options.truncate as i32) << 9;
+    let exclusive_flag: i32 = (options.create_new as i32) << 10;
+    self.open_flags = write_only | read_write | append_flag | create_flag | truncate_flag | exclusive_flag | 32768;
+    let fd: i32 = self.host.open_create(path, self.open_flags, 438);
+    transition fd >= 0 { true -> ok(fd) _ -> err() }
+    state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
+    state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
+}
+//
 // THE WINDOWS PARADIGM: no dirfd exists -- directory listing is HANDLE
 // ENUMERATION over a pattern (`dir/*`) via the find trio (find_first /
 // find_next / find_close, kernel32 FindFirstFileA family; rung 3a), and

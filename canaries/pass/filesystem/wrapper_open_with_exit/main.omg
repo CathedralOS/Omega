@@ -1,11 +1,8 @@
 // RUN CANARY (exit 70) -- `Filesystem::open_with` (Rust OpenOptions),
 // PROMOTED from pending/host/wrapper_open_with_matrix (2026-07-08j): the
-// composed flag word (a compound bitwise tree over the substituted caller
-// OpenOptions literal) now FOLDS at mutation-write selection
-// (fold_substituted_constant_integer, writes/mutation.rs) into one constant
-// store per call site -- sign-safe ops only (| & ^ <<), bool-source casts,
-// ZII for absent literal fields. Before the fold the machine was natively
-// UNCOMPILABLE in value position (needs-runtime-storage-write-lowering).
+// selected target package encodes the semantic OpenOptions into its foreign
+// flag word. The target body remains branch-free and uses sign-safe operations
+// only (| & ^ <<), bool-source casts, and ZII for absent literal fields.
 // Exercises the matrix end-to-end:
 //   1. write+create on an ABSENT path -> creates, write lands;
 //   2. read-only open -> reads the bytes back;
