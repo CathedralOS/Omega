@@ -2586,7 +2586,6 @@ mod provider_plan {
         let row = |method: &str, value: i64| ProviderPlanRow {
             method: method.to_owned(),
             binding: ProviderBinding::Value { value },
-            call_shape: None,
         };
         let plan = |rows: Vec<ProviderPlanRow>| ProviderPlan {
             name: "p".to_owned(),

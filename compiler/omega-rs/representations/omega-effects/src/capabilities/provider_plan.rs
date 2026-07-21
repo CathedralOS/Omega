@@ -67,29 +67,14 @@ pub enum ProviderBinding {
     /// effects must fit inside the satisfied requirement's declared
     /// ceiling.
     CheckedAdapter { machine: String },
-    /// A PLATFORM-LOWERING sequence (the populate tables' shape, P4a): the
-    /// method lowers as an ordered chain of HOST OPERATIONS
-    /// (`Stdout::get_std_handle`, `Stdout::write_file`), each resolving to
-    /// an import/syscall binding in the host-ABI plan; the row's call_shape
-    /// carries the PlatformCallData policy. Rendered `Capability::operation`
-    /// strings keep this crate free of the calling-conventions dependency;
-    /// the merge seam parses them exactly like call shapes.
-    HostOperations { operations: Vec<String> },
 }
 
-/// One method's plan row: the mechanism plus the call-shaping policy the
-/// platform tables carry today (newline appends, byte reads, constant
-/// results/arguments -- the `PlatformCallData` migration surface).
+/// One method's normalized provider binding. Composite argument adaptation is
+/// checked Omega code, so plan rows carry only irreducible leaf mechanisms.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderPlanRow {
     pub method: String,
     pub binding: ProviderBinding,
-    /// Call-shaping policy, rendered as the platform tables spell it
-    /// (`first_text_argument+newline`, `single_byte_read`,
-    /// `constant_result:1000000000`); `None` for plain calls. A rendered
-    /// carrier keeps PRV1 free of a calling-conventions dependency; PRV2's
-    /// validation normalizes it against the real `PlatformCallData` sum.
-    pub call_shape: Option<String>,
 }
 
 /// The PRV1 carrier: one provider type's plan for one service schema on one
@@ -243,12 +228,7 @@ impl ProviderPlan {
         let mut rows: Vec<&ProviderPlanRow> = self.rows.iter().collect();
         rows.sort_by(|left, right| left.method.cmp(&right.method));
         for row in rows {
-            rendered.push_str(&format!(
-                "\nr:{}/{:?}/{}",
-                row.method,
-                row.binding,
-                row.call_shape.as_deref().unwrap_or("-")
-            ));
+            rendered.push_str(&format!("\nr:{}/{:?}", row.method, row.binding));
         }
         let mut hash: u64 = 0xcbf29ce484222325;
         for byte in rendered.as_bytes() {
@@ -262,10 +242,7 @@ impl ProviderPlan {
     /// bound exactly once, no stray rows, and per-method shape checks
     /// (a Value binding cannot serve a result-less method's call; a
     /// byte-read shape needs a result). Returns NAMED errors; empty =
-    /// structurally valid. Call-shape SPELLING validation lives with the
-    /// PlatformCallData sum in omega-calling-conventions
-    /// (parse_call_shape) -- the ABI-plan consumer runs it at merge time,
-    /// keeping this crate free of that dependency.
+    /// structurally valid.
     pub fn validate_against_schema(&self) -> Vec<String> {
         let mut errors = Vec::new();
         for method in &self.schema.methods {
@@ -376,7 +353,6 @@ mod tests {
                         library: "kernel32.dll".to_owned(),
                         symbol: "WriteFile".to_owned(),
                     },
-                    call_shape: Some("first_text_argument+newline".to_owned()),
                 },
                 ProviderPlanRow {
                     method: "read_byte".to_owned(),
@@ -384,7 +360,6 @@ mod tests {
                         library: "kernel32.dll".to_owned(),
                         symbol: "ReadFile".to_owned(),
                     },
-                    call_shape: Some("single_byte_read".to_owned()),
                 },
                 ProviderPlanRow {
                     method: "exit_process".to_owned(),
@@ -392,7 +367,6 @@ mod tests {
                         library: "kernel32.dll".to_owned(),
                         symbol: "ExitProcess".to_owned(),
                     },
-                    call_shape: None,
                 },
             ],
             effect_set: EffectSet::empty(),
@@ -430,12 +404,10 @@ mod tests {
         plan.rows.push(ProviderPlanRow {
             method: "not_a_method".to_owned(),
             binding: ProviderBinding::Value { value: 1 },
-            call_shape: None,
         });
         plan.rows.push(ProviderPlanRow {
             method: "exit_process".to_owned(),
             binding: ProviderBinding::Value { value: 0 },
-            call_shape: None,
         });
         let errors = plan.validate_against_schema();
         assert!(
@@ -479,7 +451,6 @@ mod tests {
         plan.rows.push(ProviderPlanRow {
             method: "not_in_schema".to_owned(),
             binding: ProviderBinding::Value { value: 0 },
-            call_shape: None,
         });
         assert!(!plan.covers_schema(), "a stray row must fail coverage");
     }

@@ -493,10 +493,12 @@ slot owner may override by type. The migration order remains load-bearing.
    `Binding::Value` filesystem consumers are `struct stat` offsets, which move
    when programmable foreign-record views can project the validated plan.
 4. **PRV4f — compatibility deletion.** After the last consumers move, delete
-   `call_shape`, `HostOperations`, `Value`, populate tables, `provides` syntax,
-   and every compatibility consumer. The unused `Binding::Instruction`
-   carrier is already gone: instruction realizations are checked `asm` bodies,
-   not provider rows. Keep only the directed retirement diagnostic if useful.
+   `Value`, populate tables, `provides` syntax, and every compatibility
+   consumer. The unused `Binding::Instruction` carrier is already gone:
+   instruction realizations are checked `asm` bodies, not provider rows. The
+   test-only `HostOperations`/`call_shape` round-trip bridge is gone as well;
+   checked adapters own composite behavior. Keep only the directed retirement
+   diagnostic if useful.
 ### Compile-time machine parameters and generics
 
 The source model is fixed: `<machine M>` requires an authored
