@@ -453,6 +453,13 @@ encoder rechecks the word signature and syscall contract, then uses the exact
 parameter registers, number register, and supervisor-call immediate on x86-64
 or AArch64; layout measures those same emitted bytes.
 
+The compiler's retained source-policy identity carries the complete canonical
+`BoundaryEntryPlan` through checked lowering. Public provider schemas still
+publish only its contract fingerprint. Outbound binding construction projects
+the `CallPlan`; inbound stub construction can therefore recover the associated
+`StatePlan` without re-evaluating policy source or trying to infer state
+obligations from the fingerprint.
+
 While compatibility syscall rows coexist with normalized plans, evaluation
 differentially checks their historical register-slot and supervisor-call facts
 on both x86-64 and AArch64. Unknown x86 register slots fail closed instead of

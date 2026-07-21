@@ -51,9 +51,11 @@ pub struct BoundaryCallingPlanIdentity {
     pub requirement_machine: omega_core::symbols::SymbolHandle,
     pub fingerprint: u64,
     /// Canonical implementation input retained for lowering. Provider
-    /// schemas publish only `fingerprint`; a selected provider may carry this
-    /// exact validated plan to its authored boundary binding.
-    pub call_plan: omega_calling_conventions::CallPlan,
+    /// schemas publish only `fingerprint`; outbound bindings project the call
+    /// half, while future inbound stubs consume the same plan's state half.
+    /// Keeping the pair together also prevents a public fingerprint from
+    /// naming state obligations that the backend can no longer recover.
+    pub boundary_entry_plan: omega_calling_conventions::BoundaryEntryPlan,
 }
 
 /// One compile-time machine specialization. Static machine arguments are
@@ -765,6 +767,25 @@ impl TypedTrees {
                     && identity.requirement_machine == requirement_machine
             })
             .map(|identity| identity.fingerprint)
+    }
+
+    /// Recover the exact canonical plan behind a published boundary identity.
+    /// This is compiler-internal lowering evidence: schema/contract surfaces
+    /// continue to expose only the fingerprint.
+    pub fn boundary_entry_plan_for_arguments(
+        &self,
+        boundary_trait: omega_core::symbols::SymbolHandle,
+        boundary_arguments: &[crate::types::TypeReferenceHandle],
+        requirement_machine: omega_core::symbols::SymbolHandle,
+    ) -> Option<&omega_calling_conventions::BoundaryEntryPlan> {
+        self.boundary_calling_plans
+            .iter()
+            .find(|identity| {
+                identity.boundary_trait == boundary_trait
+                    && identity.boundary_arguments == boundary_arguments
+                    && identity.requirement_machine == requirement_machine
+            })
+            .map(|identity| &identity.boundary_entry_plan)
     }
 
     pub fn push_trait_machine_signature(

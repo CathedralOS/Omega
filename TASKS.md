@@ -304,6 +304,12 @@ schemas recover the same instance without publishing policy type identity.
    parameter, number-register, and supervisor-call control facts. Non-default
    argument-register canaries pin both architectures; unsupported result-bearing
    syscall signatures still fail closed.
+   Evaluated source-policy identities now retain the complete canonical
+   `BoundaryEntryPlan` through checked lowering instead of discarding the
+   `StatePlan` after hashing it. Outbound bindings continue to project the
+   call half, while inbound-stub lowering can recover the matching stack,
+   preemption, save/restore, regime, and transitive-state obligations by the
+   same semantic boundary key.
    Fixed non-HFA AAPCS64 entry records up to 16 bytes now consume consecutive
    plan-selected `x` fragments with 16-byte register alignment, fall wholly to
    aligned stack fragments when the remaining register bank is too small,

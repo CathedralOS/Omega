@@ -88,7 +88,16 @@ fn source_policy_receives_signature_and_publishes_only_validated_acceptance() {
         .iter()
         .find(|identity| identity.fingerprint == validated.contract_fingerprint())
         .expect("typed lowering evidence for the published identity");
-    assert_eq!(retained.call_plan, validated.plan().call);
+    assert_eq!(&retained.boundary_entry_plan, validated.plan());
+    assert_eq!(
+        checked.typed.boundary_entry_plan_for_arguments(
+            retained.boundary_trait,
+            &retained.boundary_arguments,
+            retained.requirement_machine,
+        ),
+        Some(validated.plan()),
+        "checked lowering must preserve the complete canonical inbound plan",
+    );
 }
 
 #[test]
