@@ -916,8 +916,9 @@ stronger operations it needs instead of citing machine parameters generally.
   loop on x86_64, with the same native, interpreter, and encoding coverage.
   Fetch-and uses complement-plus-ordering-selected `LDCLR` on ARM64 and the
   shared locked retry loop on x86_64, with equivalent coverage.
-  Complete standalone fences and the remaining fetch operations, and the
-  cross-activation proof model beyond these first operations.
+  The conventional integer fetch family is complete. Complete standalone
+  fences once their source spelling is settled, and the cross-activation proof
+  model beyond these operations.
 - **Proof engine.** Continue induction and proof-data support required by
   layouts, quotients, and Real.
 
