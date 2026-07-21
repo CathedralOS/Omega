@@ -4,9 +4,10 @@ Current as of 2026-07-20. Boundary conventions are normalized policy artifacts;
 Omega's internal calling convention remains compiler-sovereign. This brief now
 includes inbound machine-state preservation, which ordinary calls do not expose.
 Engineering is incomplete. The normalized compiler model, initial built-in
-policy evaluators, and direct source-policy evaluation are implemented.
-Automatic discovery from `Calling<C>`, publication of the evaluated identity,
-and authoritative lowering remain.
+policy evaluators, direct source-policy evaluation, concrete `Calling<C>`
+discovery, and publication of the evaluated identity are implemented. Generic
+boundary-policy instantiation, source-span diagnostics, and authoritative
+lowering remain.
 
 ## One boundary entry plan, two independent facets
 
@@ -393,25 +394,24 @@ transitive machine-state use to the general/vector classes named by the ABI's
 volatile register set. The current ordinary AArch64 hosted projection records
 EL0; that reversible target default can be refined when higher-EL roots land.
 
+The bundled `std::calling` module now supplies the closed source vocabulary.
+For a concrete boundary `Calling<C>` relationship, both compiler entry paths
+materialize every inherited and declared method signature, purity-gate and run
+`C::plan`, validate/canonicalize acceptance, report authored rejection, and
+publish only the evaluated plan fingerprint through provider requirement
+identity. Policy type names and source bodies do not enter that fingerprint;
+boundaries without a calling policy retain their prior identities.
+
 While compatibility syscall rows coexist with normalized plans, evaluation
 differentially checks their historical register-slot and supervisor-call facts
 on both x86-64 and AArch64. Unknown x86 register slots fail closed instead of
 being ignored by the plan-driven encoder.
 
-The compiler also exposes the closed plan vocabulary through `std::calling` and
-can directly invoke a source-authored, effect-free policy machine with a
-materialized `BoundarySignature`. It decodes `Accepted` and `Rejected`, validates
-and canonicalizes accepted results, and returns only a validated plan. Focused
-end-to-end tests cover signature-dependent acceptance and rejection. This is the
-evaluation engine; automatic resolution from the `Calling<C>` conformance graph
-and publication of its fingerprint are the next integration step.
-
 Remaining order:
 
-1. Discover `Calling<C>` at each boundary requirement, resolve `C`'s
-   `CallingPolicy::plan` satisfier, invoke the implemented source evaluator, and
-   hash the validated canonical pair into requirement identity. Point a rejected
-   result at the offending signature component at the `Calling<C>` site.
+1. Extend source policy evaluation from concrete `Calling<C>` relationships to
+   generic boundary-trait instantiations, and retain the relationship source
+   span so rejection diagnostics point at the authored declaration.
 2. Complete plan-driven outbound calls and their results;
    differential-check every supported compatibility encoder against the plan,
    add the concrete firmware/interrupt state policies, and make the plan

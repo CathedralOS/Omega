@@ -345,6 +345,7 @@ impl Compiler {
         // placement plan; the wire codec selection consumes it (tag + framing
         // from the plan, asserted against its own walk).
         crate::pipeline::wire_plans::compute_wire_plans(&mut typed)?;
+        crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(&mut typed)?;
         // BUILD CONFIG (build_and_package_model.md): image facts from
         // build.omg's augmenting `build(b: &mut Build)` machine, evaluated at
         // build time. When present it is AUTHORITATIVE; the legacy in-source

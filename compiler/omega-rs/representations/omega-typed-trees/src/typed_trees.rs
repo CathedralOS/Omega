@@ -34,6 +34,18 @@ pub struct TypedTrees {
     /// before checked lowering. The template keeps its declaration symbol;
     /// this record is the cache/audit identity of the concrete argument tuple.
     pub machine_specializations: Vec<MachineSpecialization>,
+    /// Canonical calling-policy identities evaluated for concrete boundary
+    /// requirements. The key is semantic (boundary trait + requirement
+    /// machine), while the policy type/source body is deliberately absent:
+    /// only the validated plan fingerprint is public contract material.
+    pub boundary_calling_plans: Vec<BoundaryCallingPlanIdentity>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct BoundaryCallingPlanIdentity {
+    pub boundary_trait: omega_core::symbols::SymbolHandle,
+    pub requirement_machine: omega_core::symbols::SymbolHandle,
+    pub fingerprint: u64,
 }
 
 /// One compile-time machine specialization. Static machine arguments are
@@ -158,6 +170,7 @@ impl TypedTrees {
             wire_placements: Arena::new(),
             wire_schema_plans: Vec::new(),
             machine_specializations: Vec::new(),
+            boundary_calling_plans: Vec::new(),
         }
     }
 
@@ -704,6 +717,31 @@ impl TypedTrees {
                     trait_definition::TraitCompositionKind::Policy
                 }
             })
+    }
+
+    pub fn record_boundary_calling_plan(&mut self, identity: BoundaryCallingPlanIdentity) {
+        if let Some(existing) = self.boundary_calling_plans.iter_mut().find(|candidate| {
+            candidate.boundary_trait == identity.boundary_trait
+                && candidate.requirement_machine == identity.requirement_machine
+        }) {
+            *existing = identity;
+        } else {
+            self.boundary_calling_plans.push(identity);
+        }
+    }
+
+    pub fn boundary_calling_plan_fingerprint(
+        &self,
+        boundary_trait: omega_core::symbols::SymbolHandle,
+        requirement_machine: omega_core::symbols::SymbolHandle,
+    ) -> Option<u64> {
+        self.boundary_calling_plans
+            .iter()
+            .find(|identity| {
+                identity.boundary_trait == boundary_trait
+                    && identity.requirement_machine == requirement_machine
+            })
+            .map(|identity| identity.fingerprint)
     }
 
     pub fn push_trait_machine_signature(

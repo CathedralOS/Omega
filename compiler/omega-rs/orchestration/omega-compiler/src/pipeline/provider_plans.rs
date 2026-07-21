@@ -612,6 +612,7 @@ mod tests {
                         parameter_count: 0,
                         has_result: false,
                         effects: Vec::new(),
+                        calling_plan_fingerprint: None,
                     })
                     .collect(),
             },

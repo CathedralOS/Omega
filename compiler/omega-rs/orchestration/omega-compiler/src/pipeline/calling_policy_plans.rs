@@ -11,12 +11,363 @@ use omega_calling_conventions::{
     SystemVEightbyteClass, ValidatedBoundaryEntryPlan, ValueClass, ValueLocation, ValuePlacement,
     ValueShape, validate_boundary_plan_result,
 };
+use omega_core::diagnostics::Diagnostic;
 use omega_interpreter::BuildTimeValue;
 use omega_typed_trees::TypedTrees;
+use omega_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 const PARAMETER_CAPACITY: usize = 32;
 const LOCATION_CAPACITY: usize = 16;
 const REGISTER_CAPACITY: usize = 64;
+
+/// Discover concrete `Calling<C>` relationships, evaluate `C::plan` once for
+/// every method in the boundary service surface, and retain only canonical
+/// evaluated identities on the typed program.
+pub(crate) fn compute_boundary_calling_plans(
+    typed: &mut TypedTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(calling_policy_trait) = typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str().rsplit("::").next() == Some("CallingPolicy"))
+    else {
+        // Programs that do not import std::calling cannot accidentally opt in
+        // merely by having an unrelated local trait named Calling.
+        return Ok(());
+    };
+    let calling_policy_symbol = calling_policy_trait.symbol;
+    let Some(calling_trait) = typed.traits().iter().find(|definition| {
+        definition.name.as_str().rsplit("::").next() == Some("Calling")
+            && typed.trait_type_parameters(definition).len() == 1
+            && typed.trait_machine_signatures(definition).is_empty()
+    }) else {
+        return Ok(());
+    };
+    let calling_symbol = calling_trait.symbol;
+
+    let mut pending = Vec::new();
+    for boundary in typed
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+    {
+        let relationships = typed
+            .trait_requirements(boundary)
+            .iter()
+            .filter(|requirement| requirement.symbol == calling_symbol)
+            .collect::<Vec<_>>();
+        if relationships.is_empty() {
+            continue;
+        }
+        if relationships.len() != 1 {
+            return Err(vec![Diagnostic::error(format!(
+                "boundary trait `{}` selects {} Calling<C> policies; exactly one concrete policy may define a boundary contract",
+                boundary.name,
+                relationships.len()
+            ))]);
+        }
+        let arguments = typed
+            .type_reference_table
+            .type_reference_handles(relationships[0].arguments);
+        if arguments.len() != 1 {
+            return Err(vec![Diagnostic::error(format!(
+                "boundary trait `{}` has a Calling relationship with {} policy arguments; expected one",
+                boundary.name,
+                arguments.len()
+            ))]);
+        }
+        let policy_type = concrete_policy_type_name(typed, arguments[0]).map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "boundary trait `{}` cannot evaluate Calling<C>: {reason}",
+                boundary.name
+            ))]
+        })?;
+        let policy_machine = find_policy_machine(typed, &policy_type).ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "boundary trait `{}` selects `{policy_type}`, but no `{policy_type}::plan` machine exists",
+                boundary.name
+            ))]
+        })?;
+        let satisfies_policy =
+            typed
+                .machine_trait_conformances(policy_machine)
+                .iter()
+                .any(|conformance| {
+                    conformance.symbol == calling_policy_symbol
+                        && conformance.requirement.as_ref().is_some_and(|requirement| {
+                            requirement.as_str().rsplit("::").next() == Some("plan")
+                        })
+                });
+        if !satisfies_policy {
+            return Err(vec![Diagnostic::error(format!(
+                "calling-policy machine `{}` must satisfy `CallingPolicy::plan`",
+                policy_machine.name
+            ))]);
+        }
+
+        let mut signatures = Vec::new();
+        collect_boundary_signatures(typed, boundary, &mut Vec::new(), &mut signatures);
+        for signature in signatures {
+            let call_signature = call_signature_from_typed(typed, signature).map_err(|reason| {
+                vec![Diagnostic::error(format!(
+                    "cannot materialize boundary signature `{}::{}` for `{}`: {reason}",
+                    boundary.name, signature.name, policy_machine.name
+                ))]
+            })?;
+            pending.push((
+                boundary.symbol,
+                signature.symbol,
+                policy_machine.name.as_str().to_owned(),
+                call_signature,
+            ));
+        }
+    }
+
+    let mut evaluated = Vec::with_capacity(pending.len());
+    for (boundary_trait, requirement_machine, policy_machine, signature) in pending {
+        let validated = evaluate_calling_policy_plan(typed, &policy_machine, &signature)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        evaluated.push(
+            omega_typed_trees::typed_trees::BoundaryCallingPlanIdentity {
+                boundary_trait,
+                requirement_machine,
+                fingerprint: validated.contract_fingerprint(),
+            },
+        );
+    }
+    for identity in evaluated {
+        typed.record_boundary_calling_plan(identity);
+    }
+    Ok(())
+}
+
+fn concrete_policy_type_name(
+    typed: &TypedTrees,
+    mut type_reference: TypeReferenceHandle,
+) -> Result<String, String> {
+    loop {
+        match typed.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+            TypeReferenceNode::Named { name, .. } => return Ok(name.as_str().to_owned()),
+            other => {
+                return Err(format!(
+                    "policy argument `{}` is not a concrete data type ({other:?})",
+                    typed.display_type_reference(type_reference)
+                ));
+            }
+        }
+    }
+}
+
+fn find_policy_machine<'a>(
+    typed: &'a TypedTrees,
+    policy_type: &str,
+) -> Option<&'a omega_typed_trees::machine::Machine> {
+    let expected = format!("{policy_type}::plan");
+    typed.machines().iter().find(|machine| {
+        machine.name.as_str() == expected
+            || (machine.name.as_str().ends_with("::plan")
+                && machine
+                    .attached_data
+                    .as_ref()
+                    .is_some_and(|data| data.as_str() == policy_type))
+    })
+}
+
+fn collect_boundary_signatures<'a>(
+    typed: &'a TypedTrees,
+    definition: &'a omega_typed_trees::trait_definition::TraitDefinition,
+    visited: &mut Vec<omega_core::symbols::SymbolHandle>,
+    signatures: &mut Vec<&'a omega_typed_trees::signature::StateSignature>,
+) {
+    if visited.contains(&definition.symbol) {
+        return;
+    }
+    visited.push(definition.symbol);
+    for requirement in typed.trait_requirements(definition) {
+        if let Some(parent) = typed
+            .traits()
+            .iter()
+            .find(|candidate| candidate.symbol == requirement.symbol && candidate.is_boundary)
+        {
+            collect_boundary_signatures(typed, parent, visited, signatures);
+        }
+    }
+    for signature in typed.trait_machine_signatures(definition) {
+        if !signatures
+            .iter()
+            .any(|candidate| candidate.name == signature.name)
+        {
+            signatures.push(signature);
+        }
+    }
+}
+
+fn call_signature_from_typed(
+    typed: &TypedTrees,
+    signature: &omega_typed_trees::signature::StateSignature,
+) -> Result<CallSignature, String> {
+    let parameters = typed
+        .state_signature_parameters(signature)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .map(|parameter| value_shape_from_type(typed, parameter.type_reference, &mut Vec::new()))
+        .collect::<Result<Vec<_>, _>>()?;
+    let result = signature
+        .return_type
+        .is_valid()
+        .then(|| value_shape_from_type(typed, signature.return_type, &mut Vec::new()))
+        .transpose()?;
+    Ok(CallSignature { parameters, result })
+}
+
+fn value_shape_from_type(
+    typed: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    visiting: &mut Vec<omega_core::symbols::SymbolHandle>,
+) -> Result<ValueShape, String> {
+    if let Some(primitive) = typed.primitive_type_reference(type_reference) {
+        return primitive_value_shape(primitive);
+    }
+    match typed.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            value_shape_from_type(typed, *base_type, visiting)
+        }
+        TypeReferenceNode::Reference { referee, .. } => {
+            let mut referee = *referee;
+            while let TypeReferenceNode::Constrained { base_type, .. } =
+                typed.type_reference_table.type_reference(referee)
+            {
+                referee = *base_type;
+            }
+            let is_fat = match typed.type_reference_table.type_reference(referee) {
+                TypeReferenceNode::Slice { .. } => true,
+                TypeReferenceNode::Named { name, .. } => name.as_str() == "string",
+                _ => false,
+            };
+            Ok(ValueShape::integer(if is_fat { 16 } else { 8 }, 8))
+        }
+        TypeReferenceNode::Slice { .. } => Ok(ValueShape::integer(16, 8)),
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: omega_typed_trees::types::FixedArrayLength::Literal(length),
+        } => {
+            let element = value_shape_from_type(typed, *element_type, visiting)?;
+            let size = usize::from(element.byte_size)
+                .checked_mul(*length)
+                .ok_or_else(|| "fixed-array boundary shape overflows".to_owned())?;
+            Ok(ValueShape::integer(
+                u16::try_from(size)
+                    .map_err(|_| "fixed-array boundary shape exceeds 65535 bytes".to_owned())?,
+                element.alignment,
+            ))
+        }
+        TypeReferenceNode::Named { symbol, name } => {
+            plain_data_value_shape(typed, *symbol, name.as_str(), visiting)
+        }
+        TypeReferenceNode::DynamicTrait { .. } => Ok(ValueShape::integer(16, 8)),
+        TypeReferenceNode::Generic { .. } => Err(format!(
+            "generic value type `{}` is not concrete at the Calling<C> relationship",
+            typed.display_type_reference(type_reference)
+        )),
+        TypeReferenceNode::FixedArray { .. } => Err(format!(
+            "array type `{}` still has a non-literal length",
+            typed.display_type_reference(type_reference)
+        )),
+        TypeReferenceNode::Unit => Err("unit is not a boundary value shape".to_owned()),
+    }
+}
+
+fn primitive_value_shape(primitive: PrimitiveType) -> Result<ValueShape, String> {
+    let byte_size = match primitive.scalar_byte_size() {
+        Some(byte_size) => byte_size,
+        None if primitive == PrimitiveType::String => 16,
+        None => {
+            return Err(format!(
+                "primitive `{}` has no concrete boundary size",
+                primitive.name()
+            ));
+        }
+    };
+    let byte_size = u16::try_from(byte_size).expect("primitive size fits u16");
+    Ok(match primitive {
+        PrimitiveType::F32 | PrimitiveType::F64 => ValueShape::float(byte_size),
+        _ => ValueShape::integer(byte_size, byte_size.min(8).max(1)),
+    })
+}
+
+fn plain_data_value_shape(
+    typed: &TypedTrees,
+    symbol: omega_core::symbols::SymbolHandle,
+    name: &str,
+    visiting: &mut Vec<omega_core::symbols::SymbolHandle>,
+) -> Result<ValueShape, String> {
+    if visiting.contains(&symbol) {
+        return Err(format!(
+            "recursive by-value data `{name}` has no finite boundary shape"
+        ));
+    }
+    let definition = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == symbol)
+        .ok_or_else(|| format!("named boundary type `{name}` has no data definition"))?;
+    visiting.push(symbol);
+    let mut size = 0usize;
+    let mut alignment = 1usize;
+    let mut float_member_size = None;
+    let mut float_members = 0usize;
+    for member in typed.data_members(definition) {
+        let omega_typed_trees::data::DataMember::Field(field) = member else {
+            visiting.pop();
+            return Err(format!(
+                "case data `{name}` is not yet classifiable as a boundary value; pass it by reference"
+            ));
+        };
+        let shape = value_shape_from_type(typed, field.type_reference, visiting)?;
+        let field_alignment = usize::from(shape.alignment);
+        size = align_up(size, field_alignment)
+            .checked_add(usize::from(shape.byte_size))
+            .ok_or_else(|| format!("data `{name}` boundary layout overflows"))?;
+        alignment = alignment.max(field_alignment);
+        match shape.class {
+            ValueClass::Float
+                if float_members != usize::MAX
+                    && float_member_size.is_none_or(|prior| prior == shape.byte_size) =>
+            {
+                float_member_size = Some(shape.byte_size);
+                float_members += 1;
+            }
+            _ => float_members = usize::MAX,
+        }
+    }
+    visiting.pop();
+    size = align_up(size, alignment);
+    if size == 0 {
+        return Err(format!(
+            "zero-sized data `{name}` cannot cross a boundary by value"
+        ));
+    }
+    let size = u16::try_from(size)
+        .map_err(|_| format!("data `{name}` boundary shape exceeds 65535 bytes"))?;
+    let alignment = u16::try_from(alignment)
+        .map_err(|_| format!("data `{name}` boundary alignment exceeds 65535 bytes"))?;
+    if (1..=4).contains(&float_members) {
+        Ok(ValueShape::homogeneous_float_aggregate(
+            float_member_size.expect("float member count has size"),
+            u8::try_from(float_members).expect("HFA member count fits u8"),
+        ))
+    } else {
+        Ok(ValueShape::integer(size, alignment))
+    }
+}
+
+fn align_up(value: usize, alignment: usize) -> usize {
+    value
+        .checked_add(alignment.saturating_sub(1))
+        .map(|value| value / alignment * alignment)
+        .unwrap_or(usize::MAX)
+}
 
 pub fn evaluate_calling_policy_plan(
     typed: &TypedTrees,
