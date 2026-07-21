@@ -6,12 +6,13 @@ pub use darwin::{
     DARWIN_COREGRAPHICS_PATH, DARWIN_LIBOBJC_PATH, DARWIN_LIBSYSTEM_PATH, darwin_import_library,
 };
 pub use plans::{
-    BoundaryEntryPlan, CallPlan, CallSignature, CallingPolicy, EntryControl, EntryStack,
-    IndirectPointerLocation, MachineRegime, MachineRegister, MachineState, MachineStateSet,
-    PlanDiagnostic, Preemption, RegisterSet, StateFootprintEvidence, StatePlan,
-    SystemVEightbyteClass, ValidatedBoundaryEntryPlan, ValueClass, ValueLocation, ValuePlacement,
-    ValueShape, evaluate_call_plan, evaluate_ordinary_boundary_entry_plan,
-    validate_boundary_entry_plan, validate_call_plan, validate_state_footprint,
+    BoundaryEntryPlan, BoundaryPlanDiagnostic, BoundaryPlanResult, CallPlan, CallSignature,
+    CallingPolicy, CallingPolicyRejection, EntryControl, EntryStack, IndirectPointerLocation,
+    MachineRegime, MachineRegister, MachineState, MachineStateSet, PlanDiagnostic, Preemption,
+    RegisterSet, StateFootprintEvidence, StatePlan, SystemVEightbyteClass,
+    ValidatedBoundaryEntryPlan, ValueClass, ValueLocation, ValuePlacement, ValueShape,
+    evaluate_call_plan, evaluate_ordinary_boundary_entry_plan, validate_boundary_entry_plan,
+    validate_boundary_plan_result, validate_call_plan, validate_state_footprint,
 };
 pub use windows::windows_import_library;
 

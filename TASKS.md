@@ -120,6 +120,13 @@ boundary plan with no interrupted state, no save/restore obligation, a
 provider-selected stack, non-preemptive entry semantics, and a transitive state
 ceiling derived exactly from the ABI volatile-register classes.
 
+The policy-result foundation now represents source evaluation explicitly as
+`Accepted(BoundaryEntryPlan)` or a structured `Rejected` reason. Accepted plans
+cross the common validator, canonicalize placement-fragment order before
+contract hashing, and are the only result that can produce published identity;
+policy rejection remains distinguishable from a malformed accepted plan for
+declaration-site diagnostics.
+
 1. **ENT2b — source policy evaluation and identity.** Implement the settled
    `CallingPolicy::plan(BoundarySignature) -> BoundaryPlanResult` relationship.
    Evaluate the policy type selected by `Calling<C>` at compile time, emit a

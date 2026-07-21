@@ -340,6 +340,36 @@ pub struct BoundaryEntryPlan {
     pub state: StatePlan,
 }
 
+/// The compile-time result published by an implementation of the source
+/// `CallingPolicy::plan` relationship. A rejected policy is deliberately not
+/// representable as a validated plan and therefore cannot acquire contract
+/// identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BoundaryPlanResult {
+    Accepted(BoundaryEntryPlan),
+    Rejected(CallingPolicyRejection),
+}
+
+/// Structured policy-authored context for a boundary signature the policy
+/// cannot represent. The compiler retains this distinct from validator
+/// failures in an allegedly accepted plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallingPolicyRejection {
+    reason: String,
+}
+
+impl CallingPolicyRejection {
+    pub fn new(reason: impl Into<String>) -> Self {
+        Self {
+            reason: reason.into(),
+        }
+    }
+
+    pub fn reason(&self) -> &str {
+        &self.reason
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedBoundaryEntryPlan(BoundaryEntryPlan);
 
@@ -396,6 +426,34 @@ impl std::fmt::Display for PlanDiagnostic {
 
 impl std::error::Error for PlanDiagnostic {}
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BoundaryPlanDiagnostic {
+    Rejected(CallingPolicyRejection),
+    InvalidAcceptedPlan(PlanDiagnostic),
+}
+
+impl std::fmt::Display for BoundaryPlanDiagnostic {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Rejected(rejection) => {
+                write!(
+                    formatter,
+                    "calling policy rejected the boundary: {}",
+                    rejection.reason()
+                )
+            }
+            Self::InvalidAcceptedPlan(diagnostic) => {
+                write!(
+                    formatter,
+                    "calling policy accepted an invalid plan: {diagnostic}"
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for BoundaryPlanDiagnostic {}
+
 pub fn evaluate_call_plan(
     policy: CallingPolicy,
     signature: &CallSignature,
@@ -445,9 +503,10 @@ pub fn evaluate_ordinary_boundary_entry_plan(
 }
 
 pub fn validate_boundary_entry_plan(
-    plan: BoundaryEntryPlan,
+    mut plan: BoundaryEntryPlan,
     signature: &CallSignature,
 ) -> Result<ValidatedBoundaryEntryPlan, PlanDiagnostic> {
+    canonicalize_boundary_entry_plan(&mut plan);
     validate_call_plan(&plan.call, signature)?;
     if plan.call.policy.architecture() != plan.state.initial_regime.architecture() {
         return Err(PlanDiagnostic(
@@ -497,6 +556,44 @@ pub fn validate_boundary_entry_plan(
         ));
     }
     Ok(ValidatedBoundaryEntryPlan(plan))
+}
+
+/// Turns a source policy result into the only artifact allowed to contribute
+/// requirement identity. Policy rejection and compiler validation failure stay
+/// distinguishable so callers can attach the appropriate declaration-site
+/// diagnostic.
+pub fn validate_boundary_plan_result(
+    result: BoundaryPlanResult,
+    signature: &CallSignature,
+) -> Result<ValidatedBoundaryEntryPlan, BoundaryPlanDiagnostic> {
+    match result {
+        BoundaryPlanResult::Accepted(plan) => validate_boundary_entry_plan(plan, signature)
+            .map_err(BoundaryPlanDiagnostic::InvalidAcceptedPlan),
+        BoundaryPlanResult::Rejected(rejection) => Err(BoundaryPlanDiagnostic::Rejected(rejection)),
+    }
+}
+
+fn canonicalize_boundary_entry_plan(plan: &mut BoundaryEntryPlan) {
+    for placement in plan
+        .call
+        .parameters
+        .iter_mut()
+        .chain(plan.call.result.iter_mut())
+    {
+        placement.locations.sort_by_key(value_location_byte_offset);
+    }
+}
+
+fn value_location_byte_offset(location: &ValueLocation) -> u16 {
+    match location {
+        ValueLocation::Register {
+            value_byte_offset, ..
+        }
+        | ValueLocation::Stack {
+            value_byte_offset, ..
+        } => *value_byte_offset,
+        ValueLocation::Indirect { .. } => 0,
+    }
 }
 
 pub fn validate_state_footprint(
@@ -2247,6 +2344,75 @@ mod tests {
         let second =
             validate_boundary_entry_plan(second, &integer_signature(1)).expect("second entry plan");
         assert_ne!(first.contract_fingerprint(), second.contract_fingerprint());
+    }
+
+    #[test]
+    fn accepted_policy_results_canonicalize_fragment_order_before_identity() {
+        let shape = ValueShape::system_v_aggregate(
+            16,
+            8,
+            SystemVEightbyteClass::Integer,
+            SystemVEightbyteClass::Sse,
+        );
+        let signature = CallSignature {
+            parameters: vec![shape],
+            result: None,
+        };
+        let baseline =
+            evaluate_ordinary_boundary_entry_plan(CallingPolicy::SystemVAMD64, &signature)
+                .expect("ordinary mixed-aggregate entry");
+        let mut authored = baseline.plan().clone();
+        authored.call.parameters[0].locations.reverse();
+
+        let accepted =
+            validate_boundary_plan_result(BoundaryPlanResult::Accepted(authored), &signature)
+                .expect("semantically equivalent authored plan");
+
+        assert_eq!(
+            accepted.plan().call.parameters[0].locations,
+            baseline.plan().call.parameters[0].locations
+        );
+        assert_eq!(
+            accepted.contract_fingerprint(),
+            baseline.contract_fingerprint()
+        );
+    }
+
+    #[test]
+    fn rejected_policy_results_cannot_acquire_contract_identity() {
+        let result = validate_boundary_plan_result(
+            BoundaryPlanResult::Rejected(CallingPolicyRejection::new(
+                "interrupt policies do not admit return values",
+            )),
+            &integer_signature(1),
+        );
+
+        let BoundaryPlanDiagnostic::Rejected(rejection) =
+            result.expect_err("policy rejection must not validate")
+        else {
+            panic!("policy rejection was reported as a malformed accepted plan");
+        };
+        assert_eq!(
+            rejection.reason(),
+            "interrupt policies do not admit return values"
+        );
+    }
+
+    #[test]
+    fn invalid_accepted_policy_plan_is_distinct_from_policy_rejection() {
+        let mut plan = strict_x86_entry();
+        plan.call.stack_alignment = 3;
+        let result = validate_boundary_plan_result(
+            BoundaryPlanResult::Accepted(plan),
+            &integer_signature(1),
+        );
+
+        let BoundaryPlanDiagnostic::InvalidAcceptedPlan(diagnostic) =
+            result.expect_err("invalid accepted plan must fail validation")
+        else {
+            panic!("invalid accepted plan was reported as policy rejection");
+        };
+        assert!(diagnostic.0.contains("stack alignment"));
     }
 
     #[test]
