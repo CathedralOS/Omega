@@ -1,5 +1,5 @@
 use crate::InstructionSelectionInput;
-use crate::derive_boundary_entry_storage_writes;
+use crate::{derive_boundary_entry_storage_writes, derive_boundary_exit};
 use omega_checked_trees::data::DataMember;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::statement::StatementNode;
@@ -1628,7 +1628,9 @@ pub(super) fn normalized_entry_record_result_placement(
         },
     )
     .ok()?;
-    let locations = boundary.plan().call.result.as_ref()?.locations.clone();
+    let locations = derive_boundary_exit(boundary.plan(), &[], Some(shape))
+        .ok()?
+        .result_locations;
     Some((shape, locations))
 }
 
@@ -1727,18 +1729,15 @@ pub(super) fn normalized_entry_integer_result_register(
         &signature,
     )
     .expect("runtime entry result must have a normalized boundary entry plan");
-    let plan = &boundary.plan().call;
-    let result = plan
-        .result
-        .as_ref()
-        .expect("integer-result call plan must place its result");
+    let result = derive_boundary_exit(boundary.plan(), &[], Some(ValueShape::integer(4, 4)))
+        .expect("integer-result boundary exit");
     let [
         ValueLocation::Register {
             register,
             value_byte_offset: 0,
             byte_size: 4,
         },
-    ] = result.locations.as_slice()
+    ] = result.result_locations.as_slice()
     else {
         panic!("integer-result call plan must select one complete register");
     };
@@ -1768,13 +1767,14 @@ pub(super) fn normalized_entry_scalar_result_register(
         },
     )
     .ok()?;
+    let exit = derive_boundary_exit(boundary.plan(), &[], Some(shape)).ok()?;
     let [
         ValueLocation::Register {
             register,
             value_byte_offset: 0,
             byte_size: placed_byte_size,
         },
-    ] = boundary.plan().call.result.as_ref()?.locations.as_slice()
+    ] = exit.result_locations.as_slice()
     else {
         return None;
     };
@@ -1833,13 +1833,14 @@ pub(super) fn normalized_entry_integer_result_placement(
         },
     )
     .ok()?;
+    let exit = derive_boundary_exit(boundary.plan(), &[], Some(shape)).ok()?;
     let [
         ValueLocation::Register {
             register,
             value_byte_offset: 0,
             byte_size: placed_byte_size,
         },
-    ] = boundary.plan().call.result.as_ref()?.locations.as_slice()
+    ] = exit.result_locations.as_slice()
     else {
         return None;
     };
