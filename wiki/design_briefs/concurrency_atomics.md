@@ -98,7 +98,10 @@ release nor be stronger than its success ordering. Stage-1 atomic operations
 and the memory model are landed. Load/store/fetch_add/compare_exchange preserve
 their ordering through normalized operations and exact x86_64/aarch64 target
 lowering. Fetch/CAS write the instruction-observed prior into the language
-result; a separate ordinary read is forbidden because it races the RMW.
+result; a separate ordinary read is forbidden because it races the RMW. The
+serial interpreter models the same observation explicitly and is pinned by a
+focused differential test rather than treating the carrier as an ordinary
+transparent expression.
 
 Still required:
 

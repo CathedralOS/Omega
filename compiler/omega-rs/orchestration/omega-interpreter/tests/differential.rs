@@ -1518,6 +1518,29 @@ fn interpreter_matches_native_on_supported_canaries() {
 }
 
 #[test]
+fn interpreter_preserves_atomic_instruction_results() {
+    for name in [
+        "atomics/runtime_atomic_load_store_exit",
+        "atomics/runtime_atomic_fetch_add_exit",
+        "atomics/runtime_atomic_compare_exchange_exit",
+    ] {
+        let main_path = pass_canary(name).join("main.omg");
+        let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+            panic!(
+                "{name}: atomic canary failed frontend checking:\n{}",
+                join_diagnostics(&diagnostics)
+            )
+        });
+        let outcome = interpret(&checked, b"");
+        assert_eq!(outcome.error, None, "{name}: interpreter trapped");
+        assert_eq!(
+            outcome.exit_code, 70,
+            "{name}: interpreter did not return the instruction-observed atomic result"
+        );
+    }
+}
+
+#[test]
 fn interpreter_runs_forwarded_const_data_array_length() {
     let main_path =
         pass_canary("generics/runtime_const_data_forwarded_length_exit").join("main.omg");

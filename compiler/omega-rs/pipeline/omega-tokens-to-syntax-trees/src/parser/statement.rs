@@ -948,36 +948,34 @@ fn parse_local_data_statement_handle<'tokens, 'source>(
 /// (the value to write and a validated ordering identifier) -- and desugar it into an
 /// Assignment of the receiver place to the first argument. Returns `None` for
 /// any other expression, leaving it to the normal statement paths.
-/// ATOMICS STAGE 1 (ch17, M3): Try to parse and expand
+/// ATOMICS (ch17): Try to parse and carry
 /// `let name: type = place.fetch_add(delta, ordering);` as TWO statements:
-///   1. `let name: type = place;`       -- captures the PRIOR value
-///   2. `place = place + delta;`        -- increments the place
+///   1. reserve the result local without reading the atomic place;
+///   2. attach an opaque atomic carrier to the arithmetic-shaped interpreter
+///      model. Native selection replaces the pair with one RMW instruction and
+///      stores that instruction's observed prior into the result local.
 ///
-/// On x86_64 both desugar steps lower to ordinary reads/writes in stage 1;
-/// a future pass will replace them with a single `LOCK xadd` RMW instruction
-/// when the threading scheduler lands.  Returns `None` if the input does not
+/// Returns `None` if the input does not
 /// match the `let ... = ...fetch_add(...)` form, leaving the caller to fall
 /// back to `parse_statement_handle`.
 ///
 /// The returned span covers exactly two statement entries that are already
 /// appended to `syntax_trees.items`; callers must advance their span
 /// accounting by 2.
-/// ATOMICS STAGE 1 (ch17, M4): Try to parse and expand
+/// ATOMICS (ch17): Try to parse and carry
 /// `let name: type = place.compare_exchange(expected, new_val, succ_ord, fail_ord);`
 /// as TWO statements:
-///   1. `let name: type = place;`
-///      -- captures the PRIOR value (returned regardless of success/failure,
-///         matching Rust's `Err` branch shape and x86 CMPXCHG register contract)
-///   2. `place = prior + (prior == expected) * (new_val - prior);`
+///   1. reserve the result local without reading the atomic place;
+///   2. carry `prior + (prior == expected) * (new_val - prior)` as the
+///      interpreter model inside an opaque CAS carrier.
 ///      -- arithmetically conditional swap: when `prior == expected` evaluates
 ///         to 1 this simplifies to `place = new_val`; when 0, `place = prior`
-///         (no-op). Under stage-1 single-threaded execution this is semantically
-///         equivalent to a single `LOCK cmpxchg` instruction.
+///         (no-op). Native selection replaces the carrier with one CAS and
+///         writes its observed prior into the result local.
 ///
 /// Return-shape choice: the PRIOR value (before the potential swap), not a
 /// bool.  This mirrors x86 CMPXCHG's RAX contract and lets callers check
-/// success with `prior == expected`.  A future pass will lower to a single
-/// `LOCK cmpxchg` RMW instruction.
+/// success with `prior == expected`.
 ///
 /// Returns `None` if the input does not match the form (wrong name or arity),
 /// leaving the caller to fall back to `parse_statement_handle`.
