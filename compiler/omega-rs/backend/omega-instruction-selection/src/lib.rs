@@ -1,9 +1,11 @@
 pub mod encoding;
+mod entry;
 pub mod operands;
 mod selection;
 pub mod widths;
 
 pub use encoding::*;
+pub use entry::derive_boundary_entry_storage_writes;
 pub use operands::*;
 pub use selection::build_instruction_plan;
 pub use widths::*;

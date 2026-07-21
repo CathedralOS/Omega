@@ -317,6 +317,12 @@ schemas recover the same instance without publishing policy type identity.
    their existing call-plan entry point is only a projection, while selected
    source plans are fully revalidated against the concrete signature before
    either direction may consume them.
+   The process-entry prologue now delegates register, incoming-stack,
+   indirect-parameter, and hidden-result-pointer unmarshalling to a reusable
+   inbound-stub derivation. That derivation consumes and revalidates the exact
+   complete `BoundaryEntryPlan`; non-default selected registers reach its
+   abstract writes, and a state-invalid carrier fails before any writes are
+   produced.
    Fixed non-HFA AAPCS64 entry records up to 16 bytes now consume consecutive
    plan-selected `x` fragments with 16-byte register alignment, fall wholly to
    aligned stack fragments when the remaining register bank is too small,
