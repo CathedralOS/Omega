@@ -1,14 +1,20 @@
-// RUN CANARY (exit 70) + interpreter differential. ZII DEFAULT STRINGS
-// through content equality: a never-written String field is an all-zero
-// {ptr, len} descriptor, and ZII semantics say that IS the empty string.
+// RUN CANARY (exit 70) + interpreter differential. ZII DEFAULT TEXT CARRIERS
+// through content equality: a never-written bounded carrier is an all-zero
+// {len, bytes} value, and ZII semantics say that IS empty text.
 // Three legs: (1) zii == "" must be TRUE (len 0 == len 0; the loop never
 // runs); (2) zii == "omega" must be FALSE WITHOUT dereferencing the null
 // pointer (the length mismatch exits before any byte read -- both encoders
 // document this guard); (3) zii == zii (place==place TextEquals) must be
 // TRUE. A regression on leg 2 is a SIGSEGV, not a wrong exit -- the canary
 // still catches it as a non-70 outcome. exits: 71/72/73 per leg.
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
 use omega::language::std::console;
-data Main { console: Console; never: String; also_never: String; okf: bool; }
+data Main { console: Console; never: [u8; 8] in Utf8; also_never: [u8; 8] in Utf8; okf: bool; }
 machine Main::main(&mut self) {
     self.build();
 }

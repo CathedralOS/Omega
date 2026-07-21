@@ -30,6 +30,13 @@
 > forwarded-local, field-store, nested-boolean, and inequality positions on
 > x86-64 and AArch64. The migrated regression canaries preserve interpreter
 > oracles alongside native execution.
+>
+> ZII and copy routes are migrating on the same representation. A never-written
+> `[u8; N] in Utf8` is empty text (`len == 0`), not an always-full N-byte zero
+> array; native and interpreter execution now agree on that default. Nested
+> case-payload equality, mutable carrier aliases, and copying a local record's
+> carrier field through a mutable output parameter likewise no longer depend on
+> builtin `String`.
 
 > **Migration-cost lesson:** this is not a mechanical keyword deletion. The
 > historical corpus exercised owned `String` natively across fields, copies,

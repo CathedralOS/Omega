@@ -949,6 +949,18 @@ impl<'program> Evaluator<'program> {
                 return self.default_value_for_type_with_bindings(argument, bindings);
             }
 
+            // An owned `[u8; N] in <text-domain>` is not an always-full fixed
+            // array. Its runtime representation is the bounded carrier
+            // `{ len, bytes[N] }`, whose honest ZII value has `len == 0`.
+            // Recognize that shape BEFORE stripping the domain constraint;
+            // otherwise the interpreter constructs N zero-valued array
+            // elements and compares it against text literals as a non-text
+            // value, diverging from both the checked semantics and native
+            // `BoundedByteBuffer` layout.
+            if self.declared_type_is_bounded_byte_buffer(type_reference) {
+                return Ok(Value::bytes(Vec::new()));
+            }
+
             // See THROUGH a domain constraint (`[i32; N] in Wrapping`, `i32 in Saturating`):
             // the default of a constrained type is the default of its base type (zero in every
             // arithmetic domain). Without this, a domain-constrained ARRAY field falls past the
@@ -5199,6 +5211,48 @@ impl<'program> Evaluator<'program> {
             }
             _ => false,
         }
+    }
+
+    /// True for the owned variable-fill text carrier `[u8; N] in <domain>`.
+    /// This mirrors `omega-layout`'s `BoundedByteBuffer` classification rather
+    /// than treating the carrier as an always-full `[u8; N]` array.
+    fn declared_type_is_bounded_byte_buffer(
+        &self,
+        type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    ) -> bool {
+        if !type_reference.is_valid() {
+            return false;
+        }
+        let omega_typed_trees::types::TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = self
+            .program
+            .type_reference_table
+            .type_reference(type_reference)
+        else {
+            return false;
+        };
+        let has_value_domain = self
+            .program
+            .type_reference_table
+            .constraints(*constraints)
+            .iter()
+            .any(|constraint| match constraint {
+                omega_typed_trees::types::TypeConstraintNode::Domain(name) => {
+                    !omega_typed_trees::wire::is_layout_domain_name(name.as_str())
+                }
+                _ => false,
+            });
+        if !has_value_domain {
+            return false;
+        }
+        let omega_typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
+            self.program.type_reference_table.type_reference(*base_type)
+        else {
+            return false;
+        };
+        self.program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8)
     }
 
     /// The ELEMENT type of an owned fixed array `[T; N]` -- seeing THROUGH a

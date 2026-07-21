@@ -907,7 +907,11 @@ stronger operations it needs instead of citing machine parameters generally.
   migrated canaries retain native/interpreter differential oracles. The old
   frame-slot comparison writer now consumes the same representation-aware
   value operand as ordinary writes instead of assuming a `{ptr,len}` String
-  descriptor. Still implement scratch-backed
+  descriptor. ZII carrier defaults, nested case-payload equality, mutable
+  carrier aliases, and local-field copies through mutable carrier parameters
+  have also moved off builtin `String`; the interpreter now constructs a
+  domain-qualified fixed byte carrier as empty `{len, bytes}` rather than an
+  always-full zero array. Still implement scratch-backed
   overlap handling (or an equivalent proven length route) before migrating the
   in-place `target = target + suffix` regressions; never zero the aliased source
   and call it a copy. Follow
