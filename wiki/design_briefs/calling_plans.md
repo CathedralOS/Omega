@@ -312,9 +312,9 @@ for 16-byte alignment; normalized small-aggregate result plans use `x0`/`x1`.
 Provides-authored outbound calls preserve the same small non-HFA record as one
 by-value operand: emission loads every planned consecutive `x` fragment or
 copies the whole value into the plan's aligned outgoing stack fragments.
-Small aggregate result stores and aggregates above 16 bytes still need result
-or caller-copy/indirect-result lowering, and
-source-selected policies remain. Generic Linux
+Small aggregate entry results and outbound result stores consume their
+plan-selected fragments. Aggregates above 16 bytes use the normalized indirect
+argument and caller-owned `x8` result-destination conventions. Generic Linux
 syscall leaves are the first outbound path to make the normalized plan
 authoritative: emission evaluates the x86-64 or AArch64 syscall policy for the
 operand signature, then passes its exact parameter registers, number register,

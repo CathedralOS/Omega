@@ -147,10 +147,11 @@ first physical-`Extent` mint): COMPLETE with positive firmware-return evidence a
 98-descriptor runtime-stride walk.
 
 **Milestone 3 — alive after firmware dies:** serial + idle COMPLETE; timer tick
-REMAINS. Generic `Calling<C>` trait composition is complete, and its source
-policy semantics are settled. Its remaining dependencies are compiler policy
-evaluation, checked-asm catalog work, `CallPlan + StatePlan` entry
-derivation/final footprint validation,
+REMAINS. Generic `Calling<C>` trait composition, source-policy evaluation,
+canonical evaluated-plan identity, and retention of the complete boundary plan
+through checked lowering are complete. Its remaining dependencies are
+checked-asm catalog work, `CallPlan + StatePlan` entry-stub derivation,
+state-ceiling-aware codegen/final footprint validation,
 fragmented IDT materialization, and the external-root ledger. TASKS.md records
 the agent-ready order.
 
