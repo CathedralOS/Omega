@@ -18,7 +18,7 @@ pub(super) fn encode_host_operation(
                 input.target.architecture,
                 operands,
                 *number,
-                binding.and_then(|binding| binding.call_plan.as_ref()),
+                binding.and_then(omega_calling_conventions::HostBinding::call_plan),
             )
         }
         Some(HostBindingMechanism::VtableSlot { index }) => {
@@ -26,7 +26,7 @@ pub(super) fn encode_host_operation(
                 input.target,
                 operands,
                 *index,
-                binding.and_then(|binding| binding.call_plan.as_ref()),
+                binding.and_then(omega_calling_conventions::HostBinding::call_plan),
             )
         }
         Some(HostBindingMechanism::VtableField {
@@ -38,7 +38,7 @@ pub(super) fn encode_host_operation(
             operands,
             *byte_offset,
             field_model_result_present(operands.len(), *parameter_count, "vtable-field")?,
-            binding.and_then(|binding| binding.call_plan.as_ref()),
+            binding.and_then(omega_calling_conventions::HostBinding::call_plan),
         ),
         Some(HostBindingMechanism::TableFunction {
             byte_offset,
@@ -49,7 +49,7 @@ pub(super) fn encode_host_operation(
             operands,
             *byte_offset,
             field_model_result_present(operands.len(), *parameter_count, "table-function")?,
-            binding.and_then(|binding| binding.call_plan.as_ref()),
+            binding.and_then(omega_calling_conventions::HostBinding::call_plan),
         ),
         Some(HostBindingMechanism::Import { .. })
             if matches!(
@@ -62,7 +62,7 @@ pub(super) fn encode_host_operation(
                 input.target,
                 operation_key,
                 operands,
-                binding.and_then(|binding| binding.call_plan.as_ref()),
+                binding.and_then(omega_calling_conventions::HostBinding::call_plan),
             )
         }
         _ => architecture::encode_host_call_sequence(input.target, operation_key, operands),
