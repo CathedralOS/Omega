@@ -1,14 +1,22 @@
 use omega::language::std::console;
 
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
+
+domain [u8; 16]::Utf8 {
+    valid_utf8(self);
+}
+
 data Room {
-    label: String;
+    label: [u8; 8] in Utf8;
 }
 
 data Main {
     console: Console;
     source: Room;
     copied: Room;
-    line: String;
+    line: [u8; 16] in Utf8;
 }
 
 machine Main::main(&mut self) {
@@ -26,7 +34,11 @@ machine Main::main(&mut self) {
         }
     }
 
-    state write_line(&mut self, label: String, out_line: &mut String) {
+    state write_line(
+        &mut self,
+        label: [u8; 8] in Utf8,
+        out_line: &mut [u8; 16] in Utf8
+    ) {
         out_line = "prefix " + label;
 
         transition self.line == "prefix omega" {

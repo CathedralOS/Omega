@@ -19,20 +19,7 @@ use omega_instruction_selection::{
     runtime_atomic_fetch_sub_width, runtime_atomic_fetch_xor_width,
     runtime_atomic_load_to_storage_width, runtime_atomic_store_from_operand_width,
     runtime_atomic_swap_width, runtime_byte_read_width, runtime_byte_write_width,
-    runtime_frame_base_indexed_binary_write_width, runtime_frame_base_indexed_integer_write_width,
-    runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
-    runtime_machine_bounded_buffer_literal_append_width,
-    runtime_machine_bounded_buffer_source_append_width,
-    runtime_machine_double_indexed_binary_write_width,
-    runtime_machine_double_indexed_integer_write_width, runtime_machine_indexed_binary_write_width,
-    runtime_machine_integer_write_width, runtime_pointee_binary_write_width,
-    runtime_pointee_integer_write_width, runtime_storage_binary_write_width,
-    runtime_storage_convert_width,
-    runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width,
-    runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width,
-    runtime_storage_copy_machine_indexed_to_machine_indexed_width,
-    runtime_storage_copy_to_return_register_width,
-    runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage_width,
+    runtime_storage_convert_width, runtime_storage_copy_to_return_register_width,
     runtime_text_buffer_materialize_width, runtime_text_line_read_width,
     runtime_text_literal_append_width, runtime_text_literal_compare_width,
     runtime_text_literal_segment_write_width, runtime_text_literal_write_width,
@@ -686,24 +673,20 @@ fn machine_instruction_width(
             *byte_size,
             *zigzag,
         ),
-        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
-            target_byte_offset,
-            source_byte_offset,
-            source_in_frame,
-        } => runtime_machine_bounded_buffer_source_append_width(
-            input.target.architecture,
-            *target_byte_offset,
-            *source_byte_offset,
-            *source_in_frame,
-        ),
-        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral {
-            target_byte_offset,
-            literal,
-        } => runtime_machine_bounded_buffer_literal_append_width(
-            input.target.architecture,
-            *target_byte_offset,
-            literal,
-        ),
+        SelectedInstructionKind::AppendPlaceBoundedBufferSource { target, source } => {
+            omega_instruction_selection::append_place_bounded_buffer_source_width(
+                input.target.architecture,
+                target,
+                source,
+            )?
+        }
+        SelectedInstructionKind::AppendPlaceBoundedBufferLiteral { target, literal } => {
+            omega_instruction_selection::append_place_bounded_buffer_literal_width(
+                input.target.architecture,
+                target,
+                literal,
+            )?
+        }
         SelectedInstructionKind::ReadRuntimeTextLine { .. } => {
             let Some(read) = selected_host_text_read(kind) else {
                 return Err(Diagnostic::error(

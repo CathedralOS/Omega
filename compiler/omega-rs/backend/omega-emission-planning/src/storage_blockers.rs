@@ -381,8 +381,8 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::WritePlaceBoundedBuffer { .. }
                     | SelectedInstructionKind::WritePlaceAddress { .. }
                     | SelectedInstructionKind::WriteRuntimeStorageConvert { .. }
-                    | SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource { .. }
-                    | SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral { .. }
+                    | SelectedInstructionKind::AppendPlaceBoundedBufferSource { .. }
+                    | SelectedInstructionKind::AppendPlaceBoundedBufferLiteral { .. }
                     | SelectedInstructionKind::MaterializeTextBufferToPlace { .. }
                     | SelectedInstructionKind::AppendTextStoredToPlace { .. }
                     | SelectedInstructionKind::AppendTextLiteralToPlace { .. }

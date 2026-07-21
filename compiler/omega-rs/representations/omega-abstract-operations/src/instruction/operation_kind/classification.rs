@@ -43,8 +43,8 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::WriteEntryIndirectArgument { .. }
             | Self::WriteEntryArgumentsSliceDescriptor { .. }
             | Self::WriteRuntimeStorageConvert { .. }
-            | Self::AppendRuntimeMachineBoundedBufferSource { .. }
-            | Self::AppendRuntimeMachineBoundedBufferLiteral { .. }
+            | Self::AppendPlaceBoundedBufferSource { .. }
+            | Self::AppendPlaceBoundedBufferLiteral { .. }
             | Self::AppendWireLiteralByte { .. }
             | Self::AppendWireScalarVarint { .. }
             | Self::AppendWireTextBytes { .. }

@@ -1393,6 +1393,79 @@ pub fn x86_64_encode_write_place_bounded_buffer_with_sites(
     x86_64::encode_place_bounded_buffer_write(target, literal)
 }
 
+pub fn encode_append_place_bounded_buffer_source(
+    architecture: Architecture,
+    target: &omega_target_operations::Place,
+    source: &omega_target_operations::Place,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::X86_64 => x86_64::encode_place_bounded_buffer_source_append(target, source)
+            .map(|(bytes, _)| bytes),
+        Architecture::Aarch64 => aarch64::encode_place_bounded_buffer_source_append(target, source)
+            .map(|(bytes, _)| bytes),
+    }
+}
+
+pub fn append_place_bounded_buffer_source_width(
+    architecture: Architecture,
+    target: &omega_target_operations::Place,
+    source: &omega_target_operations::Place,
+) -> Result<usize, Diagnostic> {
+    encode_append_place_bounded_buffer_source(architecture, target, source).map(|bytes| bytes.len())
+}
+
+pub fn encode_append_place_bounded_buffer_literal(
+    architecture: Architecture,
+    target: &omega_target_operations::Place,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::X86_64 => x86_64::encode_place_bounded_buffer_literal_append(target, literal)
+            .map(|(bytes, _)| bytes),
+        Architecture::Aarch64 => {
+            aarch64::encode_place_bounded_buffer_literal_append(target, literal)
+                .map(|(bytes, _)| bytes)
+        }
+    }
+}
+
+pub fn append_place_bounded_buffer_literal_width(
+    architecture: Architecture,
+    target: &omega_target_operations::Place,
+    literal: &str,
+) -> Result<usize, Diagnostic> {
+    encode_append_place_bounded_buffer_literal(architecture, target, literal)
+        .map(|bytes| bytes.len())
+}
+
+pub fn x86_64_encode_append_place_bounded_buffer_source_with_sites(
+    target: &omega_target_operations::Place,
+    source: &omega_target_operations::Place,
+) -> Result<(Vec<u8>, omega_isa_x86_64::PlaceCopySites), Diagnostic> {
+    x86_64::encode_place_bounded_buffer_source_append(target, source)
+}
+
+pub fn x86_64_encode_append_place_bounded_buffer_literal_with_sites(
+    target: &omega_target_operations::Place,
+    literal: &str,
+) -> Result<(Vec<u8>, omega_isa_x86_64::PlaceCopySites), Diagnostic> {
+    x86_64::encode_place_bounded_buffer_literal_append(target, literal)
+}
+
+pub fn aarch64_encode_append_place_bounded_buffer_source_with_sites(
+    target: &omega_target_operations::Place,
+    source: &omega_target_operations::Place,
+) -> Result<(Vec<u8>, omega_isa_aarch64::BoundedBufferPlaceSites), Diagnostic> {
+    aarch64::encode_place_bounded_buffer_source_append(target, source)
+}
+
+pub fn aarch64_encode_append_place_bounded_buffer_literal_with_sites(
+    target: &omega_target_operations::Place,
+    literal: &str,
+) -> Result<(Vec<u8>, omega_isa_aarch64::BoundedBufferPlaceSites), Diagnostic> {
+    aarch64::encode_place_bounded_buffer_literal_append(target, literal)
+}
+
 /// One source of truth: the encoder's output length.
 pub fn write_place_integer_width(
     architecture: Architecture,

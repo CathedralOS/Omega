@@ -38,6 +38,21 @@
 > carrier field through a mutable output parameter likewise no longer depend on
 > builtin `String`.
 >
+> Mutable parameters are no longer a separate backend shape. Direct carriers,
+> mutable carrier pointees, and nested carrier fields lower through the same
+> Place-shaped append operations on x86-64 and AArch64. The in-place first segment
+> is recognized as an alias and retained; it is never zeroed before appending.
+> Immutable data parameters seed declared-domain facts for their nested fields,
+> while writes through mutable parameters must prove or establish the destination
+> field's domain at that write. The negative
+> `state_parameter_field_domain_write_unestablished` canary pins that distinction.
+>
+> Frame argument materialization is now type-driven rather than size-driven.
+> A by-value `[u8; N] in D` that happens to occupy 16 bytes remains the inline
+> `{len, bytes}` carrier; only an actual slice/string descriptor receives the
+> `{ptr, len}` rewrite. This closes the smallest-capacity case where layout size
+> alone previously confused two unrelated representations.
+>
 > Bounded carriers now also cross ordinary machine-result and borrowed-view
 > seams. A literal may directly satisfy a `[u8; N] in D` argument or terminal
 > result only when its byte length is at most `N`; over-capacity returns fail at
@@ -63,7 +78,7 @@
 > bounded carriers without losing their native/interpreter regression coverage.
 > Migration is underway, but the growable `with_capacity`/`push_str` surface still
 > genuinely needs the allocator. The arc is therefore partly allocator-gated,
-> while fixed-capacity migration and missing carrier lowering remain actionable.
+> while fixed-capacity corpus migration and running-length proofs remain actionable.
 
 ## Why it's atomic
 

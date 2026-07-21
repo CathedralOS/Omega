@@ -586,20 +586,18 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 new_value: remap_runtime_value_handle(*new_value),
                 ordering: *ordering,
             },
-            omega_abstract_operations::AbstractOperationKind::AppendRuntimeMachineBoundedBufferSource {
-                target_byte_offset,
-                source_byte_offset,
-                source_in_frame,
-            } => Self::AppendRuntimeMachineBoundedBufferSource {
-                target_byte_offset: *target_byte_offset,
-                source_byte_offset: *source_byte_offset,
-                source_in_frame: *source_in_frame,
+            omega_abstract_operations::AbstractOperationKind::AppendPlaceBoundedBufferSource {
+                target,
+                source,
+            } => Self::AppendPlaceBoundedBufferSource {
+                target: (*target).into(),
+                source: (*source).into(),
             },
-            omega_abstract_operations::AbstractOperationKind::AppendRuntimeMachineBoundedBufferLiteral {
-                target_byte_offset,
+            omega_abstract_operations::AbstractOperationKind::AppendPlaceBoundedBufferLiteral {
+                target,
                 literal,
-            } => Self::AppendRuntimeMachineBoundedBufferLiteral {
-                target_byte_offset: *target_byte_offset,
+            } => Self::AppendPlaceBoundedBufferLiteral {
+                target: (*target).into(),
                 literal: literal.clone(),
             },
             omega_abstract_operations::AbstractOperationKind::ReadRuntimeTextLine {

@@ -285,6 +285,16 @@ already in place for range-refined fields.
 > carrier prefix (which would interpret `len` as a pointer) or substitute the
 > static capacity for the runtime length. Literal arguments and terminal returns
 > likewise construct the carrier only when their exact byte length fits `N`.
+> Argument materialization therefore gates descriptor rewriting on the target's
+> declared representation, never on storage width alone: a 16-byte bounded carrier
+> is still `{len, inline_bytes}`, while a 16-byte borrowed slice is `{ptr, len}`.
+>
+> Carrier mutation is Place-shaped. Direct fields, parameter/local storage,
+> mutable pointees, and their nested fields select the same append operations and
+> are encoded from their materialized Places on both supported ISAs. For
+> `target = target + suffix`, selection preserves the aliased first segment and
+> appends in place. This settles overlap-safe lowering; it does not waive the
+> independent proof that the resulting running length fits the target capacity.
 >
 > This dissolves the earlier (A)/(B)/(C) fork cleanly:
 > * The fat-ness of an owned buffer comes from `[u8; N]` *being* a length-carrying

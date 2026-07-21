@@ -484,29 +484,22 @@ pub enum AbstractOperationKind {
         /// this false because their range obligation was already discharged.
         saturating: bool,
     },
-    /// Append another owned `[u8; N]` carrier's content onto a target carrier at
-    /// machine storage (the concat-builder's source segment after the first
-    /// literal initialized the target via `WriteRuntimeMachineBoundedBuffer`).
-    /// Reads the target's running `len` and the source's `len`, copies the
-    /// source's `len` content bytes (at `source + pointer_size`) onto the target's
-    /// bytes at the running offset (`target + pointer_size + target_len`), then
-    /// stores the new running `len = target_len + source_len`. The target carrier
-    /// is machine-resident; the source carrier is machine-resident UNLESS
-    /// `source_in_frame` (a `let`-local carrier such as `room.label`), in which
-    /// case it is read from the runtime frame base (a second relocation). The
-    /// length-fits guard proves the result still fits the target's `N`.
-    AppendRuntimeMachineBoundedBufferSource {
-        target_byte_offset: usize,
-        source_byte_offset: usize,
-        source_in_frame: bool,
+    /// Append another owned `[u8; N]` carrier's content onto a target carrier.
+    /// Both addresses ride the ordinary [`Place`] algebra, so a concat has one
+    /// semantic operation whether either carrier is direct, borrowed through a
+    /// parameter, or eventually indexed. The length-fits guard has already
+    /// proved that the result fits the target's `N`.
+    AppendPlaceBoundedBufferSource {
+        target: Place,
+        source: Place,
     },
     /// Append a string LITERAL onto an owned `[u8; N]` carrier at its running
     /// length (a later concat segment, e.g. the trailing `" =="` of
     /// `"== " + room.label + " =="`). The literal's bytes are written as immediates
     /// at `target + pointer_size + len`, then `len += literal.len`. The length-fits
     /// guard proves the result still fits the target's `N`.
-    AppendRuntimeMachineBoundedBufferLiteral {
-        target_byte_offset: usize,
+    AppendPlaceBoundedBufferLiteral {
+        target: Place,
         literal: Arc<str>,
     },
     ReadRuntimeTextLine {

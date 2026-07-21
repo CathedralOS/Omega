@@ -183,30 +183,43 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                 if parameter.is_self || parameter.is_mutable {
                     continue;
                 }
-                let Some(domain_symbol) = field_domain_symbol(program, parameter.type_reference)
+                if let Some(domain_symbol) = field_domain_symbol(program, parameter.type_reference)
                     .filter(|symbol| symbol.is_valid())
-                else {
-                    continue;
-                };
-
-                let place = facts.append_symbol_place(parameter.symbol);
-                let fact = facts.append_fact(Fact {
-                    place: FactPlace::Place(place),
-                    point: ProgramPoint::State {
-                        machine_symbol: machine.symbol,
-                        state_symbol: state.symbol,
-                    },
-                    origin: FactOrigin::StateParameterDomain {
-                        machine_symbol: machine.symbol,
-                        state_symbol: state.symbol,
-                    },
-                    payload: FactPayload::DomainMembership {
-                        value: omega_typed_trees::expression::ExpressionHandle::invalid(),
-                        domain: omega_core::arena::HandleSpan::empty(),
+                {
+                    append_state_parameter_domain_fact(
+                        facts,
+                        machine.symbol,
+                        state.symbol,
+                        parameter.symbol,
+                        &[],
                         domain_symbol,
-                    },
-                });
-                facts.append_ref(&mut refs, fact);
+                        &mut refs,
+                    );
+                }
+
+                // A by-value immutable data parameter carries the invariant of
+                // each domained field in its declared data shape. Construction
+                // and every write establish those invariants before the value
+                // reaches this state, so `room.label` is as trustworthy here as
+                // a directly domained parameter. Mutable parameters remain
+                // excluded: their field facts are established statement by
+                // statement after checked writes.
+                if let Some(data) = crate::field_domain::data_definition_for_field_type(
+                    program,
+                    parameter.type_reference,
+                ) {
+                    append_state_parameter_data_field_domain_facts(
+                        program,
+                        facts,
+                        machine.symbol,
+                        state.symbol,
+                        parameter.symbol,
+                        data,
+                        &[],
+                        &[data.name.as_str()],
+                        &mut refs,
+                    );
+                }
             }
 
             if refs.is_empty() {
@@ -221,6 +234,92 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
             );
         }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_state_parameter_data_field_domain_facts(
+    program: &TypedTrees,
+    facts: &mut FactPlan,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    parameter_symbol: SymbolHandle,
+    data: &omega_typed_trees::data::DataDefinition,
+    prefix: &[SymbolHandle],
+    visited: &[&str],
+    refs: &mut omega_core::arena::HandleSpan<omega_facts::FactRef>,
+) {
+    for member in program.data_members(data) {
+        let DataMember::Field(field) = member else {
+            continue;
+        };
+        if let Some(domain_symbol) =
+            field_domain_symbol(program, field.type_reference).filter(|symbol| symbol.is_valid())
+        {
+            let mut path = prefix.to_vec();
+            path.push(field.symbol);
+            append_state_parameter_domain_fact(
+                facts,
+                machine_symbol,
+                state_symbol,
+                parameter_symbol,
+                &path,
+                domain_symbol,
+                refs,
+            );
+        }
+        if let Some(nested) =
+            crate::field_domain::data_definition_for_field_type(program, field.type_reference)
+            && !visited.contains(&nested.name.as_str())
+        {
+            let mut next_prefix = prefix.to_vec();
+            next_prefix.push(field.symbol);
+            let mut next_visited = visited.to_vec();
+            next_visited.push(nested.name.as_str());
+            append_state_parameter_data_field_domain_facts(
+                program,
+                facts,
+                machine_symbol,
+                state_symbol,
+                parameter_symbol,
+                nested,
+                &next_prefix,
+                &next_visited,
+                refs,
+            );
+        }
+    }
+}
+
+fn append_state_parameter_domain_fact(
+    facts: &mut FactPlan,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    parameter_symbol: SymbolHandle,
+    fields: &[SymbolHandle],
+    domain_symbol: SymbolHandle,
+    refs: &mut omega_core::arena::HandleSpan<omega_facts::FactRef>,
+) {
+    let place = facts.append_symbol_place(parameter_symbol);
+    for field in fields {
+        facts.push_place_segment(place, PlaceSegment::Field { symbol: *field });
+    }
+    let fact = facts.append_fact(Fact {
+        place: FactPlace::Place(place),
+        point: ProgramPoint::State {
+            machine_symbol,
+            state_symbol,
+        },
+        origin: FactOrigin::StateParameterDomain {
+            machine_symbol,
+            state_symbol,
+        },
+        payload: FactPayload::DomainMembership {
+            value: omega_typed_trees::expression::ExpressionHandle::invalid(),
+            domain: omega_core::arena::HandleSpan::empty(),
+            domain_symbol,
+        },
+    });
+    facts.append_ref(refs, fact);
 }
 
 /// #66 case-payload forwarding: a local constructed as a sum CASE with a

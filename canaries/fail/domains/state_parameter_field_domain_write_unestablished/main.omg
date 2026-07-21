@@ -1,0 +1,25 @@
+// A write through a mutable state-parameter member must preserve the member's
+// declared domain exactly like `self.inner.label = value`. The raw fixed array
+// carries no Ascii establishment, so assigning it through `out.label` rejects.
+domain [u8; 8]::Ascii {
+    ascii_only(self);
+}
+
+data Inner {
+    label: [u8; 8] in Ascii;
+}
+
+data Main {
+    target: Inner;
+    raw: [u8; 8];
+}
+
+machine Main::main(&mut self) {
+    transition self.raw {
+        _ -> corrupt(&mut self.target, self.raw)
+    }
+
+    state corrupt(&mut self, out: &mut Inner, raw: [u8; 8]) {
+        out.label = raw;
+    }
+}

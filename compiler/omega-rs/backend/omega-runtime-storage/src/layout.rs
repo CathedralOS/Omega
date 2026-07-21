@@ -1,7 +1,9 @@
 use super::RuntimeStorageContext;
 use omega_checked_trees::types::{
-    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable,
+    FixedArrayLength, PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+    TypeReferenceTable,
 };
+use omega_core::arena::HandleSpan;
 use omega_core::symbols::{BuiltinType, SymbolHandle};
 use omega_layout::TypeLayout;
 
@@ -41,8 +43,19 @@ pub(super) fn layout_for_type_reference(
         TypeReferenceNode::Reference { referee, .. } => {
             layout_for_reference_type(context, table, *referee)
         }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            layout_for_type_reference(context, table, *base_type)
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            let base = layout_for_type_reference(context, table, *base_type);
+            if bounded_byte_buffer_shape(table, *base_type, *constraints).is_some() {
+                TypeLayout {
+                    size: context.target.pointer_size.saturating_add(base.size),
+                    alignment: context.target.pointer_alignment,
+                }
+            } else {
+                base
+            }
         }
         TypeReferenceNode::FixedArray {
             element_type,
@@ -70,6 +83,35 @@ pub(super) fn layout_for_type_reference(
         }
         TypeReferenceNode::Unit => TypeLayout::default(),
     }
+}
+
+/// Recognize the exact semantic carrier shape used by `omega-layout` for an
+/// owned fixed array qualified by a named non-layout domain. Runtime-frame
+/// planning must not peel this constraint: the carrier is `{len, bytes}`, not
+/// the plain always-full array.
+pub(super) fn bounded_byte_buffer_shape(
+    table: &TypeReferenceTable,
+    base_type: TypeReferenceHandle,
+    constraints: HandleSpan<TypeConstraintNode>,
+) -> Option<(TypeReferenceHandle, usize)> {
+    let has_named_domain = table.constraints(constraints).iter().any(|constraint| {
+        matches!(
+            constraint,
+            TypeConstraintNode::Domain(name)
+                if !omega_checked_trees::wire::is_layout_domain_name(name.as_str())
+        )
+    });
+    if !has_named_domain {
+        return None;
+    }
+    let TypeReferenceNode::FixedArray {
+        element_type,
+        length: FixedArrayLength::Literal(capacity),
+    } = table.type_reference(base_type)
+    else {
+        return None;
+    };
+    Some((*element_type, *capacity))
 }
 
 fn layout_for_reference_type(

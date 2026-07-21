@@ -14,10 +14,10 @@ pub(super) fn selected_string_write_kind(
         SelectedInstructionKind::WritePlaceBoundedBuffer { .. } => {
             Some(MachineInstructionKind::RuntimeMachineBoundedBufferWrite)
         }
-        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource { .. } => {
+        SelectedInstructionKind::AppendPlaceBoundedBufferSource { .. } => {
             Some(MachineInstructionKind::RuntimeMachineBoundedBufferSourceAppend)
         }
-        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral { .. } => {
+        SelectedInstructionKind::AppendPlaceBoundedBufferLiteral { .. } => {
             Some(MachineInstructionKind::RuntimeMachineBoundedBufferLiteralAppend)
         }
         _ => None,

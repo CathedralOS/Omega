@@ -49,10 +49,14 @@ pub(super) fn check_domain_field_writes(
         .iter()
         .enumerate()
     {
-        // (1) Assignment `self.f = X` into a domain-refined field.
+        // (1) Assignment into a domain-refined field, parameter, or local.
         if let StatementNode::Assignment(assignment) = statement
-            && let Some(domain_symbol) =
-                crate::field_domain::target_field_domain_symbol(program, machine, assignment.target)
+            && let Some(domain_symbol) = crate::field_domain::assignment_target_domain_symbol(
+                program,
+                machine,
+                state,
+                assignment.target,
+            )
             && !value_proves_domain(
                 program,
                 facts,
@@ -65,7 +69,7 @@ pub(super) fn check_domain_field_writes(
             let target_label = program.expression_table.display_name(assignment.target);
             diagnostics.push(Diagnostic::error(format!(
                 "cannot prove the value assigned to `{target_label}` in {} is in domain `{}`; \
-                 a field declared `in {}` requires every write to be established in that domain \
+                 a place declared `in {}` requires every write to be established in that domain \
                  (pass a value already proven in the domain, or a literal its byte-predicate \
                  fact accepts)",
                 machine_name(program, state_flow.machine_symbol),
@@ -86,15 +90,24 @@ pub(super) fn check_domain_field_writes(
         // A value whose maximum length cannot be bounded (an unbounded view
         // source, a runtime call result) is conservatively rejected.
         if let StatementNode::Assignment(assignment) = statement
-            && crate::field_domain::target_field_domain_symbol(program, machine, assignment.target)
-                .is_some()
-            && let Some(field_type) =
-                crate::field_domain::attached_data_field_type(program, machine, assignment.target)
+            && crate::field_domain::assignment_target_domain_symbol(
+                program,
+                machine,
+                state,
+                assignment.target,
+            )
+            .is_some()
+            && let Some(field_type) = crate::field_domain::assignment_target_type_reference(
+                program,
+                machine,
+                state,
+                assignment.target,
+            )
             && let Some(capacity) =
                 crate::field_domain::type_reference_fixed_array_capacity(program, field_type)
         {
             let target_label = program.expression_table.display_name(assignment.target);
-            match static_max_byte_length(program, machine, assignment.value) {
+            match static_max_byte_length(program, machine, state, assignment.value) {
                 Some(max_length) if max_length <= capacity => {}
                 Some(max_length) => diagnostics.push(Diagnostic::error(format!(
                     "the value assigned to `{target_label}` in {} can be up to {max_length} \
@@ -195,6 +208,7 @@ fn statement_root_expressions(
 fn static_max_byte_length(
     program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> Option<usize> {
     match program.expression_table.expression(expression) {
@@ -202,8 +216,8 @@ fn static_max_byte_length(
         ExpressionNode::Binary(binary)
             if binary.operator == omega_typed_trees::expression::BinaryOperator::Add =>
         {
-            let left = static_max_byte_length(program, machine, binary.left)?;
-            let right = static_max_byte_length(program, machine, binary.right)?;
+            let left = static_max_byte_length(program, machine, state, binary.left)?;
+            let right = static_max_byte_length(program, machine, state, binary.right)?;
             Some(left.saturating_add(right))
         }
         ExpressionNode::Call(call) => {
@@ -212,7 +226,12 @@ fn static_max_byte_length(
         }
         _ => {
             let field_type =
-                crate::field_domain::attached_data_field_type(program, machine, expression)?;
+                crate::field_domain::attached_data_field_type(program, machine, expression)
+                    .or_else(|| {
+                        crate::field_domain::direct_state_place_type_reference(
+                            program, state, expression,
+                        )
+                    })?;
             crate::field_domain::type_reference_fixed_array_capacity(program, field_type)
         }
     }
@@ -280,6 +299,11 @@ fn scan_construction_field_domains(
                         .machines()
                         .iter()
                         .find(|machine| machine.symbol == state_flow.machine_symbol)
+                        && let Some(state) = crate::find_state_in_machine(
+                            program,
+                            state_flow.machine_symbol,
+                            state_flow.state_symbol,
+                        )
                         && let Some(field_type) = construction_field_type_by_name(
                             program,
                             type_name.as_str(),
@@ -291,7 +315,7 @@ fn scan_construction_field_domains(
                                 program, field_type,
                             )
                     {
-                        match static_max_byte_length(program, machine, field.value) {
+                        match static_max_byte_length(program, machine, state, field.value) {
                             Some(max_length) if max_length <= capacity => {}
                             Some(max_length) => diagnostics.push(Diagnostic::error(format!(
                                 "construction of `{}` field `{}` supplies a value up to \
@@ -597,6 +621,12 @@ fn value_proves_domain(
     }
 
     let value_label = program.expression_table.display_name(value);
+    let value_place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state_flow.state_symbol,
+        statement_index,
+        value,
+    );
     let entry_constraints = facts
         .flow
         .state_statement(state_flow, statement_index)
@@ -624,6 +654,16 @@ fn value_proves_domain(
                 let omega_facts::FactPlace::Place(fact_place) = fact.place else {
                     return false;
                 };
+                if value_place.as_ref().is_some_and(|value_place| {
+                    crate::flow::canonical_place_from_semantic_place(
+                        program,
+                        &facts.semantic,
+                        facts.semantic.places.get(fact_place),
+                    )
+                    .is_some_and(|fact_place| fact_place == *value_place)
+                }) {
+                    return true;
+                }
                 let place_label = canonical_place_label(
                     program,
                     &facts.semantic,

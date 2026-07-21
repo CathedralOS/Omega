@@ -924,11 +924,18 @@ stronger operations it needs instead of citing machine parameters generally.
   `ensures` facts back onto the exact mutable caller place; the migrated
   `utf8_boundary_established` / `no_nul_boundary_established` canaries pin the
   positive route, while a negative canary proves mutation without such an
-  `ensures` invalidates the old fact. Nineteen pass-canary sources still name
-  builtin `String`/`string`. Continue that migration, and implement scratch-backed
-  overlap handling (or an equivalent proven length route) before migrating the
-  in-place `target = target + suffix` regressions; never zero the aliased source
-  and call it a copy. Follow
+  `ensures` invalidates the old fact. Direct, parameter-pointee, and nested-field
+  carrier writes now share Place-shaped lowering on x86-64 and AArch64. Immutable
+  data parameters seed their nested declared-domain facts; writes through mutable
+  parameters must establish those facts at the write, with a negative canary
+  pinning rejection of an unqualified source. By-value bounded carriers are also
+  distinguished from equally-sized fat descriptors during argument materialization,
+  so `{len, bytes}` is copied inline instead of being rewritten as `{ptr, len}`.
+  Seventeen pass-canary sources still name builtin `String`/`string`. Continue that
+  migration. The backend's in-place concat route is now alias-safe and never zeros
+  its source, but migrating the remaining `target = target + suffix` regressions
+  still requires a proven running-length bound rather than the conservative
+  `capacity(target) + capacity(suffix)` estimate. Follow
   `wiki/architecture/string_retirement_execution.md`.
 - **Atomics remainder.** The closed ordering vocabulary and operation-specific
   legality rules now reject release-bearing loads, acquire-bearing stores,
