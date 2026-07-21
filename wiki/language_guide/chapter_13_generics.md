@@ -170,6 +170,11 @@ Rules:
   start moves the instance. Ownership determines whether the value may be
   transferred; its four-axis carry policy and the selected runtime contract
   determine whether that activation boundary is legal (chapters 7 and 18).
+- A static machine parameter does not reify a machine into ordinary data. It
+  cannot be stored, converted to an address, placed into a relocation field, or
+  returned as a runtime callback reference. Those operations need separately
+  designed sealed entry-reference and relocation machinery; compile-time
+  substitution alone supplies only a direct call in the specialized body.
 - Accepted generic axioms are granted once at the normalized template
   statement, including its machine-parameter contract. Each instantiation
   records that template receipt and the selected machine-contract identities

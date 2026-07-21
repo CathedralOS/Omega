@@ -209,9 +209,12 @@ handoff. Those details stay in providers. Image/subsystem selection belongs in
 ## Still open
 
 - callback registration/revocation and long-lived foreign borrows;
-- dynamic-library loading/unloading under component versioning; and
+- dynamic-library loading/unloading under component versioning;
 - source-visible reified entry references (deferred until dynamic callbacks
-  demonstrate a need beyond build/provider selection); and
+  demonstrate a need beyond build/provider selection). Static machine
+  parameters do not close this item: they substitute a symbol into specialized
+  code but do not produce a runtime carrier, relocation source, or sealed entry
+  identity; and
 - target-specific launch/exit details not covered by existing calling plans.
 
 Exact `Build` library method names for choosing a target profile remain

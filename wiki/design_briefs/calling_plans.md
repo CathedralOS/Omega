@@ -3,9 +3,10 @@
 Current as of 2026-07-20. Boundary conventions are normalized policy artifacts;
 Omega's internal calling convention remains compiler-sovereign. This brief now
 includes inbound machine-state preservation, which ordinary calls do not expose.
-Engineering is incomplete. The normalized compiler model and initial built-in
-policy evaluators are implemented; the settled source-policy evaluator and
-authoritative lowering remain.
+Engineering is incomplete. The normalized compiler model, initial built-in
+policy evaluators, and direct source-policy evaluation are implemented.
+Automatic discovery from `Calling<C>`, publication of the evaluated identity,
+and authoritative lowering remain.
 
 ## One boundary entry plan, two independent facets
 
@@ -103,6 +104,14 @@ platform packages. They choose only from the closed placement and machine-state
 vocabularies; adding a new primitive placement or state concept still requires a
 compiler release. Omega's internal calling convention is never selected through
 this surface.
+
+Using a policy type is a semantic choice, not a workaround for missing static
+machine parameters. Compile-time machine parameters can select and directly
+invoke an authored machine symbol, but `Calling<C>` names the policy
+relationship whose normalized result is part of the requirement. It also leaves
+the policy free to contain several ordinary machines without turning one helper
+symbol into the public ABI name. Neither mechanism reifies a machine as a
+runtime value or exposes its code address.
 
 A target-specific requirement may layer over a portable semantic service trait.
 When the boundary declaration itself is reusable across conventions, make the
@@ -389,12 +398,20 @@ differentially checks their historical register-slot and supervisor-call facts
 on both x86-64 and AArch64. Unknown x86 register slots fail closed instead of
 being ignored by the plan-driven encoder.
 
+The compiler also exposes the closed plan vocabulary through `std::calling` and
+can directly invoke a source-authored, effect-free policy machine with a
+materialized `BoundarySignature`. It decodes `Accepted` and `Rejected`, validates
+and canonicalizes accepted results, and returns only a validated plan. Focused
+end-to-end tests cover signature-dependent acceptance and rejection. This is the
+evaluation engine; automatic resolution from the `Calling<C>` conformance graph
+and publication of its fingerprint are the next integration step.
+
 Remaining order:
 
-1. Implement source evaluation of
-   `CallingPolicy::plan(BoundarySignature) -> BoundaryPlanResult`, report
-   structured rejections, canonicalize accepted plans, and hash the evaluated
-   pair into requirement identity.
+1. Discover `Calling<C>` at each boundary requirement, resolve `C`'s
+   `CallingPolicy::plan` satisfier, invoke the implemented source evaluator, and
+   hash the validated canonical pair into requirement identity. Point a rejected
+   result at the offending signature component at the `Calling<C>` site.
 2. Complete plan-driven outbound calls and their results;
    differential-check every supported compatibility encoder against the plan,
    add the concrete firmware/interrupt state policies, and make the plan

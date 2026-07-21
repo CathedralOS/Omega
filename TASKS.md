@@ -132,18 +132,21 @@ authors. A policy implementation satisfying `CallingPolicy::plan` can already
 be invoked through the compiler's purity-gated build-time interpreter: the
 compiler materializes `BoundarySignature`, decodes the complete result, and
 returns only a validated canonical plan. Focused end-to-end coverage exercises
-signature-dependent acceptance and structured rejection. Automatic discovery
-from each boundary `Calling<C>` relationship and publication of the resulting
-fingerprint remain in ENT2b.
+signature-dependent acceptance and structured rejection. ENT2b now begins at
+the integration seam: automatically discover the policy from each boundary
+`Calling<C>` relationship, evaluate it at the declaration site, publish the
+resulting fingerprint, and make rejection diagnostics identify the offending
+signature feature.
 
-1. **ENT2b — source policy evaluation and identity.** Implement the settled
-   `CallingPolicy::plan(BoundarySignature) -> BoundaryPlanResult` relationship.
-   Evaluate the policy type selected by `Calling<C>` at compile time, emit a
-   structured declaration-site diagnostic for `Rejected`, validate and
-   canonicalize every `Accepted(BoundaryEntryPlan)`, and put the canonical
-   evaluated fingerprint—not `C`'s symbol or source body—into published
-   requirement identity. Policy authorship is open to ordinary packages; the
-   plan vocabulary and validator remain compiler-owned and closed.
+1. **ENT2b — policy discovery and identity publication.** Starting from each
+   boundary `Calling<C>` relationship, resolve `C`'s
+   `CallingPolicy::plan(BoundarySignature) -> BoundaryPlanResult` satisfier and
+   invoke the implemented source evaluator automatically. Report `Rejected` at
+   that relationship with the offending signature component, and put the
+   validated canonical evaluated fingerprint—not `C`'s symbol or source
+   body—into published requirement identity. Policy authorship stays open to
+   ordinary packages; the plan vocabulary and validator remain compiler-owned
+   and closed.
 2. **ENT2c — lowering migration and concrete entry state.** Express the
    existing MS-x64, SysV-x64, AAPCS64, Linux-syscall, and firmware lowering
    choices through the normalized plan; continue beyond the completed
