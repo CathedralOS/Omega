@@ -154,6 +154,14 @@ Outbound paths forget semantic facts or execute an explicit encoding/conversion
 before crossing the boundary. The foreign vocabulary does not leak into normal
 program types merely because one provider uses it.
 
+The filesystem open-flag migration is the first concrete instance. Application
+and portable standard-library code author `OpenOptions`; selected target-package
+machines encode those semantics into Darwin, Linux, or MSVCRT flag words. The
+bit positions are checked target-format implementation facts, not provider-plan
+`Value` rows and not portable constants. Foreign record offsets remain on the
+retirement path until placed/recast views can consume the validated layout plan
+directly; exposing a public raw-offset accessor is not an acceptable bridge.
+
 ## Foreign pointer cases
 
 Foreign pointers fit four contract shapes:

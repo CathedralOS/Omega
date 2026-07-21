@@ -364,9 +364,9 @@ fn native_wrapper_metadata_passes() {
 }
 
 // The `file_journal` CLI SAMPLE (samples/cli/systems/file_journal) — a real
-// end-to-end raw-seam workflow (mkdir -> create+write -> stat -> reopen+read ->
-// rename -> remove -> rmdir) that tallies its 7 verified steps and exits with the
-// count. Given green regression coverage HERE (this fs harness is green) rather
+// end-to-end mixed workflow: portable target-format open/create plus raw
+// format-neutral mkdir/write/stat/read/rename/remove/rmdir operations. It
+// tallies its 7 verified steps and exits with the count. Covered HERE rather
 // than relying on samples_compile, which is currently red from a pre-existing
 // aarch64 `b.ne target is not instruction aligned` encoder bug in many unrelated
 // samples (algorithms/arithmetic/basics/… — NOT the fs work; see TASKS_FS.md).
@@ -393,8 +393,8 @@ fn sample_file_journal_exits_7() {
     );
 }
 
-// The `note_vault` CLI SAMPLE (samples/cli/systems/note_vault) -- file_journal's
-// WRAPPER-layer counterpart, now the FULL wrapper surface: create_dir_all ->
+// The `note_vault` CLI SAMPLE (samples/cli/systems/note_vault) -- the FULL
+// wrapper surface: create_dir_all ->
 // create_new -> write -> append x2 -> metadata_path -> modified-time
 // BRIDGE into std::time (from_unix_seconds -> duration_since(now) Ok +
 // sane gap) -> read_all -> open_with{write,truncate} compaction -> copy ->

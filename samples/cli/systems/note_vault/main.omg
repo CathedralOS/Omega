@@ -9,9 +9,9 @@
 // 2026-07-09), plus the fs<->time BRIDGE (2026-07-10j): the vault's
 // Metadata.modified_secs rides SystemTime::from_unix_seconds and compares
 // against Time::system_time_now() -- the user-facing spelling of the
-// runtime_fs_mtime_system_time_interop_exit canary. The raw-seam
-// counterpart of this sample is file_journal; together they document both
-// layers' idioms.
+// runtime_fs_mtime_system_time_interop_exit canary. The `file_journal` sample
+// complements it by mixing portable open/create semantics with format-neutral
+// raw boundary operations.
 //
 // Every step must succeed; the program tallies the fourteen verified steps
 // and exits with that count (a partial failure exits with fewer than 14).

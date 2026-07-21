@@ -191,12 +191,12 @@ boundary trait FilesystemHost {
     machine errno() -> i32 effects filesystem_io;
 }
 
-// Per-target provides VALUES moved to the settled std/targets file shape
-// (2026-07-08): `std/targets/<target>.omg` (target def) importing
-// `std/targets/<target>/filesystem.provides.omg` (the rows). Importing every
-// target def here keeps `use omega::language::std::filesystem_host;` a single
-// self-contained entry point; the compiler's target filter keeps rows for
-// non-selected targets inert (load-bearing -- see TASKS_FS rung 1).
+// Transitional per-target `struct stat` offset VALUE rows live in
+// `std/targets/<target>/filesystem.provides.omg`. Open flags are ordinary
+// checked target-format code in `filesystem_impl.omg`; the remaining offsets
+// retire when foreign record views consume programmable layouts directly.
+// Importing every target definition keeps this module self-contained; target
+// filtering keeps non-selected declarations inert.
 use omega::language::std::targets::windows_x64;
 use omega::language::std::targets::macos_arm64;
 use omega::language::std::targets::linux_x64;
