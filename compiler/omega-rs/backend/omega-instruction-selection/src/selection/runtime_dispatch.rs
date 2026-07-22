@@ -3150,6 +3150,22 @@ fn select_runtime_dispatch_local_initializer_write(
             return;
         }
     }
+    // A value-call initializer has already materialized its result while the
+    // call expansion ran above. Preserve that single-evaluation boundary
+    // before attempting to lower the copied initializer expression itself:
+    // resolving a bare scalar callee body here can rebind its parameters to
+    // unrelated caller-frame operands and overwrite the correct result.
+    if copy_assignment_value_call_result_into_local(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        slot,
+        selected_instructions,
+    ) {
+        return;
+    }
+
     let resolved_initializer = strip_recast_initializer(expressions, resolved_initializer);
     let wrote_slice = writes::emit_runtime_frame_slot_slice_descriptor_write_in_table(
         input,
@@ -3196,17 +3212,6 @@ fn select_runtime_dispatch_local_initializer_write(
             source_key,
             source_statement: statement_index,
         });
-        return;
-    }
-
-    if copy_assignment_value_call_result_into_local(
-        input,
-        dispatch_index,
-        source_key,
-        statement_index,
-        slot,
-        selected_instructions,
-    ) {
         return;
     }
 
