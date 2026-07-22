@@ -179,8 +179,13 @@ carrier (the grant validator already exists).
    domain-qualified carrier and each writer explicitly re-establishes `Utf8`;
    persistent room, player, enemy, input, and output fields retain
    declared domain facts. No sample or lattice-corpus source declares builtin
-   `String` or `string` now. Host contracts, deliberate compatibility/failure
-   fixtures, and the core surface remain separate owners.
+   `String` or `string` now. Calling-policy rejection data uses a bounded UTF-8
+   carrier. The unimported `omega/host` scaffold was retired wholesale because
+   it encoded superseded `capability`/`entry` architecture; the live standard
+   boundary and target-provider homes are recorded in `omega/host/README.md`.
+   The two standalone nested-command run fixtures now use bounded UTF-8 input
+   and retain their native `look` result. Deliberate compatibility/failure
+   fixtures and the core surface remain separate owners.
 2. **Keystone** — once source users are gone,
    `semantics/omega-validation/src/expression_types.rs` stops a string literal /
    `ExpressionNode::String` from satisfying `PrimitiveType::String`; it should
