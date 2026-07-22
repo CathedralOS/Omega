@@ -16,7 +16,7 @@ pub(super) fn write_output(
     std::fs::create_dir_all(&build_dir).map_err(io_diagnostic)?;
 
     if can_emit_executable_image(emitted.target) {
-        let image = emit_checked_executable_image(
+        let mut image = emit_checked_executable_image(
             ExecutableImageInput {
                 target: emitted.target,
                 object: &emitted.object,
@@ -29,15 +29,19 @@ pub(super) fn write_output(
         )
         .map_err(|diagnostic| vec![diagnostic])?;
 
+        if footprints.boundary_contract_fingerprint.is_some() {
+            omega_image::bind_compiler_entry_footprint(
+                &mut image.executable_regions,
+                omega_object_file::object_entry_symbol_name(&emitted.object),
+                footprints.composed_evidence(),
+            )
+            .map_err(|diagnostic| vec![diagnostic])?;
+        }
+
         let output_path = build_dir.join(&image.file_name);
         write_output_file(&output_path, &image.bytes, true)
             .map_err(|diagnostic| vec![diagnostic])?;
-        write_executable_region_inventory(
-            options,
-            footprints,
-            omega_object_file::object_entry_symbol_name(&emitted.object),
-            &image.executable_regions,
-        )?;
+        write_executable_region_inventory(options, footprints, &image.executable_regions)?;
 
         // The GUI-subsystem translation for Mach-O: PE stamps Subsystem 2 into
         // the image header so Windows never attaches a console box; macOS has no
@@ -70,7 +74,6 @@ pub(super) fn write_output(
 fn write_executable_region_inventory(
     options: &CompileOptions,
     footprints: &omega_target_operations::BoundaryFootprintPlan,
-    entry_symbol: &str,
     inventory: &omega_image::PlacedExecutableRegionInventory,
 ) -> Result<(), Vec<Diagnostic>> {
     fn push_string(output: &mut String, value: &str) {
@@ -116,12 +119,6 @@ fn write_executable_region_inventory(
 
     let implementation_evidence = footprints.composed_evidence();
     let implementation_evidence_fingerprint = implementation_evidence.evidence_fingerprint();
-    validate_compiler_entry_region_binding(
-        footprints.boundary_contract_fingerprint,
-        entry_symbol,
-        inventory,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
     let binding_fingerprint = boundary_placement_binding_fingerprint(
         footprints.boundary_contract_fingerprint,
         implementation_evidence_fingerprint,
@@ -162,15 +159,7 @@ fn write_executable_region_inventory(
             ", \"section_offset\": {}, \"address\": \"0x{:016x}\", \"byte_count\": {}, \"byte_fingerprint\": \"0x{:016x}\", \"footprint\": ",
             region.section_offset, region.address, region.byte_count, region.byte_fingerprint
         ));
-        let footprint = if footprints.boundary_contract_fingerprint.is_some()
-            && region.origin == omega_image::FinalExecutableRegionOrigin::CompilerFunction
-            && region.symbol == entry_symbol
-        {
-            Some(&implementation_evidence)
-        } else {
-            region.footprint.as_ref()
-        };
-        push_footprint(&mut json, footprint);
+        push_footprint(&mut json, region.footprint.as_ref());
         json.push('}');
     }
     if !inventory.regions.is_empty() {
@@ -196,32 +185,6 @@ fn write_executable_region_inventory(
     ArtifactWriter::new(&options.build_dir())
         .and_then(|writer| writer.write_text("13_executable_regions.json", &json))
         .map_err(|diagnostic| vec![diagnostic])
-}
-
-fn validate_compiler_entry_region_binding(
-    boundary_contract_fingerprint: Option<u64>,
-    entry_symbol: &str,
-    inventory: &omega_image::PlacedExecutableRegionInventory,
-) -> Result<(), Diagnostic> {
-    if boundary_contract_fingerprint.is_none() {
-        return Ok(());
-    }
-    let matching_entry_regions = inventory
-        .regions
-        .iter()
-        .filter(|region| {
-            region.origin == omega_image::FinalExecutableRegionOrigin::CompilerFunction
-                && region.symbol == entry_symbol
-        })
-        .count();
-    if matching_entry_regions != 1 {
-        return Err(Diagnostic::error(format!(
-            "final executable inventory must contain exactly one compiler entry region \
-             named `{entry_symbol}` for retained boundary evidence; found \
-             {matching_entry_regions}"
-        )));
-    }
-    Ok(())
 }
 
 fn boundary_placement_binding_fingerprint(
@@ -257,7 +220,7 @@ fn io_diagnostic(error: std::io::Error) -> Vec<Diagnostic> {
 
 #[cfg(test)]
 mod executable_region_inventory_tests {
-    use super::{boundary_placement_binding_fingerprint, validate_compiler_entry_region_binding};
+    use super::boundary_placement_binding_fingerprint;
 
     #[test]
     fn placement_binding_changes_with_contract_evidence_or_final_inventory() {
@@ -275,23 +238,6 @@ mod executable_region_inventory_tests {
             boundary_placement_binding_fingerprint(Some(1), 2, 6)
         );
         assert_ne!(baseline, boundary_placement_binding_fingerprint(None, 2, 3));
-    }
-
-    #[test]
-    fn retained_boundary_evidence_requires_one_placed_compiler_entry() {
-        let inventory = omega_image::PlacedExecutableRegionInventory {
-            text_address: 0,
-            text_byte_count: 0,
-            text_fingerprint: 1,
-            inventory_fingerprint: 1,
-            regions: Vec::new(),
-            unclassified_gaps: Vec::new(),
-        };
-        let diagnostic = validate_compiler_entry_region_binding(Some(1), "_start", &inventory)
-            .expect_err("retained evidence must not float without its placed entry region");
-        assert!(diagnostic.message.contains("found 0"));
-        validate_compiler_entry_region_binding(None, "_start", &inventory)
-            .expect("an image without a retained boundary contract needs no entry binding");
     }
 }
 

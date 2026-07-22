@@ -142,6 +142,57 @@ pub fn place_executable_regions(
     })
 }
 
+/// Attach retained compiler boundary evidence to its exact final entry span.
+/// The association is part of the typed inventory and its fingerprint, rather
+/// than a presentation-only annotation added while serializing an artifact.
+pub fn bind_compiler_entry_footprint(
+    inventory: &mut PlacedExecutableRegionInventory,
+    entry_symbol: &str,
+    footprint: omega_calling_conventions::StateFootprintEvidence,
+) -> Result<(), Diagnostic> {
+    let matching_entries = inventory
+        .regions
+        .iter()
+        .filter(|region| {
+            region.origin == FinalExecutableRegionOrigin::CompilerFunction
+                && region.symbol == entry_symbol
+        })
+        .count();
+    if matching_entries != 1 {
+        return Err(Diagnostic::error(format!(
+            "final executable inventory must contain exactly one compiler entry region \
+             named `{entry_symbol}` for retained boundary evidence; found {matching_entries}"
+        )));
+    }
+
+    let entry = inventory
+        .regions
+        .iter_mut()
+        .find(|region| {
+            region.origin == FinalExecutableRegionOrigin::CompilerFunction
+                && region.symbol == entry_symbol
+        })
+        .expect("exactly one matching compiler entry region was counted");
+    if entry
+        .footprint
+        .as_ref()
+        .is_some_and(|existing| existing != &footprint)
+    {
+        return Err(Diagnostic::error(format!(
+            "compiler entry region `{entry_symbol}` already carries conflicting footprint evidence"
+        )));
+    }
+    entry.footprint = Some(footprint);
+    inventory.inventory_fingerprint = executable_inventory_fingerprint(
+        inventory.text_address,
+        inventory.text_byte_count,
+        inventory.text_fingerprint,
+        &inventory.regions,
+        &inventory.unclassified_gaps,
+    );
+    Ok(())
+}
+
 fn placed_gap(
     image: &FinalImage,
     layout: FinalImageLayout,
@@ -220,6 +271,9 @@ fn fingerprint_bytes(hash: &mut u64, bytes: &[u8]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omega_calling_conventions::{
+        MachineRegister, MachineStateSet, RegisterSet, StateFootprintEvidence,
+    };
     use omega_target::NativeTarget;
 
     #[test]
@@ -309,5 +363,47 @@ mod tests {
         let diagnostic = place_executable_regions(&image, FinalImageLayout::default())
             .expect_err("overlapping executable regions must reject");
         assert!(diagnostic.message.contains("overlaps"));
+    }
+
+    #[test]
+    fn compiler_entry_footprint_is_bound_into_inventory_identity() {
+        let mut image = FinalImage::with_capacity(
+            NativeTarget::host(),
+            crate::FinalImageMemory {
+                text: vec![0; 4],
+                ..crate::FinalImageMemory::default()
+            },
+            Default::default(),
+            0,
+            0,
+            0,
+        );
+        image.executable_regions.push(FinalExecutableRegion {
+            origin: FinalExecutableRegionOrigin::CompilerFunction,
+            section_offset: 0,
+            byte_count: 4,
+            symbol: "entry".into(),
+            footprint: None,
+        });
+        let mut inventory = place_executable_regions(&image, FinalImageLayout::default())
+            .expect("entry region should place");
+        let original_fingerprint = inventory.inventory_fingerprint;
+        let footprint = StateFootprintEvidence::new(
+            RegisterSet::new([MachineRegister::X86Rax]),
+            MachineStateSet::empty(),
+        );
+
+        bind_compiler_entry_footprint(&mut inventory, "entry", footprint.clone())
+            .expect("the exact entry should accept retained evidence");
+
+        assert_eq!(inventory.regions[0].footprint, Some(footprint));
+        assert_ne!(inventory.inventory_fingerprint, original_fingerprint);
+        let diagnostic = bind_compiler_entry_footprint(
+            &mut inventory,
+            "missing",
+            StateFootprintEvidence::new(RegisterSet::new([]), MachineStateSet::empty()),
+        )
+        .expect_err("retained evidence must not float without its entry span");
+        assert!(diagnostic.message.contains("found 0"));
     }
 }

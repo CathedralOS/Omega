@@ -15,7 +15,7 @@ pub use model::{
     FinalImageLayout, FinalImageMemory, FinalImageRelocation, FinalImageRelocationTable,
     FinalImageSection, FinalImageSymbol, FinalImageSymbolHandle, FinalImageSymbolTable,
     PlacedExecutableGap, PlacedExecutableRegion, PlacedExecutableRegionInventory,
-    place_executable_regions,
+    bind_compiler_entry_footprint, place_executable_regions,
 };
 pub use output::{
     EmittedImageOutput, ExecutableImageOutput, ImageOutputKind, emitted_direct_executable_output,

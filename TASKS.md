@@ -529,7 +529,8 @@ schemas recover the same instance without publishing policy type identity.
    evidence is published in the final inventory and covered by its fingerprint.
    The composed encoded-machine evidence now attaches to exactly one placed
    compiler entry-function region whenever a boundary contract is retained;
-   final inventory emission rejects a missing or duplicate entry-symbol match.
+   final inventory emission rejects a missing or duplicate entry-symbol match,
+   and the typed inventory fingerprint covers that exact association.
    It names its currently covered and missing classes and likewise refuses to
    claim complete enumeration.
    StatePlan-driven nonordinary save/restore and return specialization, and
