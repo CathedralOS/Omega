@@ -1,5 +1,7 @@
 use omega_core::diagnostics::Diagnostic;
-use omega_image::{ExecutableImageOutput, FinalImage, apply_x86_64_relocations};
+use omega_image::{
+    ExecutableImageOutput, FinalImage, apply_x86_64_relocations, place_executable_regions,
+};
 
 mod bytes;
 mod constants;
@@ -33,6 +35,7 @@ pub fn emit_pe_x86_64_executable(
 
     patch_import_thunks(&mut image, &layout, &import_thunks, &import_table.iat_rvas)?;
     apply_x86_64_relocations(&mut image, &layout, "PE direct executable")?;
+    let executable_regions = place_executable_regions(&image, layout)?;
 
     let entry_rva = pe_entry_rva(&image)?;
 
@@ -144,5 +147,6 @@ pub fn emit_pe_x86_64_executable(
         symbols: image.symbol_table.symbols.len(),
         imports: image.symbol_table.imports.len(),
         relocations: image.relocation_table.relocations.len(),
+        executable_regions,
     })
 }

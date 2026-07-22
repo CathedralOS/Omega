@@ -1,6 +1,6 @@
 use crate::{
-    FinalImageInput, FinalImageLayout, FinalImageSection, build_final_image,
-    final_image_symbol_address,
+    FinalExecutableRegionOrigin, FinalImageInput, FinalImageLayout, FinalImageSection,
+    build_final_image, final_image_symbol_address,
 };
 use omega_object_file::{
     ObjectPlan, RelocationKind, RelocationPlan, RelocationRecord, SectionKind, SectionPlan,
@@ -82,6 +82,14 @@ fn builds_final_image_from_object_symbols_imports_and_relocations() {
     assert_eq!(image.symbol_table.symbols.len(), 3);
     assert_eq!(image.symbol_table.imports.len(), 1);
     assert_eq!(image.relocation_table.relocations.len(), 1);
+    assert_eq!(image.executable_regions.len(), 1);
+    assert_eq!(
+        image.executable_regions[0].origin,
+        FinalExecutableRegionOrigin::CompilerFunction
+    );
+    assert_eq!(image.executable_regions[0].section_offset, 4);
+    assert_eq!(image.executable_regions[0].byte_count, 4);
+    assert_eq!(image.executable_regions[0].symbol, "_start");
 
     let entry = image
         .symbol_table

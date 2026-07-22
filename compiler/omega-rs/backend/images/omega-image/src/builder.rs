@@ -37,6 +37,7 @@ pub fn build_final_image(input: FinalImageInput<'_>) -> FinalImage {
     );
 
     copies::copy_object_symbols(&mut image, input.object);
+    copies::copy_object_executable_regions(&mut image, input.object);
     copies::copy_object_imports(&mut image, input.object);
     copies::copy_object_relocations(&mut image, input.relocations);
 

@@ -2,7 +2,10 @@ use crate::bytes::{write_i32_at, write_u16_at, write_u32_at, write_u64_at};
 use crate::constants::IMAGE_BASE;
 use crate::layout::align_to;
 use omega_core::diagnostics::Diagnostic;
-use omega_image::{FinalImage, FinalImageLayout, FinalImageSection};
+use omega_image::{
+    FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageLayout,
+    FinalImageSection,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PeImportThunk {
@@ -38,6 +41,13 @@ pub(crate) fn install_import_thunks(image: &mut FinalImage) -> Vec<PeImportThunk
         image_symbol.section = FinalImageSection::Text;
         image_symbol.offset = text_offset;
         image_symbol.size = 6;
+
+        image.executable_regions.push(FinalExecutableRegion {
+            origin: FinalExecutableRegionOrigin::ImportThunk,
+            section_offset: text_offset,
+            byte_count: 6,
+            symbol: symbol.clone(),
+        });
 
         thunks.push(PeImportThunk {
             symbol,
@@ -209,7 +219,42 @@ pub(crate) fn patch_import_thunks(
 
 #[cfg(test)]
 mod tests {
-    use super::{PeImportThunk, build_import_table};
+    use super::{PeImportThunk, build_import_table, install_import_thunks};
+    use omega_core::arena::Handle;
+    use omega_image::{
+        FinalExecutableRegionOrigin, FinalImage, FinalImageImport, FinalImageSymbol,
+    };
+
+    #[test]
+    fn installed_import_thunks_enter_the_executable_region_inventory() {
+        let mut image = FinalImage::with_capacity(
+            FinalImage::default().target,
+            Default::default(),
+            Handle::invalid(),
+            1,
+            1,
+            0,
+        );
+        let symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
+            name: "ExitProcess".into(),
+            ..FinalImageSymbol::default()
+        });
+        image.symbol_table.imports.insert(FinalImageImport {
+            symbol_handle: symbol,
+            library: "KERNEL32.dll".into(),
+        });
+
+        let thunks = install_import_thunks(&mut image);
+
+        assert_eq!(thunks.len(), 1);
+        assert_eq!(image.executable_regions.len(), 1);
+        assert_eq!(
+            image.executable_regions[0].origin,
+            FinalExecutableRegionOrigin::ImportThunk
+        );
+        assert_eq!(image.executable_regions[0].byte_count, 6);
+        assert_eq!(image.executable_regions[0].symbol, "ExitProcess");
+    }
 
     #[test]
     fn no_host_target_emits_no_import_directory() {

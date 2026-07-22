@@ -1,7 +1,10 @@
-use crate::model::{FinalImage, FinalImageImport, FinalImageRelocation, FinalImageSymbol};
+use crate::model::{
+    FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageImport,
+    FinalImageRelocation, FinalImageSymbol,
+};
 use crate::symbols::{final_image_section, final_image_symbol_handle};
 use omega_core::arena::Handle;
-use omega_object_file::{ObjectPlan, RelocationPlan, SymbolKind};
+use omega_object_file::{ObjectPlan, RelocationPlan, SectionKind, SymbolKind, SymbolSection};
 
 pub(super) fn copy_object_symbols(image: &mut FinalImage, object: &ObjectPlan) {
     image
@@ -20,6 +23,25 @@ pub(super) fn copy_object_symbols(image: &mut FinalImage, object: &ObjectPlan) {
                     kind: symbol.kind,
                 }),
         );
+}
+
+pub(super) fn copy_object_executable_regions(image: &mut FinalImage, object: &ObjectPlan) {
+    image.executable_regions.extend(
+        object
+            .layout
+            .symbols
+            .iter()
+            .filter(|(_, symbol)| {
+                symbol.kind == SymbolKind::Function
+                    && symbol.section == SymbolSection::Section(SectionKind::Text)
+            })
+            .map(|(_, symbol)| FinalExecutableRegion {
+                origin: FinalExecutableRegionOrigin::CompilerFunction,
+                section_offset: symbol.offset,
+                byte_count: symbol.size,
+                symbol: symbol.name.clone(),
+            }),
+    );
 }
 
 pub(super) fn copy_object_imports(image: &mut FinalImage, object: &ObjectPlan) {
