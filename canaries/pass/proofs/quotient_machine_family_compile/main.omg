@@ -1,0 +1,62 @@
+// N6/N7 bridge: one quotient spans every concrete instance of a proof-only
+// machine-indexed carrier family. The static generator remains part of the
+// representative type, but not the quotient bucket identity.
+data Index {
+    case Zero;
+    case Next(previous: Index);
+}
+
+data Stream<machine S>
+where machine S(index: Index) -> Index;
+{
+    case Empty;
+    case More(sample: Index, tail: Stream<S>);
+}
+
+boundary machine source_a(index: Index) -> Index;
+boundary machine source_b(index: Index) -> Index;
+
+machine equivalent(a: Stream, b: Stream) -> bool {
+    transition { _ -> (true) }
+}
+
+machine equivalent_reflexive(a: Stream)
+ensures equivalent(a, a)
+{
+}
+
+machine equivalent_symmetric(a: Stream, b: Stream)
+requires equivalent(a, b)
+ensures equivalent(b, a)
+{
+}
+
+machine equivalent_transitive(a: Stream, b: Stream, c: Stream)
+requires
+    equivalent(a, b)
+    equivalent(b, c)
+ensures equivalent(a, c)
+{
+}
+
+data EquivalenceClass = Stream % equivalent;
+
+machine admit_a(value: Stream<source_a>) -> EquivalenceClass {
+    value as EquivalenceClass
+}
+
+machine admit_b(value: Stream<source_b>) -> EquivalenceClass {
+    value as EquivalenceClass
+}
+
+machine heterogeneous_congruence(a: Stream<source_a>, b: Stream<source_b>)
+requires equivalent(a, b)
+ensures (a as EquivalenceClass) == (b as EquivalenceClass)
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
