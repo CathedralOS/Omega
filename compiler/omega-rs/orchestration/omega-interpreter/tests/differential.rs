@@ -516,6 +516,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("comptime/runtime_const_array_length_exit", 70),
     ("layouts/runtime_plan_laid_value_field_exit", 70),
     ("layouts/runtime_plan_laid_value_by_value_param_exit", 70),
+    ("layouts/runtime_plan_laid_record_view_exit", 70),
     ("collections/runtime_dual_indexed_guard_compare_exit", 70),
     (
         "collections/runtime_cross_array_indexed_guard_compare_exit",

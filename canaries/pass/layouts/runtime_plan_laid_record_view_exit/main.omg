@@ -1,0 +1,60 @@
+// RUN CANARY (exit 70) + interpreter differential. A shared record recast may
+// contain a plan-laid subrecord: validation sizes the complete planned shape,
+// native projection follows the baked field offsets, and the interpreter
+// decodes the same offsets. The policy deliberately leaves gaps and disagrees
+// with native packing (low @8, high @24); reading either field through native
+// layout would observe zero and exit 71. This is the foreign-record view bridge
+// used by the filesystem struct-stat migration.
+use omega::language::std::console;
+use omega::language::std::layout;
+
+data Spread {
+    entries: [FieldEntry; 64];
+}
+
+machine Spread::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    self.entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 24 },
+    };
+    Plan {
+        entries: self.entries,
+        entry_count: 2,
+        size_fixed: 32,
+        size_is_dynamic: false,
+        align: 8,
+    }
+}
+
+data ForeignRecord {
+    low: u32;
+    high: u64;
+}
+
+// The wrapper gives the recast a plain source-visible name while the inner
+// value remains the policy-applied semantic record.
+data ForeignView {
+    value: Spread<ForeignRecord>;
+}
+
+data Main {
+    console: Console;
+    bytes: [u8; 32];
+}
+
+machine Main::main(&mut self) {
+    self.bytes[8] = 30;
+    self.bytes[24] = 40;
+    let view: &ForeignView = &self.bytes[0] as &ForeignView;
+    transition view.value.low == 30 && view.value.high == 40 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

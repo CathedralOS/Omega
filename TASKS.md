@@ -552,8 +552,15 @@ slot owner may override by type. The migration order remains load-bearing.
    value result until the complete nested statement-call splice has executed,
    and direct aggregate construction restores omitted fields and padding to
    their zero representation before applying named fields. The remaining
-   `Binding::Value` filesystem consumers are `struct stat` offsets, which move
-   when programmable foreign-record views can project the validated plan.
+   `Binding::Value` filesystem consumers are `struct stat` offsets. Shared
+   record recasts may now contain a plan-laid subrecord in both native and
+   interpreter execution. Authoring the four target `StatLayout` policies and
+   cutting portable decode over remains fenced on
+   native value lowering for converted projected scalars: the Windows carrier
+   needs `u16` `st_mode`/`st_nlink` projections widened into the portable
+   metadata shape, while a stored widening from the plan-laid view still
+   reports `NeedsMachineOwnedWrite`/`needs runtime value lowering`. The focused
+   unconverted `u32`/`u64` synthetic view canary is green.
 4. **PRV4f — compatibility deletion.** After the last consumers move, delete
    `Value`, populate tables, `provides` syntax, and every compatibility
    consumer. The unused `Binding::Instruction` carrier is already gone:
@@ -824,7 +831,11 @@ stronger operations it needs instead of citing machine parameters generally.
 - **L4/L5 — plan-laid views.** Derive projection over plan-laid byte views,
   complete non-scalar and mutable recast views, validate tiling beyond
   fact-free shapes, enforce validate/materialize mint exclusivity, and prove
-  codec conformance through ordinary policy machines.
+  codec conformance through ordinary policy machines. Shared record recasts
+  can now size and project a nested plan-laid record recursively, with a native
+  and interpreter differential canary; lower widening/narrowing conversions
+  from projected plan-laid scalar places before migrating `struct stat` off
+  compatibility offsets.
 - **L6a — Extent.** The normalized conservation foundation is live in
   `omega-extents`: admitted one-shot root grants mint nonempty ranges;
   move-split preserves exact geometry; only compatible siblings from one
