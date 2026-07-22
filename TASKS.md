@@ -954,10 +954,11 @@ stronger operations it needs instead of citing machine parameters generally.
   syntax.
 - **Serialized capabilities.** Implement attenuation and revocation across
   boundaries.
-- **Text domains and String retirement.** Establish `Utf8`/`NoNul` over
-  `[u8]`, add the compile-time/runtime mint paths and loop-invariant proofs,
-  migrate the corpus, then delete builtin `string`/`String` and backend
-  special cases. Generic domain-fact forwarding is complete across immutable
+- **Growable text storage after String retirement.** Implement the
+  allocator-backed `Vec<u8> in Utf8` owner and its capacity-preserving append
+  surface through the general Arena/Vec work; do not restore a text-specific
+  primitive. The fixed carrier/domain migration and builtin retirement are
+  complete. Generic domain-fact forwarding is complete across immutable
   parameters, guarded-transition fallthrough, declared fields/nested fields,
   indexed reads, and destructured case payloads; the non-text
   `Blob::Scanned` canary keeps this out of the text special-case bucket.
@@ -1030,8 +1031,12 @@ stronger operations it needs instead of citing machine parameters generally.
   or carrier-independent payloads, while obsolete primitive-only restrictions
   and unlisted compatibility fossils were deleted. Wire diagnostics and fixture
   names now describe runtime-sized text rather than advertising the
-  compatibility type. Continue the core-compatibility owner, then retire the
-  compatibility type and compiler branches in the order recorded by
+  compatibility type. The core surface, compiler-injected build vocabulary,
+  builtin registrations, `PrimitiveType::String`, `str.omg`, and all compiler
+  compatibility branches are retired. The remaining open work is the honest
+  allocator-backed `Vec<u8> in Utf8` surface; it must use the general Arena/Vec
+  work rather than restoring a text-specific primitive. The completed migration
+  and its verification recipe are recorded in
   `wiki/architecture/string_retirement_execution.md`.
 - **Atomics remainder.** The closed ordering vocabulary and operation-specific
   legality rules now reject release-bearing loads, acquire-bearing stores,

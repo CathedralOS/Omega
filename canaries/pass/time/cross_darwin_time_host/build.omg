@@ -2,11 +2,7 @@
 // the suite compiles this for macos_arm64 from any host. Structural only --
 // native confirmation needs a Mac.
 target macos_arm64 {
-    boundary omega::host::contracts
-    boundary omega::host::targets::darwin
 }
 
 target windows_x64 {
-    boundary omega::host::contracts
-    boundary omega::host::targets::windows
 }

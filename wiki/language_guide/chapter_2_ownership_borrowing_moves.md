@@ -89,7 +89,7 @@ Shared borrows allow read-only access.
 machine RoomFormatter::render(
     &self,
     room: &Room,
-    out: &mut String
+    out: &mut [u8]
 ) {
 }
 ```
@@ -164,8 +164,8 @@ come from arithmetic, from a domain, or from a helper machine that establishes
 
 ## Owners And Borrowed Views
 
-A borrowed view (a slice over an array, a `&str` over a `String`, or a slice over
-a `Vec`) keeps the owner pinned for the view's lifetime. While such a view is
+A borrowed view (a slice over an array, a text view over a bounded byte carrier,
+or a slice over a `Vec`) keeps the owner pinned for the view's lifetime. While such a view is
 active the checker rejects any write to the owner that overlaps the borrowed
 window:
 
@@ -193,7 +193,7 @@ output may borrow an input, and LIFETIME PARAMETERS — declared in the same
 `<>` list as type and `const` parameters, tick spelling — say which:
 
 ```omega
-machine header<'buf>(buffer: &'buf [u8], scratch: &mut [u8]) -> &'buf string {
+machine header<'buf>(buffer: &'buf [u8], scratch: &mut [u8]) -> &'buf [u8] {
     // the returned view aliases `buffer`; the checker extends buffer's loan
     // for as long as the result lives. `scratch` is unentangled.
 }
@@ -204,7 +204,7 @@ ref input means the output borrows it, and a `&self` method's output borrows
 self. Most signatures therefore never write a tick:
 
 ```omega
-machine decode_body(buffer: &[u8]) -> &string { ... }       // borrows buffer
+machine decode_body(buffer: &[u8]) -> &[u8] { ... }         // borrows buffer
 machine Level::find_room(&self, id: CellId) -> &Room { ... } // borrows self
 ```
 
@@ -215,7 +215,7 @@ decoding spellable:
 ```omega
 data ChatMessage<'buf> {
     sender_id: i64;
-    body: &'buf string;     // view into the receive buffer; zero bytes copied
+    body: &'buf [u8];       // view into the receive buffer; zero bytes copied
 }
 ```
 

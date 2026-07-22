@@ -10,22 +10,29 @@ The compiler writes phase artifacts and executable output to local `build/`.
 That directory is ignored by this sample on purpose so the project can be copied
 without bringing stale compiler output with it.
 
-## Boundary Root Sketch
+## Boundary Root
 
-`build.omg` references compiler-provided `omega::host` packages from each `target` item. The host package bodies are still ahead of full validation, but the compiler now records their structure and emits a boundary report so we can design the boundary in Omega source instead of inventing a sidecar config format.
+The sample imports the portable Console requirement. Ordinary targets select
+their standard provider defaults, so this sample does not need a `build.omg`
+that enumerates every host leaf. An application only writes a build override
+when it intentionally substitutes a provider for a slot.
 
 For cross-platform hello world, the boundary base is tiny:
 
 - `Stdout.write_line`: host claims it can write initialized UTF-8 text to process stdout and report `IOError`.
 - `Process.exit`: host claims it can terminate the process with a target-specific observable exit code.
 
-Omega should prove the literal is initialized/UTF-8 and that errors are handled once `Result` exists. Omega should accept the OS wrapper contract only because `build.omg` explicitly names the host boundary.
+Omega proves the literal satisfies the borrowed byte contract. The target's
+selected provider is accepted through the ordinary provider-plan admission
+pipeline and remains visible in the boundary report.
 
 ## Standard Library vs Host Bindings
 
-The standard library should be ordinary Omega code wherever possible: strings, slices, math, collections, parsing helpers, portable console helpers, and so on.
-
-The host bindings are different. Files under the toolchain-provided `omega::host` package sketch the boundary provider that adapts those portable capabilities to a target ABI. Each platform target is folder-backed and split by domain, for example `omega::host::targets::windows` loads `targets/windows/mod.omg`, then pulls in `kernel32`, `stdout`, `process`, and local platform types.
+The standard library is ordinary Omega code wherever possible: byte/text
+domains, slices, math, collections, parsing helpers, and portable console
+adapters. Target provider packages under `omega/language/std/targets/` adapt
+those requirements to the selected ABI; they are ordinary source inputs to a
+derived, validated, admitted provider plan rather than floating compiler magic.
 
 - Windows uses documented Win32 imports like `Kernel32.dll!WriteFile` and `ExitProcess`.
 - Linux can plausibly use raw syscalls for `write` and `exit_group`.

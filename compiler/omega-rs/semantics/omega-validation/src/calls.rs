@@ -3353,11 +3353,8 @@ fn scan_expression_calls(
     // no `.len`, and is not indexable, so `x.field` / `x.len` / `x[0]` on an `i32`
     // local silently reads a ZII 0 -- reject any such access. `String` is the one
     // exception, and only for MEMBER access: text carries a `.len` view, so `s.len`
-    // is legal, but the `{len, bytes}` carrier does NOT support byte INDEXING -- `s[0]`
-    // silently reads 0 today (byte access is a possible future feature; a `[u8; N] in
-    // Utf8` array is the supported way to index bytes, and that path resolves to a
-    // non-primitive type so it is untouched here). An UNRESOLVED receiver or a struct /
-    // array / slice receiver is left alone (those accesses are separate).
+    // is legal. An UNRESOLVED receiver or a struct / array / slice receiver is
+    // left alone (those accesses are separate).
     let primitive_access = match program.expression_table.expression(expression) {
         ExpressionNode::Member(member) => Some((
             member.receiver,
@@ -3371,27 +3368,13 @@ fn scan_expression_calls(
             crate::places::declared_place_type(program, machine, Some(state), receiver)
         && let Some(primitive) = program.primitive_type_reference(receiver_type)
     {
-        if primitive == PrimitiveType::String {
-            // `s.len` MEMBER access stays valid; `s[i]` INDEX access does not. The
-            // shared helper reports only for an `Indexed` node, so a Member falls
-            // through untouched. Same rejection is used on the write side (lib.rs).
-            crate::expression_types::report_string_index_access(
-                program,
-                machine,
-                Some(state),
-                expression,
-                false,
-                diagnostics,
-            );
-        } else {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` state `{}` accesses {access} of a `{}` value, but a primitive \
-                 scalar has no members or elements",
-                machine.name.as_str(),
-                state.name.as_str(),
-                primitive.name(),
-            )));
-        }
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` accesses {access} of a `{}` value, but a primitive \
+             scalar has no members or elements",
+            machine.name.as_str(),
+            state.name.as_str(),
+            primitive.name(),
+        )));
     }
     // Unknown BARE NAME: a SINGLE-segment name (`undeclared_var`, not `self.x` or
     // `Type::Case`) that resolves to nothing is otherwise silently accepted and reads

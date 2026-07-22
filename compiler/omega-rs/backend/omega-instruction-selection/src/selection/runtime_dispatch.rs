@@ -1,6 +1,5 @@
 use crate::InstructionSelectionInput;
 use crate::{derive_boundary_entry_storage, derive_boundary_exit};
-use omega_checked_trees::data::DataMember;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::statement::StatementNode;
 use omega_checked_trees::types::PrimitiveType;
@@ -1756,7 +1755,6 @@ pub(super) fn normalized_entry_scalar_result_register(
     let byte_size = u16::try_from(byte_size).ok()?;
     let shape = match primitive {
         PrimitiveType::F32 | PrimitiveType::F64 => ValueShape::float(byte_size),
-        PrimitiveType::String => return None,
         _ => ValueShape::integer(byte_size, byte_size.max(1)),
     };
     let boundary = evaluate_ordinary_boundary_entry_plan(
@@ -1814,10 +1812,7 @@ pub(super) fn normalized_entry_integer_result_placement(
         .iter()
         .find(|state| state.symbol == input.entry_key.state)?;
     let primitive = input.program.primitive_type_reference(state.return_type)?;
-    if matches!(
-        primitive,
-        PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String
-    ) {
+    if matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) {
         return None;
     }
     let byte_size = primitive.scalar_byte_size()?;
@@ -1859,7 +1854,6 @@ fn entry_slot_value_shape(
     if let Some(primitive) = PrimitiveType::from_name(slot.type_name.as_ref()) {
         return match primitive {
             PrimitiveType::F32 | PrimitiveType::F64 => Some(ValueShape::float(byte_size)),
-            PrimitiveType::String => None,
             _ => Some(ValueShape::integer(byte_size, alignment)),
         };
     }

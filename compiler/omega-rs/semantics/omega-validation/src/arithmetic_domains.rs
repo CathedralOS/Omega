@@ -1369,7 +1369,7 @@ fn primitive_range(primitive: PrimitiveType) -> Option<Interval> {
         PrimitiveType::U32 => (Some(0), Some(u32::MAX as i64)),
         PrimitiveType::I64 => (Some(i64::MIN), Some(i64::MAX)),
         PrimitiveType::U64 | PrimitiveType::Addr => (Some(0), None),
-        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
+        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => {
             return None;
         }
     };
@@ -1385,11 +1385,7 @@ fn integer_bit_width(primitive: PrimitiveType) -> Option<i64> {
         PrimitiveType::I16 | PrimitiveType::U16 => Some(16),
         PrimitiveType::I32 | PrimitiveType::U32 => Some(32),
         PrimitiveType::I64 | PrimitiveType::U64 => Some(64),
-        PrimitiveType::Addr
-        | PrimitiveType::Bool
-        | PrimitiveType::F32
-        | PrimitiveType::F64
-        | PrimitiveType::String => None,
+        PrimitiveType::Addr | PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => None,
     }
 }
 
@@ -2745,7 +2741,6 @@ fn primitive_name(primitive: PrimitiveType) -> &'static str {
         PrimitiveType::Bool => "bool",
         PrimitiveType::F32 => "f32",
         PrimitiveType::F64 => "f64",
-        PrimitiveType::String => "String",
     }
 }
 

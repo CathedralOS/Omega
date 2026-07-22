@@ -1,7 +1,11 @@
-# `String` retirement — execution recipe (#66 Phase B2–B4)
+# `String` retirement — completed execution record (#66 Phase B2–B4)
 
-> **Status corrected 2026-07-20: the generic domain-fact forwarding blocker is
-> complete.** The three formerly missing pieces landed independently:
+> **Completed 2026-07-21.** Builtin `string`/`String`,
+> `PrimitiveType::String`, `omega/language/core/str.omg`, and every
+> compatibility branch are gone. The source corpus, samples, injected build
+> vocabulary, wire path, interpreter, and both native backends use borrowed
+> byte views or bounded carriers. The three formerly missing domain-forwarding
+> pieces landed independently:
 >
 > 1. call arguments and other name expressions canonicalize to symbol-rooted
 >    places, so a fact established on a parameter/local matches its forwarded use;
@@ -18,11 +22,8 @@
 > nested-field, indexed-field, literal, return-value, and subslice routes have
 > their own canaries as well.
 >
-> The current critical path is therefore the migration itself: move remaining
-> borrowed text to `&[u8] in Utf8`, move fixed owned text to bounded carriers,
-> preserve the native/interpreter regression coverage, and then remove the
-> builtin type and backend branches. Only the genuinely growable surface remains
-> allocator-gated.
+> Growable text remains ordinary allocator work (`Vec<u8> in Utf8`); it no
+> longer keeps a compatibility primitive alive.
 >
 > Fixed-carrier equality is no longer a migration blocker. The shared
 > representation-aware equality operands now read `{len, bytes}` carriers and
@@ -118,7 +119,7 @@ sites are live** — `String` is *implemented as* the fat-slice/text descriptor
 So there is no dead branch to delete incrementally; the variant and its uses come
 out together.
 
-## Allocator: a PARTIAL blocker (corrected — the earlier "not a blocker" was wrong)
+## Allocator: not a retirement blocker
 
 The split that actually matters:
 
@@ -130,14 +131,12 @@ The split that actually matters:
   (`FixedVec<u8>` / `[u8;N] in Utf8`, which ship today) **without regressing the
   runtime behavior or the differential oracle**. Ungated, but the hard, careful
   core of the arc — not mechanical.
-- **owned-GROWABLE `String`** (`with_capacity`/`push_str`/`from_utf8`, the
-  `boundary operator` surface in `str.omg`) → `Vec<u8> in Utf8` — **genuinely
-  allocator-gated** (stage-1, not built). Few sites (the str/vec library surface),
-  but this part cannot complete until the allocator does.
+- **owned-GROWABLE text** becomes `Vec<u8> in Utf8` and is genuinely
+  allocator-gated. It is a future collection/library surface, not a reason to
+  retain `String`, `str.omg`, or compiler compatibility branches.
 
-So the original instinct that the allocator was tangled up with full `String`
-cleanup is correct: the growable surface waits on it, and the fixed surface is a
-large careful migration of the live corpus + dungeon.
+The fixed surface was the retirement dependency and is complete. Allocation now
+gates only the future growable feature itself.
 
 ## The model (target)
 
@@ -154,7 +153,7 @@ Borrowed operators rewrite: `Str::Length`→`.len`, `Str::bytes`→the slice its
 the `from_utf8`/`validate_*` establishment surface carry over onto the `[u8]`
 carrier (the grant validator already exists).
 
-## Execution order (the recipe)
+## Completed execution order
 
 1. **Corpus first, while compatibility remains** — migrate `.omg` declarations
    off `string`/`String` to borrowed or bounded carriers and preserve what each
@@ -190,31 +189,26 @@ carrier (the grant validator already exists).
    only to reject operations on the retired owned primitive were deleted. Stale
    fail directories not enumerated by the canary suite were removed rather than
    preserved as misleading source examples. No fail-canary source declares
-   builtin `String` or `string`; the core compatibility surface is now the last
-   source owner.
-2. **Keystone** — once source users are gone,
-   `semantics/omega-validation/src/expression_types.rs` stops a string literal /
-   `ExpressionNode::String` from satisfying `PrimitiveType::String`; it should
-   satisfy only the carrier/domain targets.
-3. **Compiler branches** — delete every remaining `PrimitiveType::String` branch
-   and lean on the already-present slice descriptor or bounded-carrier handling.
-   Layout, storage-place, calling-policy, wire, validation, and interpreter
-   branches all remain live; derive the inventory from the tree rather than a
-   copied count:
+   builtin `String` or `string`. The core surface and compiler-injected build
+   prelude were the final source owners and are carrier-native now.
+2. **Keystone** — string literals stopped satisfying a magic primitive and now
+   satisfy only literal, carrier, and domain targets.
+3. **Compiler branches** — every `PrimitiveType::String` branch was deleted in
+   favor of slice-descriptor or bounded-carrier handling. The authoritative
+   retirement check is:
 
    ```powershell
    rg -n "PrimitiveType::String" compiler/omega-rs -g "*.rs"
    ```
 
-4. **`str.omg`** — re-express the owned surface as `Vec<u8> in Utf8` boundary
-   operators (it stays gated, same as today); keep the borrowed surface as
-   `&[u8] in Utf8` slice ops.
-5. **Retire the type** — remove the `PrimitiveType::String` variant
-   (`foundation/omega-core/.../types`), the two builtin registrations in
-   `foundation/omega-core/src/symbols/builtin.rs` (`"String"` line ~75, `"string"`
-   line ~96), and `PrimitiveType::from_name`'s String arm.
-6. **Verify green** — full `cargo test --workspace` (build + 321 canaries +
-   differential oracle) and the dungeon byte-identical to the interpreter.
+4. **`str.omg`** — deleted. Borrowed operations are ordinary slice operations;
+   future growable text is `Vec<u8> in Utf8` and will arrive with allocation.
+5. **Retire the type** — removed the variant, both builtin registrations, and
+   name conversion arms. A user may now declare ordinary data named `String`;
+   a negative canary proves that spelling receives no hidden properties.
+6. **Verify green** — the complete pass/fail canary sweeps, sample compile sweep,
+   and documented-exit runtime sweep are green on Windows. Workspace-wide test
+   coverage remains the final release gate for the milestone.
 
 ## Live compiler inventory
 
@@ -235,10 +229,8 @@ the negative tests cover the behavior previously pinned by each category.
 
 ## Notes
 
-- Distinguish **growable** from **owned-fixed**: growable ops
-  (`with_capacity`/`push_str`) are confined to library surface (`str.omg`,
-  `vec.omg`, `fixed_vec.omg`) and ride the gated `Vec<u8>` path — but **owned-fixed
-  `String` fields are everywhere** (~120 canaries + the dungeon) and are the real
-  migration work (→ `FixedVec<u8>`/`[u8;N] in Utf8`).
+- Distinguish **growable** from **owned-fixed**: growable operations ride the
+  future allocated `Vec<u8>` path; bounded ownership already uses
+  `FixedVec<u8>`/`[u8; N] in Utf8` throughout the corpus and dungeon.
 - This recipe is the main-compiler counterpart to the memory note
   `string-encoding-domain-model`; keep them in sync.

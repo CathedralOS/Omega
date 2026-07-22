@@ -17,8 +17,8 @@
 //!
 //! Classification mirrors the codec's walk exactly
 //! (`collect_field_appends` / `collect_field_reads`): repeated, nested, and
-//! borrowed `&[u8]` fields are length-prefixed; `String` text fields are
-//! length-prefixed; every other primitive is a varint scalar. Fields sort by
+//! borrowed `&[u8]` text fields are length-prefixed; every other primitive is
+//! a varint scalar. Fields sort by
 //! number before placement -- the emission order. A schema with a field the
 //! codec cannot classify (non-primitive, negative number) gets NO plan; the
 //! selection then proceeds exactly as before (its own blockers reject the
@@ -79,7 +79,6 @@ pub(crate) fn compute_wire_plans(typed: &mut TypedTrees) -> Result<(), Vec<Diagn
                 FieldShape::Text
             } else {
                 match typed.primitive_type_reference(field.type_reference) {
-                    Some(PrimitiveType::String) => FieldShape::Text,
                     Some(primitive) => FieldShape::Scalar {
                         byte_size: primitive_wire_size(primitive),
                     },
@@ -189,7 +188,7 @@ fn evaluate_wire_policy(
 }
 
 /// The wire size fact for a scalar primitive (informational for the policy;
-/// varint encoding does not depend on it). Non-scalars (`String`) report 8,
+/// varint encoding does not depend on it). Non-scalars report 8,
 /// preserving the prior `_ => 8` fallback. Sizes come from the single source of
 /// truth on `PrimitiveType`.
 fn primitive_wire_size(primitive: PrimitiveType) -> i64 {

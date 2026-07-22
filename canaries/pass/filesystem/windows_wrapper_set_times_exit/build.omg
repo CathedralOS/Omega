@@ -2,23 +2,15 @@
 // The runtime assertion is Windows-only, but moving the formerly-portable
 // POSIX body into target files must keep all three POSIX selections healthy.
 target windows_x64 {
-    boundary omega::host::contracts
-    boundary omega::host::targets::windows
 }
 
 target linux_x64 {
-    boundary omega::host::contracts
-    boundary omega::host::targets::linux
 }
 
 target linux_arm64 {
-    boundary omega::host::contracts
-    boundary omega::host::targets::linux
 }
 
 target macos_arm64 {
-    boundary omega::host::contracts
-    boundary omega::host::targets::darwin
 }
 
 machine build(b: &mut Build) {

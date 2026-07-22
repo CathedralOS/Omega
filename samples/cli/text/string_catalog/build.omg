@@ -1,11 +1,7 @@
 // string_catalog build file. Needs stdout (write_line) + process.exit.
 
 target windows_x64 {
-    boundary omega::host::contracts
-    boundary omega::host::targets::windows
 }
 
 target linux_x64 {
-    boundary omega::host::contracts
-    boundary omega::host::targets::linux
 }

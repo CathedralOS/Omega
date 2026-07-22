@@ -45,7 +45,7 @@ that value.
 
 ```omega
 data Player {
-    name: String;
+    name: [u8; 64];
     health: i32;
     armor: i32;
 }
@@ -100,7 +100,7 @@ data Command {
     case None;
     case Quit;
     case Move(direction: Direction);
-    case Say(text: String);
+    case Say(text: [u8; 256]);
 }
 ```
 
@@ -263,8 +263,9 @@ spelling `domain Command::Interactive { self in Command::Move |
 Command::Say }` parses, and the body fact participates in executable
 membership, so a subset domain works as a runtime arm.
 Mixed shapes are live (see the rules above). Still pending:
-`match`-statement arms, and `String`-bearing / recursive Equatable types
-(both rejected loudly at the conformance item).[^case-members]
+`match`-statement arms and recursive Equatable types (both rejected loudly at
+the conformance item). Bounded byte carriers participate in synthesized
+equality through their live length and bytes.[^case-members]
 
 [^case-members]: Payload binding in `transition` arms uses the ordinary
 data-pattern machinery (`Case { field, fixed: value }`); a future `match`

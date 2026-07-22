@@ -1,11 +1,7 @@
 // alarm_probe build sketch.
 
 target windows_x64 {
-    boundary omega::host::contracts
-    boundary omega::host::targets::windows
 }
 
 target linux_x64 {
-    boundary omega::host::contracts
-    boundary omega::host::targets::linux
 }

@@ -12,32 +12,21 @@
 //   ExitProcess(code).
 
 target cross_platform_cli {
-    boundary omega::host::contracts
-    boundary omega::host::standard
 }
 
 target linux_x64 {
-    boundary omega::host::contracts
-    boundary omega::host::targets::linux
 }
 
 target linux_arm64 {
-    boundary omega::host::contracts
-    boundary omega::host::targets::linux
 }
 
 target macos_arm64 {
-    boundary omega::host::contracts
-    boundary omega::host::targets::darwin
 }
 
 target windows_x64 {
-    boundary omega::host::contracts
-    boundary omega::host::targets::windows
 }
 
 // A permissive development build should still be auditable.
 target local_unchecked {
-    boundary omega::host::contracts
     boundary unchecked invariant_proofs
 }

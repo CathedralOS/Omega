@@ -20,7 +20,6 @@ use crate::symbols::TopLevelSymbols;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataDefinition, DataField, DataMember, TypeParameter};
-use omega_typed_trees::expression::ExpressionNode;
 use omega_typed_trees::types::TypeReferenceNode;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -468,12 +467,12 @@ fn type_satisfies_structural_property(
     type_reference: omega_typed_trees::types::TypeReferenceHandle,
     property: &str,
 ) -> bool {
-    if let Some(primitive) = program.type_reference_table.primitive_type(type_reference) {
-        // String is lexed as a primitive but owns text storage: a bitwise copy
-        // aliases the buffer, and crossing a spawn boundary moves ownership of
-        // it. Scalars are the only copy-satisfying primitives.
-        return property != "linear"
-            && !matches!(primitive, omega_typed_trees::types::PrimitiveType::String);
+    if program
+        .type_reference_table
+        .primitive_type(type_reference)
+        .is_some()
+    {
+        return property != "linear";
     }
 
     match program.type_reference_table.type_reference(type_reference) {
@@ -673,14 +672,13 @@ fn type_is_zero_init(
 
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Named { name, .. } => {
-            // A type parameter qualifies through its declared bound; the
-            // owned String's zeroed descriptor IS its empty value, so allow
-            // it explicitly; remaining named data must declare the property.
+            // A type parameter qualifies through its declared bound; named
+            // data must declare the property. No source-level name receives
+            // builtin privilege.
             if let Some(parameter) = type_parameter_named(type_parameters, name.as_str()) {
                 return type_parameter_declares_property(parameter, "zero_init");
             }
-            name.as_str() == "String"
-                || named_type_declares_property(program, symbols, name.as_str(), "zero_init")
+            named_type_declares_property(program, symbols, name.as_str(), "zero_init")
         }
         TypeReferenceNode::Constrained { base_type, .. } => {
             type_is_zero_init(program, symbols, type_parameters, *base_type)
@@ -691,18 +689,6 @@ fn type_is_zero_init(
         TypeReferenceNode::Generic { base_name, .. } => {
             named_type_declares_property(program, symbols, base_name.as_str(), "zero_init")
         }
-        _ => false,
-    }
-}
-
-fn expression_is_zero_literal(
-    program: &TypedTrees,
-    expression: omega_typed_trees::expression::ExpressionHandle,
-) -> bool {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(value) => value.value_i64() == Some(0),
-        ExpressionNode::Float(literal) => literal.value() == 0.0,
-        ExpressionNode::Boolean(value) => !*value,
         _ => false,
     }
 }

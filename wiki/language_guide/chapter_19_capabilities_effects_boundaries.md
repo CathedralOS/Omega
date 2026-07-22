@@ -360,8 +360,8 @@ it with a measured state machine. The raw byte operation remains the provider
 leaf. `read_line` accepts a mutable byte view. Its current owned-destination
 route requires a concrete `[u8; N] in D` carrier at the call site: boundary
 planning derives `N` from that place, writes directly into its inline bytes,
-and establishes the carrier's runtime length. The legacy 256-byte String
-scratch limit is never reused for a shorter carrier. Legacy composite provider
+and establishes the carrier's runtime length. A shorter carrier never inherits
+the old compatibility implementation's 256-byte scratch ceiling. Legacy composite provider
 rows remain temporarily for deliberately nonstandard semantic-test
 declarations; the ordinary corpus imports the standard package. `TASKS.md`
 tracks compatibility-row deletion.
@@ -449,19 +449,19 @@ guarantees:
 
 ```omega
 boundary trait Desktop {
-    machine choose_folder(prompt: String) -> Folder
+    machine choose_folder(prompt: &[u8] in Utf8) -> Folder
     ensures
         result in Folder::Writable;
 }
 
 boundary trait Writable {
-    machine write_bytes(folder: Folder, path: String, bytes: &[u8])
+    machine write_bytes(folder: Folder, path: &[u8] in Path, bytes: &[u8])
     requires
         folder in Folder::Writable;
 }
 
 boundary trait Readable {
-    machine read_bytes(folder: Folder, path: String, out: &mut Vec<u8>)
+    machine read_bytes(folder: Folder, path: &[u8] in Path, out: &mut Vec<u8>)
     requires
         folder in Folder::Readable;
 }
@@ -793,15 +793,14 @@ length. Users should be able to navigate to names like `Slice::Length` and
 read the ordering or measure the proof checker uses. They should not need to
 inspect the raw pointer carrier used by code generation.
 
-The same split likely applies to other core collection and text concepts:
+The same split applies to the core collection and text concepts:
 
 - `Array` owns fixed-size inline storage and can borrow as `Slice`.
 - `Vec` owns dynamic contiguous storage and can borrow as `Slice`.
-- `String` owns text storage; it has capacity and `push_str`.
-- `string` (lowercase) is the borrowed text window, spelled `&string` /
-  `&mut string`. Capitalization distinguishes the owner (`String`) from the
-  window (`string`); the older `StrView`/`&str` naming is retired. The text
-  window shares the same `{ptr,len}` slice descriptor carrier underneath.
+- Text is not a separate carrier: `[u8; N] in Utf8` is bounded owned text,
+  `Vec<u8> in Utf8` is the eventual growable form, and `&[u8] in Utf8` is the
+  borrowed window. The text window is the ordinary `{ptr,len}` byte-slice
+  descriptor plus a carried domain fact.
 - Low-level carriers such as `Ptr` or buffer descriptors may exist in core or
   a primitive layer, but they are the boundary where boundary/compiler-managed
   representation begins.
@@ -812,20 +811,20 @@ Working private carrier model:
   pointer plus a length.
 - `&mut [T]` uses the same descriptor shape, plus the type/borrow checker owns
   the uniqueness and writable-region facts.
-- `string` / `&string` lowers to a byte pointer plus byte length (the same
-  `{ptr,len}` slice descriptor carrier), with a text-domain fact that the bytes
-  are valid text for the selected encoding.
+- `&[u8] in Utf8` lowers to a byte pointer plus live byte length; the domain
+  fact states that those bytes satisfy the selected encoding.
 - `Array<T, N>` owns inline storage and can produce a slice descriptor whose
   base points at the first element and whose length is `N`.
 - `Vec<T>` owns a growable buffer carrier with base pointer, length, capacity,
   and allocator/runtime provenance.
-- `String` uses the same owned-buffer shape as `Vec<u8>` plus text-domain
-  facts; a borrowed `string` window is a descriptor over its initialized bytes.
+- `[u8; N] in Utf8` owns `{len, inline bytes}`; `Vec<u8> in Utf8` will use the
+  ordinary vector carrier plus the same text-domain facts once allocation is
+  available.
 - `Ptr<T>` and pointer-range construction are primitive-boundary concepts, not
   ordinary fields users manipulate through safe collection APIs.
 
 This keeps the magic boundary narrow. Core declarations expose contracts such
-as `Slice::range`, `Vec::with_capacity`, or `String::push_str`; private
+as `Slice::range` or `Vec::with_capacity`; private
 carriers and boundary primitive providers implement the descriptor rewrite, pointer
 offset, allocation, and initialization details after the proof obligations are
 satisfied.
@@ -970,13 +969,17 @@ or externally supplied implementation is a boundary because its guarantees are
 boundary rather than proved from Omega source.
 
 Most users should not author raw Windows, Darwin, Linux, firmware, or console
-SDK contracts for ordinary applications. They should import toolchain-provided
-surfaces:
+SDK contracts for ordinary applications. They import portable standard
+surfaces; the selected target contributes its default provider plan:
 
 ```omega
-use omega::std::console;
-use omega::host::windows::kernel32;
+use omega::language::std::console;
+use omega::language::std::filesystem;
 ```
+
+There is no compiler-magic `omega::host` package. Target providers live under
+`omega::language::std::targets`, satisfy the same public requirements, and are
+selected by target defaults or an explicit slot-owner override in `build.omg`.
 
 Advanced users can author libraries for custom OSes, firmware, game consoles,
 or unusual hardware. Doing so explicitly expands the boundary base.
@@ -1022,9 +1025,9 @@ direct boundary calls:
   none
 
 transitive boundary calls:
-  omega::std::fs::Folder::open
-  omega::host::filesystem::openat
-  omega::host::filesystem::write
+  omega::language::std::Filesystem::open
+  omega::language::std::FilesystemHost::open_file
+  omega::language::std::FilesystemHost::write_file
 
 registered boundary providers used:
   omega_windows_kernel32_read_file  category HostAbiCall  -> Kernel32.ReadFile

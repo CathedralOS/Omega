@@ -152,10 +152,7 @@ pub(crate) fn field_equality<'program>(
         )));
     };
 
-    if let Some(primitive) = PrimitiveType::from_name(&base_name) {
-        if primitive == PrimitiveType::String {
-            return Ok(FieldEquality::Text);
-        }
+    if PrimitiveType::from_name(&base_name).is_some() {
         return Ok(FieldEquality::Direct);
     }
 

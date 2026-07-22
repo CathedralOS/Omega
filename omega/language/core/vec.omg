@@ -7,7 +7,7 @@
 //
 // This module is the source-visible SURFACE: the length/capacity measures and
 // the push / with_capacity / as_slice / as_mut_slice operator contracts with
-// their `requires`/`ensures`, mirroring how `String` surfaces capacity/push_str
+// their `requires`/`ensures`, including byte vectors refined by text domains
 // and how `Slice`/`Array` surface their length and view contracts. The actual
 // runtime storage and reallocation mechanics (allocation, growth, element
 // moves) are compiler/runtime internals and are OUT OF SCOPE here; only the

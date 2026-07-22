@@ -461,16 +461,12 @@ fn value_shape_from_type(
 }
 
 fn primitive_value_shape(primitive: PrimitiveType) -> Result<ValueShape, String> {
-    let byte_size = match primitive.scalar_byte_size() {
-        Some(byte_size) => byte_size,
-        None if primitive == PrimitiveType::String => 16,
-        None => {
-            return Err(format!(
-                "primitive `{}` has no concrete boundary size",
-                primitive.name()
-            ));
-        }
-    };
+    let byte_size = primitive.scalar_byte_size().ok_or_else(|| {
+        format!(
+            "primitive `{}` has no concrete boundary size",
+            primitive.name()
+        )
+    })?;
     let byte_size = u16::try_from(byte_size).expect("primitive size fits u16");
     Ok(match primitive {
         PrimitiveType::F32 | PrimitiveType::F64 => ValueShape::float(byte_size),

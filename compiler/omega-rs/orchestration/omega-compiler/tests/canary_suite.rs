@@ -307,11 +307,8 @@ fn linux_x64_recent_encoder_canaries_compile() {
         let src_dir = scratch.join("src");
         fs::create_dir_all(&src_dir).expect("scratch src dir");
         fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-        fs::write(
-            src_dir.join("build.omg"),
-            "target linux_x64 {\n    boundary omega::host::contracts\n    boundary omega::host::targets::linux\n}\n",
-        )
-        .expect("write build manifest");
+        fs::write(src_dir.join("build.omg"), "target linux_x64 {\n}\n")
+            .expect("write build manifest");
         compile(CompileOptions {
             root_path: src_dir.join("main.omg"),
             build_dir: Some(scratch.join("out")),
@@ -343,11 +340,7 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     let src_dir = scratch.join("src");
     fs::create_dir_all(&src_dir).expect("scratch src dir");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(
-        src_dir.join("build.omg"),
-        "target linux_x64 {\n    boundary omega::host::contracts\n    boundary omega::host::targets::linux\n}\n",
-    )
-    .expect("write build manifest");
+    fs::write(src_dir.join("build.omg"), "target linux_x64 {\n}\n").expect("write build manifest");
     compile(CompileOptions {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(scratch.join("out")),
@@ -621,11 +614,8 @@ fn external_leaf_syscall_reaches_linux_x64_backend() {
     let build_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch src dir");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(
-        src_dir.join("build.omg"),
-        "target linux_x64 {\n    boundary omega::host::contracts\n    boundary omega::host::targets::linux\n}\n",
-    )
-    .expect("write linux target manifest");
+    fs::write(src_dir.join("build.omg"), "target linux_x64 {\n}\n")
+        .expect("write linux target manifest");
     compile(CompileOptions {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(build_dir.clone()),
@@ -665,11 +655,8 @@ fn external_leaf_syscall_reaches_linux_x64_backend() {
     let arm_out = arm_scratch.join("out");
     fs::create_dir_all(&arm_src).expect("arm scratch src dir");
     fs::copy(canary.join("main.omg"), arm_src.join("main.omg")).expect("copy arm canary");
-    fs::write(
-        arm_src.join("build.omg"),
-        "target linux_arm64 {\n    boundary omega::host::contracts\n    boundary omega::host::targets::linux\n}\n",
-    )
-    .expect("write arm linux target manifest");
+    fs::write(arm_src.join("build.omg"), "target linux_arm64 {\n}\n")
+        .expect("write arm linux target manifest");
     compile(CompileOptions {
         root_path: arm_src.join("main.omg"),
         build_dir: Some(arm_out.clone()),
@@ -29485,11 +29472,8 @@ fn cross_windows_general_imports_compile() {
         let src_dir = scratch.join("src");
         fs::create_dir_all(&src_dir).expect("scratch source directory");
         fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-        fs::write(
-            src_dir.join("build.omg"),
-            "target windows_x64 {\n    boundary omega::host::contracts\n    boundary omega::host::targets::windows\n}\n",
-        )
-        .expect("write windows target manifest");
+        fs::write(src_dir.join("build.omg"), "target windows_x64 {\n}\n")
+            .expect("write windows target manifest");
         compile(CompileOptions {
             root_path: src_dir.join("main.omg"),
             build_dir: Some(scratch.join("out")),
@@ -29513,11 +29497,8 @@ fn cross_aarch64_stack_import_compiles_with_planned_layout() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(
-        src_dir.join("build.omg"),
-        "target macos_arm64 {\n    boundary omega::host::contracts\n    boundary omega::host::targets::darwin\n}\n",
-    )
-    .expect("write macos_arm64 target manifest");
+    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
+        .expect("write macos_arm64 target manifest");
 
     compile(CompileOptions {
         root_path: src_dir.join("main.omg"),
@@ -29552,11 +29533,8 @@ fn cross_aarch64_hfa_import_compiles_with_fragmented_plan() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(
-        src_dir.join("build.omg"),
-        "target macos_arm64 {\n    boundary omega::host::contracts\n    boundary omega::host::targets::darwin\n}\n",
-    )
-    .expect("write macos_arm64 target manifest");
+    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
+        .expect("write macos_arm64 target manifest");
 
     compile(CompileOptions {
         root_path: src_dir.join("main.omg"),
@@ -29590,11 +29568,8 @@ fn cross_aarch64_authored_scalar_float_preserves_vector_class() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(
-        src_dir.join("build.omg"),
-        "target macos_arm64 {\n    boundary omega::host::contracts\n    boundary omega::host::targets::darwin\n}\n",
-    )
-    .expect("write macos_arm64 target manifest");
+    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
+        .expect("write macos_arm64 target manifest");
 
     compile(CompileOptions {
         root_path: src_dir.join("main.omg"),
@@ -29630,11 +29605,8 @@ fn cross_aarch64_small_aggregate_import_uses_consecutive_x_registers() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(
-        src_dir.join("build.omg"),
-        "target macos_arm64 {\n    boundary omega::host::contracts\n    boundary omega::host::targets::darwin\n}\n",
-    )
-    .expect("write macos_arm64 target manifest");
+    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
+        .expect("write macos_arm64 target manifest");
 
     compile(CompileOptions {
         root_path: src_dir.join("main.omg"),
@@ -29696,11 +29668,8 @@ fn cross_aarch64_small_aggregate_import_falls_wholly_to_stack() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(
-        src_dir.join("build.omg"),
-        "target macos_arm64 {\n    boundary omega::host::contracts\n    boundary omega::host::targets::darwin\n}\n",
-    )
-    .expect("write macos_arm64 target manifest");
+    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
+        .expect("write macos_arm64 target manifest");
 
     compile(CompileOptions {
         root_path: src_dir.join("main.omg"),
@@ -29736,11 +29705,8 @@ fn cross_aarch64_hfa_stack_import_copies_the_aggregate() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(
-        src_dir.join("build.omg"),
-        "target macos_arm64 {\n    boundary omega::host::contracts\n    boundary omega::host::targets::darwin\n}\n",
-    )
-    .expect("write macos_arm64 target manifest");
+    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
+        .expect("write macos_arm64 target manifest");
 
     compile(CompileOptions {
         root_path: src_dir.join("main.omg"),
@@ -29776,11 +29742,8 @@ fn cross_aarch64_hfa_result_import_spills_fragmented_result() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(
-        src_dir.join("build.omg"),
-        "target macos_arm64 {\n    boundary omega::host::contracts\n    boundary omega::host::targets::darwin\n}\n",
-    )
-    .expect("write macos_arm64 target manifest");
+    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
+        .expect("write macos_arm64 target manifest");
 
     compile(CompileOptions {
         root_path: src_dir.join("main.omg"),
@@ -29814,11 +29777,8 @@ fn cross_aarch64_small_aggregate_result_import_spills_fragmented_result() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(
-        src_dir.join("build.omg"),
-        "target macos_arm64 {\n    boundary omega::host::contracts\n    boundary omega::host::targets::darwin\n}\n",
-    )
-    .expect("write macos_arm64 target manifest");
+    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
+        .expect("write macos_arm64 target manifest");
 
     compile(CompileOptions {
         root_path: src_dir.join("main.omg"),
@@ -29853,11 +29813,8 @@ fn cross_aarch64_large_aggregate_import_uses_indirect_places() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(
-        src_dir.join("build.omg"),
-        "target macos_arm64 {\n    boundary omega::host::contracts\n    boundary omega::host::targets::darwin\n}\n",
-    )
-    .expect("write macos_arm64 target manifest");
+    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
+        .expect("write macos_arm64 target manifest");
 
     compile(CompileOptions {
         root_path: src_dir.join("main.omg"),
@@ -37366,7 +37323,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "core/task_core_linear_claim",
     "core/task_lifecycle_operations",
     "core/task_outcome_linear_payloads",
-    "core/collections_text_core_surface",
+    "core/collections_core_surface",
     "core/nat_core_surface",
     "core/int_core_surface",
     "domains/semantic_cast_literal_mint",
@@ -37383,7 +37340,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/arm_pattern_rest_optout_exit",
     "core/ptr_core_surface",
     "core/slice_core_surface",
-    "core/str_core_surface",
     "core/vec_core_surface",
     "operators/core_operator_declaration_surface",
     "operators/core_boundary_operator_surface",
@@ -38264,6 +38220,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "versioning/data_version_block_retired",
     "data/property_send_case_payload",
     "data/property_zero_init_array_element_violation",
+    "data/property_zero_init_user_string_violation",
     "data/builtin_type_name_shadow",
     "data/record_pattern_missing_field",
     "data/record_pattern_unknown_field",

@@ -142,9 +142,9 @@ data Build {
     subsystem: Subsystem;
     freestanding: bool;
 }
-machine Build::depend(&mut self, alias: String, location: String) {
+machine Build::depend(&mut self, alias: &[u8], location: &[u8]) {
 }
-machine path(location: String) -> String {
+machine path(location: &[u8]) -> &[u8] {
     transition { _ -> (location) }
 }
 "#;

@@ -50,10 +50,7 @@ impl IntegerLanding {
             PrimitiveType::U32 => LandedIntegerType::U32,
             PrimitiveType::U64 => LandedIntegerType::U64,
             PrimitiveType::Addr => LandedIntegerType::Addr,
-            PrimitiveType::Bool
-            | PrimitiveType::F32
-            | PrimitiveType::F64
-            | PrimitiveType::String => {
+            PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => {
                 return None;
             }
         };

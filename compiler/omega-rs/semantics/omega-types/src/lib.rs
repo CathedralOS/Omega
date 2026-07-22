@@ -577,7 +577,7 @@ mod tests {
         let mut syntax_trees = SyntaxTrees::new(Default::default());
         let target_type = syntax_trees
             .type_references
-            .insert(TypeReferenceNode::Named(Identifier::generated("String")));
+            .insert(TypeReferenceNode::Named(Identifier::generated("Packet")));
         let operator_name = syntax_trees
             .items
             .insert_identifier_path_members([Identifier::generated("normalize")]);
@@ -628,7 +628,7 @@ mod tests {
         );
         assert!(
             report.references.iter().any(|(_, reference)| {
-                reference.name == "String" && reference.kind == TypeReferenceUseKind::Storage
+                reference.name == "Packet" && reference.kind == TypeReferenceUseKind::Storage
             }),
             "domain target type should be recorded"
         );

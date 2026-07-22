@@ -1,0 +1,1 @@
+declares `[zero_init]` but field `text` is not zero-means-empty
