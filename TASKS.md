@@ -973,9 +973,13 @@ stronger operations it needs instead of citing machine parameters generally.
   always-full zero array. Literal and value-call terminal results can now
   construct `[u8; N] in D` directly, with an exact compile-time rejection when
   the literal exceeds `N`; bounded-carrier calls contribute their declared
-  return capacity to assignment proofs. Direct carrier-to-`&[u8]` projection
-  now builds `{ptr, runtime_len}` rather than raw-copying the inline carrier
-  prefix. Named boundary/operator calls now substitute domain-membership
+  return capacity to assignment proofs. Guard-selected literal returns build
+  the owned `{len, bytes}` carrier in the call-result slot before the caller
+  copies it; they are not mistaken for legacy `{ptr, len}` text descriptors.
+  Direct carrier-to-`&[u8]` projection now builds `{ptr, runtime_len}` rather
+  than raw-copying the inline carrier prefix, including when the carrier is
+  reached through a mutable-reference parameter. Named boundary/operator calls
+  now substitute domain-membership
   `ensures` facts back onto the exact mutable caller place; the migrated
   `utf8_boundary_established` / `no_nul_boundary_established` canaries pin the
   positive route, while a negative canary proves mutation without such an
@@ -986,15 +990,16 @@ stronger operations it needs instead of citing machine parameters generally.
   pinning rejection of an unqualified source. By-value bounded carriers are also
   distinguished from equally-sized fat descriptors during argument materialization,
   so `{len, bytes}` is copied inline instead of being rewritten as `{ptr, len}`.
-  Lookup records and their large-record variants now use bounded UTF-8 carriers
-  in both engines. Their mutable-output lookup contract explicitly returns the
+  Lookup records, their large-record variants, and the clear/carve/render dungeon
+  path now use bounded UTF-8 carriers in both engines. Their mutable-output lookup
+  contract explicitly returns the
   nested field's `Utf8` fact, so the caller never relies on a stale fact across
   mutation. Repeated fixed-capacity declarations such as `[u8; 16]::Utf8` and
   `[u8; 64]::Utf8` resolve as one short-name domain only when their normalized
   fact sets agree; divergent same-name declarations reject before flow checking.
   Standard Console output, provider forwarding, ZII host output, and borrowed
   view typing now operate directly on byte views or bounded carriers; only the
-  mutable input half retains the old Console `String` surface. Eleven pass-canary
+  mutable input half retains the old Console `String` surface. Seven pass-canary
   sources still name builtin `String`/`string`. Continue that
   migration. The backend's in-place concat route is now alias-safe and never zeros
   its source, but migrating the remaining `target = target + suffix` regressions

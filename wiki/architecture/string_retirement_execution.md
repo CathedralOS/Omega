@@ -60,7 +60,13 @@
 > to the destination's static length proof, and projecting that owned carrier
 > to `&[u8]` synthesizes `{ptr = &inline_bytes, len = runtime_len}`. It never
 > reinterprets the carrier's leading length word as a pointer or exposes the
-> full capacity as the live view length.
+> full capacity as the live view length. The same projection follows a mutable
+> reference to the carrier before reading its length or taking the inline-byte
+> address; the reference slot itself is never reinterpreted as carrier storage.
+> Guarded machine returns likewise construct string literals as owned
+> `{len, inline_bytes}` values in bounded call-result slots before any caller
+> copy. Interpreter/native differentials and AArch64 compilation pin both paths,
+> including the migrated clear/carve/render dungeon.
 >
 > Mutable boundary establishment is now carrier-generic. Named boundary/operator
 > statement calls map declared parameters to exact caller places, invalidate
@@ -152,7 +158,7 @@ carrier (the grant validator already exists).
    canary actually proves. This keeps batches reviewable and exposes missing
    carrier lowering before the builtin disappears. Re-run the focused native
    test and interpreter oracle for each batch.
-   Eleven pass-canary sources still declare builtin `String`/`string` as of
+   Seven pass-canary sources still declare builtin `String`/`string` as of
    2026-07-21; derive the current count from the corpus rather than treating this
    snapshot as a completion condition.
 2. **Keystone** — once source users are gone,
