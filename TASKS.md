@@ -661,8 +661,15 @@ stronger operations it needs instead of citing machine parameters generally.
   proof/semantic indexing, and checked flow: every named edge must prove the
   target contract, the target body assumes it, facts stay state-scoped, and a
   `self` back-edge must re-establish any arrival fact invalidated in the body.
-  Finish the `stores` clause and broader Houdini-style inference for facts
-  crossing sibling calls.
+  The monotone-counter Houdini seed now consumes the same recursive call-frame
+  summaries: inferred loop bounds cross resolved sibling calls whose may-write
+  paths are disjoint from the counter, while overlapping or opaque calls still
+  fail closed; reserved pure value builtins have an explicit empty write frame.
+  **Language-design blocker:** the boundary write-frame clause's semantics are
+  settled, but its public keyword/spelling is still explicitly provisional
+  (`stores` in the guide). Do not mint syntax until that spelling is frozen.
+  Engineering can continue on normalized frame storage/manifest identity and
+  broader Houdini candidate classes independently of the surface decision.
 
 ### Domain facets, effects, termination, and trust
 

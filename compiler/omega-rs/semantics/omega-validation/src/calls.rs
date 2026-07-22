@@ -212,6 +212,14 @@ fn collect_expression_call_written_paths(
             for argument in program.expression_table.expression_handles(call.arguments) {
                 visit(*argument)?;
             }
+            // Reserved value/view builtins are operand operations, not machine
+            // calls. They may read their operands or create a view, but they do
+            // not write caller storage. Keep this list aligned with the value
+            // call validation exemptions below so frame consumers do not turn
+            // `min`/`max` reductions into opaque whole-receiver clobbers.
+            if value_builtin_has_empty_write_frame(call.target.as_str()) {
+                return Some(());
+            }
             let receiver_members = if call.receiver.is_valid() {
                 receiver_member_chain(program, call.receiver)?
             } else {
@@ -284,6 +292,13 @@ fn collect_expression_call_written_paths(
         | ExpressionNode::String(_) => {}
     }
     Some(())
+}
+
+fn value_builtin_has_empty_write_frame(target: &str) -> bool {
+    matches!(
+        target,
+        "min" | "max" | "sqrt" | "as_slice" | "as_mut_slice" | "as_view" | "bytes"
+    )
 }
 
 fn syntactic_call_written_paths(

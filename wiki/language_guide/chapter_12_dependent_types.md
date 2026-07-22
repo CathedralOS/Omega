@@ -323,7 +323,10 @@ requires self.len == n && self.len < self.cap
 ensures self.len == n + 1
 ```
 
-*(Clause spelling provisional.)*
+**Design status:** the upper-bound and trust semantics above are settled, but
+the public clause keyword/spelling is still provisional. Compiler work may
+continue on normalized write-frame plans and manifest identity; source syntax
+must not be minted until the spelling is frozen.
 
 A state's signature is its arrival contract. Parameter refinements —
 dependent ones included — plus an explicit state-level `requires` are proven

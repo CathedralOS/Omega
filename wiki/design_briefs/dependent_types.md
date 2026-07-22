@@ -232,8 +232,11 @@ tree and specialization, is indexed as a state-owned proof fact, is discharged
 on guarded named transitions, and is assumed only in the target state. `self`
 back-edges are checked after statement-level invalidation, so the entry
 assumption cannot prove itself after a dependent place is mutated. Automatic
-Houdini candidate discovery remains future work; authored arrival contracts do
-not depend on it.
+Houdini inference has its first frame-aware candidate class: monotone counter
+bounds survive recursive may-write analysis across resolved sibling calls when
+their frames are disjoint, and are discarded for overlapping or opaque calls.
+Broader relational candidate discovery remains future work; authored arrival
+contracts do not depend on it.
 
 ## 6. Dynamic lowering — the runtime half
 
@@ -450,8 +453,9 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
   witnesses, decode-minted subdomains, the recast-borrow obligation wired to
   couplings. Driver: the memory-map walk (rides Cathedral M2's recast).
 - **R5 — Frames:** preserve-unless-written and authored state-level `requires`
-  plus arrival facts are live; remaining work is the `stores` clause at
-  boundaries and the Houdini pass over the engine. Driver: dependent facts
+  plus arrival facts are live; monotone counter inference crosses disjoint
+  sibling-call frames. Remaining work is the surface-blocked boundary write
+  clause and broader relational Houdini candidates. Driver: dependent facts
   across sibling-machine calls.
 
 ## 9. Key sources
