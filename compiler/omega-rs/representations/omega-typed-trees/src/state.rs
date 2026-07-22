@@ -1,4 +1,5 @@
 use crate::name::Identifier;
+use crate::signature::SignatureContract;
 use crate::signature::StateParameter;
 use crate::statement::StatementNode;
 use omega_core::arena::HandleSpan;
@@ -10,6 +11,7 @@ pub struct State {
     pub name: Identifier,
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: crate::types::TypeReferenceHandle,
+    pub contracts: HandleSpan<SignatureContract>,
     pub statement_nodes: HandleSpan<StatementNode>,
 }
 
@@ -20,6 +22,7 @@ impl Default for State {
             name: Identifier::default(),
             parameters: HandleSpan::empty(),
             return_type: crate::types::TypeReferenceHandle::invalid(),
+            contracts: HandleSpan::empty(),
             statement_nodes: HandleSpan::empty(),
         }
     }

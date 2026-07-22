@@ -85,6 +85,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
                 .unwrap_or_else(|| Identifier::generated("entry")),
             parameters: machine_parameters,
             return_type: machine_return_type,
+            contracts: HandleSpan::empty(),
             statements: HandleSpan::empty(),
         };
         append_machine_state(
@@ -375,6 +376,7 @@ fn parse_implicit_entry_state<'tokens, 'source>(
             name,
             parameters,
             return_type,
+            contracts: HandleSpan::empty(),
             statements,
         },
         input,

@@ -21,6 +21,147 @@ pub(crate) fn contract_fact_place(
     }
 }
 
+/// Returns every place read by a boolean contract expression. Requires facts
+/// are stored in one context with a copy rooted at each dependency, so
+/// mutating any operand invalidates the whole assumption rather than leaving
+/// a comparison alive under an opaque expression root.
+pub(crate) fn contract_fact_dependency_places(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut FactPlan,
+    contract: &ContractProofFact,
+) -> Vec<PlaceHandle> {
+    let omega_typed_trees::domain::ProofFact::Expression(expression) =
+        program.proof_facts.get(contract.fact)
+    else {
+        return Vec::new();
+    };
+    let mut places = Vec::new();
+    append_contract_expression_dependency_places(
+        program,
+        facts,
+        contract,
+        *expression,
+        &mut places,
+    );
+    places
+}
+
+fn append_contract_expression_dependency_places(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut FactPlan,
+    contract: &ContractProofFact,
+    expression: ExpressionHandle,
+    places: &mut Vec<PlaceHandle>,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            if let Some(place) = contract_expression_place(program, facts, contract, expression) {
+                places.push(place);
+            }
+        }
+        ExpressionNode::Mutable(inner) => append_contract_expression_dependency_places(
+            program, facts, contract, *inner, places,
+        ),
+        ExpressionNode::Atomic(atomic) => {
+            append_contract_expression_dependency_places(
+                program,
+                facts,
+                contract,
+                atomic.value,
+                places,
+            );
+            append_contract_expression_dependency_places(
+                program,
+                facts,
+                contract,
+                atomic.result,
+                places,
+            );
+        }
+        ExpressionNode::Binary(binary) => {
+            append_contract_expression_dependency_places(
+                program,
+                facts,
+                contract,
+                binary.left,
+                places,
+            );
+            append_contract_expression_dependency_places(
+                program,
+                facts,
+                contract,
+                binary.right,
+                places,
+            );
+        }
+        ExpressionNode::Cast(cast) => append_contract_expression_dependency_places(
+            program, facts, contract, cast.value, places,
+        ),
+        ExpressionNode::Call(call) => {
+            append_contract_expression_dependency_places(
+                program,
+                facts,
+                contract,
+                call.receiver,
+                places,
+            );
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                append_contract_expression_dependency_places(
+                    program,
+                    facts,
+                    contract,
+                    *argument,
+                    places,
+                );
+            }
+        }
+        ExpressionNode::ArrayLiteral(values) => {
+            for value in program.expression_table.expression_handles(*values) {
+                append_contract_expression_dependency_places(
+                    program, facts, contract, *value, places,
+                );
+            }
+        }
+        ExpressionNode::Range(range) => {
+            append_contract_expression_dependency_places(
+                program,
+                facts,
+                contract,
+                range.start,
+                places,
+            );
+            append_contract_expression_dependency_places(
+                program, facts, contract, range.end, places,
+            );
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            for field in program.expression_table.struct_fields(literal.fields) {
+                append_contract_expression_dependency_places(
+                    program,
+                    facts,
+                    contract,
+                    field.value,
+                    places,
+                );
+            }
+        }
+        ExpressionNode::Unary(unary) => append_contract_expression_dependency_places(
+            program,
+            facts,
+            contract,
+            unary.operand,
+            places,
+        ),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::String(_) => {}
+    }
+}
+
 fn contract_expression_place(
     program: &omega_typed_trees::TypedTrees,
     facts: &mut FactPlan,

@@ -1327,6 +1327,7 @@ fn clone_specialized_machine(
         let mut state = source_state.clone();
         state.symbol = *fresh_symbol;
         state.parameters = HandleSpan::empty();
+        state.contracts = HandleSpan::empty();
         state.return_type =
             copy_type_reference(source, program, source_state.return_type, &symbol_map);
         state.statement_nodes = {
@@ -1359,6 +1360,10 @@ fn clone_specialized_machine(
                 &symbol_map,
             );
             program.push_state_parameter(&mut state, parameter);
+        }
+        for contract in source.state_contracts(source_state) {
+            let contract = copy_signature_contract(source, program, *contract, &symbol_map);
+            program.push_state_contract(&mut state, contract);
         }
         program.push_machine_state(&mut cloned, state);
     }
@@ -2080,6 +2085,25 @@ fn encode_state_shape(
         binders,
         output,
     );
+    let mut contract_binders = binders.to_vec();
+    contract_binders.extend(
+        program
+            .state_parameters(state)
+            .iter()
+            .enumerate()
+            .map(|(index, parameter)| (parameter.name.as_str().to_owned(), format!("$P{index}"))),
+    );
+    let mut contracts = Vec::new();
+    for contract in program.state_contracts(state) {
+        let mut encoded = Vec::new();
+        encode_contract(program, contract, &contract_binders, &mut encoded);
+        contracts.push(encoded);
+    }
+    contracts.sort();
+    for contract in contracts {
+        output.extend(contract);
+        output.push(0xfc);
+    }
 }
 
 fn encode_parameter(

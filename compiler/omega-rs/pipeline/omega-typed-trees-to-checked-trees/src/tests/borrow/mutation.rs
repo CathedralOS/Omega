@@ -55,6 +55,7 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
         name: Identifier::generated("main"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+        contracts: Default::default(),
         statement_nodes: Default::default(),
     };
     program.statement_table.push_statement(
@@ -76,6 +77,7 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
         name: Identifier::generated("heal"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+        contracts: Default::default(),
         statement_nodes: Default::default(),
     };
     program.push_state_parameter(
@@ -165,6 +167,7 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
         name: Identifier::generated("main"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+        contracts: Default::default(),
         statement_nodes: Default::default(),
     };
     program.statement_table.push_statement(
@@ -196,6 +199,7 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
         name: Identifier::generated("heal"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+        contracts: Default::default(),
         statement_nodes: Default::default(),
     };
     program.push_state_parameter(

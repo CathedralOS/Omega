@@ -10,7 +10,9 @@ use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::{State, StateParameterHandle, StateSignature};
+use omega_syntax_trees::item::{
+    CapabilityContract, CapabilityContractKind, State, StateParameterHandle, StateSignature,
+};
 use omega_syntax_trees::types::TypeReferenceHandle;
 use omega_tokens::{KeywordKind, PunctuationKind};
 
@@ -50,7 +52,8 @@ pub(super) fn parse_state<'tokens, 'source>(
         };
 
     let (parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
-    let (return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
+    let (return_type, input) = parse_optional_return_type(syntax_trees, input)?;
+    let (contracts, mut input) = parse_state_arrival_contracts(syntax_trees, input)?;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut statement_start = Handle::invalid();
     let mut statement_count = 0u32;
@@ -154,7 +157,64 @@ pub(super) fn parse_state<'tokens, 'source>(
             name,
             parameters,
             return_type,
+            contracts,
             statements,
+        },
+        input,
+    ))
+}
+
+/// Parse a state's explicit arrival contract. Unlike a machine signature, a
+/// state has no exit contract or effect surface: `requires` is the induction
+/// hypothesis that every named incoming edge must establish.
+fn parse_state_arrival_contracts<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    mut input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, HandleSpan<CapabilityContract>> {
+    let mut start = Handle::invalid();
+    let mut count = 0u32;
+
+    while input.at_contextual("requires") {
+        input = input.take_contextual("requires")?;
+        let ((facts, token_count), rest) =
+            crate::parser::proof_fact::parse_proof_facts_until(syntax_trees, input, |input| {
+                input.at_punctuation(PunctuationKind::LeftBrace)
+                    || input.at_contextual("requires")
+                    || input.at_contextual("ensures")
+                    || input.at_contextual("effects")
+                    || input.at_contextual("terminates")
+                    || input.tokens.is_empty()
+            })?;
+        let handle = syntax_trees
+            .items
+            .append_capability_contract(CapabilityContract {
+                kind: CapabilityContractKind::Requires,
+                facts,
+                token_count,
+            });
+        if count == 0 {
+            start = handle;
+        }
+        count = count
+            .checked_add(1)
+            .expect("state arrival contract span count overflow");
+        input = rest;
+    }
+
+    if input.at_contextual("ensures")
+        || input.at_contextual("effects")
+        || input.at_contextual("terminates")
+    {
+        return Err(input.error_here(
+            "state signatures admit only arrival `requires`; put exit guarantees, effects, and termination policy on the owning machine",
+        ));
+    }
+
+    Ok((
+        if count == 0 {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(start, count)
         },
         input,
     ))

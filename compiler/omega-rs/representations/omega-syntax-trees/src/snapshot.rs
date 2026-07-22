@@ -324,6 +324,7 @@ pub struct StateSnapshot {
     pub name: IdentifierSnapshot,
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: TypeReferenceSnapshot,
+    pub contracts: Vec<CapabilityContractSnapshot>,
     pub statements: Vec<StatementSnapshot>,
 }
 
@@ -1095,6 +1096,12 @@ fn snapshot_state_node(
             })
             .collect(),
         return_type: snapshot_type_reference_handle(syntax_trees, state.return_type),
+        contracts: syntax_trees
+            .items
+            .capability_contracts(state.contracts)
+            .iter()
+            .map(|contract| snapshot_capability_contract(syntax_trees, contract))
+            .collect(),
         statements: syntax_trees
             .items
             .statements(state.statements)

@@ -706,6 +706,9 @@ pub struct State {
     pub name: Identifier,
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
+    /// Explicit arrival assumptions. States admit `requires` only: every
+    /// incoming edge must prove them and the state body may assume them.
+    pub contracts: HandleSpan<CapabilityContract>,
     pub statements: HandleSpan<crate::statement::StatementHandle>,
 }
 
@@ -1114,6 +1117,7 @@ impl ItemTable {
             name: state.name.clone(),
             parameters: state.parameters,
             return_type: state.return_type,
+            contracts: state.contracts,
             statements: state.statements,
         })
     }
@@ -1211,6 +1215,7 @@ pub struct StateNode {
     pub name: Identifier,
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
+    pub contracts: HandleSpan<CapabilityContract>,
     pub statements: HandleSpan<crate::statement::StatementHandle>,
 }
 

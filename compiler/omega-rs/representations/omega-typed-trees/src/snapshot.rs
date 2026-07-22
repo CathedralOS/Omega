@@ -299,6 +299,7 @@ pub struct StateSnapshot {
     pub name: String,
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: Option<TypeReferenceSnapshot>,
+    pub contracts: Vec<SignatureContractSnapshot>,
     pub statements: Vec<StatementSnapshot>,
 }
 
@@ -724,6 +725,11 @@ fn state_snapshot(program: &TypedTrees, state: &State) -> StateSnapshot {
             .map(|parameter| state_parameter_snapshot(program, parameter))
             .collect(),
         return_type: type_reference_snapshot_option(program, state.return_type),
+        contracts: program
+            .state_contracts(state)
+            .iter()
+            .map(|contract| signature_contract_snapshot(program, contract))
+            .collect(),
         statements: program
             .statement_table
             .statements(state.statement_nodes)

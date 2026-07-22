@@ -1,3 +1,4 @@
+mod arrivals;
 mod assembly;
 mod calls;
 mod direct;
@@ -75,6 +76,12 @@ pub(crate) fn check_flow_call_contracts(
         for exit_flow in facts.flow.control.exits.span_or_empty(state_flow.exits) {
             check_exit_ensures(program, facts, state_flow, exit_flow, &mut diagnostics);
         }
+        arrivals::check_self_transition_arrival_requires(
+            program,
+            facts,
+            state_flow,
+            &mut diagnostics,
+        );
         // #66 write-enforcement: every assignment into a domain-refined field must
         // establish the value in that domain (the soundness floor for trusting the
         // field's declared domain on read).

@@ -1037,6 +1037,19 @@ impl TypedTrees {
         self.state_parameters.span_or_empty(state.parameters)
     }
 
+    pub fn push_state_contract(
+        &mut self,
+        state: &mut crate::state::State,
+        contract: signature::SignatureContract,
+    ) {
+        self.signature_contracts
+            .append_to_span(&mut state.contracts, contract);
+    }
+
+    pub fn state_contracts(&self, state: &crate::state::State) -> &[signature::SignatureContract] {
+        self.signature_contracts.span_or_empty(state.contracts)
+    }
+
     pub fn push_state_signature_parameter(
         &mut self,
         signature: &mut signature::StateSignature,

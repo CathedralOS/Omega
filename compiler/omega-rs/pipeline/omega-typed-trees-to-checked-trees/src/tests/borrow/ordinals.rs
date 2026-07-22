@@ -54,6 +54,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
         name: Identifier::generated("entry"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+        contracts: Default::default(),
         statement_nodes: Default::default(),
     };
     program.statement_table.push_statement(
@@ -88,6 +89,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
             name: Identifier::generated("outer"),
             parameters: Default::default(),
             return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+            contracts: Default::default(),
             statement_nodes: Default::default(),
         },
     );
@@ -98,6 +100,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
             name: Identifier::generated("inner"),
             parameters: Default::default(),
             return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+            contracts: Default::default(),
             statement_nodes: Default::default(),
         },
     );

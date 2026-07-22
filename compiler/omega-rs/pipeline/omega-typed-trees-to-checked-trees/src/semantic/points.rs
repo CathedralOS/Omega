@@ -80,11 +80,16 @@ pub(super) fn contract_fact_point(contract: &ContractProofFact) -> ProgramPoint 
 
 pub(super) fn contract_fact_origin(contract: &ContractProofFact) -> FactOrigin {
     match contract.owner {
-        ContractProofFactOwner::Machine { machine_symbol }
-        | ContractProofFactOwner::MachineState {
+        ContractProofFactOwner::Machine { machine_symbol } => {
+            FactOrigin::MachineContract { machine_symbol }
+        }
+        ContractProofFactOwner::MachineState {
             machine_symbol,
-            state_symbol: _,
-        } => FactOrigin::MachineContract { machine_symbol },
+            state_symbol,
+        } => FactOrigin::StateContract {
+            machine_symbol,
+            state_symbol,
+        },
         ContractProofFactOwner::StateSignature {
             owner_symbol,
             state_symbol,

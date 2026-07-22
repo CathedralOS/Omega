@@ -1,5 +1,5 @@
 use crate::name::DiagnosticName;
-use crate::signature::StateParameter;
+use crate::signature::{SignatureContract, StateParameter};
 use crate::statement::{Statement, StatementNode};
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
@@ -16,6 +16,7 @@ pub struct State {
 pub struct StateStorage {
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: Option<crate::types::TypeReference>,
+    pub contracts: HandleSpan<SignatureContract>,
     pub statements: HandleSpan<Statement>,
     pub statement_nodes: HandleSpan<StatementNode>,
 }

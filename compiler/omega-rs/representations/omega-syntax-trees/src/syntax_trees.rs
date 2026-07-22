@@ -698,11 +698,13 @@ impl SyntaxTrees {
             let state = other.items.state(handle);
             let parameters = self.copy_state_parameter_handle_span(other, state.parameters);
             let return_type = self.copy_type_reference_handle(other, state.return_type);
+            let contracts = self.copy_capability_contract_span(other, state.contracts);
             let statements = self.copy_statement_handle_span(other, state.statements);
             let copied = self.items.insert_state(&State {
                 name: state.name.clone(),
                 parameters,
                 return_type,
+                contracts,
                 statements,
             });
             let copied = self.items.append_state_handle(copied);
