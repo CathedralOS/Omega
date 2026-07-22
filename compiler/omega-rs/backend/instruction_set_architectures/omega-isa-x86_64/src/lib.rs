@@ -1254,6 +1254,25 @@ pub fn encode_dispatch_guard_compare_static_bytes(
     Ok(bytes)
 }
 
+/// Exact registers overwritten by a storage-backed static dispatch guard.
+/// Integer guards stay in the GPR bank; float guards additionally stage the
+/// operands through xmm0/xmm1 before `ucomis*` writes condition flags.
+pub fn dispatch_guard_compare_static_register_writes(is_float: bool) -> RegisterSet {
+    let mut registers = vec![
+        MachineRegister::X86R10,
+        MachineRegister::X86R11,
+        MachineRegister::X86R15,
+    ];
+    if is_float {
+        registers.extend([MachineRegister::X86Xmm(0), MachineRegister::X86Xmm(1)]);
+    }
+    RegisterSet::new(registers)
+}
+
+pub fn dispatch_guard_compare_static_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 pub fn host_call_sequence_width<T: InstructionOperandLike>(
     policy: CallingPolicy,
     operation_key: HostOperationKey,

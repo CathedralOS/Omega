@@ -408,10 +408,12 @@ validation admits these prescribed boundary mechanics without widening the
 handler body's transitive-state ceiling. Runtime-dispatching entries add a
 structurally scoped `dispatch_scaffold` fragment whose target-owned facts cover
 x86-64 R12/AArch64 X28 dispatch-state writes and case-entry condition flags;
-guard evaluation remains a separate body slice. The artifact's explicit
+storage-backed static guards add `static_guard_comparison` evidence with their
+exact GPR/vector scratch and flag effects. Storage-free and other guard-lowering
+shapes remain outside that structurally limited fragment. The artifact's explicit
 `enumeration_complete: false` status is a firewall: this retained slice is
 checkable implementation evidence, not yet the final certificate.
-The final certificate must still aggregate remaining body and guard evidence,
+The final certificate must still aggregate remaining body and runtime-guard evidence,
 StatePlan-driven nonordinary save/restore and return sequences, relaxation
 products, veneers/thunks, generated stubs, and admitted indirect leaves after
 final placement.

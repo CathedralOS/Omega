@@ -183,6 +183,60 @@ pub fn derive_boundary_dispatch_scaffold_footprint<'instruction>(
     Ok(evidence)
 }
 
+/// Derive storage-backed static guard comparisons without sweeping the other
+/// guard-lowering shapes into this fragment. The target encoders own the fixed
+/// GPR/vector scratch identities and condition-flag effect.
+pub fn derive_boundary_static_guard_footprint<'instruction>(
+    boundary: &ValidatedBoundaryEntryPlan,
+    instructions: impl IntoIterator<Item = &'instruction SelectedInstructionKind>,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    let architecture = boundary.plan().call.policy.architecture();
+    let mut registers = Vec::new();
+    let mut additional_state = MachineStateSet::empty();
+    for instruction in instructions {
+        let SelectedInstructionKind::EvaluateDispatchGuard {
+            guard_lowering: omega_abstract_operations::StateGuardLowering::CompareStaticValue,
+            operator,
+            has_storage: true,
+            is_float,
+            ..
+        } = instruction
+        else {
+            continue;
+        };
+        if !matches!(
+            operator,
+            omega_abstract_operations::StateGuardOperator::Equal
+                | omega_abstract_operations::StateGuardOperator::NotEqual
+                | omega_abstract_operations::StateGuardOperator::Greater
+                | omega_abstract_operations::StateGuardOperator::GreaterOrEqual
+                | omega_abstract_operations::StateGuardOperator::Less
+                | omega_abstract_operations::StateGuardOperator::LessOrEqual
+                | omega_abstract_operations::StateGuardOperator::GreaterUnsigned
+                | omega_abstract_operations::StateGuardOperator::GreaterOrEqualUnsigned
+                | omega_abstract_operations::StateGuardOperator::LessUnsigned
+                | omega_abstract_operations::StateGuardOperator::LessOrEqualUnsigned
+        ) {
+            continue;
+        }
+        let (writes, state) = match architecture {
+            omega_target::Architecture::X86_64 => (
+                omega_isa_x86_64::dispatch_guard_compare_static_register_writes(*is_float),
+                omega_isa_x86_64::dispatch_guard_compare_static_additional_machine_state(),
+            ),
+            omega_target::Architecture::Aarch64 => (
+                omega_isa_aarch64::dispatch_guard_compare_static_register_writes(*is_float),
+                omega_isa_aarch64::dispatch_guard_compare_static_additional_machine_state(),
+            ),
+        };
+        registers.extend_from_slice(writes.as_slice());
+        additional_state = additional_state.union(state);
+    }
+    let evidence = StateFootprintEvidence::new(RegisterSet::new(registers), additional_state);
+    validate_state_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
 /// Derive the exact register footprint of selected direct-result
 /// materialization instructions and validate it under the complete entry
 /// plan's state ceiling. Indirect result memory copies and the final return
@@ -897,6 +951,112 @@ mod tests {
         .expect_err("missing loop leave must reject");
 
         assert!(error.0.contains("exactly one loop entry and leave"));
+    }
+
+    fn static_guard_instruction(is_float: bool, has_storage: bool) -> SelectedInstructionKind {
+        SelectedInstructionKind::EvaluateDispatchGuard {
+            guard_lowering: omega_abstract_operations::StateGuardLowering::CompareStaticValue,
+            operator: omega_abstract_operations::StateGuardOperator::Equal,
+            storage_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            byte_offset: 65_537,
+            byte_size: 8,
+            expected_value: 1,
+            has_storage,
+            is_float,
+        }
+    }
+
+    #[test]
+    fn static_guard_footprint_tracks_x86_integer_and_float_scratch() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("SysV guard boundary");
+        let instructions = [
+            static_guard_instruction(false, true),
+            static_guard_instruction(true, true),
+            static_guard_instruction(true, false),
+        ];
+
+        let evidence = derive_boundary_static_guard_footprint(&boundary, &instructions)
+            .expect("x86 static guard evidence");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::X86R10,
+                MachineRegister::X86R11,
+                MachineRegister::X86R15,
+                MachineRegister::X86Xmm(0),
+                MachineRegister::X86Xmm(1),
+            ]
+        );
+        assert!(
+            evidence
+                .machine_state()
+                .contains_all(MachineStateSet::new([MachineState::Flags]))
+        );
+    }
+
+    #[test]
+    fn static_guard_footprint_tracks_aarch64_integer_and_float_scratch() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("AAPCS64 guard boundary");
+        let instructions = [
+            static_guard_instruction(false, true),
+            static_guard_instruction(true, true),
+            static_guard_instruction(true, false),
+        ];
+
+        let evidence = derive_boundary_static_guard_footprint(&boundary, &instructions)
+            .expect("AArch64 static guard evidence");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(26),
+                MachineRegister::Aarch64V(0),
+                MachineRegister::Aarch64V(1),
+            ]
+        );
+        assert!(
+            evidence
+                .machine_state()
+                .contains_all(MachineStateSet::new([MachineState::Flags]))
+        );
+    }
+
+    #[test]
+    fn storage_free_static_guard_contributes_no_footprint() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("SysV guard boundary");
+
+        let evidence = derive_boundary_static_guard_footprint(
+            &boundary,
+            &[static_guard_instruction(true, false)],
+        )
+        .expect("storage-free static guard evidence");
+
+        assert!(evidence.registers().as_slice().is_empty());
+        assert!(evidence.machine_state().is_empty());
     }
 
     #[test]

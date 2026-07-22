@@ -222,6 +222,25 @@ pub fn encode_dispatch_guard_compare_static_bytes(
     Ok(bytes)
 }
 
+/// Exact registers overwritten by a storage-backed static dispatch guard.
+/// Large/unscaled offsets reuse x26 as the adjusted base before it is replaced
+/// by the expected value, so the set is independent of offset magnitude.
+pub fn dispatch_guard_compare_static_register_writes(is_float: bool) -> RegisterSet {
+    let mut registers = vec![
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(26),
+    ];
+    if is_float {
+        registers.extend([MachineRegister::Aarch64V(0), MachineRegister::Aarch64V(1)]);
+    }
+    RegisterSet::new(registers)
+}
+
+pub fn dispatch_guard_compare_static_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 fn append_guard_load(
     bytes: &mut Vec<u8>,
     byte_offset: usize,
