@@ -512,13 +512,16 @@ Omega bodies; irreducible leaves use
 `satisfies Requirement via <Binding>;`. Target packages provide defaults and a
 slot owner may override by type. The migration order remains load-bearing.
 
-1. **PRV4b — Console adapters.** The honest owned-`String` to
-   borrowed-byte-view runtime path (`as_view`/`bytes`) now runs in both engines,
-   and standard `Console::write` and `Console::write_line` are checked Omega
-   code: self-forwarding adapters walk that view with measured `Slice::Length`
-   state transitions and reach only `write_byte`. Field-backed, literal-backed,
+1. **PRV4b — Console adapters.** Standard `Console::write` and
+   `Console::write_line` now accept borrowed byte views directly and are checked
+   Omega code: self-forwarding adapters walk that view with measured
+   `Slice::Length` state transitions and reach only `write_byte`. Field-backed
+   bounded carriers, literal-backed text, legacy owned-`String` compatibility,
    and empty-line cases run differentially; the checked-tree canary pins both
    calls to their adapters, and the lossless built-in plan oracle remains green.
+   The obsolete adapter-internal `String -> &string -> bytes` chain is gone.
+   Mutable `Console::read_line` remains on the owned `String` compatibility
+   surface until its destination becomes allocator-backed or explicitly bounded.
    More than 1,300 exact duplicate Console declarations now import that package.
    The compiler's dungeon lattice snapshot now shares the same standard import
    as the runnable sample instead of retaining a second String-based boundary.
@@ -989,7 +992,10 @@ stronger operations it needs instead of citing machine parameters generally.
   mutation. Repeated fixed-capacity declarations such as `[u8; 16]::Utf8` and
   `[u8; 64]::Utf8` resolve as one short-name domain only when their normalized
   fact sets agree; divergent same-name declarations reject before flow checking.
-  Fourteen pass-canary sources still name builtin `String`/`string`. Continue that
+  Standard Console output, provider forwarding, ZII host output, and borrowed
+  view typing now operate directly on byte views or bounded carriers; only the
+  mutable input half retains the old Console `String` surface. Eleven pass-canary
+  sources still name builtin `String`/`string`. Continue that
   migration. The backend's in-place concat route is now alias-safe and never zeros
   its source, but migrating the remaining `target = target + suffix` regressions
   still requires a proven running-length bound rather than the conservative

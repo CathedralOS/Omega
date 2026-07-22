@@ -822,6 +822,13 @@ boundary and the operators.
 > semantic domain. If repeated declarations under the same normalized name carry
 > different facts, validation rejects them; declaration order never selects a
 > meaning.
+>
+> Standard Console output is already carrier-based: `write` and `write_line`
+> borrow `&[u8]`, and the checked adapter walks that view directly. An owned
+> bounded carrier projects its runtime length and inline byte address at the
+> call seam. The mutable `read_line` compatibility signature still names
+> `String` pending the allocator/bounded-destination surface; this is an
+> implementation fence, not the target text model.
 
 ### Establishing the domain: construction, validation, and the wire
 

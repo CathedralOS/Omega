@@ -1,12 +1,16 @@
 // PRV4 standard SELF-FORWARDING checked adapter. The imported Console package
 // implements write/write_line as ordinary Omega machines over write_byte. Exercise both
-// runtime-place and literal String sources; both must travel through the honest
-// as_view().bytes() borrow and measured byte walk.
+// runtime-place and literal byte-carrier sources; both must travel through the
+// honest borrowed byte-view path and measured byte walk.
 use omega::language::std::console;
+
+domain [u8; 16]::Utf8 {
+    valid_utf8(self);
+}
 
 data Main {
     console: Console;
-    text: String;
+    text: [u8; 16] in Utf8;
 }
 
 machine Main::main(&mut self) {

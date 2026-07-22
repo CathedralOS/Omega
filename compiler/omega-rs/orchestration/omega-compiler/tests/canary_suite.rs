@@ -14367,8 +14367,8 @@ fn runtime_adapter_dispatch_exit_canary_runs() {
 fn runtime_adapter_forwarding_exit_canary_runs() {
     // PRV4 standard self-forwarding adapter: the receiver forwards as argument
     // 0, and std Console::write reaches the write_byte leaf through that same
-    // capability. Field-backed and literal-backed owned Strings both cross the
-    // honest borrowed byte-view path.
+    // capability. Field-backed bounded carriers and literal-backed text both
+    // cross the honest borrowed byte-view path.
     let canary = pass_canary("providers/runtime_adapter_forwarding_exit");
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
@@ -19959,13 +19959,18 @@ fn zii_default_composite_exit_canary_runs() {
 
 #[test]
 fn zii_string_host_write_exit_canary_runs() {
-    // ZII string through host argument marshaling: len 0, null ptr never
-    // dereferenced on the way to Stdout.write.
+    // A ZII bounded carrier reaches the host adapter as an empty borrowed view.
     let canary = pass_canary("text/zii_string_host_write_exit");
+    let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("ZII carrier host-write canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.exit_code, 70);
+    assert_eq!(outcome.stdout, b"\nafter-zii\n".to_vec());
     let build_dir = std::env::temp_dir().join(format!("omega-ziihost-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
-        root_path: canary.join("main.omg"),
+        root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
         write_output: true,
@@ -19980,6 +19985,7 @@ fn zii_string_host_write_exit_canary_runs() {
         "zii host-write canary should print and exit 70, got {:?}",
         output.status.code(),
     );
+    assert_eq!(output.stdout, b"\nafter-zii\n".to_vec());
     let _ = fs::remove_dir_all(&build_dir);
 }
 
