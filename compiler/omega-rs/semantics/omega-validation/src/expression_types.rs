@@ -107,8 +107,6 @@ pub(crate) fn argument_matches_type_reference_handle(
             if let Some(primitive_type) = PrimitiveType::from_name(type_name) {
                 return matches!(argument_node, ExpressionNode::Boolean(_))
                     && primitive_type == PrimitiveType::Bool
-                    || matches!(argument_node, ExpressionNode::String(_))
-                        && primitive_type == PrimitiveType::String
                     || matches!(argument_node, ExpressionNode::Float(_))
                         && primitive_type.accepts_float_literal()
                     || matches!(argument_node, ExpressionNode::Integer(_))
@@ -254,7 +252,6 @@ impl ValueClass {
     fn of_primitive(primitive: PrimitiveType) -> Self {
         match primitive {
             PrimitiveType::Bool => Self::Boolean,
-            PrimitiveType::String => Self::Text,
             _ => Self::Numeric,
         }
     }
@@ -557,9 +554,9 @@ pub(crate) fn validate_cast_types(
         Some(PrimitiveType::Bool) => {
             report_number_to_bool_cast(program, machine, state, cast.value, diagnostics);
         }
-        // Every scalar target except `bool` and the `String` carrier is a
-        // numeric/address type that only accepts a numeric/bool scalar source.
-        Some(primitive) if primitive != PrimitiveType::String => {
+        // Every scalar target except `bool` is a numeric/address type that only
+        // accepts a numeric/bool scalar source.
+        Some(primitive) => {
             report_invalid_numeric_cast_source(
                 program,
                 machine,
@@ -1145,7 +1142,7 @@ fn type_reference_is_text_carrier(program: &TypedTrees, handle: TypeReferenceHan
         | TypeReferenceNode::Slice { element_type } => {
             program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8)
         }
-        _ => program.primitive_type_reference(handle) == Some(PrimitiveType::String),
+        _ => false,
     }
 }
 
@@ -1308,49 +1305,6 @@ fn report_invalid_numeric_cast_source(
         return reject(format!("casts a `{name}` value"));
     }
     false
-}
-
-/// Reject indexing the `String` carrier -- `s[i]` as a READ (`is_write == false`,
-/// e.g. `let b = s[i]`) or as an assignment TARGET (`is_write == true`, `s[i] = x`).
-/// `String` is a `{len, bytes}` carrier, not a flat byte array, so a byte index
-/// silently reads / writes a ZII `0` (the backend has no index-into-carrier lowering
-/// and the store checks skip an unresolved element type). A `[u8; N] in Utf8` byte
-/// array resolves to a NON-primitive type, so `primitive_type_reference` returns
-/// `None` and the supported byte-array indexing is left alone -- only the `String`
-/// PRIMITIVE is caught here. `s.len` MEMBER access is not an `Indexed` node, so it is
-/// never touched. Returns true if it reported. (Byte access on text is a possible
-/// future feature; this closes the silent read/write-0 without precluding it.)
-pub(crate) fn report_string_index_access(
-    program: &TypedTrees,
-    machine: &omega_typed_trees::machine::Machine,
-    state: Option<&omega_typed_trees::state::State>,
-    expression: ExpressionHandle,
-    is_write: bool,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> bool {
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    let Some(collection_type) =
-        crate::places::declared_place_type(program, machine, state, indexed.collection)
-    else {
-        return false;
-    };
-    if program.primitive_type_reference(collection_type) != Some(PrimitiveType::String) {
-        return false;
-    }
-    let action = if is_write {
-        "assigns to an index of a `String` value (`s[i] = ..`)"
-    } else {
-        "indexes a `String` value (`s[i]`)"
-    };
-    diagnostics.push(Diagnostic::error(format!(
-        "machine `{}` state `{}` {action}, but the text carrier does not support byte indexing; \
-         use a `[u8; N] in Utf8` array for byte access",
-        machine.name.as_str(),
-        state.map(|state| state.name.as_str()).unwrap_or(""),
-    )));
-    true
 }
 
 /// Reject logical `!` on a NON-bool operand (`!5`, `!x` for `x: i32`). `!` is

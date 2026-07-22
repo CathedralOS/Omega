@@ -157,26 +157,23 @@ impl WireScalarEncoding {
 }
 
 /// How one schema field rides compact_binary v0: integer scalars LEB128 as
-/// before (wire stage 2a), and `String` fields ride as a LENGTH varint (byte
-/// count) followed by the raw UTF-8 bytes -- no NUL terminator, no padding.
+/// before (wire stage 2a), and borrowed byte/text fields ride as a LENGTH
+/// varint (byte count) followed by raw bytes -- no NUL terminator or padding.
 /// The vocabulary is shared by validation, instruction selection, and the
 /// reference interpreter so all three agree byte-for-byte.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WireFieldEncoding {
     Scalar(WireScalarEncoding),
-    /// A `String` field: the runtime value is a `{ptr, len}` text descriptor,
-    /// encoded as the len varint then len raw bytes read through ptr.
-    /// ENCODE-only today -- decoding would need a storage decision for the
-    /// produced descriptor (see chapter 20).
+    /// A borrowed byte/text field: the runtime value is a `{ptr, len}` slice
+    /// descriptor, encoded as the len varint then len raw bytes read through
+    /// ptr. Decode produces a checked zero-copy view into the input buffer.
     Text,
 }
 
 impl WireFieldEncoding {
-    /// The encode-side field set: the stage 2a scalars plus `String`.
+    /// The primitive encode-side field set. Runtime-sized text is recognized
+    /// from its borrowed byte-slice carrier before this primitive path.
     pub fn for_primitive(primitive: crate::types::PrimitiveType) -> Option<Self> {
-        if primitive == crate::types::PrimitiveType::String {
-            return Some(Self::Text);
-        }
         WireScalarEncoding::for_primitive(primitive).map(Self::Scalar)
     }
 }

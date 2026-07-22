@@ -12,7 +12,6 @@ use crate::selection::storage_places::{
     resolve_runtime_pointee_slot_offset, resolve_runtime_pointee_slot_offset_in_table,
     resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
     resolve_runtime_storage_place_is_fat_slice_in_table,
-    resolve_runtime_storage_primitive_type_in_table,
 };
 use omega_abstract_operations::{RuntimeValueOperand, RuntimeValueOperandHandle};
 use omega_checked_trees::expression::{
@@ -570,22 +569,12 @@ pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_equals_operan
             place_is_bounded_buffer,
         })
     } else {
-        // A `&[u8] in Utf8` view shares the identical 16-byte `{ptr, len}` descriptor
-        // with `String`, so its content `==` is the SAME TextEquals leaf (length +
-        // bounded byte loop). Recognize such a fat-slice-descriptor place too, else a
+        // A `&[u8] in Utf8` view uses the TextEquals leaf (length + bounded byte
+        // loop). Recognize such a fat-slice-descriptor place, or a
         // `&[u8] in Utf8 == &[u8] in Utf8` compare falls to the generic scalar path,
         // whose 16-byte runtime-operand load the encoder rejects loudly.
         let operand_is_text = |expression: ExpressionHandle| {
-            matches!(
-                resolve_runtime_storage_primitive_type_in_table(
-                    input,
-                    dispatch_index,
-                    source_key,
-                    expressions,
-                    expression,
-                ),
-                Some(PrimitiveType::String)
-            ) || resolve_runtime_storage_place_is_fat_slice_in_table(
+            resolve_runtime_storage_place_is_fat_slice_in_table(
                 input,
                 dispatch_index,
                 source_key,

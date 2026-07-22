@@ -34,7 +34,6 @@ Current state cycle:
 
 Sample layout:
 
-- `build.omg`: host policy for console input, output, and process exit
 - `main.omg`: process-level runner
 - `game/`: submitted-input game loop and frame advancement
 - `view/`: CLI rendering over dungeon snapshots
@@ -43,6 +42,9 @@ Sample layout:
 - `rooms/`, `inventory/`, `events/`, `combat/`, `player/`, `enemies/`,
   and `rewards/`: domain-owned models plus their behavior
 - `platform/`: console boundary
+
+The ordinary target defaults supply console input/output and process exit, so
+this sample needs no per-provider `build.omg` manifest.
 
 Build output:
 

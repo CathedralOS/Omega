@@ -99,7 +99,7 @@ outcome. The type alone is not a termination guarantee.
 ```omega
 machine Parser::resolve(
     &self,
-    line: &String
+    line: &[u8]
 ) -> Command {
     Command::Invalid
 }

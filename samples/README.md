@@ -7,9 +7,10 @@ They are allowed to be rough while the language is moving, but each sample
 should still have a clear project shape:
 
 - `main.omg`: the entrypoint the compiler is pointed at.
-- `build.omg`: targets and their trusted boundary packages, when the sample
-  needs one (a `target` block lists `boundary` lines only — see
-  `wiki/design_briefs/extern_boundary_and_format_domains.md` §4).
+- `build.omg`: ordinary build/configuration code only when the sample overrides
+  target defaults, adds a dependency, or selects a provider slot. Do not add
+  legacy `target { boundary ... }` manifests; provider admission and selection
+  are derived from the selected target plus explicit overrides.
 - `.gitignore`: local sample ignore rules, including `/build/`.
 - Domain folders such as `data/`, `platform/`, `rooms/`, or `dungeon/`.
 

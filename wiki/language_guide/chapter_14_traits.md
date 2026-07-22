@@ -749,7 +749,7 @@ calls lower it in the caller's storage scope, so ordinary method calls and
 operators share the implementation. A
 hand-written `Type::equals` wins: `==` lowers to a call to it. Prerequisites
 are enforced at the conformance item: every field must be
-a scalar primitive, a payload-less sum, text (`String` or a byte-slice view,
+a scalar primitive, a payload-less sum, text (a byte-slice view or bounded byte carrier,
 compared by content), or itself Equatable-conforming; recursive types are
 rejected (inline expansion would not terminate).
 Without a conformance, `==` on a structural type stays a compile error

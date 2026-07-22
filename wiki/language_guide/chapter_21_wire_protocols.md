@@ -256,27 +256,21 @@ one byte 0/1. The out buffer must be a `&mut [u8; N]` large enough for the
 worst-case encoding (checked at compile time, so the encoder needs no runtime
 bounds checks), and `written` receives the encoded byte count.
 
-A `String` field rides as its tag varint, then a LENGTH varint (byte count),
-then the raw UTF-8 bytes — no NUL terminator, no padding. String fields are
-ENCODE-ONLY today, and the encoder takes at most one per message, carrying
-the schema's highest field number so it encodes LAST. Both restrictions fall
-out of the same fact: a String's byte count is runtime-sized (the value is a
-`{ptr, len}` text descriptor), so it cannot participate in the compile-time
-worst-case capacity check. The worst-case budget covers everything up to and
-including the length varint (ten bytes max); the trailing byte-copy is the
-one append that bounds every store against the buffer's compile-time length
-at runtime, DROPPING content past capacity rather than writing out of bounds
-(callers size buffers for their longest expected text — a runtime overflow
-signal for encode is future work). Decode REJECTS String fields for now.
-The honest storage options were: (a) zero-copy — write a descriptor pointing
-INTO the decode buffer, which makes the decoded message silently alias the
-buffer; today's borrow facts track view loans created by explicit slice/text
-borrow expressions only, so the checker CANNOT see a call output retaining a
-borrow of another argument, and mutating or reusing the buffer would
-invalidate the decoded string with no diagnostic; or (b) reject decode until
-that aliasing relationship is checkable (or an allocator/copy target exists).
-We took (b): encode-only is a smaller honest slice; zero-copy decode awaits
-borrow facts that can model it (tracked in TASKS).
+A borrowed text field such as `label: &[u8] in Utf8` rides as its tag varint,
+then a length varint (byte count), then raw bytes — no NUL terminator and no
+padding. The compact-binary v0 encoder takes at most one runtime-sized text
+field per message, and it must carry the highest field number so it encodes
+last. Its byte count cannot participate in the compile-time worst-case budget;
+the trailing copy therefore bounds every store against the output buffer and
+never writes past it. A future result surface must report truncation rather
+than making callers infer it.
+
+Decode constructs a zero-copy borrowed view into the input buffer and validates
+the declared byte-sequence domains before returning `Sound`. For `Utf8`, invalid
+or truncated sequences make the verdict `Invalid` in the interpreter and both
+native backends. The decoded value therefore carries the buffer loan explicitly:
+it cannot outlive or overlap an invalidating mutation of that input. Owned-copy
+decode remains an allocator/package policy, not a builtin text representation.
 
 The matching decoder is
 `Schema::decode(&mut value, &buffer, &mut read, &mut verdict)`: it reads the
@@ -306,7 +300,7 @@ per top-level message, NEVER per struct. The era rides only the top-level
 envelope; a nested schema's version chain is checked at its own top-level
 uses, and its declaration is validated like any other schema's. Today's
 honest slice is ONE nesting level with a scalar-only child body (i32, i64,
-u32, u64, bool): a String child is runtime-sized and a doubly-nested child
+u32, u64, bool): a runtime-sized text child and a doubly-nested child
 would need a second staging region, so both reject with clear diagnostics,
 and a schema that reaches itself through nested fields (no finite worst case)
 is a hard error at the declaration.
@@ -324,12 +318,12 @@ to the largest nested child's worst case; the nested field encodes by
 pointing the descriptor at the staging buffer, zeroing the len slot (which
 doubles as the staging cursor), appending the child's fields into the buffer
 with the ordinary wire appends, and then replaying the descriptor through the
-same text-bytes append a String field uses — which emits exactly a length
+same text-bytes append a borrowed byte field uses — which emits exactly a length
 varint followed by that many bytes. The parent's worst-case budget counts the
 nested field as tag + length varint + child worst case, so the capacity rule
-composes; nested fields are statically bounded, so the one-String-LAST rule
-is unaffected by them and applies PER MESSAGE SCOPE (a child body simply has
-no String today).
+composes; nested fields are statically bounded, so the one-runtime-text-last
+rule is unaffected by them and applies per message scope (a child body has no
+runtime-sized text today).
 
 The decoder reads the nested tag, reads the length varint into the scratch
 slot, then OPENS the sub-region: the length must fit the remaining buffer

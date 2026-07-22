@@ -3,7 +3,7 @@
 //! straight-line sequence of wire-append operations -- zero the cursor, emit
 //! the CURRENT era discriminator varint, then per field in field-number order
 //! a field-number varint (compile-time bytes) and a value varint (runtime
-//! scalar). A `String` field (validation guarantees at most one, encoding
+//! scalar). A runtime-sized borrowed text field (at most one, encoding
 //! LAST) lowers to a text-bytes append instead: its length varint plus a
 //! byte-copy bounded by the out buffer's compile-time capacity.
 //!
@@ -23,7 +23,7 @@
 //! Front-end validation (`omega-validation::wire`) has already guaranteed
 //! the call shape, the field coverage, the stage 2 field set (scalar-only
 //! children, one nesting level), and the out-buffer capacity for everything
-//! but the runtime-sized String content, so an unresolvable place here is a
+//! but the runtime-sized text content, so an unresolvable place here is a
 //! planning blocker rather than a silent skip.
 
 use crate::InstructionSelectionInput;

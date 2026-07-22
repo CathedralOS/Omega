@@ -681,7 +681,6 @@ pub enum PrimitiveType {
     I16,
     I32,
     I64,
-    String,
     U8,
     U16,
     U32,
@@ -702,7 +701,6 @@ impl PrimitiveType {
             "i16" => Some(Self::I16),
             "i32" => Some(Self::I32),
             "i64" => Some(Self::I64),
-            "String" => Some(Self::String),
             "u8" => Some(Self::U8),
             "u16" => Some(Self::U16),
             "u32" => Some(Self::U32),
@@ -727,7 +725,6 @@ impl PrimitiveType {
             Self::I16 => "i16",
             Self::I32 => "i32",
             Self::I64 => "i64",
-            Self::String => "String",
             Self::U8 => "u8",
             Self::U16 => "u16",
             Self::U32 => "u32",
@@ -766,16 +763,14 @@ impl PrimitiveType {
         )
     }
 
-    /// Byte size of a scalar primitive, or `None` for `String` (not a fixed-width
-    /// scalar). Single source of truth for the backend's scalar-width decisions
-    /// (conversions, guard-operand widths, storage layout of scalars).
+    /// Byte size of a scalar primitive. Single source of truth for the backend's
+    /// scalar-width decisions (conversions, guard operands, and storage layout).
     pub fn scalar_byte_size(self) -> Option<usize> {
         match self {
             Self::Bool | Self::I8 | Self::U8 => Some(1),
             Self::I16 | Self::U16 => Some(2),
             Self::F32 | Self::I32 | Self::U32 => Some(4),
             Self::F64 | Self::I64 | Self::U64 | Self::Addr => Some(8),
-            Self::String => None,
         }
     }
 

@@ -4,13 +4,9 @@
 // asserts the encoder fragments in the emitted image. Structural only --
 // native confirmation needs those hosts.
 target windows_x64 {
-    boundary omega::host::contracts
-    boundary omega::host::targets::windows
 }
 
 target linux_x64 {
-    boundary omega::host::contracts
-    boundary omega::host::targets::linux
 }
 
 machine build(b: &mut Build) {

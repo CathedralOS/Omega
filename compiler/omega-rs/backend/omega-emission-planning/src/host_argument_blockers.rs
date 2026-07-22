@@ -543,9 +543,8 @@ fn selected_instruction_writes_runtime_text_buffer(
         | SelectedInstructionKind::AppendRuntimeTextStoredSuffix { buffer, .. }
         | SelectedInstructionKind::MaterializeTextBufferToPlace { buffer, .. }
         | SelectedInstructionKind::AppendTextStoredToPlace { buffer, .. }
-        | SelectedInstructionKind::AppendTextLiteralToPlace { buffer, .. } => {
-            *buffer == data_handle
-        }
+        | SelectedInstructionKind::AppendTextLiteralToPlace { buffer, .. }
+        | SelectedInstructionKind::ReadRuntimeTextLine { buffer, .. } => *buffer == data_handle,
 
         _ => host_operation(kind)
             .filter(|(operation_key, _)| {

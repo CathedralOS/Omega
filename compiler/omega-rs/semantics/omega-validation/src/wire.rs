@@ -277,7 +277,7 @@ fn validate_scope_field_types(
         {
             // A borrowed byte slice `&[u8]` is the zero-copy RAW-bytes/text
             // field (length varint + raw bytes, runtime-bounded like the old
-            // String content), so it is exempt from the "needs a maximum" rule
+            // runtime-sized text content), so it is exempt from the "needs a maximum" rule
             // that owned repeated `[scalar; max]` fields obey. Any OTHER bare
             // slice still rejects -- it has no finite worst case.
             diagnostics.push(Diagnostic::error(format!(
@@ -515,21 +515,21 @@ pub(crate) fn validate_wire_schema_call(
 /// diagnostic, instead of in the backend:
 /// - exactly three arguments;
 /// - every current-era schema field is a stage 2a scalar (i32/i64/u32/u64/
-///   bool), `String`, or a NESTED MESSAGE (a sibling wire schema whose body
-///   is scalar-only -- String-in-child and nested-in-nested reject, one
+///   bool), borrowed runtime-sized text, or a NESTED MESSAGE (a sibling wire schema whose body
+///   is scalar-only -- runtime-text-in-child and nested-in-nested reject, one
 ///   honest level today); repeated fields reject;
-/// - at most one `String` field, and it carries the highest field number so
+/// - at most one runtime-sized text field, and it carries the highest field number so
 ///   it encodes LAST (its content is runtime-sized; see the worst-case
 ///   rule). The rule is PER MESSAGE SCOPE: nested fields are statically
-///   bounded, so they may sit anywhere, and a child body has no String;
+///   bounded, so they may sit anywhere, and a child body has no runtime-sized text;
 /// - the value argument's data type declares every schema field with the
 ///   SAME primitive type (a nested field's value member must be a data type
 ///   matching the CHILD schema's fields, one level down);
 /// - the out buffer is `&mut [u8; N]` with room for the WORST-CASE encoding
-///   (era varint + per field tag varint + max value varint; a String field
+///   (era varint + per field tag varint + max value varint; a text field
 ///   budgets tag + max length varint; a nested field budgets tag + length
 ///   varint + the child's static worst case), so every append EXCEPT the
-///   trailing String byte-copy needs no runtime bounds check -- the
+///   trailing text byte-copy needs no runtime bounds check -- the
 ///   byte-copy alone bounds against N at runtime and truncates content past
 ///   capacity;
 /// - the written argument is `&mut u64`.
@@ -911,14 +911,14 @@ fn validate_wire_decode_call(
     }
 
     // Schema side: the stage 2 scalar set plus nested message fields plus
-    // repeated scalar fields, same gate as the encoder (String stays
-    // encode-only).
+    // repeated scalar fields and borrowed runtime-sized text, matching the
+    // encoder's field set.
     let mut current_fields = Vec::new();
     let mut nested_fields: Vec<(&WireField, &WireSchema)> = Vec::new();
     let mut repeated_fields: Vec<(&WireField, omega_typed_trees::wire::WireRepeatedEncoding)> =
         Vec::new();
     // Borrowed byte slices `&[u8]`: decoded ZERO-COPY as a length-prefixed view
-    // of the buffer (no allocator, unlike an owned `String`).
+    // of the buffer (no allocator or owned-copy policy required).
     let mut byte_slice_fields: Vec<&WireField> = Vec::new();
     let mut schema_rejects = false;
     for member in program.wire_members(schema.members) {
@@ -939,7 +939,7 @@ fn validate_wire_decode_call(
             }
             let Some(repeated) = program.wire_field_repeated_encoding(field) else {
                 diagnostics.push(Diagnostic::error(format!(
-                    "data `{}` field `{}`: a repeated wire field's element must be a stage 2 scalar (i32, i64, u32, u64, bool); `{}` is not supported (repeated String and repeated nested messages reject until they have an honest encoding)",
+                    "data `{}` field `{}`: a repeated wire field's element must be a stage 2 scalar (i32, i64, u32, u64, bool); `{}` is not supported (repeated runtime-sized text and repeated nested messages reject until they have an honest encoding)",
                     schema.name,
                     field.name,
                     program.display_type_reference(field.type_reference)
@@ -952,7 +952,7 @@ fn validate_wire_decode_call(
         }
         // A borrowed byte slice `&[u8]` decodes ZERO-COPY: a length-prefixed
         // view into the buffer, no owned copy and so no allocator. (An owned
-        // `String` field still rejects below -- it would need to copy bytes out.)
+        // An owned-copy destination would instead need allocator/package policy.)
         if program.is_borrowed_byte_slice(field.type_reference) {
             if field.number < 0 {
                 diagnostics.push(Diagnostic::error(format!(
@@ -969,30 +969,12 @@ fn validate_wire_decode_call(
         let scalar = primitive.and_then(omega_typed_trees::wire::WireScalarEncoding::for_primitive);
         let nested = program.wire_field_nested_schema(field);
         if scalar.is_none() && nested.is_none() {
-            // An owned `String` decode is gated on a missing PREREQUISITE, not a
-            // missing wire feature: it must copy the bytes out of the buffer into
-            // owned storage, and Omega has no runtime allocator yet. Name that
-            // dependency explicitly (and the allocator-free zero-copy path) rather
-            // than lumping String in with genuinely-unsupported field types.
-            let message = if primitive == Some(omega_typed_trees::types::PrimitiveType::String) {
-                format!(
-                    "data `{}` field `{}`: decoding an owned `String` is not implemented yet \
-                     -- it must copy the field's bytes out of the decode buffer into owned storage, \
-                     which requires the runtime allocator (the reclamation substrate / arena is \
-                     designed but not built). The allocator-free alternative is a borrowed \
-                     `&[u8]` field that views the decode buffer in place (zero-copy). \
-                     (Encoding a `String` already works.)",
-                    schema.name, field.name
-                )
-            } else {
-                format!(
-                    "data `{}` field `{}`: `{}` is not decodable by the compact_binary v0 decoder yet; wire stage 2b supports i32, i64, u32, u64, bool, and a sibling wire schema (one nesting level)",
-                    schema.name,
-                    field.name,
-                    program.display_type_reference(field.type_reference)
-                )
-            };
-            diagnostics.push(Diagnostic::error(message));
+            diagnostics.push(Diagnostic::error(format!(
+                "data `{}` field `{}`: `{}` is not decodable by the compact_binary v0 decoder yet; wire stage 2b supports i32, i64, u32, u64, bool, borrowed runtime-sized text, and a sibling wire schema (one nesting level)",
+                schema.name,
+                field.name,
+                program.display_type_reference(field.type_reference)
+            )));
             schema_rejects = true;
             continue;
         }
@@ -1006,12 +988,12 @@ fn validate_wire_decode_call(
         }
         if let Some(child) = nested {
             // Mirrors the encoder's nested gate: a scalar-only child body is
-            // the one honest level today (String content has no decode story
-            // at all, and a doubly-nested body would need a second end-bound
-            // slot).
+            // the one honest level today (runtime-sized text in the child and
+            // a doubly-nested body would each need another staging/end-bound
+            // story).
             if program.wire_schema_scalar_body_worst_case(child).is_none() {
                 diagnostics.push(Diagnostic::error(format!(
-                    "data `{}` field `{}`: nested wire schema `{}` must contain only scalar fields (i32, i64, u32, u64, bool); String and doubly-nested message fields inside a nested message are not supported yet",
+                    "data `{}` field `{}`: nested wire schema `{}` must contain only scalar fields (i32, i64, u32, u64, bool); runtime-sized text and doubly-nested message fields inside a nested message are not supported yet",
                     schema.name, field.name, child.name
                 )));
                 schema_rejects = true;

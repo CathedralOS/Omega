@@ -15,10 +15,14 @@
 
 use omega::language::std::console;
 
+domain [u8; 256]::Utf8 {
+    valid_utf8(self);
+}
+
 data Main {
     console: Console;
     counter: AtomicU32;
-    pause: [u8; 256];
+    pause: [u8; 256] in Utf8;
 }
 
 machine Main::main(&mut self) {

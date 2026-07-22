@@ -669,8 +669,7 @@ impl<'program> Evaluator<'program> {
             Some(primitive)
                 if primitive != PrimitiveType::Bool
                     && primitive != PrimitiveType::F32
-                    && primitive != PrimitiveType::F64
-                    && primitive != PrimitiveType::String =>
+                    && primitive != PrimitiveType::F64 =>
             {
                 primitive
             }
@@ -1235,11 +1234,10 @@ impl<'program> Evaluator<'program> {
         match self.program.primitive_type_reference(type_reference) {
             Some(PrimitiveType::Bool) => Value::Bool(false),
             Some(PrimitiveType::F32) | Some(PrimitiveType::F64) => Value::Float(0.0),
-            Some(PrimitiveType::String) => Value::str(String::new()),
             Some(_) => Value::Int(0),
             // A `&[u8] in Utf8` text view (the encoding-domain model that retires
-            // builtin String, #66) shares String's fat `{ptr,len}` descriptor and
-            // reuses String's content-compare/literal-store path natively. The
+            // the retired owned primitive, #66) uses a fat `{ptr,len}` descriptor
+            // and the content-compare/literal-store path natively. The
             // zero-initialized field is a zeroed descriptor (empty bytes), so the
             // interpreter must default it to an EMPTY `Str` -- not `Unit`. (A `Unit`
             // default makes `self.name == "literal"` fall through `values_equal`'s
@@ -2372,7 +2370,7 @@ impl<'program> Evaluator<'program> {
         match &*out_cell.borrow() {
             Value::Array(elements) => {
                 if bytes.len() > elements.len() && !has_text_field {
-                    // Without a String field validation's worst-case budget
+                    // Without a runtime-sized text field validation's worst-case budget
                     // covers every byte, so an overflow here is a compiler
                     // bug, not a program state -- trap loudly.
                     return Err(Halt::Trap(format!(
@@ -2381,9 +2379,9 @@ impl<'program> Evaluator<'program> {
                         elements.len()
                     )));
                 }
-                // With a String field the native byte-copy bounds every store
+                // With a runtime-sized text field the native byte-copy bounds every store
                 // against the buffer's capacity and DROPS overflowing content
-                // (the String encodes last); `zip` clamps identically.
+                // (the text field encodes last); `zip` clamps identically.
                 for (element, byte) in elements.iter().zip(&bytes) {
                     *element.borrow_mut() = Value::Int(i64::from(*byte));
                 }
@@ -4753,10 +4751,9 @@ impl<'program> Evaluator<'program> {
         }
 
         // Borrowed text-view builtins are descriptor-preserving views. The
-        // interpreter represents owned String, `&string`, and `&[u8]` text
-        // views with the same shared `Value::Str` cell, mirroring the native
-        // `{ptr, len}` descriptor copy. Returning a clone shares the bytes; it
-        // never copies or converts the owned String into an unrelated value.
+        // interpreter represents literal-backed and borrowed byte views with
+        // the same shared `Value::Str` cell, mirroring the native `{ptr, len}`
+        // descriptor copy. Returning a clone shares the bytes.
         if matches!(target, "as_view" | "bytes") && call.receiver.is_valid() {
             if let Ok(cell) = self.resolve_place(call.receiver, frame) {
                 let cell = self.deref_cell(cell);
@@ -5757,7 +5754,6 @@ impl<'program> Evaluator<'program> {
                 Ok(Value::Float(source))
             }
             PrimitiveType::Bool => Ok(Value::Bool(value.as_bool().unwrap_or(false))),
-            PrimitiveType::String => Ok(value),
             integer => {
                 // Int -> int reinterprets at the target width; the result
                 // keeps the target's width tag so later ops/casts wrap.
@@ -6993,9 +6989,7 @@ fn wrap_to_width(raw: i64, ty: PrimitiveType) -> i64 {
         // u64 is still represented by the same bit pattern in i64).
         PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::Addr => raw,
         // Non-integer primitives do not reach this path.
-        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
-            raw
-        }
+        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => raw,
     }
 }
 
@@ -7022,9 +7016,7 @@ fn integer_primitive_byte_width(ty: PrimitiveType) -> Option<usize> {
         PrimitiveType::I16 | PrimitiveType::U16 => Some(2),
         PrimitiveType::I32 | PrimitiveType::U32 => Some(4),
         PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::Addr => Some(8),
-        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
-            None
-        }
+        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => None,
     }
 }
 

@@ -109,37 +109,35 @@ depends on proved semantic facts rather than raw expression syntax.
 Omega should distinguish user-facing core concepts from the low-level carriers
 the compiler uses to lower them.
 
-Likely core collection and text concepts:
+Core collection and text concepts:
 
 - `Array[T; N]`: fixed-size owned inline storage.
 - `Vec[T]`: owned dynamic contiguous storage.
 - `Slice[T]`: borrowed contiguous view over elements.
-- `String`: owned string/text storage, with capacity and `push_str`.
-- `&string`: borrowed string/text window (`&mut string` for a mutable window).
+- `[u8; N] in Utf8`: bounded owned text storage.
+- `Vec<u8> in Utf8`: growable owned text storage once allocation is available.
+- `&[u8] in Utf8`: borrowed text window (`&mut [u8]` plus an establishment
+  contract when mutation must preserve the encoding).
 
-The exact surface spelling may stay Rust-like for a while:
+The surface uses the ordinary carrier plus domain spelling:
 
 ```omega
 let fixed: [Item; 4];
 let view: &[Item] = fixed.as_slice();
-let text: String;
-let text_view: &string = text.as_view();
-let bytes: &[u8] = text_view.bytes();
+let text: [u8; 64] in Utf8 = "hello";
+let text_view: &[u8] in Utf8 = text;
 ```
 
-But semantically, `Array`, `Vec`, and `Slice` should be visible core concepts,
-not just implicit compiler behavior. `Array` and `Vec` are owners. `Slice` is
-the common borrowed view they can produce. Likewise, an owned `String` can
-produce a borrowed text window. The owned text type is `String`; a borrowed text
-window is its own type spelled `&string` (or `&mut string`). The capitalization
-distinguishes owner from window.
+`Array`, `Vec`, and `Slice` are visible core concepts, not just implicit
+compiler behavior. `Array` and `Vec` are owners. `Slice` is the common borrowed
+view they can produce. Text does not introduce another owner/view hierarchy:
+the `Utf8` fact qualifies the byte carrier or byte view that already owns or
+borrows the storage.
 
-`as_view()` and `bytes()` are borrowed, descriptor-preserving views. They do
-not copy the owned text and do not convert ownership: mutating the owner while
-either view remains live is rejected, and both native lowering and the
-interpreter retain the same pointer-and-length window. This is the explicit
-bridge used while the longer-term `String` retirement migrates borrowed text
-directly to `&[u8] in Utf8`.
+Projecting a bounded carrier or vector to a slice is descriptor-preserving and
+does not copy its initialized bytes. Mutating or reallocating the owner while
+the view remains live is rejected. Native lowering and the interpreter agree
+on the pointer-and-live-length descriptor exposed by the view.
 
 The implementation can still use privileged internal carriers. A slice view is
 likely lowered as a descriptor such as pointer plus length. A vector is likely
@@ -173,8 +171,8 @@ Working interpretation:
   element or view is uniquely writable.
 - Slice ranges such as `items[1..]` resolve to a range-slice operator that
   creates a new view with a narrower extent and updated facts.
-- Text windows expose byte-oriented operations such as `string::byte` and
-  `string::range`; character or grapheme indexing must be a separate semantic
+- Text windows use ordinary slice byte indexing and ranges. Character or
+  grapheme indexing must be a separate semantic
   operation because UTF-8 byte positions are not the same as user-visible
   characters.
 
@@ -232,33 +230,16 @@ boundary operator Slice::from<T>(items: &[T], start: u64) -> &[T]
 requires
     start <= items.len;
 
-boundary operator string::byte(text: &string, index: u64) -> u8
-requires
-    index < text.len;
-
-boundary operator string::range(text: &string, start: u64, end: u64) -> &string
-spelling [..]
-requires
-    start <= end && end <= text.len;
-
 boundary operator Vec::with_capacity<T>(capacity: u64) -> Vec<T>;
-
-boundary operator String::with_capacity(capacity: u64) -> String;
-
-boundary operator String::push_str(text: &mut String, value: &string) -> ()
-requires
-    text.len + value.len <= text.capacity;
 ```
 
 The proof checker owns `start <= items.len`. The boundary primitive owns the
 descriptor/pointer rewrite that actually constructs the narrower view.
-For allocation-facing contracts such as `Vec::with_capacity` and
-`String::with_capacity`, the public core
+For allocation-facing contracts such as `Vec::with_capacity`, the public core
 declaration owns the source meaning while the boundary primitive owns allocator
-and buffer initialization details.
-Mutating growth operations such as `String::push_str` have both a capacity proof
-obligation and a borrow-checking obligation: the string must be uniquely
-writable, and any active text window borrowed from it must not be invalidated.
+and buffer initialization details. A growable text owner is that same
+`Vec<u8>` qualified by `Utf8`; append operations carry both the capacity/domain
+proofs and the ordinary unique-borrow obligation.
 
 Operator declarations form overload sets by call signature. Overload resolution
 keys on the operator path plus parameter types; return type alone never

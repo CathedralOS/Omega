@@ -334,10 +334,9 @@ fn validate_data_shape(
                 let DataMember::Field(field) = member else {
                     continue;
                 };
-                let scalar = matches!(
-                    program.primitive_type_reference(field.type_reference),
-                    Some(primitive) if primitive != omega_typed_trees::types::PrimitiveType::String
-                );
+                let scalar = program
+                    .primitive_type_reference(field.type_reference)
+                    .is_some();
                 if !scalar {
                     diagnostics.push(Diagnostic::error(format!(
                         "data `{}` common field `{}` is not a scalar primitive; mixed data shape common fields support only bool, integer, and float types for now (case construction zero-initializes unnamed common fields)",

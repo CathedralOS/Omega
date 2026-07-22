@@ -14,16 +14,18 @@ a supported way to construct or reset it.
 data Inventory {
     gold: u32;          // zero: 0 gold
     items: [Item; 8];   // zero: 8 zeroed items
-    label: String;      // zero descriptor: the empty string
+    label: [u8; 64];    // zero carrier: live length 0
 }
 ```
 
 What makes this hold layer by layer:
 
 - Integers, floats, and booleans: zero is an ordinary value.
-- Fat descriptors (slices, text windows, `String`): `{ ptr: 0, len: 0 }` is
+- Fat descriptors (slices and borrowed text windows): `{ ptr: 0, len: 0 }` is
   the canonical empty carrier. Reads see emptiness; nothing dereferences a
   zero pointer with a zero length.
+- Bounded carriers `[T; N]` use `{ len, inline elements }`; all-zero storage has
+  live length zero even though its inline capacity is `N`.
 - Case-bearing data (sum and mixed shapes): tag `0` is the first declared
   case, so a zeroed value IS the first case (with zeroed payload if it has
   one). Making that case the payload-free empty case is the `zero_init`
@@ -61,7 +63,7 @@ per-type choice, opted into with the `zero_init` property
 ```omega
 data Command [zero_init] {
     case None;                 // verified: zero case is payload-free, none-like
-    case Say(text: String);
+    case Say(text: [u8; 256]);
 }
 ```
 
@@ -83,8 +85,8 @@ regression fails the suite rather than shipping:
 |-------------------------|-----------------------------------------------------|-----------|
 | scalar field / element  | `0` (any width, any nesting depth)                  | `core/zii_default_composite_exit` |
 | sum (`data ... case`)   | the FIRST case, with zeroed payload                 | `core/zii_default_composite_exit` |
-| `String`                | the empty string: `== ""` holds, `== "x"` is false, and the null data pointer is never dereferenced | `text/zii_default_string_equality_exit` |
-| `String` at a host call | marshals as the empty string (no dereference)       | `text/zii_string_host_write_exit` |
+| bounded text carrier    | live length `0`: `== ""` holds and `== "x"` is false without reading inline bytes | `text/zii_default_string_equality_exit` |
+| bounded carrier at a host call | projects as an empty borrowed byte view       | `text/zii_string_host_write_exit` |
 
 Two consequences worth designing around:
 

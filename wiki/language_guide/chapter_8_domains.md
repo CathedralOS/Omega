@@ -544,10 +544,10 @@ This stays strict:
   (a new ambiguity is a loud error), never from meaning-A to meaning-B.
 - No hidden runtime tag is introduced for dispatch.
 
-This is especially attractive for semantic abstractions such as strings and
-quantities. For example, `String::Utf8` and `String::NoNul` may want the `+`
-spelling to resolve through concatenation while preserving whichever domains
-the operation can soundly guarantee.
+This is especially attractive for semantic abstractions such as encoded byte
+sequences and quantities. For example, `[u8]::Utf8` and `[u8]::NoNul` may want
+the `+` spelling to resolve through concatenation while preserving whichever
+domains the operation can soundly guarantee.
 
 ## Operator Definitions And Domain Contexts
 
@@ -581,7 +581,7 @@ Decided model:
 
 - Fixed operator spellings are declared with an optional `spelling` clause on a
   named `operator`.
-- Core types such as `Slice`, `Array`, `Vec`, and `String` can expose
+- Core types such as `Slice`, `Array`, and `Vec` can expose
   operator definitions whose implementations are bound to boundary primitive
   compiler/runtime operations below the public core surface.
 - User/library types can expose ordinary operator definitions when the language
@@ -793,20 +793,17 @@ Removing the `String` type *helps* here: with no type obligated to maintain
 validity through every operation, there is nothing to re-prove between the
 boundary and the operators.
 
-> Implementation note: the compiler today still carries `string` (an unsized
-> text view) and `String` (`PrimitiveType::String`) as builtin types. A wire
-> `&string` field was prototyped (zero-copy interpreter decode + native encode)
-> and then REMOVED as a vestige once this model settled: the honest borrowed
-> bytes/text wire field is `&[u8]` (a fat slice, which is already the native
-> representation), not a `&string`. The byte view is variable-length, so it
-> rides a RAW-byte encoding (length varint + raw bytes, like protobuf `bytes`),
-> distinct from a `[u8; N]` repeated field (packed per-element varints). Wiring
-> a `&[u8]` bytes field through the wire layer, plus replacing the builtin
-> Domains over byte views and bounded carriers, direct literal construction,
-> bounded return values, and native/interpreter carrier lowering are now built.
-> The pass-canary corpus is migrated off builtin `string`/`String`. Wholesale
-> removal still waits on the sample/lattice/legacy-host migration and the
-> allocator-backed growable carrier surface. Mutable boundary/operator
+> Implementation note: builtin `string`/`String` and
+> `PrimitiveType::String` are retired. The honest borrowed bytes/text wire field
+> is `&[u8]` (the ordinary fat slice), and bounded ownership is `[u8; N] in D`.
+> A byte view is variable-length, so it rides a raw-byte encoding (length varint
+> plus raw bytes, like protobuf `bytes`), distinct from a `[u8; N]` repeated
+> scalar field (packed per-element varints). Domains over byte views and bounded
+> carriers, direct literal construction, bounded returns, wire encode/decode,
+> and native/interpreter carrier lowering are built. The source corpus and
+> injected build vocabulary are carrier-native; the allocator-backed growable
+> surface remains ordinary future `Vec<u8> in Utf8` work rather than a reason to
+> keep a compatibility primitive. Mutable boundary/operator
 > statement calls already invalidate facts for their exact mutable operands and
 > re-establish declared domain-membership guarantees on those caller places;
 > the text canaries exercise this rule over `[u8]`, not builtin `String`.

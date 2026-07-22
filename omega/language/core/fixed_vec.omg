@@ -63,7 +63,7 @@ requires
 
 // Remove and return the last element of a provably non-empty vector. The
 // zero-case is a proof failure at the call site, not a runtime Option: stage
-// 1 follows the String::push_str precedent (obligation, not fallback) — a
+// 1 is an obligation, not a fallback — a
 // `try_pop -> Option<T>` belongs to the dynamic-failure stage-2 vocabulary.
 boundary operator FixedVec::pop<T, const N: u64>(items: &mut FixedVec<T, N>) -> T
 requires

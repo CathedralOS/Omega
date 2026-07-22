@@ -897,11 +897,8 @@ pub(super) fn resolve_runtime_storage_primitive_type_in_table(
 }
 
 /// Whether a storage PLACE is a fat `{ptr, len}` slice/text descriptor -- a
-/// `&[T]`/`&[u8] in Utf8` view, a bare slice, or the builtin `string` view. A
-/// `&[u8] in Utf8` text value shares the IDENTICAL 16-byte descriptor with
-/// `String`, so the String content-comparison/text leaves apply to it
-/// unchanged; this lets those leaves recognize a slice-descriptor place that is
-/// not `PrimitiveType::String`. Type-driven (not size-driven): an arbitrary
+/// `&[T]`/`&[u8] in Utf8` view or a bare slice. Text content-comparison leaves
+/// recognize the slice descriptor directly. Type-driven (not size-driven): an arbitrary
 /// 16-byte aggregate must never be misread as a text descriptor.
 pub(super) fn resolve_runtime_storage_place_is_fat_slice_in_table(
     input: &InstructionSelectionInput<'_>,
@@ -1346,11 +1343,7 @@ fn scalar_primitive_rank(primitive: PrimitiveType) -> u8 {
         | PrimitiveType::I16
         | PrimitiveType::U16 => 0,
         PrimitiveType::F32 | PrimitiveType::I32 | PrimitiveType::U32 => 1,
-        PrimitiveType::F64
-        | PrimitiveType::I64
-        | PrimitiveType::U64
-        | PrimitiveType::Addr
-        | PrimitiveType::String => 2,
+        PrimitiveType::F64 | PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::Addr => 2,
     }
 }
 
@@ -1791,52 +1784,9 @@ pub(super) fn resolve_runtime_frame_indexed_target_in_table(
     })
 }
 
-/// The primitive type of a frame-indexed target's FIELD (`items[i].name`),
-/// for guard/operand classification: the plain leaf-descriptor resolver walks
-/// NAME paths and cannot see through an Index node, so slice-indexed places
-/// resolve their suffix cursor against the collection slot's element type
-/// here instead.
-pub(super) fn resolve_runtime_frame_indexed_primitive_type_in_table(
-    input: &InstructionSelectionInput<'_>,
-    dispatch_index: u32,
-    source_key: StateKey,
-    expressions: &ExpressionTable,
-    expression: ExpressionHandle,
-) -> Option<PrimitiveType> {
-    let indexed = indexed_target_path_in_table(expressions, expression)?;
-    let collection_slot = runtime_frame_slot_for_expression_in_table(
-        input,
-        dispatch_index,
-        source_key,
-        expressions,
-        indexed.collection,
-    )?;
-    let element_descriptor = collection_slot.type_descriptor.element_type()?;
-    let element_layout = descriptor_layout(input, element_descriptor);
-    let root_field = FieldLayout {
-        symbol: collection_slot.symbol,
-        name: collection_slot.name.clone(),
-        offset: 0,
-        type_symbol: element_descriptor.storage_symbol(),
-        type_name: "".into(),
-        type_descriptor: element_descriptor.clone(),
-        layout: element_layout,
-    };
-    let cursor = NestedFieldLayoutCursor::from_root(&root_field);
-    let cursor = resolve_indexed_target_suffix_cursor_in_table(
-        &input.layouts,
-        cursor,
-        expressions,
-        indexed.suffix_root,
-        indexed.boundary,
-    )?;
-    descriptor_primitive_type(cursor.type_descriptor())
-}
-
 /// Whether a runtime-frame-INDEXED element field (`rooms[i].label`) is a fat
 /// `{ptr, len}` slice descriptor (`&[u8]`, including `&[u8] in Utf8`) -- the
-/// indexed-element analog of `resolve_runtime_frame_indexed_primitive_type_in_table`
-/// returning `Some(PrimitiveType::String)`. Lets a `text == "literal"` guard over
+/// indexed-element analog of the leaf descriptor resolver. Lets a `text == "literal"` guard over
 /// a `&[u8] in Utf8` element resolve to the content-compare text leaf instead of
 /// falling through to a raw scalar compare of the descriptor's pointer words.
 pub(super) fn resolve_runtime_frame_indexed_is_fat_slice_in_table(
@@ -3761,21 +3711,15 @@ fn builtin_type_layout(
     None
 }
 
-/// Thin wrapper over the shared `omega_layout::primitive_layout` -- extracts this
-/// crate's pointer geometry + text-window descriptor from the runtime ABI and
-/// delegates, so the byte-width match is single-sourced in omega-layout.
+/// Thin wrapper over the shared `omega_layout::primitive_layout`; extracts this
+/// crate's pointer geometry and delegates the byte-width match.
 fn primitive_layout(
     input: &InstructionSelectionInput<'_>,
     primitive_type: PrimitiveType,
 ) -> TypeLayout {
-    let descriptor = input.runtime_abi.text_descriptor();
     omega_layout::primitive_layout(
         input.runtime_abi.pointer_size,
         input.runtime_abi.pointer_alignment,
-        TypeLayout {
-            size: descriptor.total_size(),
-            alignment: descriptor.align(),
-        },
         primitive_type,
     )
 }

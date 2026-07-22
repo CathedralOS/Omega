@@ -1,6 +1,6 @@
 use super::{SymbolKind, SymbolNameRef};
 
-pub const BUILTIN_TYPE_COUNT: usize = 24;
+pub const BUILTIN_TYPE_COUNT: usize = 22;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuiltinType {
@@ -29,8 +29,8 @@ impl BuiltinType {
         // 19/20/21; the builtin_type_ordinals_track_the_symbol_table unit
         // test pins the coupling.)
         match self {
-            Self::UInt => 18,
-            Self::Int => 19,
+            Self::UInt => 17,
+            Self::Int => 18,
         }
     }
 }
@@ -238,7 +238,6 @@ pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BUILTIN_
         (SymbolKind::BuiltinType, SymbolNameRef::Static("addr")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("f32")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("f64")),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("String")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("Slice")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("Result")),
         (
@@ -255,7 +254,6 @@ pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BUILTIN_
             SymbolKind::BuiltinType,
             SymbolNameRef::Static(BuiltinType::Int.name()),
         ),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("string")),
         // Atomic types (chapter 17, concurrency stage 1). Layout matches the
         // underlying primitive; the type name is retained so atomic method
         // calls (load/store/fetch_add/compare_exchange) can be resolved by

@@ -47,13 +47,13 @@ pub(super) fn collect_static_string_value_data(
     }
 }
 
-/// String literals reachable from `let` LOCAL INITIALIZERS (`let s: String =
+/// String literals reachable from `let` LOCAL INITIALIZERS (`let s: [u8; 8] =
 /// "hi"`, `let msg: T = T { label: "hi" }`). The storage plan records a local's
 /// slot but NOT its initializer expression (that stays in the checked program),
 /// so the mutation/value/branch collectors never visit these literals. Without
 /// this pass the descriptor-write selection finds no data object for the
-/// literal and silently skips the write, leaving the String descriptor zeroed
-/// natively (empty string) while the interpreter sees the value.
+/// literal and silently skips the write, leaving the destination zeroed
+/// natively while the interpreter sees the value.
 pub(super) fn collect_static_string_local_initializer_data(
     program: &CheckedTrees,
     state_storage: &StateStoragePlan,

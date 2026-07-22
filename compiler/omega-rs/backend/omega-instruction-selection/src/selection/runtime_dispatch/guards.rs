@@ -16,14 +16,12 @@ use super::super::storage_places::{
     resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_is_fat_slice_in_table,
-    resolve_runtime_frame_indexed_primitive_type_in_table,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
     resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
     resolve_runtime_storage_place_is_bounded_byte_buffer_in_table,
     resolve_runtime_storage_place_is_fat_slice_in_table,
-    resolve_runtime_storage_primitive_type_in_table,
     resolve_runtime_transition_guard_call_result_place, static_elided_local_value_in_table,
     static_fixed_array_len_in_table,
 };
@@ -1063,32 +1061,10 @@ pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_descriptor_pl
     // covers indexed element fields (`items[i].name`, fixed `items[0].name`,
     // and inline-array elements alike), whose Index node the name-path walk
     // cannot see through.
-    // A `&[u8] in Utf8` text view shares the IDENTICAL 16-byte `{ptr, len}`
-    // descriptor with `String`, so it is content-comparable through the SAME
-    // text leaves. Recognize such a slice-descriptor place (not
-    // `PrimitiveType::String`) too -- otherwise a `text == "literal"` guard over
-    // a `&[u8] in Utf8` value falls through to the raw scalar compare, which
-    // compares the descriptor's POINTER words and silently mismatches the
-    // interpreter's content equality.
-    let place_is_string = matches!(
-        resolve_runtime_storage_primitive_type_in_table(
-            input,
-            dispatch_index,
-            source_key,
-            expressions,
-            expression,
-        ),
-        Some(PrimitiveType::String)
-    ) || matches!(
-        resolve_runtime_frame_indexed_primitive_type_in_table(
-            input,
-            dispatch_index,
-            source_key,
-            expressions,
-            expression,
-        ),
-        Some(PrimitiveType::String)
-    ) || resolve_runtime_storage_place_is_fat_slice_in_table(
+    // A `&[u8] in Utf8` text view is content-comparable through the text leaves.
+    // Recognize its descriptor explicitly so a `text == "literal"` guard cannot
+    // fall through to a raw scalar comparison of the descriptor pointer words.
+    let place_is_text = resolve_runtime_storage_place_is_fat_slice_in_table(
         input,
         dispatch_index,
         source_key,
@@ -1101,7 +1077,7 @@ pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_descriptor_pl
         expressions,
         expression,
     );
-    if !place_is_string {
+    if !place_is_text {
         return None;
     }
     let string_descriptor_size = input.runtime_abi.string_descriptor_size();

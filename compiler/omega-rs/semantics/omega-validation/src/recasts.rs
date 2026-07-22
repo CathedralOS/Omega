@@ -420,10 +420,10 @@ fn judge_scalar_recast(
     let Some(target) = PrimitiveType::from_name(&target_name) else {
         return;
     };
-    if matches!(target, PrimitiveType::Bool | PrimitiveType::String) {
+    if target == PrimitiveType::Bool {
         diagnostics.push(Diagnostic::error(format!(
             "{context}: a recast may WEAKEN facts, never establish them -- `{target_name}` \
-             carries an invariant raw bytes do not prove (bool's 0/1, text encodings); \
+             carries an invariant raw bytes do not prove (bool's 0/1); \
              establishing a fact is a mint's job (fallible, case-returning)"
         )));
         return;
@@ -487,10 +487,7 @@ fn judge_scalar_recast(
         )));
         return;
     };
-    if matches!(
-        source_primitive,
-        PrimitiveType::Bool | PrimitiveType::String
-    ) {
+    if source_primitive == PrimitiveType::Bool {
         diagnostics.push(Diagnostic::error(format!(
             "{context}: recasting a `{}` source lands with the byte-view rung",
             source_primitive.name()
