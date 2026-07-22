@@ -414,10 +414,15 @@ structurally scoped `dispatch_scaffold` fragment whose target-owned facts cover
 x86-64 R12/AArch64 X28 dispatch-state writes and case-entry condition flags;
 storage-backed static guards add `static_guard_comparison` evidence with their
 exact GPR/vector scratch and flag effects. Storage-free and other guard-lowering
-shapes remain outside that structurally limited fragment. The artifact's explicit
+shapes remain outside that structurally limited fragment. Dedicated runtime-text
+literal-buffer and descriptor-vs-literal guards add
+`runtime_text_guard_comparison` evidence for their encoder-owned base, pointer,
+length, loop, byte-scratch, large-offset, and flag effects; cross-target artifact
+canaries exercise the literal-buffer path. The artifact's explicit
 `enumeration_complete: false` status is a firewall: this retained slice is
 checkable implementation evidence, not yet the final certificate.
-The final certificate must still aggregate remaining body and runtime-guard evidence,
+The final certificate must still aggregate computed-runtime-value and place-shaped
+body guard evidence,
 StatePlan-driven nonordinary save/restore and return sequences, relaxation
 products, veneers/thunks, generated stubs, and admitted indirect leaves after
 final placement.

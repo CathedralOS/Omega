@@ -1,3 +1,4 @@
+use omega_calling_conventions::{MachineRegister, MachineState, MachineStateSet, RegisterSet};
 use omega_core::diagnostics::Diagnostic;
 
 use super::super::primitives::{
@@ -49,6 +50,16 @@ pub fn encode_runtime_text_literal_compare(
         delimiter_failure_branch_distance,
     )?);
     Ok(bytes)
+}
+
+/// Exact register writes of the literal-buffer guard encoder. x16 holds the
+/// relocated buffer base and w17 receives each compared/delimiter byte.
+pub fn runtime_text_literal_compare_register_writes() -> RegisterSet {
+    RegisterSet::new([MachineRegister::Aarch64X(16), MachineRegister::Aarch64X(17)])
+}
+
+pub fn runtime_text_literal_compare_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
 }
 
 /// Content-compare a stored `{ptr, len}` text descriptor against a literal,
@@ -140,6 +151,17 @@ pub fn encode_runtime_text_storage_compare_bytes(
         runtime_text_storage_compare_width(source_offset)
     );
     Ok(bytes)
+}
+
+/// Exact register writes of the descriptor-vs-literal content comparison.
+/// This includes both relocated bases, descriptor pointer/length, fixed loop
+/// counters, byte operands, and the large-offset/address scratch.
+pub fn runtime_text_storage_compare_register_writes() -> RegisterSet {
+    RegisterSet::new([14, 15, 16, 17, 19, 20, 21, 26].map(MachineRegister::Aarch64X))
+}
+
+pub fn runtime_text_storage_compare_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
 }
 
 fn append_load_x_from_x_offset(
