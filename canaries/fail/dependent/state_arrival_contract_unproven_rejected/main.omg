@@ -1,0 +1,17 @@
+// FAIL CANARY (R5 state-arrival contract): an unconditional edge cannot enter
+// a state whose explicit `requires` has not been established.
+data Main {
+    value: i32;
+}
+
+machine Main::run(&mut self) {
+    transition {
+        _ -> positive(self.value)
+    }
+
+    state positive(&mut self, value: i32)
+    requires
+        value > 0
+    {
+    }
+}

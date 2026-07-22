@@ -648,6 +648,7 @@ mod tests {
             name: Identifier::generated("entry"),
             parameters: HandleSpan::from_parts(parameter_handle, 1),
             return_type: omega_syntax_trees::types::TypeReferenceHandle::invalid(),
+            contracts: HandleSpan::empty(),
             statements: HandleSpan::empty(),
         });
         let state_handle = syntax_trees.items.append_state_handle(state);

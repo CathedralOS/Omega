@@ -398,6 +398,7 @@ mod tests {
             name: DiagnosticName::generated("entry"),
             storage: StateStorage {
                 parameters: HandleSpan::empty(),
+                contracts: HandleSpan::empty(),
                 return_type: Some(TypeReference::Named {
                     symbol: SymbolHandle::invalid(),
                     name: DiagnosticName::generated("i32"),

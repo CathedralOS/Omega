@@ -682,6 +682,7 @@ mod tests {
             name: Identifier::generated("entry"),
             parameters: HandleSpan::from_parts(parameter, 1),
             return_type,
+            contracts: HandleSpan::empty(),
             statements: HandleSpan::empty(),
         });
         let state = syntax_trees.items.append_state_handle(state);

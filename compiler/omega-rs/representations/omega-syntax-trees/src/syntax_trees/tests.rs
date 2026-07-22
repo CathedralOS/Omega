@@ -38,6 +38,7 @@ fn syntax_trees_collect_state_expression_and_type_payloads() {
         name: Identifier::generated("entry"),
         parameters: HandleSpan::empty(),
         return_type,
+        contracts: HandleSpan::empty(),
         statements,
     });
     let state_handle = syntax_trees.items.append_state_handle(state);
@@ -79,6 +80,7 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
         name: Identifier::generated("entry"),
         parameters: HandleSpan::empty(),
         return_type,
+        contracts: HandleSpan::empty(),
         statements: HandleSpan::empty(),
     });
     let state = file.items.append_state_handle(state);
@@ -144,6 +146,7 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
         name: Identifier::generated("entry"),
         parameters: HandleSpan::empty(),
         return_type: TypeReferenceHandle::invalid(),
+        contracts: HandleSpan::empty(),
         statements: HandleSpan::from_parts(call, 1),
     });
     let state = file.items.append_state_handle(state);
@@ -258,6 +261,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
         name: Identifier::generated("entry"),
         parameters: HandleSpan::empty(),
         return_type: TypeReferenceHandle::invalid(),
+        contracts: HandleSpan::empty(),
         statements: HandleSpan::from_parts(statement, 1),
     });
     let state = file.items.append_state_handle(state);

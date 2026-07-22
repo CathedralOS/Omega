@@ -1174,6 +1174,7 @@ mod tests {
             name: "event_action".into(),
             parameters: Default::default(),
             return_type: TypeReferenceHandle::invalid(),
+            contracts: Default::default(),
             statement_nodes: Default::default(),
         };
 

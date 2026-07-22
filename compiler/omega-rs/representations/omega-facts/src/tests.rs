@@ -339,6 +339,7 @@ fn expression_places_resolve_attached_data_members() {
         name: Identifier::generated("main"),
         parameters: HandleSpan::empty(),
         return_type: TypeReferenceHandle::invalid(),
+        contracts: HandleSpan::empty(),
         statement_nodes: HandleSpan::empty(),
     };
     let self_type =
