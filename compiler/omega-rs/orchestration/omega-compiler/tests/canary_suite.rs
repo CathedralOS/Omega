@@ -31447,6 +31447,13 @@ fn runtime_text_storage_carrier_canary_runs() {
     })
     .expect("carrier text storage canary should compile");
 
+    let report = fs::read_to_string(build_dir.join("backend_report.txt"))
+        .expect("carrier text storage backend report should exist");
+    assert!(
+        report.contains("-> carrier") && report.contains("cap 64"),
+        "carrier read must use the destination's 64-byte capacity, not the legacy String scratch capacity:\n{report}"
+    );
+
     let mut child = Command::new(build_dir.join(executable_name()))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -32180,7 +32187,7 @@ fn runtime_call_argument_struct_string_field_slice_alias_exit_canary_runs() {
 }
 
 #[test]
-fn mutable_carrier_place_append_compiles_on_aarch64() {
+fn bounded_carrier_regressions_compile_on_aarch64() {
     for (index, canary_name) in [
         "text/runtime_mutable_string_parameter_concat_exit",
         "text/runtime_mutable_struct_string_field_copy_concat_exit",
@@ -32189,6 +32196,13 @@ fn mutable_carrier_place_append_compiles_on_aarch64() {
         "text/runtime_mutable_struct_string_field_copy_concat_write_line",
         "dungeon/runtime_clear_carve_render_string_fields_exit",
         "dungeon/runtime_full_level_wrapper_lookup_string_field_exit",
+        "calls/mutable_output_host_call",
+        "text/runtime_text_storage",
+        "text/runtime_stdin_line_buffering_exit",
+        "text/runtime_stdin_command_branch_exit",
+        "dungeon/runtime_ordered_room_dispatch_loop_exit",
+        "dungeon/runtime_ordered_room_dispatch_large_machine_exit",
+        "dungeon/runtime_ordered_room_dispatch_real_show_states_exit",
     ]
     .into_iter()
     .enumerate()

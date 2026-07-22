@@ -1217,23 +1217,23 @@ const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
     ),
     (
         "dungeon/runtime_ordered_room_dispatch_loop_exit",
-        "suite feeds stdin (b\"east\\n\"); differential harness runs with empty stdin, so the recorded exit code 135 does not apply",
+        "registry harness runs with empty stdin; the dedicated bounded-line-input differential feeds b\"east\\n\" and compares both engines",
     ),
     (
         "dungeon/runtime_ordered_room_dispatch_real_show_states_exit",
-        "suite feeds stdin (b\"east\\n\"); differential harness runs with empty stdin, so the recorded exit code 145 does not apply",
+        "registry harness runs with empty stdin; the dedicated bounded-line-input differential feeds b\"east\\n\" and compares both engines",
     ),
     (
         "text/runtime_stdin_command_branch_exit",
-        "suite feeds stdin (b\"look\\n\" command); differential harness runs with empty stdin, so the recorded exit code 0 does not apply",
+        "registry harness runs with empty stdin; the dedicated bounded-line-input differential feeds b\"look\\n\" and compares both engines",
     ),
     (
         "text/runtime_stdin_line_buffering_exit",
-        "suite feeds stdin (b\"hello\\nworld\\n\", plus a CRLF variant test reusing this canary); differential harness runs with empty stdin, so the recorded exit code 0 does not apply",
+        "registry harness runs with empty stdin; the dedicated bounded-line-input differential feeds two lines and compares both engines (the suite also pins CRLF)",
     ),
     (
         "text/runtime_text_storage",
-        "suite feeds stdin (b\"echo me\\n\") and checks the echoed prompt; differential harness runs with empty stdin, so the recorded exit code 0 does not apply",
+        "registry harness runs with empty stdin; the dedicated bounded-line-input differential feeds b\"echo me\\n\" and compares both engines",
     ),
     (
         "dungeon/runtime_threaded_mut_arg_interrupt_soak_exit",
@@ -2665,6 +2665,78 @@ fn interpreter_matches_native_on_byte_input_programs() {
             String::from_utf8_lossy(&native_stdout),
             "{name} stdin {:?}: stdout must agree byte-for-byte (interpreter left, native right)",
             String::from_utf8_lossy(stdin)
+        );
+    }
+}
+
+/// The LINE-INPUT differential. These programs exercise the standard
+/// `Console::read_line(&mut [u8])` surface with concrete bounded carriers at
+/// the call site. Both engines receive identical input; the carrier mutation,
+/// branching, exit code, and emitted text must agree.
+#[test]
+fn interpreter_matches_native_on_bounded_line_input_programs() {
+    let vectors: &[(&str, PathBuf, &[u8], i32)] = &[
+        (
+            "mutable_output_host_call",
+            pass_canary("calls/mutable_output_host_call").join("main.omg"),
+            b"hello\n",
+            0,
+        ),
+        (
+            "runtime_text_storage",
+            pass_canary("text/runtime_text_storage").join("main.omg"),
+            b"echo me\n",
+            0,
+        ),
+        (
+            "runtime_stdin_line_buffering_exit",
+            pass_canary("text/runtime_stdin_line_buffering_exit").join("main.omg"),
+            b"first\nsecond\n",
+            0,
+        ),
+        (
+            "runtime_stdin_command_branch_exit",
+            pass_canary("text/runtime_stdin_command_branch_exit").join("main.omg"),
+            b"look\n",
+            0,
+        ),
+        (
+            "runtime_ordered_room_dispatch_loop_exit",
+            pass_canary("dungeon/runtime_ordered_room_dispatch_loop_exit").join("main.omg"),
+            b"east\n",
+            135,
+        ),
+        (
+            "runtime_ordered_room_dispatch_real_show_states_exit",
+            pass_canary("dungeon/runtime_ordered_room_dispatch_real_show_states_exit")
+                .join("main.omg"),
+            b"east\n",
+            145,
+        ),
+    ];
+
+    for (name, main_path, stdin, expected_exit) in vectors {
+        let checked = compile_to_checked(main_path, None).unwrap_or_else(|diagnostics| {
+            panic!(
+                "{name}: compile to checked failed:\n{}",
+                join_diagnostics(&diagnostics)
+            )
+        });
+        let outcome = interpret(&checked, stdin);
+        assert!(
+            !outcome.is_error(),
+            "{name}: interpreter declined: {:?}",
+            outcome.error
+        );
+        assert_eq!(outcome.exit_code, *expected_exit, "{name}: interpreter exit");
+
+        let (native_code, native_stdout, native_stderr) =
+            compile_and_run_native_with_stdin(name, main_path, stdin);
+        assert_eq!(native_code, *expected_exit, "{name}: native exit");
+        assert_eq!(
+            outcome.stdout, native_stdout,
+            "{name}: stdout must agree byte-for-byte; native stderr: {}",
+            String::from_utf8_lossy(&native_stderr)
         );
     }
 }

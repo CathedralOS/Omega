@@ -1,8 +1,12 @@
 use omega::language::std::console;
 
+domain [u8; 64]::Utf8 {
+    valid_utf8(self);
+}
+
 data Main {
     console: Console;
-    line: String;
+    line: [u8; 64] in Utf8;
 }
 
 machine Main::main(&mut self) {

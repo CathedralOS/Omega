@@ -18,7 +18,10 @@ boundary trait Console {
     machine write(text: &[u8])
     effects
         stdout_io;
-    machine read_line(out_line: &mut String)
+    // The concrete owned `[u8; N] in D` destination supplies the write bound;
+    // provider planning derives N from that call-site place and updates its
+    // runtime length. A growable destination remains allocator-gated.
+    machine read_line(out_line: &mut [u8])
     effects
         stdin_io;
     // Byte-level stdin/stdout (the universal console surface, OWNER_QUESTIONS

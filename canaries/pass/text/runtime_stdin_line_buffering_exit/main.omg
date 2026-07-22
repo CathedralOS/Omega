@@ -2,16 +2,10 @@
 // each echoed back. The second read overwrites the carrier's inline bytes + length
 // (a leading-delimiter is skipped so CRLF is one terminator), so line buffering is
 // per-read with no `String`.
-domain [u8]::Utf8 {
-    valid_utf8(self);
-}
+use omega::language::std::console;
+
 domain [u8; 64]::Utf8 {
     valid_utf8(self);
-}
-boundary trait Console {
-    machine write_line(text: &[u8] in Utf8);
-    machine read_line(out_line: &mut [u8; 64] in Utf8);
-    machine exit_process(return_code: i32);
 }
 
 data Main {

@@ -22,8 +22,10 @@ validity when zero would forge either.
 The allocator is **designed but unbuilt**: `allocator_story.md` specifies an
 `Arena` as a bounded lifetime-scoped capability, backed by an Extent or admitted
 provider, with explicit allocation authority and resource contracts. Concretely
-blocked: `Vec<u8> in Utf8` (owned/growable text),
-copy-out wire decode, `read_line(&mut String)`.
+blocked: `Vec<u8> in Utf8` (owned/growable text) and copy-out wire decode.
+Fixed-capacity console input is no longer allocator-gated:
+`Console::read_line(&mut [u8])` specializes against the caller's concrete
+bounded carrier.
 
 ## What other languages do (and the one lesson each)
 | Stack | Model | The catch |
