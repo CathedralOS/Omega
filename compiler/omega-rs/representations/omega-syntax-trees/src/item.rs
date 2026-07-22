@@ -257,6 +257,7 @@ impl Default for LibraryFunction {
         Self {
             signature: StateSignature {
                 name: Identifier::default(),
+                type_parameters: HandleSpan::empty(),
                 is_default: false,
                 parameters: HandleSpan::empty(),
                 return_type: crate::types::TypeReferenceHandle::invalid(),
@@ -698,6 +699,10 @@ pub struct TraitDefinition {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateSignature {
     pub name: Identifier,
+    /// Generic parameters owned by this callable requirement. N7 uses this
+    /// on a `where machine` signature so a required machine may itself accept
+    /// compile-time machine symbols.
+    pub type_parameters: HandleSpan<TypeParameter>,
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
@@ -1052,6 +1057,7 @@ impl ItemTable {
     pub fn insert_state_signature(&mut self, signature: &StateSignature) -> StateSignatureHandle {
         self.state_storage.signatures.append(StateSignatureNode {
             name: signature.name.clone(),
+            type_parameters: signature.type_parameters,
             is_default: signature.is_default,
             parameters: signature.parameters,
             return_type: signature.return_type,
@@ -1149,6 +1155,7 @@ pub struct StateParameterNode {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateSignatureNode {
     pub name: Identifier,
+    pub type_parameters: HandleSpan<TypeParameter>,
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,

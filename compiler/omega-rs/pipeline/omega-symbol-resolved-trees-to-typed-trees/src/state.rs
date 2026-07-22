@@ -78,6 +78,7 @@ pub(crate) fn lower_state_signature(
     let mut typed_signature = typed::signature::StateSignature {
         symbol: signature.symbol,
         name: crate::name::lower_name(&signature.name),
+        type_parameters: Default::default(),
         is_default: signature.is_default,
         parameters: Default::default(),
         return_type: signature
@@ -91,6 +92,17 @@ pub(crate) fn lower_state_signature(
         // TPR4: copied, never re-derived.
         terminates_guarantee: signature.terminates_guarantee,
     };
+
+    for parameter in lowerer
+        .source_trees
+        .data_type_parameters(signature.type_parameters)
+    {
+        let parameter = crate::data::lower_type_parameter(lowerer, parameter)?;
+        lowerer
+            .typed_trees
+            .data_type_parameters
+            .append_to_span(&mut typed_signature.type_parameters, parameter);
+    }
 
     // #66: collect parameters whose type carries an encoding-DOMAIN constraint
     // (`bytes: [u8] in Utf8`). Each desugars below into an implicit
