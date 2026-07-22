@@ -1020,8 +1020,13 @@ stronger operations it needs instead of citing machine parameters generally.
   scratch writers preserve their carrier qualification with explicit `Utf8`
   postconditions, and the mirror incorporates the already-settled in-machine inventory
   scan. No sample or lattice-corpus source now declares builtin `String` or
-  `string`. Continue the host-contract/core-compatibility owners, then retire
-  the compatibility type and
+  `string`. Calling-policy rejection data now uses a bounded UTF-8 carrier, and
+  the unimported `omega/host` scaffold was deleted rather than cosmetically
+  migrating its retired `capability`/`entry` architecture; live portable and
+  target-provider homes are recorded in `omega/host/README.md`. The two
+  standalone nested-command run fixtures now use bounded UTF-8 input and retain
+  their native `look` result. Continue the failure-fixture and
+  core-compatibility owners, then retire the compatibility type and
   compiler branches in the order recorded by
   `wiki/architecture/string_retirement_execution.md`.
 - **Atomics remainder.** The closed ordering vocabulary and operation-specific

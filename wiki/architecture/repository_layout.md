@@ -274,8 +274,11 @@ Omega/
   future `compiler/runtime/startup/*` layer; there are no compiler-side runtime
   or startup crates today. Linkable startup payloads currently live as data under
   `target_runtime/`.
-- `omega/host` models host boundary and authority surfaces, not random backend
-  shortcuts.
+- The retired `omega/host` capability scaffold is not a second boundary model.
+  Portable host requirements and checked adapters live under
+  `omega/language/std`; target-owned implementations/defaults live under
+  `omega/language/std/targets`. `omega/host/README.md` preserves the migration
+  fence for any future dedicated provider package.
 - Import tables, export tables, loader metadata, startup selection, and final
   fixups are compiler responsibilities because Omega does not assume native
   system linkers.

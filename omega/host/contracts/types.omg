@@ -1,6 +1,0 @@
-data IOError {
-    case Interrupted;
-    case PermissionDenied;
-    case BrokenPipe;
-    case Unknown;
-}

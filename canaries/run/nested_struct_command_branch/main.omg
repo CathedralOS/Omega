@@ -1,5 +1,9 @@
 use omega::language::std::console;
 
+domain [u8; 256]::Utf8 {
+    valid_utf8(self);
+}
+
 data Command {
     case Look;
     case Quit;
@@ -14,7 +18,7 @@ data Navigation {
 data Parser {
 }
 
-machine Parser::resolve_navigation(&mut self, line: &String) -> Navigation {
+machine Parser::resolve_navigation(&mut self, line: &[u8; 256] in Utf8) -> Navigation {
     let choice: Command = self.resolve_command(line);
 
     transition {
@@ -23,7 +27,7 @@ machine Parser::resolve_navigation(&mut self, line: &String) -> Navigation {
     }
 }
 
-machine Parser::resolve_command(&mut self, line: &String) -> Command {
+machine Parser::resolve_command(&mut self, line: &[u8; 256] in Utf8) -> Command {
     transition {
         line == "look" -> Command::Look
         line == "quit" -> Command::Quit
@@ -32,7 +36,8 @@ machine Parser::resolve_command(&mut self, line: &String) -> Command {
 }
 
 machine Parser::resolve_exit(&mut self) -> Navigation {
-    self.navigation(Command::Invalid, 99)
+    let navigation: Navigation = self.navigation(Command::Invalid, 99);
+    navigation
 }
 
 machine Parser::navigation(&mut self, choice: Command, destination: i32) -> Navigation {
@@ -42,7 +47,7 @@ machine Parser::navigation(&mut self, choice: Command, destination: i32) -> Navi
 
 data Main {
     console: Console;
-    line: String;
+    line: [u8; 256] in Utf8;
     parser: Parser;
     navigation: Navigation;
 }

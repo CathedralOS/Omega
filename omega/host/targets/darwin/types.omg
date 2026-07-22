@@ -1,6 +1,0 @@
-data DarwinErrno {
-    case Interrupted;
-    case BrokenPipe;
-    case PermissionDenied;
-    case Unknown;
-}

@@ -3,6 +3,10 @@
 // this compiler-owned, closed vocabulary. Array tails beyond each explicit
 // count are ignored and exist only because Omega arrays have fixed length.
 
+domain [u8; 256]::Utf8 {
+    valid_utf8(self);
+}
+
 data SystemVEightbyteClass {
     case Integer;
     case Sse;
@@ -165,7 +169,7 @@ data BoundaryEntryPlan {
 }
 
 data CallingPolicyRejection {
-    reason: String;
+    reason: [u8; 256] in Utf8;
 }
 
 data BoundaryPlanResult {
