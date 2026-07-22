@@ -1,0 +1,80 @@
+data Representative {
+    case Zero;
+    case Next(previous: Representative);
+}
+
+machine equivalent(a: Representative, b: Representative) -> bool {
+    transition { _ -> (true) }
+}
+
+machine equivalent_reflexive(a: Representative)
+ensures equivalent(a, a)
+{
+}
+
+machine equivalent_symmetric(a: Representative, b: Representative)
+requires equivalent(a, b)
+ensures equivalent(b, a)
+{
+}
+
+machine equivalent_transitive(
+    a: Representative,
+    b: Representative,
+    c: Representative
+)
+requires
+    equivalent(a, b)
+    equivalent(b, c)
+ensures equivalent(a, c)
+{
+}
+
+data EquivalenceClass = Representative % equivalent;
+
+machine advance(value: Representative) -> Representative {
+    Representative::Next { previous: value }
+}
+
+machine advance_respects(a: Representative, b: Representative)
+requires equivalent(a, b)
+ensures equivalent(advance(a), advance(b))
+{
+}
+
+machine lifted_advance(value: EquivalenceClass) -> EquivalenceClass {
+    advance(value)
+}
+
+machine combine(left: Representative, right: Representative) -> Representative {
+    left
+}
+
+machine combine_respects(
+    left_a: Representative,
+    left_b: Representative,
+    right_a: Representative,
+    right_b: Representative
+)
+requires
+    equivalent(left_a, left_b)
+    equivalent(right_a, right_b)
+ensures equivalent(
+    combine(left_a, right_a),
+    combine(left_b, right_b)
+)
+{
+}
+
+machine lifted_combine(
+    left: EquivalenceClass,
+    right: EquivalenceClass
+) -> EquivalenceClass {
+    combine(left, right)
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

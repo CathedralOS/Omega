@@ -61,19 +61,21 @@ pub(super) fn infer_hoist_temp_type(
             let target_symbol = call.target_symbol;
             let target_name = call.target.as_str().to_string();
             let mut machine_substitutions = Vec::new();
-            let declared_return = target_symbol
-                    .is_valid()
-                    .then(|| {
-                        lowerer
-                            .source_trees
-                            .tables
-                            .declarations
-                            .machine_states
-                            .iter()
-                            .find(|(_, candidate)| candidate.symbol == target_symbol)
-                            .and_then(|(_, candidate)| candidate.storage.return_type.clone())
-                    })
-                    .flatten()
+            let declared_state = target_symbol
+                .is_valid()
+                .then(|| {
+                    lowerer
+                        .source_trees
+                        .tables
+                        .declarations
+                        .machine_states
+                        .iter()
+                        .find(|(_, candidate)| candidate.symbol == target_symbol)
+                        .map(|(_, candidate)| candidate)
+                })
+                .flatten();
+            let declared_return = declared_state
+                    .and_then(|candidate| candidate.storage.return_type.clone())
                     .or_else(|| {
                         // MP3/MP4: a call through a static machine parameter
                         // has the authored `where machine F(..) -> R` return
@@ -129,6 +131,22 @@ pub(super) fn infer_hoist_temp_type(
                          the local"
                 )));
             };
+            // N6: all representative parameters of a free operation may be
+            // supplied by one quotient. Retag the hoisted result as that
+            // quotient; semantic validation separately requires the ordinary
+            // structural respect certificate before admitting the call.
+            let declared_return = declared_state
+                .and_then(|callee_state| {
+                    lifted_quotient_return_type(
+                        lowerer,
+                        attached_data,
+                        state,
+                        call,
+                        callee_state,
+                        &declared_return,
+                    )
+                })
+                .unwrap_or(declared_return);
             let declared_return = lower_type_reference_into_table(lowerer, &declared_return)?;
             substitute_machine_parameters_in_type(
                 &mut lowerer.typed_trees.type_reference_table,
@@ -422,6 +440,111 @@ fn substitute_machine_parameters_in_type(
         }
         typed::types::TypeReferenceNode::DynamicTrait { .. }
         | typed::types::TypeReferenceNode::Unit => {}
+    }
+}
+
+fn lifted_quotient_return_type(
+    lowerer: &Lowerer,
+    attached_data: Option<&resolved::name::DiagnosticName>,
+    caller_state: &resolved::state::State,
+    call: &resolved::expression::TableCallExpression,
+    callee_state: &resolved::state::State,
+    declared_return: &TypeReference,
+) -> Option<TypeReference> {
+    let source = lowerer.source_trees;
+    let operation_is_free = source.roots.machines.iter().any(|machine| {
+        machine.attached_data.is_none()
+            && source
+                .machine_state_handles(machine.states)
+                .iter()
+                .any(|handle| source.machine_state(*handle).symbol == callee_state.symbol)
+    });
+    if !operation_is_free {
+        return None;
+    }
+
+    let parameters = source
+        .state_parameters(callee_state.parameters)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    let arguments = source
+        .tables
+        .bodies
+        .expressions
+        .expression_handles(call.arguments);
+    if parameters.is_empty() || parameters.len() != arguments.len() {
+        return None;
+    }
+
+    let mut selected: Option<&resolved::data::DataDefinition> = None;
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        let argument_type =
+            collection_type_reference(lowerer, attached_data, caller_state, *argument)?;
+        let quotient = resolved_data_for_type(source, &argument_type)?;
+        let metadata = quotient.quotient.as_ref()?;
+        if !resolved_base_types_match(source, &metadata.carrier, &parameter.type_reference)
+            || !resolved_base_types_match(source, &metadata.carrier, declared_return)
+        {
+            return None;
+        }
+        if selected.is_some_and(|current| current.symbol != quotient.symbol) {
+            return None;
+        }
+        selected = Some(quotient);
+    }
+    let quotient = selected?;
+    Some(TypeReference::Named {
+        symbol: quotient.symbol,
+        name: quotient.name.clone(),
+    })
+}
+
+fn resolved_data_for_type<'trees>(
+    source: &'trees resolved::SymbolResolvedTrees,
+    type_reference: &TypeReference,
+) -> Option<&'trees resolved::data::DataDefinition> {
+    let (symbol, name) = resolved_base_identity(source, type_reference)?;
+    source.data_definitions.iter().find(|definition| {
+        (symbol.is_valid() && definition.symbol == symbol)
+            || definition.name.as_str() == name.as_str()
+    })
+}
+
+fn resolved_base_types_match(
+    source: &resolved::SymbolResolvedTrees,
+    left: &TypeReference,
+    right: &TypeReference,
+) -> bool {
+    let Some((left_symbol, left_name)) = resolved_base_identity(source, left) else {
+        return false;
+    };
+    let Some((right_symbol, right_name)) = resolved_base_identity(source, right) else {
+        return false;
+    };
+    if left_symbol.is_valid() && right_symbol.is_valid() {
+        left_symbol == right_symbol
+    } else {
+        left_name == right_name
+    }
+}
+
+fn resolved_base_identity(
+    source: &resolved::SymbolResolvedTrees,
+    type_reference: &TypeReference,
+) -> Option<(omega_core::symbols::SymbolHandle, String)> {
+    match type_reference {
+        TypeReference::Named { symbol, name } => Some((*symbol, name.as_str().to_owned())),
+        TypeReference::Generic(generic) => {
+            Some((generic.base_symbol, generic.base_name.as_str().to_owned()))
+        }
+        TypeReference::Reference(reference) => {
+            resolved_base_identity(source, source.child_type_reference(reference.referee))
+        }
+        TypeReference::Constrained(constrained) => {
+            resolved_base_identity(source, source.child_type_reference(constrained.base_type))
+        }
+        _ => None,
     }
 }
 

@@ -531,6 +531,7 @@ pub(crate) fn validate_call_node(
                 arguments,
                 signature.name.as_str(),
                 program.state_signature_parameters(signature),
+                None,
                 writable_roots,
                 diagnostics,
             );
@@ -558,6 +559,7 @@ pub(crate) fn validate_call_node(
                 arguments,
                 state.name.as_str(),
                 program.state_parameters(state),
+                Some(state),
                 writable_roots,
                 diagnostics,
             );
@@ -591,6 +593,7 @@ pub(crate) fn validate_call_node(
                 arguments,
                 state.name.as_str(),
                 program.state_parameters(state),
+                Some(state),
                 writable_roots,
                 diagnostics,
             );
@@ -648,6 +651,7 @@ pub(crate) fn validate_call_node(
             arguments,
             call.target.as_str(),
             program.state_parameters(state),
+            Some(state),
             writable_roots,
             diagnostics,
         );
@@ -689,6 +693,7 @@ pub(crate) fn validate_call_node(
                 arguments,
                 &state.name,
                 program.state_parameters(state),
+                Some(state),
                 writable_roots,
                 diagnostics,
             );
@@ -725,6 +730,7 @@ pub(crate) fn validate_call_node(
             arguments,
             &state.name,
             program.state_parameters(state),
+            Some(state),
             writable_roots,
             diagnostics,
         );
@@ -771,6 +777,7 @@ pub(crate) fn validate_call_node(
             arguments,
             &signature.name,
             program.state_signature_parameters(signature),
+            None,
             writable_roots,
             diagnostics,
         );
@@ -1653,11 +1660,28 @@ pub(crate) fn validate_call_arguments_handles(
     arguments: &[ExpressionHandle],
     target_name: &str,
     parameters: &[StateParameter],
+    callee_state: Option<&State>,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if report_argument_count_mismatch(target_name, parameters, arguments, diagnostics) {
         return;
+    }
+
+    let quotient_lift = callee_state.and_then(|state| {
+        let argument_types = arguments
+            .iter()
+            .map(|argument| declared_place_type(program, current_machine, current_state, *argument))
+            .collect::<Vec<_>>();
+        crate::quotients::quotient_lift_candidate(program, &argument_types, state)
+    });
+    if let Some(lift) = &quotient_lift
+        && !lift.certified
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "cannot lift representative operation `{}` onto quotient `{}`: missing a structurally matching respect proof machine",
+            lift.operation.name, lift.quotient.name,
+        )));
     }
 
     for (argument, parameter) in arguments
@@ -1755,16 +1779,18 @@ pub(crate) fn validate_call_arguments_handles(
         // that differ (every non-data form is skipped, so no false positive on
         // trait/generic parameters or computed arguments).
         let slot_context = format!("argument `{}` for state `{target_name}`", parameter.name);
-        report_data_type_conflict(
-            program,
-            current_machine,
-            current_state,
-            *argument,
-            parameter.type_reference,
-            &slot_context,
-            "argument",
-            diagnostics,
-        );
+        if quotient_lift.is_none() {
+            report_data_type_conflict(
+                program,
+                current_machine,
+                current_state,
+                *argument,
+                parameter.type_reference,
+                &slot_context,
+                "argument",
+                diagnostics,
+            );
+        }
         // Scalar-vs-data shape guard: `take_struct(5)` (a scalar for a struct param)
         // or `take_int(self.struct)` (a struct for a scalar param). Unlike the
         // array/scalar check below, this is SAFE at the argument position -- it fires
@@ -1896,6 +1922,23 @@ fn validate_value_call_argument_classes(
         return;
     }
 
+    let argument_types = arguments
+        .iter()
+        .map(|argument| {
+            declared_place_type(program, current_machine, Some(current_state), *argument)
+        })
+        .collect::<Vec<_>>();
+    let quotient_lift =
+        crate::quotients::quotient_lift_candidate(program, &argument_types, callee_state);
+    if let Some(lift) = &quotient_lift
+        && !lift.certified
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "cannot lift representative operation `{}` onto quotient `{}`: missing a structurally matching respect proof machine",
+            lift.operation.name, lift.quotient.name,
+        )));
+    }
+
     for (argument, parameter) in arguments.iter().zip(
         program
             .state_parameters(callee_state)
@@ -1933,16 +1976,18 @@ fn validate_value_call_argument_classes(
             parameter.name,
             callee_state.name.as_str()
         );
-        report_data_type_conflict(
-            program,
-            current_machine,
-            Some(current_state),
-            *argument,
-            parameter.type_reference,
-            &slot_context,
-            "argument",
-            diagnostics,
-        );
+        if quotient_lift.is_none() {
+            report_data_type_conflict(
+                program,
+                current_machine,
+                Some(current_state),
+                *argument,
+                parameter.type_reference,
+                &slot_context,
+                "argument",
+                diagnostics,
+            );
+        }
         // Scalar-vs-data shape guard -- safe at the argument position (see the twin
         // call in `validate_call_arguments_handles`): fires only on scalar-vs-DATA
         // crossings, which `&buffer`/`addr`/text args never are.
@@ -4002,6 +4047,7 @@ fn validate_expression_call_bounds(
                 arguments,
                 signature.name.as_str(),
                 program.state_signature_parameters(signature),
+                None,
                 writable_roots,
                 diagnostics,
             );
