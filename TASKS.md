@@ -514,10 +514,18 @@ schemas recover the same instance without publishing policy type identity.
    records `evidence_stage: encoded_machine`, rather than republishing an
    earlier selection-plan copy. The artifact's `enumeration_complete: false`
    firewall prevents this partial slice from being mistaken for the final
-   certificate.
+   certificate. Final-image construction now also retains a typed executable-
+   region inventory: object function spans and format-generated PE/Mach-O
+   import thunks resolve to their placed addresses, invalid overlap/out-of-
+   bounds regions reject, and any unclassified `.text` gaps remain explicit in
+   `13_executable_regions.json`. Whole-text and per-region/gap byte fingerprints
+   bind the inventory to the exact post-relocation bytes. That inventory names
+   its currently covered and missing classes and likewise refuses to claim
+   complete enumeration.
    StatePlan-driven nonordinary save/restore and return specialization, and
-   post-layout enumeration across handler code, veneers, thunks, and admitted
-   leaves remain; final placement must still prove that enumeration is complete.
+   footprint decoding/validation across the placed handler regions, relaxation
+   products, veneers, and admitted leaves remain; final placement must still
+   prove that enumeration is complete.
 4. **IDT1 — symbolic materialization (normalized foundation complete).**
    `LayoutPlan` now uses compiler-issued field keys normalized back to names;
    repeated `Bits` entries validate exact logical-source tiling plus

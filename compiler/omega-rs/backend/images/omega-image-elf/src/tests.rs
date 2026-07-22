@@ -28,4 +28,7 @@ fn emits_entry_address_from_final_image_entry_symbol() {
     let entry_bytes: [u8; 8] = output.bytes[24..32].try_into().unwrap();
 
     assert_eq!(u64::from_le_bytes(entry_bytes), 0x401004);
+    assert_eq!(output.executable_regions.text_address, 0x401000);
+    assert_eq!(output.executable_regions.text_byte_count, 16);
+    assert_eq!(output.executable_regions.unclassified_gaps.len(), 1);
 }

@@ -1,7 +1,7 @@
 use omega_core::diagnostics::Diagnostic;
 use omega_image::{
     ExecutableImageOutput, FinalImage, FinalImageLayout, apply_aarch64_relocations,
-    apply_x86_64_relocations,
+    apply_x86_64_relocations, place_executable_regions,
 };
 
 mod bytes;
@@ -52,6 +52,7 @@ fn emit_elf_executable(
     let entry_address = elf_entry_address(&image, sections.text_address)?;
 
     apply_relocations(&mut image, &layout, "ELF direct image")?;
+    let executable_regions = place_executable_regions(&image, layout)?;
 
     let mut bytes = Vec::with_capacity(sections.data_offset + image.memory.data.len());
     write_elf_header(
@@ -83,5 +84,6 @@ fn emit_elf_executable(
         symbols: image.symbol_table.symbols.len(),
         imports: image.symbol_table.imports.len(),
         relocations: image.relocation_table.relocations.len(),
+        executable_regions,
     })
 }

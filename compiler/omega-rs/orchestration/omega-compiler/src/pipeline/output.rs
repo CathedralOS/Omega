@@ -1,5 +1,6 @@
 use crate::pipeline::compile_options::CompileOptions;
 use crate::pipeline::stages::EmittedProgram;
+use omega_artifacts::ArtifactWriter;
 use omega_core::diagnostics::Diagnostic;
 use omega_image_emission::{
     ExecutableImageInput, can_emit_executable_image, emit_checked_executable_image,
@@ -30,6 +31,7 @@ pub(super) fn write_output(
         let output_path = build_dir.join(&image.file_name);
         write_output_file(&output_path, &image.bytes, true)
             .map_err(|diagnostic| vec![diagnostic])?;
+        write_executable_region_inventory(options, &image.executable_regions)?;
 
         // The GUI-subsystem translation for Mach-O: PE stamps Subsystem 2 into
         // the image header so Windows never attaches a console box; macOS has no
@@ -57,6 +59,76 @@ pub(super) fn write_output(
     write_output_file(&output_path, &object_container.bytes, false)
         .map_err(|diagnostic| vec![diagnostic])?;
     Ok(output_path)
+}
+
+fn write_executable_region_inventory(
+    options: &CompileOptions,
+    inventory: &omega_image::PlacedExecutableRegionInventory,
+) -> Result<(), Vec<Diagnostic>> {
+    fn push_string(output: &mut String, value: &str) {
+        output.push('"');
+        for character in value.chars() {
+            match character {
+                '"' => output.push_str("\\\""),
+                '\\' => output.push_str("\\\\"),
+                '\n' => output.push_str("\\n"),
+                '\r' => output.push_str("\\r"),
+                '\t' => output.push_str("\\t"),
+                character => output.push(character),
+            }
+        }
+        output.push('"');
+    }
+
+    let mut json = String::from(
+        "{\n  \"placement_stage\": \"final_image\",\n  \"enumeration_complete\": false,\n  \"covered_classes\": [\"compiler_functions\", \"import_thunks\"],\n  \"missing_classes\": [\"relaxation_products\", \"veneers\", \"generated_stubs\", \"admitted_leaves\"],\n",
+    );
+    json.push_str(&format!(
+        "  \"text_address\": \"0x{:016x}\",\n  \"text_byte_count\": {},\n  \"text_fingerprint\": \"0x{:016x}\",\n  \"regions\": [",
+        inventory.text_address, inventory.text_byte_count, inventory.text_fingerprint
+    ));
+    for (index, region) in inventory.regions.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        json.push_str("\n    {\"origin\": ");
+        push_string(
+            &mut json,
+            match region.origin {
+                omega_image::FinalExecutableRegionOrigin::CompilerFunction => "compiler_function",
+                omega_image::FinalExecutableRegionOrigin::ImportThunk => "import_thunk",
+            },
+        );
+        json.push_str(", \"symbol\": ");
+        push_string(&mut json, &region.symbol);
+        json.push_str(&format!(
+            ", \"section_offset\": {}, \"address\": \"0x{:016x}\", \"byte_count\": {}, \"byte_fingerprint\": \"0x{:016x}\"}}",
+            region.section_offset, region.address, region.byte_count, region.byte_fingerprint
+        ));
+    }
+    if !inventory.regions.is_empty() {
+        json.push('\n');
+        json.push_str("  ");
+    }
+    json.push_str("],\n  \"unclassified_gaps\": [");
+    for (index, gap) in inventory.unclassified_gaps.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        json.push_str(&format!(
+            "\n    {{\"section_offset\": {}, \"address\": \"0x{:016x}\", \"byte_count\": {}, \"byte_fingerprint\": \"0x{:016x}\"}}",
+            gap.section_offset, gap.address, gap.byte_count, gap.byte_fingerprint
+        ));
+    }
+    if !inventory.unclassified_gaps.is_empty() {
+        json.push('\n');
+        json.push_str("  ");
+    }
+    json.push_str("]\n}\n");
+
+    ArtifactWriter::new(&options.build_dir())
+        .and_then(|writer| writer.write_text("13_executable_regions.json", &json))
+        .map_err(|diagnostic| vec![diagnostic])
 }
 
 fn io_diagnostic(error: std::io::Error) -> Vec<Diagnostic> {

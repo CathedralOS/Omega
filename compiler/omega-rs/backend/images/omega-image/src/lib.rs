@@ -11,9 +11,11 @@ mod x86_64_relocations;
 pub use aarch64_relocations::apply_aarch64_relocations;
 pub use builder::{FinalImageInput, build_final_image};
 pub use model::{
-    FinalImage, FinalImageImport, FinalImageLayout, FinalImageMemory, FinalImageRelocation,
-    FinalImageRelocationTable, FinalImageSection, FinalImageSymbol, FinalImageSymbolHandle,
-    FinalImageSymbolTable,
+    FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageImport,
+    FinalImageLayout, FinalImageMemory, FinalImageRelocation, FinalImageRelocationTable,
+    FinalImageSection, FinalImageSymbol, FinalImageSymbolHandle, FinalImageSymbolTable,
+    PlacedExecutableGap, PlacedExecutableRegion, PlacedExecutableRegionInventory,
+    place_executable_regions,
 };
 pub use output::{
     EmittedImageOutput, ExecutableImageOutput, ImageOutputKind, emitted_direct_executable_output,

@@ -453,6 +453,7 @@ pub(super) fn remove_stale_phase_diagrams(options: &CompileOptions) -> Result<()
             "12_emission.html",
             "12_emitted_output.txt",
             "12_emitted_output.html",
+            "13_executable_regions.json",
             "13_finalization.txt",
             "13_finalization.html",
             "13_emitted_output.txt",

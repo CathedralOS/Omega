@@ -2,7 +2,10 @@ use crate::layout::align_to;
 use crate::load_commands::MachoDylib;
 use omega_calling_conventions::{DARWIN_LIBOBJC_PATH, darwin_import_library};
 use omega_core::diagnostics::Diagnostic;
-use omega_image::{FinalImage, FinalImageLayout, FinalImageSection};
+use omega_image::{
+    FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageLayout,
+    FinalImageSection,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MachoImportThunk {
@@ -121,6 +124,13 @@ pub(crate) fn install_import_thunks(image: &mut FinalImage) -> Vec<MachoImportTh
         image_symbol.section = FinalImageSection::Text;
         image_symbol.offset = text_offset;
         image_symbol.size = 12;
+
+        image.executable_regions.push(FinalExecutableRegion {
+            origin: FinalExecutableRegionOrigin::ImportThunk,
+            section_offset: text_offset,
+            byte_count: 12,
+            symbol: symbol.clone(),
+        });
 
         let library = darwin_import_library(&symbol);
         thunks.push(MachoImportThunk {
@@ -256,4 +266,52 @@ fn write_u32_at(text: &mut [u8], offset: usize, value: u32) -> Result<(), Diagno
     };
     slot.copy_from_slice(&value.to_le_bytes());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::install_import_thunks;
+    use omega_core::arena::Handle;
+    use omega_image::{
+        FinalExecutableRegionOrigin, FinalImage, FinalImageImport, FinalImageRelocation,
+        FinalImageSymbol,
+    };
+
+    #[test]
+    fn installed_import_thunks_enter_the_executable_region_inventory() {
+        let mut image = FinalImage::with_capacity(
+            FinalImage::default().target,
+            Default::default(),
+            Handle::invalid(),
+            1,
+            1,
+            1,
+        );
+        let symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
+            name: "_write".into(),
+            ..FinalImageSymbol::default()
+        });
+        image.symbol_table.imports.insert(FinalImageImport {
+            symbol_handle: symbol,
+            library: "/usr/lib/libSystem.B.dylib".into(),
+        });
+        image
+            .relocation_table
+            .relocations
+            .insert(FinalImageRelocation {
+                symbol_handle: symbol,
+                ..FinalImageRelocation::default()
+            });
+
+        let thunks = install_import_thunks(&mut image);
+
+        assert_eq!(thunks.len(), 1);
+        assert_eq!(image.executable_regions.len(), 1);
+        assert_eq!(
+            image.executable_regions[0].origin,
+            FinalExecutableRegionOrigin::ImportThunk
+        );
+        assert_eq!(image.executable_regions[0].byte_count, 12);
+        assert_eq!(image.executable_regions[0].symbol, "_write");
+    }
 }

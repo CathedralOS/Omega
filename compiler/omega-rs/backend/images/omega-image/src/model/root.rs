@@ -2,7 +2,8 @@ use omega_core::arena::Handle;
 use omega_target::NativeTarget;
 
 use crate::model::{
-    FinalImageMemory, FinalImageRelocationTable, FinalImageSymbolHandle, FinalImageSymbolTable,
+    FinalExecutableRegion, FinalImageMemory, FinalImageRelocationTable, FinalImageSymbolHandle,
+    FinalImageSymbolTable,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -11,6 +12,7 @@ pub struct FinalImage {
     pub memory: FinalImageMemory,
     pub symbol_table: FinalImageSymbolTable,
     pub relocation_table: FinalImageRelocationTable,
+    pub executable_regions: Vec<FinalExecutableRegion>,
 }
 
 impl Default for FinalImage {
@@ -32,12 +34,14 @@ impl FinalImage {
         memory: FinalImageMemory,
         symbol_table: FinalImageSymbolTable,
         relocation_table: FinalImageRelocationTable,
+        executable_regions: Vec<FinalExecutableRegion>,
     ) -> Self {
         Self {
             target,
             memory,
             symbol_table,
             relocation_table,
+            executable_regions,
         }
     }
 
@@ -54,6 +58,7 @@ impl FinalImage {
             memory,
             FinalImageSymbolTable::with_capacity(entry_symbol, symbol_capacity, import_capacity),
             FinalImageRelocationTable::with_capacity(relocation_capacity),
+            Vec::new(),
         )
     }
 }
@@ -83,11 +88,13 @@ mod tests {
             memory.clone(),
             symbol_table.clone(),
             relocation_table.clone(),
+            Vec::new(),
         );
 
         assert_eq!(image.target, target);
         assert_eq!(image.memory, memory);
         assert_eq!(image.symbol_table, symbol_table);
         assert_eq!(image.relocation_table, relocation_table);
+        assert!(image.executable_regions.is_empty());
     }
 }

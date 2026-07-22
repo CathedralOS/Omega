@@ -1,5 +1,7 @@
 use omega_core::diagnostics::Diagnostic;
-use omega_image::{ExecutableImageOutput, FinalImage, apply_aarch64_relocations};
+use omega_image::{
+    ExecutableImageOutput, FinalImage, apply_aarch64_relocations, place_executable_regions,
+};
 
 mod bytes;
 mod code_signature;
@@ -38,6 +40,7 @@ pub fn emit_macho_aarch64_executable(
 
     patch_import_thunks(&mut image, &layout, &import_thunks)?;
     apply_aarch64_relocations(&mut image, &layout, "Mach-O direct executable")?;
+    let executable_regions = place_executable_regions(&image, layout)?;
 
     let mut bytes = Vec::new();
     write_macho_executable_header(&mut bytes, plan.command_count, plan.sizeofcmds);
@@ -106,5 +109,6 @@ pub fn emit_macho_aarch64_executable(
         symbols: image.symbol_table.symbols.len(),
         imports: image.symbol_table.imports.len(),
         relocations: image.relocation_table.relocations.len(),
+        executable_regions,
     })
 }

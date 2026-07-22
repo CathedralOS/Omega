@@ -984,6 +984,8 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         .expect("abstract operations visualization should be written");
     let boundary_footprints = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
         .expect("boundary footprint evidence should be written");
+    let executable_regions = fs::read_to_string(build_dir.join("13_executable_regions.json"))
+        .expect("final executable-region inventory should be written");
     let machine_instructions = fs::read_to_string(build_dir.join("11_machine_instructions.html"))
         .expect("machine instructions visualization should be written");
 
@@ -1026,6 +1028,18 @@ fn contract_canary_visualizes_flow_contract_summaries() {
             && boundary_footprints.contains("\"composed\"")
             && boundary_footprints.contains("\"fragments\""),
         "boundary footprint artifact should publish post-emission retained evidence bound to its validated contract without claiming final completeness"
+    );
+    assert!(
+        executable_regions.contains("\"placement_stage\": \"final_image\"")
+            && executable_regions.contains("\"origin\": \"compiler_function\"")
+            && executable_regions.contains("\"enumeration_complete\": false")
+            && executable_regions.contains("\"text_fingerprint\": \"0x")
+            && executable_regions.contains("\"byte_fingerprint\": \"0x")
+            && executable_regions.contains("\"unclassified_gaps\"")
+            && executable_regions.contains(
+                "\"missing_classes\": [\"relaxation_products\", \"veneers\", \"generated_stubs\", \"admitted_leaves\"]"
+            ),
+        "final executable inventory should classify placed compiler code without claiming complete footprint enumeration"
     );
     assert!(
         machine_instructions.contains("Machine Instructions")

@@ -9,6 +9,7 @@ pub struct ExecutableImageOutput {
     pub symbols: usize,
     pub imports: usize,
     pub relocations: usize,
+    pub executable_regions: crate::PlacedExecutableRegionInventory,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,6 +26,7 @@ pub struct EmittedImageOutput {
     pub final_image_symbols: usize,
     pub final_image_imports: usize,
     pub final_image_relocations: usize,
+    pub executable_regions: crate::PlacedExecutableRegionInventory,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,5 +48,6 @@ pub fn emitted_direct_executable_output(output: ExecutableImageOutput) -> Emitte
         final_image_symbols: output.symbols,
         final_image_imports: output.imports,
         final_image_relocations: output.relocations,
+        executable_regions: output.executable_regions,
     }
 }
