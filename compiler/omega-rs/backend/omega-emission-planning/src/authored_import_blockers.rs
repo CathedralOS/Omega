@@ -5,7 +5,7 @@ use omega_backend_report_types::EmissionBlocker;
 use omega_calling_conventions::{HostBindingMechanism, HostCapability};
 use omega_core::arena::Arena;
 
-/// A provides-AUTHORED DllImport call (operation key outside the closed
+/// A source-authored external DllImport call (operation key outside the closed
 /// catalog -- `(Unknown, Unknown)`) rides the GENERAL value-returning import
 /// encoder, whose operand[0] is the RESULT place. A statement-position call
 /// (`self.beeper.beep(v);`) has no prepended result, so its first ARGUMENT
@@ -42,7 +42,7 @@ pub(crate) fn collect_authored_import_blockers(
         blockers.insert(blocker(
             "host lowering",
             &format!(
-                "{} statement {}: a provides-authored import is called as a \
+                "{} statement {}: a source external import is called as a \
                  STATEMENT -- the general import lowering stores a result, so \
                  the call would misread its first argument as the result place. \
                  Bind the result to a value (`let rc: i32 = ...;`) even if you \

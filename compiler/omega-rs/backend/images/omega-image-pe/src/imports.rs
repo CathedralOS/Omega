@@ -384,7 +384,7 @@ mod tests {
 
     #[test]
     fn binding_carried_library_beats_the_catalog() {
-        // A provides-authored import names its own DLL; the catalog would
+        // A source external import names its own DLL; the catalog would
         // otherwise file `abs` under the KERNEL32 default.
         let thunks = vec![PeImportThunk {
             symbol: "abs".to_owned(),

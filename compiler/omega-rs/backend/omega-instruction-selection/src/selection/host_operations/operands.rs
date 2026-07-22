@@ -165,7 +165,7 @@ pub(super) fn select_host_operation_operands(
         (HostCapability::Gui, operation) => {
             select_gui_operation_operands(input, host_call, dispatch_index, operation, operands)
         }
-        // A provides-sourced call (VtableSlot / authored DllImport): the
+        // A source external call (VtableSlot / authored DllImport): the
         // operation key falls OUTSIDE the closed catalog (Unknown), so there
         // is no bespoke arm -- marshal the DECLARED arguments in order (each
         // a scalar value, preserved native small aggregate, or address-of),

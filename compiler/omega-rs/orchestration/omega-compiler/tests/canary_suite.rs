@@ -3008,7 +3008,7 @@ fn runtime_fs_mtime_system_time_interop_exit_canary_runs() {
 fn runtime_fs_mtime_interop_windows_exit_canary_runs() {
     // fs <-> time interop, the WINDOWS leg (the darwin twin is above): a
     // real file's mtime decoded at the `_stat64` offset (st_mtime @40, the
-    // windows ST_MTIME_OFF provides row) bridges via
+    // windows StatLayout policy) bridges via
     // SystemTime::from_unix_seconds against system_time_now().
     // Engine-agnostic assertions: BOTH the interpreter (virtual mtime 10^9
     // at the host layout's offset vs virtual 2026 clock) and the native
@@ -14784,8 +14784,8 @@ fn runtime_console_byte_literal_exit_canary_runs() {
 
 #[test]
 fn runtime_import_call_argument_exit_canary_runs() {
-    // The authored-import argument fix: exit(70) through a provides
-    // DllImport row reaches libSystem with its argument intact. NATIVE
+    // The authored-import argument fix: exit(70) through an external
+    // DllImport leaf reaches libSystem with its argument intact. NATIVE
     // assert only -- the interpreter does not serve custom-capability
     // imports (its own rung).
     let canary = pass_canary("providers/runtime_import_call_argument_exit");
@@ -29030,9 +29030,9 @@ fn target_machine_gating_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
-// create_new UNFENCED on windows_x64 (portable-values payoff): the wrapper now
-// composes the SELECTED TARGET's open flags from the FilesystemHost provides
-// values, so on windows it emits msvcrt O_CREAT|O_EXCL (not darwin's O_CREAT
+// create_new UNFENCED on windows_x64: the wrapper now asks the selected target
+// policy to encode its semantic OpenOptions, so Windows emits msvcrt
+// O_CREAT|O_EXCL (not darwin's O_CREAT
 // 0x200 == msvcrt O_TRUNC). Discriminating: create_new on an existing file
 // returns AlreadyExists (proves O_EXCL took effect, no truncation). NATIVE-ONLY:
 // the interpreter now decodes the HOST's flag numerology (host_open_flags), so
@@ -29528,7 +29528,7 @@ fn windows_positioned_io_exit_canary_runs() {
 // Native windows metadata via msvcrt `_stat64` (the per-target stat-offset
 // migration payoff). The wrapper's `decode_metadata` reads `stat_buf[ST_*_OFF + k]`
 // -- a pure-const binary index that now const-folds -- at the windows `_stat64`
-// offsets from the FilesystemHost provides row. Discriminating: a written 6-byte
+// offsets from the selected StatLayout policy. Discriminating: a written 6-byte
 // file reports len 6 and a regular-file st_mode (S_IFREG 0x8000, not S_IFDIR).
 // NATIVE + interp differential: the interpreter mirrors the host stat layout
 // (host_stat_offsets), so it matches the host-targeted program.
@@ -29703,7 +29703,7 @@ fn windows_wrapper_copy_exit_canary_runs() {
 fn cross_windows_general_imports_compile() {
     // ENT2c: exercise general and composite plan-driven imports through full PE
     // layout/emission on every development host: seven-argument GUI, key/time,
-    // the dedicated byte-at-a-time line reader, and a provides-authored call.
+    // the dedicated byte-at-a-time line reader, and a source external call.
     for canary_name in [
         "host/runtime_gui_window_lifecycle_exit",
         "host/runtime_user32_key_state_exit",
@@ -30263,20 +30263,20 @@ fn cross_win64_scalar_float_import_uses_positional_xmm_and_stack_locations() {
     let _ = fs::remove_dir_all(&scratch);
 }
 
-// An AUTHORED provides import end to end (hosted-consumption rung 2): the
-// program's own `windows_x64 provides Beeper { beep -> DllImport("msvcrt.dll",
-// "abs") }` row binds, the import table names msvcrt.dll (the binding, not
+// A source-authored external import end to end: the program's bodyless
+// `satisfies Beeper::beep via Binding::DllImport("msvcrt.dll", "abs")` leaf
+// binds, the import table names msvcrt.dll (the binding, not
 // the KERNEL32 catalog default), and abs(-42) delivers 42 through the result
 // place (ZII would exit 71). NATIVE-ONLY: no interpreter provider exists for
 // authored bindings, so unlike its neighbors this test runs no interp oracle.
 #[cfg(windows)]
 #[test]
-fn windows_provides_import_exit_canary_runs() {
+fn windows_external_import_exit_canary_runs() {
     let canary = pass_canary("capabilities/windows_provides_import_exit");
     let main_path = canary.join("main.omg");
 
     let build_dir =
-        std::env::temp_dir().join(format!("omega-provides-import-{}", std::process::id()));
+        std::env::temp_dir().join(format!("omega-external-import-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -30285,11 +30285,11 @@ fn windows_provides_import_exit_canary_runs() {
         target_name: None,
         write_output: true,
     })
-    .expect("authored provides import canary should compile");
+    .expect("source external import canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
-        .expect("authored provides import canary should run");
+        .expect("source external import canary should run");
 
     assert_eq!(
         output.status.code(),
@@ -33180,7 +33180,7 @@ fn domain_operator_selection_records_builtin_fallback_when_fact_unproven() {
 }
 
 /// Pass canaries whose authored bindings exist only on a WINDOWS host (a
-/// `windows_x64 provides ...` row with no other-target lowering and no
+/// `windows_x64` external leaf with no other-target lowering and no
 /// explicit `target` block to cross-compile against). Compiled by
 /// `pass_canaries_compile` on windows hosts only; their `_canary_runs` twins
 /// are `#[cfg(windows)]`-gated the same way.
@@ -39243,13 +39243,12 @@ fn runtime_console_byte_echo_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
-// THE FIELD MODEL (extern brief SS12.1): `provides TextOutput over
-// EfiTextOutputProtocol { output_string -> output_string }` -- the binding
-// names the fn-ptr FIELD and the LAYOUT computes its offset (+8 behind the
+// THE FIELD MODEL: an attached `Binding::VtableField(output_string)` leaf
+// names the fn-ptr field and the provider type's layout computes its offset (+8 behind the
 // leading `reset` field; headers fall out free, no magic slot count). The
 // emitted dispatch must be byte-identical to the VtableSlot(1) original:
 // `mov rax, [rcx+8]; call rax`. Cross-compiled for uefi_x64, so this pins
-// the whole chain (parse -> provides row -> layout-resolved mechanism ->
+// the whole chain (parse -> external binding row -> layout-resolved mechanism ->
 // relocation placement -> PE bytes) on EVERY host -- unlike the
 // cfg(windows) slot twin.
 #[test]

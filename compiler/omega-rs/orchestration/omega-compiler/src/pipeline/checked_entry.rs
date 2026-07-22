@@ -71,13 +71,8 @@ pub fn compile_to_checked(
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
-    let mut provider_plans =
-        crate::pipeline::provider_plans::derive_provider_plans(&syntax_trees, &typed);
-    provider_plans.extend(crate::pipeline::provider_plans::derive_satisfies_plans(
-        &syntax_trees,
-        &typed,
-        target_name,
-    ));
+    let provider_plans =
+        crate::pipeline::provider_plans::derive_satisfies_plans(&syntax_trees, &typed, target_name);
     let selected_native_target = omega_target::NativeTarget::from_omega_target_name(target_name)
         .unwrap_or_else(|_| omega_target::NativeTarget::host());
     let diagnostics =

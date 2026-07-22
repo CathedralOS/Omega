@@ -855,7 +855,7 @@ pub fn encode_host_call_sequence_hfa_returning_from_operands(
     Ok(bytes)
 }
 
-/// A provides-authored import whose declared scalar result is floating-point.
+/// A source-authored external import whose declared scalar result is floating-point.
 /// Unlike catalog float operations, the selected result operand retains its
 /// float storage shape, so its ordinary operand width already includes the
 /// post-call `fmov` needed by the relocated scalar store.

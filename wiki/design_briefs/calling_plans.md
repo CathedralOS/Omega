@@ -436,9 +436,8 @@ a concrete trait argument tuple. Each such instance resolves its policy and
 forwarded signature types independently; provider schemas recover that same
 tuple, while only the evaluated plan fingerprint enters their public identity.
 The canonical call plan itself remains internal lowering evidence. Provider
-selection now carries it through authored `via` leaves (and the remaining
-legacy `provides` rows) into the host
-binding without adding policy source identity to the schema. On x86-64,
+selection now carries it through authored `via` leaves into the host binding
+without adding policy source identity to the schema. On x86-64,
 authored imports use the retained plan directly for emission, width, and both
 call and data relocation layout; supplied operand shapes are checked again at
 that seam. Thus a source-selected SysV placement can govern an import in a PE
@@ -465,10 +464,10 @@ The compiler's retained source-policy identity carries the complete canonical
 publish only its contract fingerprint. Outbound binding construction projects
 the `CallPlan`; inbound stub construction can therefore recover the associated
 `StatePlan` without re-evaluating policy source or trying to infer state
-obligations from the fingerprint. The selected `ProvidesRow` and backend
+obligations from the fingerprint. The selected `ExternalBindingRow` and backend
 `HostBinding` retain that complete plan too. Existing emission, layout, and
 relocation consumers borrow only its call half, so the selected state policy
-reaches the backend without creating a parallel lowering table. Compatibility
+reaches the backend without creating a parallel lowering table. External
 bindings resolve through the same complete-plan API and project their outbound
 call plan from it; source-selected complete plans are revalidated as a unit at
 that seam. The first reusable inbound consumer derives parameter-register,

@@ -443,8 +443,8 @@ pub(super) fn parse_satisfies_traits<'tokens, 'source>(
             alias = Some(name);
             rest = next;
         }
-        // PRV4 step 1: the external-leaf suffix. `via <Binding>` reuses the
-        // provides grammar's closed binding sum verbatim.
+        // The external-leaf suffix constructs the compiler-known closed
+        // `Binding` sum explicitly.
         let mut via = None;
         if rest.at_contextual("via") {
             let next = rest.take_contextual("via")?;

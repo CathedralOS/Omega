@@ -78,7 +78,7 @@ pub struct HostCall {
     pub arguments: HandleSpan<HostCallArgument>,
     /// True when the call's RESULT PLACE was prepended as argument[0] (the
     /// assignment / let-initializer collectors). Catalog ops key result
-    /// handling per operation; provides-AUTHORED ops (Unknown key) have no
+    /// handling per operation; source external ops (Unknown key) have no
     /// bespoke arm, so this flag is selection's only signal that argument[0]
     /// is a writable place rather than the first declared argument.
     pub has_result: bool,

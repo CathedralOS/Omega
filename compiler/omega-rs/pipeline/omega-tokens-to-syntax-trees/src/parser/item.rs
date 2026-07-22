@@ -17,9 +17,8 @@ use crate::parser::type_reference::{
 use crate::parser::use_item::parse_use_item;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::{
-    HostProviderDefinition, HostProviderMapping, HostProviderMappingKind, Item, ModuleDeclaration,
-    PackageDeclaration, ProviderDeclaration, WireDataDefinition, WireDataField, WireDataMember,
-    WireDataReserved, WireDataVersion,
+    ExternalBinding, Item, ModuleDeclaration, PackageDeclaration, ProviderDeclaration,
+    WireDataDefinition, WireDataField, WireDataMember, WireDataReserved, WireDataVersion,
 };
 use omega_syntax_trees::operator_spelling::ProviderCategory;
 use omega_tokens::{KeywordKind, PunctuationKind};
@@ -195,18 +194,20 @@ pub(super) fn parse_item<'tokens, 'source>(
     }
 
     if input.at_keyword(KeywordKind::Host) {
-        let input = input.take_keyword(KeywordKind::Host, "host")?;
-        let (item, rest) = parse_host_provider_definition(syntax_trees, input)?;
-        return Ok((Item::HostProvider(item), rest));
+        return Err(input.error_here(
+            "authored `provides` declarations are retired (including `host ... provides`): \
+             implement a boundary-trait \
+             requirement with a checked `satisfies` adapter or a bodyless external leaf using \
+             `satisfies Trait::method via Binding::Case(...)`",
+        ));
     }
 
-    // Identifier-led provides table -- `<target> provides <Trait> { ... }` (extern
-    // brief §3/§12, the settled + Cathedral surface; no `host` keyword). Detected
-    // by a 2-token peek so a bare target name doesn't shadow keyword-led items.
-    // The legacy `host <target> provides ...` form above stays accepted.
     if input.at_identifier_then_contextual("provides") {
-        let (item, rest) = parse_host_provider_definition(syntax_trees, input)?;
-        return Ok((Item::HostProvider(item), rest));
+        return Err(input.error_here(
+            "authored `provides` declarations are retired: implement a boundary-trait \
+             requirement with a checked `satisfies` adapter or a bodyless external leaf using \
+             `satisfies Trait::method via Binding::Case(...)`",
+        ));
     }
 
     if input.at_keyword(KeywordKind::Platform) {
@@ -257,8 +258,7 @@ pub(super) fn parse_item<'tokens, 'source>(
 
     // Identifier-led TARGET-SCOPED machine -- `<target> machine Path(..) {..}`
     // (fs portable-contract settle 2026-07-18): a per-target implementation of
-    // a portable contract signature, held beside that target's provides rows.
-    // Same 2-token peek discipline as the provides table; the machine parses
+    // a portable contract signature. The machine parses
     // ordinarily and carries its target for the pre-resolution filter. Sits
     // BELOW the contextual-led items so `boundary machine ...` (the exported
     // callable) never reads `boundary` as a target name.
@@ -453,96 +453,22 @@ fn parse_wire_data_member<'tokens, 'source>(
     ))
 }
 
-fn parse_host_provider_definition<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, HostProviderDefinition> {
-    let (target, input) = input.take_identifier()?;
-    let input = input.take_contextual("provides")?;
-    let (boundary_trait, input) = parse_path_handle_span(input, |member| {
-        syntax_trees.items.append_identifier_path_member(member)
-    })?;
-    // The FIELD MODEL's `over <Struct>` clause (extern brief SS12.1): names
-    // the vtable struct whose fn-ptr fields the arms bind. Optional -- the
-    // static mechanisms (Syscall/DllImport) and legacy VtableSlot need none.
-    let (vtable_struct, mut input) = if let Ok(rest) = input.take_contextual("over") {
-        let (name, rest) = rest.take_identifier()?;
-        (name, rest)
-    } else {
-        (omega_syntax_trees::identifier::Identifier::default(), input)
-    };
-    input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-
-    let mut mapping_start = omega_core::arena::Handle::invalid();
-    let mut mapping_count = 0u32;
-    while !input.at_punctuation(PunctuationKind::RightBrace) {
-        let (machine, rest) = input.take_identifier()?;
-        let rest = rest.take_punctuation(PunctuationKind::Arrow, "->")?;
-        let (binding, rest) = parse_host_provider_binding(rest)?;
-        let rest = take_optional_semicolon(rest)?;
-        let handle = syntax_trees
-            .items
-            .append_host_provider_mapping(HostProviderMapping { machine, binding });
-        if mapping_count == 0 {
-            mapping_start = handle;
-        }
-        mapping_count = mapping_count
-            .checked_add(1)
-            .expect("host provider mapping span count overflow");
-        input = rest;
-    }
-
-    let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    let mappings = if mapping_count == 0 {
-        omega_core::arena::HandleSpan::empty()
-    } else {
-        omega_core::arena::HandleSpan::from_parts(mapping_start, mapping_count)
-    };
-    Ok((
-        HostProviderDefinition {
-            target,
-            boundary_trait,
-            vtable_struct,
-            mappings,
-        },
-        input,
-    ))
-}
-
-/// The RHS of a `provides` arm: a case construction of the compiler-known,
-/// CLOSED `Binding` sum (extern brief §12.1) -- `Syscall(n)`,
-/// `DllImport("module", "symbol")`, or `VtableSlot(n)`. Parsed directly (the
-/// sum is closed, so the case names are compiler-known, not user identifiers to
-/// resolve later); an unknown case is a guided error.
-pub(crate) fn parse_host_provider_binding<'tokens, 'source>(
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, HostProviderMappingKind> {
-    parse_provider_binding_case(input, true)
-}
-
 fn parse_provider_binding_case<'tokens, 'source>(
     input: Input<'tokens, 'source>,
-    legacy_provides_arm: bool,
-) -> ParseResult<'tokens, 'source, HostProviderMappingKind> {
-    if legacy_provides_arm && input.at_integer() {
-        return Err(input.error_here(
-            "integer `provides` values are retired: declare an ordinary `const` for semantic \
-             constants or a target layout/format policy for foreign encodings",
-        ));
-    }
+) -> ParseResult<'tokens, 'source, ExternalBinding> {
     let (case, input) = input.take_identifier()?;
     match case.as_str() {
         "Syscall" => {
             let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
             let (number, input) = input.take_integer()?;
             let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-            Ok((HostProviderMappingKind::Syscall { number }, input))
+            Ok((ExternalBinding::Syscall { number }, input))
         }
         "VtableSlot" => {
             let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
             let (index, input) = input.take_integer()?;
             let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-            Ok((HostProviderMappingKind::VtableSlot { index }, input))
+            Ok((ExternalBinding::VtableSlot { index }, input))
         }
         "DllImport" => {
             let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
@@ -550,7 +476,7 @@ fn parse_provider_binding_case<'tokens, 'source>(
             let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
             let (symbol, input) = input.take_string()?;
             let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-            Ok((HostProviderMappingKind::DllImport { module, symbol }, input))
+            Ok((ExternalBinding::DllImport { module, symbol }, input))
         }
         // A service-table function: dispatch through the `over` struct's
         // fn-ptr FIELD like a bare-field arm, but the table pointer is
@@ -560,7 +486,7 @@ fn parse_provider_binding_case<'tokens, 'source>(
             let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
             let (field, input) = input.take_identifier()?;
             let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-            Ok((HostProviderMappingKind::TableFunction { field }, input))
+            Ok((ExternalBinding::TableFunction { field }, input))
         }
         // The qualified external-leaf spelling cannot use the legacy bare
         // field shorthand because `Binding::field` would look like an open
@@ -569,20 +495,8 @@ fn parse_provider_binding_case<'tokens, 'source>(
             let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
             let (field, input) = input.take_identifier()?;
             let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-            Ok((HostProviderMappingKind::VtableField { field }, input))
+            Ok((ExternalBinding::VtableField { field }, input))
         }
-        // A BARE identifier (no `(`) is a VtableField arm: the RHS names a
-        // fn-ptr FIELD of the block's `over` struct (the field model, extern
-        // brief SS12.1). The over-clause requirement is enforced at
-        // extraction, where the block context is in hand.
-        _ if legacy_provides_arm && !input.at_punctuation(PunctuationKind::LeftParen) => {
-            Ok((HostProviderMappingKind::VtableField { field: case }, input))
-        }
-        other if legacy_provides_arm => Err(input.error_here(format!(
-            "unknown `provides` binding `{other}`: the compatibility vocabulary is \
-             `Syscall(n)`, `DllImport(\"module\", \"symbol\")`, `VtableSlot(n)`, \
-             `VtableField(field)`, `TableFunction(field)`, or a bare fn-ptr field name"
-        ))),
         other => Err(input.error_here(format!(
             "unknown Binding case `{other}`: external leaves require one of \
              `Binding::Syscall(n)`, `Binding::DllImport(\"module\", \"symbol\")`, \
@@ -594,14 +508,12 @@ fn parse_provider_binding_case<'tokens, 'source>(
 
 /// Parse the external-realization spelling used after `via`.
 ///
-/// Legacy `provides` arms still use the unqualified compatibility grammar
-/// above until PRV4f deletes that surface. A machine supply is new grammar and
-/// therefore has no reason to inherit the ambiguity: it names the closed sum
-/// explicitly as `Binding::Case(...)`. This also prevents a package-local
-/// declaration named `DllImport` from looking like compiler binding data.
+/// The leaf names the closed compiler-known sum explicitly as
+/// `Binding::Case(...)`, so a package-local declaration cannot masquerade as
+/// compiler binding data.
 pub(crate) fn parse_external_provider_binding<'tokens, 'source>(
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, HostProviderMappingKind> {
+) -> ParseResult<'tokens, 'source, ExternalBinding> {
     let start = input;
     let (root, input) = input.take_identifier()?;
     if root.as_str() != "Binding" {
@@ -611,7 +523,7 @@ pub(crate) fn parse_external_provider_binding<'tokens, 'source>(
         ));
     }
     let input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
-    parse_provider_binding_case(input, false)
+    parse_provider_binding_case(input)
 }
 
 fn parse_module_declaration<'tokens, 'source>(

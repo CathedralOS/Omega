@@ -1,8 +1,7 @@
 //! PRV1 (design-ruled 2026-07-17): the typed **ProviderPlan** policy
-//! carrier -- one value per (provider type, service schema, target), unifying the two
-//! retirees: authored `provides` rows (the closed Binding sum) and the
-//! hardcoded platform-lowering tables (Console/time's `PlatformCallData`
-//! call shaping). CONSTRUCTION IS FREE: any code can build a plan; PRV2
+//! carrier -- one value per (provider type, service schema, target), unifying
+//! checked `satisfies` closures and irreducible external leaves with the
+//! remaining built-in platform-lowering tables. CONSTRUCTION IS FREE: any code can build a plan; PRV2
 //! validates coverage/signatures/identity, PRV3 admits semantic claims
 //! through the chapter-10 grant/receipt carrier and selects by a
 //! slot-owner capability, PRV4 relocates the built-in populate tables into
@@ -84,11 +83,10 @@ pub struct ProviderPlan {
     /// slot-selection key).
     pub name: String,
     /// The nominal provider type whose explicit conformance closure produced
-    /// this plan. Empty only for the legacy free-machine / `provides` bridge;
-    /// slot overrides select this identity, never individual rows.
+    /// this plan. Empty for a free adapter or external leaf; slot overrides
+    /// select this identity, never individual rows.
     pub provider_type: String,
-    /// The target this plan serves (`windows_x64`; empty = every target,
-    /// the portable-Value shape).
+    /// The target this plan serves (`windows_x64`; empty = every target).
     pub target: String,
     /// The schema served.
     pub schema: ServiceSchema,

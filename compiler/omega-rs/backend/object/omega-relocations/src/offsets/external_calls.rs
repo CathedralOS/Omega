@@ -54,7 +54,7 @@ pub(crate) fn external_call_relocation_offset_with_plan<T: InstructionOperandLik
     // (`open_create`) inserts `sub sp` + `str [sp]` (8 bytes) between the register
     // args and the `BL` (the `add sp` is AFTER the BL, so it does not shift it),
     // beyond counting the mode immediate as a register arg.
-    // An AUTHORED import (provides row / via leaf, custom capability) always
+    // A source-authored external import (custom capability) always
     // rides the value-returning layout -- the blocker enforces the
     // result-binding shape and the encoder routes it there; the catalog
     // cannot know authored operations.

@@ -23,7 +23,6 @@ pub enum Item {
     Operator(OperatorDefinition),
     Package(PackageDeclaration),
     Provider(ProviderDeclaration),
-    HostProvider(HostProviderDefinition),
     Export(ExportItem),
     Use(UseItem),
     Machine(Machine),
@@ -71,29 +70,7 @@ impl Default for ProviderDeclaration {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct HostProviderDefinition {
-    pub target: Identifier,
-    pub boundary_trait: HandleSpan<Identifier>,
-    /// The vtable STRUCT whose fn-ptr fields the arms bind (the field model,
-    /// extern brief SS12.1): `uefi_x64 provides TextOutput over
-    /// EfiTextOutputProtocol { ... }`. EMPTY when the block has no `over`
-    /// clause (the ZII default; required for `VtableField` arms, unused by
-    /// the static mechanisms).
-    pub vtable_struct: Identifier,
-    pub mappings: HandleSpan<HostProviderMapping>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-
-pub struct HostProviderMapping {
-    /// The boundary-trait method this arm binds (the `output_string` in
-    /// `output_string -> VtableSlot(1)`).
-    pub machine: Identifier,
-    pub binding: HostProviderMappingKind,
-}
-
-impl HostProviderMappingKind {
+impl ExternalBinding {
     /// PRV4: the NORMALIZED rendering -- the compile-time-evaluable binding
     /// expression's canonical text, the ExternalRealization identity the
     /// interner keys on. Exactly one spelling per binding value.
@@ -145,18 +122,18 @@ impl HostProviderMappingKind {
 /// convention (`Syscall` -> the syscall plan; `DllImport`/`VtableSlot` -> the C
 /// plan), so nobody names a convention in the common case (`calling_plans.md`).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum HostProviderMappingKind {
-    /// Linux's stable ABI is the number table: `-> Syscall(1)`.
+pub enum ExternalBinding {
+    /// Linux's stable ABI is the number table: `Binding::Syscall(1)`.
     Syscall { number: i64 },
-    /// Windows' stable ABI is named DLL exports: `-> DllImport("kernel32", "ExitProcess")`.
+    /// Windows' stable ABI is named DLL exports:
+    /// `Binding::DllImport("kernel32", "ExitProcess")`.
     DllImport { module: String, symbol: String },
-    /// COM/UEFI per-object dispatch: `-> VtableSlot(1)` (deref `this`, read the
+    /// COM/UEFI per-object dispatch: `Binding::VtableSlot(1)` (deref `this`, read the
     /// vtable pointer, read slot N, call at the declared convention).
     VtableSlot { index: i64 },
     /// COM/UEFI per-object dispatch by FIELD NAME (the field model, decided
-    /// 2026-07-04; extern brief SS12.1): `output_string -> output_string`
-    /// names a fn-ptr FIELD of the block's `over` struct; the layout policy
-    /// computes the offset -- no magic slot counts, headers fall out free.
+    /// 2026-07-04; extern brief SS12.1). The attached provider data type owns
+    /// the table layout; the policy computes the offset without magic slots.
     VtableField { field: Identifier },
     /// A SERVICE-TABLE function: `get_memory_map -> TableFunction(get_memory_map)`
     /// dispatches through the table's fn-ptr field like `VtableField`, but the
@@ -165,7 +142,7 @@ pub enum HostProviderMappingKind {
     TableFunction { field: Identifier },
 }
 
-impl Default for HostProviderMappingKind {
+impl Default for ExternalBinding {
     fn default() -> Self {
         Self::Syscall { number: 0 }
     }
@@ -647,7 +624,7 @@ pub struct SatisfiesClause {
     /// its normalized rendering becomes the
     /// machine's ExternalRealization supply identity. Only legal on a
     /// BODYLESS machine (a composite lowering is an ordinary checked body).
-    pub via: Option<HostProviderMappingKind>,
+    pub via: Option<ExternalBinding>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -663,8 +640,7 @@ pub struct Machine {
     /// program only when this target is SELECTED. The pre-resolution filter
     /// clears the marker on the selected target's machine and validates the
     /// loud edges (duplicate / zero implementations for the selected target);
-    /// a machine still carrying `Some` at resolution is inert, exactly like a
-    /// non-selected provides row.
+    /// a machine still carrying `Some` at resolution is inert.
     pub target: Option<Identifier>,
     /// The EXPORTED-CALLABLE marking (`boundary machine ...`): this machine
     /// is a callable surface the platform (or a foreign caller) invokes; its
@@ -769,7 +745,6 @@ struct DeclarationStorage {
     capability_contracts: Arena<CapabilityContract>,
     data_members: Arena<DataMember>,
     data_payload_fields: Arena<DataField>,
-    host_provider_mappings: Arena<HostProviderMapping>,
     wire_data_members: Arena<WireDataMember>,
     operators: Arena<OperatorDefinition>,
     measures: Arena<MeasureDefinition>,
@@ -872,15 +847,6 @@ impl ItemTable {
     pub fn data_payload_fields(&self, span: HandleSpan<DataField>) -> &[DataField] {
         self.declaration_storage
             .data_payload_fields
-            .span_or_empty(span)
-    }
-
-    pub fn host_provider_mappings(
-        &self,
-        span: HandleSpan<HostProviderMapping>,
-    ) -> &[HostProviderMapping] {
-        self.declaration_storage
-            .host_provider_mappings
             .span_or_empty(span)
     }
 
@@ -1050,15 +1016,6 @@ impl ItemTable {
         self.declaration_storage.data_payload_fields.append(field)
     }
 
-    pub fn append_host_provider_mapping(
-        &mut self,
-        mapping: HostProviderMapping,
-    ) -> Handle<HostProviderMapping> {
-        self.declaration_storage
-            .host_provider_mappings
-            .append(mapping)
-    }
-
     pub fn append_wire_data_member(&mut self, member: WireDataMember) -> Handle<WireDataMember> {
         self.declaration_storage.wire_data_members.append(member)
     }
@@ -1170,7 +1127,6 @@ impl DeclarationStorage {
             capability_contracts: Arena::new(),
             data_members: Arena::new(),
             data_payload_fields: Arena::new(),
-            host_provider_mappings: Arena::new(),
             wire_data_members: Arena::new(),
             operators: Arena::new(),
             measures: Arena::new(),

@@ -5,7 +5,7 @@
 //! specialization, and it runs in BOTH engine pipelines so the interpreter
 //! and native builds dispatch identically (the differential contract).
 //! Without a satisfying adapter the call keeps its host-lowering route
-//! (the built-in tables / provides rows serve it exactly as before).
+//! (the built-in tables or selected external leaves serve it).
 //!
 //! Adapters are static machines; receiver state never reaches one. They may be
 //! free during migration or attached to a nominal provider type so selection

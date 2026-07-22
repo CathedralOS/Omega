@@ -61,95 +61,24 @@ fn validate_boundary_providers(
     }
 }
 
-/// Parsed `provides` arms -> the calling-convention rows the freestanding ABI
-/// builder consumes (`<target> provides <Trait> { method -> VtableSlot(1) }`).
-fn extract_provides_rows(
+/// Extract bodyless external leaves into the calling-convention rows consumed
+/// by the freestanding ABI builder.
+fn extract_external_binding_rows(
     syntax_trees: &omega_syntax_trees::SyntaxTrees,
     selected_target: Option<&str>,
     selected_plan_names: &[String],
     provider_plans: &[omega_effects::provider_plan::ProviderPlan],
     typed: &omega_typed_trees::TypedTrees,
-) -> Vec<omega_calling_conventions::ProvidesRow> {
-    use omega_calling_conventions::{ProvidesBindingKind, ProvidesRow};
-    use omega_syntax_trees::item::HostProviderMappingKind;
+) -> Vec<omega_calling_conventions::ExternalBindingRow> {
+    use omega_calling_conventions::{ExternalBindingKind, ExternalBindingRow};
 
     let mut rows = Vec::new();
-    for item in syntax_trees.root_items() {
-        let omega_syntax_trees::item::Item::HostProvider(provider) = item else {
-            continue;
-        };
-        let trait_name = syntax_trees
-            .items
-            .identifier_path_members(provider.boundary_trait)
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::");
-        // The trait's LAST path member names the boundary trait item; its
-        // machine signatures supply each bound method's declared parameter
-        // count (the field-model encoders compare it against a call's
-        // operand list to detect a prepended result place).
-        let trait_item_name = syntax_trees
-            .items
-            .identifier_path_members(provider.boundary_trait)
-            .last()
-            .map(|member| member.as_str().to_owned())
-            .unwrap_or_default();
-        let provider_plan_name = format!("{}::{}", provider.target.as_str(), trait_item_name);
-        for mapping in syntax_trees.items.host_provider_mappings(provider.mappings) {
-            let binding = match &mapping.binding {
-                HostProviderMappingKind::Syscall { number } => {
-                    ProvidesBindingKind::Syscall { number: *number }
-                }
-                HostProviderMappingKind::DllImport { module, symbol } => {
-                    ProvidesBindingKind::DllImport {
-                        module: module.clone(),
-                        symbol: symbol.clone(),
-                    }
-                }
-                HostProviderMappingKind::VtableSlot { index } => {
-                    ProvidesBindingKind::VtableSlot { index: *index }
-                }
-                HostProviderMappingKind::VtableField { field } => {
-                    ProvidesBindingKind::VtableField {
-                        field: field.as_str().to_owned(),
-                    }
-                }
-                HostProviderMappingKind::TableFunction { field } => {
-                    ProvidesBindingKind::TableFunction {
-                        field: field.as_str().to_owned(),
-                    }
-                }
-            };
-            rows.push(ProvidesRow {
-                target_name: provider.target.as_str().to_owned(),
-                trait_name: trait_name.clone(),
-                method: mapping.machine.as_str().to_owned(),
-                vtable_struct: provider.vtable_struct.as_str().to_owned(),
-                parameter_count: boundary_trait_method_parameter_count(
-                    syntax_trees,
-                    &trait_item_name,
-                    mapping.machine.as_str(),
-                ),
-                boundary_entry_plan: selected_source_boundary_entry_plan(
-                    typed,
-                    provider_plans,
-                    selected_plan_names,
-                    &provider_plan_name,
-                    &trait_item_name,
-                    mapping.machine.as_str(),
-                ),
-                binding,
-            });
-        }
-    }
-
-    // PRV4 step 1c: EXTERNAL LEAVES feed the same row stream. A bodyless
+    // A bodyless
     // `satisfies Trait::method via <Binding>;` machine contributes one row
     // for the satisfied requirement; a `<target>`-scoped leaf rides its own
     // marker, an unscoped leaf rides the portable name (resolves to the
     // host target). For table-addressed mechanisms, the leaf's attached data
-    // type is the layout owner formerly named by `provides ... over Struct`.
+    // type owns the layout used for table-addressed mechanisms.
     for item in syntax_trees.root_items() {
         let omega_syntax_trees::item::Item::Machine(machine) = item else {
             continue;
@@ -183,32 +112,26 @@ fn extract_provides_rows(
             {
                 continue;
             }
-            use omega_syntax_trees::item::HostProviderMappingKind;
+            use omega_syntax_trees::item::ExternalBinding;
             let binding = match binding {
-                HostProviderMappingKind::Syscall { number } => {
-                    ProvidesBindingKind::Syscall { number: *number }
+                ExternalBinding::Syscall { number } => {
+                    ExternalBindingKind::Syscall { number: *number }
                 }
-                HostProviderMappingKind::DllImport { module, symbol } => {
-                    ProvidesBindingKind::DllImport {
-                        module: module.clone(),
-                        symbol: symbol.clone(),
-                    }
+                ExternalBinding::DllImport { module, symbol } => ExternalBindingKind::DllImport {
+                    module: module.clone(),
+                    symbol: symbol.clone(),
+                },
+                ExternalBinding::VtableSlot { index } => {
+                    ExternalBindingKind::VtableSlot { index: *index }
                 }
-                HostProviderMappingKind::VtableSlot { index } => {
-                    ProvidesBindingKind::VtableSlot { index: *index }
-                }
-                HostProviderMappingKind::VtableField { field } => {
-                    ProvidesBindingKind::VtableField {
-                        field: field.as_str().to_owned(),
-                    }
-                }
-                HostProviderMappingKind::TableFunction { field } => {
-                    ProvidesBindingKind::TableFunction {
-                        field: field.as_str().to_owned(),
-                    }
-                }
+                ExternalBinding::VtableField { field } => ExternalBindingKind::VtableField {
+                    field: field.as_str().to_owned(),
+                },
+                ExternalBinding::TableFunction { field } => ExternalBindingKind::TableFunction {
+                    field: field.as_str().to_owned(),
+                },
             };
-            rows.push(ProvidesRow {
+            rows.push(ExternalBindingRow {
                 // Target-machine filtering clears the selected machine's
                 // marker so it can participate as an ordinary implementation.
                 // Preserve deployment identity here from the compile target;
@@ -221,7 +144,7 @@ fn extract_provides_rows(
                 ),
                 trait_name: clause.trait_name.as_str().to_owned(),
                 method: requirement.as_str().to_owned(),
-                vtable_struct: provider_type.to_owned(),
+                table_type: provider_type.to_owned(),
                 parameter_count: boundary_trait_method_parameter_count(
                     syntax_trees,
                     clause.trait_name.as_str(),
@@ -438,13 +361,11 @@ impl Compiler {
             build_config.freestanding,
         )?;
         write_typed_snapshot(&self.options, &typed)?;
-        let mut provider_plans =
-            crate::pipeline::provider_plans::derive_provider_plans(&syntax_trees, &typed);
-        provider_plans.extend(crate::pipeline::provider_plans::derive_satisfies_plans(
+        let provider_plans = crate::pipeline::provider_plans::derive_satisfies_plans(
             &syntax_trees,
             &typed,
             self.options.target_name.as_deref(),
-        ));
+        );
         let selected_native_target =
             omega_target::NativeTarget::from_omega_target_name(self.options.target_name.as_deref())
                 .unwrap_or_else(|_| omega_target::NativeTarget::host());
@@ -486,7 +407,7 @@ impl Compiler {
         // Capture the selected provider's validated source calling plans
         // before typed ownership moves into checked lowering. The rows carry
         // them beside their mechanisms into the host-ABI/backend path.
-        let provides_rows = extract_provides_rows(
+        let external_binding_rows = extract_external_binding_rows(
             &syntax_trees,
             self.options.target_name.as_deref(),
             &selected_provider_plans,
@@ -520,13 +441,13 @@ impl Compiler {
         // in-source `target { subsystem }` word is retired.
         let _ = build_machine_present;
         let (subsystem, freestanding) = (build_config.subsystem, build_config.freestanding);
-        // provides-sourced bindings (extern brief §12): parsed rows become
-        // the freestanding target's authored platform surface.
+        // Selected external leaves become the target's source-authored
+        // platform surface.
         let backend = control_flow_to_backend_plan(
             checked,
             self.options.target_name.as_deref(),
             freestanding,
-            &provides_rows,
+            &external_binding_rows,
             control_flow,
             workers.handle(),
             &mut timings,

@@ -151,21 +151,26 @@ fn retired_spawn_forms_name_the_task_runtime_migration() {
 }
 
 #[test]
-fn retired_provides_values_name_the_data_migration() {
-    let source = r#"
-        boundary trait Flags { machine open_read() -> i32; }
-        demo_target provides Flags { open_read -> 0 }
-    "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens).expect_err("integer provides values must be retired");
-    assert!(
-        error
-            .message
-            .contains("integer `provides` values are retired")
-            && error.message.contains("target layout/format policy")
-    );
+fn retired_provides_declarations_name_the_external_leaf_migration() {
+    for declaration in [
+        "demo_target provides Flags { open_read -> Syscall(0) }",
+        "host demo_target provides Flags { open_read -> Syscall(0) }",
+    ] {
+        let source =
+            format!("boundary trait Flags {{ machine open_read() -> i32; }}\n{declaration}");
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens).expect_err("provides syntax must be retired");
+        assert!(
+            error
+                .message
+                .contains("`provides` declarations are retired")
+                && error
+                    .message
+                    .contains("satisfies Trait::method via Binding::Case")
+        );
+    }
 }
 
 #[test]

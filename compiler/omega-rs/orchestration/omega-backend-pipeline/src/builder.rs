@@ -55,7 +55,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     program: Arc<CheckedTrees>,
     target: NativeTarget,
     freestanding: bool,
-    provides_rows: &[omega_calling_conventions::ProvidesRow],
+    external_binding_rows: &[omega_calling_conventions::ExternalBindingRow],
     control_flow: Arc<ControlFlowPlan>,
     workers: WorkerPoolHandle,
 ) -> Result<BackendPlan, Diagnostic> {
@@ -66,19 +66,14 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     // lowerings, and (downstream) no import thunks. Absence = denial.
     let host_abi = record_backend_phase(&mut phase_timings, "host abi", || {
         if freestanding {
-            // provides-sourced bindings (extern brief §12): the program
-            // AUTHORED its platform surface; the rows become bindings +
-            // call lowerings (VtableSlot for UEFI protocols).
-            omega_calling_conventions::build_freestanding_abi_plan(target, provides_rows)
+            // Source external leaves become bindings and call lowerings
+            // (including table dispatch for UEFI protocols).
+            omega_calling_conventions::build_freestanding_abi_plan(target, external_binding_rows)
         } else {
-            // HOSTED targets consume authored `provides` rows too: they
-            // EXTEND the built-in platform tables (additive; colliding
-            // with a built-in operation is a loud error, never a silent
-            // override). Only rows whose target identifier resolves to
-            // THIS compile target apply -- `demo_target provides ...` and
-            // other targets' tables stay inert, exactly as before hosted
-            // consumption existed.
-            let target_rows: Vec<_> = provides_rows
+            // Hosted targets consume selected external leaves additively;
+            // colliding with a built-in operation is a loud error. Only rows
+            // whose target identifier resolves to this compile target apply.
+            let target_rows: Vec<_> = external_binding_rows
                 .iter()
                 .filter(|row| {
                     NativeTarget::from_omega_target_name(Some(&row.target_name))
@@ -87,7 +82,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
                 .cloned()
                 .collect();
             let mut plan = build_host_abi_plan(target);
-            omega_calling_conventions::merge_provides_rows(&mut plan, &target_rows)?;
+            omega_calling_conventions::merge_external_binding_rows(&mut plan, &target_rows)?;
             Ok(plan)
         }
     })
@@ -114,10 +109,9 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     let layouts = layouts?;
     let host_calls = host_calls?;
     let host_calls = Arc::new(host_calls);
-    // The FIELD MODEL's offset resolution (extern brief SS12.1): VtableField
-    // provides rows carried the vtable struct + field NAMES; the layout plan
-    // owns their byte offsets. Runs before any phase copies bindings out of
-    // the ABI plan; an unknown struct/field refuses the compile here.
+    // The field model's offset resolution: attached external leaves carry the
+    // table type and field names; the layout plan owns their byte offsets.
+    // Resolve before any phase copies bindings out of the ABI plan.
     let host_abi = record_backend_phase(&mut phase_timings, "vtable field offsets", || {
         resolve_vtable_field_offsets(host_abi, &layouts)
     })
@@ -1176,12 +1170,10 @@ fn compute_receiver_bases(
     bases
 }
 
-/// Resolve every `VtableField` binding's byte offset from the layout plan
-/// (the field model, extern brief SS12.1): the provides row named a fn-ptr
-/// FIELD of its `over` struct; the struct's layout owns the offset. Programs
-/// with no field-model rows pass through untouched (the common case pays one
-/// scan). Unknown struct or field = a loud compile refusal -- the encoder
-/// must never see an unresolved mechanism.
+/// Resolve every table-field binding's byte offset from its attached provider
+/// type's layout. Programs with no field-model rows pass through untouched.
+/// Unknown types or fields fail before an unresolved mechanism reaches an
+/// encoder.
 fn resolve_vtable_field_offsets(
     host_abi: std::sync::Arc<omega_calling_conventions::HostAbiPlan>,
     layouts: &omega_layout::LayoutPlan,
@@ -1224,13 +1216,13 @@ fn resolve_vtable_field_offsets(
             .map(|(_, data_layout)| data_layout)
         else {
             return Err(format!(
-                "provides `over {table}`: no data layout for the vtable struct -- declare \
+                "external table binding `{table}` has no data layout -- declare \
                  `data {table} {{ ... }}` with its fn-ptr fields in spec order",
             ));
         };
         let omega_layout::DataShape::Record { fields } = &data_layout.shape else {
             return Err(format!(
-                "provides `over {table}`: the vtable struct must be a plain record of \
+                "external table binding `{table}` must use a plain record of \
                  fn-ptr fields (case-bearing data cannot be a foreign vtable)",
             ));
         };
@@ -1240,8 +1232,8 @@ fn resolve_vtable_field_offsets(
                 .find(|candidate| candidate.name.as_str() == field.as_ref())
         }) else {
             return Err(format!(
-                "provides `over {table}`: no field `{field}` in the vtable struct -- the \
-                 arm's RHS must name one of its declared fn-ptr fields",
+                "external table binding `{table}` has no field `{field}` -- the Binding \
+                 case must name one of its declared fn-ptr fields",
             ));
         };
         let resolved_offset = field_layout.offset;

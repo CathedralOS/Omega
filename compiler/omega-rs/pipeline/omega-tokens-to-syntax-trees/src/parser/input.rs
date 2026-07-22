@@ -256,8 +256,8 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
 
     /// True when the input leads with a bare identifier IMMEDIATELY followed by
     /// the contextual keyword `name` -- a 2-token peek for identifier-led items
-    /// like `<target> provides <Trait> { ... }` (extern brief §3), which have no
-    /// leading keyword to dispatch on. Consumes nothing.
+    /// like `<target> machine Path(..)`, which have no leading keyword to
+    /// dispatch on. Consumes nothing.
     /// True when the input leads with the contextual keyword `name` IMMEDIATELY
     /// followed (past trivia) by a string literal -- the prefixed-string shape
     /// (`utf16"..."`). A bare identifier followed by a string literal is never

@@ -155,7 +155,7 @@ fn full_width_register(
     }
 }
 
-/// A VtableSlot call (provides-sourced, per-object dispatch).
+/// A `Binding::VtableSlot` external-leaf call (per-object dispatch).
 pub fn encode_vtable_call_sequence<T: InstructionOperandLike>(
     target: NativeTarget,
     operands: &[T],
@@ -544,7 +544,7 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
     }
 }
 
-/// A provides-authored / via-leaf IMPORT call (custom capability): the
+/// A source-authored external IMPORT call (custom capability): the
 /// emission-planning blocker enforces the result-binding shape, so the call
 /// ALWAYS carries a leading result operand -- on aarch64 it routes to the
 /// value-returning sequence directly (the capability-keyed returns_value()
