@@ -12562,25 +12562,26 @@ pub fn runtime_value_operand_width(
         10
     } else if let Some((_, _, byte_size)) = runtime_value_operands.storage(operand) {
         10 + load_width(byte_size)
-    } else if runtime_value_operands.pointee(operand).is_some() {
-        // mov r15,imm64 (10) + mov rax,[r15+ptr_off] (7) + load dest,[rax+field] (7)
-        24
-    } else if runtime_value_operands.frame_indexed(operand).is_some() {
+    } else if let Some((_, _, byte_size)) = runtime_value_operands.pointee(operand) {
+        // mov r15,imm64 (10) + mov rax,[r15+ptr_off] (7) + load dest,[rax+field].
+        // A 16-bit load has the extra 0x66 operand-size prefix.
+        17 + load_width(byte_size)
+    } else if let Some((_, _, _, _, byte_size)) = runtime_value_operands.frame_indexed(operand) {
         // mov r15,imm64 (10) + mov rax,[r15+desc] (7) + mov r11,[r15+idx] (7)
-        // + imul r11,r11,elem (7) + add rax,r11 (3) + load dest,[rax+field] (7)
-        41
-    } else if runtime_value_operands.frame_base_indexed(operand).is_some() {
+        // + imul r11,r11,elem (7) + add rax,r11 (3) + load dest,[rax+field].
+        34 + load_width(byte_size)
+    } else if let Some((_, _, _, _, byte_size)) = runtime_value_operands.frame_base_indexed(operand)
+    {
         // mov r15,imm64 (10) + mov r11,[r15+idx] (7) + imul r11,r11,elem (7)
-        // + mov rax,r15 (3) + add rax,r11 (3) + load dest,[rax+base+field] (7)
-        37
-    } else if runtime_value_operands
-        .frame_fixed_indexed(operand)
-        .is_some()
+        // + mov rax,r15 (3) + add rax,r11 (3) + load dest,[rax+base+field].
+        30 + load_width(byte_size)
+    } else if let Some((_, _, _, _, byte_size)) =
+        runtime_value_operands.frame_fixed_indexed(operand)
     {
         // Constant element index folds into the load displacement, so the shape
         // matches the pointee case: mov r15,imm64 (10) + mov rax,[r15+desc] (7)
-        // + load dest,[rax+const] (7).
-        24
+        // + load dest,[rax+const].
+        17 + load_width(byte_size)
     } else if let Some((_, index_region, _, _, _, byte_size)) =
         runtime_value_operands.machine_indexed(operand)
     {
@@ -14651,12 +14652,14 @@ fn append_load_reg_from_rax(
 ) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
     match (destination, byte_size) {
-        // mov r10{b,d,}, [rax + disp32] -- ModRM mod=10 reg=r10(010) rm=rax(000) = 0x90
+        // mov r10{b,w,d,}, [rax + disp32] -- ModRM mod=10 reg=r10(010) rm=rax(000) = 0x90
         (Reg64::R10, 1) => bytes.extend([0x44, 0x8a, 0x90]),
+        (Reg64::R10, 2) => bytes.extend([0x66, 0x44, 0x8b, 0x90]),
         (Reg64::R10, 4) => bytes.extend([0x44, 0x8b, 0x90]),
         (Reg64::R10, 8) => bytes.extend([0x4c, 0x8b, 0x90]),
-        // mov r11{b,d,}, [rax + disp32] -- ModRM mod=10 reg=r11(011) rm=rax(000) = 0x98
+        // mov r11{b,w,d,}, [rax + disp32] -- ModRM mod=10 reg=r11(011) rm=rax(000) = 0x98
         (Reg64::R11, 1) => bytes.extend([0x44, 0x8a, 0x98]),
+        (Reg64::R11, 2) => bytes.extend([0x66, 0x44, 0x8b, 0x98]),
         (Reg64::R11, 4) => bytes.extend([0x44, 0x8b, 0x98]),
         (Reg64::R11, 8) => bytes.extend([0x4c, 0x8b, 0x98]),
         _ => {
@@ -15053,6 +15056,26 @@ fn append_lock_cmpxchg_r10_to_r14(
 /// Same layout as `lock_xadd_r10_to_r14_width` (only the opcode byte differs).
 fn lock_cmpxchg_r10_to_r14_width(byte_size: usize) -> usize {
     lock_xadd_r10_to_r14_width(byte_size)
+}
+
+#[cfg(test)]
+mod runtime_operand_load_tests {
+    use super::*;
+
+    #[test]
+    fn rax_based_u16_operands_use_word_loads_in_width_lockstep() {
+        for (register, prefix) in [
+            (Reg64::R10, [0x66, 0x44, 0x8b, 0x90]),
+            (Reg64::R11, [0x66, 0x44, 0x8b, 0x98]),
+        ] {
+            let mut bytes = Vec::new();
+            append_load_reg_from_rax(&mut bytes, register, 24, 2)
+                .expect("u16 pointee load should encode");
+            assert_eq!(&bytes[..4], &prefix);
+            assert_eq!(&bytes[4..], &24i32.to_le_bytes());
+            assert_eq!(bytes.len(), load_width(2));
+        }
+    }
 }
 
 #[cfg(test)]

@@ -399,14 +399,14 @@ fn simple_local_binding_value_from_table(
                 case_variant: member.case_variant.clone(),
             })))
         }
-        // §5b recast (`&x as &T`): address identity -- the binding
-        // substitutes the VIEWED PLACE, and the let's stated type keeps
-        // driving reads at each use site (that IS the runtime meaning of a
-        // re-view; the rung-A judgment guarantees the operand is a scalar
-        // place). A VALUE cast stays unfoldable below.
-        ExpressionNode::Cast(cast) if cast.form.is_recast() => {
-            simple_local_binding_value_from_table(table, cast.value)
-        }
+        // A judged §5b recast (`&x as &T`) is address identity, but its local
+        // name is also the type-bearing runtime view. Substituting only the
+        // backing place erases `T` before a later projected scalar conversion
+        // (`view.mode as u64`) reaches storage selection, leaving the backend
+        // unable to derive the plan-laid field width or dereference shape.
+        // Runtime-storage planning already gives recast locals an address-
+        // carrying slot; preserve the name so every use consumes that slot.
+        ExpressionNode::Cast(cast) if cast.form.is_recast() => None,
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Cast(_)
         | ExpressionNode::StructLiteral(_) => None,

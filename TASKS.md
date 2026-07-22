@@ -626,13 +626,13 @@ slot owner may override by type. The migration order remains load-bearing.
    their zero representation before applying named fields. The remaining
    `Binding::Value` filesystem consumers are `struct stat` offsets. Shared
    record recasts may now contain a plan-laid subrecord in both native and
-   interpreter execution. Authoring the four target `StatLayout` policies and
-   cutting portable decode over remains fenced on
-   native value lowering for converted projected scalars: the Windows carrier
-   needs `u16` `st_mode`/`st_nlink` projections widened into the portable
-   metadata shape, while a stored widening from the plan-laid view still
-   reports `NeedsMachineOwnedWrite`/`needs runtime value lowering`. The focused
-   unconverted `u32`/`u64` synthetic view canary is green.
+   interpreter execution. Recast locals now remain materialized type-bearing
+   views instead of being flattened back to their byte-element initializer, so
+   stored widening from a projected plan-laid `u16` into `u64` lowers on both
+   x86-64 and AArch64 instead of reporting `NeedsMachineOwnedWrite`/`needs
+   runtime value lowering`. The focused synthetic view canary pins the exact
+   non-native offsets, interpreter agreement, and cross-target conversion.
+   Author the four target `StatLayout` policies and cut portable decode over.
 4. **PRV4f — compatibility deletion.** After the last consumers move, delete
    `Value`, populate tables, `provides` syntax, and every compatibility
    consumer. The unused `Binding::Instruction` carrier is already gone:
