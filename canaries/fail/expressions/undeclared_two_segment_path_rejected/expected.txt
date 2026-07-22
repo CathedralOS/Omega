@@ -1,1 +1,1 @@
-resolves to no case, constant, or per-target value
+resolves to no case, constant

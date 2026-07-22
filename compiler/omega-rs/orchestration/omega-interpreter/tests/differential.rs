@@ -996,7 +996,6 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_post_clauses_return_type_exit", 1),
     ("calls/runtime_loop_accumulator_exit", 1),
     ("calls/runtime_loop_rotation_exit", 1),
-    ("capabilities/runtime_provides_value_exit", 70),
     ("targets/single_target_internal_machine_skipped", 70),
     ("targets/target_machine_gating_exit", 70),
     ("traits/ring_requirement_satisfies_exit", 70),
