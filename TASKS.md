@@ -791,8 +791,11 @@ stronger operations it needs instead of citing machine parameters generally.
   `Arena`/`Allocation` contracts. Cathedral's bootstrap range-authority source
   now uses the settled `Extent`/`mint_extent` spelling; connect that temporary
   plain carrier to Omega's eventual opaque linear Extent surface rather than
-  reintroducing `Region`. Structural multiplicity, not a permanent semantic
-  ban, governs debt-bearing `Allocation<T>`.
+  reintroducing `Region`. Core's stage-1 allocator trait/module/canary now use
+  `Arena`, and the false ambient `Vec::with_capacity` surface is retired.
+  Introduce `Allocation<T>` only once its borrow from the Arena can be expressed
+  honestly. Structural multiplicity, not a permanent semantic ban, governs
+  debt-bearing `Allocation<T>`.
 - **Vec and slices.** Implement owned dynamic `Vec<T>` storage plus
   `as_slice`/`as_mut_slice` over real allocation/extents.
 

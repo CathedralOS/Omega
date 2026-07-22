@@ -25479,7 +25479,7 @@ fn runtime_i64_signed_arith_exit_canary_runs() {
 #[test]
 fn runtime_addr_value_flow_exit_canary_runs() {
     // addr as a first-class value (param/return/local/equality) plus the
-    // model's addr + u64 mixed op -- the Region::allocate shapes.
+    // model's addr + u64 mixed op -- the Arena::allocate shapes.
     let canary = pass_canary("types/runtime_addr_value_flow_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-addrflow-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -37319,7 +37319,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "core/array_core_surface",
     "core/zii_default_composite_exit",
     "core/fixed_vec_core_surface",
-    "core/region_core_surface",
+    "core/arena_core_surface",
     "core/task_core_linear_claim",
     "core/task_lifecycle_operations",
     "core/task_outcome_linear_payloads",
