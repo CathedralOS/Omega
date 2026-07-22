@@ -32,7 +32,7 @@ data Sim [copy, zero_init] {
 data Main {
     console: Console;
     s: Sim;
-    pause: String;
+    pause: [u8; 256];
 }
 
 // Perform one step of the simulation.

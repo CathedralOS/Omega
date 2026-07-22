@@ -34,7 +34,7 @@ machine Adder::fletcher(
 data Main {
     console: Console;
     adder: Adder;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

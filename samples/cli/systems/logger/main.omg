@@ -37,7 +37,7 @@ data Logger [copy, zero_init] {
 data Main {
     console: Console;
     logger: Logger;
-    pause: String;
+    pause: [u8; 256];
 }
 
 // Record one log entry; dispatch on the level case.

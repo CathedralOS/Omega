@@ -20,7 +20,7 @@ data Roots [copy, zero_init] {
 data Main {
     console: Console;
     state: Roots;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

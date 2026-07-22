@@ -41,7 +41,7 @@ data Main {
     console: Console;
     data: [i32 in Wrapping; 5];
     r: Recursor;
-    pause: String;
+    pause: [u8; 256];
 }
 
 // Recursive: sum all elements (linear accumulator: acc + s[0]).

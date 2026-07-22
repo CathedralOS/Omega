@@ -30,7 +30,7 @@ data Main {
     console: Console;
     table: [i32; 5];
     picker: Picker;
-    pause: String;
+    pause: [u8; 256];
 }
 
 // Returns an array index for a given key (0->0, 1->2, 2->4).

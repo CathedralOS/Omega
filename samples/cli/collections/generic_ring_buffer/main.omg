@@ -38,7 +38,7 @@ data Ring [copy, zero_init] {
 data Main {
     console: Console;
     ring: Ring;
-    pause: String;
+    pause: [u8; 256];
 }
 
 // ---------------------------------------------------------------------------

@@ -33,7 +33,7 @@ data Main {
     x: i32 [0..=31];          // guard-proven Exact render counter
     kind: i32;                // 0..3 glyph selector; guard-proven before the lookup
     glyph: u8;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

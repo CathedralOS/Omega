@@ -41,7 +41,7 @@ data Interp [copy, zero_init] {
 data Main {
     console: Console;
     interp: Interp;
-    pause: String;
+    pause: [u8; 256];
 }
 
 // Execute one token on the interpreter state.

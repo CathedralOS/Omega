@@ -28,7 +28,7 @@ data Main {
     k: i32 in Wrapping;    // clear index
     tc: u8;
     oc: u8;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

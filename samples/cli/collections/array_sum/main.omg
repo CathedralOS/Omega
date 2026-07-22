@@ -19,7 +19,7 @@ data Main {
     nums: [i32; 2];
     i: i32 [0..=2];
     sum: i64 in Wrapping; // Wrapping DECLARED: sums array elements, which carry no range facts yet.
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

@@ -16,7 +16,7 @@ use omega::language::std::console;
 
 data Main {
     console: Console;
-    pause: String;
+    pause: [u8; 256];
     x: u32 in Wrapping;
     bit: u32 in Wrapping;
     count: u32 in Wrapping;

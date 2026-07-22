@@ -25,7 +25,7 @@ data Main {
     jp: u64;         // j + 1 folds bounded from j's range -- plain Exact
     a: i32;
     b: i32;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

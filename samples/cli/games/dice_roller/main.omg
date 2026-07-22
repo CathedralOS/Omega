@@ -28,7 +28,7 @@ data Roller [copy, zero_init] {
 data Main {
     console: Console;
     roller: Roller;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

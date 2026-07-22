@@ -16,7 +16,7 @@ data Counter [copy, zero_init] {
 data Main {
     console: Console;
     counter: Counter;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

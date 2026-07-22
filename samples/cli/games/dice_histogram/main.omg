@@ -30,7 +30,7 @@ data Main {
     k: i32 in Wrapping;
     bo: i32 in Wrapping;   // bar offset
     lab: u8;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

@@ -27,7 +27,7 @@ data Main {
     console: Console;
     arr: [i32 in Wrapping; 6];
     adder: Adder;
-    pause: String;
+    pause: [u8; 256];
 }
 
 // Looping value-returning machine: acc + s[0] at each step, recurse on s[1..].

@@ -25,7 +25,7 @@ data Main {
     fb: f64;
     ratio: f64;
     result: i32 in Wrapping;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

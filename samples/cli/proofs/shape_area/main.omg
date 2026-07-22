@@ -22,7 +22,7 @@ data Main {
     console: Console;
     shape: Shape;
     area: i32;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

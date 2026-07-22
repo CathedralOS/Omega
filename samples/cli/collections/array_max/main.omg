@@ -17,7 +17,7 @@ data Main {
     i: i32 [0..=6];
     cur: i32;
     max: i32;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

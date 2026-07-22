@@ -28,7 +28,7 @@ data Main {
     out: [u8; 5] in Utf8;
     i: i32 [0..=5];        // guard-proven Exact counter (`i < 5` dominates the increment)
     ch: u8 in Wrapping;    // byte arithmetic is genuinely modular (decision 17)
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

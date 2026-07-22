@@ -35,7 +35,7 @@ data Stats [copy, zero_init] {
 data Main {
     console: Console;
     s: Stats;
-    pause: String;
+    pause: [u8; 256];
 }
 
 // Add one value to the running sum.

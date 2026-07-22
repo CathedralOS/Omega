@@ -22,7 +22,7 @@ data Trial [copy, zero_init] {
 data Main {
     console: Console;
     trial: Trial;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

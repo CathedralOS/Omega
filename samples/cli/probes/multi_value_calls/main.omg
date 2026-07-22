@@ -28,7 +28,7 @@ use omega::language::std::console;
 data Main {
     console: Console;
     offset: i32 in Saturating;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::double_val(&mut self, n: i32 in Saturating) -> i32 in Saturating {

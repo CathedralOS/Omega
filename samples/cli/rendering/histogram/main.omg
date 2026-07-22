@@ -19,7 +19,7 @@ use omega::language::std::console;
 
 data Main {
     console: Console;
-    pause: String;
+    pause: [u8; 256];
     samples: [u64; 8];
     // Wrapping DECLARED: the tallies accumulate values read back OUT of the
     // histogram array, and array elements carry no range facts yet.

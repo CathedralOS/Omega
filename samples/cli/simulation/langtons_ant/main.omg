@@ -43,7 +43,7 @@ data Main {
     cx: i32 in Wrapping;
     v: i32 in Wrapping;
     glyph: u8;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

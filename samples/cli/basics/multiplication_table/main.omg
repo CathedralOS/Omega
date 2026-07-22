@@ -28,7 +28,7 @@ data Main {
     o1: i32 in Wrapping;  // o0 + 1
     tc: u8;               // tens char (or space)
     oc: u8;               // ones char
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

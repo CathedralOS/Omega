@@ -15,7 +15,7 @@ use omega::language::std::console;
 
 data Main {
     console: Console;
-    pause: String;
+    pause: [u8; 256];
     text: [u8; 16] in Utf8;
     i: i32 [0..=16];
     cur: i32 in Wrapping;

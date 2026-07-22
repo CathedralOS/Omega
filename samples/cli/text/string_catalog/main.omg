@@ -50,7 +50,7 @@ data Catalog {
 data Main {
     console: Console;
     catalog: Catalog;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::set_entry1(&mut self) {

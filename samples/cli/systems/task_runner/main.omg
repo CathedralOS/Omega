@@ -41,7 +41,7 @@ data Runner [copy, zero_init] {
 data Main {
     console: Console;
     runner: Runner;
-    pause: String;
+    pause: [u8; 256];
 }
 
 // Top-level dispatcher: receive a task and handle it.

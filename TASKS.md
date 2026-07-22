@@ -1009,8 +1009,14 @@ stronger operations it needs instead of citing machine parameters generally.
   straight-line length proof tracks reaching writes, invalidates overlapping
   places, and drops its knowledge across calls or opaque effects; proven chains
   that fit compile, while the first append whose bound exceeds `N` rejects.
-  Continue the sample/lattice/host-contract migration and then retire the
-  compatibility type and compiler branches in the order recorded by
+  The 120 sample-only `pause: String` fields now use explicit
+  `[u8; 256]` storage, preserving the former native read ceiling, and the three
+  matching local Console declarations accept mutable byte views. The complete
+  sample compile and documented-exit runtime sweeps stay green. Sample-side
+  builtin declarations are now confined to the eleven dungeon source files and
+  the deliberate `text/string_catalog` workload. Continue those owners, the
+  lattice/host-contract migration, and then retire the compatibility type and
+  compiler branches in the order recorded by
   `wiki/architecture/string_retirement_execution.md`.
 - **Atomics remainder.** The closed ordering vocabulary and operation-specific
   legality rules now reject release-bearing loads, acquire-bearing stores,

@@ -27,7 +27,7 @@ data Main {
     tb: u8 in Wrapping;
     pb: u8 in Wrapping;
     found: i32 in Wrapping;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

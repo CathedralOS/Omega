@@ -27,7 +27,7 @@ data Main {
     v: i32 in Wrapping;
     prev: i32 in Wrapping;
     total: i32 in Wrapping;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

@@ -839,6 +839,10 @@ boundary and the operators.
 > reaching bound rather than pretending `line` is already full; overlapping
 > writes invalidate the fact, and calls or opaque effects clear it. Capacity is
 > therefore proved, never recovered by truncation or a runtime overflow path.
+> A fixed-capacity byte destination need not claim an encoding domain when its
+> consumer does not require one. Sample “press Enter” scratch fields use raw
+> `[u8; 256]`: the bound is explicit and preserves the former line-read ceiling,
+> while no unused `Utf8` fact is minted merely because the bytes are discarded.
 
 ### Establishing the domain: construction, validation, and the wire
 
