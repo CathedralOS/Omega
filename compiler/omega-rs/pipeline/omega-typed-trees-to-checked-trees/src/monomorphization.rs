@@ -1372,11 +1372,13 @@ fn clone_specialized_machine(
         expression_start,
         cloned.states,
     );
+    let instance_symbol = cloned.symbol;
     program.push_machine(cloned);
     program
         .machine_specializations
         .push(omega_typed_trees::typed_trees::MachineSpecialization {
             template: candidate.template_symbol,
+            instance: instance_symbol,
             type_arguments,
             machine_arguments: candidate
                 .machine_bindings
@@ -1642,6 +1644,7 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
         .machine_specializations
         .push(omega_typed_trees::typed_trees::MachineSpecialization {
             template: candidate.template_symbol,
+            instance: candidate.template_symbol,
             type_arguments: type_arguments.clone(),
             machine_arguments,
             template_contract_fingerprint,

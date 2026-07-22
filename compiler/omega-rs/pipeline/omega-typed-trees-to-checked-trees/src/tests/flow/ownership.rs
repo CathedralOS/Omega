@@ -554,6 +554,50 @@ fn materializes_explicit_static_by_value_self_transfer() {
     assert_eq!(moves[0].root, omega_facts::PlaceRoot::Symbol(item.symbol));
 }
 
+#[test]
+fn method_receiver_shared_borrow_retains_and_by_value_self_transfers() {
+    let source = r#"
+        data Item { value: i32; }
+        data Main {}
+
+        machine Item::inspect(&self) {}
+        machine Item::consume(self) {}
+
+        machine Main::settle(item: Item) {
+            item.inspect();
+            item.consume();
+        }
+    "#;
+
+    let (typed, flow) = checked_flow(source);
+    let state_flow = state_flow_by_names(&typed, &flow, "Main::settle", "settle");
+    let moves = flow.ownership.moves.span_or_empty(state_flow.moves);
+    assert_eq!(moves.len(), 1, "only consuming self transfers ownership");
+
+    let settle = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::settle")
+        .expect("settle machine");
+    let state = &typed.machine_states(settle)[0];
+    let item = typed
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "item")
+        .expect("item parameter");
+    assert_eq!(moves[0].root, omega_facts::PlaceRoot::Symbol(item.symbol));
+    let omega_checked_trees::FlowOwnershipEventSource::Call {
+        statement_index,
+        call_ordinal,
+        ..
+    } = moves[0].source
+    else {
+        panic!("consuming method receiver should record a call transfer");
+    };
+    assert_eq!(statement_index, 1);
+    assert_eq!(call_ordinal, 0);
+}
+
 fn checked_flow(
     source: &str,
 ) -> (

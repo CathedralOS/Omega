@@ -1,0 +1,21 @@
+// PASS canary (decision 21): a linear value enters through a real platform
+// boundary parameter. Its state-entry establishment must be realized by the
+// entry prologue's inbound argument write, never inferred from zero storage.
+// The body observes the payload and then explicitly consumes the obligation.
+
+data ImageHandle [linear] { raw: addr; }
+machine ImageHandle::release(self) {}
+
+data Main {}
+
+boundary machine Main::main(&mut self, handle: ImageHandle) -> i32 {
+    let raw: addr = handle.raw;
+    ImageHandle::release(handle);
+    transition raw == 0 {
+        true -> zero()
+        false -> present()
+    }
+
+    state zero(&mut self) -> i32 { 4 }
+    state present(&mut self) -> i32 { 5 }
+}

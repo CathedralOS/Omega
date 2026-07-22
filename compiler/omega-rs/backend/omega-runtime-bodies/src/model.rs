@@ -52,7 +52,9 @@ impl Default for RuntimeDispatchBodyOperation {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum RuntimeDispatchBodyOperationKind {
-    HostCall,
+    HostCall {
+        call_ordinal: usize,
+    },
     /// An `asm { hlt }` statement: a raw MachineHalt instruction, not a state
     /// transition or host call. See the privileged_effects_and_binary_trust
     /// brief and the parallel `HostCall` handling.

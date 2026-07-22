@@ -357,6 +357,7 @@ fn static_machine_argument_specializes_body_calls_to_direct_symbols() {
         .expect("specialized apply machine");
     assert!(checked.machine_type_parameters(apply).is_empty());
     assert_eq!(checked.machine_specializations.len(), 1);
+    assert_eq!(checked.machine_specializations[0].instance, apply.symbol);
     assert_eq!(
         checked.machine_specializations[0].machine_arguments,
         vec![power_symbol]

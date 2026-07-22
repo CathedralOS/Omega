@@ -24,8 +24,9 @@ pub use instruction::{
     ValueOperand, ValueOperandHandle,
 };
 pub use ownership::{
-    AbstractDropEvent, AbstractMoveEvent, AbstractOwnershipEventSource, AbstractOwnershipSummary,
-    AbstractPermissionEvent,
+    AbstractOwnershipSummary, AbstractPermissionEvent, AbstractPermissionRealization,
+    AbstractPermissionRealizationKind, CheckedNoCodePermissionReason,
+    PermissionRealizationCandidate, PermissionRealizationCandidateKind, PermissionRealizationError,
 };
 pub use plan::{AbstractOperationCode, AbstractOperationPlan};
 pub use semantics::AbstractSemanticSummary;

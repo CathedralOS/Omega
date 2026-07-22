@@ -1,0 +1,15 @@
+use omega::language::core::task;
+
+// FAIL canary: a rejected transactional start returns its moved linear
+// arguments; leaving that Rejected payload unsettled must remain a scope loss.
+data Receipt [linear] { code: i32; }
+data Main {}
+
+machine Main::main(&mut self) -> i32 {
+    let receipt: Receipt = Receipt { code: 7 };
+    let outcome: StartOutcome<i32, Receipt> = StartOutcome::Rejected {
+        arguments: receipt,
+        reason: StartRejection { code: 1 }
+    };
+    0
+}

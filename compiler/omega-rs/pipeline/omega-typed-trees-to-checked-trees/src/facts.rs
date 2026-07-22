@@ -74,7 +74,11 @@ fn build_carry_facts(program: &TypedTrees) -> omega_checked_trees::CarryFacts {
             effective: omega_validation::effective_data_carry_policy(program, definition),
         })
         .collect();
-    omega_checked_trees::CarryFacts { data }
+    omega_checked_trees::CarryFacts {
+        data,
+        suspension_crossings: Vec::new(),
+        asynchronous_preemption: Vec::new(),
+    }
 }
 
 /// STR4 checked plans (machine_taxonomy.md): assemble each machine's
@@ -201,7 +205,10 @@ fn build_contract_plans(
             fingerprint,
         });
     }
-    omega_checked_trees::MachineContractPlans { machines }
+    omega_checked_trees::MachineContractPlans {
+        machines,
+        task_activations: Vec::new(),
+    }
 }
 
 fn encode_type_spelling(text: &str, binders: &[(String, String)], output: &mut Vec<u8>) {

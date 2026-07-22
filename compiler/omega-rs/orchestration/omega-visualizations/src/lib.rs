@@ -13,7 +13,7 @@ pub use backend::{
 };
 pub use checked_trees::{
     capability_manifest_html, capability_manifest_json, carry_manifest_json, checked_trees_html,
-    machine_contract_manifest_json,
+    machine_contract_manifest_json, task_activation_manifest_json,
 };
 pub use control_flow::control_flow_html;
 pub use phase_diagram::{

@@ -1,49 +1,32 @@
-use omega_abstract_operations::{
-    AbstractDropEvent, AbstractMoveEvent, AbstractOwnershipEventSource, AbstractOwnershipSummary,
-    AbstractPermissionEvent,
-};
-use omega_control_flow::{ControlFlowPlan, StateOwnershipEventSource};
+use omega_abstract_operations::{AbstractOwnershipSummary, AbstractPermissionEvent};
+use omega_control_flow::ControlFlowPlan;
 
 pub(super) fn build_abstract_ownership_summary(
     control_flow: &ControlFlowPlan,
 ) -> AbstractOwnershipSummary {
     let mut summary = AbstractOwnershipSummary::with_capacity(
         control_flow.semantics.ownership.segments.len(),
-        control_flow.semantics.ownership.moves.len(),
-        control_flow.semantics.ownership.drops.len(),
         control_flow.semantics.ownership.permissions.len(),
     );
 
     for (_, state) in control_flow.states.iter() {
-        for event in control_flow
-            .semantics
-            .ownership
-            .moves
-            .span_or_empty(state.ownership.moves)
-        {
-            summary.moves.insert(AbstractMoveEvent {
-                source_key: state.key,
-                source: remap_ownership_event_source(event.source),
-                root: event.root,
-                segments: summary.segments.insert_many(
-                    control_flow
-                        .semantics
-                        .ownership
-                        .segments
-                        .span_or_empty(event.segments)
-                        .iter()
-                        .copied(),
-                ),
-            });
-        }
-
-        for event in control_flow
+        let permission_span = state.ownership.permissions;
+        for (event_offset, event) in control_flow
             .semantics
             .ownership
             .permissions
-            .span_or_empty(state.ownership.permissions)
+            .span_or_empty(permission_span)
+            .iter()
+            .enumerate()
         {
             summary.permissions.insert(AbstractPermissionEvent {
+                source_event_index: permission_span
+                    .start()
+                    .arena_index()
+                    .checked_add(
+                        u32::try_from(event_offset).expect("permission event offset overflow"),
+                    )
+                    .expect("permission event index overflow"),
                 source_key: state.key,
                 source: event.source,
                 kind: event.kind,
@@ -63,49 +46,9 @@ pub(super) fn build_abstract_ownership_summary(
                 obligation_live: event.obligation_live,
             });
         }
-
-        for event in control_flow
-            .semantics
-            .ownership
-            .drops
-            .span_or_empty(state.ownership.drops)
-        {
-            summary.drops.insert(AbstractDropEvent {
-                source_key: state.key,
-                source: remap_ownership_event_source(event.source),
-                root: event.root,
-                segments: summary.segments.insert_many(
-                    control_flow
-                        .semantics
-                        .ownership
-                        .segments
-                        .span_or_empty(event.segments)
-                        .iter()
-                        .copied(),
-                ),
-            });
-        }
     }
 
     summary
-}
-
-fn remap_ownership_event_source(source: StateOwnershipEventSource) -> AbstractOwnershipEventSource {
-    match source {
-        StateOwnershipEventSource::Statement { statement_index } => {
-            AbstractOwnershipEventSource::Statement { statement_index }
-        }
-        StateOwnershipEventSource::Call {
-            statement_index,
-            call_ordinal,
-            target_symbol,
-        } => AbstractOwnershipEventSource::Call {
-            statement_index,
-            call_ordinal,
-            target_symbol,
-        },
-        StateOwnershipEventSource::StateExit => AbstractOwnershipEventSource::StateExit,
-    }
 }
 
 #[cfg(test)]

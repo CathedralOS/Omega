@@ -21,9 +21,9 @@ pub(crate) fn build_machine_program(
 mod tests {
     use super::*;
     use omega_abstract_operations::{
-        AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, AbstractMoveEvent,
-        AbstractOwnershipEventSource, AbstractSourceBoundaryEdge, AbstractValueFact,
-        AbstractValueOrigin, AbstractValueStatementRole,
+        AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, AbstractPermissionEvent,
+        AbstractSourceBoundaryEdge, AbstractValueFact, AbstractValueOrigin,
+        AbstractValueStatementRole,
     };
     use omega_core::symbols::SymbolHandle;
 
@@ -108,39 +108,37 @@ mod tests {
     }
 
     #[test]
-    fn preserves_target_ownership_summary_into_machine_program() {
+    fn preserves_target_permission_summary_into_machine_program() {
         let mut target_operations = InstructionPlan::default();
         let target_symbol = SymbolHandle::from_arena_index(1);
 
         target_operations
             .semantics
             .ownership
-            .moves
-            .insert(AbstractMoveEvent {
-                source_key: Default::default(),
-                source: AbstractOwnershipEventSource::Call {
+            .permissions
+            .insert(AbstractPermissionEvent {
+                source: omega_core::semantics::PermissionEventSource::Call {
                     statement_index: 22,
                     call_ordinal: 3,
                     target_symbol,
                 },
-                root: Default::default(),
-                segments: Default::default(),
+                ..AbstractPermissionEvent::default()
             });
 
         let machine_program = build_machine_program(&target_operations).expect("machine program");
 
-        assert_eq!(machine_program.semantics.ownership.moves.len(), 1);
+        assert_eq!(machine_program.semantics.ownership.permissions.len(), 1);
         let event = machine_program
             .semantics
             .ownership
-            .moves
+            .permissions
             .iter()
             .next()
             .map(|(_, event)| event)
             .expect("machine-program ownership event");
         assert_eq!(
             event.source,
-            AbstractOwnershipEventSource::Call {
+            omega_core::semantics::PermissionEventSource::Call {
                 statement_index: 22,
                 call_ordinal: 3,
                 target_symbol,

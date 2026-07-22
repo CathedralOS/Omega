@@ -1,9 +1,9 @@
 use omega_core::symbols::SymbolHandle;
-use omega_facts::{FactPayload, FactPlace};
+use omega_facts::FactPlace;
 
 use super::labels::{ContractTargetParameters, instantiate_call_contract_expression_label};
 use super::places::{expression_is_boolean_place_like, expression_place_matches};
-use crate::labels::canonical_place_label;
+use crate::labels::{canonical_place_label, semantic_boolean_fact_label};
 
 pub(super) fn direct_context_proves_boolean_expression(
     program: &omega_typed_trees::TypedTrees,
@@ -14,17 +14,11 @@ pub(super) fn direct_context_proves_boolean_expression(
     let required_label = program.expression_table.display_name(expression);
 
     semantic.context_view(context).facts().any(|fact| {
-        let candidate_expression = match fact.payload {
-            FactPayload::BooleanExpression(candidate_expression)
-            | FactPayload::ContractBooleanExpression {
-                expression: candidate_expression,
-                ..
-            } => candidate_expression,
-            _ => return false,
+        let Some(candidate_label) = semantic_boolean_fact_label(program, semantic, fact) else {
+            return false;
         };
 
-        candidate_expression == expression
-            || program.expression_table.display_name(candidate_expression) == required_label
+        candidate_label == required_label
             || (expression_is_boolean_place_like(program, expression)
                 && matches!(fact.place, FactPlace::Place(candidate_place)
                     if expression_place_matches(program, semantic, expression, candidate_place)))
@@ -51,16 +45,11 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
     );
 
     semantic.context_view(context).facts().any(|fact| {
-        let candidate_expression = match fact.payload {
-            FactPayload::BooleanExpression(candidate_expression)
-            | FactPayload::ContractBooleanExpression {
-                expression: candidate_expression,
-                ..
-            } => candidate_expression,
-            _ => return false,
+        let Some(candidate_label) = semantic_boolean_fact_label(program, semantic, fact) else {
+            return false;
         };
 
-        program.expression_table.display_name(candidate_expression) == required_label
+        candidate_label == required_label
             || (expression_is_boolean_place_like(program, expression)
                 && matches!(fact.place, FactPlace::Place(candidate_place)
                     if instantiate_call_contract_expression_label(

@@ -22,6 +22,7 @@ pub mod source;
 mod stage;
 mod stages;
 mod target_machines;
+mod task_plans;
 mod timing;
 mod trait_defaults;
 mod trust_lockfile;

@@ -95,7 +95,7 @@ mod tests {
         machine_instructions
             .semantics
             .ownership
-            .moves
+            .permissions
             .insert(Default::default());
 
         let encoded = emit_machine_bytes(MachineEmissionInput {
@@ -141,8 +141,8 @@ mod tests {
             AbstractBoundaryPolicyVerdict::MissingHostBinding
         );
         assert_eq!(
-            encoded.semantics.ownership.moves.len(),
-            machine_instructions.semantics.ownership.moves.len()
+            encoded.semantics.ownership.permissions.len(),
+            machine_instructions.semantics.ownership.permissions.len()
         );
         assert_eq!(encoded.code.instructions.len(), 2);
         assert!(encoded.code.byte_count > 0);

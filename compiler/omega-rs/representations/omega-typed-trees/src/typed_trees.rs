@@ -64,6 +64,11 @@ pub struct BoundaryCallingPlanIdentity {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineSpecialization {
     pub template: omega_core::symbols::SymbolHandle,
+    /// Concrete machine instance produced for this substitution. The first
+    /// specialization may reuse `template`; later specializations clone it
+    /// under a fresh symbol. Consumers must key executable/elaborated work by
+    /// this symbol rather than guessing from specialization order.
+    pub instance: omega_core::symbols::SymbolHandle,
     pub type_arguments: Vec<String>,
     pub machine_arguments: Vec<omega_core::symbols::SymbolHandle>,
     /// The normalized authored template identity captured before in-place

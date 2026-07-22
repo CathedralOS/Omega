@@ -32,6 +32,7 @@ normalized_id!(MachineEntryId, "machine-entry");
 normalized_id!(ValueLayoutId, "value-layout");
 normalized_id!(CallingPlanId, "calling-plan");
 normalized_id!(TaskRuntimeId, "task-runtime");
+normalized_id!(ActivationPlanId, "activation-plan");
 normalized_id!(ActivationAdmissionId, "activation-admission");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -102,6 +103,13 @@ pub struct ValidatedActivationPlan(ActivationPlanCandidate);
 impl ValidatedActivationPlan {
     pub const fn candidate(&self) -> &ActivationPlanCandidate {
         &self.0
+    }
+
+    /// Normalized identity of the complete provider-independent demand. A
+    /// provider admission receipt binds to this identity rather than relying
+    /// on a caller-selected label or the start specialization alone.
+    pub fn normalized_identity(&self) -> ActivationPlanId {
+        ActivationPlanId(fingerprint_activation_plan(&self.0))
     }
 }
 
@@ -214,33 +222,32 @@ impl TaskRuntimeAdmission {
 pub fn admit_activation(
     plan: &ValidatedActivationPlan,
     runtime: &TaskRuntimeContract,
-    admission: ActivationAdmissionId,
 ) -> Result<TaskRuntimeAdmission, TaskPlanDiagnostic> {
-    let plan = plan.candidate();
-    if plan.continuation_bytes > runtime.max_continuation_bytes {
+    let candidate = plan.candidate();
+    if candidate.continuation_bytes > runtime.max_continuation_bytes {
         return Err(TaskPlanDiagnostic(format!(
             "activation needs {} continuation bytes but runtime admits {}",
-            plan.continuation_bytes, runtime.max_continuation_bytes
+            candidate.continuation_bytes, runtime.max_continuation_bytes
         )));
     }
     if runtime.max_continuation_alignment == 0
-        || plan.continuation_alignment > runtime.max_continuation_alignment
+        || candidate.continuation_alignment > runtime.max_continuation_alignment
         || !runtime
             .max_continuation_alignment
-            .is_multiple_of(plan.continuation_alignment)
+            .is_multiple_of(candidate.continuation_alignment)
     {
         return Err(TaskPlanDiagnostic(format!(
             "activation alignment {} is incompatible with runtime alignment {}",
-            plan.continuation_alignment, runtime.max_continuation_alignment
+            candidate.continuation_alignment, runtime.max_continuation_alignment
         )));
     }
-    if plan.cancellation_required && !runtime.cancellation {
+    if candidate.cancellation_required && !runtime.cancellation {
         return Err(TaskPlanDiagnostic(
             "activation requires cancellation but runtime does not provide it".into(),
         ));
     }
     if runtime.inline_completion == InlineCompletionBehavior::MayCompleteInline
-        && plan.activation == DistinctActivationRequirement::Required
+        && candidate.activation == DistinctActivationRequirement::Required
     {
         return Err(TaskPlanDiagnostic(
             "runtime may complete inline but activation contract requires distinct execution"
@@ -249,12 +256,14 @@ pub fn admit_activation(
     }
 
     let demand = match runtime.preemption {
-        PreemptionGranularity::SafePoints => plan.safe_point_migration,
-        PreemptionGranularity::Asynchronous => plan.asynchronous_migration.ok_or_else(|| {
-            TaskPlanDiagnostic(
-                "asynchronous runtime requires an all-instruction carry analysis".into(),
-            )
-        })?,
+        PreemptionGranularity::SafePoints => candidate.safe_point_migration,
+        PreemptionGranularity::Asynchronous => {
+            candidate.asynchronous_migration.ok_or_else(|| {
+                TaskPlanDiagnostic(
+                    "asynchronous runtime requires an all-instruction carry analysis".into(),
+                )
+            })?
+        }
     };
     if demand.cpu == SameCpuDemand::Same && runtime.cpu_migration != CpuMigrationBehavior::Pinned {
         return Err(TaskPlanDiagnostic(
@@ -277,11 +286,116 @@ pub fn admit_activation(
     }
 
     Ok(TaskRuntimeAdmission {
-        identity: admission,
+        identity: ActivationAdmissionId(fingerprint_admission(plan, runtime)),
         runtime: runtime.runtime,
-        machine_contract: plan.machine_contract,
+        machine_contract: candidate.machine_contract,
         selected_migration_demand: demand,
     })
+}
+
+fn fingerprint_activation_plan(plan: &ActivationPlanCandidate) -> u64 {
+    let mut fingerprint = Fingerprint::new();
+    fingerprint.word(plan.machine_contract.normalized_identity());
+    fingerprint.word(plan.entry.normalized_identity());
+    fingerprint.word(plan.argument_layout.normalized_identity());
+    fingerprint.word(plan.terminal_outcome_layout.normalized_identity());
+    fingerprint.word(plan.calling_plan.normalized_identity());
+    fingerprint.word(plan.continuation_bytes);
+    fingerprint.word(plan.continuation_alignment);
+    fingerprint.flag(plan.reaches_suspend);
+    fingerprint.flag(plan.suspension_crossings_safe);
+    fingerprint.migration(plan.safe_point_migration);
+    match plan.asynchronous_migration {
+        Some(demand) => {
+            fingerprint.byte(1);
+            fingerprint.migration(demand);
+        }
+        None => fingerprint.byte(0),
+    }
+    fingerprint.flag(plan.cancellation_required);
+    fingerprint.byte(match plan.activation {
+        DistinctActivationRequirement::Required => 1,
+        DistinctActivationRequirement::InlineCompletionAllowed => 2,
+    });
+    fingerprint.finish()
+}
+
+fn fingerprint_admission(plan: &ValidatedActivationPlan, runtime: &TaskRuntimeContract) -> u64 {
+    let mut fingerprint = Fingerprint::new();
+    fingerprint.word(plan.normalized_identity().normalized_identity());
+    fingerprint.word(runtime.runtime.normalized_identity());
+    fingerprint.word(runtime.max_continuation_bytes);
+    fingerprint.word(runtime.max_continuation_alignment);
+    fingerprint.byte(match runtime.preemption {
+        PreemptionGranularity::SafePoints => 1,
+        PreemptionGranularity::Asynchronous => 2,
+    });
+    fingerprint.byte(match runtime.cpu_migration {
+        CpuMigrationBehavior::MayMigrate => 1,
+        CpuMigrationBehavior::Pinned => 2,
+    });
+    fingerprint.byte(match runtime.thread_migration {
+        ThreadMigrationBehavior::MayMigrate => 1,
+        ThreadMigrationBehavior::Pinned => 2,
+    });
+    fingerprint.byte(match runtime.continuation_storage {
+        ContinuationStorageBehavior::Movable => 1,
+        ContinuationStorageBehavior::Stable => 2,
+    });
+    fingerprint.flag(runtime.cancellation);
+    fingerprint.byte(match runtime.inline_completion {
+        InlineCompletionBehavior::Never => 1,
+        InlineCompletionBehavior::MayCompleteInline => 2,
+    });
+    fingerprint.finish()
+}
+
+struct Fingerprint(u64);
+
+impl Fingerprint {
+    const OFFSET: u64 = 0xcbf29ce484222325;
+    const PRIME: u64 = 0x100000001b3;
+
+    const fn new() -> Self {
+        Self(Self::OFFSET)
+    }
+
+    fn byte(&mut self, byte: u8) {
+        self.0 ^= u64::from(byte);
+        self.0 = self.0.wrapping_mul(Self::PRIME);
+    }
+
+    fn flag(&mut self, value: bool) {
+        self.byte(u8::from(value));
+    }
+
+    fn word(&mut self, value: u64) {
+        for byte in value.to_le_bytes() {
+            self.byte(byte);
+        }
+    }
+
+    fn migration(&mut self, demand: MigrationDemand) {
+        self.byte(match demand.cpu {
+            SameCpuDemand::Any => 1,
+            SameCpuDemand::Same => 2,
+        });
+        self.byte(match demand.thread {
+            SameThreadDemand::Any => 1,
+            SameThreadDemand::Same => 2,
+        });
+        self.byte(match demand.address {
+            AddressStabilityDemand::Movable => 1,
+            AddressStabilityDemand::Stable => 2,
+        });
+    }
+
+    fn finish(self) -> u64 {
+        // Normalized IDs reserve zero as the invalid sentinel. FNV-1a
+        // reaching zero is extraordinarily unlikely, but the representation
+        // must remain total rather than manufacturing an invalid ID.
+        if self.0 == 0 { Self::OFFSET } else { self.0 }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -342,12 +456,7 @@ mod tests {
     #[test]
     fn safe_point_runtime_admits_matching_storage_and_carry_demands() {
         let plan = validate_activation_plan(candidate()).expect("activation plan");
-        let admission = admit_activation(
-            &plan,
-            &runtime(),
-            id(20, ActivationAdmissionId::from_normalized_identity),
-        )
-        .expect("runtime admission");
+        let admission = admit_activation(&plan, &runtime()).expect("runtime admission");
         assert_eq!(admission.runtime().normalized_identity(), 10);
         assert_eq!(
             admission.selected_migration_demand().cpu,
@@ -368,13 +477,33 @@ mod tests {
         let plan = validate_activation_plan(candidate()).expect("activation plan");
         let mut asynchronous = runtime();
         asynchronous.preemption = PreemptionGranularity::Asynchronous;
-        let error = admit_activation(
-            &plan,
-            &asynchronous,
-            id(21, ActivationAdmissionId::from_normalized_identity),
-        )
-        .expect_err("safe-point analysis cannot justify async preemption");
+        let error = admit_activation(&plan, &asynchronous)
+            .expect_err("safe-point analysis cannot justify async preemption");
         assert!(error.0.contains("all-instruction"));
+    }
+
+    #[test]
+    fn asynchronous_runtime_admits_a_matching_all_instruction_envelope() {
+        let mut asynchronous_candidate = candidate();
+        asynchronous_candidate.asynchronous_migration = Some(MigrationDemand {
+            cpu: SameCpuDemand::Same,
+            thread: SameThreadDemand::Any,
+            address: AddressStabilityDemand::Stable,
+        });
+        let plan = validate_activation_plan(asynchronous_candidate).expect("activation plan");
+        let mut asynchronous = runtime();
+        asynchronous.preemption = PreemptionGranularity::Asynchronous;
+
+        let admission =
+            admit_activation(&plan, &asynchronous).expect("asynchronous runtime admission");
+        assert_eq!(
+            admission.selected_migration_demand(),
+            MigrationDemand {
+                cpu: SameCpuDemand::Same,
+                thread: SameThreadDemand::Any,
+                address: AddressStabilityDemand::Stable,
+            }
+        );
     }
 
     #[test]
@@ -382,32 +511,17 @@ mod tests {
         let plan = validate_activation_plan(candidate()).expect("activation plan");
         let mut migrating = runtime();
         migrating.cpu_migration = CpuMigrationBehavior::MayMigrate;
-        let error = admit_activation(
-            &plan,
-            &migrating,
-            id(22, ActivationAdmissionId::from_normalized_identity),
-        )
-        .expect_err("same CPU demand");
+        let error = admit_activation(&plan, &migrating).expect_err("same CPU demand");
         assert!(error.0.contains("same-CPU"));
 
         let mut movable = runtime();
         movable.continuation_storage = ContinuationStorageBehavior::Movable;
-        let error = admit_activation(
-            &plan,
-            &movable,
-            id(23, ActivationAdmissionId::from_normalized_identity),
-        )
-        .expect_err("stable address demand");
+        let error = admit_activation(&plan, &movable).expect_err("stable address demand");
         assert!(error.0.contains("stable addresses"));
 
         let mut inline = runtime();
         inline.inline_completion = InlineCompletionBehavior::MayCompleteInline;
-        let error = admit_activation(
-            &plan,
-            &inline,
-            id(24, ActivationAdmissionId::from_normalized_identity),
-        )
-        .expect_err("distinct activation required");
+        let error = admit_activation(&plan, &inline).expect_err("distinct activation required");
         assert!(error.0.contains("inline"));
     }
 
@@ -416,13 +530,25 @@ mod tests {
         let plan = validate_activation_plan(candidate()).expect("activation plan");
         let runtime =
             TaskRuntimeContract::pessimistic(id(11, TaskRuntimeId::from_normalized_identity));
-        assert!(
-            admit_activation(
-                &plan,
-                &runtime,
-                id(25, ActivationAdmissionId::from_normalized_identity)
-            )
-            .is_err()
-        );
+        assert!(admit_activation(&plan, &runtime).is_err());
+    }
+
+    #[test]
+    fn normalized_plan_and_admission_identities_bind_every_checked_input() {
+        let plan = validate_activation_plan(candidate()).expect("activation plan");
+        let plan_identity = plan.normalized_identity();
+        let admission = admit_activation(&plan, &runtime()).expect("runtime admission");
+
+        let mut changed_candidate = candidate();
+        changed_candidate.continuation_bytes += 1;
+        let changed_plan =
+            validate_activation_plan(changed_candidate).expect("changed activation plan");
+        assert_ne!(plan_identity, changed_plan.normalized_identity());
+
+        let mut changed_runtime = runtime();
+        changed_runtime.max_continuation_bytes += 1;
+        let changed_admission =
+            admit_activation(&plan, &changed_runtime).expect("changed runtime admission");
+        assert_ne!(admission.identity(), changed_admission.identity());
     }
 }

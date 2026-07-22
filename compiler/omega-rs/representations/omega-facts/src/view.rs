@@ -81,17 +81,11 @@ impl<'facts> FactContextView<'facts> {
     ) -> bool {
         let required_label = program.expression_table.display_name(expression);
         self.facts().any(|fact| {
-            let candidate_expression = match fact.payload {
-                FactPayload::BooleanExpression(candidate_expression)
-                | FactPayload::ContractBooleanExpression {
-                    expression: candidate_expression,
-                    ..
-                } => candidate_expression,
-                _ => return false,
+            let Some(candidate_label) = self.plan.boolean_fact_label(program, fact) else {
+                return false;
             };
 
-            candidate_expression == expression
-                || program.expression_table.display_name(candidate_expression) == required_label
+            candidate_label == required_label
                 || place.is_some_and(|required_place| {
                     matches!(fact.place, FactPlace::Place(candidate_place)
                         if self.plan.places_match(program, candidate_place, required_place))

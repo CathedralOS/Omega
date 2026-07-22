@@ -259,6 +259,12 @@ fn select_runtime_leaf_branch_expansion(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    selected_instructions.begin_permission_site(
+        expansion.branch_key,
+        expansion.target_statement_index,
+        None,
+        None,
+    );
     let guards = select_runtime_leaf_branch_guards(input, expansion, runtime_value_operands);
     // The static summary runs on the BINDING-RESOLVED guard: an inline arm
     // guard over a substituted literal (`"a/b/c".len > 0`) is statically

@@ -48,7 +48,7 @@ pub(crate) use mutation::{
     StateMutationSummaryCache, call_mutated_places, statement_mutated_place,
 };
 use operator_calls::{
-    append_operator_statement_domain_ensures, operator_statement_call_mutated_places,
+    append_operator_statement_ensures, operator_statement_call_mutated_places,
     resolve_operator_for_call, resolve_operator_statement_call,
 };
 pub(crate) use ownership::{DiscoveredMoveEvent, discover_state_move_events};

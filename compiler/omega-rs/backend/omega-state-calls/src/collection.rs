@@ -2,8 +2,8 @@ use crate::StateCallPlanningContext;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::name::Identifier;
 use omega_control_flow::{
-    ControlFlowPlan, MachineFlow, OperationExpressionRefs, OperationKind, StateKey,
-    TransitionExpressionRefs,
+    ControlFlowPlan, MachineFlow, OperationExpressionRefs, OperationKind, PlannedTransitionTarget,
+    StateKey, TransitionExpressionRefs,
 };
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
@@ -188,6 +188,8 @@ pub(crate) fn collect_machine_state_calls(
                 state.key,
                 transition.statement_index,
                 &mut call_ordinal,
+                &transition.target,
+                &transition.continuation,
                 transition.expressions,
                 &mut calls,
             );
@@ -317,6 +319,8 @@ fn collect_expression_state_calls_for_transition(
     source_key: StateKey,
     statement_index: usize,
     call_ordinal: &mut usize,
+    target: &PlannedTransitionTarget,
+    continuation: &PlannedTransitionTarget,
     expressions: TransitionExpressionRefs,
     calls: &mut Vec<CollectedStateCall>,
 ) {
@@ -331,6 +335,10 @@ fn collect_expression_state_calls_for_transition(
             expressions.guard,
             calls,
         );
+    }
+
+    if transition_target_is_named_call(target) {
+        *call_ordinal += 1;
     }
 
     for argument in context
@@ -363,6 +371,10 @@ fn collect_expression_state_calls_for_transition(
         );
     }
 
+    if transition_target_is_named_call(continuation) {
+        *call_ordinal += 1;
+    }
+
     for argument in context
         .control_flow
         .expressions
@@ -392,6 +404,13 @@ fn collect_expression_state_calls_for_transition(
             calls,
         );
     }
+}
+
+fn transition_target_is_named_call(target: &PlannedTransitionTarget) -> bool {
+    matches!(
+        target,
+        PlannedTransitionTarget::State { .. } | PlannedTransitionTarget::Nested { .. }
+    )
 }
 
 fn collect_expression_state_calls(

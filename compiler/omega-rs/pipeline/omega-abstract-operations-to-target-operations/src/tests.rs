@@ -1,8 +1,8 @@
 use crate::build_target_operation_plan;
 use omega_abstract_operations::{
-    AbstractBoundaryEdge, AbstractBoundaryLink, AbstractBoundaryPolicyVerdict, AbstractMoveEvent,
-    AbstractOperationPlan, AbstractOwnershipEventSource, AbstractSourceBoundaryEdge,
-    AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
+    AbstractBoundaryEdge, AbstractBoundaryLink, AbstractBoundaryPolicyVerdict,
+    AbstractOperationPlan, AbstractPermissionEvent, AbstractSourceBoundaryEdge, AbstractValueFact,
+    AbstractValueOrigin, AbstractValueStatementRole,
 };
 use omega_calling_conventions::{
     HostCapability, HostOperation, HostOperationKey, build_host_abi_plan,
@@ -334,22 +334,20 @@ fn records_disallowed_boundary_policy_for_unallowed_host_binding_policy() {
 }
 
 #[test]
-fn copies_abstract_ownership_summary_to_target_plan() {
+fn copies_abstract_permission_summary_to_target_plan() {
     let mut abstract_operations = AbstractOperationPlan::default();
     let target_symbol = SymbolHandle::from_arena_index(1);
     abstract_operations
         .semantics
         .ownership
-        .moves
-        .insert(AbstractMoveEvent {
-            source_key: Default::default(),
-            source: AbstractOwnershipEventSource::Call {
+        .permissions
+        .insert(AbstractPermissionEvent {
+            source: omega_core::semantics::PermissionEventSource::Call {
                 statement_index: 7,
                 call_ordinal: 2,
                 target_symbol,
             },
-            root: Default::default(),
-            segments: Default::default(),
+            ..AbstractPermissionEvent::default()
         });
 
     let target_operations = build_target_operation_plan(
@@ -359,18 +357,18 @@ fn copies_abstract_ownership_summary_to_target_plan() {
         &abstract_operations,
     );
 
-    assert_eq!(target_operations.semantics.ownership.moves.len(), 1);
+    assert_eq!(target_operations.semantics.ownership.permissions.len(), 1);
     let event = target_operations
         .semantics
         .ownership
-        .moves
+        .permissions
         .iter()
         .next()
         .map(|(_, event)| event)
         .expect("target ownership event");
     assert_eq!(
         event.source,
-        AbstractOwnershipEventSource::Call {
+        omega_core::semantics::PermissionEventSource::Call {
             statement_index: 7,
             call_ordinal: 2,
             target_symbol,

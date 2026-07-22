@@ -186,6 +186,48 @@ fn accepts_suspension_after_restrictive_locals_last_use() {
 }
 
 #[test]
+fn checked_crossing_records_canonical_site_and_joined_policy() {
+    let checked = lower(
+        r#"
+        data Sleeper {}
+        machine Sleeper::park(&mut self) effects Suspend {}
+        data Main { sleeper: Sleeper; }
+        machine Main::keep(&self, value: &i32) {}
+        machine Main::run(&mut self) {
+            let value: i32 = 7;
+            self.sleeper.park();
+            self.keep(&value);
+        }
+        "#,
+    )
+    .expect("same-CPU values may suspend and defer migration admission");
+
+    let crossing = checked
+        .facts
+        .carry
+        .suspension_crossings
+        .iter()
+        .find(|crossing| {
+            checked
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == crossing.machine)
+                .is_some_and(|machine| machine.name.as_str() == "Main::run")
+        })
+        .expect("checked suspension crossing");
+    assert_eq!(
+        crossing.effective,
+        omega_core::semantics::CarryPolicy::PERMISSIVE
+    );
+    assert!(crossing.target.is_valid());
+    assert!(
+        crossing.live_values.iter().any(|value| {
+            value.storage == omega_checked_trees::SuspensionCrossingStorage::Local
+        })
+    );
+}
+
+#[test]
 fn rejects_transitive_suspension_reach_with_live_restrictive_value() {
     let diagnostics = lower(
         r#"
@@ -377,4 +419,69 @@ fn accepts_restrictive_use_before_nested_suspending_call_in_same_statement() {
         "#,
     )
     .expect("the restrictive value is dead before the later operand suspends");
+}
+
+#[test]
+fn all_instruction_envelope_is_complete_for_resolved_permissive_machine() {
+    let checked = lower(
+        r#"
+        data Job { value: i32; }
+        data Worker {}
+        machine Worker::run(job: Job) -> i32 {
+            transition { _ -> job.value }
+        }
+        data Main {}
+        machine Main::run(&mut self) {}
+        "#,
+    )
+    .expect("resolved machine");
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Worker::run")
+        .expect("Worker::run");
+    let envelope = checked
+        .facts
+        .carry
+        .preemption_for_machine(machine.symbol)
+        .expect("all-instruction carry envelope");
+
+    assert!(envelope.analysis_complete);
+    assert_eq!(
+        envelope.effective,
+        omega_core::semantics::CarryPolicy::PERMISSIVE
+    );
+    assert!(!envelope.contributing_types.is_empty());
+    assert_eq!(envelope.unnamed_strict_values, 0);
+}
+
+#[test]
+fn all_instruction_envelope_joins_restrictive_machine_values() {
+    let checked = lower(
+        r#"
+        data Cell { value: i32; }
+        data Borrowed { cell: &Cell; }
+        data Worker {}
+        machine Worker::run(value: Borrowed) {}
+        data Main {}
+        machine Main::run(&mut self) {}
+        "#,
+    )
+    .expect("resolved machine");
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Worker::run")
+        .expect("Worker::run");
+    let envelope = checked
+        .facts
+        .carry
+        .preemption_for_machine(machine.symbol)
+        .expect("all-instruction carry envelope");
+
+    assert!(envelope.analysis_complete);
+    assert_eq!(
+        envelope.effective,
+        omega_core::semantics::CarryPolicy::STRICT
+    );
 }

@@ -252,6 +252,25 @@ fn generic_body_call_rejects_argument_outside_machine_parameter_contract() {
 }
 
 #[test]
+fn generic_machine_signature_may_forward_type_parameters_into_generic_data() {
+    let typed = typed_program_from_source(
+        r#"
+        data Outcome<T> {
+            case Empty;
+            case Returned(value: T);
+        }
+
+        machine wrap<T>(value: T) -> Outcome<T> {
+            Outcome::Returned { value: value }
+        }
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("an in-scope machine type parameter should remain valid inside generic data");
+}
+
+#[test]
 fn validates_main_entry_surface_from_source_pipeline() {
     let source = r#"
     data Main {

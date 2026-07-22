@@ -690,25 +690,74 @@ stronger operations it needs instead of citing machine parameters generally.
   diagnostic and model-export consumers. Checked builds now emit
   `05_carry_manifest.json`, keeping authored minimums separate from effective
   derived policies with all four axes structured.
-- **CML4 — finish multiplicity migration.** Remove downstream dependence on
-  legacy move/drop arenas, cover remaining ownership forms and per-field debt,
-  and lower semantic permission events into explicit backend transfers. Do not
-  infer establishment from zero storage.
-- **TR2b — transactional outcomes.** Preserve substituted linear debt through
-  `Returned(T)` and `Rejected(Arguments)` rather than laundering it through an
-  unconstrained generic payload.
+- **CML4 — finish multiplicity migration.** Legacy move/drop compatibility
+  arenas now terminate at control flow; abstract operations and every later
+  backend representation carry only canonical permission events. A normalized,
+  fail-closed realization ledger now joins runtime/direct selection sites to
+  exact permission-event identity, merges folded provenance chains onto their
+  selected instruction indices, and records checked no-code reasons only for
+  explicit zero-code terminal consumes, events with no live debt, and trivial
+  affine discard. An empty selection site no longer proves a live establish or
+  transfer; missing materialization leaves the ledger incomplete. The
+  backend report exposes complete versus `UNLINKED` ledgers. Every current
+  ownership pass canary now has a complete ledger, including dispatch-edge
+  and state-call argument materialization joined to the target state's entry
+  establishment. Runtime and direct state-call sites preserve exact call
+  ordinals, including statement-position host calls. Named transition targets
+  reserve their canonical ordinal before nested argument calls, and edge joins
+  filter by target symbol; a two-obligation nested-call canary pins the complete
+  ten-event result. A live linear obligation now survives a dispatched state
+  call's synthesized continuation and is consumed afterward; the runtime canary
+  also pins implicit attached-`self` binding and distinct call-result/local
+  storage. Two same-symbol nested transition calls also retain distinct
+  canonical ordinals and jointly realize their shared target-state event.
+  Coverage of entry establishments now includes normalized platform-boundary
+  parameter writes; missing inbound code fails closed rather than borrowing
+  proof from a later consume or from zero storage. Nontrivial automatic
+  state-exit cleanup
+  is OWNER-BLOCKED on the graph-edge timing, partial-value order, and
+  proof/effect contract in `OWNER_QUESTIONS.md` section 6. Composite per-field
+  debt is separately OWNER-BLOCKED on the nominal-versus-contained resource
+  frontier and component-origin identity in section 7. Continue with remaining
+  whole-value ownership forms. A state-call result that carries one
+  unambiguous locally-created obligation now joins the caller's receiving
+  establishment to the callee origin instead of minting a second claim.
 - **TR3 — activation plans.** The normalized `omega-task-plans` candidate and
   validator are live for contract/entry/calling-plan IDs, argument/outcome
   layouts, continuation size/alignment, cancellation, distinct-versus-inline
   execution, local suspension safety, and separate safe-point/asynchronous
-  migration-demand envelopes. Connect `runtime.start<M>(args)` elaboration,
-  canonical liveness/carry derivation, and effect metadata.
+  migration-demand envelopes. Core now exposes opaque `TaskRuntime::start` and
+  `try_start` generic boundary signatures whose static target contracts admit
+  `Suspend` and `Block`. Concrete machine specializations retain their instance
+  symbols, and compiler elaboration emits validated target-specific plans in
+  `05_task_activations.json`: normalized machine/entry/layout/calling IDs,
+  continuation sizing from the resume word, persistent target layout, and
+  canonical live values, `reaches_suspend` from the checked transitive effect
+  row, and safe-point migration demands from checked carry crossings. Missing
+  crossing evidence fails closed. Checked carry facts now also contain one
+  all-instruction envelope per machine, conservatively joining persistent
+  storage, parameters, locals, call signatures, aggregate/cast temporaries,
+  and reference formation. Unresolved value/type coverage marks the envelope
+  incomplete; only a complete envelope becomes an asynchronous migration
+  demand, so asynchronous provider admission still fails closed rather than
+  guessing. `05_carry_manifest.json` publishes completeness and the joined
+  policy. Every plan requires cancellation support because every `Task<T>`
+  claim exposes cancellation-request authority. Continue with real provider
+  provenance and admission/dispatch integration.
 - **TR4 — runtime requirement and admission.** The normalized demand/behavior
   join is live: provider storage/capacity, cancellation, inline behavior,
   preemption granularity, CPU/thread migration, and continuation movement fail
-  closed against the activation plan; unknown runtimes are pessimistic. Add the
-  `TaskRuntime` boundary requirement/provider-plan integration and ensure a
-  rejected transactional start returns every moved argument and lease.
+  closed against the activation plan; unknown runtimes are pessimistic. The
+  nominal opaque `TaskRuntime` source surface is live. Activation demands now
+  carry a normalized identity over every checked input, admission receipts
+  derive their identity from the full demand plus runtime behavior contract,
+  and the activation artifact records `pending_provider` until a real provider
+  identity/provenance is available. Core lifecycle conservation is now pinned
+  end to end: receiver types retain `&self` versus consuming `self`,
+  `request_cancel` leaves the linear claim live, and `finish` transfers it into
+  the conditional terminal outcome. Add provider-plan integration and
+  executable dispatch, and ensure a rejected transactional start returns every
+  moved argument and lease.
 - **TR5 — custody and storage leases.** Track provider provenance and dependent
   child storage so close/reclaim rejects while claims remain live.
 - **TR6 — continuations and first provider.** Lower continuations; admit inline

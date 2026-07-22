@@ -131,6 +131,7 @@ fn centralizes_contract_facts_in_semantic_fact_plan() {
             kind: omega_facts::ContractFactKind::Requires,
             fact,
             expression,
+            instantiated: omega_core::arena::Handle::invalid(),
         }
     );
     let context = semantic

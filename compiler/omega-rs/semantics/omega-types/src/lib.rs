@@ -227,6 +227,7 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                             return_type: signature.return_type,
                             effects: signature.effects,
                             contracts: signature.contracts,
+                            default_body: signature.default_body,
                             terminates_guarantee: signature.terminates_guarantee,
                         },
                         &format!(
@@ -389,7 +390,12 @@ fn collect_type_reference(
         TypeReferenceNode::DynamicTrait(name) | TypeReferenceNode::Named(name) => {
             insert_reference(report, name.as_str(), kind, owner)
         }
-        TypeReferenceNode::SelfType | TypeReferenceNode::Unit => {}
+        // Const generic arguments name values, not types. Their referenced
+        // const symbols substitute during resolution and do not belong in the
+        // source-facing type-reference inventory.
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::SelfType
+        | TypeReferenceNode::Unit => {}
     }
 }
 

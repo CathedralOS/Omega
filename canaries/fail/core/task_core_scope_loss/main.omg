@@ -3,6 +3,13 @@ use omega::language::core::task;
 // TR2a: a real Task<T> claim cannot disappear through ordinary scope cleanup.
 data Main {}
 
+machine Main::leak(task: Task<i32>) {
+    // A request is not terminal settlement. The same state-parameter claim
+    // remains live and must still be finished or transferred.
+    task.request_cancel();
+}
+
 machine Main::main(&mut self) {
     let task: Task<i32> = Task { provider: 1, activation: 7 };
+    Main::leak(task);
 }

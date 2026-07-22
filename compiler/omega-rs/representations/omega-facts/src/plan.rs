@@ -6,9 +6,9 @@ use omega_typed_trees::types::TypeReferenceHandle;
 
 use crate::{
     BooleanFact, DomainMembershipFact, Fact, FactContext, FactContextHandle, FactContextView,
-    FactHandle, FactPayload, FactPlace, FactRef, Place, PlaceHandle, PlaceRoot, PlaceSegment,
-    ProgramPoint, SymbolFactSet, TypeConstraintFact, effective_member_symbol,
-    resolve_place_member_symbol,
+    FactHandle, FactPayload, FactPlace, FactRef, InstantiatedExpression, Place, PlaceHandle,
+    PlaceRoot, PlaceSegment, ProgramPoint, SymbolFactSet, TypeConstraintFact,
+    effective_member_symbol, resolve_place_member_symbol,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -16,6 +16,7 @@ pub struct FactPlan {
     pub places: Arena<Place>,
     pub place_segments: Arena<PlaceSegment>,
     pub facts: Arena<Fact>,
+    pub instantiated_expressions: Arena<InstantiatedExpression>,
     pub refs: Arena<FactRef>,
     pub contexts: Arena<FactContext>,
     pub symbol_sets: Arena<SymbolFactSet>,
@@ -27,6 +28,7 @@ impl FactPlan {
             places: Arena::with_capacity(fact_capacity),
             place_segments: Arena::with_capacity(fact_capacity),
             facts: Arena::with_capacity(fact_capacity),
+            instantiated_expressions: Arena::with_capacity(fact_capacity),
             refs: Arena::with_capacity(fact_capacity),
             contexts: Arena::with_capacity(context_capacity),
             symbol_sets: Arena::with_capacity(fact_capacity),
@@ -35,6 +37,39 @@ impl FactPlan {
 
     pub fn append_fact(&mut self, fact: Fact) -> FactHandle {
         self.facts.append(fact)
+    }
+
+    pub fn append_instantiated_expression(
+        &mut self,
+        label: String,
+    ) -> Handle<InstantiatedExpression> {
+        self.instantiated_expressions
+            .append(InstantiatedExpression { label })
+    }
+
+    pub fn boolean_fact_label(&self, program: &TypedTrees, fact: &Fact) -> Option<String> {
+        match fact.payload {
+            FactPayload::BooleanExpression(expression) => {
+                Some(program.expression_table.display_name(expression))
+            }
+            FactPayload::ContractBooleanExpression {
+                expression,
+                instantiated,
+                ..
+            } => {
+                if instantiated.is_valid() {
+                    Some(
+                        self.instantiated_expressions
+                            .get(instantiated)
+                            .label
+                            .clone(),
+                    )
+                } else {
+                    Some(program.expression_table.display_name(expression))
+                }
+            }
+            _ => None,
+        }
     }
 
     pub fn append_place(&mut self, place: Place) -> PlaceHandle {

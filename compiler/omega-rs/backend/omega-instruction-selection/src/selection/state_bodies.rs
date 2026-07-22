@@ -127,6 +127,39 @@ pub(super) fn select_state_body_instructions(
     );
 
     for operation in operations {
+        let (call_ordinal, call_target, target_entry) =
+            if let OperationKind::Call { target_symbol, .. } = operation.kind {
+                if let Some(state_call) =
+                    state_call_for_statement(input, state.key, operation.statement_index)
+                {
+                    (
+                        Some(Some(state_call.call_ordinal)),
+                        Some(target_symbol),
+                        Some(state_call.target_key),
+                    )
+                } else if let Some(host_call) =
+                    host_call_for_statement(input, state.key, operation.statement_index)
+                {
+                    (
+                        Some(Some(host_call.call_ordinal)),
+                        Some(target_symbol),
+                        None,
+                    )
+                } else {
+                    (Some(None), Some(target_symbol), None)
+                }
+            } else {
+                (None, None, None)
+            };
+        selected_instructions.begin_permission_site(
+            state.key,
+            operation.statement_index,
+            call_ordinal,
+            call_target,
+        );
+        if let Some(target_key) = target_entry {
+            selected_instructions.include_state_entry_permission_events(target_key);
+        }
         if matches!(operation.kind, OperationKind::LocalData)
             && let Some(dispatch_index) =
                 dispatch_index_for_state(input, state.key).or(dispatch_index)
@@ -622,6 +655,7 @@ pub(super) fn select_state_body_instructions(
             &mut child_aliases,
             &mut child_alias_expressions,
         );
+        selected_instructions.end_permission_site();
         select_state_body_instructions(
             input,
             state_call.target_key,
@@ -634,12 +668,14 @@ pub(super) fn select_state_body_instructions(
             visiting,
         );
     }
+    selected_instructions.end_permission_site();
 
     for transition in transitions {
         follow_transition_target(
             input,
             dispatch_index,
             state.key,
+            transition.statement_index,
             aliases,
             alias_expressions,
             &transition.target,
@@ -654,6 +690,7 @@ pub(super) fn select_state_body_instructions(
                 input,
                 dispatch_index,
                 state.key,
+                transition.statement_index,
                 aliases,
                 alias_expressions,
                 &transition.continuation,
@@ -1011,6 +1048,7 @@ fn follow_transition_target(
     input: &InstructionSelectionInput<'_>,
     current_dispatch_index: Option<u32>,
     current_key: StateKey,
+    statement_index: usize,
     aliases: &RuntimeAliasBuffer,
     alias_expressions: &ExpressionTable,
     target: &PlannedTransitionTarget,
@@ -1027,6 +1065,15 @@ fn follow_transition_target(
     if !key.is_valid() {
         return;
     }
+
+    selected_instructions.begin_permission_site(
+        current_key,
+        statement_index,
+        Some(None),
+        Some(key.state),
+    );
+    selected_instructions.include_state_entry_permission_events(*key);
+    selected_instructions.end_permission_site();
 
     let (child_aliases, child_alias_expressions) = bind_transition_target_aliases(
         input,

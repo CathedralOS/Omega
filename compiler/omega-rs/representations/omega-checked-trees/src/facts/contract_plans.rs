@@ -16,6 +16,26 @@ use omega_core::symbols::SymbolHandle;
 pub struct MachineContractPlans {
     /// One entry per machine, in machine order.
     pub machines: Vec<MachineContractPlan>,
+    /// Concrete `TaskRuntime::{start,try_start}<M>` specializations elaborated
+    /// after checking against the selected target's layouts. These remain
+    /// provider-independent demands; runtime admission consumes them later.
+    pub task_activations: Vec<TaskActivationPlanFact>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskStartOperation {
+    Start,
+    TryStart,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskActivationPlanFact {
+    pub start_instance: SymbolHandle,
+    pub target_machine: SymbolHandle,
+    pub target_entry: SymbolHandle,
+    pub specialization_fingerprint: u64,
+    pub operation: TaskStartOperation,
+    pub plan: omega_task_plans::ValidatedActivationPlan,
 }
 
 impl MachineContractPlans {

@@ -24,7 +24,7 @@ mod tests {
             functions: Arena::with_capacity(1),
             instructions: Arena::with_capacity(2),
         };
-        let semantics = MachineInstructionSemanticSummary::with_capacity(3, 4, 5, 6, 7, 8, 9);
+        let semantics = MachineInstructionSemanticSummary::with_capacity(3, 4, 5, 6, 9);
 
         let plan = MachineInstructionPlan::with_roots(target, code.clone(), semantics.clone());
 

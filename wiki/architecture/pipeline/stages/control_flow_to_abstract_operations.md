@@ -31,9 +31,11 @@ Primary responsibility: lower checked control flow into explicit operations with
   stage: `ControlFlowSemanticRoots` keeps proof, invariant, contract, value,
   boundary, borrow, and ownership arenas visibly separate from executable
   control-flow shape.
-- `lowering/ownership.rs` owns the control-flow ownership-event copy into the
-  abstract-operation ownership summary. It should remain a preservation/lowering
-  seam, not a place to invent new move/drop semantics.
+- `lowering/ownership.rs` owns the canonical control-flow permission-event copy
+  into the abstract-operation ownership summary. The legacy move/drop arenas
+  end at this boundary; this stage must not reconstruct permission meaning from
+  them. Each copied event retains its canonical control-flow arena identity so
+  selection-time realization candidates can join without source-text identity.
 - `lowering/boundary.rs` owns the host-operation to abstract boundary-edge
   summary copy. It records the backend-visible trust edge, not source-level
   authorization, and links source boundary edges to lowered host-operation
@@ -59,7 +61,10 @@ Primary responsibility: lower checked control flow into explicit operations with
   `instruction/storage.rs` owns runtime storage regions.
 - The actual operation construction currently happens in
   `omega-instruction-selection`; this is a transitional boundary, not the
-  desired long-term split.
+  desired long-term split. Its instruction sink records exact source-site spans
+  as permission-realization candidates. Abstract lowering publishes a ledger
+  only when every canonical event has selected instructions or a validated
+  no-code reason.
 
 ## Semantic Ownership
 
@@ -69,8 +74,7 @@ Primary responsibility: lower checked control flow into explicit operations with
 | Values | Preserved as abstract value summaries; later passes should turn them into operands, temporaries, constants, virtual registers, or storage policy. |
 | Facts | Preserved as diagnostic/proven metadata; not re-proved here. |
 | Loans | Already validated; may remain as assertions or metadata. |
-| Moves | Preserved as abstract ownership events; they should later become explicit abstract copies/transfers or no-ops. |
-| Drops | Preserved as abstract ownership events; they should later become abstract cleanup/deallocation calls or no-ops. |
+| Permission events | Canonical `Establish`, `Transfer`, `Consume`, and `AffineDrop` events are preserved with multiplicity, access, provenance, and live-obligation state; later lowering must realize each as an explicit transfer/cleanup action or a checked no-code case. |
 | Calls | Should become abstract call operations. |
 | Transitions | Should become branches, jumps, returns, exits, and block edges. |
 | Effects | Should attach to abstract operations for later reporting/lowering. |
@@ -91,9 +95,33 @@ Primary responsibility: lower checked control flow into explicit operations with
 This stage is not yet a true representation-to-representation lowering pass.
 Runtime and instruction-selection policy still owns too much of the abstract
 operation construction that should eventually live here.
-It preserves control-flow move/drop events as abstract ownership summaries, but
-does not yet consume those summaries to build explicit transfer and cleanup
-operations.
+It preserves canonical control-flow permission events as abstract ownership
+summaries and joins the currently covered runtime/direct selection sites to
+their exact selected instructions. Folded materialization follows stable
+establishment provenance. Explicit terminal consumes whose checked body emits
+no instruction, no-live-debt events, and ordinary affine discard carry narrow
+checked no-code reasons. Merely visiting an empty selection site is not proof
+for a live establishment or transfer. Missing or
+malformed coverage leaves the entire published realization ledger empty and is
+reported as `INCOMPLETE`/`UNLINKED`. Dispatch transition edges now join their
+argument-materialization instructions to target-state entry establishments, so
+do state-call selection sites; runtime/direct state calls and statement-position
+host calls retain their exact call ordinal. Named transition targets reserve
+their canonical ordinal before nested argument calls, and transition-edge joins
+also require the target symbol, so nested calls in one transition statement no
+longer collide. A live obligation also remains available after a dispatched
+call returns through its synthesized continuation; that edge preserves the
+caller's place/provenance rather than creating a new permission event. The
+same-target transition-call canary also proves that ordinal identity separates
+two calls that share one target symbol and that both materializations join the
+shared target-state event. Program-entry StateEntry events join the normalized
+platform argument writes before either selection path begins; missing inbound
+code stays unlinked, and a later consume cannot stand in for establishment. The
+complete current ownership pass corpus is covered. Remaining gaps include
+state-exit actions that need code (owner-blocked on `OWNER_QUESTIONS.md` section
+6) and ownership forms not reached by current operation-site hooks.
+Compatibility move/drop rows remain upstream only and are deliberately ignored
+at this boundary.
 It preserves control-flow value summaries as abstract value summaries, but does
 not yet consume them to decide type-aware ownership kind, storage shape, or
 runtime operand lowering.

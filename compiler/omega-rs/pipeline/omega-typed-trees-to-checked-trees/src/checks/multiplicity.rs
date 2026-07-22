@@ -13,6 +13,7 @@ use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 struct LinearPlace {
     symbol: SymbolHandle,
     name: String,
+    type_reference: TypeReferenceHandle,
     multiplicity: Multiplicity,
     provenance: Option<PermissionProvenance>,
     live: bool,
@@ -139,6 +140,7 @@ pub(crate) fn record_permission_events(
     }
 
     append_borrow_permission_events(facts, &mut permission_events);
+    reconcile_state_call_result_provenance(program, &mut permission_events);
 
     facts.flow.ownership.permissions = omega_core::arena::Arena::default();
     facts
@@ -146,6 +148,136 @@ pub(crate) fn record_permission_events(
         .ownership
         .permissions
         .insert_many(permission_events);
+}
+
+/// Join a state call's receiving establishment to the unique obligation that
+/// the target state transferred through its result.
+///
+/// Intra-state production can propagate provenance directly through source
+/// expressions. A zero-argument state call has no caller-side source place,
+/// though: without this join, binding a locally-created linear result in the
+/// caller would mint a second origin even when the target has one unambiguous
+/// outgoing obligation. Ambiguous/multi-resource results remain conservative
+/// until the general resource algebra can publish an explicit result mapping.
+fn reconcile_state_call_result_provenance(
+    program: &omega_typed_trees::TypedTrees,
+    permission_events: &mut [FlowPermissionEventFact],
+) {
+    let mut rewrites = Vec::new();
+
+    for event in permission_events.iter() {
+        if event.kind != PermissionEventKind::Establish
+            || event.access != PermissionAccess::Owned
+            || !event.obligation_live
+        {
+            continue;
+        }
+        let PermissionEventSource::Statement { statement_index } = event.source else {
+            continue;
+        };
+        let locally_minted =
+            established_provenance(event.machine_symbol, event.state_symbol, event.source);
+        if event.provenance != locally_minted {
+            continue;
+        }
+        let Some(state) = crate::find_state(program, event.state_symbol) else {
+            continue;
+        };
+        let Some(statement) = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(statement_index)
+        else {
+            continue;
+        };
+        let result_expression = match statement {
+            StatementNode::LocalData(local) => local.initial_value,
+            StatementNode::Assignment(assignment) => assignment.value,
+            _ => continue,
+        };
+        let omega_typed_trees::expression::ExpressionNode::Call(call) =
+            program.expression_table.expression(result_expression)
+        else {
+            continue;
+        };
+        let Some(target_state) = crate::find_state(program, call.target_symbol) else {
+            continue;
+        };
+        if !type_carries_linear_obligation(program, target_state.return_type) {
+            continue;
+        }
+
+        let target_statements = program
+            .statement_table
+            .statements(target_state.statement_nodes);
+        let origins = permission_events
+            .iter()
+            .filter_map(|candidate| {
+                if candidate.state_symbol != target_state.symbol
+                    || candidate.kind != PermissionEventKind::Transfer
+                    || candidate.access != PermissionAccess::Owned
+                    || !candidate.obligation_live
+                    || candidate.provenance == PermissionProvenance::Unknown
+                {
+                    return None;
+                }
+                let PermissionEventSource::Statement { statement_index } = candidate.source else {
+                    return None;
+                };
+                statement_transfers_state_result(program, target_statements, statement_index)
+                    .then_some(candidate.provenance)
+            })
+            .fold(Vec::new(), |mut origins, origin| {
+                if !origins.contains(&origin) {
+                    origins.push(origin);
+                }
+                origins
+            });
+        if let [origin] = origins.as_slice() {
+            rewrites.push((locally_minted, *origin));
+        }
+    }
+
+    for event in permission_events
+        .iter_mut()
+        .filter(|event| event.access == PermissionAccess::Owned)
+    {
+        let mut provenance = event.provenance;
+        for _ in 0..rewrites.len() {
+            let Some((_, replacement)) = rewrites.iter().find(|(source, _)| *source == provenance)
+            else {
+                break;
+            };
+            if *replacement == provenance {
+                break;
+            }
+            provenance = *replacement;
+        }
+        event.provenance = provenance;
+    }
+}
+
+fn statement_transfers_state_result(
+    program: &omega_typed_trees::TypedTrees,
+    statements: &[StatementNode],
+    statement_index: usize,
+) -> bool {
+    let Some(statement) = statements.get(statement_index) else {
+        return false;
+    };
+    match statement {
+        StatementNode::Expression(_) => statement_index + 1 == statements.len(),
+        StatementNode::Transition(transition) => [transition.target, transition.continuation]
+            .into_iter()
+            .filter(|handle| handle.is_valid())
+            .any(|handle| {
+                matches!(
+                    program.statement_table.transition_target(handle),
+                    omega_typed_trees::statement::TransitionTargetNode::Value(_)
+                )
+            }),
+        _ => false,
+    }
 }
 
 pub(crate) fn validate_linear_permission_events(
@@ -277,6 +409,7 @@ fn initial_linear_places(
             places.push(LinearPlace {
                 symbol: parameter.symbol,
                 name: parameter.name.as_str().to_owned(),
+                type_reference: parameter.type_reference,
                 multiplicity,
                 provenance: Some(established_provenance(
                     machine_symbol,
@@ -299,6 +432,7 @@ fn initial_linear_places(
             places.push(LinearPlace {
                 symbol: local.symbol,
                 name: local.name.as_str().to_owned(),
+                type_reference: local.type_reference,
                 multiplicity,
                 provenance: None,
                 live: false,
@@ -706,6 +840,7 @@ fn written_whole_linear_target(
                     statement_index,
                     local.initial_value,
                     tracked.conditional,
+                    tracked.type_reference,
                     places,
                 ),
                 provenance: expression_permission_provenance(
@@ -739,6 +874,7 @@ fn written_whole_linear_target(
                     statement_index,
                     assignment.value,
                     tracked.conditional,
+                    tracked.type_reference,
                     places,
                 ),
                 provenance: expression_permission_provenance(
@@ -885,6 +1021,7 @@ fn expression_establishes_obligation(
     statement_index: usize,
     expression: omega_typed_trees::expression::ExpressionHandle,
     conditional: bool,
+    target_type_reference: TypeReferenceHandle,
     places: &[LinearPlace],
 ) -> bool {
     if !conditional {
@@ -919,7 +1056,7 @@ fn expression_establishes_obligation(
                 })
         })
     {
-        return variant_carries_linear_obligation(program, variant);
+        return variant_carries_linear_obligation(program, variant, target_type_reference);
     }
 
     let omega_typed_trees::expression::ExpressionNode::StructLiteral(literal) =
@@ -954,16 +1091,24 @@ fn expression_establishes_obligation(
         return true;
     };
 
-    variant_carries_linear_obligation(program, variant)
+    variant_carries_linear_obligation(program, variant, target_type_reference)
 }
 
 fn variant_carries_linear_obligation(
     program: &omega_typed_trees::TypedTrees,
     variant: &omega_typed_trees::data::DataVariant,
+    instantiated_type: TypeReferenceHandle,
 ) -> bool {
+    let substitutions = substitutions_for_instantiated_data(program, instantiated_type);
     program.data_payload_fields(variant).iter().any(|field| {
-        type_multiplicity(program, field.type_reference) == Multiplicity::Linear
-            || type_has_conditional_linear_payload(program, field.type_reference)
+        type_multiplicity_with_substitutions(program, field.type_reference, &substitutions)
+            == Multiplicity::Linear
+            || conditional_linear_payload_inner(
+                program,
+                field.type_reference,
+                &substitutions,
+                &mut Vec::new(),
+            )
     })
 }
 
@@ -980,7 +1125,14 @@ fn type_multiplicity(
         TypeReferenceNode::FixedArray { element_type, .. } => {
             type_multiplicity(program, *element_type)
         }
-        TypeReferenceNode::Named { name, .. } => {
+        TypeReferenceNode::Named { symbol, name } => {
+            if let Some(parameter) = program
+                .data_type_parameters
+                .iter()
+                .find_map(|(_, parameter)| (parameter.symbol == *symbol).then_some(parameter))
+            {
+                return parameter.bounds.multiplicity;
+            }
             if omega_typed_trees::types::PrimitiveType::from_name(name.as_str()).is_some() {
                 return Multiplicity::Unrestricted;
             }
@@ -1007,62 +1159,252 @@ fn type_has_conditional_linear_payload(
     program: &omega_typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    conditional_linear_payload_inner(program, type_reference, &mut Vec::new())
+    conditional_linear_payload_inner(program, type_reference, &[], &mut Vec::new())
 }
 
 fn conditional_linear_payload_inner(
     program: &omega_typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
-    visiting: &mut Vec<String>,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    visiting: &mut Vec<SymbolHandle>,
 ) -> bool {
     if !type_reference.is_valid() {
         return false;
     }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { base_type, .. } => {
-            conditional_linear_payload_inner(program, *base_type, visiting)
+            conditional_linear_payload_inner(program, *base_type, substitutions, visiting)
         }
         TypeReferenceNode::FixedArray { element_type, .. } => {
-            conditional_linear_payload_inner(program, *element_type, visiting)
+            conditional_linear_payload_inner(program, *element_type, substitutions, visiting)
         }
-        TypeReferenceNode::Named { name, .. } => {
-            conditional_linear_payload_named(program, name.as_str(), visiting)
+        TypeReferenceNode::Named { symbol, name } => {
+            if let Some(replacement) =
+                substitutions
+                    .iter()
+                    .rev()
+                    .find_map(|(parameter, replacement)| {
+                        (*parameter == *symbol).then_some(*replacement)
+                    })
+                && replacement != type_reference
+            {
+                return conditional_linear_payload_inner(
+                    program,
+                    replacement,
+                    substitutions,
+                    visiting,
+                );
+            }
+            conditional_linear_payload_named(
+                program,
+                *symbol,
+                name.as_str(),
+                substitutions,
+                visiting,
+            )
         }
-        TypeReferenceNode::Generic { base_name, .. } => {
-            conditional_linear_payload_named(program, base_name.as_str(), visiting)
-        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            arguments,
+        } => conditional_linear_payload_generic(
+            program,
+            *base_symbol,
+            base_name.as_str(),
+            *arguments,
+            substitutions,
+            visiting,
+        ),
         _ => false,
     }
 }
 
 fn conditional_linear_payload_named(
     program: &omega_typed_trees::TypedTrees,
+    symbol: SymbolHandle,
     name: &str,
-    visiting: &mut Vec<String>,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    visiting: &mut Vec<SymbolHandle>,
 ) -> bool {
-    if visiting.iter().any(|active| active == name) {
-        return false;
-    }
-    let Some(definition) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == name)
-    else {
+    let Some(definition) = find_data_definition(program, symbol, name) else {
         return false;
     };
+    conditional_linear_payload_definition(program, definition, substitutions, visiting)
+}
+
+fn conditional_linear_payload_generic(
+    program: &omega_typed_trees::TypedTrees,
+    symbol: SymbolHandle,
+    name: &str,
+    arguments: HandleSpan<TypeReferenceHandle>,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    visiting: &mut Vec<SymbolHandle>,
+) -> bool {
+    let Some(definition) = find_data_definition(program, symbol, name) else {
+        return false;
+    };
+    let mut instantiated = substitutions.to_vec();
+    instantiated.extend(
+        program
+            .data_type_parameters(definition)
+            .iter()
+            .zip(
+                program
+                    .type_reference_table
+                    .type_reference_handles(arguments),
+            )
+            .filter_map(|(parameter, argument)| {
+                matches!(
+                    parameter.kind,
+                    omega_typed_trees::data::TypeParameterKind::Type
+                )
+                .then_some((parameter.symbol, *argument))
+            }),
+    );
+    conditional_linear_payload_definition(program, definition, &instantiated, visiting)
+}
+
+fn conditional_linear_payload_definition(
+    program: &omega_typed_trees::TypedTrees,
+    definition: &omega_typed_trees::data::DataDefinition,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    visiting: &mut Vec<SymbolHandle>,
+) -> bool {
+    if visiting.contains(&definition.symbol) {
+        return false;
+    }
     if definition.properties.multiplicity == Multiplicity::Linear {
         return false;
     }
-    visiting.push(name.to_owned());
+    visiting.push(definition.symbol);
     let result = program.data_members(definition).iter().any(|member| {
         let omega_typed_trees::data::DataMember::Variant(variant) = member else {
             return false;
         };
         program.data_payload_fields(variant).iter().any(|field| {
-            type_multiplicity(program, field.type_reference) == Multiplicity::Linear
-                || conditional_linear_payload_inner(program, field.type_reference, visiting)
+            type_multiplicity_with_substitutions(program, field.type_reference, substitutions)
+                == Multiplicity::Linear
+                || conditional_linear_payload_inner(
+                    program,
+                    field.type_reference,
+                    substitutions,
+                    visiting,
+                )
         })
     });
     visiting.pop();
     result
+}
+
+fn type_multiplicity_with_substitutions(
+    program: &omega_typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> Multiplicity {
+    if !type_reference.is_valid() {
+        return Multiplicity::Affine;
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_multiplicity_with_substitutions(program, *base_type, substitutions)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            type_multiplicity_with_substitutions(program, *element_type, substitutions)
+        }
+        TypeReferenceNode::Named { symbol, .. } => substitutions
+            .iter()
+            .rev()
+            .find_map(|(parameter, replacement)| {
+                (*parameter == *symbol && *replacement != type_reference).then_some(*replacement)
+            })
+            .map(|replacement| {
+                type_multiplicity_with_substitutions(program, replacement, substitutions)
+            })
+            .unwrap_or_else(|| type_multiplicity(program, type_reference)),
+        _ => type_multiplicity(program, type_reference),
+    }
+}
+
+fn substitutions_for_instantiated_data(
+    program: &omega_typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Vec<(SymbolHandle, TypeReferenceHandle)> {
+    let TypeReferenceNode::Generic {
+        base_symbol,
+        base_name,
+        arguments,
+    } = program.type_reference_table.type_reference(type_reference)
+    else {
+        return Vec::new();
+    };
+    let Some(definition) = find_data_definition(program, *base_symbol, base_name.as_str()) else {
+        return Vec::new();
+    };
+    program
+        .data_type_parameters(definition)
+        .iter()
+        .zip(
+            program
+                .type_reference_table
+                .type_reference_handles(*arguments),
+        )
+        .filter_map(|(parameter, argument)| {
+            matches!(
+                parameter.kind,
+                omega_typed_trees::data::TypeParameterKind::Type
+            )
+            .then_some((parameter.symbol, *argument))
+        })
+        .collect()
+}
+
+fn find_data_definition<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    symbol: SymbolHandle,
+    name: &str,
+) -> Option<&'program omega_typed_trees::data::DataDefinition> {
+    program.data_definitions().iter().find(|definition| {
+        (symbol.is_valid() && definition.symbol == symbol) || definition.name.as_str() == name
+    })
+}
+
+#[cfg(test)]
+mod generic_substitution_tests {
+    use super::*;
+    use omega_source_files_to_tokens::Lexer;
+    use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use omega_tokens_to_syntax_trees::parse_syntax_trees;
+
+    #[test]
+    fn linear_generic_bound_classifies_the_parameter_type() {
+        let source = r#"
+            data Main {}
+            machine Main::identity<T [linear]>(value: T) -> T {
+                value
+            }
+        "#;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::identity")
+            .expect("generic identity machine");
+        let state = typed
+            .machine_states(machine)
+            .first()
+            .expect("generic identity state");
+        let parameter = typed
+            .state_parameters(state)
+            .iter()
+            .find(|parameter| !parameter.is_self)
+            .expect("linear generic value parameter");
+        assert_eq!(
+            type_multiplicity(&typed, parameter.type_reference),
+            Multiplicity::Linear
+        );
+    }
 }

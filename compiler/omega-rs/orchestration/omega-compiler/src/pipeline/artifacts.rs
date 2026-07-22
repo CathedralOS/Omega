@@ -193,6 +193,11 @@ pub(super) fn write_checked_snapshot(
         options,
         "05_carry_manifest.json",
         &omega_visualizations::carry_manifest_json(checked),
+    )?;
+    write_phase_json(
+        options,
+        "05_task_activations.json",
+        &omega_visualizations::task_activation_manifest_json(checked),
     )
 }
 

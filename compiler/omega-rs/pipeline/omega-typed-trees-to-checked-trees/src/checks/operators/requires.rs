@@ -29,7 +29,10 @@ use omega_typed_trees::operator::OperatorDefinition;
 use omega_typed_trees::signature::{SignatureContractKind, StateParameter};
 
 use super::super::contracts::labels::domain_proves_expression_label;
-use crate::labels::{canonical_place_label, symbol_name};
+use crate::labels::{
+    canonical_place_label, instantiate_operator_contract_expression_label,
+    semantic_boolean_fact_label, symbol_name,
+};
 
 /// Checks every `requires` contract of every selected spelled binary meaning
 /// against the facts entering the use's statement, reporting each unproven
@@ -210,7 +213,7 @@ fn requires_fact_proven(
 ) -> bool {
     match fact {
         ProofFact::Membership(membership) => {
-            let value_label = instantiate_operator_expression_label(
+            let value_label = instantiate_operator_contract_expression_label(
                 program,
                 parameters,
                 operands,
@@ -308,7 +311,7 @@ fn contexts_prove_boolean_leaf(
     expression: ExpressionHandle,
 ) -> bool {
     let required_label =
-        instantiate_operator_expression_label(program, parameters, operands, expression);
+        instantiate_operator_contract_expression_label(program, parameters, operands, expression);
     contexts
         .iter()
         .any(|context| context_proves_boolean_label(program, semantic, *context, &required_label))
@@ -329,11 +332,10 @@ fn context_proves_boolean_label(
         .context_view(context)
         .facts()
         .any(|fact| match fact.payload {
-            FactPayload::BooleanExpression(candidate)
-            | FactPayload::ContractBooleanExpression {
-                expression: candidate,
-                ..
-            } => program.expression_table.display_name(candidate) == required_label,
+            FactPayload::BooleanExpression(_) | FactPayload::ContractBooleanExpression { .. } => {
+                semantic_boolean_fact_label(program, semantic, fact)
+                    .is_some_and(|candidate| candidate == required_label)
+            }
             FactPayload::DomainMembership {
                 domain_symbol,
                 value,
@@ -408,128 +410,21 @@ fn requires_clause_label(
     fact: &ProofFact,
 ) -> String {
     match fact {
-        ProofFact::Expression(expression) => {
-            instantiate_operator_expression_label(program, parameters, operands, *expression)
-        }
+        ProofFact::Expression(expression) => instantiate_operator_contract_expression_label(
+            program,
+            parameters,
+            operands,
+            *expression,
+        ),
         ProofFact::Membership(membership) => format!(
             "{} in {}",
-            instantiate_operator_expression_label(program, parameters, operands, membership.value),
+            instantiate_operator_contract_expression_label(
+                program,
+                parameters,
+                operands,
+                membership.value,
+            ),
             symbol_name(program, membership.domain_symbol)
         ),
-    }
-}
-
-/// Renders an operator contract expression with each parameter reference
-/// substituted by its operand's label — the operator-use analogue of
-/// `instantiate_call_contract_expression_label` (parameter -> argument) in
-/// checks/contracts/labels/calls.rs. Operators have no `self` and no `result`
-/// binder; parameters map positionally onto the binary operands.
-fn instantiate_operator_expression_label(
-    program: &TypedTrees,
-    parameters: &[StateParameter],
-    operands: &[ExpressionHandle],
-    expression: ExpressionHandle,
-) -> String {
-    let instantiate = |expression: ExpressionHandle| {
-        instantiate_operator_expression_label(program, parameters, operands, expression)
-    };
-
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(atomic) => format!(
-            "atomic[{:?}]({})",
-            atomic.ordering,
-            instantiate(atomic.value)
-        ),
-        ExpressionNode::ArrayLiteral(values) => {
-            let values = program
-                .expression_table
-                .expression_handles(*values)
-                .iter()
-                .map(|value| instantiate(*value))
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!("[{values}]")
-        }
-        ExpressionNode::Binary(binary) => format!(
-            "{} {} {}",
-            instantiate(binary.left),
-            binary.operator.display_name(),
-            instantiate(binary.right)
-        ),
-        ExpressionNode::Boolean(value) => value.to_string(),
-        ExpressionNode::Cast(cast) => format!(
-            "{} as {}",
-            instantiate(cast.value),
-            omega_typed_trees::expression::display_name_path(
-                program.expression_table.name_path_members(cast.target_type),
-                "::",
-            )
-        ),
-        ExpressionNode::Call(call) => {
-            let arguments = program
-                .expression_table
-                .expression_handles(call.arguments)
-                .iter()
-                .map(|argument| instantiate(*argument))
-                .collect::<Vec<_>>()
-                .join(", ");
-            if call.receiver.is_valid() {
-                format!(
-                    "{}.{}({arguments})",
-                    instantiate(call.receiver),
-                    call.target
-                )
-            } else {
-                format!("{}({arguments})", call.target)
-            }
-        }
-        ExpressionNode::Float(value) => value.to_string(),
-        ExpressionNode::Indexed(indexed) => format!(
-            "{}[{}]",
-            instantiate(indexed.collection),
-            instantiate(indexed.index)
-        ),
-        ExpressionNode::Range(range) => match (range.start.is_valid(), range.end.is_valid()) {
-            (true, true) => format!("{}..{}", instantiate(range.start), instantiate(range.end)),
-            (true, false) => format!("{}..", instantiate(range.start)),
-            (false, true) => format!("..{}", instantiate(range.end)),
-            (false, false) => "..".to_owned(),
-        },
-        ExpressionNode::Integer(value) => value.to_string(),
-        ExpressionNode::Member(member) => {
-            format!("{}.{}", instantiate(member.receiver), member.member)
-        }
-        ExpressionNode::Mutable(inner) => format!("mut {}", instantiate(*inner)),
-        ExpressionNode::Unary(unary) => format!(
-            "{}{}",
-            unary.operator.display_name(),
-            instantiate(unary.operand)
-        ),
-        ExpressionNode::Name(path) => {
-            let members = program.expression_table.name_path_members(path.members);
-            let first_member = members.first().map(|member| member.as_str());
-            let mut operand_index = 0usize;
-
-            for parameter in parameters {
-                if parameter.is_self {
-                    continue;
-                }
-                let operand = operands.get(operand_index).copied();
-                operand_index = operand_index.saturating_add(1);
-
-                let parameter_matches = first_member == Some(parameter.name.as_str())
-                    || path.head_symbol == parameter.symbol
-                    || path.symbol == parameter.symbol;
-                if parameter_matches {
-                    return operand
-                        .map(|operand| program.expression_table.display_name(operand))
-                        .unwrap_or_else(|| parameter.name.to_string());
-                }
-            }
-
-            omega_typed_trees::expression::display_name_path(members, "::")
-        }
-        ExpressionNode::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
-        ExpressionNode::String(value) => format!("{value:?}"),
     }
 }

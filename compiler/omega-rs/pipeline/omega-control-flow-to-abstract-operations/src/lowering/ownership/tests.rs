@@ -7,7 +7,7 @@ use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 
 #[test]
-fn copies_control_flow_ownership_events() {
+fn lowers_only_semantic_permission_events() {
     let mut control_flow = ControlFlowPlan::default();
     let segment = omega_facts::PlaceSegment::Field {
         symbol: SymbolHandle::from_arena_index(7),
@@ -58,26 +58,7 @@ fn copies_control_flow_ownership_events() {
 
     let summary = build_abstract_ownership_summary(&control_flow);
 
-    assert_eq!(summary.moves.len(), 1);
-    assert_eq!(summary.drops.len(), 1);
     assert_eq!(summary.permissions.len(), 1);
-    let move_event = summary.moves.iter().next().map(|(_, event)| event).unwrap();
-    assert_eq!(
-        move_event.source,
-        AbstractOwnershipEventSource::Statement { statement_index: 3 }
-    );
-    assert_eq!(
-        summary.segments.span_or_empty(move_event.segments),
-        &[segment]
-    );
-    let drop_event = summary.drops.iter().next().map(|(_, event)| event).unwrap();
-    assert_eq!(drop_event.source, AbstractOwnershipEventSource::StateExit);
-    assert!(
-        summary
-            .segments
-            .span_or_empty(drop_event.segments)
-            .is_empty()
-    );
     let permission = summary
         .permissions
         .iter()
@@ -89,4 +70,8 @@ fn copies_control_flow_ownership_events() {
         omega_core::semantics::PermissionEventKind::Consume
     );
     assert!(permission.obligation_live);
+    assert_eq!(
+        summary.segments.span_or_empty(permission.segments),
+        &[segment]
+    );
 }

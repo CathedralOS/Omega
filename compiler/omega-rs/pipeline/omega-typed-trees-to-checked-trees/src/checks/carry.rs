@@ -2,6 +2,21 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::semantics::CarrySuspension;
 
 mod intra_statement;
+mod preemption;
+
+struct CrossingAccumulator {
+    effective: omega_core::semantics::CarryPolicy,
+    live_values: Vec<omega_checked_trees::SuspensionCrossingLiveValueFact>,
+}
+
+impl Default for CrossingAccumulator {
+    fn default() -> Self {
+        Self {
+            effective: omega_core::semantics::CarryPolicy::PERMISSIVE,
+            live_values: Vec::new(),
+        }
+    }
+}
 
 /// Reject a call that may suspend while a suspension-forbidden lexical value
 /// remains live in the caller activation. This is deliberately a local check:
@@ -10,11 +25,13 @@ mod intra_statement;
 /// reach here.
 pub(super) fn check_suspension_carry(
     program: &omega_typed_trees::TypedTrees,
-    facts: &omega_checked_trees::CheckFacts,
+    facts: &mut omega_checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
+    facts.carry.asynchronous_preemption = preemption::build_machine_preemption_carry_facts(program);
     let suspend = omega_effects::EffectSet::from_name("Suspend")
         .expect("Suspend is a canonical operational effect");
     let mut diagnostics = Vec::new();
+    let mut suspension_crossings = Vec::new();
 
     for state_borrows in facts.borrow.states.iter().map(|(_, state)| state) {
         let Some(machine) = program
@@ -75,11 +92,13 @@ pub(super) fn check_suspension_carry(
                 call.statement_index,
                 call.call_ordinal,
             );
+            let mut crossing = CrossingAccumulator::default();
 
             append_call_carried_argument_diagnostics(
                 program,
                 call,
                 call_site.as_ref(),
+                &mut crossing,
                 &mut diagnostics,
             );
             append_live_persistent_diagnostics(
@@ -88,6 +107,7 @@ pub(super) fn check_suspension_carry(
                 state,
                 call,
                 call_site.as_ref(),
+                &mut crossing,
                 &mut diagnostics,
             );
             append_live_parameter_diagnostics(
@@ -96,6 +116,7 @@ pub(super) fn check_suspension_carry(
                 state,
                 call,
                 call_site.as_ref(),
+                &mut crossing,
                 &mut diagnostics,
             );
             append_live_local_diagnostics(
@@ -104,10 +125,22 @@ pub(super) fn check_suspension_carry(
                 state,
                 call,
                 call_site.as_ref(),
+                &mut crossing,
                 &mut diagnostics,
             );
+            suspension_crossings.push(omega_checked_trees::SuspensionCrossingCarryFact {
+                machine: machine.symbol,
+                state: state.symbol,
+                statement_index: call.statement_index,
+                call_ordinal: call.call_ordinal,
+                target: call.target_symbol,
+                effective: crossing.effective,
+                live_values: crossing.live_values,
+            });
         }
     }
+
+    facts.carry.suspension_crossings = suspension_crossings;
 
     if diagnostics.is_empty() {
         Ok(())
@@ -120,6 +153,7 @@ fn append_call_carried_argument_diagnostics(
     program: &omega_typed_trees::TypedTrees,
     call: &omega_checked_trees::BorrowCallFact,
     call_site: Option<&crate::CallSite<'_>>,
+    crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(call_site) = call_site else {
@@ -141,6 +175,8 @@ fn append_call_carried_argument_diagnostics(
             parameter.type_reference,
             &display_name,
             call,
+            omega_checked_trees::SuspensionCrossingStorage::CallArgument,
+            crossing,
             diagnostics,
         );
     }
@@ -152,6 +188,7 @@ fn append_live_persistent_diagnostics(
     state: &omega_typed_trees::state::State,
     call: &omega_checked_trees::BorrowCallFact,
     call_site: Option<&crate::CallSite<'_>>,
+    crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if let Some(attached_name) = machine.attached_data.as_ref()
@@ -172,6 +209,7 @@ fn append_live_persistent_diagnostics(
                         field.symbol,
                         field.type_reference,
                         field.name.as_str(),
+                        crossing,
                         diagnostics,
                     );
                 }
@@ -186,6 +224,7 @@ fn append_live_persistent_diagnostics(
                             field.symbol,
                             field.type_reference,
                             field.name.as_str(),
+                            crossing,
                             diagnostics,
                         );
                     }
@@ -204,6 +243,7 @@ fn append_live_persistent_diagnostics(
             owned.symbol,
             owned.type_reference,
             owned.name.as_str(),
+            crossing,
             diagnostics,
         );
     }
@@ -219,6 +259,7 @@ fn append_persistent_field_if_live(
     field_symbol: omega_core::symbols::SymbolHandle,
     type_reference: omega_typed_trees::types::TypeReferenceHandle,
     field_name: &str,
+    crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !persistent_symbol_is_live_after_call(
@@ -239,6 +280,8 @@ fn append_persistent_field_if_live(
         type_reference,
         &display_name,
         call,
+        omega_checked_trees::SuspensionCrossingStorage::Persistent,
+        crossing,
         diagnostics,
     );
 }
@@ -382,6 +425,7 @@ fn append_live_parameter_diagnostics(
     state: &omega_typed_trees::state::State,
     call: &omega_checked_trees::BorrowCallFact,
     call_site: Option<&crate::CallSite<'_>>,
+    crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for parameter in program.state_parameters(state) {
@@ -411,6 +455,8 @@ fn append_live_parameter_diagnostics(
             parameter.type_reference,
             parameter.name.as_str(),
             call,
+            omega_checked_trees::SuspensionCrossingStorage::Parameter,
+            crossing,
             diagnostics,
         );
     }
@@ -422,6 +468,7 @@ fn append_live_local_diagnostics(
     state: &omega_typed_trees::state::State,
     call: &omega_checked_trees::BorrowCallFact,
     call_site: Option<&crate::CallSite<'_>>,
+    crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for (definition_index, statement) in program
@@ -460,6 +507,8 @@ fn append_live_local_diagnostics(
             local.type_reference,
             local.name.as_str(),
             call,
+            omega_checked_trees::SuspensionCrossingStorage::Local,
+            crossing,
             diagnostics,
         );
     }
@@ -471,6 +520,8 @@ fn append_if_suspension_forbidden(
     type_reference: omega_typed_trees::types::TypeReferenceHandle,
     value_name: &str,
     call: &omega_checked_trees::BorrowCallFact,
+    storage: omega_checked_trees::SuspensionCrossingStorage,
+    crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     append_if_suspension_forbidden_with_type_parameters(
@@ -479,6 +530,8 @@ fn append_if_suspension_forbidden(
         type_reference,
         value_name,
         call,
+        storage,
+        crossing,
         diagnostics,
     );
 }
@@ -489,10 +542,19 @@ fn append_if_suspension_forbidden_with_type_parameters(
     type_reference: omega_typed_trees::types::TypeReferenceHandle,
     value_name: &str,
     call: &omega_checked_trees::BorrowCallFact,
+    storage: omega_checked_trees::SuspensionCrossingStorage,
+    crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let policy =
         omega_validation::effective_type_carry_policy(program, type_parameters, type_reference);
+    crossing.effective = crossing.effective.intersect(policy);
+    crossing
+        .live_values
+        .push(omega_checked_trees::SuspensionCrossingLiveValueFact {
+            type_reference,
+            storage,
+        });
     if policy.suspension == CarrySuspension::Allowed {
         return;
     }

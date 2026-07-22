@@ -14,7 +14,7 @@ impl MachineProgram {
                 functions: Arena::with_capacity(function_capacity),
                 instructions: Arena::with_capacity(instruction_capacity),
             },
-            MachineSemanticSummary::with_capacity(0, 0, 0, 0, 0, 0, 0),
+            MachineSemanticSummary::with_capacity(0, 0, 0, 0, 0),
         )
     }
 }

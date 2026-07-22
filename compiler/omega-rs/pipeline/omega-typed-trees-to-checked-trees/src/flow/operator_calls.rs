@@ -128,7 +128,8 @@ fn operator_arity_fits_call(
 struct OperatorStatementOperand {
     parameter_symbol: SymbolHandle,
     is_mutable: bool,
-    place: CanonicalPlace,
+    label: String,
+    place: Option<CanonicalPlace>,
 }
 
 fn operator_statement_operands<'program>(
@@ -165,12 +166,27 @@ fn operator_statement_operands<'program>(
     let mut operands = Vec::with_capacity(parameters.len());
 
     for (parameter_index, parameter) in parameters.iter().enumerate() {
-        let place = if receiver_parameter_index == Some(parameter_index) {
-            receiver_place.clone()
+        let (place, label) = if receiver_parameter_index == Some(parameter_index) {
+            let label = receiver_place.as_ref().map_or_else(
+                || {
+                    omega_typed_trees::expression::display_name_path(
+                        program.statement_table.name_path_members(call.receiver),
+                        "::",
+                    )
+                },
+                |place| {
+                    crate::labels::canonical_place_label_from_parts(
+                        program,
+                        place.root,
+                        &place.segments,
+                    )
+                },
+            );
+            (receiver_place.clone(), label)
         } else {
             let argument = arguments.get(argument_index).copied();
             argument_index = argument_index.saturating_add(1);
-            argument.and_then(|expression| {
+            let place = argument.and_then(|expression| {
                 canonical_place_from_expression_in_state(
                     program,
                     caller_state_symbol,
@@ -178,15 +194,19 @@ fn operator_statement_operands<'program>(
                     expression,
                 )
                 .or_else(|| canonical_place_from_expression(program, expression))
-            })
-        };
-        if let Some(place) = place {
-            operands.push(OperatorStatementOperand {
-                parameter_symbol: parameter.symbol,
-                is_mutable: parameter.is_mutable,
-                place,
             });
-        }
+            let label = argument.map_or_else(
+                || parameter.name.to_string(),
+                |expression| program.expression_table.display_name(expression),
+            );
+            (place, label)
+        };
+        operands.push(OperatorStatementOperand {
+            parameter_symbol: parameter.symbol,
+            is_mutable: parameter.is_mutable,
+            label,
+            place,
+        });
     }
 
     Some((resolved.operator, operands))
@@ -212,7 +232,7 @@ pub(super) fn operator_statement_call_mutated_places(
     .map(|(_, operands)| {
         operands
             .into_iter()
-            .filter_map(|operand| operand.is_mutable.then_some(operand.place))
+            .filter_map(|operand| operand.is_mutable.then_some(operand.place).flatten())
             .collect()
     })
     .unwrap_or_default()
@@ -223,7 +243,7 @@ pub(super) fn operator_statement_call_mutated_places(
 /// place is instantiated from the operator parameter onto the exact caller
 /// operand, including any relative field/index segments.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn append_operator_statement_domain_ensures(
+pub(super) fn append_operator_statement_ensures(
     program: &omega_typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     ctx: &mut FlowBuildContext,
@@ -248,6 +268,11 @@ pub(super) fn append_operator_statement_domain_ensures(
         state_symbol: caller_state_symbol,
         statement_index,
     };
+    let parameters = program.operator_parameters(operator);
+    let operand_labels = operands
+        .iter()
+        .map(|operand| operand.label.clone())
+        .collect::<Vec<_>>();
     let mut refs = HandleSpan::empty();
 
     for contract in program
@@ -267,49 +292,104 @@ pub(super) fn append_operator_statement_domain_ensures(
                     .expect("operator contract fact handle overflow"),
                 contract.facts.start().generation(),
             );
-            let omega_typed_trees::domain::ProofFact::Membership(membership) =
-                program.proof_facts.get(fact_handle)
-            else {
-                // Boolean postconditions need expression substitution, which is
-                // a separate proof surface. Do not invent a caller fact for them.
-                continue;
-            };
-            let Some(relative) =
-                operator_contract_relative_place(program, operator, membership.value)
-            else {
-                continue;
-            };
-            let omega_facts::PlaceRoot::Symbol(parameter_symbol) = relative.root else {
-                continue;
-            };
-            let Some(operand) = operands
-                .iter()
-                .find(|operand| operand.parameter_symbol == parameter_symbol)
-            else {
-                continue;
-            };
-            let mut place = operand.place.clone();
-            place.extend_segments(&relative.segments);
-            let place = crate::semantic_places::append_place_with_segments(
-                semantic,
-                place.root,
-                &place.segments,
-            );
-            let fact = semantic.append_fact(Fact {
-                place: FactPlace::Place(place),
-                point,
-                origin: FactOrigin::OperatorEnsures {
-                    operator_symbol: operator.symbol,
-                },
-                payload: FactPayload::ContractDomainMembership {
-                    kind: semantic_contract_fact_kind(ContractProofFactKind::Ensures),
-                    fact: fact_handle,
-                    value: membership.value,
-                    domain: membership.domain,
-                    domain_symbol: membership.domain_symbol,
-                },
-            });
-            semantic.append_ref(&mut refs, fact);
+            match program.proof_facts.get(fact_handle) {
+                omega_typed_trees::domain::ProofFact::Membership(membership) => {
+                    let Some(relative) =
+                        operator_contract_relative_place(program, operator, membership.value)
+                    else {
+                        continue;
+                    };
+                    let omega_facts::PlaceRoot::Symbol(parameter_symbol) = relative.root else {
+                        continue;
+                    };
+                    let Some(operand) = operands
+                        .iter()
+                        .find(|operand| operand.parameter_symbol == parameter_symbol)
+                    else {
+                        continue;
+                    };
+                    let Some(mut place) = operand.place.clone() else {
+                        continue;
+                    };
+                    place.extend_segments(&relative.segments);
+                    let place = crate::semantic_places::append_place_with_segments(
+                        semantic,
+                        place.root,
+                        &place.segments,
+                    );
+                    let fact = semantic.append_fact(Fact {
+                        place: FactPlace::Place(place),
+                        point,
+                        origin: FactOrigin::OperatorEnsures {
+                            operator_symbol: operator.symbol,
+                        },
+                        payload: FactPayload::ContractDomainMembership {
+                            kind: semantic_contract_fact_kind(ContractProofFactKind::Ensures),
+                            fact: fact_handle,
+                            value: membership.value,
+                            domain: membership.domain,
+                            domain_symbol: membership.domain_symbol,
+                        },
+                    });
+                    semantic.append_ref(&mut refs, fact);
+                }
+                omega_typed_trees::domain::ProofFact::Expression(expression) => {
+                    let label =
+                        crate::labels::instantiate_operator_contract_expression_label_with_labels(
+                            program,
+                            parameters,
+                            &operand_labels,
+                            *expression,
+                        );
+                    let instantiated = semantic.append_instantiated_expression(label);
+                    let mut dependencies = operands
+                        .iter()
+                        .filter_map(|operand| operand.place.clone())
+                        .collect::<Vec<_>>();
+                    dependencies.dedup();
+
+                    if dependencies.is_empty() {
+                        let fact = semantic.append_fact(Fact {
+                            place: FactPlace::Unknown,
+                            point,
+                            origin: FactOrigin::OperatorEnsures {
+                                operator_symbol: operator.symbol,
+                            },
+                            payload: FactPayload::ContractBooleanExpression {
+                                kind: semantic_contract_fact_kind(ContractProofFactKind::Ensures),
+                                fact: fact_handle,
+                                expression: *expression,
+                                instantiated,
+                            },
+                        });
+                        semantic.append_ref(&mut refs, fact);
+                    } else {
+                        for dependency in dependencies {
+                            let place = crate::semantic_places::append_place_with_segments(
+                                semantic,
+                                dependency.root,
+                                &dependency.segments,
+                            );
+                            let fact = semantic.append_fact(Fact {
+                                place: FactPlace::Place(place),
+                                point,
+                                origin: FactOrigin::OperatorEnsures {
+                                    operator_symbol: operator.symbol,
+                                },
+                                payload: FactPayload::ContractBooleanExpression {
+                                    kind: semantic_contract_fact_kind(
+                                        ContractProofFactKind::Ensures,
+                                    ),
+                                    fact: fact_handle,
+                                    expression: *expression,
+                                    instantiated,
+                                },
+                            });
+                            semantic.append_ref(&mut refs, fact);
+                        }
+                    }
+                }
+            }
         }
     }
 

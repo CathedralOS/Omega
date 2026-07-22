@@ -1848,10 +1848,19 @@ fn parses_self_parameter_with_dedicated_self_type() {
     );
 
     assert!(parameter.is_self);
+    let TypeReferenceNode::Reference {
+        referee,
+        is_mutable,
+        ..
+    } = parsed
+        .type_references
+        .type_reference(parameter.type_reference)
+    else {
+        panic!("&mut self should retain its reference ownership mode");
+    };
+    assert!(*is_mutable);
     assert!(matches!(
-        parsed
-            .type_references
-            .type_reference(parameter.type_reference),
+        parsed.type_references.type_reference(*referee),
         TypeReferenceNode::SelfType
     ));
 }

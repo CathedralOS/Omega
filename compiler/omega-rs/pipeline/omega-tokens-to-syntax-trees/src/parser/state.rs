@@ -239,7 +239,16 @@ fn parse_state_parameter<'tokens, 'source>(
 
         if input.at_keyword(KeywordKind::SelfValue) {
             let input = input.take_keyword(KeywordKind::SelfValue, "self")?;
-            let type_reference = syntax_trees.tables.type_references.insert_self_type();
+            // Preserve the receiver's ownership mode in the type graph.
+            // `is_self` identifies receiver binding and `is_mutable` drives
+            // borrow access, but neither can distinguish shared `&self` from
+            // consuming `self`. The reference node is the canonical ownership
+            // distinction used by permission-event discovery downstream.
+            let self_type = syntax_trees.tables.type_references.insert_self_type();
+            let type_reference = syntax_trees
+                .tables
+                .type_references
+                .insert_reference(self_type, is_mutable || is_leading_mutable);
 
             return Ok((
                 syntax_trees.items.insert_state_parameter_node(

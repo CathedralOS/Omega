@@ -70,10 +70,23 @@ A later machine may consume it with `finish()` or transfer it again. A live
 task may not be copied, overwritten, dropped at ordinary scope exit, or lost
 on one branch.
 
-Implementation staging: the core `Task<T>` claim carrier has landed. The
-generic terminal/start outcome sums land only with qualifier-aware payload
-propagation, so a substituted linear result or rejected argument bundle cannot
-silently lose its obligation through an unconstrained generic field.
+Implementation staging: the core `Task<T>` claim carrier, generic terminal and
+start outcome sums, and opaque `TaskRuntime::start` / `try_start` signatures
+have landed. Qualifier-aware generic payload propagation preserves a
+substituted linear result or rejected argument bundle instead of silently
+losing its obligation through an unconstrained generic field. Concrete static
+targets now produce validated `05_task_activations.json` records with checked
+effect reach, layouts, continuation size, safe-point carry demands, and a
+separate all-instruction carry envelope for asynchronous preemption. The
+envelope conservatively joins every checked storage/call/transient value and
+is omitted when type coverage is incomplete, causing asynchronous runtime
+admission to fail closed.
+Every activation plan requires the cancellation support promised by the Task
+lifecycle. The core lifecycle calls are ownership-checked: receiver types keep
+shared `&self` distinct from consuming `self`, `request_cancel` preserves the
+claim, and `finish` consumes it into the conditional terminal outcome.
+Provider provenance/admission/dispatch and executable continuation lowering
+remain.
 
 `request_cancel()` retains the claim: requesting cancellation does not prove
 that execution stopped. `finish()` may suspend, consumes the claim, and returns
@@ -281,10 +294,10 @@ machine Scheduler::run(runtime: &TaskRuntime, job: Job) -> WorkResult {
 }
 ```
 
-The exact core outcome names remain library spelling, but the separation is
-semantic: task completion, cancellation, and provider failure belong to the
-outer lifecycle outcome; recoverable failure produced by `Worker::run` belongs
-inside `WorkResult` (or its application sum).
+The core library spells the outer lifecycle sum `TaskOutcome<T>` with
+`Returned`, `Cancelled`, and `Failed` cases. Task completion, cancellation, and
+provider failure belong to that outer outcome; recoverable failure produced by
+`Worker::run` belongs inside `WorkResult` (or its application sum).
 
 There is no ownerless fire-and-forget operation. A caller that does not retain
 the result transfers the task to ordinary owner data, commonly a supervisor:

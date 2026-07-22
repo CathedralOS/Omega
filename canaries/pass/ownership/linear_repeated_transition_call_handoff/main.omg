@@ -1,0 +1,25 @@
+// PASS canary (decision 21): two nested value calls to the same target in one
+// transition statement transfer distinct linear obligations. Canonical call
+// ordinals and backend realization must keep both handoffs distinct even though
+// target-symbol filtering alone cannot distinguish them.
+
+data Receipt [linear] { code: i32; }
+machine Receipt::ack(self) {}
+
+data Main {}
+
+machine Main::forward(&mut self, receipt: Receipt) -> Receipt { receipt }
+
+machine Main::run(&mut self) -> i32 {
+    let first: Receipt = Receipt { code: 7 };
+    let second: Receipt = Receipt { code: 9 };
+    transition {
+        _ -> consume(self.forward(first), self.forward(second))
+    }
+
+    state consume(&mut self, first: Receipt, second: Receipt) -> i32 {
+        Receipt::ack(first);
+        Receipt::ack(second);
+        0
+    }
+}

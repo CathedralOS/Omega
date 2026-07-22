@@ -20,6 +20,7 @@ use crate::pipeline::timing::CompileTimings;
 use omega_artifacts::build_backend_surface_report;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPool;
+use std::sync::Arc;
 
 pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
     // Run the whole pipeline on a thread with a large explicit stack. The
@@ -504,7 +505,12 @@ impl Compiler {
             &typed,
         );
 
-        let checked = typed_trees_to_checked_trees(typed, &mut timings)?;
+        let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
+        crate::pipeline::task_plans::elaborate_task_activation_plans(
+            Arc::get_mut(&mut checked.program)
+                .expect("checked program must be uniquely owned before backend fan-out"),
+            selected_native_target,
+        )?;
         write_checked_snapshot(&self.options, &checked.program)?;
         write_boundary_report_with_capabilities(&self.options, &syntax_trees, &checked.program)?;
         let backend_surface = build_backend_surface_report(&checked.program);

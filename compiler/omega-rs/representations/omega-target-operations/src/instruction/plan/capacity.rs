@@ -19,7 +19,7 @@ impl TargetOperationPlan {
                 runtime_value_operands: Arena::with_capacity(runtime_value_operand_capacity),
                 host_bindings: Arena::new(),
             },
-            TargetSemanticSummary::with_capacity(0, 0, 0, 0, 0, 0, 0),
+            TargetSemanticSummary::with_capacity(0, 0, 0, 0, 0),
         )
     }
 }

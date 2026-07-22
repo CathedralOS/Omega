@@ -60,7 +60,7 @@ mod tests {
             runtime_value_operands: Arena::with_capacity(4),
             host_bindings: Arena::with_capacity(5),
         };
-        let semantics = TargetSemanticSummary::with_capacity(6, 7, 8, 9, 10, 11, 12);
+        let semantics = TargetSemanticSummary::with_capacity(6, 7, 8, 9, 12);
 
         let plan = TargetOperationPlan::with_roots(target, code.clone(), semantics.clone());
 

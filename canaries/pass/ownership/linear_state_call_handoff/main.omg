@@ -1,0 +1,19 @@
+// PASS canary (decision 21): a direct/inlined state call transfers one linear
+// obligation into the callee's state-entry parameter. Backend realization must
+// join the source call event and target entry establishment to the exact call
+// selection site, even when no runtime dispatch edge performs the handoff.
+
+data Receipt [linear] { code: i32; }
+machine Receipt::ack(self) {}
+
+data Main {}
+
+machine Main::run(&mut self) -> i32 {
+    let receipt: Receipt = Receipt { code: 7 };
+    self.consume(receipt)
+}
+
+machine Main::consume(&mut self, receipt: Receipt) -> i32 {
+    Receipt::ack(receipt);
+    0
+}
