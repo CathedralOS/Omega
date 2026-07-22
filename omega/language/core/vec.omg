@@ -1,17 +1,18 @@
 // Core Vec surface.
 //
-// Vec is the growable owner for contiguous storage. It owns a heap buffer and
-// tracks a length (`len`) and a capacity (`capacity`, always >= len). It is the
+// Vec is the eventual arena-backed owner for contiguous storage. It owns an
+// allocation with a fixed capacity (`capacity`, always >= `len`) and is the
 // owned counterpart to the borrowed `Slice` view: `Vec::as_slice` lends the
 // elements as a `&[T]` window without giving up ownership.
 //
 // This module is the source-visible SURFACE: the length/capacity measures and
-// the push / with_capacity / as_slice / as_mut_slice operator contracts with
+// the push / as_slice / as_mut_slice operator contracts with
 // their `requires`/`ensures`, including byte vectors refined by text domains
 // and how `Slice`/`Array` surface their length and view contracts. The actual
-// runtime storage and reallocation mechanics (allocation, growth, element
-// moves) are compiler/runtime internals and are OUT OF SCOPE here; only the
-// proof-facing contracts and the boundary provider binding live in this layer.
+// runtime storage mechanics are OUT OF SCOPE here; only the proof-facing
+// contracts and the boundary provider binding live in this layer. Construction
+// remains deliberately absent until `Allocation<T>` can borrow an explicit
+// `Arena` through the lifetime model; there is no ambient allocator shortcut.
 
 // Boundary primitive provider for constructing borrowed slice views over an
 // owned vector buffer (Wave 0 decision #4). `as_slice` / `as_mut_slice` lower
@@ -42,11 +43,6 @@ boundary operator Vec::Capacity<T>(items: &Vec<T>) -> u64
 ensures
     result >= items.len;
 
-// Construct an empty vector with at least `capacity` worth of spare storage.
-boundary operator Vec::with_capacity<T>(capacity: u64) -> Vec<T>
-ensures
-    result.capacity >= capacity;
-
 boundary operator Vec::index<T>(items: &Vec<T>, index: u64) -> T
 requires
     index < items.len;
@@ -66,8 +62,8 @@ provider omega::language::core::vec_views
 ensures
     result.len == items.len;
 
-// Append a value. Requires spare capacity; growth/reallocation when full is a
-// runtime internal handled below this surface (OUT OF SCOPE here).
+// Append a value using already-owned capacity. Reallocation is never ambient;
+// a future growing owner must reach its explicit Arena-backed allocation.
 boundary operator Vec::push<T>(items: &mut Vec<T>, value: T) -> ()
 requires
     items.len < items.capacity;

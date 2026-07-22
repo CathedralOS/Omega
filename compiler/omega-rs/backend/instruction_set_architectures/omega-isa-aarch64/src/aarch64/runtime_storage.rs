@@ -3210,7 +3210,7 @@ fn append_runtime_frame_index_target_address(
     )
 }
 
-/// Region-aware flavor: a MACHINE-resident index (a subslice start held in a
+/// Machine-storage flavor: a MACHINE-resident index (a subslice start held in a
 /// machine field) materializes its own page pair into x21 at the CONSTANT
 /// offset 32 (after the frame pair + the fixed-width descriptor load), which
 /// the relocation record patches to the machine symbol.

@@ -7,9 +7,9 @@
 // room is a PROOF failure at compile time, never a runtime reallocation or
 // trap (allocator story stage 1: every operation that needs room carries a
 // `requires` obligation the caller must discharge). The `alloc`/`dealloc`
-// effects and the `Region` boundary (core/region.omg) are untouched by this
+// effects and the `Arena` boundary (core/arena.omg) are untouched by this
 // type; they only enter the story at stage 2 (`Vec<'r, T>` borrowing a
-// Region).
+// Arena).
 //
 // GENERIC INSTANTIATION FRONTIER (measured 2026-06-12): the generic `data`
 // declaration below compiles structurally (chapter 12 const value

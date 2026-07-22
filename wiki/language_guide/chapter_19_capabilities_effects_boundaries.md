@@ -824,10 +824,10 @@ Working private carrier model:
   ordinary fields users manipulate through safe collection APIs.
 
 This keeps the magic boundary narrow. Core declarations expose contracts such
-as `Slice::range` or `Vec::with_capacity`; private
-carriers and boundary primitive providers implement the descriptor rewrite, pointer
-offset, allocation, and initialization details after the proof obligations are
-satisfied.
+as `Slice::range`; private carriers and boundary primitive providers implement
+descriptor rewrites and pointer offsets after the proof obligations are
+satisfied. Allocation is reached through an explicit `Arena`; `Vec` has no
+ambient constructor that silently selects an allocator.
 
 This sketch needs more design work, but the direction is important:
 

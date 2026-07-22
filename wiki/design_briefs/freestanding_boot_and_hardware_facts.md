@@ -241,7 +241,7 @@ than relying on friendly names:
 
 The first two Cathedral milestones already validate the typed UEFI entry,
 runtime firmware-table calls, memory-map walk, `ExitBootServices`, first
-physical-Extent mint (still spelled `Region` in the bootstrap sample), port I/O,
+physical-Extent mint, port I/O,
 and `hlt` path. The timer/IDT slice is not yet specified or
 implemented end to end.
 
