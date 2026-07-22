@@ -977,9 +977,12 @@ stronger operations it needs instead of citing machine parameters generally.
   proved. Fact-free mutable scalar views now also preserve full-footprint
   little-endian write-through at a statically or dynamically bounded offset in
   a byte region, with native/interpreter execution and x86-64/AArch64 compile
-  rails; fact-bearing targets reject. `struct stat` now uses target `StatLayout`
-  policies rather than compatibility offsets. Continue mutable record views and
-  their full tiling/fact-equivalence judgment.
+  rails; fact-bearing targets reject. Recursively fact-free mutable record
+  views now write through nested ordinary and plan-laid projections in native
+  and interpreter execution, with x86-64/AArch64 compile rails; constrained
+  fields reject at the bidirectional-fact gate. `struct stat` now uses target
+  `StatLayout` policies rather than compatibility offsets. Continue general
+  tiling and bidirectional fact-equivalence beyond the fact-free record subset.
 - **L6a — Extent.** The normalized conservation foundation is live in
   `omega-extents`: admitted one-shot root grants mint nonempty ranges;
   move-split preserves exact geometry; only compatible siblings from one

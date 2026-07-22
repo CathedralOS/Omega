@@ -439,12 +439,18 @@ enum MutableScalarRecast {
         offset: usize,
         target: PrimitiveType,
     },
+    RecordByteRegion {
+        cells: Vec<Cell>,
+        offset: usize,
+        target_name: String,
+    },
 }
 
 impl MutableScalarRecast {
-    fn target(&self) -> PrimitiveType {
+    fn target(&self) -> Option<PrimitiveType> {
         match self {
-            Self::Direct { target, .. } | Self::ByteRegion { target, .. } => *target,
+            Self::Direct { target, .. } | Self::ByteRegion { target, .. } => Some(*target),
+            Self::RecordByteRegion { .. } => None,
         }
     }
 }
@@ -464,10 +470,10 @@ struct Frame {
     /// coercion alone cannot represent an expression whose own domain differs
     /// from its landing slot's).
     scalar_locals: RefCell<BTreeMap<String, (PrimitiveType, ArithmeticDomain)>>,
-    /// Mutable scalar recast locals retain either one equal-width scalar cell
-    /// or an indexed byte region. The local remains a normal `Ref` for place
-    /// resolution, while these descriptors preserve the stated view width at
-    /// the observable read/write seams.
+    /// Mutable recast locals retain either one equal-width scalar cell or an
+    /// indexed byte region. The local remains a normal `Ref` for place
+    /// resolution, while these descriptors preserve the stated scalar/record
+    /// geometry at the observable read/write seams.
     mutable_scalar_recasts: RefCell<BTreeMap<String, MutableScalarRecast>>,
     self_cell: Cell,
     /// The machine whose state is currently executing. Lets a call/transition that names a
@@ -1538,14 +1544,23 @@ impl<'program> Evaluator<'program> {
                 // `[u8;N] in Saturating` clamps to 255). Integers truncate/clamp/
                 // trap (decision 17); an f32 target rounds to f32 (native keeps f32
                 // in the slot). Mirrors the LocalData store below.
+                if self.write_mutable_record_recast_target(
+                    assignment.target,
+                    frame,
+                    value.clone(),
+                )? {
+                    return Ok(());
+                }
                 let value = if let Some(recast) =
                     self.mutable_scalar_recast_target(assignment.target, frame)
                 {
                     // The write is stated in the VIEW type, then lands in the
                     // backing scalar cell or byte region as the identical bit
                     // pattern. Validation proves the complete footprint.
-                    let value =
-                        self.coerce_scalar_with(value, recast.target(), ArithmeticDomain::Exact)?;
+                    let target = recast.target().ok_or_else(|| {
+                        Halt::Trap("record recast reached the scalar write seam".to_owned())
+                    })?;
+                    let value = self.coerce_scalar_with(value, target, ArithmeticDomain::Exact)?;
                     match recast {
                         MutableScalarRecast::Direct { source, .. } => {
                             self.eval_recast(value, Some(source))?
@@ -1557,6 +1572,9 @@ impl<'program> Evaluator<'program> {
                         } => {
                             self.write_scalar_byte_region(&cells, offset, target, value)?;
                             return Ok(());
+                        }
+                        MutableScalarRecast::RecordByteRegion { .. } => {
+                            return trap("record recast reached the scalar write seam");
                         }
                     }
                 } else {
@@ -4558,6 +4576,11 @@ impl<'program> Evaluator<'program> {
     fn eval_expression(&mut self, handle: ExpressionHandle, frame: &Frame) -> EvalResult<Value> {
         self.tick()?;
         let node = self.program.expression_table.expression(handle).clone();
+        if matches!(&node, ExpressionNode::Name(_) | ExpressionNode::Member(_))
+            && let Some(value) = self.read_mutable_record_recast_target(handle, frame)?
+        {
+            return Ok(value);
+        }
         match node {
             ExpressionNode::Atomic(atomic) => self.eval_expression(atomic.value, frame),
             ExpressionNode::Integer(value) => match value.bits_u64() {
@@ -5170,6 +5193,17 @@ impl<'program> Evaluator<'program> {
                         offset,
                         target,
                     } => self.assemble_scalar_byte_region(&cells, offset, target),
+                    MutableScalarRecast::RecordByteRegion {
+                        cells,
+                        offset,
+                        target_name,
+                    } => self
+                        .assemble_record_view(&target_name, &cells, offset)?
+                        .ok_or_else(|| {
+                            Halt::Trap(format!(
+                                "cannot assemble mutable record recast `{target_name}`"
+                            ))
+                        }),
                 };
             }
             return Ok(inner.borrow().clone());
@@ -5201,9 +5235,14 @@ impl<'program> Evaluator<'program> {
         if cast.form != omega_core::cast_form::CastForm::RecastMutable {
             return Ok(None);
         }
-        let Some(target) = self.cast_target_primitive(cast.target_type) else {
-            return Ok(None);
-        };
+        let target = self.cast_target_primitive(cast.target_type);
+        let target_name = self
+            .program
+            .expression_table
+            .name_path_members(cast.target_type)
+            .last()
+            .map(|name| name.as_str().to_owned())
+            .unwrap_or_default();
         if let ExpressionNode::Indexed(indexed) =
             self.program.expression_table.expression(cast.value).clone()
         {
@@ -5214,16 +5253,24 @@ impl<'program> Evaluator<'program> {
                         "mutable interior recast starts at byte {offset} past the region"
                     ))
                 })?;
-                return Ok(Some((
-                    source_cell,
-                    MutableScalarRecast::ByteRegion {
+                let recast = match target {
+                    Some(target) => MutableScalarRecast::ByteRegion {
                         cells,
                         offset,
                         target,
                     },
-                )));
+                    None => MutableScalarRecast::RecordByteRegion {
+                        cells,
+                        offset,
+                        target_name,
+                    },
+                };
+                return Ok(Some((source_cell, recast)));
             }
         }
+        let Some(target) = target else {
+            return Ok(None);
+        };
         let Some((source, _)) = self.expression_scalar_type(cast.value, frame) else {
             return Ok(None);
         };
@@ -5258,6 +5305,126 @@ impl<'program> Evaluator<'program> {
             .borrow()
             .get(name.as_str())
             .cloned()
+    }
+
+    /// Recover a mutable recast local and any record-field path projected from
+    /// it. Typed expressions use both `Name([view, field])` and nested Member
+    /// nodes, so normalize both spellings here.
+    fn mutable_recast_path(
+        &self,
+        handle: ExpressionHandle,
+        frame: &Frame,
+    ) -> Option<(MutableScalarRecast, Vec<String>)> {
+        match self.program.expression_table.expression(handle) {
+            ExpressionNode::Mutable(inner) => self.mutable_recast_path(*inner, frame),
+            ExpressionNode::Name(path) => {
+                let members = self
+                    .program
+                    .expression_table
+                    .name_path_members(path.members);
+                let root = members.first()?;
+                let recast = frame
+                    .mutable_scalar_recasts
+                    .borrow()
+                    .get(root.as_str())
+                    .cloned()?;
+                Some((
+                    recast,
+                    members[1..]
+                        .iter()
+                        .map(|member| member.as_str().to_owned())
+                        .collect(),
+                ))
+            }
+            ExpressionNode::Member(member) => {
+                let (recast, mut path) = self.mutable_recast_path(member.receiver, frame)?;
+                path.push(member.member.as_str().to_owned());
+                Some((recast, path))
+            }
+            _ => None,
+        }
+    }
+
+    fn read_mutable_record_recast_target(
+        &mut self,
+        handle: ExpressionHandle,
+        frame: &Frame,
+    ) -> EvalResult<Option<Value>> {
+        let Some((recast, path)) = self.mutable_recast_path(handle, frame) else {
+            return Ok(None);
+        };
+        let MutableScalarRecast::RecordByteRegion {
+            cells,
+            offset,
+            target_name,
+        } = recast
+        else {
+            return Ok(None);
+        };
+        if path.is_empty() {
+            return self.assemble_record_view(&target_name, &cells, offset);
+        }
+        let Some((field_offset, field_type)) =
+            self.record_view_field_projection(&target_name, &path, offset)
+        else {
+            return trap(format!(
+                "cannot project `{}` through mutable record recast `{target_name}`",
+                path.join(".")
+            ));
+        };
+        if let Some(primitive) = self.program.primitive_type_reference(field_type) {
+            return self
+                .assemble_scalar_byte_region(&cells, field_offset, primitive)
+                .map(Some);
+        }
+        let Some(nested_name) = self.record_view_named_type(field_type).map(str::to_owned) else {
+            return trap("mutable record projection is neither scalar nor record");
+        };
+        self.assemble_record_view(&nested_name, &cells, field_offset)
+    }
+
+    fn write_mutable_record_recast_target(
+        &mut self,
+        handle: ExpressionHandle,
+        frame: &Frame,
+        value: Value,
+    ) -> EvalResult<bool> {
+        let Some((recast, path)) = self.mutable_recast_path(handle, frame) else {
+            return Ok(false);
+        };
+        let MutableScalarRecast::RecordByteRegion {
+            cells,
+            offset,
+            target_name,
+        } = recast
+        else {
+            return Ok(false);
+        };
+        if path.is_empty() {
+            self.write_record_view(&target_name, &cells, offset, value)?;
+            return Ok(true);
+        }
+        let Some((field_offset, field_type)) =
+            self.record_view_field_projection(&target_name, &path, offset)
+        else {
+            return trap(format!(
+                "cannot project `{}` through mutable record recast `{target_name}`",
+                path.join(".")
+            ));
+        };
+        if let Some(primitive) = self.program.primitive_type_reference(field_type) {
+            let domain = self
+                .program
+                .arithmetic_domain_for_type_reference(field_type);
+            let value = self.coerce_scalar_with(value, primitive, domain)?;
+            self.write_scalar_byte_region(&cells, field_offset, primitive, value)?;
+            return Ok(true);
+        }
+        let Some(nested_name) = self.record_view_named_type(field_type).map(str::to_owned) else {
+            return trap("mutable record projection is neither scalar nor record");
+        };
+        self.write_record_view(&nested_name, &cells, field_offset, value)?;
+        Ok(true)
     }
 
     /// `Type::Variant` paths whose head is an enum/data symbol with a matching variant.
@@ -6250,6 +6417,112 @@ impl<'program> Evaluator<'program> {
         };
         visiting.remove(type_name);
         result
+    }
+
+    fn record_view_fields(
+        &self,
+        type_name: &str,
+    ) -> Option<Vec<(String, TypeReferenceHandle, usize)>> {
+        let data = self.find_data_by_name(type_name)?;
+        let mut fields = Vec::new();
+        let mut layouts = Vec::new();
+        for member in self.program.data_members(data) {
+            let omega_typed_trees::data::DataMember::Field(field) = member else {
+                return None;
+            };
+            let layout = self.record_view_type_layout(field.type_reference, &mut HashSet::new())?;
+            fields.push((field.name.as_str().to_owned(), field.type_reference));
+            layouts.push(layout);
+        }
+        let offsets = if let Some(plan) = self
+            .program
+            .plan_laid_layouts
+            .iter()
+            .find(|plan| plan.data_name == type_name)
+        {
+            if plan.offsets.len() != fields.len() {
+                return None;
+            }
+            plan.offsets.clone()
+        } else {
+            let mut offsets = Vec::with_capacity(fields.len());
+            let mut offset = 0usize;
+            for (size, align) in layouts {
+                offset = offset.div_ceil(align) * align;
+                offsets.push(offset);
+                offset = offset.checked_add(size)?;
+            }
+            offsets
+        };
+        Some(
+            fields
+                .into_iter()
+                .zip(offsets)
+                .map(|((name, type_reference), offset)| (name, type_reference, offset))
+                .collect(),
+        )
+    }
+
+    fn record_view_field_projection(
+        &self,
+        type_name: &str,
+        path: &[String],
+        base_offset: usize,
+    ) -> Option<(usize, TypeReferenceHandle)> {
+        let (field_name, rest) = path.split_first()?;
+        let (_, field_type, field_offset) = self
+            .record_view_fields(type_name)?
+            .into_iter()
+            .find(|(name, _, _)| name == field_name)?;
+        let offset = base_offset.checked_add(field_offset)?;
+        if rest.is_empty() {
+            return Some((offset, field_type));
+        }
+        let nested_name = self.record_view_named_type(field_type)?;
+        self.record_view_field_projection(nested_name, rest, offset)
+    }
+
+    fn write_record_view(
+        &self,
+        type_name: &str,
+        cells: &[Cell],
+        base_offset: usize,
+        value: Value,
+    ) -> EvalResult<()> {
+        let Value::Struct { fields, .. } = value else {
+            return trap(format!(
+                "mutable record recast `{type_name}` requires a record value"
+            ));
+        };
+        let Some(field_specs) = self.record_view_fields(type_name) else {
+            return trap(format!(
+                "cannot lay out mutable record recast `{type_name}`"
+            ));
+        };
+        for (name, type_reference, field_offset) in field_specs {
+            let Some(field_cell) = fields.get(&name) else {
+                return trap(format!(
+                    "record value written through `{type_name}` has no field `{name}`"
+                ));
+            };
+            let offset = base_offset
+                .checked_add(field_offset)
+                .ok_or_else(|| Halt::Trap("mutable record recast offset overflow".to_owned()))?;
+            let field_value = field_cell.borrow().clone();
+            if let Some(primitive) = self.program.primitive_type_reference(type_reference) {
+                let domain = self
+                    .program
+                    .arithmetic_domain_for_type_reference(type_reference);
+                let field_value = self.coerce_scalar_with(field_value, primitive, domain)?;
+                self.write_scalar_byte_region(cells, offset, primitive, field_value)?;
+            } else {
+                let Some(nested_name) = self.record_view_named_type(type_reference) else {
+                    return trap("mutable record field is neither scalar nor record");
+                };
+                self.write_record_view(nested_name, cells, offset, field_value)?;
+            }
+        }
+        Ok(())
     }
 
     fn record_view_named_type(&self, mut type_reference: TypeReferenceHandle) -> Option<&str> {
