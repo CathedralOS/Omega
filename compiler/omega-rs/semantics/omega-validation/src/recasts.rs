@@ -5,17 +5,19 @@
 //! The scalar rung serves the core end-to-end and fences the rest loudly:
 //!
 //! - **Served:** a recast between fixed-width scalar primitives of EQUAL byte
-//!   size (`&i32 as &f32`, `&mut u32 as &mut i32`), bound as the direct
+//!   size (`&i32 as &f32`, `&mut u32 as &mut i32`), or a scalar view into a
+//!   proven in-bounds `[u8; N]` region, bound as the direct
 //!   initializer of a reference-typed let whose stated type restates the
 //!   target. Shared views may weaken source facts. Mutable views currently
 //!   require fact-free primitive source and target shapes, which proves the
 //!   required implication in BOTH directions. Lowering is address identity:
 //!   native reads/writes the place through the stated type; the interpreter
-//!   bit-reinterprets both sides of the alias.
-//! - **Fenced (deeper byte-view rung, L4/L5):** mutable record/interior views,
-//!   record/array shapes
+//!   bit-reinterprets both sides of the alias or assembles/writes the complete
+//!   little-endian byte-region footprint.
+//! - **Fenced (deeper byte-view rung, L4/L5):** mutable record views,
+//!   remaining record/array shapes
 //!   (byte-granular tiling over plan-laid layouts), interior recasts into
-//!   `[u8; N]` regions (the Cathedral M2 shape), and non-let positions.
+//!   and non-let positions.
 //! - **Refused absolutely:** targets that would ESTABLISH a fact the bytes
 //!   don't prove (`bool`'s 0/1, text encodings) -- establishing facts is a
 //!   MINT's job (fallible, case-returning), never a recast's.
@@ -472,11 +474,17 @@ fn judge_scalar_recast(
     } = interior
     {
         if mutable_recast {
-            diagnostics.push(Diagnostic::error(format!(
-                "{context}: mutable interior byte-region recasts still require the deeper \
-                 byte-view write-back judgment"
-            )));
-            return;
+            let target_is_fact_free = matches!(
+                program.type_reference_table.type_reference(let_referee),
+                TypeReferenceNode::Named { .. }
+            );
+            if !target_is_fact_free {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{context}: a mutable recast must prove fact implication in BOTH directions; \
+                     a raw byte region can only be viewed as a fact-free primitive in this rung"
+                )));
+                return;
+            }
         }
         let Some(target_size) = target.scalar_byte_size() else {
             return;

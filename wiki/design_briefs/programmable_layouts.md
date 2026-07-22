@@ -165,10 +165,12 @@ loan ends. Foreign validation or executable conversion remains an ordinary
 contracted machine.
 
 Implementation status (2026-07-22): shared scalar, bounded interior-byte, and
-nested plan-laid record reads are live. Equal-width fact-free mutable scalar
-views are also live end to end, including bit-exact writes and reads in both the
-native backends and interpreter. Mutable record/interior views remain the next
-tiling-and-write-back rung; they are rejected rather than lowered partially.
+nested plan-laid record reads are live. Fact-free mutable scalar views are also
+live end to end over both equal-width scalar places and bounded offsets within
+byte regions, including bit-exact full-footprint writes and reads in both native
+backends and the interpreter. Fact-bearing mutable targets reject. Mutable
+record views remain the next tiling-and-write-back rung; they are rejected
+rather than lowered partially.
 
 ## Policy selection
 

@@ -291,6 +291,7 @@ shape. The spelling states both the borrow polarity and target shape:
 ```omega
 let read: &u32 = &self.word as &u32;
 let write: &mut u32 = &mut self.float as &mut u32;
+let interior: &mut u32 = &mut self.bytes[offset] as &mut u32;
 ```
 
 The source and target must cover the same bytes under their normalized layout
@@ -298,9 +299,11 @@ plans. A shared recast may only weaken facts (source implies target). A mutable
 recast requires implication in both directions so writes through the view
 cannot invalidate the source type. This is a static representation judgment,
 not an unchecked transmute or a value conversion. The implemented mutable
-scalar rung accepts equal-width fact-free primitives; fact-bearing and deeper
-mutable shapes remain rejected until their equivalence and byte-tiling proof is
-available.
+scalar rung accepts equal-width fact-free primitive places and proven-in-bounds
+offsets into byte regions. The latter reads and writes the target's complete
+footprint, using the target's native little-endian scalar representation on the
+currently served targets. Fact-bearing and mutable record shapes remain
+rejected until their equivalence and byte-tiling proof is available.
 
 See [`Programmable Layouts`](../design_briefs/programmable_layouts.md) and the
 [`OS Memory And Hardware Foundation`](../design_briefs/os_memory_and_hardware_foundation.md)

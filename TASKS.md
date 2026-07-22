@@ -974,8 +974,11 @@ stronger operations it needs instead of citing machine parameters generally.
   recasts now preserve address identity and bit-exact write-through in native
   and interpreter execution, cross-compile on x86-64 and AArch64, and reject a
   fact-bearing source unless the required bidirectional implication can be
-  proved. `struct stat` now uses target `StatLayout` policies rather than
-  compatibility offsets. Continue non-scalar mutable record/interior views and
+  proved. Fact-free mutable scalar views now also preserve full-footprint
+  little-endian write-through at a statically or dynamically bounded offset in
+  a byte region, with native/interpreter execution and x86-64/AArch64 compile
+  rails; fact-bearing targets reject. `struct stat` now uses target `StatLayout`
+  policies rather than compatibility offsets. Continue mutable record views and
   their full tiling/fact-equivalence judgment.
 - **L6a — Extent.** The normalized conservation foundation is live in
   `omega-extents`: admitted one-shot root grants mint nonempty ranges;

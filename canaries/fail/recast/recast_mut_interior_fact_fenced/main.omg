@@ -1,0 +1,15 @@
+// FAIL CANARY: raw byte-region views cannot establish a constrained target.
+// Mutable recasts owe fact implication in both directions, and arbitrary bytes
+// prove no `Small` invariant.
+domain u32::Small {
+    self <= 10;
+}
+
+data Main {
+    buf: [u8; 4];
+}
+
+machine Main::main(&mut self) {
+    let view: &mut u32 in Small = &mut self.buf[0] as &mut u32;
+    view = 1;
+}

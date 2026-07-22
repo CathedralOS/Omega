@@ -428,6 +428,27 @@ fn trap<T>(message: impl Into<String>) -> EvalResult<T> {
     Err(Halt::Trap(message.into()))
 }
 
+#[derive(Clone)]
+enum MutableScalarRecast {
+    Direct {
+        source: PrimitiveType,
+        target: PrimitiveType,
+    },
+    ByteRegion {
+        cells: Vec<Cell>,
+        offset: usize,
+        target: PrimitiveType,
+    },
+}
+
+impl MutableScalarRecast {
+    fn target(&self) -> PrimitiveType {
+        match self {
+            Self::Direct { target, .. } | Self::ByteRegion { target, .. } => *target,
+        }
+    }
+}
+
 /// A lexical scope: parameter / local bindings by name, plus the receiver (`self`) cell.
 /// `locals` is behind a `RefCell` so `let` bindings can be added while the frame is
 /// shared by `&` during statement execution.
@@ -443,11 +464,11 @@ struct Frame {
     /// coercion alone cannot represent an expression whose own domain differs
     /// from its landing slot's).
     scalar_locals: RefCell<BTreeMap<String, (PrimitiveType, ArithmeticDomain)>>,
-    /// Mutable scalar recast locals map their stated view primitive back to
-    /// the source primitive. The cell itself remains a normal `Ref`, so writes
-    /// preserve alias identity; reads reinterpret source -> view and writes
-    /// reinterpret view -> source at the two observable seams.
-    mutable_scalar_recasts: RefCell<BTreeMap<String, (PrimitiveType, PrimitiveType)>>,
+    /// Mutable scalar recast locals retain either one equal-width scalar cell
+    /// or an indexed byte region. The local remains a normal `Ref` for place
+    /// resolution, while these descriptors preserve the stated view width at
+    /// the observable read/write seams.
+    mutable_scalar_recasts: RefCell<BTreeMap<String, MutableScalarRecast>>,
     self_cell: Cell,
     /// The machine whose state is currently executing. Lets a call/transition that names a
     /// SIBLING state resolve it within this machine (rather than re-entering the machine's
@@ -1517,14 +1538,27 @@ impl<'program> Evaluator<'program> {
                 // `[u8;N] in Saturating` clamps to 255). Integers truncate/clamp/
                 // trap (decision 17); an f32 target rounds to f32 (native keeps f32
                 // in the slot). Mirrors the LocalData store below.
-                let value = if let Some((source, target)) =
+                let value = if let Some(recast) =
                     self.mutable_scalar_recast_target(assignment.target, frame)
                 {
                     // The write is stated in the VIEW type, then lands in the
-                    // SOURCE cell as the identical bit pattern. Both types are
-                    // fact-free and equal-width by validation.
-                    let value = self.coerce_scalar_with(value, target, ArithmeticDomain::Exact)?;
-                    self.eval_recast(value, Some(source))?
+                    // backing scalar cell or byte region as the identical bit
+                    // pattern. Validation proves the complete footprint.
+                    let value =
+                        self.coerce_scalar_with(value, recast.target(), ArithmeticDomain::Exact)?;
+                    match recast {
+                        MutableScalarRecast::Direct { source, .. } => {
+                            self.eval_recast(value, Some(source))?
+                        }
+                        MutableScalarRecast::ByteRegion {
+                            cells,
+                            offset,
+                            target,
+                        } => {
+                            self.write_scalar_byte_region(&cells, offset, target, value)?;
+                            return Ok(());
+                        }
+                    }
                 } else {
                     match self.assignment_target_coercion(assignment.target, frame) {
                         Some((primitive, domain)) => {
@@ -1582,16 +1616,17 @@ impl<'program> Evaluator<'program> {
                 // the source cell and remember the two scalar interpretations;
                 // eval_name performs source -> view reads, while assignment
                 // performs view -> source writes before touching the cell.
-                if local.initial_value.is_valid()
-                    && let Some((source, source_primitive, target_primitive)) =
-                        self.mutable_scalar_recast_initializer(local.initial_value, frame)
-                {
-                    frame.bind(local.name.as_str(), Value::Ref(source).cell());
-                    frame.mutable_scalar_recasts.borrow_mut().insert(
-                        local.name.as_str().to_owned(),
-                        (source_primitive, target_primitive),
-                    );
-                    return Ok(());
+                if local.initial_value.is_valid() {
+                    if let Some((source, recast)) =
+                        self.mutable_scalar_recast_initializer(local.initial_value, frame)?
+                    {
+                        frame.bind(local.name.as_str(), Value::Ref(source).cell());
+                        frame
+                            .mutable_scalar_recasts
+                            .borrow_mut()
+                            .insert(local.name.as_str().to_owned(), recast);
+                        return Ok(());
+                    }
                 }
                 // A `let v = <struct>` or `let v = <owned array>` is a VALUE copy: deep-clone so
                 // a later mutation of `v` does not alias the initializer's source. A
@@ -5120,13 +5155,22 @@ impl<'program> Evaluator<'program> {
         // A `Ref` read through a name dereferences transparently (param of `&mut T`).
         if let Value::Ref(inner) = value {
             if members.len() == 1
-                && let Some((_, target)) = frame
+                && let Some(recast) = frame
                     .mutable_scalar_recasts
                     .borrow()
                     .get(members[0].as_str())
-                    .copied()
+                    .cloned()
             {
-                return self.eval_recast(inner.borrow().clone(), Some(target));
+                return match recast {
+                    MutableScalarRecast::Direct { target, .. } => {
+                        self.eval_recast(inner.borrow().clone(), Some(target))
+                    }
+                    MutableScalarRecast::ByteRegion {
+                        cells,
+                        offset,
+                        target,
+                    } => self.assemble_scalar_byte_region(&cells, offset, target),
+                };
             }
             return Ok(inner.borrow().clone());
         }
@@ -5134,12 +5178,13 @@ impl<'program> Evaluator<'program> {
     }
 
     /// Recognize the parser's `Mutable(Cast(RecastMutable))` initializer and
-    /// return the aliased source cell plus its two fact-free scalar shapes.
+    /// retain either one equal-width scalar cell or the complete indexed byte
+    /// region behind the stated scalar view.
     fn mutable_scalar_recast_initializer(
         &mut self,
         initializer: ExpressionHandle,
         frame: &Frame,
-    ) -> Option<(Cell, PrimitiveType, PrimitiveType)> {
+    ) -> EvalResult<Option<(Cell, MutableScalarRecast)>> {
         let cast_handle = match self.program.expression_table.expression(initializer) {
             ExpressionNode::Mutable(inner) => *inner,
             ExpressionNode::Cast(cast)
@@ -5147,26 +5192,53 @@ impl<'program> Evaluator<'program> {
             {
                 initializer
             }
-            _ => return None,
+            _ => return Ok(None),
         };
         let ExpressionNode::Cast(cast) = self.program.expression_table.expression(cast_handle)
         else {
-            return None;
+            return Ok(None);
         };
         if cast.form != omega_core::cast_form::CastForm::RecastMutable {
-            return None;
+            return Ok(None);
         }
-        let target = self.cast_target_primitive(cast.target_type)?;
-        let source = self.expression_scalar_type(cast.value, frame)?.0;
-        let source_cell = self.resolve_place(cast.value, frame).ok()?;
-        Some((self.deref_cell(source_cell), source, target))
+        let Some(target) = self.cast_target_primitive(cast.target_type) else {
+            return Ok(None);
+        };
+        if let ExpressionNode::Indexed(indexed) =
+            self.program.expression_table.expression(cast.value).clone()
+        {
+            let offset = self.eval_index(indexed.index, frame)?;
+            if let Value::Array(cells) = self.eval_expression(indexed.collection, frame)? {
+                let source_cell = cells.get(offset).cloned().ok_or_else(|| {
+                    Halt::Trap(format!(
+                        "mutable interior recast starts at byte {offset} past the region"
+                    ))
+                })?;
+                return Ok(Some((
+                    source_cell,
+                    MutableScalarRecast::ByteRegion {
+                        cells,
+                        offset,
+                        target,
+                    },
+                )));
+            }
+        }
+        let Some((source, _)) = self.expression_scalar_type(cast.value, frame) else {
+            return Ok(None);
+        };
+        let source_cell = self.resolve_place(cast.value, frame)?;
+        Ok(Some((
+            self.deref_cell(source_cell),
+            MutableScalarRecast::Direct { source, target },
+        )))
     }
 
     fn mutable_scalar_recast_target(
         &self,
         target: ExpressionHandle,
         frame: &Frame,
-    ) -> Option<(PrimitiveType, PrimitiveType)> {
+    ) -> Option<MutableScalarRecast> {
         let target = match self.program.expression_table.expression(target) {
             ExpressionNode::Mutable(inner) => *inner,
             _ => target,
@@ -5185,7 +5257,7 @@ impl<'program> Evaluator<'program> {
             .mutable_scalar_recasts
             .borrow()
             .get(name.as_str())
-            .copied()
+            .cloned()
     }
 
     /// `Type::Variant` paths whose head is an enum/data symbol with a matching variant.
@@ -5933,9 +6005,19 @@ impl<'program> Evaluator<'program> {
                 .unwrap_or_default();
             return self.assemble_record_view(&target_name, &cells, offset);
         };
-        let Some(size) = target.scalar_byte_size() else {
-            return Ok(None);
-        };
+        self.assemble_scalar_byte_region(&cells, offset, target)
+            .map(Some)
+    }
+
+    fn assemble_scalar_byte_region(
+        &self,
+        cells: &[Cell],
+        offset: usize,
+        target: PrimitiveType,
+    ) -> EvalResult<Value> {
+        let size = target
+            .scalar_byte_size()
+            .ok_or_else(|| Halt::Trap("byte-region recast target is not scalar".to_owned()))?;
         let mut bits: u64 = 0;
         for byte_index in 0..size {
             let cell = cells.get(offset + byte_index).ok_or_else(|| {
@@ -5952,7 +6034,44 @@ impl<'program> Evaluator<'program> {
             PrimitiveType::F64 => Value::Float(f64::from_bits(bits)),
             integer => Value::Int(wrap_to_width(bits as i64, integer)),
         };
-        Ok(Some(assembled))
+        Ok(assembled)
+    }
+
+    fn write_scalar_byte_region(
+        &self,
+        cells: &[Cell],
+        offset: usize,
+        target: PrimitiveType,
+        value: Value,
+    ) -> EvalResult<()> {
+        let size = target
+            .scalar_byte_size()
+            .ok_or_else(|| Halt::Trap("byte-region recast target is not scalar".to_owned()))?;
+        let bits = match target {
+            PrimitiveType::F32 => (value
+                .as_float()
+                .ok_or_else(|| Halt::Trap("f32 recast write is not numeric".to_owned()))?
+                as f32)
+                .to_bits() as u64,
+            PrimitiveType::F64 => value
+                .as_float()
+                .ok_or_else(|| Halt::Trap("f64 recast write is not numeric".to_owned()))?
+                .to_bits(),
+            _ => value
+                .as_int()
+                .ok_or_else(|| Halt::Trap("integer recast write is not numeric".to_owned()))?
+                as u64,
+        };
+        for byte_index in 0..size {
+            let cell = cells.get(offset + byte_index).ok_or_else(|| {
+                Halt::Trap(format!(
+                    "mutable interior recast writes byte {} past the region",
+                    offset + byte_index
+                ))
+            })?;
+            *cell.borrow_mut() = Value::Int(((bits >> (8 * byte_index)) & 0xFF) as i64);
+        }
+        Ok(())
     }
 
     /// Rung C2's record view: decode fixed records little-endian from the same
