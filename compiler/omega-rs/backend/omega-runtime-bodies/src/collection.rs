@@ -156,6 +156,10 @@ struct SegmentSlice {
     /// the next call after the first returns.
     is_empty: bool,
     is_tail: bool,
+    /// The dispatched call immediately before this segment, if any.
+    previous_boundary: Option<(usize, usize)>,
+    /// The dispatched call that ends this segment, if any.
+    boundary: Option<(usize, usize)>,
 }
 
 /// Compute which operations of `segment_key`'s control-flow state belong to this
@@ -194,6 +198,8 @@ fn segment_filter(
             high: usize::MAX,
             is_empty: false,
             is_tail: true,
+            previous_boundary: Some(boundaries[count - 1]),
+            boundary: None,
         })
     } else {
         let high_exclusive = boundaries[segment].0;
@@ -209,6 +215,8 @@ fn segment_filter(
             high: high_exclusive.saturating_sub(1),
             is_empty: high_exclusive == 0 || low >= high_exclusive,
             is_tail: false,
+            previous_boundary: segment.checked_sub(1).map(|previous| boundaries[previous]),
+            boundary: Some(boundaries[segment]),
         })
     }
 }
@@ -234,6 +242,30 @@ fn append_state_body_operations(
     };
 
     for operation in state_operations {
+        // A dispatched statement call ends this segment, but calls nested in
+        // its receiver/arguments are part of evaluating that statement and
+        // must run before the outer dispatch. Statement-only slicing used to
+        // drop these operations from the pre-call segment (especially at
+        // statement zero) and then emit them in the continuation, after the
+        // outer callee had already consumed an uninitialized result slot.
+        if let Some(slice) = segment
+            && slice
+                .boundary
+                .is_some_and(|(statement_index, _)| statement_index == operation.statement_index)
+        {
+            append_call_argument_operations_for_segment(
+                context,
+                state_key,
+                operation.statement_index,
+                slice,
+                operations,
+                expressions,
+                invariant_names,
+                type_references,
+                visiting,
+            );
+            continue;
+        }
         // Skip operations outside this segment's statement-index window.
         if let Some(slice) = segment
             && (slice.is_empty
@@ -415,22 +447,24 @@ fn append_state_body_operations(
             ));
             continue;
         }
-        for state_call in context
-            .state_calls
-            .calls_for_statement(state_key, operation.statement_index)
-        {
-            if state_call.role == omega_state_calls::StateCallRole::CallArgument {
-                append_state_call_body_operation(
-                    context,
-                    state_call,
-                    operations,
-                    expressions,
-                    invariant_names,
-                    type_references,
-                    visiting,
-                );
-            }
-        }
+        append_call_argument_operations_for_segment(
+            context,
+            state_key,
+            operation.statement_index,
+            segment.unwrap_or(SegmentSlice {
+                low: 0,
+                high: usize::MAX,
+                is_empty: false,
+                is_tail: true,
+                previous_boundary: None,
+                boundary: None,
+            }),
+            operations,
+            expressions,
+            invariant_names,
+            type_references,
+            visiting,
+        );
 
         // A host call owns the statement-position operation, but machine value
         // calls nested in its arguments must execute first and leave their
@@ -573,6 +607,51 @@ fn append_state_body_operations(
     }
 
     visiting.pop();
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_call_argument_operations_for_segment(
+    context: &RuntimeDispatchBodyContext,
+    state_key: StateKey,
+    statement_index: usize,
+    segment: SegmentSlice,
+    operations: &mut Arena<RuntimeDispatchBodyOperation>,
+    expressions: &mut ExpressionTable,
+    invariant_names: &mut Arena<Identifier>,
+    type_references: &mut TypeReferenceTable,
+    visiting: &mut BodyVisitingStates,
+) {
+    for state_call in context
+        .state_calls
+        .calls_for_statement(state_key, statement_index)
+        .filter(|state_call| state_call.role == StateCallRole::CallArgument)
+    {
+        let follows_previous =
+            segment
+                .previous_boundary
+                .is_none_or(|(previous_statement, previous_ordinal)| {
+                    statement_index != previous_statement
+                        || state_call.call_ordinal > previous_ordinal
+                });
+        let precedes_boundary =
+            segment
+                .boundary
+                .is_none_or(|(boundary_statement, boundary_ordinal)| {
+                    statement_index != boundary_statement
+                        || state_call.call_ordinal < boundary_ordinal
+                });
+        if follows_previous && precedes_boundary {
+            append_state_call_body_operation(
+                context,
+                state_call,
+                operations,
+                expressions,
+                invariant_names,
+                type_references,
+                visiting,
+            );
+        }
+    }
 }
 
 /// State-call ordinals are minted in call-preorder (an outer call precedes
