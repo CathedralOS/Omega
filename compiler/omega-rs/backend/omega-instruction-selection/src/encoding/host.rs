@@ -1200,7 +1200,11 @@ pub fn encode_function_enter_bytes(
             let byte_count = bytes.len();
             Ok((bytes, byte_count))
         }
-        Architecture::X86_64 => Ok((Vec::new(), 0)),
+        Architecture::X86_64 => {
+            let bytes = x86_64::encode_function_enter_bytes().to_vec();
+            let byte_count = bytes.len();
+            Ok((bytes, byte_count))
+        }
     }
 }
 

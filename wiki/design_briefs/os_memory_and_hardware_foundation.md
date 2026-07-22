@@ -402,10 +402,14 @@ validated plan under which it was checked. Fragment retention revalidates the
 evidence and rejects cross-contract composition; this is a reference to
 requirement identity, not implementation evidence entering that identity. The
 fixed ordinary `CallReturn` path also retains `call_return_mechanics` evidence.
-x86-64 records `ret`'s RSP, stack, and control writes; AArch64 records its fixed
-frame prologue and x19-x30, SP, and control restoration. Provenance-aware
+x86-64 records its fixed saved-register frame, RSP, and control restoration;
+AArch64 records its fixed frame prologue and x19-x30, SP, and control
+restoration. Provenance-aware
 validation admits these prescribed boundary mechanics without widening the
-handler body's transitive-state ceiling. Runtime-dispatching entries add a
+handler body's transitive-state ceiling. x86-64 now likewise uses a fixed
+64-byte frame to preserve the generated-code nonvolatile GPR union for SysV
+AMD64 and Microsoft x64; inbound stack offsets include the saved frame, and
+the retained mechanics evidence names every restored register. Runtime-dispatching entries add a
 structurally scoped `dispatch_scaffold` fragment whose target-owned facts cover
 x86-64 R12/AArch64 X28 dispatch-state writes and case-entry condition flags;
 storage-backed static guards add `static_guard_comparison` evidence with their

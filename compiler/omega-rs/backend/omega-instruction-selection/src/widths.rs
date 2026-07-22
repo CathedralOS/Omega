@@ -372,7 +372,7 @@ pub fn syscall_sequence_width_with_plan<T: InstructionOperandLike>(
 pub fn function_enter_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::function_enter_width(),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::function_enter_width(),
     }
 }
 
