@@ -517,9 +517,10 @@ schemas recover the same instance without publishing policy type identity.
    certificate. Final-image construction now also retains a typed executable-
    region inventory: object function spans and format-generated PE/Mach-O
    import thunks resolve to their placed addresses, invalid overlap/out-of-
-   bounds regions reject, and any unclassified `.text` gaps remain explicit in
-   `13_executable_regions.json`. Whole-text and per-region/gap byte fingerprints
-   bind the inventory to the exact post-relocation bytes. That inventory names
+   bounds regions reject, and placement retains any unclassified `.text` gaps
+   explicitly for the checked-emission gate to reject. Whole-text and
+   per-region/gap byte fingerprints bind the inventory to the exact
+   post-relocation bytes. That inventory names
    the same boundary-contract and composed implementation-evidence fingerprints
    as the encoded carrier, plus a combined boundary/placement binding identity.
    Format-owned import thunks now validate their exact final opcode shapes after
@@ -541,12 +542,17 @@ schemas recover the same instance without publishing policy type identity.
    The encoded, final-prefix, and canonical relocation-envelope identities now
    compose into published compiler-text derivation evidence, and that identity
    participates in the boundary/placement binding fingerprint.
+   Checked direct-image emission now rejects any unclassified executable gap,
+   so the current closed emitter has complete region enumeration. Relaxation
+   products, veneers, and general generated stubs are recorded as absent by
+   construction rather than falsely listed as emitted-but-unchecked classes;
+   adding any unclassified bytes fails before publication.
    It names its currently covered and missing classes and likewise refuses to
    claim complete enumeration.
    StatePlan-driven nonordinary save/restore and return specialization, and
-   final-byte footprint decoding for compiler-function bodies and handler regions,
-   relaxation products, veneers, generated stubs, and admitted leaves remain;
-   final placement must still prove that enumeration is complete.
+   final-byte footprint decoding for compiler-function bodies and handler
+   regions, and admitted leaves remain; footprint enumeration is still incomplete even
+   though final executable-region enumeration is now complete.
 4. **IDT1 — symbolic materialization (normalized foundation complete).**
    `LayoutPlan` now uses compiler-issued field keys normalized back to names;
    repeated `Bits` entries validate exact logical-source tiling plus

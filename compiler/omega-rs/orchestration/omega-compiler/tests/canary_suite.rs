@@ -1025,6 +1025,11 @@ fn contract_canary_visualizes_flow_contract_summaries() {
                 "\"final_byte_validated_classes\": [\"compiler_function_relocation_envelope\", \"compiler_entry_call_return_mechanics\""
             )
             && executable_regions.contains("\"enumeration_complete\": false")
+            && executable_regions.contains("\"region_enumeration_complete\": true")
+            && executable_regions.contains("\"footprint_enumeration_complete\": false")
+            && executable_regions.contains(
+                "\"absent_by_construction_classes\": [\"relaxation_products\", \"veneers\", \"generated_stubs\"]"
+            )
             && executable_regions.contains("\"boundary_contract_fingerprint\": \"0x")
             && !executable_regions.contains("\"boundary_contract_fingerprint\": null")
             && executable_regions.contains("\"implementation_evidence_fingerprint\": \"0x")
@@ -1036,7 +1041,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
             && executable_regions.contains("\"byte_fingerprint\": \"0x")
             && executable_regions.contains("\"unclassified_gaps\"")
             && executable_regions.contains(
-                "\"missing_classes\": [\"compiler_function_body_footprint_decoding\", \"relaxation_products\", \"veneers\", \"generated_stubs\", \"admitted_leaves\"]"
+                "\"missing_classes\": [\"compiler_function_body_footprint_decoding\", \"admitted_leaves\"]"
             ),
         "final executable inventory should classify placed compiler code without claiming complete footprint enumeration"
     );
