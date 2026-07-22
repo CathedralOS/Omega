@@ -990,16 +990,16 @@ stronger operations it needs instead of citing machine parameters generally.
   pinning rejection of an unqualified source. By-value bounded carriers are also
   distinguished from equally-sized fat descriptors during argument materialization,
   so `{len, bytes}` is copied inline instead of being rewritten as `{ptr, len}`.
-  Lookup records, their large-record variants, and the clear/carve/render dungeon
-  path now use bounded UTF-8 carriers in both engines. Their mutable-output lookup
-  contract explicitly returns the
+  Lookup records, their large-record variants, the clear/carve/render dungeon,
+  and the full-level wrapper path now use bounded UTF-8 carriers in both engines.
+  Their mutable-output lookup contract explicitly returns the
   nested field's `Utf8` fact, so the caller never relies on a stale fact across
   mutation. Repeated fixed-capacity declarations such as `[u8; 16]::Utf8` and
   `[u8; 64]::Utf8` resolve as one short-name domain only when their normalized
   fact sets agree; divergent same-name declarations reject before flow checking.
   Standard Console output, provider forwarding, ZII host output, and borrowed
   view typing now operate directly on byte views or bounded carriers; only the
-  mutable input half retains the old Console `String` surface. Seven pass-canary
+  mutable input half retains the old Console `String` surface. Six pass-canary
   sources still name builtin `String`/`string`. Continue that
   migration. The backend's in-place concat route is now alias-safe and never zeros
   its source, but migrating the remaining `target = target + suffix` regressions

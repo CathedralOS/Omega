@@ -17584,6 +17584,11 @@ fn runtime_clear_carve_render_string_fields_exit_canary_runs() {
 fn runtime_full_level_wrapper_lookup_string_field_exit_canary_runs() {
     let canary = pass_canary("dungeon/runtime_full_level_wrapper_lookup_string_field_exit");
     let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("runtime full-level wrapper carrier lookup canary should check");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None);
+    assert_eq!(interpreted.exit_code, 202);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-full-level-wrapper-lookup-string-field-{}",
         std::process::id()
@@ -17596,16 +17601,16 @@ fn runtime_full_level_wrapper_lookup_string_field_exit_canary_runs() {
         target_name: None,
         write_output: true,
     })
-    .expect("runtime full-level wrapper lookup string field canary should compile");
+    .expect("runtime full-level wrapper carrier lookup canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
-        .expect("runtime full-level wrapper lookup string field canary should run");
+        .expect("runtime full-level wrapper carrier lookup canary should run");
 
     assert_eq!(
         output.status.code(),
         Some(202),
-        "expected runtime full-level wrapper lookup string field canary to preserve the room label through wrapper lookup, got {:?}\nstderr:\n{}",
+        "expected full-level wrapper carrier lookup to preserve the room label, got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -32183,6 +32188,7 @@ fn mutable_carrier_place_append_compiles_on_aarch64() {
         "text/runtime_mutable_string_parameter_wrapped_concat_write_line",
         "text/runtime_mutable_struct_string_field_copy_concat_write_line",
         "dungeon/runtime_clear_carve_render_string_fields_exit",
+        "dungeon/runtime_full_level_wrapper_lookup_string_field_exit",
     ]
     .into_iter()
     .enumerate()

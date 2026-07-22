@@ -1,5 +1,17 @@
 use omega::language::std::console;
 
+domain [u8; 16]::Utf8 {
+    valid_utf8(self);
+}
+
+domain [u8; 32]::Utf8 {
+    valid_utf8(self);
+}
+
+domain [u8; 64]::Utf8 {
+    valid_utf8(self);
+}
+
 data CellId {
     case Empty;
     case R00;
@@ -47,7 +59,7 @@ data ItemKind {
 
 data Enemy {
     kind: EnemyKind;
-    name: String;
+    name: [u8; 32] in Utf8;
     max_health: i32;
     health: i32;
     attack: i32;
@@ -70,7 +82,7 @@ data RoomEvent {
 }
 
 data Exit {
-    command: String;
+    command: [u8; 16] in Utf8;
     direction: Direction;
     destination: CellId;
 }
@@ -79,8 +91,8 @@ data Room {
     cell: CellId;
     depth: u32;
     branch: u32;
-    label: String;
-    description: String;
+    label: [u8; 16] in Utf8;
+    description: [u8; 64] in Utf8;
     exits: [Exit; 4];
     exit_count: u64;
     event: RoomEvent;
@@ -108,7 +120,7 @@ data Main {
     console: Console;
     view: View;
     level: Level;
-    line: String;
+    line: [u8; 32] in Utf8;
 }
 
 machine Main::main(&mut self) {
@@ -144,7 +156,7 @@ machine View::render_room(
     &mut self,
     level: Level,
     cell: CellId,
-    line: &mut String
+    line: &mut [u8; 32] in Utf8
 ) {
     self.formatter.write_current_cell(level, cell, line);
 }
@@ -153,7 +165,7 @@ machine Formatter::write_current_cell(
     &mut self,
     level: Level,
     cell: CellId,
-    out_line: &mut String
+    out_line: &mut [u8; 32] in Utf8
 ) {
     let room: Room;
     self.lookup.find_room(level, cell, &mut room);
@@ -165,7 +177,10 @@ machine Lookup::find_room(
     level: Level,
     cell: CellId,
     out_room: &mut Room
-) {
+)
+ensures
+    out_room.label in Utf8
+{
     let rooms: &[Room] = level.rooms.as_slice();
 
     transition level.room_count > 0 {
