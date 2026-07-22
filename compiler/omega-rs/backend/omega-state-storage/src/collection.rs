@@ -548,6 +548,24 @@ fn local_data_requires_storage(
         return true;
     }
 
+    // A RECAST local is an address-bearing runtime view, not a substitutable
+    // scalar alias (`simple_local_binding_value_from_table` deliberately
+    // refuses to fold it). When its only uses occur in later `let`
+    // initializers, the final liveness scan cannot see them and used to elide
+    // the view's slot. Projected reads then had no base address and silently
+    // decoded zeros. Keep the slot for that otherwise-invisible use shape;
+    // ordinary statement uses remain covered by the final scan below.
+    if initializer_is_recast(expressions, initial_value)
+        && statements
+            .iter()
+            .skip(local_statement_index + 1)
+            .any(|statement| {
+                local_data_value_references_symbol(expressions, statement, local_symbol, local_name)
+            })
+    {
+        return true;
+    }
+
     // Owner ruling 2026-07-18 (the first sentence of abort-as-effect #65): a
     // TRAPPING operation's trap is an EFFECT -- a computation that can trap
     // "actually traps on paper; it's not dead code anymore". A local whose
@@ -866,6 +884,21 @@ fn initializer_is_boundary_call(
                 .iter()
                 .any(|machine| machine.symbol == target_symbol)
         })
+}
+
+/// Whether an initializer is a reference reinterpretation, possibly beneath
+/// an `Atomic`/`Mutable` wrapper. Recasts preserve an address and therefore
+/// cannot participate in the ordinary slot-less scalar alias substitution.
+fn initializer_is_recast(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::Atomic(atomic) => initializer_is_recast(expressions, atomic.value),
+        ExpressionNode::Mutable(inner) => initializer_is_recast(expressions, *inner),
+        ExpressionNode::Cast(cast) => cast.form.is_recast(),
+        _ => false,
+    }
 }
 
 /// Whether the local -- or any BARE-COPY of it (`let c = t;`, transitively) --

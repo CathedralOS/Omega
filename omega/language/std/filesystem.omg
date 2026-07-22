@@ -19,6 +19,7 @@
 // canonical declaration in the sibling std module; this ergonomic layer imports
 // them (rather than re-declaring the trait) and builds `File`/result enums on top.
 use omega::language::std::filesystem_host;
+use omega::language::std::layout;
 
 // The per-target DIRECTORY-WALK implementations (fs portable-contract settle
 // 2026-07-18): target-scoped `<target> machine` items implementing this
@@ -174,8 +175,8 @@ machine Permissions::set_readonly(&mut self, readonly: bool) {
 // File metadata (Rust `std::fs::Metadata`). `len` is the size in bytes; `is_dir`
 // distinguishes a directory from a regular file; `mode` is the raw `st_mode`
 // (format bits + permission bits); `modified_secs` is the last-modification time
-// as whole seconds since the Unix epoch (`st_mtime`). All decoded from the
-// darwin `stat` record (`st_size`@96, `st_mode`@4, `st_mtimespec.tv_sec`@48).
+// as whole seconds since the Unix epoch (`st_mtime`). The selected target's
+// `StatLayout` policy supplies the foreign record's checked field positions.
 data Metadata [copy, zero_init] {
     len: i64;
     is_dir: bool;
@@ -193,6 +194,42 @@ data Metadata [copy, zero_init] {
     accessed_secs: i64;
     created_secs: i64;
     changed_secs: i64;
+}
+
+// The semantic scalar fields the portable wrapper consumes from a foreign
+// `struct stat` record. Field widths describe the actual carriers shared by
+// the supported layouts: mode/link count are narrow u16 values, device ids and
+// block size are u32, and the remaining counters/timestamps are 64-bit. A
+// target-authored `StatLayout::plan` chooses their byte positions without
+// leaking offsets into the boundary/provider surface.
+data StatRecord {
+    dev: u32;
+    mode: u16;
+    nlink: u16;
+    ino: u64;
+    uid: u32;
+    gid: u32;
+    rdev: u32;
+    atime: i64;
+    mtime: i64;
+    ctime: i64;
+    btime: i64;
+    size: i64;
+    blocks: u64;
+    blksize: u32;
+}
+
+// The four selected-target implementations live beside the target filesystem
+// code. `entries` is policy-owned build-time scratch; the compiler validates
+// each returned fixed plan before any runtime view can consume it.
+data StatLayout {
+    entries: [FieldEntry; 64];
+}
+
+// Recasting the byte buffer to this wrapper preserves the ordinary reference
+// surface while the inner record follows the selected programmable layout.
+data StatView {
+    value: StatLayout<StatRecord>;
 }
 
 // Rust `Metadata::is_file` — a REGULAR file specifically (S_IFREG). Checks the
@@ -715,11 +752,12 @@ machine Filesystem::copy(&mut self, from: &[u8] in Path, to: &[u8] in Path, buff
     // `stat` the source (it exists -- we just read it) and decode st_mode's
     // permission bits (low 9, & 0o777 = 511), then `chmod` the destination.
     let statrc: i32 = self.host.read_metadata(from, &mut self.stat_buf);
+    let stat: &StatView = &self.stat_buf[0] as &StatView;
     // Store the decoded permission bits in a FIELD, not a single-use `let`: an
     // elided local folds its computed initializer back into the `set_permissions`
     // argument, which the host-call marshaller rejects (a host arg must be a
     // simple place). `perm_mode` is the same field the set_permissions wrapper uses.
-    self.perm_mode = ((self.stat_buf[FilesystemHost::ST_MODE_OFF + 0] as u32) | ((self.stat_buf[FilesystemHost::ST_MODE_OFF + 1] as u32) << 8)) & 511;
+    self.perm_mode = (stat.value.mode as u32) & 511;
     let chmodded: i32 = self.host.set_permissions(to, self.perm_mode);
     transition n >= 0 { true -> ok(n) _ -> err() }
     state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
@@ -761,103 +799,39 @@ machine Filesystem::try_exists(&mut self, path: &[u8] in Path) -> ExistsResult {
 }
 
 // SHARED stat->Metadata decode (metadata_path / metadata / symlink_metadata all
-// fill `stat_buf` via their raw op, then value-call this). `is_symlink` is
-// computed from the mode's S_IFLNK bits (40960): stat/fstat follow symlinks so
-// the mode is never a link, lstat's can be -- so one decode is correct for all
-// three. This SINGLE decode site is where the per-target `struct stat` offset
-// migration will land (TASKS_FS metadata rung).
+// fill `stat_buf` via their raw op, then value-call this). The selected target's
+// checked `StatLayout` policy projects the foreign record directly; portable
+// code owns only semantic field names and the necessary width conversions.
+// `is_symlink` is computed from S_IFLNK bits (40960): stat/fstat follow links,
+// while lstat can report one, so the same decode remains correct for all three.
 machine Filesystem::decode_metadata(&mut self) -> Metadata {
-    let len: i64 = (self.stat_buf[FilesystemHost::ST_SIZE_OFF + 0] as i64)
-        | ((self.stat_buf[FilesystemHost::ST_SIZE_OFF + 1] as i64) << 8)
-        | ((self.stat_buf[FilesystemHost::ST_SIZE_OFF + 2] as i64) << 16)
-        | ((self.stat_buf[FilesystemHost::ST_SIZE_OFF + 3] as i64) << 24)
-        | ((self.stat_buf[FilesystemHost::ST_SIZE_OFF + 4] as i64) << 32)
-        | ((self.stat_buf[FilesystemHost::ST_SIZE_OFF + 5] as i64) << 40)
-        | ((self.stat_buf[FilesystemHost::ST_SIZE_OFF + 6] as i64) << 48)
-        | ((self.stat_buf[FilesystemHost::ST_SIZE_OFF + 7] as i64) << 56);
-    let mode: i32 = (self.stat_buf[FilesystemHost::ST_MODE_OFF + 0] as i32) | ((self.stat_buf[FilesystemHost::ST_MODE_OFF + 1] as i32) << 8);
-    let nlink: u64 = (self.stat_buf[FilesystemHost::ST_NLINK_OFF + 0] as u64) | ((self.stat_buf[FilesystemHost::ST_NLINK_OFF + 1] as u64) << 8);
-    let ino: u64 = (self.stat_buf[FilesystemHost::ST_INO_OFF + 0] as u64)
-        | ((self.stat_buf[FilesystemHost::ST_INO_OFF + 1] as u64) << 8)
-        | ((self.stat_buf[FilesystemHost::ST_INO_OFF + 2] as u64) << 16)
-        | ((self.stat_buf[FilesystemHost::ST_INO_OFF + 3] as u64) << 24)
-        | ((self.stat_buf[FilesystemHost::ST_INO_OFF + 4] as u64) << 32)
-        | ((self.stat_buf[FilesystemHost::ST_INO_OFF + 5] as u64) << 40)
-        | ((self.stat_buf[FilesystemHost::ST_INO_OFF + 6] as u64) << 48)
-        | ((self.stat_buf[FilesystemHost::ST_INO_OFF + 7] as u64) << 56);
-    let uid: u32 = (self.stat_buf[FilesystemHost::ST_UID_OFF + 0] as u32)
-        | ((self.stat_buf[FilesystemHost::ST_UID_OFF + 1] as u32) << 8)
-        | ((self.stat_buf[FilesystemHost::ST_UID_OFF + 2] as u32) << 16)
-        | ((self.stat_buf[FilesystemHost::ST_UID_OFF + 3] as u32) << 24);
-    let gid: u32 = (self.stat_buf[FilesystemHost::ST_GID_OFF + 0] as u32)
-        | ((self.stat_buf[FilesystemHost::ST_GID_OFF + 1] as u32) << 8)
-        | ((self.stat_buf[FilesystemHost::ST_GID_OFF + 2] as u32) << 16)
-        | ((self.stat_buf[FilesystemHost::ST_GID_OFF + 3] as u32) << 24);
-    let dev: u64 = (self.stat_buf[FilesystemHost::ST_DEV_OFF + 0] as u64)
-        | ((self.stat_buf[FilesystemHost::ST_DEV_OFF + 1] as u64) << 8)
-        | ((self.stat_buf[FilesystemHost::ST_DEV_OFF + 2] as u64) << 16)
-        | ((self.stat_buf[FilesystemHost::ST_DEV_OFF + 3] as u64) << 24);
-    let rdev: u64 = (self.stat_buf[FilesystemHost::ST_RDEV_OFF + 0] as u64)
-        | ((self.stat_buf[FilesystemHost::ST_RDEV_OFF + 1] as u64) << 8)
-        | ((self.stat_buf[FilesystemHost::ST_RDEV_OFF + 2] as u64) << 16)
-        | ((self.stat_buf[FilesystemHost::ST_RDEV_OFF + 3] as u64) << 24);
-    let ctime: i64 = (self.stat_buf[FilesystemHost::ST_CTIME_OFF + 0] as i64)
-        | ((self.stat_buf[FilesystemHost::ST_CTIME_OFF + 1] as i64) << 8)
-        | ((self.stat_buf[FilesystemHost::ST_CTIME_OFF + 2] as i64) << 16)
-        | ((self.stat_buf[FilesystemHost::ST_CTIME_OFF + 3] as i64) << 24)
-        | ((self.stat_buf[FilesystemHost::ST_CTIME_OFF + 4] as i64) << 32)
-        | ((self.stat_buf[FilesystemHost::ST_CTIME_OFF + 5] as i64) << 40)
-        | ((self.stat_buf[FilesystemHost::ST_CTIME_OFF + 6] as i64) << 48)
-        | ((self.stat_buf[FilesystemHost::ST_CTIME_OFF + 7] as i64) << 56);
-    let blocks: u64 = (self.stat_buf[FilesystemHost::ST_BLOCKS_OFF + 0] as u64)
-        | ((self.stat_buf[FilesystemHost::ST_BLOCKS_OFF + 1] as u64) << 8)
-        | ((self.stat_buf[FilesystemHost::ST_BLOCKS_OFF + 2] as u64) << 16)
-        | ((self.stat_buf[FilesystemHost::ST_BLOCKS_OFF + 3] as u64) << 24)
-        | ((self.stat_buf[FilesystemHost::ST_BLOCKS_OFF + 4] as u64) << 32)
-        | ((self.stat_buf[FilesystemHost::ST_BLOCKS_OFF + 5] as u64) << 40)
-        | ((self.stat_buf[FilesystemHost::ST_BLOCKS_OFF + 6] as u64) << 48)
-        | ((self.stat_buf[FilesystemHost::ST_BLOCKS_OFF + 7] as u64) << 56);
-    let blksize: u64 = (self.stat_buf[FilesystemHost::ST_BLKSIZE_OFF + 0] as u64)
-        | ((self.stat_buf[FilesystemHost::ST_BLKSIZE_OFF + 1] as u64) << 8)
-        | ((self.stat_buf[FilesystemHost::ST_BLKSIZE_OFF + 2] as u64) << 16)
-        | ((self.stat_buf[FilesystemHost::ST_BLKSIZE_OFF + 3] as u64) << 24);
+    let stat: &StatView = &self.stat_buf[0] as &StatView;
+    let mode: u32 = stat.value.mode as u32;
+    let nlink: u64 = stat.value.nlink as u64;
+    let ino: u64 = stat.value.ino;
+    let uid: u32 = stat.value.uid;
+    let gid: u32 = stat.value.gid;
+    let dev: u64 = stat.value.dev as u64;
+    let rdev: u64 = stat.value.rdev as u64;
+    let ctime: i64 = stat.value.ctime;
+    let blocks: u64 = stat.value.blocks;
+    let blksize: u64 = stat.value.blksize as u64;
+    let len: i64 = stat.value.size;
     let is_dir: bool = (mode & 61440) == 16384;
     let is_symlink: bool = (mode & 61440) == 40960;
-    let mtime: i64 = (self.stat_buf[FilesystemHost::ST_MTIME_OFF + 0] as i64)
-        | ((self.stat_buf[FilesystemHost::ST_MTIME_OFF + 1] as i64) << 8)
-        | ((self.stat_buf[FilesystemHost::ST_MTIME_OFF + 2] as i64) << 16)
-        | ((self.stat_buf[FilesystemHost::ST_MTIME_OFF + 3] as i64) << 24)
-        | ((self.stat_buf[FilesystemHost::ST_MTIME_OFF + 4] as i64) << 32)
-        | ((self.stat_buf[FilesystemHost::ST_MTIME_OFF + 5] as i64) << 40)
-        | ((self.stat_buf[FilesystemHost::ST_MTIME_OFF + 6] as i64) << 48)
-        | ((self.stat_buf[FilesystemHost::ST_MTIME_OFF + 7] as i64) << 56);
-    let atime: i64 = (self.stat_buf[FilesystemHost::ST_ATIME_OFF + 0] as i64)
-        | ((self.stat_buf[FilesystemHost::ST_ATIME_OFF + 1] as i64) << 8)
-        | ((self.stat_buf[FilesystemHost::ST_ATIME_OFF + 2] as i64) << 16)
-        | ((self.stat_buf[FilesystemHost::ST_ATIME_OFF + 3] as i64) << 24)
-        | ((self.stat_buf[FilesystemHost::ST_ATIME_OFF + 4] as i64) << 32)
-        | ((self.stat_buf[FilesystemHost::ST_ATIME_OFF + 5] as i64) << 40)
-        | ((self.stat_buf[FilesystemHost::ST_ATIME_OFF + 6] as i64) << 48)
-        | ((self.stat_buf[FilesystemHost::ST_ATIME_OFF + 7] as i64) << 56);
-    let btime: i64 = (self.stat_buf[FilesystemHost::ST_BTIME_OFF + 0] as i64)
-        | ((self.stat_buf[FilesystemHost::ST_BTIME_OFF + 1] as i64) << 8)
-        | ((self.stat_buf[FilesystemHost::ST_BTIME_OFF + 2] as i64) << 16)
-        | ((self.stat_buf[FilesystemHost::ST_BTIME_OFF + 3] as i64) << 24)
-        | ((self.stat_buf[FilesystemHost::ST_BTIME_OFF + 4] as i64) << 32)
-        | ((self.stat_buf[FilesystemHost::ST_BTIME_OFF + 5] as i64) << 40)
-        | ((self.stat_buf[FilesystemHost::ST_BTIME_OFF + 6] as i64) << 48)
-        | ((self.stat_buf[FilesystemHost::ST_BTIME_OFF + 7] as i64) << 56);
-    Metadata { len: len, is_dir: is_dir, is_symlink: is_symlink, mode: mode as u32, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, rdev: rdev, blocks: blocks, blksize: blksize, modified_secs: mtime, accessed_secs: atime, created_secs: btime, changed_secs: ctime }
+    let mtime: i64 = stat.value.mtime;
+    let atime: i64 = stat.value.atime;
+    let btime: i64 = stat.value.btime;
+    Metadata { len: len, is_dir: is_dir, is_symlink: is_symlink, mode: mode, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, rdev: rdev, blocks: blocks, blksize: blksize, modified_secs: mtime, accessed_secs: atime, created_secs: btime, changed_secs: ctime }
 }
 
 // Metadata of a PATH (Rust `std::fs::metadata`), the path-based counterpart to
 // `metadata(file)`. Unlike the open+seek approach this uses `stat`, so it works
 // on DIRECTORIES too (no read permission / open needed): it decodes `st_size`
 // (byte size) and `st_mode` (kind) straight out of the kernel's stat record.
-// The field reads are byte-assembly (little-endian) since Omega has no
-// C-struct-layout `repr` yet; `st_size` is an i64 at offset 96, `st_mode` a u16
-// at offset 4, and a directory is `(st_mode & S_IFMT) == S_IFDIR`
-// (0o170000 = 61440, 0o040000 = 16384).
+// The selected programmable layout supplies the foreign field positions; a
+// directory is `(st_mode & S_IFMT) == S_IFDIR` (0o170000 = 61440,
+// 0o040000 = 16384).
 machine Filesystem::metadata_path(&mut self, path: &[u8] in Path) -> MetadataResult {
     let rc: i32 = self.host.read_metadata(path, &mut self.stat_buf);
     transition rc == 0 { true -> decode() _ -> err() }
