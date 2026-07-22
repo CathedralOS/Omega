@@ -133,6 +133,25 @@ instantiations in one bucket. Quotient carrier matching therefore uses the
 declared data-family identity, not a concrete machine argument; it never
 admits an instance of a different data family.
 
+The equivalence machine may quantify independently over both representatives'
+generator symbols, so the heterogeneous relation is stated directly rather
+than erasing generator identity:
+
+```omega
+machine converges_together<machine A, machine B>(
+    a: CauchySeq<A>,
+    b: CauchySeq<B>
+) -> bool
+where machine A(index: Nat) -> Rat;
+where machine B(index: Nat) -> Rat;
+{ ... }
+```
+
+Its reflexivity, symmetry, and transitivity witnesses use the same ordinary
+generic contract calls. Static-machine selections inside those contracts are
+logical schema arguments; they do not choose a runtime specialization of the
+relation.
+
 Working rules: the relation must be proven an equivalence (reflexive,
 symmetric, transitive — ordinary lemma obligations); the mint is
 carrier-only (`seq as Real`; `42 as Real` does not compile — that road

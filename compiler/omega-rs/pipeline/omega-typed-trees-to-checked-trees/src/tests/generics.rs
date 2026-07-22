@@ -920,6 +920,60 @@ fn unused_recursive_generic_value_template_is_not_emitted_or_fenced() {
 }
 
 #[test]
+fn contract_only_static_selections_do_not_consume_generic_machine_schema() {
+    let source = r#"
+        data Index { case Zero; }
+        data Stream<machine S>
+        where machine S(index: Index) -> Index;
+        { case Empty; case More(tail: Stream<S>); }
+        data Main {}
+
+        boundary machine source(index: Index) -> Index;
+
+        machine equivalent<machine A, machine B>(a: Stream<A>, b: Stream<B>) -> bool
+        where machine A(index: Index) -> Index;
+        where machine B(index: Index) -> Index;
+        {
+            transition { _ -> (true) }
+        }
+
+        machine reflexive<machine A>(a: Stream<A>)
+        where machine A(index: Index) -> Index;
+        ensures equivalent<A, A>(a, a)
+        {
+        }
+
+        machine concrete_premise(a: Stream<source>)
+        requires equivalent<source, source>(a, a)
+        {
+        }
+
+        machine Main::run(&mut self) {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("contract schemas should remain generic");
+
+    let equivalent = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "equivalent")
+        .expect("generic relation schema");
+    assert_eq!(checked.machine_type_parameters(equivalent).len(), 2);
+    assert!(
+        checked
+            .machine_specializations
+            .iter()
+            .all(|specialization| specialization.template != equivalent.symbol)
+    );
+}
+
+#[test]
 fn consuming_seq_filter_borrows_each_value_before_preserving_or_dropping_it() {
     let source = r#"
         data Seq<T> {

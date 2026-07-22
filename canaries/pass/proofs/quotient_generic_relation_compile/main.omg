@@ -1,0 +1,69 @@
+// A quotient relation may quantify independently over the two representatives'
+// static generator symbols. Contract selections remain logical schema
+// arguments rather than forcing one runtime specialization of `equivalent`.
+// The constant relation isolates that compiler mechanism; core Real still
+// needs the honest Cauchy/convergence definitions and proofs tracked by N8.
+data Index {
+    case Zero;
+    case Next(previous: Index);
+}
+
+data Stream<machine S>
+where machine S(index: Index) -> Index;
+{
+    case Empty;
+    case More(sample: Index, tail: Stream<S>);
+}
+
+boundary machine source_a(index: Index) -> Index;
+boundary machine source_b(index: Index) -> Index;
+
+machine equivalent<machine A, machine B>(a: Stream<A>, b: Stream<B>) -> bool
+where machine A(index: Index) -> Index;
+where machine B(index: Index) -> Index;
+{
+    transition { _ -> (true) }
+}
+
+machine equivalent_reflexive<machine A>(a: Stream<A>)
+where machine A(index: Index) -> Index;
+ensures equivalent<A, A>(a, a)
+{
+}
+
+machine equivalent_symmetric<machine A, machine B>(a: Stream<A>, b: Stream<B>)
+where machine A(index: Index) -> Index;
+where machine B(index: Index) -> Index;
+requires equivalent<A, B>(a, b)
+ensures equivalent<B, A>(b, a)
+{
+}
+
+machine equivalent_transitive<machine A, machine B, machine C>(
+    a: Stream<A>,
+    b: Stream<B>,
+    c: Stream<C>
+)
+where machine A(index: Index) -> Index;
+where machine B(index: Index) -> Index;
+where machine C(index: Index) -> Index;
+requires
+    equivalent<A, B>(a, b)
+    equivalent<B, C>(b, c)
+ensures equivalent<A, C>(a, c)
+{
+}
+
+data EquivalenceClass = Stream % equivalent;
+
+machine heterogeneous_congruence(a: Stream<source_a>, b: Stream<source_b>)
+requires equivalent<source_a, source_b>(a, b)
+ensures (a as EquivalenceClass) == (b as EquivalenceClass)
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
