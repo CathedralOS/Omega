@@ -634,6 +634,9 @@ slot owner may override by type. The migration order remains load-bearing.
    samples now use the standard Console as well; their pause buffers are honest
    bounded Utf8 carriers, so the shared `read_line` adapter derives the concrete
    destination capacity instead of relying on a locally weakened signature.
+   Eight ordinary call, collection, control-flow, and ownership pass fixtures
+   now consume the same package and agree in native/interpreter execution; the
+   previously unlisted fixtures are also pinned by the collect-all pass suite.
    The remaining local declarations are intentionally different carrier,
    effect, or proof fixtures; migrate those with their owning surfaces, then
    remove the composite compatibility rows under PRV4f.

@@ -1,6 +1,7 @@
 domain [u8]::Utf8 {
     valid_utf8(self);
 }
+use omega::language::std::console;
 data CommandKind {
     case Quit;
     case Look;
@@ -9,11 +10,6 @@ data CommandKind {
 
 data Command {
     kind: CommandKind;
-}
-
-boundary trait Console {
-    machine write_line(text: &[u8] in Utf8);
-    machine exit_process(return_code: i32);
 }
 
 data Main {
