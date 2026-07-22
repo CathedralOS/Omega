@@ -467,6 +467,13 @@ relocation-envelope fingerprints plus their composed derivation identity. The
 boundary/placement binding includes that derivation identity, so a valid final
 inventory cannot be paired with evidence from a different encoded-to-final
 derivation.
+Checked image emission rejects any unclassified final executable gap. The
+current closed emitter therefore publishes `region_enumeration_complete: true`:
+compiler functions and format-owned import thunks cover every `.text` byte,
+while relaxation products, veneers, and general generated stubs are absent by
+construction. This is deliberately separate from
+`footprint_enumeration_complete: false`; compiler-body decoding and admitted
+leaf evidence remain unfinished.
 The format writers also validate their own exact final import-thunk encodings
 after patching and relocation. PE `jmp [rip+disp32]` carries an
 instruction-pointer-only footprint; Mach-O `ADRP/LDR/BR X16` carries X16 plus

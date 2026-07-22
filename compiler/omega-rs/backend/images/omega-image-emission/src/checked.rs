@@ -32,6 +32,7 @@ pub fn emit_checked_executable_image(
             &emitted_output.final_text_bytes,
             relocations,
         )?);
+        validate_executable_region_enumeration(&emitted_output.executable_regions)?;
         validate_compiler_entry_call_return_bytes(
             architecture,
             &entry_symbol,
@@ -44,6 +45,18 @@ pub fn emit_checked_executable_image(
     Err(Diagnostic::error(
         "cannot emit native executable; no direct image writer is registered for this target",
     ))
+}
+
+fn validate_executable_region_enumeration(
+    inventory: &PlacedExecutableRegionInventory,
+) -> Result<(), Diagnostic> {
+    if let Some(gap) = inventory.unclassified_gaps.first() {
+        return Err(Diagnostic::error(format!(
+            "final executable region enumeration left {} unclassified byte(s) at .text offset {}",
+            gap.byte_count, gap.section_offset
+        )));
+    }
+    Ok(())
 }
 
 /// Prove that final `.text` preserves every encoded bit except the exact
@@ -260,7 +273,7 @@ fn validate_compiler_entry_call_return_bytes(
 mod tests {
     use super::{
         emit_checked_executable_image, validate_compiler_entry_call_return_bytes,
-        validate_final_text_relocation_envelope,
+        validate_executable_region_enumeration, validate_final_text_relocation_envelope,
     };
     use crate::ExecutableImageInput;
     use omega_core::arena::Handle;
@@ -367,5 +380,26 @@ mod tests {
             validate_final_text_relocation_envelope(&encoded, &relocated, &relocations)
                 .expect_err("an opcode mutation outside the displacement must reject");
         assert!(diagnostic.message.contains("byte 0"));
+    }
+
+    #[test]
+    fn checked_emission_rejects_unclassified_executable_bytes() {
+        let inventory = PlacedExecutableRegionInventory {
+            text_address: 0x1000,
+            text_byte_count: 4,
+            text_fingerprint: 1,
+            inventory_fingerprint: 2,
+            regions: Vec::new(),
+            unclassified_gaps: vec![omega_image::PlacedExecutableGap {
+                section_offset: 0,
+                address: 0x1000,
+                byte_count: 4,
+                byte_fingerprint: 3,
+            }],
+        };
+
+        let diagnostic = validate_executable_region_enumeration(&inventory)
+            .expect_err("checked images must classify every executable byte");
+        assert!(diagnostic.message.contains("4 unclassified byte(s)"));
     }
 }
