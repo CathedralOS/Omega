@@ -1,10 +1,12 @@
+// COMPILE CANARY: a value-returning entry reaches a nested state whose terminal
+// value is a bounded builtin call.
 data Main {
 }
 
 machine Main::main(
     &mut self
     ) -> i32 {
-    
+    transition { _ -> answer(0) }
 
     state answer(
         &mut self,
