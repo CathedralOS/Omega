@@ -716,14 +716,23 @@ fn recast_view_slot_layout(
     if !local_storage.initial_value.is_valid() {
         return None;
     }
-    let omega_checked_trees::expression::ExpressionNode::Cast(cast) = context
-        .state_storage
-        .expressions
-        .expression(local_storage.initial_value)
+    let expressions = &context.state_storage.expressions;
+    let initializer = match expressions.expression(local_storage.initial_value) {
+        omega_checked_trees::expression::ExpressionNode::Mutable(inner) => *inner,
+        _ => local_storage.initial_value,
+    };
+    let omega_checked_trees::expression::ExpressionNode::Cast(cast) =
+        expressions.expression(initializer)
     else {
         return None;
     };
     if !cast.form.is_recast() {
+        return None;
+    }
+    // Shared recast views may reserve referee-sized content slots for flat
+    // reads. A mutable recast is always pointer-bearing: writes and reads must
+    // reach the backing place even when the referee fits in a machine word.
+    if cast.form == omega_core::cast_form::CastForm::RecastMutable {
         return None;
     }
     super::layout::recast_view_layout(

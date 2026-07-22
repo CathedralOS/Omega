@@ -2,18 +2,18 @@
 //! re-views a place's bytes under a second stated shape. Legality is a
 //! STATIC judgment -- a bad relation is a compile error, never unsafety.
 //!
-//! Rung A serves the scalar core end-to-end and fences the rest loudly:
+//! The scalar rung serves the core end-to-end and fences the rest loudly:
 //!
-//! - **Served:** a SHARED recast between fixed-width scalar primitives of
-//!   EQUAL byte size (`&i32 as &f32`, `&u32 as &i32`), bound as the direct
+//! - **Served:** a recast between fixed-width scalar primitives of EQUAL byte
+//!   size (`&i32 as &f32`, `&mut u32 as &mut i32`), bound as the direct
 //!   initializer of a reference-typed let whose stated type restates the
-//!   target. Facts on the SOURCE are fine (a shared re-view only WEAKENS:
-//!   the fact-free target is trivially implied). Lowering is address
-//!   identity: native reads the place through the stated type's load; the
-//!   interpreter bit-reinterprets at the recast (sound because borrow
-//!   exclusivity freezes the source while the view lives).
-//! - **Fenced (byte-view rung, L4/L5):** `&mut` recasts (writable views
-//!   need fact implication in BOTH directions), record/array shapes
+//!   target. Shared views may weaken source facts. Mutable views currently
+//!   require fact-free primitive source and target shapes, which proves the
+//!   required implication in BOTH directions. Lowering is address identity:
+//!   native reads/writes the place through the stated type; the interpreter
+//!   bit-reinterprets both sides of the alias.
+//! - **Fenced (deeper byte-view rung, L4/L5):** mutable record/interior views,
+//!   record/array shapes
 //!   (byte-granular tiling over plan-laid layouts), interior recasts into
 //!   `[u8; N]` regions (the Cathedral M2 shape), and non-let positions.
 //! - **Refused absolutely:** targets that would ESTABLISH a fact the bytes
@@ -346,12 +346,11 @@ fn judge_scalar_recast(
         state.name.as_str()
     );
 
-    if cast.form == omega_core::cast_form::CastForm::RecastMutable || let_is_mutable {
+    let mutable_recast = cast.form == omega_core::cast_form::CastForm::RecastMutable;
+    if mutable_recast != let_is_mutable {
         diagnostics.push(Diagnostic::error(format!(
-            "{context}: `&mut` recasts land with the byte-view rung -- a writable view \
-             needs fact implication in BOTH directions (anything writable through the \
-             target must leave the source valid at release); rung A serves shared \
-             re-views (`&x as &T`)"
+            "{context}: recast borrow polarity must agree -- use `&x as &T` for a shared \
+             view or `&mut x as &mut T` for a writable view"
         )));
         return;
     }
@@ -368,6 +367,14 @@ fn judge_scalar_recast(
     // drift canary). The view snapshots size_of(record) bytes from the
     // region; member reads are frame-resident record reads.
     if PrimitiveType::from_name(&target_name).is_none() {
+        if mutable_recast {
+            diagnostics.push(Diagnostic::error(format!(
+                "{context}: mutable recasts currently serve equal-width fact-free scalar \
+                 primitives; writable record/interior views still require the deeper \
+                 byte-view tiling judgment"
+            )));
+            return;
+        }
         if let Some(record_size) = scalar_record_size(program, &target_name) {
             let source = strip_mutable(program, cast.value);
             let interior = interior_byte_region_source(program, machine, state, source);
@@ -464,6 +471,13 @@ fn judge_scalar_recast(
         region_length,
     } = interior
     {
+        if mutable_recast {
+            diagnostics.push(Diagnostic::error(format!(
+                "{context}: mutable interior byte-region recasts still require the deeper \
+                 byte-view write-back judgment"
+            )));
+            return;
+        }
         let Some(target_size) = target.scalar_byte_size() else {
             return;
         };
@@ -477,9 +491,9 @@ fn judge_scalar_recast(
         }
         return;
     }
+    let source_type = crate::places::declared_place_type_raw(program, machine, Some(state), source);
     let source_primitive =
-        crate::places::declared_place_type(program, machine, Some(state), source)
-            .and_then(|type_reference| program.primitive_type_reference(type_reference));
+        source_type.and_then(|type_reference| program.primitive_type_reference(type_reference));
     let Some(source_primitive) = source_primitive else {
         diagnostics.push(Diagnostic::error(format!(
             "{context}: a recast re-views a PLACE's bytes -- the source must be a borrowed \
@@ -494,6 +508,25 @@ fn judge_scalar_recast(
             source_primitive.name()
         )));
         return;
+    }
+    if mutable_recast {
+        let source_is_fact_free = source_type.is_some_and(|type_reference| {
+            matches!(
+                program.type_reference_table.type_reference(type_reference),
+                TypeReferenceNode::Named { .. }
+            )
+        });
+        let target_is_fact_free = matches!(
+            program.type_reference_table.type_reference(let_referee),
+            TypeReferenceNode::Named { .. }
+        );
+        if !source_is_fact_free || !target_is_fact_free {
+            diagnostics.push(Diagnostic::error(format!(
+                "{context}: a mutable recast must prove fact implication in BOTH directions; \
+                 this rung accepts only fact-free primitive source and target types"
+            )));
+            return;
+        }
     }
     let (Some(source_size), Some(target_size)) = (
         source_primitive.scalar_byte_size(),

@@ -443,6 +443,11 @@ struct Frame {
     /// coercion alone cannot represent an expression whose own domain differs
     /// from its landing slot's).
     scalar_locals: RefCell<BTreeMap<String, (PrimitiveType, ArithmeticDomain)>>,
+    /// Mutable scalar recast locals map their stated view primitive back to
+    /// the source primitive. The cell itself remains a normal `Ref`, so writes
+    /// preserve alias identity; reads reinterpret source -> view and writes
+    /// reinterpret view -> source at the two observable seams.
+    mutable_scalar_recasts: RefCell<BTreeMap<String, (PrimitiveType, PrimitiveType)>>,
     self_cell: Cell,
     /// The machine whose state is currently executing. Lets a call/transition that names a
     /// SIBLING state resolve it within this machine (rather than re-entering the machine's
@@ -862,6 +867,7 @@ impl<'program> Evaluator<'program> {
                     self_cell: Value::Unit.cell(),
                     machine_symbol: SymbolHandle::invalid(),
                     scalar_locals: RefCell::new(BTreeMap::new()),
+                    mutable_scalar_recasts: RefCell::new(BTreeMap::new()),
                     guard_call_results: RefCell::new(Vec::new()),
                 };
                 self.eval_expression(owned.initial_value, &frame)?
@@ -1435,6 +1441,7 @@ impl<'program> Evaluator<'program> {
             self_cell,
             machine_symbol,
             scalar_locals: RefCell::new(scalar_locals),
+            mutable_scalar_recasts: RefCell::new(BTreeMap::new()),
             guard_call_results: RefCell::new(Vec::new()),
         })
     }
@@ -1510,11 +1517,21 @@ impl<'program> Evaluator<'program> {
                 // `[u8;N] in Saturating` clamps to 255). Integers truncate/clamp/
                 // trap (decision 17); an f32 target rounds to f32 (native keeps f32
                 // in the slot). Mirrors the LocalData store below.
-                let value = match self.assignment_target_coercion(assignment.target, frame) {
-                    Some((primitive, domain)) => {
-                        self.coerce_scalar_with(value, primitive, domain)?
+                let value = if let Some((source, target)) =
+                    self.mutable_scalar_recast_target(assignment.target, frame)
+                {
+                    // The write is stated in the VIEW type, then lands in the
+                    // SOURCE cell as the identical bit pattern. Both types are
+                    // fact-free and equal-width by validation.
+                    let value = self.coerce_scalar_with(value, target, ArithmeticDomain::Exact)?;
+                    self.eval_recast(value, Some(source))?
+                } else {
+                    match self.assignment_target_coercion(assignment.target, frame) {
+                        Some((primitive, domain)) => {
+                            self.coerce_scalar_with(value, primitive, domain)?
+                        }
+                        None => value,
                     }
-                    None => value,
                 };
                 // Carrier byte WRITE: `out[i] = ch` where `out` is text (`Value::Str`, packed
                 // BYTES). The byte has no per-element cell, so write it straight into the vec
@@ -1561,6 +1578,21 @@ impl<'program> Evaluator<'program> {
                 Ok(())
             }
             StatementNode::LocalData(local) => {
+                // A mutable scalar recast is an ALIAS, not a snapshot. Preserve
+                // the source cell and remember the two scalar interpretations;
+                // eval_name performs source -> view reads, while assignment
+                // performs view -> source writes before touching the cell.
+                if local.initial_value.is_valid()
+                    && let Some((source, source_primitive, target_primitive)) =
+                        self.mutable_scalar_recast_initializer(local.initial_value, frame)
+                {
+                    frame.bind(local.name.as_str(), Value::Ref(source).cell());
+                    frame.mutable_scalar_recasts.borrow_mut().insert(
+                        local.name.as_str().to_owned(),
+                        (source_primitive, target_primitive),
+                    );
+                    return Ok(());
+                }
                 // A `let v = <struct>` or `let v = <owned array>` is a VALUE copy: deep-clone so
                 // a later mutation of `v` does not alias the initializer's source. A
                 // `Value::Array` is deep-cloned ONLY when the local's declared type is an owned
@@ -5087,9 +5119,73 @@ impl<'program> Evaluator<'program> {
         let value = cell.borrow().clone();
         // A `Ref` read through a name dereferences transparently (param of `&mut T`).
         if let Value::Ref(inner) = value {
+            if members.len() == 1
+                && let Some((_, target)) = frame
+                    .mutable_scalar_recasts
+                    .borrow()
+                    .get(members[0].as_str())
+                    .copied()
+            {
+                return self.eval_recast(inner.borrow().clone(), Some(target));
+            }
             return Ok(inner.borrow().clone());
         }
         Ok(value)
+    }
+
+    /// Recognize the parser's `Mutable(Cast(RecastMutable))` initializer and
+    /// return the aliased source cell plus its two fact-free scalar shapes.
+    fn mutable_scalar_recast_initializer(
+        &mut self,
+        initializer: ExpressionHandle,
+        frame: &Frame,
+    ) -> Option<(Cell, PrimitiveType, PrimitiveType)> {
+        let cast_handle = match self.program.expression_table.expression(initializer) {
+            ExpressionNode::Mutable(inner) => *inner,
+            ExpressionNode::Cast(cast)
+                if cast.form == omega_core::cast_form::CastForm::RecastMutable =>
+            {
+                initializer
+            }
+            _ => return None,
+        };
+        let ExpressionNode::Cast(cast) = self.program.expression_table.expression(cast_handle)
+        else {
+            return None;
+        };
+        if cast.form != omega_core::cast_form::CastForm::RecastMutable {
+            return None;
+        }
+        let target = self.cast_target_primitive(cast.target_type)?;
+        let source = self.expression_scalar_type(cast.value, frame)?.0;
+        let source_cell = self.resolve_place(cast.value, frame).ok()?;
+        Some((self.deref_cell(source_cell), source, target))
+    }
+
+    fn mutable_scalar_recast_target(
+        &self,
+        target: ExpressionHandle,
+        frame: &Frame,
+    ) -> Option<(PrimitiveType, PrimitiveType)> {
+        let target = match self.program.expression_table.expression(target) {
+            ExpressionNode::Mutable(inner) => *inner,
+            _ => target,
+        };
+        let ExpressionNode::Name(path) = self.program.expression_table.expression(target) else {
+            return None;
+        };
+        let members = self
+            .program
+            .expression_table
+            .name_path_members(path.members);
+        let [name] = members else {
+            return None;
+        };
+        frame
+            .mutable_scalar_recasts
+            .borrow()
+            .get(name.as_str())
+            .copied()
     }
 
     /// `Type::Variant` paths whose head is an enum/data symbol with a matching variant.

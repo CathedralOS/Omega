@@ -9,9 +9,9 @@ use super::guards::{
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::RuntimeAliasBinding;
 use crate::selection::storage_places::{
-    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_storage_is_signed_in_table,
-    resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
-    static_integer_value,
+    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset_in_table,
+    resolve_runtime_storage_is_signed_in_table, resolve_runtime_storage_place_in_table,
+    resolve_runtime_storage_primitive_type_in_table, static_integer_value,
 };
 use omega_checked_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
@@ -74,6 +74,53 @@ fn guard_comparison_operands_unsigned(
         )
     });
     signed == Some(false)
+}
+
+/// Whether a conjunction contains a comparison operand reached through a
+/// pointer-bearing reference slot. The flat state-guard clause model records
+/// such a bare local as RuntimeFrame storage (the pointer bytes); expression
+/// selection can preserve the required Pointee dereference.
+fn guard_contains_pointee_operand(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    guard: ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Binary(binary) = expressions.expression(guard) else {
+        return false;
+    };
+    if binary.operator == BinaryOperator::And {
+        return guard_contains_pointee_operand(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            binary.left,
+        ) || guard_contains_pointee_operand(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            binary.right,
+        );
+    }
+    resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        binary.left,
+    )
+    .is_some()
+        || resolve_runtime_pointee_slot_offset_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            binary.right,
+        )
+        .is_some()
 }
 
 /// True when a guard comparison's operands are f64, so the static/runtime
@@ -1502,8 +1549,17 @@ fn select_dispatch_guard_instructions(
                 matches!(clause.lowering, StateGuardLowering::CompareRuntimeValue)
                     && !(clause.has_storage && clause.has_right_storage)
             });
+            let has_pointee_operand = edge.guard_has_expression
+                && guard_contains_pointee_operand(
+                    input,
+                    source_dispatch_index,
+                    source_key,
+                    &input.state_guards.expressions,
+                    edge.guard_expression,
+                );
             if edge.guard_has_expression
                 && (has_unresolved_runtime_compare
+                    || has_pointee_operand
                     || clauses
                         .iter()
                         .any(|clause| clause.byte_size == string_descriptor_size))

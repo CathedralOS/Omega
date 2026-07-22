@@ -423,6 +423,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("dependent/runtime_sibling_len_index_exit", 7),
     ("dependent/runtime_bounded_product_index_exit", 7),
     ("recast/runtime_scalar_pun_shared_let_exit", 70),
+    ("recast/runtime_scalar_pun_mutable_write_exit", 70),
     ("recast/runtime_interior_byte_recast_exit", 70),
     ("recast/runtime_offset_byte_recast_exit", 70),
     ("recast/runtime_guarded_offset_recast_exit", 70),
@@ -1409,6 +1410,24 @@ fn first_numeric_some(text: &str) -> Option<i32> {
         remaining = rest;
     }
     None
+}
+
+#[test]
+fn interpreter_executes_mutable_scalar_recast_write_through() {
+    let main_path = pass_canary("recast/runtime_scalar_pun_mutable_write_exit").join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "mutable scalar recast compile failed:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "mutable scalar recast should be supported, got {:?}",
+        outcome.error
+    );
+    assert_eq!(outcome.exit_code, 70);
 }
 
 #[test]

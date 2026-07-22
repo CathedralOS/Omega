@@ -283,6 +283,25 @@ needed for structures such as x86 IDT gates. Device behaviors such as W1C or
 read-to-clear remain target-package machines over private primitive access; they
 do not become layout cases.
 
+### Recast views
+
+A recast borrow keeps one storage address while exposing a second checked
+shape. The spelling states both the borrow polarity and target shape:
+
+```omega
+let read: &u32 = &self.word as &u32;
+let write: &mut u32 = &mut self.float as &mut u32;
+```
+
+The source and target must cover the same bytes under their normalized layout
+plans. A shared recast may only weaken facts (source implies target). A mutable
+recast requires implication in both directions so writes through the view
+cannot invalidate the source type. This is a static representation judgment,
+not an unchecked transmute or a value conversion. The implemented mutable
+scalar rung accepts equal-width fact-free primitives; fact-bearing and deeper
+mutable shapes remain rejected until their equivalence and byte-tiling proof is
+available.
+
 See [`Programmable Layouts`](../design_briefs/programmable_layouts.md) and the
 [`OS Memory And Hardware Foundation`](../design_briefs/os_memory_and_hardware_foundation.md)
 for the settled public model and remaining engineering work.

@@ -153,13 +153,22 @@ A checked recast borrows the same bytes under another stated shape when the
 normalized plans prove representation compatibility:
 
 ```omega
-let raw: &GdtRaw = &gdt recast GdtRaw;
+let raw: &GdtRaw = &gdt as &GdtRaw;
+let writable: &mut u32 = &mut float_bits as &mut u32;
 ```
 
-Exact spelling remains provisional. The operation is representation-identity,
-cannot strengthen semantic facts, preserves provenance/lifetime, and is never
-an unchecked transmute. Foreign validation or executable conversion remains an
-ordinary contracted machine.
+The operation is representation-identity, preserves provenance/lifetime, and
+is never an unchecked transmute. A shared view requires source facts to imply
+target facts. A mutable view requires implication in both directions, because
+every value writable through the target must leave the source valid when the
+loan ends. Foreign validation or executable conversion remains an ordinary
+contracted machine.
+
+Implementation status (2026-07-22): shared scalar, bounded interior-byte, and
+nested plan-laid record reads are live. Equal-width fact-free mutable scalar
+views are also live end to end, including bit-exact writes and reads in both the
+native backends and interpreter. Mutable record/interior views remain the next
+tiling-and-write-back rung; they are rejected rather than lowered partially.
 
 ## Policy selection
 

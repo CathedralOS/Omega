@@ -1,0 +1,16 @@
+// FAIL CANARY: a writable recast requires fact implication in BOTH
+// directions. An arbitrary i32 write could leave this ranged u32 source
+// outside 0..=100, so the fact-bearing source is not representation-
+// compatible with the mutable target even though their byte widths agree.
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    wide: u32 [0..=100];
+}
+
+machine Main::main(&mut self) {
+    self.wide = 5;
+    let view: &mut i32 = &mut self.wide as &mut i32;
+    view = 70;
+}

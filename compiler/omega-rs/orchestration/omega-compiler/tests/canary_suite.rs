@@ -22300,6 +22300,89 @@ fn runtime_scalar_pun_shared_let_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_scalar_pun_mutable_write_exit_canary_runs() {
+    // The §5b mutable scalar recast natively: writing 0x3F800000 through a
+    // u32 view changes the f32 source to 1.0 without losing the raw-bit read.
+    let canary = pass_canary("recast/runtime_scalar_pun_mutable_write_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-recast-mut-pun-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("mutable scalar-pun recast canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("mutable scalar-pun recast canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected mutable scalar recast write-through to preserve bits (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_scalar_pun_mutable_write_cross_targets_compile() {
+    let canary = pass_canary("recast/runtime_scalar_pun_mutable_write_exit");
+    for target in ["windows_x64", "linux_arm64"] {
+        let cross_dir = std::env::temp_dir().join(format!(
+            "omega-recast-mut-pun-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&cross_dir);
+        let source_dir = cross_dir.join("src");
+        let build_dir = cross_dir.join("build");
+        fs::create_dir_all(&source_dir).expect("create mutable-recast cross-target source");
+        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+            .expect("copy mutable-recast canary");
+        fs::write(
+            source_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write mutable-recast cross-target manifest");
+        compile(CompileOptions {
+            root_path: source_dir.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: Some(target.to_owned()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "mutable scalar-pun recast should compile for {target}:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+        let _ = fs::remove_dir_all(&cross_dir);
+    }
+}
+
+#[test]
+fn mutable_scalar_recast_rejects_fact_bearing_source() {
+    let canary = fail_canary("recast/recast_mut_fact_fenced");
+    let diagnostics = compile_canary_without_output(&canary)
+        .expect_err("fact-bearing mutable recast source should be rejected");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("fact implication in BOTH directions"),
+        "expected the mutable recast bidirectional-fact diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
 fn runtime_interior_byte_recast_exit_canary_runs() {
     // Rung B: `&self.buf[4] as &u32` assembles the little-endian u32 from
     // the byte region on both engines.
@@ -37735,6 +37818,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "dependent/indexed_data_where_standing_bound_exit",
     "dependent/data_where_flow_proven_construction_compile",
     "recast/runtime_scalar_pun_shared_let_exit",
+    "recast/runtime_scalar_pun_mutable_write_exit",
     "recast/runtime_interior_byte_recast_exit",
     "recast/runtime_offset_byte_recast_exit",
     "recast/runtime_guarded_offset_recast_exit",
@@ -38258,7 +38342,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "types/range_under_non_exact_domain_rejected",
     "recast/reference_let_pun_requires_recast",
     "recast/recast_size_mismatch_rejected",
-    "recast/recast_mut_fenced",
+    "recast/recast_mut_fact_fenced",
     "recast/recast_position_fenced",
     "recast/interior_recast_footprint_rejected",
     "recast/runtime_offset_footprint_rejected",
