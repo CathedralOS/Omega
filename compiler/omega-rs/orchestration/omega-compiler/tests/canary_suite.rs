@@ -1020,6 +1020,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         boundary_footprints.contains("\"boundary_contract_fingerprint\": \"0x")
             && !boundary_footprints.contains("\"boundary_contract_fingerprint\": null")
             && boundary_footprints.contains("\"origin\": \"call_return_mechanics\"")
+            && boundary_footprints.contains("\"origin\": \"dispatch_scaffold\"")
             && boundary_footprints.contains("\"enumeration_complete\": false")
             && boundary_footprints.contains("\"composed\"")
             && boundary_footprints.contains("\"fragments\""),

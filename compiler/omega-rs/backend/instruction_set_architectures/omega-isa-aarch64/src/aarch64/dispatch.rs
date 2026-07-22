@@ -1,4 +1,6 @@
-use omega_calling_conventions::{IndirectPointerLocation, MachineRegister, RegisterSet};
+use omega_calling_conventions::{
+    IndirectPointerLocation, MachineRegister, MachineState, MachineStateSet, RegisterSet,
+};
 use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::StateGuardOperator;
 
@@ -56,6 +58,26 @@ pub fn encode_dispatch_state_write_bytes(
 
 pub fn encode_dispatch_case_leave_bytes(loop_byte_distance: isize) -> Result<[u8; 4], Diagnostic> {
     encode_unconditional_branch(loop_byte_distance)
+}
+
+pub fn dispatch_loop_enter_register_writes() -> RegisterSet {
+    RegisterSet::new([MachineRegister::Aarch64X(DISPATCH_STATE_REGISTER)])
+}
+
+pub fn dispatch_case_enter_register_writes() -> RegisterSet {
+    RegisterSet::default()
+}
+
+pub fn dispatch_case_enter_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
+pub fn dispatch_state_write_register_writes() -> RegisterSet {
+    RegisterSet::new([MachineRegister::Aarch64X(DISPATCH_STATE_REGISTER)])
+}
+
+pub fn dispatch_case_leave_register_writes() -> RegisterSet {
+    RegisterSet::default()
 }
 
 /// Narrow a guard's float `expected_value` (stored as f64 bits) to the operand's

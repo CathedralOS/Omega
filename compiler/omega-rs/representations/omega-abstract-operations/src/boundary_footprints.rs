@@ -13,6 +13,7 @@ pub enum BoundaryFootprintFragmentOrigin {
     ExitResultRegisters,
     ExitIndirectResultCopy,
     CallReturnMechanics,
+    DispatchScaffold,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

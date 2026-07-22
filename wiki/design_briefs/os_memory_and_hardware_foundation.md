@@ -405,10 +405,13 @@ fixed ordinary `CallReturn` path also retains `call_return_mechanics` evidence.
 x86-64 records `ret`'s RSP, stack, and control writes; AArch64 records its fixed
 frame prologue and x19-x30, SP, and control restoration. Provenance-aware
 validation admits these prescribed boundary mechanics without widening the
-handler body's transitive-state ceiling. The artifact's explicit
+handler body's transitive-state ceiling. Runtime-dispatching entries add a
+structurally scoped `dispatch_scaffold` fragment whose target-owned facts cover
+x86-64 R12/AArch64 X28 dispatch-state writes and case-entry condition flags;
+guard evaluation remains a separate body slice. The artifact's explicit
 `enumeration_complete: false` status is a firewall: this retained slice is
 checkable implementation evidence, not yet the final certificate.
-The final certificate must still aggregate the specialized handler body,
+The final certificate must still aggregate remaining body and guard evidence,
 StatePlan-driven nonordinary save/restore and return sequences, relaxation
 products, veneers/thunks, generated stubs, and admitted indirect leaves after
 final placement.

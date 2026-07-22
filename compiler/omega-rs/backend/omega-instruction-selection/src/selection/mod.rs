@@ -1,5 +1,6 @@
 use crate::{
     InstructionSelectionInput, derive_boundary_call_return_mechanics_footprint,
+    derive_boundary_dispatch_scaffold_footprint,
     derive_boundary_exit_indirect_result_copy_footprint,
     derive_boundary_exit_result_register_footprint,
 };
@@ -267,6 +268,22 @@ fn retain_exit_footprints(
     let Some(boundary) = boundary else {
         return;
     };
+    if input.runtime_dispatch_loop.needed {
+        let evidence = derive_boundary_dispatch_scaffold_footprint(
+            boundary,
+            instructions.iter().map(|instruction| &instruction.kind),
+        )
+        .expect("selected dispatch scaffold must fit the validated entry state ceiling");
+        plan.retain_validated_fragment(
+            boundary,
+            omega_abstract_operations::BoundaryFootprintFragment {
+                origin:
+                    omega_abstract_operations::BoundaryFootprintFragmentOrigin::DispatchScaffold,
+                evidence,
+            },
+        )
+        .expect("retained dispatch scaffold must name and fit the entry boundary contract");
+    }
     let evidence = derive_boundary_call_return_mechanics_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
