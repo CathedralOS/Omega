@@ -38,6 +38,7 @@ pub struct PlacedExecutableRegionInventory {
     pub text_address: u64,
     pub text_byte_count: usize,
     pub text_fingerprint: u64,
+    pub inventory_fingerprint: u64,
     pub regions: Vec<PlacedExecutableRegion>,
     pub unclassified_gaps: Vec<PlacedExecutableGap>,
 }
@@ -117,10 +118,19 @@ pub fn place_executable_regions(
         )?);
     }
 
+    let text_fingerprint = byte_fingerprint(&image.memory.text);
+    let inventory_fingerprint = executable_inventory_fingerprint(
+        layout.text_address,
+        image.memory.text.len(),
+        text_fingerprint,
+        &placed,
+        &unclassified_gaps,
+    );
     Ok(PlacedExecutableRegionInventory {
         text_address: layout.text_address,
         text_byte_count: image.memory.text.len(),
-        text_fingerprint: byte_fingerprint(&image.memory.text),
+        text_fingerprint,
+        inventory_fingerprint,
         regions: placed,
         unclassified_gaps,
     })
@@ -148,11 +158,50 @@ fn placed_gap(
 
 fn byte_fingerprint(bytes: &[u8]) -> u64 {
     let mut hash = 0xcbf2_9ce4_8422_2325u64;
-    for byte in bytes {
-        hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    fingerprint_bytes(&mut hash, bytes);
+    hash
+}
+
+fn executable_inventory_fingerprint(
+    text_address: u64,
+    text_byte_count: usize,
+    text_fingerprint: u64,
+    regions: &[PlacedExecutableRegion],
+    gaps: &[PlacedExecutableGap],
+) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325u64;
+    fingerprint_bytes(&mut hash, &text_address.to_le_bytes());
+    fingerprint_bytes(&mut hash, &(text_byte_count as u64).to_le_bytes());
+    fingerprint_bytes(&mut hash, &text_fingerprint.to_le_bytes());
+    for region in regions {
+        fingerprint_bytes(
+            &mut hash,
+            &[match region.origin {
+                FinalExecutableRegionOrigin::CompilerFunction => 1,
+                FinalExecutableRegionOrigin::ImportThunk => 2,
+            }],
+        );
+        fingerprint_bytes(&mut hash, &(region.section_offset as u64).to_le_bytes());
+        fingerprint_bytes(&mut hash, &region.address.to_le_bytes());
+        fingerprint_bytes(&mut hash, &(region.byte_count as u64).to_le_bytes());
+        fingerprint_bytes(&mut hash, &region.byte_fingerprint.to_le_bytes());
+        fingerprint_bytes(&mut hash, region.symbol.as_bytes());
+        fingerprint_bytes(&mut hash, &[0]);
+    }
+    for gap in gaps {
+        fingerprint_bytes(&mut hash, &(gap.section_offset as u64).to_le_bytes());
+        fingerprint_bytes(&mut hash, &gap.address.to_le_bytes());
+        fingerprint_bytes(&mut hash, &(gap.byte_count as u64).to_le_bytes());
+        fingerprint_bytes(&mut hash, &gap.byte_fingerprint.to_le_bytes());
     }
     hash
+}
+
+fn fingerprint_bytes(hash: &mut u64, bytes: &[u8]) {
+    for byte in bytes {
+        *hash ^= u64::from(*byte);
+        *hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
 }
 
 #[cfg(test)]
@@ -209,6 +258,7 @@ mod tests {
             }]
         );
         assert_eq!(inventory.text_fingerprint, byte_fingerprint(&[0; 12]));
+        assert_ne!(inventory.inventory_fingerprint, 0);
     }
 
     #[test]

@@ -440,10 +440,13 @@ It classifies object function spans and every PE/Mach-O import thunk appended by
 the format writer, resolves each region to its final image address, rejects
 overlap or out-of-bounds records, and publishes any unclassified executable
 gaps in `13_executable_regions.json`. Whole-text and per-region/gap fingerprints
-bind those records to the exact relocated bytes. The inventory explicitly lists
-relaxation products, veneers, generated stubs, and admitted leaves as missing
-classes, so this new post-layout seam cannot accidentally promote the partial
-evidence to a complete certificate.
+bind those records to the exact relocated bytes. The artifact repeats the exact
+boundary-contract and composed implementation-evidence identities from the
+encoded carrier and hashes them with the final inventory identity, preventing a
+placement record from being substituted across contracts or implementations.
+The inventory explicitly lists relaxation products, veneers, generated stubs,
+and admitted leaves as missing classes, so this new post-layout seam cannot
+accidentally promote the partial evidence to a complete certificate.
 The final certificate must still aggregate StatePlan-driven nonordinary
 save/restore and return sequences, relaxation products, veneers/thunks,
 generated stubs, and admitted indirect leaves after final placement.

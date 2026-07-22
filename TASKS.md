@@ -520,8 +520,10 @@ schemas recover the same instance without publishing policy type identity.
    bounds regions reject, and any unclassified `.text` gaps remain explicit in
    `13_executable_regions.json`. Whole-text and per-region/gap byte fingerprints
    bind the inventory to the exact post-relocation bytes. That inventory names
-   its currently covered and missing classes and likewise refuses to claim
-   complete enumeration.
+   the same boundary-contract and composed implementation-evidence fingerprints
+   as the encoded carrier, plus a combined boundary/placement binding identity.
+   It names its currently covered and missing classes and likewise refuses to
+   claim complete enumeration.
    StatePlan-driven nonordinary save/restore and return specialization, and
    footprint decoding/validation across the placed handler regions, relaxation
    products, veneers, and admitted leaves remain; final placement must still

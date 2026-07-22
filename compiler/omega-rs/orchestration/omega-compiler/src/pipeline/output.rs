@@ -10,6 +10,7 @@ use omega_object_file::{ObjectContainerInput, emit_omega_object_container};
 pub(super) fn write_output(
     options: &CompileOptions,
     emitted: EmittedProgram,
+    footprints: &omega_target_operations::BoundaryFootprintPlan,
 ) -> Result<std::path::PathBuf, Vec<Diagnostic>> {
     let build_dir = options.build_dir();
     std::fs::create_dir_all(&build_dir).map_err(io_diagnostic)?;
@@ -31,7 +32,7 @@ pub(super) fn write_output(
         let output_path = build_dir.join(&image.file_name);
         write_output_file(&output_path, &image.bytes, true)
             .map_err(|diagnostic| vec![diagnostic])?;
-        write_executable_region_inventory(options, &image.executable_regions)?;
+        write_executable_region_inventory(options, footprints, &image.executable_regions)?;
 
         // The GUI-subsystem translation for Mach-O: PE stamps Subsystem 2 into
         // the image header so Windows never attaches a console box; macOS has no
@@ -63,6 +64,7 @@ pub(super) fn write_output(
 
 fn write_executable_region_inventory(
     options: &CompileOptions,
+    footprints: &omega_target_operations::BoundaryFootprintPlan,
     inventory: &omega_image::PlacedExecutableRegionInventory,
 ) -> Result<(), Vec<Diagnostic>> {
     fn push_string(output: &mut String, value: &str) {
@@ -80,9 +82,25 @@ fn write_executable_region_inventory(
         output.push('"');
     }
 
+    let implementation_evidence_fingerprint = footprints.composed_evidence().evidence_fingerprint();
+    let binding_fingerprint = boundary_placement_binding_fingerprint(
+        footprints.boundary_contract_fingerprint,
+        implementation_evidence_fingerprint,
+        inventory.inventory_fingerprint,
+    );
     let mut json = String::from(
         "{\n  \"placement_stage\": \"final_image\",\n  \"enumeration_complete\": false,\n  \"covered_classes\": [\"compiler_functions\", \"import_thunks\"],\n  \"missing_classes\": [\"relaxation_products\", \"veneers\", \"generated_stubs\", \"admitted_leaves\"],\n",
     );
+    json.push_str("  \"boundary_contract_fingerprint\": ");
+    if let Some(fingerprint) = footprints.boundary_contract_fingerprint {
+        push_string(&mut json, &format!("0x{fingerprint:016x}"));
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(&format!(
+        ",\n  \"implementation_evidence_fingerprint\": \"0x{implementation_evidence_fingerprint:016x}\",\n  \"implementation_fragment_count\": {},\n  \"inventory_fingerprint\": \"0x{:016x}\",\n  \"boundary_placement_binding_fingerprint\": \"0x{binding_fingerprint:016x}\",\n",
+        footprints.fragments.len(), inventory.inventory_fingerprint
+    ));
     json.push_str(&format!(
         "  \"text_address\": \"0x{:016x}\",\n  \"text_byte_count\": {},\n  \"text_fingerprint\": \"0x{:016x}\",\n  \"regions\": [",
         inventory.text_address, inventory.text_byte_count, inventory.text_fingerprint
@@ -131,8 +149,58 @@ fn write_executable_region_inventory(
         .map_err(|diagnostic| vec![diagnostic])
 }
 
+fn boundary_placement_binding_fingerprint(
+    boundary_contract_fingerprint: Option<u64>,
+    implementation_evidence_fingerprint: u64,
+    inventory_fingerprint: u64,
+) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325u64;
+    for byte in [
+        boundary_contract_fingerprint.is_some() as u8,
+        0x42,
+        0x50,
+        0x42,
+    ]
+    .into_iter()
+    .chain(
+        boundary_contract_fingerprint
+            .unwrap_or_default()
+            .to_le_bytes(),
+    )
+    .chain(implementation_evidence_fingerprint.to_le_bytes())
+    .chain(inventory_fingerprint.to_le_bytes())
+    {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    hash
+}
+
 fn io_diagnostic(error: std::io::Error) -> Vec<Diagnostic> {
     vec![Diagnostic::error(error.to_string())]
+}
+
+#[cfg(test)]
+mod executable_region_inventory_tests {
+    use super::boundary_placement_binding_fingerprint;
+
+    #[test]
+    fn placement_binding_changes_with_contract_evidence_or_final_inventory() {
+        let baseline = boundary_placement_binding_fingerprint(Some(1), 2, 3);
+        assert_ne!(
+            baseline,
+            boundary_placement_binding_fingerprint(Some(4), 2, 3)
+        );
+        assert_ne!(
+            baseline,
+            boundary_placement_binding_fingerprint(Some(1), 5, 3)
+        );
+        assert_ne!(
+            baseline,
+            boundary_placement_binding_fingerprint(Some(1), 2, 6)
+        );
+        assert_ne!(baseline, boundary_placement_binding_fingerprint(None, 2, 3));
+    }
 }
 
 /// PE optional-header Subsystem word for a GUI program (`Subsystem::Gui`;
