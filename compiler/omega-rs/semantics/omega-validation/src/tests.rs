@@ -412,6 +412,32 @@ fn rejects_unknown_domain_membership_in_domain_body() {
     );
 }
 
+#[test]
+fn repeated_normalized_domain_name_requires_equal_semantics() {
+    let matching = typed_program_from_source(
+        r#"
+        domain [u8; 8]::Utf8 { valid_utf8(self); }
+        domain [u8; 16]::Utf8 { valid_utf8(self); }
+        "#,
+    );
+    validate_program(&matching)
+        .expect("equal capacity specializations should share their normalized domain name");
+
+    let divergent = typed_program_from_source(
+        r#"
+        domain [u8; 8]::Utf8 { valid_utf8(self); }
+        domain [u8; 16]::Utf8 { no_nul(self); }
+        "#,
+    );
+    let diagnostics =
+        validate_program(&divergent).expect_err("different semantics under one name must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("declared more than once with different normalized semantics")
+    }));
+}
+
 fn validate_contract_source(source: &str) -> Result<(), Vec<omega_core::diagnostics::Diagnostic>> {
     let tokens = Lexer::new(source)
         .tokenize()

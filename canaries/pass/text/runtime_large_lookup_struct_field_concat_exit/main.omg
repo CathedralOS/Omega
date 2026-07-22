@@ -1,5 +1,13 @@
 use omega::language::std::console;
 
+domain [u8; 16]::Utf8 {
+    valid_utf8(self);
+}
+
+domain [u8; 32]::Utf8 {
+    valid_utf8(self);
+}
+
 data CellId {
     case C0;
     case C1;
@@ -7,7 +15,7 @@ data CellId {
 
 data Room {
     cell: CellId;
-    label: String;
+    label: [u8; 16] in Utf8;
 }
 
 data Level {
@@ -27,7 +35,7 @@ data Main {
     console: Console;
     formatter: Formatter;
     level: Level;
-    line: String;
+    line: [u8; 32] in Utf8;
 }
 
 machine Main::main(&mut self) {
@@ -56,7 +64,7 @@ machine Formatter::write_current_cell(
     &mut self,
     level: Level,
     cell: CellId,
-    out_line: &mut String
+    out_line: &mut [u8; 32] in Utf8
 ) {
     let room: Room;
     self.lookup.find_room(level, cell, &mut room);
@@ -68,7 +76,10 @@ machine Lookup::find_room(
     level: Level,
     cell: CellId,
     out_room: &mut Room
-) {
+)
+ensures
+    out_room.label in Utf8
+{
     let rooms: &[Room] = level.rooms.as_slice();
 
     transition level.room_count > 0 {

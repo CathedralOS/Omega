@@ -124,6 +124,54 @@ fn lowers_domain_definitions() {
 }
 
 #[test]
+fn resolves_repeated_capacity_specializations_as_one_domain_identity() {
+    let source = r#"
+    domain [u8; 8]::Utf8 {
+        valid_utf8(self);
+    }
+
+    domain [u8; 16]::Utf8 {
+        valid_utf8(self);
+    }
+
+    data Holder {
+        label: [u8; 8] in Utf8;
+    }
+
+    machine fill(out: &mut Holder)
+    ensures
+        out.label in Utf8
+    {
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    assert_eq!(
+        program.domain_definitions[0].semantic_id, program.domain_definitions[1].semantic_id,
+        "capacity-specialized declarations with the same normalized predicate should share semantic identity",
+    );
+
+    let machine = program.machines.first().expect("fill machine");
+    let contract = program
+        .machine_contracts(machine)
+        .iter()
+        .find(|contract| {
+            contract.kind == omega_symbol_resolved_trees::signature::SignatureContractKind::Ensures
+        })
+        .expect("fill should retain its ensures contract");
+    let [omega_symbol_resolved_trees::domain::ProofFact::Membership(membership)] =
+        program.proof_facts(contract.facts)
+    else {
+        panic!("ensures should contain one domain membership")
+    };
+    assert!(membership.domain_symbol.is_valid());
+}
+
+#[test]
 fn preserves_operator_declarations() {
     let source = r#"
     operator Slice::index<T>(items: &[T], index: usize) -> T

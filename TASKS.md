@@ -983,7 +983,13 @@ stronger operations it needs instead of citing machine parameters generally.
   pinning rejection of an unqualified source. By-value bounded carriers are also
   distinguished from equally-sized fat descriptors during argument materialization,
   so `{len, bytes}` is copied inline instead of being rewritten as `{ptr, len}`.
-  Seventeen pass-canary sources still name builtin `String`/`string`. Continue that
+  Lookup records and their large-record variants now use bounded UTF-8 carriers
+  in both engines. Their mutable-output lookup contract explicitly returns the
+  nested field's `Utf8` fact, so the caller never relies on a stale fact across
+  mutation. Repeated fixed-capacity declarations such as `[u8; 16]::Utf8` and
+  `[u8; 64]::Utf8` resolve as one short-name domain only when their normalized
+  fact sets agree; divergent same-name declarations reject before flow checking.
+  Fourteen pass-canary sources still name builtin `String`/`string`. Continue that
   migration. The backend's in-place concat route is now alias-safe and never zeros
   its source, but migrating the remaining `target = target + suffix` regressions
   still requires a proven running-length bound rather than the conservative

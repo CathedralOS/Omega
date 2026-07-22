@@ -14,6 +14,8 @@ pub(crate) fn validate_domain_definitions(
     fact_plan: &FactPlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    validate_repeated_normalized_domain_identities(program, fact_plan, diagnostics);
+
     for domain in program.domain_definitions() {
         validate_type_reference_handle(
             program,
@@ -36,6 +38,69 @@ pub(crate) fn validate_domain_definitions(
     }
 
     validate_domain_membership_cycles(program, fact_plan, diagnostics);
+}
+
+fn validate_repeated_normalized_domain_identities(
+    program: &TypedTrees,
+    fact_plan: &FactPlan,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let domains = program.domain_definitions();
+    for (index, domain) in domains.iter().enumerate() {
+        if domains[..index]
+            .iter()
+            .any(|prior| prior.name == domain.name)
+        {
+            continue;
+        }
+        let normalized_facts = normalized_domain_facts(program, fact_plan, domain.symbol);
+        let mut peers = domains
+            .iter()
+            .skip(index + 1)
+            .filter(|peer| peer.name == domain.name);
+        if peers.any(|peer| {
+            peer.semantic_id != domain.semantic_id
+                || normalized_domain_facts(program, fact_plan, peer.symbol) != normalized_facts
+        }) {
+            diagnostics.push(Diagnostic::error(format!(
+                "domain `{}` is declared more than once with different normalized semantics; repeated capacity specializations may share a name only when their semantic identities are equal",
+                domain.name
+            )));
+        }
+    }
+}
+
+fn normalized_domain_facts(
+    program: &TypedTrees,
+    fact_plan: &FactPlan,
+    domain_symbol: SymbolHandle,
+) -> Vec<String> {
+    let mut facts = fact_plan
+        .facts_for_symbol(domain_symbol)
+        .filter_map(|fact| match fact.payload {
+            omega_facts::FactPayload::BooleanExpression(expression) => Some(format!(
+                "bool:{}",
+                program.expression_table.display_name(expression)
+            )),
+            omega_facts::FactPayload::DomainMembership {
+                value,
+                domain_symbol,
+                ..
+            } => {
+                let semantic_id = domain_definition_by_symbol(program, domain_symbol)
+                    .map(|domain| domain.semantic_id)
+                    .unwrap_or_default();
+                Some(format!(
+                    "membership:{}:{semantic_id:?}",
+                    program.expression_table.display_name(value)
+                ))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    facts.sort_unstable();
+    facts.dedup();
+    facts
 }
 
 fn validate_domain_membership_targets(

@@ -6,7 +6,13 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
     let domain_symbols = program
         .domain_definitions
         .iter()
-        .map(|domain| (domain.name.as_str().to_owned(), domain.symbol))
+        .map(|domain| {
+            (
+                domain.name.as_str().to_owned(),
+                domain.symbol,
+                domain.semantic_id,
+            )
+        })
         .collect::<Vec<_>>();
     let mut domain_fact_spans = program
         .domain_definitions
@@ -167,7 +173,11 @@ fn resolved_domain_byte_predicate(
 
 fn assign_proof_expression_membership_symbols(
     symbols: &SymbolTable,
-    domain_symbols: &[(String, SymbolHandle)],
+    domain_symbols: &[(
+        String,
+        SymbolHandle,
+        omega_core::semantics::SemanticDomainId,
+    )],
     expression_table: &mut omega_symbol_resolved_trees::expression::ExpressionTable,
     expression: omega_symbol_resolved_trees::expression::ExpressionHandle,
 ) {
@@ -322,14 +332,18 @@ fn assign_proof_expression_membership_symbols(
 
 fn resolve_domain_symbol(
     symbols: &SymbolTable,
-    domain_symbols: &[(String, SymbolHandle)],
+    domain_symbols: &[(
+        String,
+        SymbolHandle,
+        omega_core::semantics::SemanticDomainId,
+    )],
     name: &str,
 ) -> SymbolHandle {
     if name.contains("::") {
         return domain_symbols
             .iter()
-            .find(|(candidate, _)| candidate == name)
-            .map(|(_, symbol)| *symbol)
+            .find(|(candidate, _, _)| candidate == name)
+            .map(|(_, symbol, _)| *symbol)
             .or_else(|| {
                 symbols.find_child_by_name_and_kind(symbols.root(), name, SymbolKind::Domain)
             })
@@ -338,11 +352,18 @@ fn resolve_domain_symbol(
 
     let mut matches = domain_symbols
         .iter()
-        .filter(|(candidate, _)| candidate.rsplit("::").next().unwrap_or(candidate) == name);
-    let Some((_, symbol)) = matches.next() else {
+        .filter(|(candidate, _, _)| candidate.rsplit("::").next().unwrap_or(candidate) == name);
+    let Some((first_name, symbol, first_semantic_id)) = matches.next() else {
         return SymbolHandle::invalid();
     };
-    if matches.next().is_some() {
+    // Capacity-specialized carriers normalize their domain owner to the same
+    // published name (`[u8; N]::Utf8`). Multiple declarations with that exact
+    // normalized name are one semantic lookup candidate, not an ambiguous set.
+    // Distinct owners that merely share the trailing presentation name remain
+    // ambiguous and fail closed.
+    if matches.any(|(candidate, _, semantic_id)| {
+        candidate != first_name || semantic_id != first_semantic_id
+    }) {
         SymbolHandle::invalid()
     } else {
         *symbol
