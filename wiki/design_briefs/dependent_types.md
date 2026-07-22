@@ -227,6 +227,14 @@ the windowed place (a capability is a licensed path to state outside the
 signature — "cannot observe the window" is unprovable for it), so every
 window closes before the world can look.
 
+Implementation status: explicit state `requires` now survives every compiler
+tree and specialization, is indexed as a state-owned proof fact, is discharged
+on guarded named transitions, and is assumed only in the target state. `self`
+back-edges are checked after statement-level invalidation, so the entry
+assumption cannot prove itself after a dependent place is mutated. Automatic
+Houdini candidate discovery remains future work; authored arrival contracts do
+not depend on it.
+
 ## 6. Dynamic lowering — the runtime half
 
 Ada is the direct ancestor: discriminated records have shipped value-dependent
@@ -441,9 +449,10 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
 - **R4 — View parameters + boundary witness mints:** out-params as
   witnesses, decode-minted subdomains, the recast-borrow obligation wired to
   couplings. Driver: the memory-map walk (rides Cathedral M2's recast).
-- **R5 — Frames:** preserve-unless-written; `stores` clause at boundaries;
-  state-level `requires` + arrival facts; Houdini pass over the engine.
-  Driver: dependent facts across sibling-machine calls.
+- **R5 — Frames:** preserve-unless-written and authored state-level `requires`
+  plus arrival facts are live; remaining work is the `stores` clause at
+  boundaries and the Houdini pass over the engine. Driver: dependent facts
+  across sibling-machine calls.
 
 ## 9. Key sources
 

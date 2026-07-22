@@ -326,19 +326,31 @@ ensures self.len == n + 1
 *(Clause spelling provisional.)*
 
 A state's signature is its arrival contract. Parameter refinements —
-dependent ones included — plus a state-level `requires` are proven at every
-in-edge, entry path and back-edges alike, and assumed at entry; that assumed
-set is the induction hypothesis the ranking-witness rung consumes. A
-self-transitioning state is a loop whose invariant is its own signature:
+dependent ones included — plus an explicit state-level `requires` are proven
+at every in-edge, including guarded named transitions and back-edges, and are
+assumed only inside that state. A state accepts `requires` after its return
+type and before its body; exit guarantees and effect/termination clauses stay
+on the machine. The assumed arrival set is the induction hypothesis the
+ranking-witness rung consumes. A self-transitioning state is a loop whose
+invariant is its own signature, so a mutation that invalidates the invariant
+must be followed by a guard or other proof that re-establishes it before the
+back-edge:
 
 ```omega
-state fill(&mut self, i: u64 [0..=self.cap]) {
+state fill(&mut self, i: u64)
+requires
+    i <= self.cap
+{
     transition i < self.cap {
-        true -> write_one(i)
+        true -> fill(i + 1)
         false -> done()
     }
 }
 ```
+
+The contract is part of the state's typed and specialization identity. It is
+not a comment or a body-local assertion: an unconditional edge to `fill(n)`
+is rejected unless the current proof context establishes `n <= self.cap`.
 
 ## When The Checker Says No
 

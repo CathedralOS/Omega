@@ -656,8 +656,12 @@ stronger operations it needs instead of citing machine parameters generally.
   recursive formal-to-operand expression substitution as operator
   preconditions, retain canonical caller-term labels in semantic facts, and
   conservatively depend on every place-valued operand so mutation of either
-  side invalidates the guarantee. Finish the `stores` clause, explicit
-  state-arrival contracts, and broader Houdini-style inference for facts
+  side invalidates the guarantee. Explicit state-arrival `requires` contracts
+  are now live through syntax, resolution, typing, specialization identity,
+  proof/semantic indexing, and checked flow: every named edge must prove the
+  target contract, the target body assumes it, facts stay state-scoped, and a
+  `self` back-edge must re-establish any arrival fact invalidated in the body.
+  Finish the `stores` clause and broader Houdini-style inference for facts
   crossing sibling calls.
 
 ### Domain facets, effects, termination, and trust

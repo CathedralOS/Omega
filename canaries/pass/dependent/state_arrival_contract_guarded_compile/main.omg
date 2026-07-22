@@ -1,0 +1,27 @@
+// R5 state-arrival contract: the transition guard proves the target state's
+// explicit `requires`, which is then available as an assumption in its body.
+data Main {
+    value: i32;
+}
+
+machine Main::run(&mut self) {
+    transition self.value > 0 {
+        true -> positive(self.value)
+        false -> done()
+    }
+
+    state positive(&mut self, value: i32)
+    requires
+        value > 0
+    {
+        self.consume(value);
+    }
+
+    state done(&mut self) { }
+}
+
+machine Main::consume(&mut self, value: i32)
+requires
+    value > 0
+{
+}

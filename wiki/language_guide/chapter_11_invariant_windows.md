@@ -50,8 +50,10 @@ A consumption point is anywhere in-domain-ness could be observed:
 - **Creating a borrow.** A borrow hands out a view someone will trust.
 - **Any call.** The callee assumes the default domain of everything its
   signature can reach.
-- **A transition.** Arrival contracts are proven at every in-edge; proof
-  debt never crosses the state graph.
+- **A transition.** Parameter refinements and explicit state `requires` are
+  proven at every in-edge; proof debt never crosses the state graph. A
+  `self` back-edge is checked after preceding mutations, not from the stale
+  entry assumption.
 - **Return and scope expiration.**
 - **Any boundary or capability-carrying call.** The world can observe
   memory, whether or not the call names the place.

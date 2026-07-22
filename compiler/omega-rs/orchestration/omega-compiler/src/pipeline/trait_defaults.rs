@@ -578,6 +578,7 @@ fn synthesize_machine_named(
         name: signature.name.clone(),
         parameters: signature.parameters,
         return_type: signature.return_type,
+        contracts: HandleSpan::empty(),
         statements: signature.default_body,
     };
     let state = syntax.items.insert_state(&state);
