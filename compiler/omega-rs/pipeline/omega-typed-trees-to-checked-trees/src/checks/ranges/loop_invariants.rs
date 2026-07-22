@@ -76,6 +76,9 @@ pub(super) fn collect_loop_invariant_facts(
     program: &omega_typed_trees::TypedTrees,
     machine: &Machine,
 ) -> Vec<LoopInvariant> {
+    let Some(call_frames) = omega_validation::CallFrameResolver::new(program) else {
+        return Vec::new();
+    };
     let states = program.machine_states(machine);
     let edges = build_edges(program, machine);
     let Some(entry) = states.first().map(|state| state.symbol) else {
@@ -126,10 +129,22 @@ pub(super) fn collect_loop_invariant_facts(
         }
 
         for counter in candidates {
+            let Some(index_name) = counter_display_name(program, states, &loop_states, counter)
+            else {
+                continue;
+            };
             // G1: every modification of `counter` inside the loop moves in ONE
-            // monotone direction, and no loop state makes a call.
-            let Some(direction) =
-                loop_modifications_direction(program, states, &loop_states, counter)
+            // monotone direction. Calls are admitted only when the shared R5
+            // frame resolver proves their may-write set disjoint from it.
+            let Some(direction) = loop_modifications_direction(
+                program,
+                machine,
+                &call_frames,
+                states,
+                &loop_states,
+                counter,
+                &index_name,
+            )
             else {
                 continue;
             };
@@ -142,6 +157,9 @@ pub(super) fn collect_loop_invariant_facts(
                 &loop_states,
                 head.symbol,
                 counter,
+                machine,
+                &call_frames,
+                &index_name,
             ) else {
                 continue;
             };
@@ -160,11 +178,6 @@ pub(super) fn collect_loop_invariant_facts(
                     }
                     InvariantKind::NonNegative
                 }
-            };
-
-            let Some(index_name) = counter_display_name(program, states, &loop_states, counter)
-            else {
-                continue;
             };
 
             for &state_symbol in loop_states.iter().chain(std::iter::once(&head.symbol)) {
@@ -543,14 +556,19 @@ fn expression_is_counter_member(
     )
 }
 
-/// G1: every in-loop modification of `counter` moves in ONE monotone direction,
-/// and no loop state makes a call or bare-expression statement (which could
-/// mutate any field via `&mut self`). Returns the common direction, or `None`.
+/// G1: every in-loop modification of `counter` moves in ONE monotone direction.
+/// Calls and value-position calls are allowed only when the shared R5 frame
+/// resolver proves their complete may-write sets disjoint from the counter.
+/// Opaque or overlapping calls fail closed. Returns the common direction, or
+/// `None`.
 fn loop_modifications_direction(
     program: &omega_typed_trees::TypedTrees,
+    machine: &Machine,
+    call_frames: &omega_validation::CallFrameResolver<'_>,
     states: &[State],
     loop_states: &[SymbolHandle],
     counter: SymbolHandle,
+    counter_path: &str,
 ) -> Option<Direction> {
     let mut direction: Option<Direction> = None;
     for &state_symbol in loop_states {
@@ -558,6 +576,9 @@ fn loop_modifications_direction(
             continue;
         };
         for statement in program.statement_table.statements(state.statement_nodes) {
+            if statement_may_write_path(machine, call_frames, statement, counter_path)? {
+                return None;
+            }
             match statement {
                 StatementNode::Assignment(assignment) => {
                     if assignment_counter_field(program, assignment) != Some(counter) {
@@ -573,7 +594,6 @@ fn loop_modifications_direction(
                         _ => direction = Some(observed),
                     }
                 }
-                StatementNode::Call(_) | StatementNode::Expression(_) => return None,
                 _ => {}
             }
         }
@@ -590,6 +610,9 @@ fn entry_constant_init_range(
     loop_states: &[SymbolHandle],
     head: SymbolHandle,
     counter: SymbolHandle,
+    machine: &Machine,
+    call_frames: &omega_validation::CallFrameResolver<'_>,
+    counter_path: &str,
 ) -> Option<(i64, i64)> {
     let mut min_init: Option<i64> = None;
     let mut max_init: Option<i64> = None;
@@ -600,7 +623,17 @@ fn entry_constant_init_range(
             continue; // a back edge -- not an entry
         }
         saw_entry = true;
-        let init = counter_entry_init(program, states, edges, loop_states, edge.source, counter)?;
+        let init = counter_entry_init(
+            program,
+            machine,
+            call_frames,
+            states,
+            edges,
+            loop_states,
+            edge.source,
+            counter,
+            counter_path,
+        )?;
         min_init = Some(min_init.map_or(init, |current| current.min(init)));
         max_init = Some(max_init.map_or(init, |current| current.max(init)));
     }
@@ -631,17 +664,27 @@ enum InitProbe {
 /// dead "predecessor does not set it" case now walks further back.
 fn counter_entry_init(
     program: &omega_typed_trees::TypedTrees,
+    machine: &Machine,
+    call_frames: &omega_validation::CallFrameResolver<'_>,
     states: &[State],
     edges: &[Edge],
     loop_states: &[SymbolHandle],
     start: SymbolHandle,
     counter: SymbolHandle,
+    counter_path: &str,
 ) -> Option<i64> {
     let mut visited: Vec<SymbolHandle> = Vec::new();
     let mut current = start;
     loop {
         let state = find_state(states, current)?;
-        match probe_state_init(program, state, counter) {
+        match probe_state_init(
+            program,
+            machine,
+            call_frames,
+            state,
+            counter,
+            counter_path,
+        ) {
             InitProbe::Constant(value) => return Some(value),
             InitProbe::Unknown => return None,
             InitProbe::Untouched => {}
@@ -667,11 +710,18 @@ fn counter_entry_init(
 /// Classify a state's net effect on `counter` (last write wins), for `counter_entry_init`.
 fn probe_state_init(
     program: &omega_typed_trees::TypedTrees,
+    machine: &Machine,
+    call_frames: &omega_validation::CallFrameResolver<'_>,
     state: &State,
     counter: SymbolHandle,
+    counter_path: &str,
 ) -> InitProbe {
     let mut probe = InitProbe::Untouched;
     for statement in program.statement_table.statements(state.statement_nodes) {
+        match statement_may_write_path(machine, call_frames, statement, counter_path) {
+            Some(true) | None => probe = InitProbe::Unknown,
+            Some(false) => {}
+        }
         match statement {
             StatementNode::Assignment(assignment) => {
                 if assignment_counter_field(program, assignment) != Some(counter) {
@@ -685,11 +735,38 @@ fn probe_state_init(
                     _ => InitProbe::Unknown,
                 };
             }
-            StatementNode::Call(_) | StatementNode::Expression(_) => probe = InitProbe::Unknown,
             _ => {}
         }
     }
     probe
+}
+
+/// Whether calls evaluated by `statement` may write `path`. The aggregate
+/// value-call frame is checked for every statement; a statement-position call
+/// adds its own frame. `None` is an opaque analysis and therefore blocks the
+/// invariant.
+fn statement_may_write_path(
+    machine: &Machine,
+    call_frames: &omega_validation::CallFrameResolver<'_>,
+    statement: &StatementNode,
+    path: &str,
+) -> Option<bool> {
+    let value_writes = call_frames.statement_value_may_write_paths(machine, statement)?;
+    if value_writes
+        .iter()
+        .any(|written| omega_validation::frame_paths_overlap(written, path))
+    {
+        return Some(true);
+    }
+    let StatementNode::Call(call) = statement else {
+        return Some(false);
+    };
+    let statement_writes = call_frames.may_write_paths(machine, call)?;
+    Some(
+        statement_writes
+            .iter()
+            .any(|written| omega_validation::frame_paths_overlap(written, path)),
+    )
 }
 
 /// The display name of `counter` as it appears as an index (`self.i`), sourced

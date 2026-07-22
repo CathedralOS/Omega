@@ -1,0 +1,30 @@
+// FAIL CANARY (R5/Houdini frame bridge): a sibling that may write the loop
+// counter blocks the inferred bound; the indexed read must remain unproven.
+data Main {
+    nums: [i32; 4] in Trapping;
+    i: i32 in Trapping;
+    value: i32;
+}
+
+machine Main::run(&mut self) {
+    self.i = 0;
+    transition {
+        _ -> loop_()
+    }
+
+    state loop_(&mut self) {
+        self.replace_i();
+        self.value = self.nums[self.i];
+        self.i = self.i + 1;
+        transition self.i < 4 {
+            true -> loop_()
+            false -> done()
+        }
+    }
+
+    state done(&mut self) { }
+}
+
+machine Main::replace_i(&mut self) {
+    self.i = 0;
+}
