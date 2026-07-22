@@ -418,11 +418,14 @@ shapes remain outside that structurally limited fragment. Dedicated runtime-text
 literal-buffer and descriptor-vs-literal guards add
 `runtime_text_guard_comparison` evidence for their encoder-owned base, pointer,
 length, loop, byte-scratch, large-offset, and flag effects; cross-target artifact
-canaries exercise the literal-buffer path. The artifact's explicit
+canaries exercise the literal-buffer path. Place-pair and place-vs-immediate
+guards likewise retain `place_guard_comparison` evidence: x86-64 covers the
+complete place walk and compare scratch, while AArch64 covers its admitted
+direct-place shapes and offset-dependent address scratch. Cross-target artifact
+canaries exercise the place-pair path. The artifact's explicit
 `enumeration_complete: false` status is a firewall: this retained slice is
 checkable implementation evidence, not yet the final certificate.
-The final certificate must still aggregate computed-runtime-value and place-shaped
-body guard evidence,
+The final certificate must still aggregate computed-runtime-value body guard evidence,
 StatePlan-driven nonordinary save/restore and return sequences, relaxation
 products, veneers/thunks, generated stubs, and admitted indirect leaves after
 final placement.

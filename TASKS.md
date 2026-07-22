@@ -497,9 +497,14 @@ schemas recover the same instance without publishing policy type identity.
    `runtime_text_guard_comparison` fragment with their encoder-owned base,
    pointer, length, loop, byte-scratch, large-offset, and flag effects. Exact
    x86-64/AArch64 artifact canaries exercise the literal-buffer path. The
+   place-pair and place-vs-immediate guard families now add a
+   `place_guard_comparison` fragment as well: x86-64 covers the complete place
+   walk plus integer/vector compare scratch, while AArch64 covers the direct
+   shapes it currently admits, including offset-dependent address scratch.
+   Cross-target artifacts exercise the place-pair path. The
    artifact's `enumeration_complete: false` firewall prevents this partial slice
    from being mistaken for the final certificate. Remaining computed-runtime-
-   value and place-shaped body guard evidence,
+   value body guard evidence,
    StatePlan-driven nonordinary save/restore and return specialization, and
    post-layout enumeration across handler code, veneers, thunks, and admitted
    leaves remain; final placement must still prove that enumeration is complete.
