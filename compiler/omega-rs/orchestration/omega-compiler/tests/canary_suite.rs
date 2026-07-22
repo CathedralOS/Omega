@@ -36775,8 +36775,9 @@ fn plan_laid_value_by_value_param_exit_canary_runs() {
 #[test]
 fn plan_laid_record_view_exit_canary_runs() {
     // A byte-region record view whose only field is a plan-laid foreign
-    // record. Both engines must consume the plan's low@8/high@24 offsets;
-    // native packing would read the gaps and exit 71.
+    // record. Both engines must consume the plan's low@8/high@24 offsets and
+    // preserve projected scalar loads through u16->u64 widening and u64->u16
+    // narrowing; native packing would read the gaps and exit 71.
     let canary = pass_canary("layouts/runtime_plan_laid_record_view_exit");
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
@@ -36831,7 +36832,7 @@ fn plan_laid_record_view_exit_canary_runs() {
             write_output: true,
         })
         .unwrap_or_else(|diagnostics| {
-            panic!("plan-laid projected scalar conversion should cross-compile for {target}: {diagnostics:?}")
+            panic!("plan-laid projected scalar widening/narrowing should cross-compile for {target}: {diagnostics:?}")
         });
         let _ = fs::remove_dir_all(&cross_dir);
     }

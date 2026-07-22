@@ -968,10 +968,11 @@ stronger operations it needs instead of citing machine parameters generally.
   fact-free shapes, enforce validate/materialize mint exclusivity, and prove
   codec conformance through ordinary policy machines. Shared record recasts
   can now size and project a nested plan-laid record recursively, with a native
-  and interpreter differential canary; widening conversions from projected
-  plan-laid scalar places lower natively, and `struct stat` now uses target
+  and interpreter differential canary; widening and explicit narrowing
+  conversions from projected plan-laid scalar places lower natively and
+  cross-compile on both backend families, and `struct stat` now uses target
   `StatLayout` policies rather than compatibility offsets. Continue non-scalar
-  and mutable recast views plus narrowing conversion coverage.
+  and mutable recast views.
 - **L6a — Extent.** The normalized conservation foundation is live in
   `omega-extents`: admitted one-shot root grants mint nonempty ranges;
   move-split preserves exact geometry; only compatible siblings from one
