@@ -502,9 +502,14 @@ schemas recover the same instance without publishing policy type identity.
    walk plus integer/vector compare scratch, while AArch64 covers the direct
    shapes it currently admits, including offset-dependent address scratch.
    Cross-target artifacts exercise the place-pair path. The
+   recursive `CompareRuntimeValues` family now contributes
+   `runtime_value_guard_comparison`: each ISA owns a closed may-write ceiling
+   for its operand evaluator, and x86 derives balanced push/pop SP use only
+   when the operand tree actually contains a nested binary. That stack scratch
+   is admitted only for an ordinary call-return activation. Cross-target
+   artifacts exercise text-equality value operands. The
    artifact's `enumeration_complete: false` firewall prevents this partial slice
-   from being mistaken for the final certificate. Remaining computed-runtime-
-   value body guard evidence,
+   from being mistaken for the final certificate.
    StatePlan-driven nonordinary save/restore and return specialization, and
    post-layout enumeration across handler code, veneers, thunks, and admitted
    leaves remain; final placement must still prove that enumeration is complete.

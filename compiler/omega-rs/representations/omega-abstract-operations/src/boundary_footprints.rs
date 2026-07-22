@@ -1,6 +1,7 @@
 use omega_calling_conventions::{
     PlanDiagnostic, StateFootprintEvidence, ValidatedBoundaryEntryPlan, compose_state_footprints,
-    validate_call_return_mechanics_footprint, validate_state_footprint,
+    validate_call_return_mechanics_footprint, validate_runtime_value_guard_footprint,
+    validate_state_footprint,
 };
 
 /// Provenance of one independently derived boundary-code footprint fragment.
@@ -17,6 +18,7 @@ pub enum BoundaryFootprintFragmentOrigin {
     StaticGuardComparison,
     RuntimeTextGuardComparison,
     PlaceGuardComparison,
+    RuntimeValueGuardComparison,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,6 +52,9 @@ impl BoundaryFootprintPlan {
         match fragment.origin {
             BoundaryFootprintFragmentOrigin::CallReturnMechanics => {
                 validate_call_return_mechanics_footprint(boundary, &fragment.evidence)?
+            }
+            BoundaryFootprintFragmentOrigin::RuntimeValueGuardComparison => {
+                validate_runtime_value_guard_footprint(boundary, &fragment.evidence)?
             }
             _ => validate_state_footprint(boundary, &fragment.evidence)?,
         }

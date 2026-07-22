@@ -118,6 +118,9 @@ pub fn boundary_footprint_fragments_json(plan: &AbstractOperationPlan) -> String
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::PlaceGuardComparison => {
                     "place_guard_comparison"
                 }
+                omega_abstract_operations::BoundaryFootprintFragmentOrigin::RuntimeValueGuardComparison => {
+                    "runtime_value_guard_comparison"
+                }
             },
         );
         json.push_str(", \"evidence\": ");
@@ -196,6 +199,19 @@ mod boundary_footprint_tests {
         plan.boundary_footprints
             .fragments
             .push(BoundaryFootprintFragment {
+                origin: BoundaryFootprintFragmentOrigin::RuntimeValueGuardComparison,
+                evidence: StateFootprintEvidence::new(
+                    RegisterSet::new([
+                        MachineRegister::X86Rax,
+                        MachineRegister::X86R10,
+                        MachineRegister::X86R11,
+                    ]),
+                    MachineStateSet::new([omega_calling_conventions::MachineState::Flags]),
+                ),
+            });
+        plan.boundary_footprints
+            .fragments
+            .push(BoundaryFootprintFragment {
                 origin: BoundaryFootprintFragmentOrigin::DispatchScaffold,
                 evidence: StateFootprintEvidence::new(
                     RegisterSet::new([MachineRegister::X86R12]),
@@ -252,6 +268,7 @@ mod boundary_footprint_tests {
         assert!(json.contains("\"origin\": \"static_guard_comparison\""));
         assert!(json.contains("\"origin\": \"runtime_text_guard_comparison\""));
         assert!(json.contains("\"origin\": \"place_guard_comparison\""));
+        assert!(json.contains("\"origin\": \"runtime_value_guard_comparison\""));
         assert!(json.contains("\"registers\": [\"X86R15\"]"));
         assert!(json.contains("\"fingerprint\": \"0x"));
     }

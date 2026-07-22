@@ -3,7 +3,7 @@ use omega_calling_conventions::{
     BoundaryEntryPlan, CallSignature, EntryControl, IndirectPointerLocation, MachineStateSet,
     PlanDiagnostic, RegisterSet, StateFootprintEvidence, ValidatedBoundaryEntryPlan, ValueLocation,
     ValueShape, validate_boundary_entry_plan, validate_call_return_mechanics_footprint,
-    validate_state_footprint,
+    validate_runtime_value_guard_footprint, validate_state_footprint,
 };
 
 /// The observable exit half of one validated boundary plan. Result fragments
@@ -353,6 +353,44 @@ pub fn derive_boundary_place_guard_footprint<'instruction>(
     }
     let evidence = StateFootprintEvidence::new(RegisterSet::new(registers), additional_state);
     validate_state_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
+/// Derive the recursive runtime-value guard evaluator's closed encoder-family
+/// may-write ceiling. The operand arena is the same arena consumed by byte
+/// emission; on x86 it also determines whether a nested `Binary` introduces
+/// balanced push/pop stack scratch.
+pub fn derive_boundary_runtime_value_guard_footprint<'instruction>(
+    boundary: &ValidatedBoundaryEntryPlan,
+    runtime_value_operands: &impl omega_target_operations::RuntimeValueOperandSource,
+    instructions: impl IntoIterator<Item = &'instruction SelectedInstructionKind>,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    let architecture = boundary.plan().call.policy.architecture();
+    let mut registers = Vec::new();
+    let mut additional_state = MachineStateSet::empty();
+    for instruction in instructions {
+        let SelectedInstructionKind::CompareRuntimeValues { left, right, .. } = instruction else {
+            continue;
+        };
+        let (writes, state) = match architecture {
+            omega_target::Architecture::X86_64 => (
+                omega_isa_x86_64::runtime_value_compare_register_write_ceiling(),
+                omega_isa_x86_64::runtime_value_compare_additional_machine_state(
+                    runtime_value_operands,
+                    *left,
+                    *right,
+                ),
+            ),
+            omega_target::Architecture::Aarch64 => (
+                omega_isa_aarch64::runtime_value_compare_register_write_ceiling(),
+                omega_isa_aarch64::runtime_value_compare_additional_machine_state(),
+            ),
+        };
+        registers.extend_from_slice(writes.as_slice());
+        additional_state = additional_state.union(state);
+    }
+    let evidence = StateFootprintEvidence::new(RegisterSet::new(registers), additional_state);
+    validate_runtime_value_guard_footprint(boundary, &evidence)?;
     Ok(evidence)
 }
 
@@ -1361,6 +1399,110 @@ mod tests {
             evidence
                 .machine_state()
                 .contains_all(MachineStateSet::new([MachineState::Flags]))
+        );
+    }
+
+    fn runtime_value_guard_fixture() -> (
+        omega_core::arena::Arena<omega_abstract_operations::AbstractValueOperand>,
+        SelectedInstructionKind,
+    ) {
+        let mut operands = omega_core::arena::Arena::new();
+        let left = operands.insert(omega_abstract_operations::ValueOperand::Storage {
+            region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            byte_offset: 40,
+            byte_size: 8,
+        });
+        let right = operands.insert(omega_abstract_operations::ValueOperand::Immediate(2));
+        let binary = operands.insert(omega_abstract_operations::ValueOperand::Binary {
+            left,
+            operator: omega_abstract_operations::StateGuardOperator::Add,
+            right,
+            is_float: false,
+            byte_width: 8,
+            arithmetic_domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+            operands_signed: false,
+        });
+        (
+            operands,
+            SelectedInstructionKind::CompareRuntimeValues {
+                left: binary,
+                right,
+                byte_size: 8,
+                operator: omega_abstract_operations::StateGuardOperator::Equal,
+            },
+        )
+    }
+
+    #[test]
+    fn runtime_value_guards_track_x86_family_ceiling_and_nested_stack_scratch() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("SysV runtime-value guard boundary");
+        let (operands, instruction) = runtime_value_guard_fixture();
+
+        let evidence =
+            derive_boundary_runtime_value_guard_footprint(&boundary, &operands, &[instruction])
+                .expect("x86 runtime-value guard evidence");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::X86Rax,
+                MachineRegister::X86Rcx,
+                MachineRegister::X86Rdx,
+                MachineRegister::X86R8,
+                MachineRegister::X86R9,
+                MachineRegister::X86R10,
+                MachineRegister::X86R11,
+                MachineRegister::X86R15,
+                MachineRegister::X86Xmm(0),
+                MachineRegister::X86Xmm(1),
+            ]
+        );
+        assert!(evidence.machine_state().contains_all(MachineStateSet::new([
+            MachineState::Flags,
+            MachineState::StackPointer,
+        ])));
+    }
+
+    #[test]
+    fn runtime_value_guards_track_aarch64_recursive_scratch_pool_ceiling() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("AAPCS64 runtime-value guard boundary");
+        let (operands, instruction) = runtime_value_guard_fixture();
+
+        let evidence =
+            derive_boundary_runtime_value_guard_footprint(&boundary, &operands, &[instruction])
+                .expect("AArch64 runtime-value guard evidence");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[9, 10, 11, 12, 13, 14, 15, 17, 19, 20, 21, 26]
+                .map(MachineRegister::Aarch64X)
+                .into_iter()
+                .chain([MachineRegister::Aarch64V(0), MachineRegister::Aarch64V(1),])
+                .collect::<Vec<_>>()
+        );
+        assert!(
+            evidence
+                .machine_state()
+                .contains_all(MachineStateSet::new([MachineState::Flags]))
+        );
+        assert!(
+            !evidence
+                .machine_state()
+                .contains_all(MachineStateSet::new([MachineState::StackPointer,]))
         );
     }
 

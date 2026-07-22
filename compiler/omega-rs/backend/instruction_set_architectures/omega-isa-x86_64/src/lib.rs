@@ -7434,6 +7434,54 @@ pub fn encode_runtime_value_compare(
     Ok(bytes)
 }
 
+/// Closed may-write ceiling of the recursive runtime-value comparison
+/// encoder. Operand shapes select subsets of this encoder-owned bank; keeping
+/// the family ceiling beside the evaluator makes the retained evidence sound
+/// across nested arithmetic, conversions, indexed loads, and text equality.
+pub fn runtime_value_compare_register_write_ceiling() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::X86Rax,
+        MachineRegister::X86Rcx,
+        MachineRegister::X86Rdx,
+        MachineRegister::X86R8,
+        MachineRegister::X86R9,
+        MachineRegister::X86R10,
+        MachineRegister::X86R11,
+        MachineRegister::X86R15,
+        MachineRegister::X86Xmm(0),
+        MachineRegister::X86Xmm(1),
+    ])
+}
+
+fn runtime_value_operand_uses_stack(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    operand: RuntimeValueOperandHandle,
+) -> bool {
+    if runtime_value_operands.binary(operand).is_some() {
+        // Every binary operand preserves its recursively evaluated left value
+        // with push r10 / pop r10 around evaluation of the right value.
+        true
+    } else if let Some((source, ..)) = runtime_value_operands.convert(operand) {
+        runtime_value_operand_uses_stack(runtime_value_operands, source)
+    } else {
+        false
+    }
+}
+
+pub fn runtime_value_compare_additional_machine_state(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    left: RuntimeValueOperandHandle,
+    right: RuntimeValueOperandHandle,
+) -> MachineStateSet {
+    let mut state = MachineStateSet::new([MachineState::Flags]);
+    if runtime_value_operand_uses_stack(runtime_value_operands, left)
+        || runtime_value_operand_uses_stack(runtime_value_operands, right)
+    {
+        state = state.union(MachineStateSet::new([MachineState::StackPointer]));
+    }
+    state
+}
+
 pub fn runtime_machine_integer_write_width(_byte_offset: usize, byte_size: usize) -> usize {
     // mov r15,imm64 (10) + mov rax,imm64 (10) + store [r15+disp32] (7; 8 with
     // the 0x66 prefix for a 2-byte store).
