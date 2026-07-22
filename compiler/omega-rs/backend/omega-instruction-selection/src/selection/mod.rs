@@ -1,4 +1,4 @@
-use crate::InstructionSelectionInput;
+use crate::{InstructionSelectionInput, derive_boundary_exit_result_register_footprint};
 use omega_abstract_operations::AbstractOperationPlan;
 use omega_checked_trees::expression::ExpressionTable;
 use omega_core::arena::Arena;
@@ -195,7 +195,7 @@ fn select_entry_instructions(
     // dispatching or straight-line body begins; zero-initialized storage is not
     // establishment evidence.
     selected_instructions.begin_state_entry_permission_site(input.entry_key);
-    select_entry_argument_register_writes(
+    let entry_boundary = select_entry_argument_register_writes(
         input,
         &mut selected_instructions,
         &mut boundary_footprints,
@@ -210,8 +210,13 @@ fn select_entry_instructions(
             &mut selected_instructions,
         );
         selected_instructions.push(exit_instruction(input));
-        let (instructions, candidates) = selected_instructions.finish();
-        return (instructions, candidates, boundary_footprints);
+        let (instruction_span, candidates) = selected_instructions.finish();
+        retain_exit_result_register_footprint(
+            &mut boundary_footprints,
+            entry_boundary.as_ref(),
+            instructions.span(instruction_span).unwrap_or_default(),
+        );
+        return (instruction_span, candidates, boundary_footprints);
     }
 
     let schedule_context =
@@ -238,8 +243,36 @@ fn select_entry_instructions(
     );
 
     selected_instructions.push(exit_instruction(input));
-    let (instructions, candidates) = selected_instructions.finish();
-    (instructions, candidates, boundary_footprints)
+    let (instruction_span, candidates) = selected_instructions.finish();
+    retain_exit_result_register_footprint(
+        &mut boundary_footprints,
+        entry_boundary.as_ref(),
+        instructions.span(instruction_span).unwrap_or_default(),
+    );
+    (instruction_span, candidates, boundary_footprints)
+}
+
+fn retain_exit_result_register_footprint(
+    plan: &mut omega_abstract_operations::BoundaryFootprintPlan,
+    boundary: Option<&omega_calling_conventions::ValidatedBoundaryEntryPlan>,
+    instructions: &[AbstractOperation],
+) {
+    let Some(boundary) = boundary else {
+        return;
+    };
+    let evidence = derive_boundary_exit_result_register_footprint(
+        boundary,
+        instructions.iter().map(|instruction| &instruction.kind),
+    )
+    .expect("selected exit-result registers must fit the validated entry state ceiling");
+    if evidence.registers().as_slice().is_empty() {
+        return;
+    }
+    plan.fragments
+        .push(omega_abstract_operations::BoundaryFootprintFragment {
+            origin: omega_abstract_operations::BoundaryFootprintFragmentOrigin::ExitResultRegisters,
+            evidence,
+        });
 }
 
 fn entry_instruction(input: &InstructionSelectionInput<'_>) -> AbstractOperation {

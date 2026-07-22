@@ -958,6 +958,11 @@ pub fn encode_return_register_integer_write_bytes(
     Ok(bytes)
 }
 
+/// Exact register footprint of immediate result materialization.
+pub fn return_register_integer_write_clobbers(register: MachineRegister) -> RegisterSet {
+    RegisterSet::new([register])
+}
+
 /// Load a runtime-storage scalar into the plan-selected integer result register so a
 /// NON-CONSTANT terminal value (a local read, a field read-back) becomes the
 /// process exit code. The `mov r15, imm64=0` (imm at instruction start + 2) is
@@ -1017,6 +1022,11 @@ pub fn encode_runtime_storage_copy_to_return_register_bytes(
         runtime_storage_copy_to_return_register_width(register, byte_offset, byte_size)
     );
     Ok(bytes)
+}
+
+/// Exact register footprint of the runtime-frame result load above.
+pub fn runtime_storage_copy_to_return_register_clobbers(register: MachineRegister) -> RegisterSet {
+    RegisterSet::new([register, MachineRegister::X86R15])
 }
 
 #[cfg(test)]

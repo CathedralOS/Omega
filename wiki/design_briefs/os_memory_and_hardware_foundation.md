@@ -385,12 +385,16 @@ fragments now remain attached to the abstract-operation plan with
 fragments plus their composed fingerprint. The special bytes-handoff entry also
 retains a distinct `entry_slice_descriptor` fragment whose fixed x86-64 or
 AArch64 scratch set is declared beside the encoder that emits it, so both the
-raw-register spill and constructed slice view are covered. Its explicit
+raw-register spill and constructed slice view are covered. Direct result
+materialization similarly retains `exit_result_registers` evidence for both
+immediate writes and runtime-storage loads, including target result registers,
+relocated frame-base scratch, and AArch64 large-offset scratch. Its explicit
 `enumeration_complete: false` status is a firewall: this retained slice is
 checkable implementation evidence, not yet the final certificate.
 The final certificate must still aggregate the specialized handler body,
-save/restore and exit sequences, relaxation products, veneers/thunks, generated
-stubs, and admitted indirect leaves after final placement.
+save/restore and indirect-result/return sequences, relaxation products,
+veneers/thunks, generated stubs, and admitted indirect leaves after final
+placement.
 
 ## Symbolic materialization and admitted executable installation
 

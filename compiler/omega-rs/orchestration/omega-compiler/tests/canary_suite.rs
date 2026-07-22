@@ -6914,6 +6914,13 @@ fn runtime_entry_computed_result_exit_canary_runs() {
         write_output: true,
     })
     .expect("computed entry return canary should compile");
+    let footprint_artifact = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
+        .expect("computed entry return footprint evidence should be written");
+    assert!(
+        footprint_artifact.contains("\"origin\": \"exit_result_registers\"")
+            && footprint_artifact.contains("\"enumeration_complete\": false"),
+        "runtime result load must retain exit-register evidence without claiming final completeness"
+    );
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("computed entry return canary should run");
@@ -34930,8 +34937,9 @@ fn entry_run_args_bytes_canary_runs() {
     assert!(
         footprint_artifact.contains("\"origin\": \"entry_storage\"")
             && footprint_artifact.contains("\"origin\": \"entry_slice_descriptor\"")
+            && footprint_artifact.contains("\"origin\": \"exit_result_registers\"")
             && footprint_artifact.contains("\"enumeration_complete\": false"),
-        "bytes handoff must retain both entry-storage and descriptor evidence without claiming final completeness"
+        "bytes handoff must retain entry-storage, descriptor, and exit-register evidence without claiming final completeness"
     );
     let output = Command::new(build_dir.join(executable_name()))
         .output()

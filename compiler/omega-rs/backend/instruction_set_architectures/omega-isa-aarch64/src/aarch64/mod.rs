@@ -1,7 +1,7 @@
 use crate::Aarch64CallOperand;
 use crate::Aarch64CallOperand::*;
 use omega_calling_conventions::{
-    IndirectPointerLocation, MachineRegister, ValueLocation, ValuePlacement,
+    IndirectPointerLocation, MachineRegister, RegisterSet, ValueLocation, ValuePlacement,
 };
 use omega_core::diagnostics::Diagnostic;
 
@@ -1382,6 +1382,11 @@ pub fn encode_return_register_integer_write_bytes(
     } else {
         encode_movz_w(register_index, immediate)
     })
+}
+
+/// Exact register footprint of immediate result materialization.
+pub fn return_register_integer_write_clobbers(register: MachineRegister) -> RegisterSet {
+    RegisterSet::new([register])
 }
 
 #[cfg(test)]
