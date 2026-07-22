@@ -482,12 +482,15 @@ schemas recover the same instance without publishing policy type identity.
    control writes, while AArch64 records the fixed frame prologue plus x19-x30,
    SP, and control restoration. Provenance-aware validation admits those
    prescribed stack/control effects without widening the handler body's
-   transitive-state ceiling. The artifact's
+   transitive-state ceiling. Runtime-dispatching entries now also retain a
+   structurally scoped `dispatch_scaffold` fragment: the target encoders own
+   the exact x86-64 R12/AArch64 X28 dispatch-state writes and case-entry flag
+   effects, while guard evaluation remains outside this slice. The artifact's
    `enumeration_complete: false` firewall prevents this partial slice from being
-   mistaken for the final certificate. Whole-body evidence, StatePlan-driven
-   nonordinary save/restore and return specialization, and post-layout
-   enumeration across handler code, veneers, thunks, and admitted leaves
-   remain; final placement must still prove that enumeration is complete.
+   mistaken for the final certificate. Remaining body/guard evidence,
+   StatePlan-driven nonordinary save/restore and return specialization, and
+   post-layout enumeration across handler code, veneers, thunks, and admitted
+   leaves remain; final placement must still prove that enumeration is complete.
 4. **IDT1 — symbolic materialization (normalized foundation complete).**
    `LayoutPlan` now uses compiler-issued field keys normalized back to names;
    repeated `Bits` entries validate exact logical-source tiling plus

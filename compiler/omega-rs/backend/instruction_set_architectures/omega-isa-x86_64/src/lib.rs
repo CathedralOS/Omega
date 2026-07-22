@@ -1135,6 +1135,26 @@ pub fn encode_dispatch_case_leave_bytes(loop_byte_distance: isize) -> Result<Vec
     Ok(bytes)
 }
 
+pub fn dispatch_loop_enter_register_writes() -> RegisterSet {
+    RegisterSet::new([MachineRegister::X86R12])
+}
+
+pub fn dispatch_case_enter_register_writes() -> RegisterSet {
+    RegisterSet::default()
+}
+
+pub fn dispatch_case_enter_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
+pub fn dispatch_state_write_register_writes() -> RegisterSet {
+    RegisterSet::new([MachineRegister::X86R12])
+}
+
+pub fn dispatch_case_leave_register_writes() -> RegisterSet {
+    RegisterSet::default()
+}
+
 pub fn dispatch_guard_compare_static_width(is_float: bool, byte_size: usize) -> usize {
     // mov r15, imm64 (10) + load r10, [r15+disp32] (7; 8 for the 0x66-prefixed
     // 2-byte form) + mov r11, imm64 (10) + compare + jcc rel32 (6). Integer

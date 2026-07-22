@@ -105,6 +105,84 @@ pub fn derive_boundary_call_return_mechanics_footprint<'instruction>(
     Ok(evidence)
 }
 
+/// Derive the compiler-generated runtime-dispatch scaffold separately from
+/// authored/body operations. The scaffold owns the dispatch-state register;
+/// case-entry comparisons additionally write condition flags. Guard operand
+/// evaluation remains a later whole-body evidence slice.
+pub fn derive_boundary_dispatch_scaffold_footprint<'instruction>(
+    boundary: &ValidatedBoundaryEntryPlan,
+    instructions: impl IntoIterator<Item = &'instruction SelectedInstructionKind>,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    let architecture = boundary.plan().call.policy.architecture();
+    let mut registers = Vec::new();
+    let mut additional_state = MachineStateSet::empty();
+    let mut loop_enter_count = 0usize;
+    let mut loop_leave_count = 0usize;
+    for instruction in instructions {
+        let (writes, state) = match instruction {
+            SelectedInstructionKind::EnterDispatchLoop { .. } => {
+                loop_enter_count += 1;
+                match architecture {
+                    omega_target::Architecture::X86_64 => (
+                        omega_isa_x86_64::dispatch_loop_enter_register_writes(),
+                        MachineStateSet::empty(),
+                    ),
+                    omega_target::Architecture::Aarch64 => (
+                        omega_isa_aarch64::dispatch_loop_enter_register_writes(),
+                        MachineStateSet::empty(),
+                    ),
+                }
+            }
+            SelectedInstructionKind::EnterDispatchCase { .. } => match architecture {
+                omega_target::Architecture::X86_64 => (
+                    omega_isa_x86_64::dispatch_case_enter_register_writes(),
+                    omega_isa_x86_64::dispatch_case_enter_additional_machine_state(),
+                ),
+                omega_target::Architecture::Aarch64 => (
+                    omega_isa_aarch64::dispatch_case_enter_register_writes(),
+                    omega_isa_aarch64::dispatch_case_enter_additional_machine_state(),
+                ),
+            },
+            SelectedInstructionKind::SetDispatchState { .. }
+            | SelectedInstructionKind::TerminateDispatch => match architecture {
+                omega_target::Architecture::X86_64 => (
+                    omega_isa_x86_64::dispatch_state_write_register_writes(),
+                    MachineStateSet::empty(),
+                ),
+                omega_target::Architecture::Aarch64 => (
+                    omega_isa_aarch64::dispatch_state_write_register_writes(),
+                    MachineStateSet::empty(),
+                ),
+            },
+            SelectedInstructionKind::LeaveDispatchCase => match architecture {
+                omega_target::Architecture::X86_64 => (
+                    omega_isa_x86_64::dispatch_case_leave_register_writes(),
+                    MachineStateSet::empty(),
+                ),
+                omega_target::Architecture::Aarch64 => (
+                    omega_isa_aarch64::dispatch_case_leave_register_writes(),
+                    MachineStateSet::empty(),
+                ),
+            },
+            SelectedInstructionKind::LeaveDispatchLoop => {
+                loop_leave_count += 1;
+                (RegisterSet::default(), MachineStateSet::empty())
+            }
+            _ => continue,
+        };
+        registers.extend_from_slice(writes.as_slice());
+        additional_state = additional_state.union(state);
+    }
+    if loop_enter_count != 1 || loop_leave_count != 1 {
+        return Err(PlanDiagnostic(format!(
+            "dispatch scaffold evidence requires exactly one loop entry and leave (found {loop_enter_count} entries and {loop_leave_count} leaves)"
+        )));
+    }
+    let evidence = StateFootprintEvidence::new(RegisterSet::new(registers), additional_state);
+    validate_state_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
 /// Derive the exact register footprint of selected direct-result
 /// materialization instructions and validate it under the complete entry
 /// plan's state ceiling. Indirect result memory copies and the final return
@@ -730,6 +808,95 @@ mod tests {
         .expect_err("missing return must reject");
 
         assert!(error.0.contains("exactly one function entry and return"));
+    }
+
+    fn dispatch_scaffold_instructions() -> [SelectedInstructionKind; 5] {
+        [
+            SelectedInstructionKind::EnterDispatchLoop {
+                entry_dispatch_index: 0,
+                terminal_dispatch_index: 2,
+            },
+            SelectedInstructionKind::EnterDispatchCase { dispatch_index: 0 },
+            SelectedInstructionKind::SetDispatchState { dispatch_index: 1 },
+            SelectedInstructionKind::LeaveDispatchCase,
+            SelectedInstructionKind::LeaveDispatchLoop,
+        ]
+    }
+
+    #[test]
+    fn dispatch_scaffold_tracks_x86_state_register_and_flags() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("SysV dispatch boundary");
+
+        let evidence = derive_boundary_dispatch_scaffold_footprint(
+            &boundary,
+            &dispatch_scaffold_instructions(),
+        )
+        .expect("x86 dispatch scaffold");
+
+        assert_eq!(evidence.registers().as_slice(), &[MachineRegister::X86R12]);
+        assert!(
+            evidence
+                .machine_state()
+                .contains_all(MachineStateSet::new([MachineState::Flags]))
+        );
+    }
+
+    #[test]
+    fn dispatch_scaffold_tracks_aarch64_state_register_and_flags() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("AAPCS64 dispatch boundary");
+
+        let evidence = derive_boundary_dispatch_scaffold_footprint(
+            &boundary,
+            &dispatch_scaffold_instructions(),
+        )
+        .expect("AArch64 dispatch scaffold");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[MachineRegister::Aarch64X(28)]
+        );
+        assert!(
+            evidence
+                .machine_state()
+                .contains_all(MachineStateSet::new([MachineState::Flags]))
+        );
+    }
+
+    #[test]
+    fn dispatch_scaffold_rejects_an_incomplete_loop_pair() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("SysV dispatch boundary");
+
+        let error = derive_boundary_dispatch_scaffold_footprint(
+            &boundary,
+            &[SelectedInstructionKind::EnterDispatchLoop {
+                entry_dispatch_index: 0,
+                terminal_dispatch_index: 1,
+            }],
+        )
+        .expect_err("missing loop leave must reject");
+
+        assert!(error.0.contains("exactly one loop entry and leave"));
     }
 
     #[test]

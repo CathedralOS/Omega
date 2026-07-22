@@ -106,6 +106,9 @@ pub fn boundary_footprint_fragments_json(plan: &AbstractOperationPlan) -> String
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::CallReturnMechanics => {
                     "call_return_mechanics"
                 }
+                omega_abstract_operations::BoundaryFootprintFragmentOrigin::DispatchScaffold => {
+                    "dispatch_scaffold"
+                }
             },
         );
         json.push_str(", \"evidence\": ");
@@ -139,6 +142,15 @@ mod boundary_footprint_tests {
                 evidence: StateFootprintEvidence::new(
                     RegisterSet::new([MachineRegister::X86R15]),
                     MachineStateSet::empty(),
+                ),
+            });
+        plan.boundary_footprints
+            .fragments
+            .push(BoundaryFootprintFragment {
+                origin: BoundaryFootprintFragmentOrigin::DispatchScaffold,
+                evidence: StateFootprintEvidence::new(
+                    RegisterSet::new([MachineRegister::X86R12]),
+                    MachineStateSet::new([omega_calling_conventions::MachineState::Flags]),
                 ),
             });
         plan.boundary_footprints
@@ -187,6 +199,7 @@ mod boundary_footprint_tests {
         assert!(json.contains("\"origin\": \"exit_result_registers\""));
         assert!(json.contains("\"origin\": \"exit_indirect_result_copy\""));
         assert!(json.contains("\"origin\": \"call_return_mechanics\""));
+        assert!(json.contains("\"origin\": \"dispatch_scaffold\""));
         assert!(json.contains("\"registers\": [\"X86R15\"]"));
         assert!(json.contains("\"fingerprint\": \"0x"));
     }
