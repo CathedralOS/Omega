@@ -330,6 +330,7 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
                         source_offset: source_place.byte_offset,
                         target: crate::selection::runtime_dispatch::text_place_frame_indexed(
                             target.descriptor_offset,
+                            target.index_region,
                             target.index_offset,
                             target.element_byte_size,
                             target.field_byte_offset,
@@ -663,6 +664,7 @@ fn emit_runtime_text_builder_segments_with_handle_resolver(
                         source_offset: source_place.byte_offset,
                         target: crate::selection::runtime_dispatch::text_place_frame_indexed(
                             target.descriptor_offset,
+                            target.index_region,
                             target.index_offset,
                             target.element_byte_size,
                             target.field_byte_offset,
@@ -755,6 +757,7 @@ fn append_runtime_text_literal_to_target(
             buffer,
             target: crate::selection::runtime_dispatch::text_place_frame_indexed(
                 target.descriptor_offset,
+                target.index_region,
                 target.index_offset,
                 target.element_byte_size,
                 target.field_byte_offset,
@@ -841,6 +844,7 @@ fn initialize_runtime_text_target_with_first_literal_segment(
         emit(
             crate::selection::runtime_dispatch::write_place_string_frame_indexed(
                 target.descriptor_offset,
+                target.index_region,
                 target.index_offset,
                 target.element_byte_size,
                 target.field_byte_offset,

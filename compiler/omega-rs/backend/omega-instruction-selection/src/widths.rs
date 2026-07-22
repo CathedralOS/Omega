@@ -941,6 +941,15 @@ pub fn machine_indexed_operand_frame_index_base_offset(architecture: Architectur
     }
 }
 
+/// Where a `FrameIndexed` operand's MACHINE-index base materialization sits:
+/// after loading the pointee address from the frame-resident descriptor.
+pub fn frame_indexed_operand_machine_index_base_offset(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 32,
+        Architecture::X86_64 => 17,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn runtime_storage_binary_write_width(
     architecture: Architecture,

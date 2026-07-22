@@ -162,7 +162,10 @@ pub(super) fn collect_runtime_storage_write_relocations(
                                 inner_index_region,
                             )
                         }
-                        omega_instruction_selection::WritePlaceShape::Unsupported => {
+                        omega_instruction_selection::WritePlaceShape::FrameIndexedByRegion {
+                            ..
+                        }
+                        | omega_instruction_selection::WritePlaceShape::Unsupported => {
                             unreachable!(
                                 "an unsupported WritePlaceBinary shape refuses at \
                                  aarch64 encoding; layout would have failed first"

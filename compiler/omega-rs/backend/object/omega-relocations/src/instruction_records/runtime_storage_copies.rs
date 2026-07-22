@@ -404,6 +404,21 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                         | omega_instruction_selection::WritePlaceShape::FrameBaseIndexed {
                             ..
                         } => {}
+                        omega_instruction_selection::WritePlaceShape::FrameIndexedByRegion {
+                            index_region,
+                            ..
+                        } => {
+                            if index_region
+                                == omega_target_operations::RuntimeStorageRegion::Machine
+                            {
+                                context.insert_data_address_at_relative_offset(
+                                    omega_instruction_selection::frame_indexed_operand_machine_index_base_offset(
+                                        context.input.target.architecture,
+                                    ),
+                                    context.storage_region_symbol_handle(index_region),
+                                );
+                            }
+                        }
                         omega_instruction_selection::WritePlaceShape::MachineIndexed {
                             base_byte_offset,
                             index_region,

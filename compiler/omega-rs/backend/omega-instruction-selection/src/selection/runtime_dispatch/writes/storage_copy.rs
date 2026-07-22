@@ -164,6 +164,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
         // rides the place (rung 2c-v).
         let kind = crate::selection::runtime_dispatch::copy_places_from_indexed(
             indexed_source.descriptor_offset,
+            indexed_source.index_region,
             indexed_source.index_offset,
             indexed_source.element_byte_size,
             indexed_source.field_byte_offset,
@@ -397,6 +398,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy(
         source_place.region,
         source_place.byte_offset,
         indexed_target.descriptor_offset,
+        indexed_target.index_region,
         indexed_target.index_offset,
         indexed_target.element_byte_size,
         indexed_target.field_byte_offset,
@@ -472,6 +474,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy_in_t
         source_place.region,
         source_place.byte_offset,
         indexed_target.descriptor_offset,
+        indexed_target.index_region,
         indexed_target.index_offset,
         indexed_target.element_byte_size,
         indexed_target.field_byte_offset,
@@ -512,6 +515,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
         return Some(
             crate::selection::runtime_dispatch::copy_places_indexed_to_pointee(
                 indexed_source.descriptor_offset,
+                indexed_source.index_region,
                 indexed_source.index_offset,
                 indexed_source.element_byte_size,
                 indexed_source.field_byte_offset,
@@ -558,6 +562,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
         // rides the place (rung 2c-v).
         let kind = crate::selection::runtime_dispatch::copy_places_from_indexed(
             indexed_source.descriptor_offset,
+            indexed_source.index_region,
             indexed_source.index_offset,
             indexed_source.element_byte_size,
             indexed_source.field_byte_offset,

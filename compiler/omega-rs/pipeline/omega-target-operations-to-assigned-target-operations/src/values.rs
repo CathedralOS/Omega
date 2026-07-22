@@ -52,12 +52,14 @@ fn assign_value_home(
         },
         TargetValueOperand::FrameIndexed {
             descriptor_offset,
+            index_region,
             index_offset,
             element_byte_size,
             field_byte_offset,
             byte_size,
         } => AssignedValueHomeKind::RuntimeFrameIndexed {
             descriptor_offset: *descriptor_offset,
+            index_region: *index_region,
             index_offset: *index_offset,
             element_byte_size: *element_byte_size,
             field_byte_offset: *field_byte_offset,

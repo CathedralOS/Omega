@@ -68,6 +68,7 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_static_muta
         return Some(
             crate::selection::runtime_dispatch::write_place_integer_frame_indexed(
                 indexed_target.descriptor_offset,
+                indexed_target.index_region,
                 indexed_target.index_offset,
                 indexed_target.element_byte_size,
                 indexed_target.field_byte_offset,

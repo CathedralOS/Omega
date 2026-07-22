@@ -981,8 +981,13 @@ stronger operations it needs instead of citing machine parameters generally.
   views now write through nested ordinary and plan-laid projections in native
   and interpreter execution, with x86-64/AArch64 compile rails; constrained
   fields reject at the bidirectional-fact gate. `struct stat` now uses target
-  `StatLayout` policies rather than compatibility offsets. Continue general
-  tiling and bidirectional fact-equivalence beyond the fact-free record subset.
+  `StatLayout` policies rather than compatibility offsets. Fixed-array fields,
+  including arrays of nested records, now participate in recursively fact-free
+  mutable record views; runtime-indexed projections preserve live backing-byte
+  identity in the interpreter and native x86-64/AArch64 lowering. Fact-bearing
+  array elements reject at the same bidirectional-fact gate. Continue general
+  non-record tiling and bidirectional fact-equivalence beyond the fact-free
+  record subset.
 - **L6a — Extent.** The normalized conservation foundation is live in
   `omega-extents`: admitted one-shot root grants mint nonempty ranges;
   move-split preserves exact geometry; only compatible siblings from one

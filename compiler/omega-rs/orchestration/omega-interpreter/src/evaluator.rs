@@ -67,7 +67,9 @@ use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
 };
-use omega_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use omega_typed_trees::types::{
+    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashSet};
 use std::rc::Rc;
@@ -453,6 +455,12 @@ impl MutableScalarRecast {
             Self::RecordByteRegion { .. } => None,
         }
     }
+}
+
+#[derive(Clone)]
+enum MutableRecordProjectionStep {
+    Field(String),
+    Index(ExpressionHandle),
 }
 
 /// A lexical scope: parameter / local bindings by name, plus the receiver (`self`) cell.
@@ -4576,8 +4584,10 @@ impl<'program> Evaluator<'program> {
     fn eval_expression(&mut self, handle: ExpressionHandle, frame: &Frame) -> EvalResult<Value> {
         self.tick()?;
         let node = self.program.expression_table.expression(handle).clone();
-        if matches!(&node, ExpressionNode::Name(_) | ExpressionNode::Member(_))
-            && let Some(value) = self.read_mutable_record_recast_target(handle, frame)?
+        if matches!(
+            &node,
+            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+        ) && let Some(value) = self.read_mutable_record_recast_target(handle, frame)?
         {
             return Ok(value);
         }
@@ -5314,7 +5324,7 @@ impl<'program> Evaluator<'program> {
         &self,
         handle: ExpressionHandle,
         frame: &Frame,
-    ) -> Option<(MutableScalarRecast, Vec<String>)> {
+    ) -> Option<(MutableScalarRecast, Vec<MutableRecordProjectionStep>)> {
         match self.program.expression_table.expression(handle) {
             ExpressionNode::Mutable(inner) => self.mutable_recast_path(*inner, frame),
             ExpressionNode::Name(path) => {
@@ -5332,13 +5342,22 @@ impl<'program> Evaluator<'program> {
                     recast,
                     members[1..]
                         .iter()
-                        .map(|member| member.as_str().to_owned())
+                        .map(|member| {
+                            MutableRecordProjectionStep::Field(member.as_str().to_owned())
+                        })
                         .collect(),
                 ))
             }
             ExpressionNode::Member(member) => {
                 let (recast, mut path) = self.mutable_recast_path(member.receiver, frame)?;
-                path.push(member.member.as_str().to_owned());
+                path.push(MutableRecordProjectionStep::Field(
+                    member.member.as_str().to_owned(),
+                ));
+                Some((recast, path))
+            }
+            ExpressionNode::Indexed(indexed) => {
+                let (recast, mut path) = self.mutable_recast_path(indexed.collection, frame)?;
+                path.push(MutableRecordProjectionStep::Index(indexed.index));
                 Some((recast, path))
             }
             _ => None,
@@ -5365,22 +5384,14 @@ impl<'program> Evaluator<'program> {
             return self.assemble_record_view(&target_name, &cells, offset);
         }
         let Some((field_offset, field_type)) =
-            self.record_view_field_projection(&target_name, &path, offset)
+            self.record_view_projection(&target_name, &path, offset, frame)?
         else {
             return trap(format!(
                 "cannot project `{}` through mutable record recast `{target_name}`",
-                path.join(".")
+                Self::mutable_record_projection_display(&path)
             ));
         };
-        if let Some(primitive) = self.program.primitive_type_reference(field_type) {
-            return self
-                .assemble_scalar_byte_region(&cells, field_offset, primitive)
-                .map(Some);
-        }
-        let Some(nested_name) = self.record_view_named_type(field_type).map(str::to_owned) else {
-            return trap("mutable record projection is neither scalar nor record");
-        };
-        self.assemble_record_view(&nested_name, &cells, field_offset)
+        self.assemble_record_view_type(field_type, &cells, field_offset)
     }
 
     fn write_mutable_record_recast_target(
@@ -5405,26 +5416,31 @@ impl<'program> Evaluator<'program> {
             return Ok(true);
         }
         let Some((field_offset, field_type)) =
-            self.record_view_field_projection(&target_name, &path, offset)
+            self.record_view_projection(&target_name, &path, offset, frame)?
         else {
             return trap(format!(
                 "cannot project `{}` through mutable record recast `{target_name}`",
-                path.join(".")
+                Self::mutable_record_projection_display(&path)
             ));
         };
-        if let Some(primitive) = self.program.primitive_type_reference(field_type) {
-            let domain = self
-                .program
-                .arithmetic_domain_for_type_reference(field_type);
-            let value = self.coerce_scalar_with(value, primitive, domain)?;
-            self.write_scalar_byte_region(&cells, field_offset, primitive, value)?;
-            return Ok(true);
-        }
-        let Some(nested_name) = self.record_view_named_type(field_type).map(str::to_owned) else {
-            return trap("mutable record projection is neither scalar nor record");
-        };
-        self.write_record_view(&nested_name, &cells, field_offset, value)?;
+        self.write_record_view_type(field_type, &cells, field_offset, value)?;
         Ok(true)
+    }
+
+    fn mutable_record_projection_display(path: &[MutableRecordProjectionStep]) -> String {
+        let mut rendered = String::new();
+        for step in path {
+            match step {
+                MutableRecordProjectionStep::Field(field) => {
+                    if !rendered.is_empty() {
+                        rendered.push('.');
+                    }
+                    rendered.push_str(field);
+                }
+                MutableRecordProjectionStep::Index(_) => rendered.push_str("[..]"),
+            }
+        }
+        rendered
     }
 
     /// `Type::Variant` paths whose head is an enum/data symbol with a matching variant.
@@ -6316,44 +6332,16 @@ impl<'program> Evaluator<'program> {
         let type_symbol = data.symbol;
         let mut field_values = std::collections::BTreeMap::new();
         for ((name, type_reference, _, _), field_offset) in field_specs.into_iter().zip(offsets) {
-            let value =
-                if let Some(primitive) = self.program.primitive_type_reference(type_reference) {
-                    let size = primitive.scalar_byte_size().unwrap_or(0);
-                    let mut bits: u64 = 0;
-                    for byte_index in 0..size {
-                        let cell = cells
-                            .get(base_offset + field_offset + byte_index)
-                            .ok_or_else(|| {
-                                Halt::Trap(format!(
-                                    "record view reads byte {} past the region",
-                                    base_offset + field_offset + byte_index
-                                ))
-                            })?;
-                        let byte = cell.borrow().as_int().unwrap_or(0) as u64 & 0xFF;
-                        bits |= byte << (8 * byte_index);
-                    }
-                    match primitive {
-                        PrimitiveType::F32 => Value::Float(f32::from_bits(bits as u32) as f64),
-                        PrimitiveType::F64 => Value::Float(f64::from_bits(bits)),
-                        integer => Value::Int(wrap_to_width(bits as i64, integer)),
-                    }
-                } else {
-                    let Some(nested_name) = self.record_view_named_type(type_reference) else {
-                        visiting.remove(type_name);
-                        return Ok(None);
-                    };
-                    let Some(nested) = self.assemble_record_view_inner(
-                        nested_name,
-                        cells,
-                        base_offset + field_offset,
-                        visiting,
-                    )?
-                    else {
-                        visiting.remove(type_name);
-                        return Ok(None);
-                    };
-                    nested
-                };
+            let Some(value) = self.assemble_record_view_type_inner(
+                type_reference,
+                cells,
+                base_offset + field_offset,
+                visiting,
+            )?
+            else {
+                visiting.remove(type_name);
+                return Ok(None);
+            };
             field_values.insert(name, value.cell());
         }
         visiting.remove(type_name);
@@ -6362,6 +6350,78 @@ impl<'program> Evaluator<'program> {
             type_name: type_name.to_owned().into(),
             fields: field_values,
         }))
+    }
+
+    fn assemble_record_view_type(
+        &self,
+        type_reference: TypeReferenceHandle,
+        cells: &[Cell],
+        base_offset: usize,
+    ) -> EvalResult<Option<Value>> {
+        self.assemble_record_view_type_inner(
+            type_reference,
+            cells,
+            base_offset,
+            &mut HashSet::new(),
+        )
+    }
+
+    fn assemble_record_view_type_inner(
+        &self,
+        type_reference: TypeReferenceHandle,
+        cells: &[Cell],
+        base_offset: usize,
+        visiting: &mut HashSet<String>,
+    ) -> EvalResult<Option<Value>> {
+        if let Some(primitive) = self.program.primitive_type_reference(type_reference) {
+            return self
+                .assemble_scalar_byte_region(cells, base_offset, primitive)
+                .map(Some);
+        }
+        match self
+            .program
+            .type_reference_table
+            .type_reference(type_reference)
+        {
+            TypeReferenceNode::Constrained { base_type, .. }
+            | TypeReferenceNode::Reference {
+                referee: base_type, ..
+            } => self.assemble_record_view_type_inner(*base_type, cells, base_offset, visiting),
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length: FixedArrayLength::Literal(length),
+            } => {
+                let Some((stride, _)) =
+                    self.record_view_type_layout(*element_type, &mut HashSet::new())
+                else {
+                    return Ok(None);
+                };
+                let mut values = Vec::with_capacity(*length);
+                for index in 0..*length {
+                    let Some(offset) = stride
+                        .checked_mul(index)
+                        .and_then(|delta| base_offset.checked_add(delta))
+                    else {
+                        return trap("record-view array offset overflow");
+                    };
+                    let Some(value) = self.assemble_record_view_type_inner(
+                        *element_type,
+                        cells,
+                        offset,
+                        visiting,
+                    )?
+                    else {
+                        return Ok(None);
+                    };
+                    values.push(value.cell());
+                }
+                Ok(Some(Value::Array(values)))
+            }
+            TypeReferenceNode::Named { name, .. } => {
+                self.assemble_record_view_inner(name.as_str(), cells, base_offset, visiting)
+            }
+            _ => Ok(None),
+        }
     }
 
     fn record_view_type_layout(
@@ -6373,8 +6433,28 @@ impl<'program> Evaluator<'program> {
             let size = primitive.scalar_byte_size()?;
             return Some((size, size));
         }
-        let name = self.record_view_named_type(type_reference)?;
-        self.record_view_data_layout(name, visiting)
+        match self
+            .program
+            .type_reference_table
+            .type_reference(type_reference)
+        {
+            TypeReferenceNode::Constrained { base_type, .. }
+            | TypeReferenceNode::Reference {
+                referee: base_type, ..
+            } => self.record_view_type_layout(*base_type, visiting),
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length: FixedArrayLength::Literal(length),
+            } => {
+                let (element_size, element_align) =
+                    self.record_view_type_layout(*element_type, visiting)?;
+                Some((element_size.checked_mul(*length)?, element_align))
+            }
+            TypeReferenceNode::Named { name, .. } => {
+                self.record_view_data_layout(name.as_str(), visiting)
+            }
+            _ => None,
+        }
     }
 
     fn record_view_data_layout(
@@ -6463,23 +6543,96 @@ impl<'program> Evaluator<'program> {
         )
     }
 
-    fn record_view_field_projection(
-        &self,
+    fn record_view_projection(
+        &mut self,
         type_name: &str,
-        path: &[String],
+        path: &[MutableRecordProjectionStep],
         base_offset: usize,
-    ) -> Option<(usize, TypeReferenceHandle)> {
-        let (field_name, rest) = path.split_first()?;
+        frame: &Frame,
+    ) -> EvalResult<Option<(usize, TypeReferenceHandle)>> {
+        let Some((MutableRecordProjectionStep::Field(field_name), rest)) = path.split_first()
+        else {
+            return Ok(None);
+        };
         let (_, field_type, field_offset) = self
-            .record_view_fields(type_name)?
+            .record_view_fields(type_name)
+            .unwrap_or_default()
             .into_iter()
-            .find(|(name, _, _)| name == field_name)?;
-        let offset = base_offset.checked_add(field_offset)?;
-        if rest.is_empty() {
-            return Some((offset, field_type));
+            .find(|(name, _, _)| name == field_name)
+            .ok_or_else(|| {
+                Halt::Trap(format!(
+                    "record view `{type_name}` has no field `{field_name}`"
+                ))
+            })?;
+        let offset = base_offset
+            .checked_add(field_offset)
+            .ok_or_else(|| Halt::Trap("record-view field offset overflow".to_owned()))?;
+        self.record_view_type_projection(field_type, rest, offset, frame)
+    }
+
+    fn record_view_type_projection(
+        &mut self,
+        type_reference: TypeReferenceHandle,
+        path: &[MutableRecordProjectionStep],
+        base_offset: usize,
+        frame: &Frame,
+    ) -> EvalResult<Option<(usize, TypeReferenceHandle)>> {
+        if path.is_empty() {
+            return Ok(Some((base_offset, type_reference)));
         }
-        let nested_name = self.record_view_named_type(field_type)?;
-        self.record_view_field_projection(nested_name, rest, offset)
+        let (step, rest) = path.split_first().expect("nonempty projection path");
+        match step {
+            MutableRecordProjectionStep::Field(_) => {
+                let Some(nested_name) = self
+                    .record_view_named_type(type_reference)
+                    .map(str::to_owned)
+                else {
+                    return Ok(None);
+                };
+                self.record_view_projection(&nested_name, path, base_offset, frame)
+            }
+            MutableRecordProjectionStep::Index(index_handle) => {
+                let node = self
+                    .program
+                    .type_reference_table
+                    .type_reference(type_reference)
+                    .clone();
+                let (element_type, length) = match node {
+                    TypeReferenceNode::Constrained { base_type, .. }
+                    | TypeReferenceNode::Reference {
+                        referee: base_type, ..
+                    } => {
+                        return self.record_view_type_projection(
+                            base_type,
+                            path,
+                            base_offset,
+                            frame,
+                        );
+                    }
+                    TypeReferenceNode::FixedArray {
+                        element_type,
+                        length: FixedArrayLength::Literal(length),
+                    } => (element_type, length),
+                    _ => return Ok(None),
+                };
+                let index = self.eval_index(*index_handle, frame)?;
+                if index >= length {
+                    return trap(format!(
+                        "record-view array index {index} out of bounds for length {length}"
+                    ));
+                }
+                let Some((stride, _)) =
+                    self.record_view_type_layout(element_type, &mut HashSet::new())
+                else {
+                    return Ok(None);
+                };
+                let offset = stride
+                    .checked_mul(index)
+                    .and_then(|delta| base_offset.checked_add(delta))
+                    .ok_or_else(|| Halt::Trap("record-view array offset overflow".to_owned()))?;
+                self.record_view_type_projection(element_type, rest, offset, frame)
+            }
+        }
     }
 
     fn write_record_view(
@@ -6509,20 +6662,73 @@ impl<'program> Evaluator<'program> {
                 .checked_add(field_offset)
                 .ok_or_else(|| Halt::Trap("mutable record recast offset overflow".to_owned()))?;
             let field_value = field_cell.borrow().clone();
-            if let Some(primitive) = self.program.primitive_type_reference(type_reference) {
-                let domain = self
-                    .program
-                    .arithmetic_domain_for_type_reference(type_reference);
-                let field_value = self.coerce_scalar_with(field_value, primitive, domain)?;
-                self.write_scalar_byte_region(cells, offset, primitive, field_value)?;
-            } else {
-                let Some(nested_name) = self.record_view_named_type(type_reference) else {
-                    return trap("mutable record field is neither scalar nor record");
-                };
-                self.write_record_view(nested_name, cells, offset, field_value)?;
-            }
+            self.write_record_view_type(type_reference, cells, offset, field_value)?;
         }
         Ok(())
+    }
+
+    fn write_record_view_type(
+        &self,
+        type_reference: TypeReferenceHandle,
+        cells: &[Cell],
+        base_offset: usize,
+        value: Value,
+    ) -> EvalResult<()> {
+        if let Some(primitive) = self.program.primitive_type_reference(type_reference) {
+            let domain = self
+                .program
+                .arithmetic_domain_for_type_reference(type_reference);
+            let value = self.coerce_scalar_with(value, primitive, domain)?;
+            return self.write_scalar_byte_region(cells, base_offset, primitive, value);
+        }
+        match self
+            .program
+            .type_reference_table
+            .type_reference(type_reference)
+        {
+            TypeReferenceNode::Constrained { base_type, .. }
+            | TypeReferenceNode::Reference {
+                referee: base_type, ..
+            } => self.write_record_view_type(*base_type, cells, base_offset, value),
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length: FixedArrayLength::Literal(length),
+            } => {
+                let Value::Array(values) = value else {
+                    return trap("mutable record array projection requires an array value");
+                };
+                if values.len() != *length {
+                    return trap(format!(
+                        "mutable record array write has length {}, expected {length}",
+                        values.len()
+                    ));
+                }
+                let Some((stride, _)) =
+                    self.record_view_type_layout(*element_type, &mut HashSet::new())
+                else {
+                    return trap("cannot lay out mutable record array element");
+                };
+                for (index, value) in values.into_iter().enumerate() {
+                    let offset = stride
+                        .checked_mul(index)
+                        .and_then(|delta| base_offset.checked_add(delta))
+                        .ok_or_else(|| {
+                            Halt::Trap("mutable record array offset overflow".to_owned())
+                        })?;
+                    self.write_record_view_type(
+                        *element_type,
+                        cells,
+                        offset,
+                        value.borrow().clone(),
+                    )?;
+                }
+                Ok(())
+            }
+            TypeReferenceNode::Named { name, .. } => {
+                self.write_record_view(name.as_str(), cells, base_offset, value)
+            }
+            _ => trap("mutable record projection is not a fixed-layout value"),
+        }
     }
 
     fn record_view_named_type(&self, mut type_reference: TypeReferenceHandle) -> Option<&str> {

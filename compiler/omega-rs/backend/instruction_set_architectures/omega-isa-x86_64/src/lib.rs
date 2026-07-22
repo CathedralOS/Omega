@@ -12532,10 +12532,11 @@ pub fn runtime_text_equals_literal_operand_width(
     } else if runtime_value_operands.pointee(place).is_some() {
         // mov r15,imm64 (10) + mov rax,[r15+ptr_off] (7)
         17
-    } else if runtime_value_operands.frame_indexed(place).is_some() {
+    } else if let Some((_, index_region, _, _, _, _)) = runtime_value_operands.frame_indexed(place)
+    {
         // mov r15,imm64 (10) + mov rax,[r15+desc] (7) + mov r11,[r15+idx] (7)
         // + imul r11,r11,elem (7) + add rax,r11 (3)
-        34
+        34 + usize::from(index_region == RuntimeStorageRegion::Machine) * 10
     } else if runtime_value_operands.frame_base_indexed(place).is_some() {
         // mov r15,imm64 (10) + mov r11,[r15+idx] (7) + imul r11,r11,elem (7)
         // + mov rax,r15 (3) + add rax,r11 (3)
@@ -12566,10 +12567,12 @@ pub fn runtime_value_operand_width(
         // mov r15,imm64 (10) + mov rax,[r15+ptr_off] (7) + load dest,[rax+field].
         // A 16-bit load has the extra 0x66 operand-size prefix.
         17 + load_width(byte_size)
-    } else if let Some((_, _, _, _, byte_size)) = runtime_value_operands.frame_indexed(operand) {
+    } else if let Some((_, index_region, _, _, _, byte_size)) =
+        runtime_value_operands.frame_indexed(operand)
+    {
         // mov r15,imm64 (10) + mov rax,[r15+desc] (7) + mov r11,[r15+idx] (7)
         // + imul r11,r11,elem (7) + add rax,r11 (3) + load dest,[rax+field].
-        34 + load_width(byte_size)
+        34 + usize::from(index_region == RuntimeStorageRegion::Machine) * 10 + load_width(byte_size)
     } else if let Some((_, _, _, _, byte_size)) = runtime_value_operands.frame_base_indexed(operand)
     {
         // mov r15,imm64 (10) + mov r11,[r15+idx] (7) + imul r11,r11,elem (7)
@@ -12750,6 +12753,7 @@ fn append_runtime_value_operand(
         append_load_reg_from_rax(bytes, destination, field_byte_offset, byte_size)
     } else if let Some((
         descriptor_offset,
+        index_region,
         index_offset,
         element_byte_size,
         field_byte_offset,
@@ -12760,6 +12764,9 @@ fn append_runtime_value_operand(
         // r11 = index; rax += index*element + ... then load [rax + field].
         append_mov_r15_imm64(bytes, 0);
         append_load_rax_from_r15(bytes, descriptor_offset)?;
+        if index_region == RuntimeStorageRegion::Machine {
+            append_mov_r15_imm64(bytes, 0);
+        }
         append_load_reg_from_r15(bytes, Reg64::R11, index_offset, 8)?;
         append_imul_r11_imm32(bytes, element_scale(element_byte_size)?);
         append_add_rax_r11(bytes);
@@ -13194,11 +13201,20 @@ fn append_runtime_text_equals_literal_operand(
         append_mov_r15_imm64(bytes, 0);
         append_load_rax_from_r15(bytes, pointer_byte_offset)?;
         descriptor_disp = field_byte_offset;
-    } else if let Some((descriptor_offset, index_offset, element_byte_size, field_byte_offset, _)) =
-        runtime_value_operands.frame_indexed(place)
+    } else if let Some((
+        descriptor_offset,
+        index_region,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        _,
+    )) = runtime_value_operands.frame_indexed(place)
     {
         append_mov_r15_imm64(bytes, 0);
         append_load_rax_from_r15(bytes, descriptor_offset)?;
+        if index_region == RuntimeStorageRegion::Machine {
+            append_mov_r15_imm64(bytes, 0);
+        }
         append_load_reg_from_r15(bytes, Reg64::R11, index_offset, 8)?;
         append_imul_r11_imm32(bytes, element_scale(element_byte_size)?);
         append_add_rax_r11(bytes);
@@ -13305,7 +13321,7 @@ fn runtime_value_operand_value_byte_size(
     if let Some((_, _, byte_size)) = operands.pointee(operand) {
         return Some(byte_size);
     }
-    if let Some((_, _, _, _, byte_size)) = operands.frame_indexed(operand) {
+    if let Some((_, _, _, _, _, byte_size)) = operands.frame_indexed(operand) {
         return Some(byte_size);
     }
     if let Some((_, _, _, _, byte_size)) = operands.frame_base_indexed(operand) {
@@ -15905,7 +15921,7 @@ mod machine_control_tests {
         fn frame_indexed(
             &self,
             _: RuntimeValueOperandHandle,
-        ) -> Option<(usize, usize, usize, usize, usize)> {
+        ) -> Option<(usize, RuntimeStorageRegion, usize, usize, usize, usize)> {
             None
         }
         fn frame_base_indexed(

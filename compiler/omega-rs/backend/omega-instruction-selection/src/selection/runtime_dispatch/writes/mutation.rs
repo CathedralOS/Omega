@@ -1915,6 +1915,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
                     source_place.region,
                     source_place.byte_offset,
                     indexed_target.descriptor_offset,
+                    indexed_target.index_region,
                     indexed_target.index_offset,
                     indexed_target.element_byte_size,
                     indexed_target.field_byte_offset,
@@ -2153,6 +2154,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
                     source_place.region,
                     source_place.byte_offset,
                     indexed_target.descriptor_offset,
+                    indexed_target.index_region,
                     indexed_target.index_offset,
                     indexed_target.element_byte_size,
                     indexed_target.field_byte_offset,
@@ -2177,6 +2179,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             selected_instructions.push(SelectedInstruction {
                 kind: crate::selection::runtime_dispatch::write_place_integer_frame_indexed(
                     indexed_target.descriptor_offset,
+                    indexed_target.index_region,
                     indexed_target.index_offset,
                     indexed_target.element_byte_size,
                     indexed_target.field_byte_offset,
@@ -2849,6 +2852,7 @@ fn select_runtime_binary_mutation_write(
         return Some(
             crate::selection::runtime_dispatch::write_place_binary_frame_indexed(
                 indexed_target.descriptor_offset,
+                indexed_target.index_region,
                 indexed_target.index_offset,
                 indexed_target.element_byte_size,
                 indexed_target.field_byte_offset,

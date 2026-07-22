@@ -162,6 +162,7 @@ pub(crate) fn copy_places_from_fixed_indexed(
 /// PLACE_MAX_STEPS shape (a zero field offset merges away).
 fn indexed_place(
     descriptor_offset: usize,
+    index_region: RuntimeStorageRegion,
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
@@ -170,7 +171,7 @@ fn indexed_place(
         .with_step(omega_abstract_operations::PlaceStep::Deref)
         .and_then(|place| {
             place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
-                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_region,
                 index_offset,
                 element_byte_size,
             })
@@ -187,6 +188,7 @@ fn indexed_place(
 /// rides the place (the ToFrame/ToStorage split collapses).
 pub(crate) fn copy_places_from_indexed(
     descriptor_offset: usize,
+    index_region: RuntimeStorageRegion,
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
@@ -197,6 +199,7 @@ pub(crate) fn copy_places_from_indexed(
     SelectedInstructionKind::CopyPlaces {
         source: indexed_place(
             descriptor_offset,
+            index_region,
             index_offset,
             element_byte_size,
             field_byte_offset,
@@ -212,6 +215,7 @@ pub(crate) fn copy_places_to_indexed(
     source_region: RuntimeStorageRegion,
     source_offset: usize,
     descriptor_offset: usize,
+    index_region: RuntimeStorageRegion,
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
@@ -221,6 +225,7 @@ pub(crate) fn copy_places_to_indexed(
         source: omega_abstract_operations::Place::at(source_region, source_offset),
         target: indexed_place(
             descriptor_offset,
+            index_region,
             index_offset,
             element_byte_size,
             field_byte_offset,
@@ -428,6 +433,7 @@ pub(in crate::selection) fn select_computed_host_argument_write(
                 }
                 copy_places_from_indexed(
                     indexed.descriptor_offset,
+                    indexed.index_region,
                     indexed.index_offset,
                     indexed.element_byte_size,
                     indexed.field_byte_offset,
@@ -629,6 +635,7 @@ pub(crate) fn write_place_binary_pointee(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn write_place_binary_frame_indexed(
     descriptor_offset: usize,
+    index_region: RuntimeStorageRegion,
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
@@ -645,7 +652,7 @@ pub(crate) fn write_place_binary_frame_indexed(
         .with_step(omega_abstract_operations::PlaceStep::Deref)
         .and_then(|place| {
             place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
-                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_region,
                 index_offset,
                 element_byte_size,
             })
@@ -780,6 +787,7 @@ pub(crate) fn write_place_integer_pointee(
 /// Frame descriptor deref + frame index (`slice[i] = v`).
 pub(crate) fn write_place_integer_frame_indexed(
     descriptor_offset: usize,
+    index_region: RuntimeStorageRegion,
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
@@ -794,7 +802,7 @@ pub(crate) fn write_place_integer_frame_indexed(
         .with_step(omega_abstract_operations::PlaceStep::Deref)
         .and_then(|place| {
             place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
-                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_region,
                 index_offset,
                 element_byte_size,
             })
@@ -850,6 +858,7 @@ pub(crate) fn write_place_string_pointee(
 
 pub(crate) fn write_place_string_frame_indexed(
     descriptor_offset: usize,
+    index_region: RuntimeStorageRegion,
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
@@ -864,7 +873,7 @@ pub(crate) fn write_place_string_frame_indexed(
         .with_step(omega_abstract_operations::PlaceStep::Deref)
         .and_then(|place| {
             place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
-                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_region,
                 index_offset,
                 element_byte_size,
             })
@@ -926,6 +935,7 @@ pub(crate) fn text_place_pointee(
 
 pub(crate) fn text_place_frame_indexed(
     descriptor_offset: usize,
+    index_region: RuntimeStorageRegion,
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
@@ -934,7 +944,7 @@ pub(crate) fn text_place_frame_indexed(
         .with_step(omega_abstract_operations::PlaceStep::Deref)
         .and_then(|place| {
             place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
-                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_region,
                 index_offset,
                 element_byte_size,
             })
@@ -1358,6 +1368,7 @@ pub(crate) fn copy_places_to_machine_indexed(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn copy_places_indexed_to_pointee(
     descriptor_offset: usize,
+    index_region: RuntimeStorageRegion,
     index_offset: usize,
     element_byte_size: usize,
     source_field_byte_offset: usize,
@@ -1368,6 +1379,7 @@ pub(crate) fn copy_places_indexed_to_pointee(
     SelectedInstructionKind::CopyPlaces {
         source: indexed_place(
             descriptor_offset,
+            index_region,
             index_offset,
             element_byte_size,
             source_field_byte_offset,

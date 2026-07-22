@@ -1724,6 +1724,15 @@ pub(super) fn resolve_runtime_frame_indexed_target_in_table(
     expression: ExpressionHandle,
 ) -> Option<RuntimeFrameIndexedTarget> {
     let indexed = indexed_target_path_in_table(expressions, expression)?;
+    if let Some(target) = resolve_runtime_pointee_indexed_target_from_path(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        &indexed,
+    ) {
+        return Some(target);
+    }
     let collection_slot = runtime_frame_slot_for_expression_in_table(
         input,
         dispatch_index,
@@ -1750,9 +1759,7 @@ pub(super) fn resolve_runtime_frame_indexed_target_in_table(
         expressions,
         indexed.index,
     )?;
-    if descriptor_place.region != RuntimeStorageRegion::RuntimeFrame
-        || index_place.region != RuntimeStorageRegion::RuntimeFrame
-    {
+    if descriptor_place.region != RuntimeStorageRegion::RuntimeFrame {
         return None;
     }
 
@@ -1777,9 +1784,115 @@ pub(super) fn resolve_runtime_frame_indexed_target_in_table(
 
     Some(RuntimeFrameIndexedTarget {
         descriptor_offset: descriptor_place.byte_offset,
+        index_region: index_place.region,
         index_offset: index_place.byte_offset,
         element_byte_size: element_layout.size,
         field_byte_offset,
+        byte_count: field_layout.size,
+    })
+}
+
+/// Runtime indexing through a record-reference slot (`view.items[i].field`).
+/// The ordinary frame-indexed resolver expects the slot itself to be a slice
+/// descriptor. Recast/reference records instead keep one pointee address in
+/// the slot and reach the array only after walking the referee's field layout.
+fn resolve_runtime_pointee_indexed_target_from_path(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    indexed: &TableIndexedTargetPath,
+) -> Option<RuntimeFrameIndexedTarget> {
+    let collection_path = normalized_storage_name_path_in_table(expressions, indexed.collection)?;
+    let slot = runtime_frame_slot_for_expression_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        indexed.collection,
+    )?;
+    let pointee_descriptor = slot.type_descriptor.reference_referee()?;
+    let pointee_layout = descriptor_layout(input, pointee_descriptor);
+    let wide_referee_slot = matches!(
+        pointee_descriptor,
+        omega_layout::TypeLayoutDescriptor::Named { .. }
+    ) && pointee_layout.size > input.runtime_abi.pointer_size
+        && slot.byte_size == pointee_layout.size;
+    if slot.byte_size != input.runtime_abi.pointer_size && !wide_referee_slot {
+        return None;
+    }
+    let shared_small_content_spill = matches!(
+        &slot.type_descriptor,
+        omega_layout::TypeLayoutDescriptor::Reference {
+            is_mutable: false,
+            ..
+        }
+    ) && matches!(
+        pointee_descriptor,
+        omega_layout::TypeLayoutDescriptor::Named { .. }
+    ) && pointee_layout.size <= input.runtime_abi.pointer_size
+        && !input
+            .program
+            .machines()
+            .iter()
+            .any(|machine| machine.symbol == source_key.machine && machine.boundary);
+    if shared_small_content_spill {
+        return None;
+    }
+
+    let root_field = FieldLayout {
+        symbol: slot.symbol,
+        name: slot.name.clone(),
+        offset: 0,
+        type_symbol: pointee_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: pointee_descriptor.clone(),
+        layout: pointee_layout,
+    };
+    let mut collection_cursor = NestedFieldLayoutCursor::from_root(&root_field);
+    for (field_name, field_symbol, field_index, case_variant) in collection_path.suffix(1).iter() {
+        collection_cursor = resolve_nested_field_layout_step(
+            &input.layouts,
+            collection_cursor,
+            field_name,
+            field_symbol,
+            field_index,
+            case_variant,
+        )?;
+    }
+    let (element_descriptor, _) = collection_cursor.type_descriptor().fixed_array()?;
+    let element_layout = descriptor_layout(input, element_descriptor);
+    let element_root = FieldLayout {
+        symbol: slot.symbol,
+        name: slot.name.clone(),
+        offset: 0,
+        type_symbol: element_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_descriptor.clone(),
+        layout: element_layout,
+    };
+    let (element_field_offset, field_layout) = resolve_indexed_target_suffix_layout_in_table(
+        input,
+        &element_root,
+        expressions,
+        indexed.suffix_root,
+        indexed.boundary,
+    )?;
+    let index_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        indexed.index,
+    )?;
+    Some(RuntimeFrameIndexedTarget {
+        descriptor_offset: slot.byte_offset,
+        index_region: index_place.region,
+        index_offset: index_place.byte_offset,
+        element_byte_size: element_layout.size,
+        field_byte_offset: collection_cursor
+            .byte_offset()
+            .checked_add(element_field_offset)?,
         byte_count: field_layout.size,
     })
 }
@@ -1893,6 +2006,7 @@ pub(super) fn resolve_runtime_frame_indexed_target_near_slot_in_table(
 
     Some(RuntimeFrameIndexedTarget {
         descriptor_offset: collection_slot.byte_offset,
+        index_region: index_place.region,
         index_offset: index_place.byte_offset,
         element_byte_size: element_layout.size,
         field_byte_offset,

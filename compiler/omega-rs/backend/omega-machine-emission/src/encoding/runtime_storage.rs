@@ -87,6 +87,7 @@ fn validate_runtime_value_home(
         }
         RuntimeValueOperand::FrameIndexed {
             descriptor_offset,
+            index_region,
             index_offset,
             element_byte_size,
             field_byte_offset,
@@ -96,11 +97,13 @@ fn validate_runtime_value_home(
                 home,
                 omega_assigned_target_operations::AssignedValueHomeKind::RuntimeFrameIndexed {
                     descriptor_offset: home_descriptor,
+                    index_region: home_index_region,
                     index_offset: home_index,
                     element_byte_size: home_element_size,
                     field_byte_offset: home_field,
                     byte_size: home_size,
                 } if home_descriptor == *descriptor_offset
+                    && home_index_region == *index_region
                     && home_index == *index_offset
                     && home_element_size == *element_byte_size
                     && home_field == *field_byte_offset

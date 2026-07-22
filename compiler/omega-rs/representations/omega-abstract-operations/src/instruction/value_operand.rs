@@ -29,6 +29,7 @@ pub enum ValueOperand {
     },
     FrameIndexed {
         descriptor_offset: usize,
+        index_region: RuntimeStorageRegion,
         index_offset: usize,
         element_byte_size: usize,
         field_byte_offset: usize,

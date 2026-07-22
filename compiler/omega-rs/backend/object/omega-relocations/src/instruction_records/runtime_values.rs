@@ -23,10 +23,25 @@ pub(super) fn collect_runtime_value_operand_relocations(
         }
         RuntimeValueOperand::Pointee { .. }
         | RuntimeValueOperand::FrameBaseIndexed { .. }
-        | RuntimeValueOperand::FrameIndexed { .. }
         | RuntimeValueOperand::FrameFixedIndexed { .. } => {
             let symbol = context.runtime_frame_symbol_handle();
             context.insert_data_address(operand_text_offset, symbol);
+        }
+        RuntimeValueOperand::FrameIndexed { index_region, .. } => {
+            let frame_symbol = context.runtime_frame_symbol_handle();
+            context.insert_data_address(operand_text_offset, frame_symbol);
+            if *index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+                let machine_symbol = context.storage_region_symbol_handle(
+                    omega_target_operations::RuntimeStorageRegion::Machine,
+                );
+                context.insert_data_address(
+                    operand_text_offset
+                        + omega_instruction_selection::frame_indexed_operand_machine_index_base_offset(
+                            context.input.target.architecture,
+                        ),
+                    machine_symbol,
+                );
+            }
         }
         RuntimeValueOperand::MachineIndexed { index_region, .. } => {
             // MACHINE base at the operand start; a FRAME-resident index

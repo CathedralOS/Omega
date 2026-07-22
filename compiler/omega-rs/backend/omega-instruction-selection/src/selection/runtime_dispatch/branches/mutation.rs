@@ -874,6 +874,7 @@ fn select_runtime_static_mutation_write_in_table(
         return Some(
             crate::selection::runtime_dispatch::write_place_integer_frame_indexed(
                 indexed_target.descriptor_offset,
+                indexed_target.index_region,
                 indexed_target.index_offset,
                 indexed_target.element_byte_size,
                 indexed_target.field_byte_offset,
@@ -1030,6 +1031,7 @@ fn select_runtime_string_mutation_write_in_table(
         return Some(
             crate::selection::runtime_dispatch::write_place_string_frame_indexed(
                 indexed_target.descriptor_offset,
+                indexed_target.index_region,
                 indexed_target.index_offset,
                 indexed_target.element_byte_size,
                 indexed_target.field_byte_offset,
@@ -1177,6 +1179,7 @@ fn select_runtime_binary_mutation_write_in_table(
         return Some(
             crate::selection::runtime_dispatch::write_place_binary_frame_indexed(
                 indexed_target.descriptor_offset,
+                indexed_target.index_region,
                 indexed_target.index_offset,
                 indexed_target.element_byte_size,
                 indexed_target.field_byte_offset,
@@ -1288,6 +1291,7 @@ fn select_runtime_binary_mutation_write_target_arms(
         return Some(
             crate::selection::runtime_dispatch::write_place_binary_frame_indexed(
                 indexed_target.descriptor_offset,
+                indexed_target.index_region,
                 indexed_target.index_offset,
                 indexed_target.element_byte_size,
                 indexed_target.field_byte_offset,
@@ -1532,6 +1536,7 @@ fn resolve_runtime_value_operand_in_table(
         return Some(
             runtime_value_operands.insert(RuntimeValueOperand::FrameIndexed {
                 descriptor_offset: indexed_target.descriptor_offset,
+                index_region: indexed_target.index_region,
                 index_offset: indexed_target.index_offset,
                 element_byte_size: indexed_target.element_byte_size,
                 field_byte_offset: indexed_target.field_byte_offset,

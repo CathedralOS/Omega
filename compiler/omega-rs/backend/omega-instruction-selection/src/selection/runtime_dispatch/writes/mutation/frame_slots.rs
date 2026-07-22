@@ -499,6 +499,7 @@ fn select_runtime_frame_slot_value_write_in_table_with_source_anchor_and_call_or
         return Some(
             crate::selection::runtime_dispatch::copy_places_from_indexed(
                 indexed_source.descriptor_offset,
+                indexed_source.index_region,
                 indexed_source.index_offset,
                 indexed_source.element_byte_size,
                 indexed_source.field_byte_offset,

@@ -1948,10 +1948,12 @@ pub fn runtime_text_equals_literal_operand_width(
         // Page pair (8) + the 8-byte pointer load (4) with its optional
         // offset add, + the optional field-offset add.
         12 + add_constant_width(pointer_byte_offset) + add_constant_width(field_byte_offset)
-    } else if let Some((_, _, element_byte_size, field_byte_offset, _)) =
+    } else if let Some((_, index_region, _, element_byte_size, field_byte_offset, _)) =
         runtime_value_operands.frame_indexed(place)
     {
         runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
+            + usize::from(index_region == omega_target_operations::RuntimeStorageRegion::Machine)
+                * 8
     } else if let Some((base_byte_offset, index_offset, element_byte_size, field_byte_offset, _)) =
         runtime_value_operands.frame_base_indexed(place)
     {
@@ -2004,10 +2006,12 @@ pub fn runtime_value_operand_width(
         12 + add_constant_width(pointer_byte_offset)
             + add_constant_width(field_byte_offset)
             + runtime_load_data_width(byte_size)
-    } else if let Some((_, _, element_byte_size, field_byte_offset, byte_size)) =
+    } else if let Some((_, index_region, _, element_byte_size, field_byte_offset, byte_size)) =
         runtime_value_operands.frame_indexed(operand)
     {
         runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
+            + usize::from(index_region == omega_target_operations::RuntimeStorageRegion::Machine)
+                * 8
             + runtime_load_data_width(byte_size)
     } else if let Some((
         base_byte_offset,
