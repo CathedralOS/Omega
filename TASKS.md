@@ -630,6 +630,10 @@ slot owner may override by type. The migration order remains load-bearing.
    More than 1,300 exact duplicate Console declarations now import that package.
    The compiler's dungeon lattice snapshot now shares the same standard import
    as the runnable sample instead of retaining a second String-based boundary.
+   The carrier-focused `text_greeting`, `status_report`, and `text_padding` CLI
+   samples now use the standard Console as well; their pause buffers are honest
+   bounded Utf8 carriers, so the shared `read_line` adapter derives the concrete
+   destination capacity instead of relying on a locally weakened signature.
    The remaining local declarations are intentionally different carrier,
    effect, or proof fixtures; migrate those with their owning surfaces, then
    remove the composite compatibility rows under PRV4f.

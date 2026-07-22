@@ -8,6 +8,8 @@
 // Expected exit: 70.
 // Expected output contains: Hello, Ada!
 
+use omega::language::std::console;
+
 domain [u8]::Utf8 {
     valid_utf8(self);
 }
@@ -17,17 +19,15 @@ domain [u8; 8]::Utf8 {
 domain [u8; 32]::Utf8 {
     valid_utf8(self);
 }
-boundary trait Console {
-    machine write_line(text: &[u8] in Utf8);
-    machine read_line(out_line: &mut [u8]);
-    machine exit_process(return_code: i32);
+domain [u8; 256]::Utf8 {
+    valid_utf8(self);
 }
 
 data Main {
     console: Console;
     name: [u8; 8] in Utf8;
     greeting: [u8; 32] in Utf8;
-    pause: [u8; 256];
+    pause: [u8; 256] in Utf8;
 }
 
 machine Main::main(&mut self) {

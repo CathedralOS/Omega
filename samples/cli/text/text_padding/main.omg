@@ -8,23 +8,23 @@
 // Expected exit: 6.
 // Expected output contains: ALERT temp
 
+use omega::language::std::console;
+
 domain [u8]::Utf8 {
     valid_utf8(self);
 }
 domain [u8; 32]::Utf8 {
     valid_utf8(self);
 }
-boundary trait Console {
-    machine write_line(text: &[u8] in Utf8);
-    machine read_line(out_line: &mut [u8]);
-    machine exit_process(return_code: i32);
+domain [u8; 256]::Utf8 {
+    valid_utf8(self);
 }
 
 data Main {
     console: Console;
     message: [u8; 32] in Utf8;
     padding: i32 in Saturating;
-    pause: [u8; 256];
+    pause: [u8; 256] in Utf8;
 }
 
 machine Main::main(&mut self) {
