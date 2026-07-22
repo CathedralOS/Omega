@@ -317,6 +317,49 @@ pub fn encode_place_binary_write(
     Ok((bytes, sites))
 }
 
+/// Evaluate one numeric conversion and store it through a composed place.
+/// The target address moves to r14 before operand evaluation because recursive
+/// operands reload r15 for their own storage bases.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_place_convert_write(
+    runtime_value_operands: &impl super::RuntimeValueOperandSource,
+    target: &Place,
+    target_byte_size: usize,
+    source: super::RuntimeValueOperandHandle,
+    source_byte_size: usize,
+    source_is_float: bool,
+    target_is_float: bool,
+    source_signed: bool,
+    target_signed: bool,
+    trapping: bool,
+    saturating: bool,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
+    let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
+    let displacement =
+        materialize_place_address(&mut bytes, &mut sites, target, AddressRegister::Target)?;
+    super::append_mov_r14_r15(&mut bytes);
+    super::append_runtime_value_operand(
+        runtime_value_operands,
+        &mut bytes,
+        super::Reg64::R10,
+        source,
+    )?;
+    super::append_runtime_convert_operation(
+        &mut bytes,
+        source_byte_size,
+        target_byte_size,
+        source_is_float,
+        target_is_float,
+        source_signed,
+        target_signed,
+        trapping,
+        saturating,
+    );
+    super::append_store_r10_to_r14(&mut bytes, displacement, target_byte_size)?;
+    Ok((bytes, sites))
+}
+
 /// The DETERMINISTIC base-relocation positions of a place binary write's
 /// prefix: the target base mov at 0, then each CROSS-REGION index's own
 /// base mov at its prep position (index preps run in place order BEFORE the

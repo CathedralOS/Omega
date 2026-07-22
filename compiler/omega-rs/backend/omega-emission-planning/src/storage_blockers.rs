@@ -381,6 +381,7 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::WritePlaceBoundedBuffer { .. }
                     | SelectedInstructionKind::WritePlaceAddress { .. }
                     | SelectedInstructionKind::WriteRuntimeStorageConvert { .. }
+                    | SelectedInstructionKind::WritePlaceConvert { .. }
                     | SelectedInstructionKind::AppendPlaceBoundedBufferSource { .. }
                     | SelectedInstructionKind::AppendPlaceBoundedBufferLiteral { .. }
                     | SelectedInstructionKind::MaterializeTextBufferToPlace { .. }

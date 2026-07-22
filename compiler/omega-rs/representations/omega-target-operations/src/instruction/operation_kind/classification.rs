@@ -44,6 +44,7 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::WriteEntryIndirectArgument { .. }
             | Self::WriteEntryArgumentsSliceDescriptor { .. }
             | Self::WriteRuntimeStorageConvert { .. }
+            | Self::WritePlaceConvert { .. }
             | Self::AppendPlaceBoundedBufferSource { .. }
             | Self::AppendPlaceBoundedBufferLiteral { .. }
             | Self::AppendWireLiteralByte { .. }

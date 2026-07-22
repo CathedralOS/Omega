@@ -1312,6 +1312,7 @@ fn select_dispatch_cast_terminal_return(
         expressions,
         RuntimeStorageRegion::RuntimeFrame,
         target_offset,
+        None,
         target_primitive,
         cast.value,
         cast.domain,

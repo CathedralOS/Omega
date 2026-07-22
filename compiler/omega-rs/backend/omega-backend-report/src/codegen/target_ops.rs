@@ -623,6 +623,18 @@ fn selected_instruction_name(
                 runtime_value_operand_name(backend_plan, *source),
             )
         }
+        SelectedInstructionKind::WritePlaceConvert {
+            target,
+            target_byte_size,
+            source,
+            source_byte_size,
+            source_is_float,
+            target_is_float,
+            ..
+        } => format!(
+            "write place convert {target:?} bytes {target_byte_size} float={target_is_float} <- {} bytes {source_byte_size} float={source_is_float}",
+            runtime_value_operand_name(backend_plan, *source),
+        ),
         SelectedInstructionKind::AppendPlaceBoundedBufferSource { target, source } => {
             format!("append place bounded buffer source target={target:?} source={source:?}")
         }

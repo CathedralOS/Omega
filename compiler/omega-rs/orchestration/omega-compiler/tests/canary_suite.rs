@@ -4420,6 +4420,27 @@ fn runtime_number_to_decimal_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
+    // The native run above pins AArch64 on Apple Silicon. Also emit the same
+    // operation through the x86-64 encoder and relocation path so the indexed
+    // destination and converted source stay portable.
+    let x64_source = build_dir.join("linux-x64-src");
+    fs::create_dir_all(&x64_source).expect("number-to-decimal x64 source dir");
+    fs::copy(canary.join("main.omg"), x64_source.join("main.omg"))
+        .expect("copy number-to-decimal canary for x64");
+    fs::write(x64_source.join("build.omg"), "target linux_x64 {\n}\n")
+        .expect("write number-to-decimal x64 manifest");
+    let x64_build = build_dir.join("linux-x64-out");
+    compile(CompileOptions {
+        root_path: x64_source.join("main.omg"),
+        build_dir: Some(x64_build.clone()),
+        target_name: Some("linux_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("number-to-decimal canary should cross-compile for linux_x64");
+    let elf =
+        fs::read(x64_build.join("omega-program")).expect("number-to-decimal linux_x64 ELF emitted");
+    assert_eq!(&elf[..4], b"\x7fELF");
+
     let _ = fs::remove_dir_all(&build_dir);
 }
 

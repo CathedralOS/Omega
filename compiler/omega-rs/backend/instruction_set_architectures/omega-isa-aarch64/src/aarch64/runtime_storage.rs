@@ -823,6 +823,60 @@ pub fn encode_runtime_storage_convert(
     Ok(bytes)
 }
 
+/// Convert one runtime value and store it into a machine-owned indexed place.
+/// Address setup leaves the element address in x16; recursive operand
+/// evaluation and conversion use x17 plus the ordinary left-operand scratch
+/// bank, which deliberately preserves x16.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_machine_indexed_convert_write(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_byte_size: usize,
+    source: RuntimeValueOperandHandle,
+    source_byte_size: usize,
+    source_is_float: bool,
+    target_is_float: bool,
+    source_signed: bool,
+    target_signed: bool,
+    trapping: bool,
+    saturating: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::new();
+    append_runtime_machine_index_target_address(
+        &mut bytes,
+        base_byte_offset,
+        index_region,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    )?;
+    append_runtime_value_operand(
+        runtime_value_operands,
+        &mut bytes,
+        17,
+        RUNTIME_VALUE_LEFT_SCRATCH_REGISTERS,
+        source,
+    )?;
+    append_runtime_convert_operation(
+        &mut bytes,
+        17,
+        source_byte_size,
+        target_byte_size,
+        source_is_float,
+        target_is_float,
+        source_signed,
+        target_signed,
+        trapping,
+        saturating,
+    )?;
+    append_runtime_storage_result_write(&mut bytes, 0, target_byte_size)?;
+    Ok(bytes)
+}
+
 /// Convert the value whose raw bits are in `register` between integer/float
 /// representations, leaving the converted result back in `register`. Uses FP
 /// register 0 (`S0`/`D0`) as the scratch FP bank. See

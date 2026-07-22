@@ -484,6 +484,21 @@ pub enum AbstractOperationKind {
         /// this false because their range obligation was already discharged.
         saturating: bool,
     },
+    /// A numeric `as` cast stored through a composed place (for example a
+    /// runtime-indexed array element). The conversion contract is identical to
+    /// [`Self::WriteRuntimeStorageConvert`]; only target addressing differs.
+    WritePlaceConvert {
+        target: Place,
+        target_byte_size: usize,
+        source: AbstractValueOperandHandle,
+        source_byte_size: usize,
+        source_is_float: bool,
+        target_is_float: bool,
+        source_signed: bool,
+        target_signed: bool,
+        trapping: bool,
+        saturating: bool,
+    },
     /// Append another owned `[u8; N]` carrier's content onto a target carrier.
     /// Both addresses ride the ordinary [`Place`] algebra, so a concat has one
     /// semantic operation whether either carrier is direct, borrowed through a

@@ -283,6 +283,18 @@ pub enum TargetOperationKind {
         /// this false because their range obligation was already discharged.
         saturating: bool,
     },
+    WritePlaceConvert {
+        target: Place,
+        target_byte_size: usize,
+        source: TargetValueOperandHandle,
+        source_byte_size: usize,
+        source_is_float: bool,
+        target_is_float: bool,
+        source_signed: bool,
+        target_signed: bool,
+        trapping: bool,
+        saturating: bool,
+    },
     AtomicLoad {
         source_region: RuntimeStorageRegion,
         source_offset: usize,

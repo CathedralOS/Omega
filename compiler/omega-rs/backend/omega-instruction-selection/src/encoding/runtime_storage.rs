@@ -158,6 +158,128 @@ pub fn encode_runtime_storage_convert(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn encode_write_place_convert(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target: &omega_target_operations::Place,
+    target_byte_size: usize,
+    source: RuntimeValueOperandHandle,
+    source_byte_size: usize,
+    source_is_float: bool,
+    target_is_float: bool,
+    source_signed: bool,
+    target_signed: bool,
+    trapping: bool,
+    saturating: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::X86_64 => x86_64::encode_place_convert_write(
+            runtime_value_operands,
+            target,
+            target_byte_size,
+            source,
+            source_byte_size,
+            source_is_float,
+            target_is_float,
+            source_signed,
+            target_signed,
+            trapping,
+            saturating,
+        )
+        .map(|(bytes, _)| bytes),
+        Architecture::Aarch64 => match classify_write_place_shape(target) {
+            WritePlaceShape::MachineIndexed {
+                base_byte_offset,
+                index_region,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_machine_indexed_convert_write(
+                runtime_value_operands,
+                base_byte_offset,
+                index_region,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_byte_size,
+                source,
+                source_byte_size,
+                source_is_float,
+                target_is_float,
+                source_signed,
+                target_signed,
+                trapping,
+                saturating,
+            ),
+            _ => Err(Diagnostic::error(
+                "WritePlaceConvert on aarch64 currently serves machine-indexed targets only",
+            )),
+        },
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn write_place_convert_width(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target: &omega_target_operations::Place,
+    target_byte_size: usize,
+    source: RuntimeValueOperandHandle,
+    source_byte_size: usize,
+    source_is_float: bool,
+    target_is_float: bool,
+    source_signed: bool,
+    target_signed: bool,
+    trapping: bool,
+    saturating: bool,
+) -> Result<usize, Diagnostic> {
+    encode_write_place_convert(
+        architecture,
+        runtime_value_operands,
+        target,
+        target_byte_size,
+        source,
+        source_byte_size,
+        source_is_float,
+        target_is_float,
+        source_signed,
+        target_signed,
+        trapping,
+        saturating,
+    )
+    .map(|bytes| bytes.len())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn x86_64_encode_write_place_convert_with_sites(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target: &omega_target_operations::Place,
+    target_byte_size: usize,
+    source: RuntimeValueOperandHandle,
+    source_byte_size: usize,
+    source_is_float: bool,
+    target_is_float: bool,
+    source_signed: bool,
+    target_signed: bool,
+    trapping: bool,
+    saturating: bool,
+) -> Result<(Vec<u8>, omega_isa_x86_64::PlaceCopySites), Diagnostic> {
+    x86_64::encode_place_convert_write(
+        runtime_value_operands,
+        target,
+        target_byte_size,
+        source,
+        source_byte_size,
+        source_is_float,
+        target_is_float,
+        source_signed,
+        target_signed,
+        trapping,
+        saturating,
+    )
+}
+
 pub fn encode_atomic_load_to_storage(
     architecture: Architecture,
     source_offset: usize,
