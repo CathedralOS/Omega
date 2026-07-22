@@ -664,9 +664,10 @@ slot owner may override by type. The migration order remains load-bearing.
    contain a plan-laid subrecord in both native and interpreter execution.
    Recast locals remain materialized type-bearing views instead of being
    flattened back to their byte-element initializer, including when their only
-   uses are later local initializers; straight-line nested value bodies also
-   materialize the view address before projected reads. Stored widening from a
-   projected plan-laid `u16` into `u64` lowers on both x86-64 and AArch64. The
+   uses are later local initializers or assignment values; straight-line nested
+   value bodies also materialize the view address before projected reads.
+   Stored widening from a projected plan-laid `u16` into `u64` lowers on both
+   x86-64 and AArch64. The
    focused synthetic view canary pins exact non-native offsets, recast liveness,
    interpreter agreement, and cross-target conversion. PRV4e is complete; PRV4f
    has deleted the four now-unconsumed compatibility tables.
@@ -1295,6 +1296,13 @@ stronger operations it needs instead of citing machine parameters generally.
 
 ## Platform-gated verification
 
+- **Differential baseline (2026-07-22, macOS).** The complete 861-entry RUN
+  roster has 852 native/interpreter matches, eight intentional interpreter
+  skips for out-of-range shifts in the Trapping domain, one native host gate,
+  and zero mismatches. The host gate is the Windows-only GDI memory-DC canary
+  (`CreateCompatibleDC`/`StretchDIBits`): the compiler suite already excludes
+  it on non-Windows hosts because Darwin substitutes `Gui` with `MacosGui`,
+  which intentionally has no `dc_create` operation.
 - **Linux hosts.** Run filesystem/time structural rows on real x86_64 and
   AArch64 Linux. `clock_gettime` additionally needs composite `timespec`
   lowering before it can be verified.
