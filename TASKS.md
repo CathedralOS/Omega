@@ -789,6 +789,10 @@ stronger operations it needs instead of citing machine parameters generally.
   frames under `implementation`; they are structurally excluded from the
   authored contract fingerprint and specialization identity, so body-only
   write changes cannot masquerade as public contract changes.
+  Runtime-indexed record-field projections now retain their leaf type and
+  store-enforced range through synthetic operand hoists; the same resolver
+  rejects out-of-range writes through a runtime-indexed projection instead of
+  losing the destination's constraint shell.
   **Language-design blocker:** the boundary write-frame clause's semantics are
   settled, but its public keyword/spelling is still explicitly provisional
   (`stores` in the guide). Do not mint syntax until that spelling is frozen.

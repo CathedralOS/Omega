@@ -38913,6 +38913,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "range/funnel_guard_edges_disagree",
     "range/element_range_write_rejected",
     "range/element_range_runtime_write_rejected",
+    "range/indexed_field_range_runtime_write_rejected",
     "range/element_range_zero_excluded",
     "range/guarded_element_increment_too_wide",
     "range/guarded_element_increment_stale",

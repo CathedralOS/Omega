@@ -1,0 +1,19 @@
+// A range on a FIELD projected through a runtime-indexed record element is
+// still the destination's store-enforced invariant. The indexed projection
+// must not erase the field type and allow an out-of-range write.
+use omega::language::std::console;
+
+data Cell {
+    value: i32 [0..=7];
+}
+
+data Main {
+    console: Console;
+    cells: [Cell; 4];
+    i: u64 [0..=3];
+}
+
+machine Main::main(&mut self) {
+    self.cells[self.i].value = 100;
+    self.console.exit_process(1);
+}

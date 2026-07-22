@@ -497,45 +497,64 @@ fn data_field_or_payload_type(
 
 /// Unwrap reference and constraint shells so the structural type underneath
 /// (`[u8; N]`, `usize`, a data name) is inspectable.
-/// The declared ELEMENT type of an indexed assignment target (`self.xs[i]`,
-/// `buf[k]`), unwrapped like [`declared_place_type`]. `collect_member_path`
-/// stops at an `Indexed` node, so `declared_place_type` returns `None` for an
-/// indexed place -- which used to EXEMPT indexed-element stores from the
-/// cross-class / narrowing / nominal store checks (a `bool` silently stored as
-/// `1` into an `[i32; N]` element). This resolves the collection's `[T; N]` /
-/// `[T]` type and hands back `T` so those checks see the real slot type.
+/// The declared leaf type of an indexed assignment target (`self.xs[i]`,
+/// `buf[k]`, or `self.rows[i].field`), unwrapped like [`declared_place_type`].
+/// `collect_member_path` stops at an `Indexed` node, so `declared_place_type`
+/// returns `None` for these places -- which used to exempt indexed stores from
+/// the cross-class / narrowing / nominal store checks. This resolves the
+/// collection's `[T; N]` / `[T]` element and then walks any projected fields so
+/// those checks see the real destination type.
 /// `None` for a non-indexed target, an unresolvable collection, or a collection
 /// that is not an array/slice.
-pub(crate) fn declared_indexed_element_type(
+pub(crate) fn declared_indexed_projection_type(
     program: &TypedTrees,
     current_machine: &Machine,
     current_state: Option<&omega_typed_trees::state::State>,
     target: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    declared_indexed_element_type_raw(program, current_machine, current_state, target)
+    declared_indexed_projection_type_raw(program, current_machine, current_state, target)
         .and_then(|element_type| unwrapped_type_reference(program, element_type))
 }
 
-/// [`declared_indexed_element_type`] WITHOUT the final unwrap: the element's
-/// declared type with its constraint shells INTACT, so a range-refined element
-/// (`[i32 [0..=7]; N]`) keeps its `[0..=7]` for the operand analysis and the
-/// arithmetic-domain resolution (the same raw-vs-unwrapped pair convention as
-/// `declared_place_type_raw`).
-pub(crate) fn declared_indexed_element_type_raw(
+/// [`declared_indexed_projection_type`] WITHOUT the final unwrap: the element
+/// or projected field's declared type with its constraint shells intact, so a
+/// range-refined leaf (`[i32 [0..=7]; N]` or `rows[i].count: i32 [0..=7]`)
+/// keeps its range for operand analysis and arithmetic-domain resolution.
+pub(crate) fn declared_indexed_projection_type_raw(
     program: &TypedTrees,
     current_machine: &Machine,
     current_state: Option<&omega_typed_trees::state::State>,
     target: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target) else {
-        return None;
-    };
-    let collection_type =
-        declared_place_type(program, current_machine, current_state, indexed.collection)?;
-    match program.type_reference_table.type_reference(collection_type) {
-        TypeReferenceNode::FixedArray { element_type, .. }
-        | TypeReferenceNode::Slice { element_type } => Some(*element_type),
-        _ => None,
+    let mut handle = target;
+    let mut projected_fields = Vec::new();
+    loop {
+        match program.expression_table.expression(handle) {
+            ExpressionNode::Mutable(inner) => handle = *inner,
+            ExpressionNode::Member(member) => {
+                projected_fields.push(member.member.as_str());
+                handle = member.receiver;
+            }
+            ExpressionNode::Indexed(indexed) => {
+                let collection_type = declared_place_type(
+                    program,
+                    current_machine,
+                    current_state,
+                    indexed.collection,
+                )?;
+                let mut leaf = match program.type_reference_table.type_reference(collection_type) {
+                    TypeReferenceNode::FixedArray { element_type, .. }
+                    | TypeReferenceNode::Slice { element_type } => *element_type,
+                    _ => return None,
+                };
+                for field_name in projected_fields.iter().rev() {
+                    let data = data_definition_for_type(program, leaf)?;
+                    leaf = data_field_or_payload_type(program, data, field_name)?;
+                }
+                return Some(leaf);
+            }
+            _ => return None,
+        }
     }
 }
 
