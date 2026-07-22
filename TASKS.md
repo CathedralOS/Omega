@@ -625,10 +625,13 @@ stronger operations it needs instead of citing machine parameters generally.
   preserves unpassed caller locals. Named boundary/operator statement calls now
   use the same exact operand-place mapping: mutable operands invalidate stale
   facts, then domain-membership `ensures` facts are instantiated back onto the
-  caller place. Boolean operator postconditions still need general expression
-  substitution rather than domain-specific handling. Finish the `stores`
-  clause, explicit state-arrival contracts, that substitution, and broader
-  Houdini-style inference for facts crossing sibling calls.
+  caller place. Boolean operator postconditions now use the same general
+  recursive formal-to-operand expression substitution as operator
+  preconditions, retain canonical caller-term labels in semantic facts, and
+  conservatively depend on every place-valued operand so mutation of either
+  side invalidates the guarantee. Finish the `stores` clause, explicit
+  state-arrival contracts, and broader Houdini-style inference for facts
+  crossing sibling calls.
 
 ### Domain facets, effects, termination, and trust
 

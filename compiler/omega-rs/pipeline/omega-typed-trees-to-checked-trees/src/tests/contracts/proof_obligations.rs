@@ -1306,6 +1306,82 @@ fn rejects_unproven_requires_domain_union() {
 }
 
 #[test]
+fn accepts_requires_from_instantiated_boundary_operator_boolean_ensures() {
+    let source = r#"
+        data Reading {
+            value: i32;
+            floor: i32;
+        }
+
+        boundary operator Guard::establish(reading: &mut Reading, reference: &Reading) -> ()
+        ensures
+            reading.value > reference.floor;
+
+        data Main {
+            reading: Reading;
+            reference: Reading;
+        }
+
+        machine Main::accept(reading: Reading, reference: Reading)
+        requires
+            reading.value > reference.floor
+        {
+        }
+
+        machine Main::main(&mut self) {
+            Guard::establish(self.reading, self.reference);
+            self.accept(self.reading, self.reference);
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "a boundary operator boolean postcondition should be substituted onto caller operands",
+    );
+}
+
+#[test]
+fn invalidates_instantiated_boundary_operator_boolean_ensures_when_either_operand_changes() {
+    let source = r#"
+        data Reading {
+            value: i32;
+            floor: i32;
+        }
+
+        boundary operator Guard::establish(reading: &mut Reading, reference: &Reading) -> ()
+        ensures
+            reading.value > reference.floor;
+
+        data Main {
+            reading: Reading;
+            reference: Reading;
+        }
+
+        machine Main::accept(reading: Reading, reference: Reading)
+        requires
+            reading.value > reference.floor
+        {
+        }
+
+        machine Main::main(&mut self) {
+            Guard::establish(self.reading, self.reference);
+            self.reference.floor = 100;
+            self.accept(self.reading, self.reference);
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("mutating either substituted operand should invalidate the postcondition");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove requires contract for call accept from Main::main")
+            && diagnostic
+                .message
+                .contains("reading.value > reference.floor")
+    }));
+}
+
+#[test]
 fn exit_ensures_requirement_label_resolves_attached_data_members() {
     let source = r#"
         data Player {

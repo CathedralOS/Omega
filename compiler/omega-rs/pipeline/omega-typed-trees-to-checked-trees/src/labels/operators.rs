@@ -113,14 +113,19 @@ pub(crate) fn instantiate_operator_contract_expression_label_with_labels(
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
             let first_member = members.first().map(|member| member.as_str());
-            let mut operand_index = 0usize;
+            let operands_include_self = operand_labels.len() == parameters.len();
+            let mut positional_operand_index = 0usize;
 
-            for parameter in parameters {
-                if parameter.is_self {
-                    continue;
-                }
-                let operand = operand_labels.get(operand_index);
-                operand_index = operand_index.saturating_add(1);
+            for (parameter_index, parameter) in parameters.iter().enumerate() {
+                let operand = if operands_include_self {
+                    operand_labels.get(parameter_index)
+                } else if parameter.is_self {
+                    None
+                } else {
+                    let operand = operand_labels.get(positional_operand_index);
+                    positional_operand_index = positional_operand_index.saturating_add(1);
+                    operand
+                };
 
                 let parameter_matches = first_member == Some(parameter.name.as_str())
                     || path.head_symbol == parameter.symbol
