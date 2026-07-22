@@ -42,7 +42,7 @@ pub(crate) fn validate_callable_state_signatures(
                     parameters: program.state_parameters(state),
                     return_type: state.return_type,
                     effects: &[],
-                    contracts: &[],
+                    contracts: program.state_contracts(state),
                 }),
             program,
             symbols,
@@ -177,6 +177,15 @@ fn validate_state_signature_contracts(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for contract in signature.contracts {
+        if matches!(owner, StateSignatureOwner::Machine(_))
+            && contract.kind != omega_typed_trees::signature::SignatureContractKind::Requires
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} state `{}` admits only arrival `requires` contracts",
+                signature.name
+            )));
+            continue;
+        }
         validate_proof_facts(
             program,
             program.proof_facts.span_or_empty(contract.facts),

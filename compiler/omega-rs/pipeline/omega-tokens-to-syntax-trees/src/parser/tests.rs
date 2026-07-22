@@ -376,6 +376,73 @@ fn parses_machine_contract_clauses() {
 }
 
 #[test]
+fn parses_explicit_state_arrival_requires() {
+    let source = r#"
+        machine walk(value: i32) {
+            transition value > 0 {
+                true -> positive(value)
+                false -> done()
+            }
+
+            state positive(value: i32)
+            requires
+                value > 0
+            {
+            }
+
+            state done() {
+            }
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("state arrival requires should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+    let positive = parsed
+        .items
+        .state_handles(machine.states)
+        .iter()
+        .map(|handle| parsed.items.state(*handle))
+        .find(|state| state.name.as_str() == "positive")
+        .expect("positive state");
+    let contracts = parsed.items.capability_contracts(positive.contracts);
+    assert_eq!(contracts.len(), 1);
+    assert!(matches!(
+        contracts[0].kind,
+        omega_syntax_trees::item::CapabilityContractKind::Requires
+    ));
+    assert_eq!(parsed.items.proof_facts(contracts[0].facts).len(), 1);
+}
+
+#[test]
+fn rejects_exit_contract_clauses_on_explicit_states() {
+    let source = r#"
+        machine walk() {
+            state done()
+            ensures
+                true
+            {
+            }
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens)
+        .expect_err("states admit arrival requires rather than exit contracts");
+    assert!(error.message.contains("state signatures admit only arrival `requires`"));
+}
+
+#[test]
 fn parses_machine_termination_clauses() {
     let source = r#"
         machine walk(items: &[Item], remaining: usize)

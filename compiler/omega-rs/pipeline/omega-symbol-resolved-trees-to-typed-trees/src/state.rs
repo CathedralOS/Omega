@@ -21,6 +21,7 @@ pub(crate) fn lower_state(
             .map(|type_reference| lower_type_reference_into_table(lowerer, type_reference))
             .transpose()?
             .unwrap_or_else(typed::types::TypeReferenceHandle::invalid),
+        contracts: Default::default(),
         statement_nodes: Default::default(),
     };
 
@@ -29,6 +30,28 @@ pub(crate) fn lower_state(
         lowerer
             .typed_trees
             .push_state_parameter(&mut typed_state, parameter);
+    }
+
+    for contract in lowerer.source_trees.signature_contracts(state.contracts) {
+        let facts = lower_proof_facts(lowerer, contract.facts)?;
+        lowerer.typed_trees.push_state_contract(
+            &mut typed_state,
+            typed::signature::SignatureContract {
+                kind: match contract.kind {
+                    resolved::signature::SignatureContractKind::Requires => {
+                        typed::signature::SignatureContractKind::Requires
+                    }
+                    resolved::signature::SignatureContractKind::Ensures => {
+                        typed::signature::SignatureContractKind::Ensures
+                    }
+                    resolved::signature::SignatureContractKind::Boundary => {
+                        typed::signature::SignatureContractKind::Boundary
+                    }
+                },
+                facts,
+                token_count: contract.token_count,
+            },
+        );
     }
 
     for statement in lowerer

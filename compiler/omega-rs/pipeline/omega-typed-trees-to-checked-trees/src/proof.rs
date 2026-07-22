@@ -4,8 +4,8 @@ mod obligations;
 
 use contracts::{
     append_inherited_trait_contract_facts, append_machine_contract_facts,
-    append_state_signature_contract_facts, build_contract_call_facts, build_contract_exit_facts,
-    build_contract_operator_use_facts, estimated_contract_fact_capacity,
+    append_state_contract_facts, append_state_signature_contract_facts, build_contract_call_facts,
+    build_contract_exit_facts, build_contract_operator_use_facts, estimated_contract_fact_capacity,
 };
 use obligations::lower_proof_obligation;
 
@@ -39,6 +39,9 @@ pub(crate) fn build_proof_facts_with_operators(
 
     for machine in program.machines() {
         append_machine_contract_facts(program, machine, &mut contract_facts);
+        for state in program.machine_states(machine) {
+            append_state_contract_facts(program, machine, state, &mut contract_facts);
+        }
         append_inherited_trait_contract_facts(program, machine, &mut contract_facts);
         for parameter in program.machine_type_parameters(machine) {
             let omega_typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind

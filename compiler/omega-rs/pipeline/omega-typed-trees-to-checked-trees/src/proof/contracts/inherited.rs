@@ -5,11 +5,18 @@ pub(crate) fn estimated_contract_fact_capacity(program: &omega_typed_trees::Type
         .machines()
         .iter()
         .map(|machine| {
-            program
+            let machine_facts = program
                 .machine_contracts(machine)
                 .iter()
                 .map(|contract| contract.facts.len())
-                .sum::<usize>()
+                .sum::<usize>();
+            let state_facts = program
+                .machine_states(machine)
+                .iter()
+                .flat_map(|state| program.state_contracts(state))
+                .map(|contract| contract.facts.len())
+                .sum::<usize>();
+            machine_facts + state_facts
         })
         .chain(program.traits().iter().map(|trait_definition| {
             program

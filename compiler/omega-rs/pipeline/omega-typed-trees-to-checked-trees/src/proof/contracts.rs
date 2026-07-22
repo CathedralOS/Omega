@@ -29,6 +29,26 @@ pub(crate) fn append_machine_contract_facts(
     }
 }
 
+pub(crate) fn append_state_contract_facts(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    contract_facts: &mut omega_core::arena::Arena<ContractProofFact>,
+) {
+    for contract in program.state_contracts(state) {
+        for fact in super::fact_handles(contract.facts) {
+            contract_facts.append(ContractProofFact {
+                kind: super::contract_fact_kind(contract.kind),
+                owner: ContractProofFactOwner::MachineState {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                },
+                fact,
+            });
+        }
+    }
+}
+
 pub(crate) fn append_state_signature_contract_facts(
     program: &omega_typed_trees::TypedTrees,
     owner_symbol: SymbolHandle,

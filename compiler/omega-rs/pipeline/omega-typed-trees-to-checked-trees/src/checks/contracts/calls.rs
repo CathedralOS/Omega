@@ -3,6 +3,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_facts::{FactPayload, FactPlace, PlaceRoot, PlaceSegment};
 use omega_typed_trees::expression::ExpressionNode;
+use omega_typed_trees::statement::StatementNode;
 
 use super::places::expression_is_boolean_place_like;
 use super::prover::{
@@ -86,6 +87,7 @@ pub(super) fn check_call_requires(
             // domain without a validating boundary call -- this is how a literal
             // flows into a `&[u8] in Utf8` target.
             let satisfied = satisfied
+                || transition_guard_proves_requires(program, facts, state_flow, call_flow, fact)
                 || string_literal_grants_domain(program, &facts.semantic, fact.payload, fact.place)
                 || value_call_return_domain_grants(
                     program,
@@ -473,7 +475,78 @@ fn incoming_guard_proves_requires(
         .all(|field| caller_state_preserves_field(program, state, field))
 }
 
-fn guard_conjunct_matches(
+/// A named transition is itself an incoming edge. Its taken-arm guard may
+/// establish the target state's arrival requirement after positional
+/// substitution (`value > 0` becomes `self.value > 0`). Ordinary call entry
+/// contexts are statement-entry facts and therefore deliberately do not assume
+/// that guard; discharge it explicitly for the transition target only.
+fn transition_guard_proves_requires(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+    fact: &omega_facts::Fact,
+) -> bool {
+    let Some(call_site) = crate::find_call_site(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+        call_flow.statement_index,
+        call_flow.call_ordinal,
+    ) else {
+        return false;
+    };
+    if !matches!(call_site, crate::CallSite::TransitionNamed(_)) {
+        return false;
+    }
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == state_flow.machine_symbol)
+    else {
+        return false;
+    };
+    let Some(caller_state) = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == state_flow.state_symbol)
+    else {
+        return false;
+    };
+    let Some(StatementNode::Transition(transition)) = program
+        .statement_table
+        .statements(caller_state.statement_nodes)
+        .get(call_flow.statement_index)
+    else {
+        return false;
+    };
+    let omega_typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard else {
+        return false;
+    };
+    let Some(target_parameters) = crate::call_target_parameters(program, call_flow.target_symbol)
+    else {
+        return false;
+    };
+    let required_label = match fact.payload {
+        FactPayload::ContractBooleanExpression { expression, .. } => {
+            super::labels::instantiate_call_contract_expression_label(
+                program,
+                state_flow.state_symbol,
+                call_flow.statement_index,
+                &call_site,
+                target_parameters,
+                expression,
+            )
+        }
+        FactPayload::ContractDomainMembership { .. } => {
+            semantic_fact_requirement_label(program, &facts.semantic, fact)
+        }
+        _ => return false,
+    };
+    guard_conjunct_matches(program, guard, &required_label)
+}
+
+pub(super) fn guard_conjunct_matches(
     program: &omega_typed_trees::TypedTrees,
     guard: omega_typed_trees::expression::ExpressionHandle,
     required_label: &str,

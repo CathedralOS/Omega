@@ -109,6 +109,10 @@ pub enum FactOrigin {
     MachineContract {
         machine_symbol: SymbolHandle,
     },
+    StateContract {
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+    },
     /// A declared encoding-domain refinement on a machine-attached-data field
     /// (`out: &[u8] in Utf8`), surfaced as an always-holding entry fact for the
     /// machine (#66 read-narrowing). NOT a contract: it imposes no caller

@@ -25,6 +25,7 @@ pub(crate) fn lower_state_node(
         &state.name,
         state.parameters,
         state.return_type,
+        state.contracts,
         state.statements,
     )
 }
@@ -35,6 +36,7 @@ fn lower_state_parts(
     name: &syntax::identifier::Identifier,
     parameters: HandleSpan<syntax::item::StateParameterHandle>,
     return_type_handle: syntax::types::TypeReferenceHandle,
+    contracts: HandleSpan<syntax::item::CapabilityContract>,
     statements: omega_core::arena::HandleSpan<syntax::statement::StatementHandle>,
 ) -> Result<State, Diagnostic> {
     let parameters = lower_state_parameters(lowerer, syntax_trees, parameters)?;
@@ -77,6 +79,7 @@ fn lower_state_parts(
         })
         .collect();
     lowerer.current_state_return_type = return_type.clone();
+    let contracts = lower_signature_contracts(lowerer, syntax_trees, contracts)?;
     let statements = lower_state_statements(lowerer, syntax_trees, statements)?;
     lowerer.reference_struct_parameters = Vec::new();
     lowerer.current_state_parameter_names = Vec::new();
@@ -89,6 +92,7 @@ fn lower_state_parts(
         storage: StateStorage {
             parameters,
             return_type,
+            contracts,
             statements,
             statement_nodes: Default::default(),
         },
@@ -430,6 +434,7 @@ pub(crate) fn build_synthesized_arm_state(
         storage: StateStorage {
             parameters,
             return_type: Some(arm.return_type),
+            contracts: HandleSpan::empty(),
             statements,
             statement_nodes: Default::default(),
         },

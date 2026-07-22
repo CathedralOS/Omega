@@ -55,6 +55,7 @@ fn collects_mutable_attached_data_argument_access_roots() {
         name: Identifier::generated("main"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+        contracts: Default::default(),
         statement_nodes: Default::default(),
     };
     program.statement_table.push_statement(
@@ -78,6 +79,7 @@ fn collects_mutable_attached_data_argument_access_roots() {
             name: Identifier::generated("heal"),
             parameters: Default::default(),
             return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+            contracts: Default::default(),
             statement_nodes: Default::default(),
         },
     );
@@ -177,6 +179,7 @@ fn collects_disjoint_member_access_segments() {
         name: Identifier::generated("main"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+        contracts: Default::default(),
         statement_nodes: Default::default(),
     };
     program.statement_table.push_statement(
@@ -200,6 +203,7 @@ fn collects_disjoint_member_access_segments() {
             name: Identifier::generated("heal"),
             parameters: Default::default(),
             return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+            contracts: Default::default(),
             statement_nodes: Default::default(),
         },
     );
@@ -340,6 +344,7 @@ fn collects_unresolved_local_argument_access_roots() {
         name: Identifier::generated("main"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+        contracts: Default::default(),
         statement_nodes: Default::default(),
     };
     program.statement_table.push_statement(
@@ -373,6 +378,7 @@ fn collects_unresolved_local_argument_access_roots() {
             name: Identifier::generated("heal"),
             parameters: Default::default(),
             return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+            contracts: Default::default(),
             statement_nodes: Default::default(),
         },
     );

@@ -309,6 +309,7 @@ pub struct StateSnapshot {
     pub name: String,
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: Option<TypeReferenceSnapshot>,
+    pub contracts: Vec<SignatureContractSnapshot>,
     pub statements: Vec<StatementSnapshot>,
     pub table_statement_count: usize,
 }
@@ -730,6 +731,11 @@ fn state_snapshot(program: &SymbolResolvedTrees, state: &State) -> StateSnapshot
             .return_type
             .as_ref()
             .map(|type_reference| type_reference_snapshot(program, type_reference)),
+        contracts: program
+            .signature_contracts(state.contracts)
+            .iter()
+            .map(|contract| signature_contract_snapshot(program, contract))
+            .collect(),
         statements: program
             .state_statements(state.statements)
             .iter()

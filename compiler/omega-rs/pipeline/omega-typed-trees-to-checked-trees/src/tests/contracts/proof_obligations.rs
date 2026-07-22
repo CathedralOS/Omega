@@ -1382,6 +1382,151 @@ fn invalidates_instantiated_boundary_operator_boolean_ensures_when_either_operan
 }
 
 #[test]
+fn accepts_guarded_transition_that_establishes_state_arrival_requires() {
+    let source = r#"
+        data Main {
+            value: i32;
+        }
+
+        machine Main::accept(value: i32)
+        requires
+            value > 0
+        {
+        }
+
+        machine Main::main(&mut self) {
+            transition self.value > 0 {
+                true -> positive(self.value)
+                false -> done()
+            }
+
+            state positive(&mut self, value: i32)
+            requires
+                value > 0
+            {
+                self.accept(value);
+            }
+
+            state done(&mut self) {
+            }
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "the taken guard should establish the target state's arrival contract, which is then assumed inside the state",
+    );
+}
+
+#[test]
+fn rejects_transition_that_does_not_establish_state_arrival_requires() {
+    let source = r#"
+        data Main {
+            value: i32;
+        }
+
+        machine Main::main(&mut self) {
+            transition {
+                _ -> positive(self.value)
+            }
+
+            state positive(&mut self, value: i32)
+            requires
+                value > 0
+            {
+            }
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("an unconditional edge must prove the target state's arrival contract");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove requires contract for call positive from Main::main")
+            && diagnostic.message.contains("value > 0")
+    }));
+}
+
+#[test]
+fn state_arrival_requires_are_scoped_to_the_declaring_state() {
+    let source = r#"
+        data Main {
+            value: i32;
+        }
+
+        machine Main::accept(value: i32)
+        requires
+            value > 0
+        {
+        }
+
+        machine Main::main(&mut self) {
+            transition self.value > 0 {
+                true -> positive(self.value)
+                false -> unchecked(self.value)
+            }
+
+            state positive(&mut self, value: i32)
+            requires
+                value > 0
+            {
+            }
+
+            state unchecked(&mut self, value: i32) {
+                self.accept(value);
+            }
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("one state's arrival fact must not leak into a sibling state");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove requires contract for call accept from Main::main")
+            && diagnostic.message.contains("value > 0")
+    }));
+}
+
+#[test]
+fn rejects_self_transition_after_state_arrival_fact_is_invalidated() {
+    let source = r#"
+        data Main {
+            value: i32;
+        }
+
+        machine Main::main(&mut self) {
+            transition self.value > 0 {
+                true -> positive()
+                false -> done()
+            }
+
+            state positive(&mut self)
+            requires
+                self.value > 0
+            {
+                self.value = 0;
+                transition {
+                    _ -> self
+                }
+            }
+
+            state done(&mut self) {
+            }
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("a self back-edge must re-establish an invalidated arrival invariant");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove state arrival contract on self-transition")
+            && diagnostic.message.contains("self.value > 0")
+    }));
+}
+
+#[test]
 fn exit_ensures_requirement_label_resolves_attached_data_members() {
     let source = r#"
         data Player {

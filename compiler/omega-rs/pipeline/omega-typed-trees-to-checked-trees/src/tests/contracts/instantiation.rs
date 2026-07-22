@@ -60,6 +60,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
         name: Identifier::generated("main"),
         parameters: HandleSpan::empty(),
         return_type: Default::default(),
+        contracts: Default::default(),
         statement_nodes: HandleSpan::from_parts(caller_statement, 1),
     };
     program.push_state_parameter(
@@ -103,6 +104,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
         name: Identifier::generated("run"),
         parameters: HandleSpan::empty(),
         return_type: Default::default(),
+        contracts: Default::default(),
         statement_nodes: HandleSpan::empty(),
     };
     program.push_state_parameter(
@@ -245,6 +247,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
         name: Identifier::generated("main"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+        contracts: Default::default(),
         statement_nodes: Default::default(),
     };
     program.statement_table.push_statement(
@@ -289,6 +292,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
         name: Identifier::generated("heal"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+        contracts: Default::default(),
         statement_nodes: Default::default(),
     };
     program.push_state_parameter(
@@ -424,6 +428,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
         name: Identifier::generated("main"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+        contracts: Default::default(),
         statement_nodes: Default::default(),
     };
     program.statement_table.push_statement(
@@ -459,6 +464,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
         name: Identifier::generated("heal"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+        contracts: Default::default(),
         statement_nodes: Default::default(),
     };
     program.push_state_parameter(

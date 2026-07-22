@@ -257,6 +257,7 @@ fn indexes_call_contract_facts_by_target_machine() {
             name: Identifier::generated("run"),
             parameters: Default::default(),
             return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+            contracts: Default::default(),
             statement_nodes: Default::default(),
         },
     );
@@ -288,6 +289,7 @@ fn indexes_call_contract_facts_by_target_machine() {
         name: Identifier::generated("main"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+        contracts: Default::default(),
         statement_nodes: Default::default(),
     };
     let mut receiver = HandleSpan::empty();
@@ -419,6 +421,7 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
             name: Identifier::generated("draw"),
             parameters: Default::default(),
             return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+            contracts: Default::default(),
             statement_nodes: Default::default(),
         },
     );
@@ -450,6 +453,7 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         name: Identifier::generated("main"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+        contracts: Default::default(),
         statement_nodes: Default::default(),
     };
     let mut receiver = HandleSpan::empty();
@@ -555,6 +559,7 @@ fn indexes_terminal_state_contract_ensures() {
         name: Identifier::generated("main"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+        contracts: Default::default(),
         statement_nodes: Default::default(),
     };
     program.statement_table.push_statement(

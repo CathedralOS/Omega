@@ -23,6 +23,7 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
         name: Identifier::generated("run"),
         parameters: Default::default(),
         return_type: Default::default(),
+        contracts: Default::default(),
         statement_nodes: Default::default(),
     };
     let mut callee_machine = Machine {
@@ -75,6 +76,7 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
         name: Identifier::generated("main"),
         parameters: Default::default(),
         return_type: Default::default(),
+        contracts: Default::default(),
         statement_nodes: HandleSpan::from_parts(caller_statement, 1),
     };
     let mut caller_machine = Machine {
@@ -284,6 +286,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
             name: Identifier::generated("write_line"),
             parameters: Default::default(),
             return_type: Default::default(),
+            contracts: Default::default(),
             statement_nodes: Default::default(),
         },
     );
@@ -329,6 +332,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
             name: Identifier::generated("main"),
             parameters: Default::default(),
             return_type: Default::default(),
+            contracts: Default::default(),
             statement_nodes: HandleSpan::from_parts(call_statement, 1),
         },
     );

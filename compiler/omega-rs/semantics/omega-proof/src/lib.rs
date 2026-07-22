@@ -201,6 +201,12 @@ fn collect_state_node(
     machine: &Machine,
     state: &omega_syntax_trees::item::StateNode,
 ) {
+    collect_contracts(
+        report,
+        syntax_trees,
+        state.contracts,
+        &format!("machine `{}` state `{}`", machine.name, state.name),
+    );
     collect_signature_parts(
         report,
         syntax_trees,

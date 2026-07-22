@@ -118,7 +118,8 @@ fn build_contract_plans(
             .collect();
         for state in program.machine_states(machine) {
             let mut encoded = vec![0xa0];
-            for parameter in program.state_parameters(state) {
+            let state_parameters = program.state_parameters(state);
+            for parameter in state_parameters {
                 encoded.push(u8::from(parameter.is_self));
                 encoded.push(u8::from(parameter.is_mutable));
                 encoded.push(u8::from(parameter.is_const));
@@ -134,6 +135,52 @@ fn build_contract_plans(
                 &generic_binders,
                 &mut encoded,
             );
+            let parameter_names = state_parameters
+                .iter()
+                .map(|parameter| parameter.name.as_str().to_owned())
+                .collect::<Vec<_>>();
+            let mut state_contracts = Vec::new();
+            for contract in program.state_contracts(state) {
+                for fact in program.proof_facts.span_or_empty(contract.facts) {
+                    let mut contract_bytes = vec![0xae];
+                    contract_bytes.push(match contract.kind {
+                        omega_typed_trees::signature::SignatureContractKind::Requires => 1,
+                        omega_typed_trees::signature::SignatureContractKind::Ensures => 2,
+                        omega_typed_trees::signature::SignatureContractKind::Boundary => 3,
+                    });
+                    match fact {
+                        omega_typed_trees::domain::ProofFact::Expression(expression) => {
+                            contract_bytes.push(1);
+                            encode_expression_canonical(
+                                program,
+                                *expression,
+                                &parameter_names,
+                                &mut contract_bytes,
+                            );
+                        }
+                        omega_typed_trees::domain::ProofFact::Membership(membership) => {
+                            contract_bytes.push(2);
+                            encode_expression_canonical(
+                                program,
+                                membership.value,
+                                &parameter_names,
+                                &mut contract_bytes,
+                            );
+                            contract_bytes.push(0);
+                            for member in program.domain_path_members(membership.domain) {
+                                contract_bytes.extend(member.as_str().as_bytes());
+                                contract_bytes.push(b':');
+                            }
+                        }
+                    }
+                    state_contracts.push(contract_bytes);
+                }
+            }
+            state_contracts.sort();
+            for contract in state_contracts {
+                encoded.extend(contract);
+                encoded.push(0xad);
+            }
             canonical_facts.push(encoded);
         }
         // Positional parameter normalization: a contract fact naming the
