@@ -265,7 +265,11 @@ schemas recover the same instance without publishing policy type identity.
    authored value calls now participate in call-argument sequencing, execute
    their callee body before the host operation, and marshal from the resulting
    scalar slot; `exit_process(self.dbl(35))` is pinned natively and in the
-   interpreter as exit 70.
+   interpreter as exit 70. Machine statement calls now use the same evaluation
+   order across dispatched body segments: nested call arguments execute in the
+   pre-call segment, and authored call identity survives inline arm resolution
+   so the outer parameter materializer reads the completed result slot. A
+   string descriptor passed through a struct-field slice alias pins this path.
    Compatibility syscall rows are differentially checked against normalized
    number-register and supervisor-call facts on both Linux architectures; the
    complete import/vtable/service-table compatibility mechanism matrix is

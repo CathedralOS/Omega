@@ -173,6 +173,24 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             copied_aliases.bindings(),
             &mut resolved_argument_expressions,
         );
+        // Keep the authored call identity before alias resolution substitutes
+        // an inline callee terminal (for example, a string literal arm) into
+        // the argument expression. The substituted value is useful for static
+        // materialization, but the call identity is what pairs this parameter
+        // with its CallArgument result slot and enforces nested-call sequencing.
+        let argument_call = match resolved_argument_expressions
+            .expression(resolved_argument.expression)
+            .clone()
+        {
+            ExpressionNode::Call(call) => Some(call),
+            _ => match resolved_argument_expressions
+                .expression(copied_argument)
+                .clone()
+            {
+                ExpressionNode::Call(call) => Some(call),
+                _ => None,
+            },
+        };
         let argument_source_key = resolved_argument.source_key;
         let argument = resolve_prior_local_initializers_in_table(
             input,
@@ -262,7 +280,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
         // in one transition both read call 1's result. A rank whose record
         // does not name this argument's callee (a builtin `.unwrap()` between
         // machine calls) falls through to the pre-existing chain unchanged.
-        let ranked_place = if let ExpressionNode::Call(call) = expressions.expression(argument) {
+        let ranked_place = if let Some(call) = argument_call.as_ref() {
             resolve_runtime_transition_argument_call_result_place_by_rank(
                 input,
                 source_dispatch_index,
@@ -287,9 +305,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
         if ranked_place.is_some() {
             transition_call_argument_rank += 1;
         }
-        if std::env::var_os("OMEGA_DEBUG_CALL_RESULT").is_some()
-            && matches!(expressions.expression(argument), ExpressionNode::Call(_))
-        {
+        if std::env::var_os("OMEGA_DEBUG_CALL_RESULT").is_some() && argument_call.is_some() {
             eprintln!(
                 "call-result READ: src m{} s{} stmt {} dispatch {} ranked {:?}",
                 argument_source_key.machine.arena_index(),
@@ -303,7 +319,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
                 )),
             );
         }
-        if matches!(expressions.expression(argument), ExpressionNode::Call(_))
+        if let Some(call) = argument_call.as_ref()
             && let Some(place) = ranked_place
                 .or_else(|| {
                     resolve_runtime_transition_argument_call_result_place(
@@ -325,18 +341,16 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             if place.byte_count != slot.byte_size {
                 continue;
             }
-            if let ExpressionNode::Call(call) = expressions.expression(argument) {
-                materialize_static_inline_branching_call_argument_result(
-                    input,
-                    source_key,
-                    source_dispatch_index,
-                    statement_index,
-                    call,
-                    &static_values,
-                    runtime_value_operands,
-                    selected_instructions,
-                );
-            }
+            materialize_static_inline_branching_call_argument_result(
+                input,
+                source_key,
+                source_dispatch_index,
+                statement_index,
+                call,
+                &static_values,
+                runtime_value_operands,
+                selected_instructions,
+            );
             selected_instructions.push(SelectedInstruction {
                 kind: crate::selection::runtime_dispatch::copy_places_direct(
                     place.region,

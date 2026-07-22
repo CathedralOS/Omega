@@ -102,6 +102,20 @@ pub(crate) fn collect_machine_state_calls(
                     Vec::new()
                 };
                 if !dyn_candidates.is_empty() {
+                    // Evaluate authored calls nested in the receiver/arguments
+                    // before entering the outer statement call. Host calls
+                    // already use this order above; machine statement calls
+                    // require the same postorder so their parameter
+                    // materialization reads completed CallArgument results.
+                    collect_expression_state_calls_for_operation(
+                        context,
+                        machine,
+                        state.key,
+                        operation.statement_index,
+                        &mut call_ordinal,
+                        operation.expressions,
+                        &mut calls,
+                    );
                     for candidate in dyn_candidates {
                         calls.push(CollectedStateCall {
                             source_key: state.key,
@@ -122,22 +136,18 @@ pub(crate) fn collect_machine_state_calls(
                         });
                         call_ordinal += 1;
                     }
-                    if !context
-                        .state_statement_has_host_call_by_key(state.key, operation.statement_index)
-                    {
-                        collect_expression_state_calls_for_operation(
-                            context,
-                            machine,
-                            state.key,
-                            operation.statement_index,
-                            &mut call_ordinal,
-                            operation.expressions,
-                            &mut calls,
-                        );
-                    }
                     continue;
                 }
 
+                collect_expression_state_calls_for_operation(
+                    context,
+                    machine,
+                    state.key,
+                    operation.statement_index,
+                    &mut call_ordinal,
+                    operation.expressions,
+                    &mut calls,
+                );
                 calls.push(CollectedStateCall {
                     source_key: state.key,
                     statement_index: operation.statement_index,
@@ -160,7 +170,7 @@ pub(crate) fn collect_machine_state_calls(
                         .map(|target| target.resolution)
                         .unwrap_or(StateCallResolution::Unresolved),
                 });
-                call_ordinal += 1;
+                continue;
             }
 
             if !context.state_statement_has_host_call_by_key(state.key, operation.statement_index) {
