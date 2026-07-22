@@ -475,12 +475,17 @@ schemas recover the same instance without publishing policy type identity.
    `boundary_contract_fingerprint` binds every fragment to the exact canonical
    validated plan under which it was checked; retention rejects cross-contract
    composition, while the implementation evidence remains outside requirement
-   identity. The artifact's
+   identity. Fixed ordinary `CallReturn` mechanics now contribute a separate
+   `call_return_mechanics` fragment: x86-64 records `ret`'s RSP, stack, and
+   control writes, while AArch64 records the fixed frame prologue plus x19-x30,
+   SP, and control restoration. Provenance-aware validation admits those
+   prescribed stack/control effects without widening the handler body's
+   transitive-state ceiling. The artifact's
    `enumeration_complete: false` firewall prevents this partial slice from being
-   mistaken for the final certificate. Whole-body evidence, save/restore
-   specialization, return/restore sequences, and post-layout enumeration across
-   handler code, veneers, thunks, and admitted leaves remain; final placement
-   must still prove that enumeration is complete.
+   mistaken for the final certificate. Whole-body evidence, StatePlan-driven
+   nonordinary save/restore and return specialization, and post-layout
+   enumeration across handler code, veneers, thunks, and admitted leaves
+   remain; final placement must still prove that enumeration is complete.
 4. **IDT1 — symbolic materialization (normalized foundation complete).**
    `LayoutPlan` now uses compiler-issued field keys normalized back to names;
    repeated `Bits` entries validate exact logical-source tiling plus

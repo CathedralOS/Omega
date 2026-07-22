@@ -630,6 +630,45 @@ pub fn validate_state_footprint(
     validated: &ValidatedBoundaryEntryPlan,
     evidence: &StateFootprintEvidence,
 ) -> Result<(), PlanDiagnostic> {
+    validate_state_footprint_under_ceiling(
+        validated,
+        evidence,
+        validated.plan().state.permitted_transitive_use,
+    )
+}
+
+/// Validate compiler-owned ordinary call-entry/return mechanics. Their
+/// stack-pointer and control-transfer effects are prescribed by `CallReturn`;
+/// they are not handler-body transitive use and therefore sit outside that
+/// ceiling. All other machine state remains constrained by the ordinary
+/// transitive ceiling, and interrupted state still has to be saved.
+pub fn validate_call_return_mechanics_footprint(
+    validated: &ValidatedBoundaryEntryPlan,
+    evidence: &StateFootprintEvidence,
+) -> Result<(), PlanDiagnostic> {
+    if validated.plan().call.entry_control != EntryControl::CallReturn {
+        return Err(PlanDiagnostic(
+            "ordinary call-return footprint evidence requires CallReturn entry control".into(),
+        ));
+    }
+    let prescribed_control =
+        MachineStateSet::new([MachineState::InstructionPointer, MachineState::StackPointer]);
+    validate_state_footprint_under_ceiling(
+        validated,
+        evidence,
+        validated
+            .plan()
+            .state
+            .permitted_transitive_use
+            .union(prescribed_control),
+    )
+}
+
+fn validate_state_footprint_under_ceiling(
+    validated: &ValidatedBoundaryEntryPlan,
+    evidence: &StateFootprintEvidence,
+    permitted_state: MachineStateSet,
+) -> Result<(), PlanDiagnostic> {
     let plan = validated.plan();
     for register in evidence.registers().as_slice() {
         if register.architecture() != plan.call.policy.architecture() {
@@ -638,11 +677,7 @@ pub fn validate_state_footprint(
             )));
         }
     }
-    if !plan
-        .state
-        .permitted_transitive_use
-        .contains_all(evidence.machine_state())
-    {
+    if !permitted_state.contains_all(evidence.machine_state()) {
         return Err(PlanDiagnostic(
             "emitted machine-state footprint exceeds the entry plan ceiling".into(),
         ));

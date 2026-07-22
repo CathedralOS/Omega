@@ -1019,6 +1019,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
     assert!(
         boundary_footprints.contains("\"boundary_contract_fingerprint\": \"0x")
             && !boundary_footprints.contains("\"boundary_contract_fingerprint\": null")
+            && boundary_footprints.contains("\"origin\": \"call_return_mechanics\"")
             && boundary_footprints.contains("\"enumeration_complete\": false")
             && boundary_footprints.contains("\"composed\"")
             && boundary_footprints.contains("\"fragments\""),
@@ -33468,6 +33469,7 @@ fn aarch64_large_result_entry_saves_x8_and_copies_through_it() {
         .expect("AAPCS64 indirect-result footprint evidence should be written");
     assert!(
         footprint_artifact.contains("\"boundary_contract_fingerprint\": \"0x")
+            && footprint_artifact.contains("\"origin\": \"call_return_mechanics\"")
             && footprint_artifact.contains("\"origin\": \"exit_indirect_result_copy\"")
             && footprint_artifact.contains("\"enumeration_complete\": false"),
         "AAPCS64 hidden-result copy must bind evidence to its contract without claiming final completeness"
@@ -33733,6 +33735,7 @@ fn sysv_large_result_entry_saves_and_uses_the_hidden_pointer() {
         .expect("SysV indirect-result footprint evidence should be written");
     assert!(
         footprint_artifact.contains("\"boundary_contract_fingerprint\": \"0x")
+            && footprint_artifact.contains("\"origin\": \"call_return_mechanics\"")
             && footprint_artifact.contains("\"origin\": \"exit_indirect_result_copy\"")
             && footprint_artifact.contains("\"enumeration_complete\": false"),
         "SysV hidden-result copy must bind evidence to its contract without claiming final completeness"

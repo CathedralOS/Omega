@@ -1,6 +1,6 @@
 use omega_calling_conventions::{
     PlanDiagnostic, StateFootprintEvidence, ValidatedBoundaryEntryPlan, compose_state_footprints,
-    validate_state_footprint,
+    validate_call_return_mechanics_footprint, validate_state_footprint,
 };
 
 /// Provenance of one independently derived boundary-code footprint fragment.
@@ -12,6 +12,7 @@ pub enum BoundaryFootprintFragmentOrigin {
     EntrySliceDescriptor,
     ExitResultRegisters,
     ExitIndirectResultCopy,
+    CallReturnMechanics,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,7 +43,12 @@ impl BoundaryFootprintPlan {
         boundary: &ValidatedBoundaryEntryPlan,
         fragment: BoundaryFootprintFragment,
     ) -> Result<(), PlanDiagnostic> {
-        validate_state_footprint(boundary, &fragment.evidence)?;
+        match fragment.origin {
+            BoundaryFootprintFragmentOrigin::CallReturnMechanics => {
+                validate_call_return_mechanics_footprint(boundary, &fragment.evidence)?
+            }
+            _ => validate_state_footprint(boundary, &fragment.evidence)?,
+        }
         let fingerprint = boundary.contract_fingerprint();
         match self.boundary_contract_fingerprint {
             Some(retained) if retained != fingerprint => {
@@ -137,5 +143,52 @@ mod tests {
             plan.boundary_contract_fingerprint,
             Some(first.contract_fingerprint())
         );
+    }
+
+    #[test]
+    fn prescribed_control_state_is_authorized_only_for_call_return_mechanics() {
+        use omega_calling_conventions::{
+            CallSignature, CallingPolicy, evaluate_ordinary_boundary_entry_plan,
+        };
+
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("ordinary boundary");
+        let control_evidence = || {
+            StateFootprintEvidence::new(
+                RegisterSet::new([MachineRegister::X86Rsp]),
+                MachineStateSet::new([
+                    MachineState::InstructionPointer,
+                    MachineState::StackPointer,
+                ]),
+            )
+        };
+
+        let mut transitive = BoundaryFootprintPlan::default();
+        transitive
+            .retain_validated_fragment(
+                &boundary,
+                BoundaryFootprintFragment {
+                    origin: BoundaryFootprintFragmentOrigin::EntryStorage,
+                    evidence: control_evidence(),
+                },
+            )
+            .expect_err("body-like evidence must not acquire prescribed control authority");
+
+        let mut mechanics = BoundaryFootprintPlan::default();
+        mechanics
+            .retain_validated_fragment(
+                &boundary,
+                BoundaryFootprintFragment {
+                    origin: BoundaryFootprintFragmentOrigin::CallReturnMechanics,
+                    evidence: control_evidence(),
+                },
+            )
+            .expect("call-return mechanics may use their prescribed control state");
     }
 }

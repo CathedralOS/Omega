@@ -1,7 +1,8 @@
 use crate::Aarch64CallOperand;
 use crate::Aarch64CallOperand::*;
 use omega_calling_conventions::{
-    IndirectPointerLocation, MachineRegister, RegisterSet, ValueLocation, ValuePlacement,
+    IndirectPointerLocation, MachineRegister, MachineState, MachineStateSet, RegisterSet,
+    ValueLocation, ValuePlacement,
 };
 use omega_core::diagnostics::Diagnostic;
 
@@ -1333,6 +1334,17 @@ pub fn encode_function_enter_bytes() -> [u8; 28] {
     bytes
 }
 
+/// Exact register/state writes of the fixed ordinary AArch64 prologue. It
+/// allocates the frame, saves x19-x30, and establishes x29 as its frame base;
+/// the stores read the saved registers but only x29 and SP are overwritten.
+pub fn function_enter_register_writes() -> RegisterSet {
+    RegisterSet::new([MachineRegister::Aarch64X(29)])
+}
+
+pub fn function_enter_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::StackPointer])
+}
+
 pub fn encode_return_bytes() -> [u8; 28] {
     let mut bytes = [0; 28];
     bytes[0..4].copy_from_slice(&encode_instruction(0xA94153F3));
@@ -1343,6 +1355,16 @@ pub fn encode_return_bytes() -> [u8; 28] {
     bytes[20..24].copy_from_slice(&encode_instruction(0xA8C67BFD));
     bytes[24..28].copy_from_slice(&encode_instruction(0xD65F03C0));
     bytes
+}
+
+/// Exact registers restored (therefore written) by the fixed AArch64 epilogue.
+/// Its final `ret x30` and post-indexed frame restore also write control and SP.
+pub fn return_register_writes() -> RegisterSet {
+    RegisterSet::new((19..=30).map(MachineRegister::Aarch64X))
+}
+
+pub fn return_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::InstructionPointer, MachineState::StackPointer])
 }
 
 /// The AArch64 idle instruction `wfi` (wait for interrupt, 0xD503207F) -- the
