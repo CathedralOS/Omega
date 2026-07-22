@@ -504,13 +504,15 @@ pub fn evaluate_call_plan(
 /// Concrete state policy for ordinary call/return entries, including hosted
 /// process roots and firmware handoffs. No interrupted activation exists, so
 /// the entry stub owes no save/restore; its transitive state ceiling is exactly
-/// the machine-state classes touched by the ABI's ordinary volatile registers.
+/// the machine-state classes touched by the ABI's ordinary volatile registers
+/// plus its caller-volatile condition flags.
 pub fn evaluate_ordinary_boundary_entry_plan(
     policy: CallingPolicy,
     signature: &CallSignature,
 ) -> Result<ValidatedBoundaryEntryPlan, PlanDiagnostic> {
     let call = evaluate_call_plan(policy, signature)?;
-    let permitted_transitive_use = machine_state_for_registers(&call.ordinary_clobbers);
+    let permitted_transitive_use = machine_state_for_registers(&call.ordinary_clobbers)
+        .union(MachineStateSet::new([MachineState::Flags]));
     let initial_regime = match policy.architecture() {
         Architecture::X86_64 => MachineRegime::X86Long64,
         Architecture::Aarch64 => MachineRegime::Aarch64A64 { exception_level: 0 },
@@ -2360,6 +2362,19 @@ mod tests {
                 .permitted_transitive_use
                 .contains_all(MachineStateSet::new([MachineState::VectorRegisters]))
         );
+        assert!(
+            plan.state
+                .permitted_transitive_use
+                .contains_all(MachineStateSet::new([MachineState::Flags]))
+        );
+        validate_state_footprint(
+            &validated,
+            &StateFootprintEvidence::new(
+                RegisterSet::default(),
+                MachineStateSet::new([MachineState::Flags]),
+            ),
+        )
+        .expect("ordinary caller-volatile condition flags fit the state ceiling");
     }
 
     #[test]

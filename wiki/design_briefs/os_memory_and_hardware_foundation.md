@@ -357,9 +357,14 @@ not change caller contract identity.
 State ceilings constrain instruction selection and register allocation before
 code is emitted. Codegen may clone a machine under a different state ceiling;
 this is contextual specialization, not generic type monomorphization, although
-the backend may share cloning and cache infrastructure. The final realized
-artifact is validated after inlining, relaxation, veneers/thunks, generated
-stubs, and admitted indirect leaves:
+the backend may share cloning and cache infrastructure. Ordinary call-return
+boundaries derive their transitive ceiling from ABI
+volatile register banks plus caller-volatile condition flags. Flag-producing
+comparisons and dispatch branches are therefore representable without granting
+that state to an interrupt boundary which did not save it.
+
+The final realized artifact is validated after inlining, relaxation,
+veneers/thunks, generated stubs, and admitted indirect leaves:
 
 ```text
 actual_transitive_footprint subset_of StatePlan.permitted_state
