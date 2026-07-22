@@ -54,11 +54,18 @@ struct Edge {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-enum StrictUpper {
+enum UpperTerm {
     /// `counter < self.collection.len`.
     CollectionLength(String),
     /// `counter < self.bound`.
     Place(String),
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct RelationalUpper {
+    term: UpperTerm,
+    /// `true` for `<` / `>`, `false` for `<=` / `>=`.
+    strict: bool,
 }
 
 /// One write a state performs to the counter field, classified for G1.
@@ -259,15 +266,17 @@ pub(super) fn collect_loop_invariant_facts(
                 });
             }
 
-            // Second relational class: every incoming edge establishes
-            // `counter < self.limit`, while the machine arrival contract
-            // establishes `self.limit < self.collection.len`. The two strict
-            // relations compose to `counter < collection.len` at the head.
+            // Second relational class: every incoming edge establishes an
+            // upper relation to `self.limit`, while the machine arrival
+            // contract establishes an upper relation from the limit to
+            // `self.collection.len`. At least one link must be strict:
+            // `i < limit <= len` and `i <= limit < len` both prove `i < len`,
+            // while `i <= limit <= len` deliberately does not.
             // Both contract-owned places must be frame-stable throughout the
             // whole machine (including preheaders); otherwise the arrival
             // contract could describe old values before the first loop edge.
             if matches!(direction, Direction::Increasing)
-                && let Some(bound) = loop_head_upper_place(
+                && let Some((bound, edge_strict)) = loop_head_upper_place(
                     program,
                     states,
                     &edges,
@@ -275,15 +284,22 @@ pub(super) fn collect_loop_invariant_facts(
                     head.symbol,
                     counter,
                 )
-                && let Some(collection) = machine_strict_bound_collection(program, machine, &bound)
                 && machine_preserves_path(program, machine, &call_frames, &bound)
-                && machine_preserves_path(program, machine, &call_frames, &collection)
             {
-                invariants.push(LoopInvariant {
-                    state: head.symbol,
-                    index_name: index_name.clone(),
-                    kind: InvariantKind::IndexWithin(collection),
-                });
+                for (collection, bridge_strict) in
+                    machine_bound_collection_relations(program, machine, &bound)
+                {
+                    if (edge_strict || bridge_strict)
+                        && machine_preserves_path(program, machine, &call_frames, &collection)
+                    {
+                        invariants.push(LoopInvariant {
+                            state: head.symbol,
+                            index_name: index_name.clone(),
+                            kind: InvariantKind::IndexWithin(collection),
+                        });
+                        break;
+                    }
+                }
             }
         }
     }
@@ -510,9 +526,12 @@ fn loop_head_index_collection(
     head: SymbolHandle,
     counter: SymbolHandle,
 ) -> Option<String> {
-    match loop_head_strict_upper(program, states, edges, loop_states, head, counter)? {
-        StrictUpper::CollectionLength(collection) => Some(collection),
-        StrictUpper::Place(_) => None,
+    match loop_head_relational_upper(program, states, edges, loop_states, head, counter)? {
+        RelationalUpper {
+            term: UpperTerm::CollectionLength(collection),
+            strict: true,
+        } => Some(collection),
+        RelationalUpper { .. } => None,
     }
 }
 
@@ -525,32 +544,38 @@ fn loop_head_upper_place(
     loop_states: &[SymbolHandle],
     head: SymbolHandle,
     counter: SymbolHandle,
-) -> Option<String> {
-    match loop_head_strict_upper(program, states, edges, loop_states, head, counter)? {
-        StrictUpper::Place(bound) => Some(bound),
-        StrictUpper::CollectionLength(_) => None,
+) -> Option<(String, bool)> {
+    match loop_head_relational_upper(program, states, edges, loop_states, head, counter)? {
+        RelationalUpper {
+            term: UpperTerm::Place(bound),
+            strict,
+        } => Some((bound, strict)),
+        RelationalUpper {
+            term: UpperTerm::CollectionLength(_),
+            ..
+        } => None,
     }
 }
 
-fn loop_head_strict_upper(
+fn loop_head_relational_upper(
     program: &omega_typed_trees::TypedTrees,
     states: &[State],
     edges: &[Edge],
     loop_states: &[SymbolHandle],
     head: SymbolHandle,
     counter: SymbolHandle,
-) -> Option<StrictUpper> {
-    let mut upper: Option<StrictUpper> = None;
+) -> Option<RelationalUpper> {
+    let mut upper: Option<RelationalUpper> = None;
     let mut saw_entry = false;
     let mut saw_back_edge = false;
 
     for edge in edges.iter().filter(|edge| edge.target == head) {
         let source = find_state(states, edge.source)?;
-        let edge_upper = source_arm_to_head_strict_upper(program, source, head, counter)?;
-        match &upper {
-            Some(known) if known != &edge_upper => return None,
+        let edge_upper = source_arm_to_head_relational_upper(program, source, head, counter)?;
+        match &mut upper {
+            Some(known) if known.term != edge_upper.term => return None,
+            Some(known) => known.strict &= edge_upper.strict,
             None => upper = Some(edge_upper),
-            _ => {}
         }
         if loop_states.contains(&edge.source) {
             saw_back_edge = true;
@@ -566,16 +591,16 @@ fn loop_head_strict_upper(
     }
 }
 
-/// The strict upper term in the unique positive arm from `source` to `head`.
-/// Continuation/convergent/unguarded/ambiguous edges fail closed, just as for
-/// the constant upper-bound candidate.
-fn source_arm_to_head_strict_upper(
+/// The upper term and strictness in the unique positive arm from `source` to
+/// `head`. Continuation/convergent/unguarded/ambiguous edges fail closed, just
+/// as for the constant upper-bound candidate.
+fn source_arm_to_head_relational_upper(
     program: &omega_typed_trees::TypedTrees,
     source: &State,
     head: SymbolHandle,
     counter: SymbolHandle,
-) -> Option<StrictUpper> {
-    let mut found: Option<StrictUpper> = None;
+) -> Option<RelationalUpper> {
+    let mut found: Option<RelationalUpper> = None;
     for statement in program.statement_table.statements(source.statement_nodes) {
         let StatementNode::Transition(transition) = statement else {
             continue;
@@ -592,7 +617,7 @@ fn source_arm_to_head_strict_upper(
         let TransitionGuardNode::When(guard) = transition.guard else {
             return None;
         };
-        let edge_upper = parse_counter_strict_upper(program, guard, counter)?;
+        let edge_upper = parse_counter_relational_upper(program, guard, counter)?;
         if found.is_some() {
             return None;
         }
@@ -601,28 +626,38 @@ fn source_arm_to_head_strict_upper(
     found
 }
 
-/// Parse `counter < upper` (or `upper > counter`) where `upper` is either a
-/// stable `self.*` place or `self.collection.len`. The parser unwraps the
+/// Parse `counter <[=] upper` (or `upper >[=] counter`) where `upper` is either
+/// a stable `self.*` place or `self.collection.len`. The parser unwraps the
 /// transition arm's synthesized `subject == true` shell. Source-state locals
 /// and parameters deliberately do not carry across a state boundary.
-fn parse_counter_strict_upper(
+fn parse_counter_relational_upper(
     program: &omega_typed_trees::TypedTrees,
     guard: ExpressionHandle,
     counter: SymbolHandle,
-) -> Option<StrictUpper> {
+) -> Option<RelationalUpper> {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
         return None;
     };
     if binary.operator == BinaryOperator::Equal {
         let inner = boolean_equality_inner(program, binary.left, binary.right)?;
-        return parse_counter_strict_upper(program, inner, counter);
+        return parse_counter_relational_upper(program, inner, counter);
     }
-    let possible_length = match binary.operator {
+    let (possible_length, strict) = match binary.operator {
         BinaryOperator::Less if expression_is_counter_member(program, binary.left, counter) => {
-            binary.right
+            (binary.right, true)
+        }
+        BinaryOperator::LessOrEqual
+            if expression_is_counter_member(program, binary.left, counter) =>
+        {
+            (binary.right, false)
         }
         BinaryOperator::Greater if expression_is_counter_member(program, binary.right, counter) => {
-            binary.left
+            (binary.left, true)
+        }
+        BinaryOperator::GreaterOrEqual
+            if expression_is_counter_member(program, binary.right, counter) =>
+        {
+            (binary.left, false)
         }
         _ => return None,
     };
@@ -632,29 +667,32 @@ fn parse_counter_strict_upper(
     };
     if member.member.as_str() == "len" {
         let collection = program.expression_table.display_name(member.receiver);
-        return collection
-            .starts_with("self.")
-            .then_some(StrictUpper::CollectionLength(collection));
+        return collection.starts_with("self.").then_some(RelationalUpper {
+            term: UpperTerm::CollectionLength(collection),
+            strict,
+        });
     }
     let bound = program.expression_table.display_name(possible_length);
-    bound
-        .starts_with("self.")
-        .then_some(StrictUpper::Place(bound))
+    bound.starts_with("self.").then_some(RelationalUpper {
+        term: UpperTerm::Place(bound),
+        strict,
+    })
 }
 
-/// The collection `C` named by an authored machine-arrival requirement
-/// `bound < C.len` (or `C.len > bound`). This is not flow inference: the
-/// requirement is already an assumed machine contract fact. We only recover
-/// its exact two place labels so the loop candidate can prove both remain
-/// frame-stable before composing it with `counter < bound`.
-fn machine_strict_bound_collection(
+/// Collection relations named by authored machine-arrival requirements
+/// `bound <[=] C.len` (or `C.len >[=] bound`). This is not flow inference: the
+/// requirements are already assumed machine contract facts. We recover their
+/// exact place labels and strictness so the caller can compose only a chain
+/// that proves a strict final index bound.
+fn machine_bound_collection_relations(
     program: &omega_typed_trees::TypedTrees,
     machine: &Machine,
     bound: &str,
-) -> Option<String> {
+) -> Vec<(String, bool)> {
     use omega_typed_trees::domain::ProofFact;
     use omega_typed_trees::signature::SignatureContractKind;
 
+    let mut relations = Vec::new();
     for contract in program.machine_contracts(machine) {
         if contract.kind != SignatureContractKind::Requires {
             continue;
@@ -663,59 +701,71 @@ fn machine_strict_bound_collection(
             let ProofFact::Expression(expression) = fact else {
                 continue;
             };
-            if let Some(collection) =
-                strict_bound_collection_in_expression(program, *expression, bound)
-            {
-                return Some(collection);
-            }
+            collect_bound_collection_relations(program, *expression, bound, &mut relations);
         }
     }
-    None
+    relations.sort();
+    relations.dedup();
+    relations
 }
 
-fn strict_bound_collection_in_expression(
+fn collect_bound_collection_relations(
     program: &omega_typed_trees::TypedTrees,
     expression: ExpressionHandle,
     bound: &str,
-) -> Option<String> {
+    relations: &mut Vec<(String, bool)>,
+) {
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => {
-            strict_bound_collection_in_expression(program, atomic.value, bound)
+            collect_bound_collection_relations(program, atomic.value, bound, relations);
         }
         ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And => {
-            strict_bound_collection_in_expression(program, binary.left, bound)
-                .or_else(|| strict_bound_collection_in_expression(program, binary.right, bound))
+            collect_bound_collection_relations(program, binary.left, bound, relations);
+            collect_bound_collection_relations(program, binary.right, bound, relations);
         }
         ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Equal => {
-            let inner = boolean_equality_inner(program, binary.left, binary.right)?;
-            strict_bound_collection_in_expression(program, inner, bound)
+            if let Some(inner) = boolean_equality_inner(program, binary.left, binary.right) {
+                collect_bound_collection_relations(program, inner, bound, relations);
+            }
         }
         ExpressionNode::Binary(binary) => {
-            let possible_length = match binary.operator {
+            let (possible_length, strict) = match binary.operator {
                 BinaryOperator::Less
                     if program.expression_table.display_name(binary.left) == bound =>
                 {
-                    binary.right
+                    (binary.right, true)
+                }
+                BinaryOperator::LessOrEqual
+                    if program.expression_table.display_name(binary.left) == bound =>
+                {
+                    (binary.right, false)
                 }
                 BinaryOperator::Greater
                     if program.expression_table.display_name(binary.right) == bound =>
                 {
-                    binary.left
+                    (binary.left, true)
                 }
-                _ => return None,
+                BinaryOperator::GreaterOrEqual
+                    if program.expression_table.display_name(binary.right) == bound =>
+                {
+                    (binary.left, false)
+                }
+                _ => return,
             };
             let ExpressionNode::Member(length) =
                 program.expression_table.expression(possible_length)
             else {
-                return None;
+                return;
             };
             if length.member.as_str() != "len" {
-                return None;
+                return;
             }
             let collection = program.expression_table.display_name(length.receiver);
-            collection.starts_with("self.").then_some(collection)
+            if collection.starts_with("self.") {
+                relations.push((collection, strict));
+            }
         }
-        _ => None,
+        _ => {}
     }
 }
 

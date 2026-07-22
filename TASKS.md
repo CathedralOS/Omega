@@ -672,11 +672,13 @@ stronger operations it needs instead of citing machine parameters generally.
   overlapping calls reject the candidate, and reassigning the index drops the
   fact before any later access. This is semantic guard matching across distinct
   expression handles, not a collapse of the dynamic length to a constant. The
-  next stable-limit class is live as well: semantic entry/back-edge
-  `i < self.limit` guards compose with an authored machine requirement
-  `self.limit < self.collection.len`. Because that bridge originates at machine
-  arrival, both limit and collection must be frame-stable across the whole
-  machine (including preheaders), not only within the natural loop.
+  next stable-limit class is live as well: semantic entry/back-edge relations
+  to `self.limit` compose with an authored machine relation from the limit to
+  `self.collection.len`. Strictness is tracked rather than discarded, so
+  `i < limit <= len` and `i <= limit < len` prove the index bound, while the
+  unsound `i <= limit <= len` chain fails closed. Because the bridge originates
+  at machine arrival, both limit and collection must be frame-stable across the
+  whole machine (including preheaders), not only within the natural loop.
   Body-derived write frames now have one normalized checked representation:
   each state records a sorted/deduplicated complete path set or an explicit
   opaque result, normalizes non-`self` parameters positionally, and carries a
