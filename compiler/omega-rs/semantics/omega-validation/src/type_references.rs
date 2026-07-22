@@ -394,27 +394,50 @@ fn validate_type_reference_handle_with_context(
                     )));
                 }
                 for (parameter, argument) in parameters.iter().zip(argument_handles) {
-                    if let TypeParameterKind::Const { type_reference } = parameter.kind {
-                        validate_const_data_argument(
-                            program,
-                            base_name,
-                            parameter,
-                            type_reference,
-                            *argument,
-                            type_parameter_scope,
-                            diagnostics,
-                        );
-                        continue;
+                    match &parameter.kind {
+                        TypeParameterKind::Const { type_reference } => {
+                            validate_const_data_argument(
+                                program,
+                                base_name,
+                                parameter,
+                                *type_reference,
+                                *argument,
+                                type_parameter_scope,
+                                diagnostics,
+                            );
+                        }
+                        TypeParameterKind::Machine { contract } => {
+                            validate_machine_data_argument(
+                                program,
+                                base_name,
+                                parameter,
+                                contract,
+                                *argument,
+                                type_parameter_scope,
+                                diagnostics,
+                            );
+                        }
+                        TypeParameterKind::Type => {
+                            if machine_argument_name(program, *argument, type_parameter_scope)
+                                .is_some()
+                            {
+                                diagnostics.push(Diagnostic::error(format!(
+                                    "type parameter `{}` of `{base_name}` was instantiated with a machine symbol; declare it as `<machine {}>` with a `where machine` contract",
+                                    parameter.name, parameter.name
+                                )));
+                                continue;
+                            }
+                            validate_type_reference_handle_with_context(
+                                program,
+                                *argument,
+                                symbols,
+                                diagnostics,
+                                owner.generic_argument(),
+                                false,
+                                type_parameter_scope,
+                            );
+                        }
                     }
-                    validate_type_reference_handle_with_context(
-                        program,
-                        *argument,
-                        symbols,
-                        diagnostics,
-                        owner.generic_argument(),
-                        false,
-                        type_parameter_scope,
-                    );
                 }
             } else {
                 for argument in argument_handles {
@@ -437,7 +460,16 @@ fn validate_type_reference_handle_with_context(
                 )));
             }
         }
-        TypeReferenceNode::Named { name, .. } => {
+        TypeReferenceNode::Named { symbol, name } => {
+            if type_parameter_scope
+                .machine_parameter(*symbol, name.as_str())
+                .is_some()
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} uses machine parameter `{name}` as a stored/runtime type; static machine parameters may only index a generic proof-data family or specialize a direct call"
+                )));
+                return;
+            }
             if name.as_str() == "string" && !allow_bare_str {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} uses unsized text view type `string` by value; use `&string`"
@@ -456,6 +488,87 @@ fn validate_type_reference_handle_with_context(
             }
         }
         TypeReferenceNode::Unit => {}
+    }
+}
+
+fn validate_machine_data_argument(
+    program: &TypedTrees,
+    base_name: &str,
+    parameter: &TypeParameter,
+    contract: &omega_typed_trees::signature::StateSignature,
+    argument: TypeReferenceHandle,
+    type_parameter_scope: TypeParameterScope<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let TypeReferenceNode::Named { symbol, name } =
+        program.type_reference_table.type_reference(argument)
+    else {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine parameter `{}` of proof data `{base_name}` requires a static machine symbol argument",
+            parameter.name
+        )));
+        return;
+    };
+
+    // Recursive references inside the family (`CauchySeq<S>`) forward the
+    // family parameter governed by this exact declaration-site contract.
+    if *symbol == parameter.symbol {
+        return;
+    }
+
+    if let Some(forwarded) = type_parameter_scope.machine_parameter(*symbol, name.as_str()) {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine parameter `{}` cannot yet be forwarded into proof data `{base_name}` from distinct machine parameter `{}`; N7 higher-order signature refinement is required",
+            parameter.name, forwarded.name
+        )));
+        return;
+    }
+
+    let generic_types = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == base_name)
+        .map(|definition| {
+            program
+                .data_type_parameters(definition)
+                .iter()
+                .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    crate::machine_parameters::validate_data_machine_selection(
+        program,
+        base_name,
+        parameter,
+        contract,
+        *symbol,
+        name.as_str(),
+        &generic_types,
+        diagnostics,
+    );
+}
+
+fn machine_argument_name<'program>(
+    program: &'program TypedTrees,
+    argument: TypeReferenceHandle,
+    type_parameter_scope: TypeParameterScope<'program>,
+) -> Option<&'program str> {
+    let TypeReferenceNode::Named { symbol, name } =
+        program.type_reference_table.type_reference(argument)
+    else {
+        return None;
+    };
+    if type_parameter_scope
+        .machine_parameter(*symbol, name.as_str())
+        .is_some()
+        || program
+            .machines()
+            .iter()
+            .any(|machine| machine.symbol == *symbol || machine.name.as_str() == name.as_str())
+    {
+        Some(name.as_str())
+    } else {
+        None
     }
 }
 
@@ -664,7 +777,7 @@ struct TypeParameterScope<'program> {
     type_parameters: &'program [TypeParameter],
 }
 
-impl TypeParameterScope<'_> {
+impl<'program> TypeParameterScope<'program> {
     fn empty() -> Self {
         Self {
             type_parameters: &[],
@@ -675,6 +788,18 @@ impl TypeParameterScope<'_> {
         self.type_parameters
             .iter()
             .any(|parameter| parameter.name.as_str() == name)
+    }
+
+    fn machine_parameter(
+        self,
+        symbol: omega_core::symbols::SymbolHandle,
+        name: &str,
+    ) -> Option<&'program TypeParameter> {
+        self.type_parameters.iter().find(|parameter| {
+            matches!(parameter.kind, TypeParameterKind::Machine { .. })
+                && ((symbol.is_valid() && parameter.symbol == symbol)
+                    || parameter.name.as_str() == name)
+        })
     }
 }
 

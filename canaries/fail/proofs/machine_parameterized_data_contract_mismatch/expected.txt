@@ -1,0 +1,1 @@
+machine argument `wrong_sample` for `Stream` does not refine `S`: parameter 0 expects `Index`, got `u64`

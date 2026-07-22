@@ -771,8 +771,11 @@ stronger operations it needs instead of citing machine parameters generally.
    build-time interpreter now evaluates the same specialized tree: a selected
    free helper computes PE subsystem metadata end to end, and a mismatched
    helper rejects before interpretation. Free selections retain their authored
-   symbol leaf instead of leaking the internal `entry` state name. Still add the
-   nested proof schemas used by N5/N6.
+   symbol leaf instead of leaking the internal `entry` state name. N7's first
+   proof-schema consumer is live as well: recursive proof data can carry static
+   machine parameters and concrete selections receive the same refinement
+   judgment as calls. Still add the higher-order machine-parameter signatures
+   used by N5/N6.
 
 ## Type, proof, and semantic-model work
 
@@ -988,8 +991,13 @@ stronger operations it needs instead of citing machine parameters generally.
 - **N6 — quotients.** Implement the settled
   `data Real = CauchySeq % converges_together` type expression, carrier-only
   `as` construction, respect/congruence obligations, and equivalence laws.
-- **N7 — nested schemas.** Support proof data parameterized by machines and
-  machine-parameter signatures that themselves take machine parameters.
+- **N7 — nested schemas.** Proof-only data may now declare `<machine S>` with
+  its mandatory `where machine S(...)` contract. Recursive occurrences forward
+  the family parameter, concrete arguments are checked through the full static
+  machine refinement judgment, finite-layout families reject, and a machine
+  parameter cannot masquerade as a stored field type. Still support
+  machine-parameter signatures that themselves take machine parameters and
+  use that higher-order refinement to forward distinct schema parameters.
 - **N8 — construction corpus.** Build Cauchy Real, order, completeness, and
   well-definedness, retiring axioms through the normal boundary-upgrade path.
 - **F6 — total float order.** Add named `TotalOrder` satisfiers for f32/f64

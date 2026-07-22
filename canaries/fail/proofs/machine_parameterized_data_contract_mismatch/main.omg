@@ -1,0 +1,24 @@
+data Index {
+    case Zero;
+    case Next(previous: Index);
+}
+
+data Stream<machine S>
+where machine S(index: Index) -> Index;
+{
+    case Empty;
+    case More(sample: Index, tail: Stream<S>);
+}
+
+machine wrong_sample(index: u64) -> u64 {
+    index
+}
+
+machine rejects_wrong_stream(value: Stream<wrong_sample>) {
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

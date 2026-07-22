@@ -2146,19 +2146,35 @@ fn rejects_machine_parameter_without_authored_contract() {
 }
 
 #[test]
-fn rejects_machine_parameter_on_non_machine_declaration() {
-    let source = "data Invalid<machine F> {}";
+fn parses_machine_parameter_on_proof_data_declaration() {
+    let source = r#"
+        data Stream<machine S>
+        where machine S(index: u64) -> u64;
+        {
+            case More(tail: Stream<S>);
+        }
+    "#;
     let tokens = Lexer::new(source)
         .tokenize()
         .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens).expect_err("data machine parameter must fail");
-    assert!(
-        error
-            .message
-            .contains("only legal on a machine declaration"),
-        "got: {}",
-        error.message
-    );
+    let parsed = parse_syntax_trees(&tokens).expect("proof-data machine parameter should parse");
+    let data = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Data(data) => Some(data),
+            _ => None,
+        })
+        .expect("Stream declaration");
+    let parameters = parsed.items.type_parameters(data.type_parameters);
+    assert_eq!(parameters.len(), 1);
+    let omega_syntax_trees::item::TypeParameterKind::Machine {
+        contract: Some(contract),
+    } = &parameters[0].kind
+    else {
+        panic!("S should retain its authored callable contract");
+    };
+    assert_eq!(parsed.items.state_parameters(contract.parameters).len(), 1);
+    assert!(contract.return_type.is_valid());
 }
 
 #[test]

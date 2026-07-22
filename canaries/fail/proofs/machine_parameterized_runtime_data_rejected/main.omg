@@ -1,0 +1,14 @@
+// N7 static machine indices are proof-schema metadata, never a hidden runtime
+// dictionary or layout parameter. A finite record therefore cannot declare
+// one even when no field mentions it.
+data RuntimeCallback<machine F>
+where machine F(value: u64) -> u64;
+{
+    value: u64;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

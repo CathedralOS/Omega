@@ -10,12 +10,20 @@ pub(in crate::symbols::symbol_table) fn insert_data_symbol_children(
     data_definition: &omega_symbol_resolved_trees::data::DataDefinition,
     has_sources: bool,
 ) {
-    builder.insert_children(
+    let data_children = builder.insert_children(
         data_symbol,
         program
             .data_type_parameters(data_definition.type_parameters)
             .iter()
-            .map(|parameter| symbol_seed(SymbolKind::TypeParameter, &parameter.name, has_sources))
+            .map(|parameter| {
+                let kind = match parameter.kind {
+                    omega_symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
+                        SymbolKind::MachineParameter
+                    }
+                    _ => SymbolKind::TypeParameter,
+                };
+                symbol_seed(kind, &parameter.name, has_sources)
+            })
             .chain(program.data_members(data_definition.members).iter().map(
                 |member| match member {
                     omega_symbol_resolved_trees::data::DataMember::Field(field) => {
@@ -27,4 +35,24 @@ pub(in crate::symbols::symbol_table) fn insert_data_symbol_children(
                 },
             )),
     );
+
+    let mut data_children = SymbolTableBuilder::child_handles(data_children);
+    for parameter in program.data_type_parameters(data_definition.type_parameters) {
+        let parameter_symbol = data_children.next();
+        if let (
+            Some(parameter_symbol),
+            omega_symbol_resolved_trees::data::TypeParameterKind::Machine { contract },
+        ) = (parameter_symbol, &parameter.kind)
+        {
+            builder.insert_children(
+                parameter_symbol,
+                program
+                    .state_parameters(contract.parameters)
+                    .iter()
+                    .map(|parameter| {
+                        symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)
+                    }),
+            );
+        }
+    }
 }

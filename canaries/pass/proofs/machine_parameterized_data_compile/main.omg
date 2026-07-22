@@ -1,0 +1,26 @@
+// N7 rung 1: a proof-only data family may be indexed by a compile-time
+// machine symbol. The family contract is checked at a concrete use, while a
+// recursive occurrence forwards its own static parameter without storing a
+// callable value.
+data Index {
+    case Zero;
+    case Next(previous: Index);
+}
+
+data Stream<machine S>
+where machine S(index: Index) -> Index;
+{
+    case Empty;
+    case More(sample: Index, tail: Stream<S>);
+}
+
+boundary machine sample(index: Index) -> Index;
+
+machine accepts_concrete_stream(value: Stream<sample>) {
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

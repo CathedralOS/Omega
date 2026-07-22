@@ -271,6 +271,49 @@ fn generic_machine_signature_may_forward_type_parameters_into_generic_data() {
 }
 
 #[test]
+fn machine_parameterized_data_must_be_proof_only() {
+    let typed = typed_program_from_source(
+        r#"
+        data RuntimeCallback<machine F>
+        where machine F(value: u64) -> u64;
+        {
+            value: u64;
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("finite-layout data must not be indexed by a static machine");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("parameterized by a static machine but has a runtime layout")
+    }));
+}
+
+#[test]
+fn machine_parameter_cannot_be_stored_as_a_data_field() {
+    let typed = typed_program_from_source(
+        r#"
+        data ProofFamily<machine F>
+        where machine F(value: u64) -> u64;
+        {
+            case End;
+            case More(callback: F, tail: ProofFamily<F>);
+        }
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("a static machine parameter is not a value type");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("uses machine parameter `F` as a stored/runtime type")
+    }));
+}
+
+#[test]
 fn validates_main_entry_surface_from_source_pipeline() {
     let source = r#"
     data Main {

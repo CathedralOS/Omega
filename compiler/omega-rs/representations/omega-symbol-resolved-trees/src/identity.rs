@@ -68,6 +68,27 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
 
     for data_definition in &program.data_definitions {
         count_declaration_name(&data_definition.name, &mut counts);
+        for parameter in program.data_type_parameters(data_definition.type_parameters) {
+            count_declaration_name(&parameter.name, &mut counts);
+            if let crate::data::TypeParameterKind::Machine { contract } = &parameter.kind {
+                count_declaration_name(&contract.name, &mut counts);
+                count_optional_type_reference(
+                    contract.return_type.as_ref(),
+                    child_type_references,
+                    expression_table,
+                    &mut counts,
+                );
+                for contract_parameter in program.state_parameters(contract.parameters) {
+                    count_declaration_name(&contract_parameter.name, &mut counts);
+                    count_type_reference(
+                        &contract_parameter.type_reference,
+                        child_type_references,
+                        expression_table,
+                        &mut counts,
+                    );
+                }
+            }
+        }
         for member in program.data_members(data_definition.members) {
             match member {
                 DataMember::Field(field) => {

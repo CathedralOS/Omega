@@ -16,6 +16,33 @@ pub(crate) fn validate_proof_only_consumption(
     classification: &ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // N7 machine-indexed data is compile-time schema metadata. It has no
+    // runtime callable field and therefore only makes sense on a carrier that
+    // already has no layout (recursive proof data or an opaque boundary
+    // carrier). A finite checked-shape record would otherwise let the static
+    // argument appear to vary a runtime layout without a representation.
+    for definition in program.data_definitions() {
+        let has_machine_parameter =
+            program
+                .data_type_parameters(definition)
+                .iter()
+                .any(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        omega_typed_trees::data::TypeParameterKind::Machine { .. }
+                    )
+                });
+        if has_machine_parameter
+            && definition.supply_mode != omega_core::semantics::DataSupplyMode::BoundaryOpaque
+            && !classification.is_proof_only(definition.symbol)
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "data `{}` is parameterized by a static machine but has a runtime layout; `<machine ...>` on data is reserved for proof-only families (recursive data has no layout)",
+                definition.name
+            )));
+        }
+    }
+
     // Data properties are runtime claims (`[copy]`/`[zero_init]`/`[carry(...)]`
     // speak about values in memory); a proof-only carrier cannot honor
     // them.
