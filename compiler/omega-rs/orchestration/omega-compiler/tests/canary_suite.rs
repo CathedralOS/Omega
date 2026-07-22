@@ -248,6 +248,7 @@ fn windows_pe_ships_base_relocations_and_dynamicbase() {
     );
 
     let _ = fs::remove_dir_all(&build_dir);
+
 }
 
 // The `subsystem` word in a target block reaches the PE optional header:
@@ -2015,6 +2016,7 @@ fn value_call_as_host_arg_exit_canary_runs() {
     );
 
     let _ = fs::remove_dir_all(&build_dir);
+
 }
 
 #[test]
@@ -25105,6 +25107,26 @@ fn runtime_view_linked_input_unrelated_ref_write_exit_canary_runs() {
     );
 
     let _ = fs::remove_dir_all(&build_dir);
+
+    let cross_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-view-linked-input-unrelated-ref-write-linux-x64-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&cross_dir);
+    let source_dir = cross_dir.join("src");
+    fs::create_dir_all(&source_dir).expect("create linked-input cross-target source");
+    fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+        .expect("copy linked-input canary");
+    fs::write(source_dir.join("build.omg"), "target linux_x64 {\n}\n")
+        .expect("write linked-input cross-target manifest");
+    compile(CompileOptions {
+        root_path: source_dir.join("main.omg"),
+        build_dir: Some(cross_dir.join("out")),
+        target_name: Some("linux_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("view-linked-input aggregate write should cross-compile for linux_x64");
+    let _ = fs::remove_dir_all(&cross_dir);
 }
 
 #[test]
