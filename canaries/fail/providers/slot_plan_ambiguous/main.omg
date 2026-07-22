@@ -1,15 +1,14 @@
-// PRV4 step (2) selection v1: two FULLY COVERING plans for one slot on the
-// SELECTED target -- an authored provides block (cross_platform_cli
-// resolves to the host) and a PORTABLE satisfies leaf -- are ambiguous and
-// refuse loudly naming both plans. Implicit selection is only ever unique;
-// non-selected targets' plans stay inert (the host-portability convention).
+// Two fully covering provider types for one slot on the selected target are
+// ambiguous. Implicit selection is only ever unique; a slot owner must choose
+// one type explicitly. This pins the derived-plan rule without retaining an
+// authored `provides` compatibility table.
 boundary trait Pick {
     machine choose() -> i32;
 }
-cross_platform_cli provides Pick {
-    choose -> 7
-}
-machine choose_leaf() -> i32 satisfies Pick::choose via Binding::VtableSlot(2);
+data ProviderA { }
+data ProviderB { }
+cross_platform_cli machine ProviderA::choose_leaf() -> i32 satisfies Pick::choose via Binding::VtableSlot(1);
+cross_platform_cli machine ProviderB::choose_leaf() -> i32 satisfies Pick::choose via Binding::VtableSlot(2);
 data Main { }
 machine Main::main(&mut self) {
 }

@@ -1,0 +1,11 @@
+// External leaves name a closed Binding case explicitly. The bare-field
+// shorthand belonged only to legacy `provides ... over Table` rows and must
+// not make Binding look like an open, package-extensible sum.
+boundary trait Output {
+    machine write(this: addr);
+}
+data OutputTable { write: addr; }
+machine OutputTable::write_leaf(this: addr) satisfies Output::write via Binding::write;
+
+data Main { }
+machine Main::main(&mut self) { }

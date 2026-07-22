@@ -244,7 +244,7 @@ impl ProviderPlan {
     /// byte-read shape needs a result). Returns NAMED errors; empty =
     /// structurally valid.
     pub fn validate_against_schema(&self) -> Vec<String> {
-        let mut errors = Vec::new();
+        let mut errors = self.validate_candidate_against_schema();
         for method in &self.schema.methods {
             let count = self
                 .rows
@@ -256,7 +256,41 @@ impl ProviderPlan {
                     "plan `{}` does not bind `{}::{}`",
                     self.name, self.schema.trait_name, method.name
                 ));
-            } else if count > 1 {
+            }
+        }
+        for row in &self.rows {
+            if matches!(row.binding, ProviderBinding::Value { .. })
+                && !self
+                    .schema
+                    .methods
+                    .iter()
+                    .any(|method| method.name == row.method)
+            {
+                errors.push(format!(
+                    "plan `{}` binds `{}`, which is not a `{}` method",
+                    self.name, row.method, self.schema.trait_name
+                ));
+            }
+        }
+        errors
+    }
+
+    /// Validate one candidate before coverage/selection. Partial candidates
+    /// are legitimate, but a candidate cannot duplicate a requirement, name a
+    /// callable row outside its schema, or use a Value row where call arguments
+    /// exist. Unmatched compatibility Value rows remain inert until PRV4f
+    /// removes that surface. This is the additive-only conformance check;
+    /// selection decides whether the surviving candidate covers the complete
+    /// slot.
+    pub fn validate_candidate_against_schema(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+        for method in &self.schema.methods {
+            let count = self
+                .rows
+                .iter()
+                .filter(|row| row.method == method.name)
+                .count();
+            if count > 1 {
                 errors.push(format!(
                     "plan `{}` binds `{}::{}` {count} times; one row per method",
                     self.name, self.schema.trait_name, method.name
@@ -270,6 +304,13 @@ impl ProviderPlan {
                 .iter()
                 .find(|method| method.name == row.method)
             else {
+                // Compatibility `provides` plans still carry per-target Value
+                // constants beside callable rows until PRV4f migrates the
+                // remaining foreign-record facts. They do not participate in
+                // candidate coverage and must not mask call-row defects.
+                if matches!(row.binding, ProviderBinding::Value { .. }) {
+                    continue;
+                }
                 errors.push(format!(
                     "plan `{}` binds `{}`, which is not a `{}` method",
                     self.name, row.method, self.schema.trait_name
@@ -443,6 +484,10 @@ mod tests {
         let mut plan = windows_console_plan();
         plan.rows.pop();
         assert!(
+            plan.validate_candidate_against_schema().is_empty(),
+            "a partial candidate is structurally valid before slot selection"
+        );
+        assert!(
             !plan.covers_schema(),
             "a missing method row must fail coverage"
         );
@@ -450,8 +495,12 @@ mod tests {
         let mut plan = windows_console_plan();
         plan.rows.push(ProviderPlanRow {
             method: "not_in_schema".to_owned(),
-            binding: ProviderBinding::Value { value: 0 },
+            binding: ProviderBinding::VtableSlot { index: 0 },
         });
+        assert!(
+            !plan.validate_candidate_against_schema().is_empty(),
+            "a stray row is invalid even before coverage selection"
+        );
         assert!(!plan.covers_schema(), "a stray row must fail coverage");
     }
 }

@@ -463,7 +463,10 @@ impl Compiler {
             omega_target::NativeTarget::from_omega_target_name(self.options.target_name.as_deref())
                 .unwrap_or_else(|_| omega_target::NativeTarget::host());
         let adapter_diagnostics =
-            crate::pipeline::provider_plans::validate_adapter_refinement(&typed, &provider_plans);
+            crate::pipeline::provider_plans::validate_provider_plan_candidates(
+                &typed,
+                &provider_plans,
+            );
         if !adapter_diagnostics.is_empty() {
             return Err(adapter_diagnostics);
         }

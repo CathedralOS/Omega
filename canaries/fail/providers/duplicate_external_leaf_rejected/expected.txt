@@ -1,0 +1,1 @@
+binds `BootServices::get_memory_map` 2 times
