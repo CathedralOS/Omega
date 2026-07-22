@@ -37580,6 +37580,13 @@ fn executable_name() -> &'static str {
     "omega-program"
 }
 
+#[test]
+fn boundary_equality_recast_witness_compiles_to_checked_trees() {
+    let canary = pass_canary("dependent/boundary_equality_recast_witness_compile");
+    compile_to_checked(&canary.join("main.omg"), None)
+        .expect("boundary equality/recast witness should reach checked trees");
+}
+
 const ACTIVE_PASS_CANARIES: &[&str] = &[
     "ownership/linear_property_surface",
     "ownership/linear_branch_reconciliation",
