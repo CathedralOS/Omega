@@ -55,11 +55,21 @@ pub struct MachineContractPlan {
     /// The published termination guarantee (never the witness -- the
     /// firewall is the shape).
     pub published_termination: TerminationGuarantee,
+    /// Body-derived, state-relative write frames. These are implementation
+    /// evidence, not authored contract material, and therefore never enter
+    /// `fingerprint` or specialization identity.
+    pub inferred_write_frames: Vec<StateWriteFramePlan>,
     /// The deterministic identity over the published halves above. Stable
     /// across prover-strength changes and body edits that keep the declared
     /// surface; NOT yet a full contract identity (facts canonicalization is
     /// the follow-up slice).
     pub fingerprint: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StateWriteFramePlan {
+    pub state: SymbolHandle,
+    pub frame: omega_facts::NormalizedWriteFrame,
 }
 
 /// The slice-1 fingerprint: an FNV-1a fold over the published halves'

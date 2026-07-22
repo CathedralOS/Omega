@@ -14,6 +14,7 @@ use crate::type_references::type_reference_label;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
+use omega_facts::NormalizedWriteFrame;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataMember, TypeParameterKind};
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
@@ -51,13 +52,22 @@ impl<'program> CallFrameResolver<'program> {
         current_machine: &'program Machine,
         call: &TableCall,
     ) -> Option<Vec<String>> {
+        self.may_write_frame(current_machine, call)
+            .into_complete_paths()
+    }
+
+    pub fn may_write_frame(
+        &self,
+        current_machine: &'program Machine,
+        call: &TableCall,
+    ) -> NormalizedWriteFrame {
         let mut diagnostics = Vec::new();
         let machine_symbols =
             MachineSymbols::build(self.program, current_machine, &mut diagnostics);
         if !diagnostics.is_empty() {
-            return None;
+            return NormalizedWriteFrame::opaque();
         }
-        known_call_written_paths(
+        let paths = known_call_written_paths(
             self.program,
             call,
             current_machine,
@@ -66,7 +76,8 @@ impl<'program> CallFrameResolver<'program> {
         )
         .or_else(|| {
             known_boundary_call_written_paths(self.program, &machine_symbols, &self.symbols, call)
-        })
+        });
+        paths.map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
     }
 
     /// Conservative aggregate frame of every value-position call nested in
@@ -77,22 +88,36 @@ impl<'program> CallFrameResolver<'program> {
         current_machine: &'program Machine,
         expression: ExpressionHandle,
     ) -> Option<Vec<String>> {
+        self.expression_write_frame(current_machine, expression)
+            .into_complete_paths()
+    }
+
+    pub fn expression_write_frame(
+        &self,
+        current_machine: &'program Machine,
+        expression: ExpressionHandle,
+    ) -> NormalizedWriteFrame {
         let mut diagnostics = Vec::new();
         let machine_symbols =
             MachineSymbols::build(self.program, current_machine, &mut diagnostics);
         if !diagnostics.is_empty() {
-            return None;
+            return NormalizedWriteFrame::opaque();
         }
         let mut written = Vec::new();
-        collect_expression_call_written_paths(
+        let complete = collect_expression_call_written_paths(
             self.program,
             expression,
             current_machine,
             &machine_symbols,
             &self.symbols,
             &mut written,
-        )?;
-        Some(written)
+        )
+        .is_some();
+        if complete {
+            NormalizedWriteFrame::complete(written)
+        } else {
+            NormalizedWriteFrame::opaque()
+        }
     }
 
     /// Aggregate only the value-position calls embedded in a statement. The
@@ -103,24 +128,74 @@ impl<'program> CallFrameResolver<'program> {
         current_machine: &'program Machine,
         statement: &StatementNode,
     ) -> Option<Vec<String>> {
+        self.statement_value_write_frame(current_machine, statement)
+            .into_complete_paths()
+    }
+
+    pub fn statement_value_write_frame(
+        &self,
+        current_machine: &'program Machine,
+        statement: &StatementNode,
+    ) -> NormalizedWriteFrame {
         let mut diagnostics = Vec::new();
         let machine_symbols =
             MachineSymbols::build(self.program, current_machine, &mut diagnostics);
         if !diagnostics.is_empty() {
-            return None;
+            return NormalizedWriteFrame::opaque();
         }
         let mut written = Vec::new();
         for expression in statement_value_expression_roots(self.program, statement) {
-            collect_expression_call_written_paths(
+            if collect_expression_call_written_paths(
                 self.program,
                 expression,
                 current_machine,
                 &machine_symbols,
                 &self.symbols,
                 &mut written,
-            )?;
+            )
+            .is_none()
+            {
+                return NormalizedWriteFrame::opaque();
+            }
         }
-        Some(written)
+        NormalizedWriteFrame::complete(written)
+    }
+
+    /// Body-derived frame in the target state's own namespace. `self` remains
+    /// `self`; non-self state parameters normalize positionally as `$P<N>`, so
+    /// source renames and discovery order do not perturb implementation identity.
+    pub fn inferred_state_write_frame(
+        &self,
+        machine: &'program Machine,
+        state: &'program State,
+    ) -> NormalizedWriteFrame {
+        if !self
+            .program
+            .machine_states(machine)
+            .iter()
+            .any(|candidate| candidate.symbol == state.symbol)
+        {
+            return NormalizedWriteFrame::opaque();
+        }
+        let mut active_states = vec![state.symbol];
+        let Some(relative_paths) = summarize_state_written_paths(
+            self.program,
+            machine,
+            state,
+            &self.symbols,
+            &mut active_states,
+        ) else {
+            return NormalizedWriteFrame::opaque();
+        };
+        let mut normalized = Vec::new();
+        for relative in relative_paths {
+            match normalize_state_relative_path(self.program, state, &relative) {
+                Some(Some(path)) => normalized.push(path),
+                Some(None) => {}
+                None => return NormalizedWriteFrame::opaque(),
+            }
+        }
+        NormalizedWriteFrame::complete(normalized)
     }
 }
 
@@ -1098,19 +1173,50 @@ fn summarize_resolved_call(
                 .map(|_| "self".to_owned())
         });
     let parameters = program.state_parameters(callee_state);
+    let mut written = Vec::new();
+
+    let relative_paths = summarize_state_written_paths(
+        program,
+        callee_machine,
+        callee_state,
+        symbols,
+        active_states,
+    )?;
+    for relative in relative_paths {
+        if let Some(instantiated) = instantiate_written_path(
+            program,
+            &relative,
+            receiver_base.as_deref(),
+            parameters,
+            arguments,
+            &[],
+        )? && !written.contains(&instantiated)
+        {
+            written.push(instantiated);
+        }
+    }
+
+    Some(written)
+}
+
+fn summarize_state_written_paths(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+) -> Option<Vec<String>> {
+    let parameters = program.state_parameters(state);
     let mut locals = Vec::new();
     let mut written = Vec::new();
 
     let mut nested_diagnostics = Vec::new();
-    let callee_symbols = MachineSymbols::build(program, callee_machine, &mut nested_diagnostics);
+    let machine_symbols = MachineSymbols::build(program, machine, &mut nested_diagnostics);
     if !nested_diagnostics.is_empty() {
         return None;
     }
 
-    for statement in program
-        .statement_table
-        .statements(callee_state.statement_nodes)
-    {
+    for statement in program.statement_table.statements(state.statement_nodes) {
         match statement {
             StatementNode::AssemblyFact(fact) => {
                 if !expression_is_call_free(program, fact.expression) {
@@ -1124,16 +1230,10 @@ fn summarize_resolved_call(
                     return None;
                 }
                 let relative = coarse_place_path(program, assignment.target)?;
-                if let Some(instantiated) = instantiate_written_path(
-                    program,
-                    &relative,
-                    receiver_base.as_deref(),
-                    parameters,
-                    arguments,
-                    &locals,
-                )? && !written.contains(&instantiated)
+                if relative_state_path_is_visible(&relative, parameters, &locals)?
+                    && !written.contains(&relative)
                 {
-                    written.push(instantiated);
+                    written.push(relative);
                 }
             }
             StatementNode::Call(nested_call) => {
@@ -1151,22 +1251,16 @@ fn summarize_resolved_call(
                     program
                         .statement_table
                         .expression_handles(nested_call.arguments),
-                    callee_machine,
-                    &callee_symbols,
+                    machine,
+                    &machine_symbols,
                     symbols,
                     active_states,
                 )?;
                 for relative in nested_writes {
-                    if let Some(instantiated) = instantiate_written_path(
-                        program,
-                        &relative,
-                        receiver_base.as_deref(),
-                        parameters,
-                        arguments,
-                        &locals,
-                    )? && !written.contains(&instantiated)
+                    if relative_state_path_is_visible(&relative, parameters, &locals)?
+                        && !written.contains(&relative)
                     {
-                        written.push(instantiated);
+                        written.push(relative);
                     }
                 }
             }
@@ -1186,6 +1280,55 @@ fn summarize_resolved_call(
     }
 
     Some(written)
+}
+
+fn relative_state_path_is_visible(
+    relative: &str,
+    parameters: &[StateParameter],
+    locals: &[String],
+) -> Option<bool> {
+    let (root, _) = split_place_root(relative);
+    if root == "self"
+        || parameters
+            .iter()
+            .any(|parameter| parameter.name.as_str() == root)
+    {
+        return Some(true);
+    }
+    if locals.iter().any(|local| local == root) {
+        return Some(false);
+    }
+    None
+}
+
+fn normalize_state_relative_path(
+    program: &TypedTrees,
+    state: &State,
+    relative: &str,
+) -> Option<Option<String>> {
+    let (root, suffix) = split_place_root(relative);
+    if root == "self" {
+        return Some(Some(append_place_suffix("self", suffix)));
+    }
+    if let Some(parameter_index) = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .position(|parameter| parameter.name.as_str() == root)
+    {
+        return Some(Some(append_place_suffix(
+            &format!("$P{parameter_index}"),
+            suffix,
+        )));
+    }
+    let is_local = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .any(|statement| {
+            matches!(statement, StatementNode::LocalData(local) if local.name.as_str() == root)
+        });
+    is_local.then_some(None)
 }
 
 fn instantiate_written_path(

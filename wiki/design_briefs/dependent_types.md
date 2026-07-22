@@ -246,7 +246,12 @@ composition now handles a stable intermediate limit: edge facts
 the second premise originates at machine arrival, limit and collection must be
 frame-stable through every machine state, including preheaders. Further
 relational classes remain future work; authored arrival contracts do not depend
-on them.
+on them. Inferred intra-unit frames now normalize into one shared
+complete-or-opaque representation, with sorted/deduplicated paths and positional
+state-parameter roots. Checked machine plans retain the per-state frames and
+their deterministic implementation identities, and the machine-contract
+manifest exposes them only as implementation evidence. Public contract and
+specialization identities intentionally exclude body-derived frames.
 
 ## 6. Dynamic lowering — the runtime half
 
@@ -468,9 +473,10 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
   now meet semantically across distinct entry/back-edge guards. Stable
   `i < self.limit < self.collection.len` chains also compose an authored arrival
   premise under machine-wide frame stability. Remaining work is the
-  surface-blocked boundary write clause, normalized frame publication, and
-  additional relational Houdini candidates. Driver: dependent facts across
-  sibling-machine calls.
+  surface-blocked boundary write clause and additional relational Houdini
+  candidates. Normalized per-state frame publication is live and kept outside
+  public contract identity. Driver: dependent facts across sibling-machine
+  calls.
 
 ## 9. Key sources
 

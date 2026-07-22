@@ -677,11 +677,19 @@ stronger operations it needs instead of citing machine parameters generally.
   `self.limit < self.collection.len`. Because that bridge originates at machine
   arrival, both limit and collection must be frame-stable across the whole
   machine (including preheaders), not only within the natural loop.
+  Body-derived write frames now have one normalized checked representation:
+  each state records a sorted/deduplicated complete path set or an explicit
+  opaque result, normalizes non-`self` parameters positionally, and carries a
+  deterministic implementation fingerprint. Call-frame path consumers derive
+  through the same representation. `05_machine_contracts.json` publishes the
+  frames under `implementation`; they are structurally excluded from the
+  authored contract fingerprint and specialization identity, so body-only
+  write changes cannot masquerade as public contract changes.
   **Language-design blocker:** the boundary write-frame clause's semantics are
   settled, but its public keyword/spelling is still explicitly provisional
   (`stores` in the guide). Do not mint syntax until that spelling is frozen.
-  Engineering can continue on normalized frame storage/manifest identity and
-  additional relational candidate classes independently of the surface decision.
+  Engineering can continue on additional relational candidate classes
+  independently of the surface decision.
 
 ### Domain facets, effects, termination, and trust
 

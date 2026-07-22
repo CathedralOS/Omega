@@ -1847,10 +1847,19 @@ fn contract_plans_fingerprint_published_halves() {
     // declared surface share it; a different effects clause changes it;
     // inferred rows never enter (prover-independence by construction).
     let source = r#"
-    data Main {}
+    data Main {
+        left: u64;
+        right: u64;
+    }
 
-    machine Main::quiet_a(&mut self) -> u64 effects filesystem_io { 1 }
-    machine Main::quiet_b(&mut self) -> u64 effects filesystem_io { 2 }
+    machine Main::quiet_a(&mut self) -> u64 effects filesystem_io {
+        self.left = 1;
+        1
+    }
+    machine Main::quiet_b(&mut self) -> u64 effects filesystem_io {
+        self.right = 2;
+        2
+    }
     machine Main::loud(&mut self) -> u64 effects network_io { 3 }
     machine bounded_ab(x: u64, y: u64) -> u64
     requires
@@ -1872,6 +1881,12 @@ fn contract_plans_fingerprint_published_halves() {
         alpha >= 1;
         beta >= 2
     { alpha }
+    machine write_alpha(alpha: &mut u64) {
+        alpha = 1;
+    }
+    machine write_beta(beta: &mut u64) {
+        beta = 2;
+    }
     machine Main::main(&mut self) -> u64 { 7 }
     "#;
 
@@ -1892,6 +1907,8 @@ fn contract_plans_fingerprint_published_halves() {
     let quiet_a = symbol_of("Main::quiet_a");
     let quiet_b = symbol_of("Main::quiet_b");
     let loud = symbol_of("Main::loud");
+    let write_alpha = symbol_of("write_alpha");
+    let write_beta = symbol_of("write_beta");
     let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
 
     let plan = |symbol| {
@@ -1903,6 +1920,18 @@ fn contract_plans_fingerprint_published_halves() {
     };
     // Same declared surface (different BODIES) -> same fingerprint.
     assert_eq!(plan(quiet_a).fingerprint, plan(quiet_b).fingerprint);
+    let frame = |symbol| {
+        &plan(symbol)
+            .inferred_write_frames
+            .first()
+            .expect("entry-state frame")
+            .frame
+    };
+    assert_eq!(frame(quiet_a).paths(), &["self.left".to_owned()]);
+    assert_eq!(frame(quiet_b).paths(), &["self.right".to_owned()]);
+    assert_ne!(frame(quiet_a).fingerprint(), frame(quiet_b).fingerprint());
+    assert_eq!(frame(write_alpha).paths(), &["$P0".to_owned()]);
+    assert_eq!(frame(write_alpha), frame(write_beta));
     // A different effects clause -> a different fingerprint.
     assert_ne!(plan(quiet_a).fingerprint, plan(loud).fingerprint);
     // Slice 2: REQUIRES clause ORDER never enters the identity...
