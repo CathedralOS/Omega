@@ -455,6 +455,13 @@ prologue and return epilogue against the exact relocated entry-region bytes on
 x86-64 and AArch64 before publication. The inventory names this narrow
 call-return class separately from compiler-function bodies that still require
 final-byte footprint decoding.
+The final image's compiler-authored `.text` prefix is also compared bit-for-bit
+with encoded-machine bytes under the checked relocation plan. Only declared
+x86 displacement/address fields or the exact AArch64 immediate bitfields may
+change; opcode and register bits must remain identical. Bad widths, overlap,
+out-of-range records, and mutations outside that envelope reject before the
+output leaves checked image emission. Format-owned thunk tails retain their
+separate exact validators.
 The format writers also validate their own exact final import-thunk encodings
 after patching and relocation. PE `jmp [rip+disp32]` carries an
 instruction-pointer-only footprint; Mach-O `ADRP/LDR/BR X16` carries X16 plus

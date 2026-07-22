@@ -534,10 +534,14 @@ schemas recover the same instance without publishing policy type identity.
    Direct-image emission now validates the encoder-owned fixed entry prologue
    and return epilogue against the exact relocated compiler entry bytes on both
    architectures before publication; mutated final mechanics reject.
+   It also proves the relocated compiler-authored `.text` prefix differs from
+   encoded-machine bytes only within declared relocation bitfields, preserving
+   AArch64 opcode and register bits rather than treating whole instructions as
+   mutable; format-owned thunk tails retain their separate exact validators.
    It names its currently covered and missing classes and likewise refuses to
    claim complete enumeration.
    StatePlan-driven nonordinary save/restore and return specialization, and
-   final-byte footprint decoding/validation for compiler-function bodies and handler regions,
+   final-byte footprint decoding for compiler-function bodies and handler regions,
    relaxation products, veneers, generated stubs, and admitted leaves remain;
    final placement must still prove that enumeration is complete.
 4. **IDT1 — symbolic materialization (normalized foundation complete).**
