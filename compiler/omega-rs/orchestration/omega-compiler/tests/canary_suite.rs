@@ -22466,6 +22466,22 @@ fn mutable_interior_recast_rejects_fact_bearing_target() {
 }
 
 #[test]
+fn mutable_record_recast_rejects_fact_bearing_field() {
+    let canary = fail_canary("recast/recast_mut_record_fact_fenced");
+    let diagnostics = compile_canary_without_output(&canary)
+        .expect_err("fact-bearing mutable record target should be rejected");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("fact implication in BOTH directions"),
+        "expected the mutable record fact diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
 fn runtime_interior_byte_recast_exit_canary_runs() {
     // Rung B: `&self.buf[4] as &u32` assembles the little-endian u32 from
     // the byte region on both engines.
@@ -37005,6 +37021,72 @@ fn plan_laid_record_view_exit_canary_runs() {
 }
 
 #[test]
+fn plan_laid_mutable_record_view_exit_canary_runs() {
+    let canary = pass_canary("layouts/runtime_plan_laid_record_mutable_write_exit");
+    let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("mutable plan-laid record view should compile to checked trees");
+    assert_eq!(
+        omega_interpreter::interpret(&checked, &[]).exit_code,
+        70,
+        "the interpreter must write and reread the validated plan offsets"
+    );
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-plan-laid-mutable-view-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("mutable plan-laid record view should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("mutable plan-laid record-view canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "native writes must consume the validated plan offsets; stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+
+    for target in ["windows_x64", "linux_arm64"] {
+        let cross_dir = std::env::temp_dir().join(format!(
+            "omega-plan-laid-mutable-view-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&cross_dir);
+        let source_dir = cross_dir.join("src");
+        let cross_build_dir = cross_dir.join("build");
+        fs::create_dir_all(&source_dir).expect("create mutable-view cross-target source");
+        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+            .expect("copy mutable plan-laid view canary");
+        fs::write(
+            source_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write mutable-view cross-target manifest");
+        compile(CompileOptions {
+            root_path: source_dir.join("main.omg"),
+            build_dir: Some(cross_build_dir),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "mutable plan-laid record view should cross-compile for {target}: {diagnostics:?}"
+            )
+        });
+        let _ = fs::remove_dir_all(&cross_dir);
+    }
+}
+
+#[test]
 fn value_call_sequential_result_slots_exit_canary_runs() {
     // Two sequential value-position calls where callee 1 (`f`) has an internal
     // `let rr = r * r` binding and callee 2 (`g`) takes MORE arguments.
@@ -37448,6 +37530,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "layouts/runtime_plan_laid_value_field_exit",
     "layouts/runtime_plan_laid_value_by_value_param_exit",
     "layouts/runtime_plan_laid_record_view_exit",
+    "layouts/runtime_plan_laid_record_mutable_write_exit",
     "control_flow/runtime_compare_pair_dispatch_exit",
     "arithmetic/runtime_float_self_compare_nan_exit",
     "arithmetic/runtime_abs_desugar_exit",
@@ -38428,6 +38511,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "recast/recast_size_mismatch_rejected",
     "recast/recast_mut_fact_fenced",
     "recast/recast_mut_interior_fact_fenced",
+    "recast/recast_mut_record_fact_fenced",
     "recast/recast_position_fenced",
     "recast/interior_recast_footprint_rejected",
     "recast/runtime_offset_footprint_rejected",

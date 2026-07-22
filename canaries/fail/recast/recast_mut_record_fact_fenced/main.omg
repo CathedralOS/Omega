@@ -1,0 +1,18 @@
+// FAIL CANARY: a mutable record view owes fact implication in both
+// directions. Arbitrary byte writes cannot preserve a constrained field.
+domain u16::Small {
+    self <= 10;
+}
+
+data Facted {
+    value: u16 in Small;
+}
+
+data Main {
+    bytes: [u8; 2];
+}
+
+machine Main::main(&mut self) {
+    let view: &mut Facted = &mut self.bytes[0] as &mut Facted;
+    view.value = 1;
+}

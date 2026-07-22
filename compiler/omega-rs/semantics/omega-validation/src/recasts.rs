@@ -8,14 +8,13 @@
 //!   size (`&i32 as &f32`, `&mut u32 as &mut i32`), or a scalar view into a
 //!   proven in-bounds `[u8; N]` region, bound as the direct
 //!   initializer of a reference-typed let whose stated type restates the
-//!   target. Shared views may weaken source facts. Mutable views currently
-//!   require fact-free primitive source and target shapes, which proves the
+//!   target. Shared views may weaken source facts. Mutable views require
+//!   recursively fact-free primitive or record target shapes, which proves the
 //!   required implication in BOTH directions. Lowering is address identity:
 //!   native reads/writes the place through the stated type; the interpreter
 //!   bit-reinterprets both sides of the alias or assembles/writes the complete
 //!   little-endian byte-region footprint.
-//! - **Fenced (deeper byte-view rung, L4/L5):** mutable record views,
-//!   remaining record/array shapes
+//! - **Fenced (deeper byte-view rung, L4/L5):** remaining record/array shapes
 //!   (byte-granular tiling over plan-laid layouts), interior recasts into
 //!   and non-let positions.
 //! - **Refused absolutely:** targets that would ESTABLISH a fact the bytes
@@ -369,15 +368,18 @@ fn judge_scalar_recast(
     // drift canary). The view snapshots size_of(record) bytes from the
     // region; member reads are frame-resident record reads.
     if PrimitiveType::from_name(&target_name).is_none() {
-        if mutable_recast {
-            diagnostics.push(Diagnostic::error(format!(
-                "{context}: mutable recasts currently serve equal-width fact-free scalar \
-                 primitives; writable record/interior views still require the deeper \
-                 byte-view tiling judgment"
-            )));
-            return;
-        }
         if let Some(record_size) = scalar_record_size(program, &target_name) {
+            if mutable_recast
+                && !record_view_is_fact_free(program, &target_name, &mut HashSet::new())
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{context}: mutable record recast target `{target_name}` must be \
+                     recursively fact-free; writable views require fact implication in \
+                     BOTH directions, so constrained fields, bool, and record invariants \
+                     remain fenced"
+                )));
+                return;
+            }
             let source = strip_mutable(program, cast.value);
             let interior = interior_byte_region_source(program, machine, state, source);
             if let InteriorByteRegion::OffsetUnproven {
@@ -401,17 +403,21 @@ fn judge_scalar_recast(
                         "{context}: the recast target `{target_name}` needs {record_size} bytes at offset {offset}, but the region holds {region_length} -- the view would read past the buffer (§5b rule 1 is byte-granular)",
                     )));
                 }
-                let let_names_target = crate::places::unwrapped_type_reference(
-                    program,
-                    let_referee,
-                )
-                .map(|unwrapped| {
+                let let_names_target = if mutable_recast {
                     matches!(
-                        program.type_reference_table.type_reference(unwrapped),
+                        program.type_reference_table.type_reference(let_referee),
                         TypeReferenceNode::Named { name, .. } if name.as_str() == target_name
                     )
-                })
-                .unwrap_or(false);
+                } else {
+                    crate::places::unwrapped_type_reference(program, let_referee)
+                        .map(|unwrapped| {
+                            matches!(
+                                program.type_reference_table.type_reference(unwrapped),
+                                TypeReferenceNode::Named { name, .. } if name.as_str() == target_name
+                            )
+                        })
+                        .unwrap_or(false)
+                };
                 if !let_names_target {
                     diagnostics.push(Diagnostic::error(format!(
                         "{context}: the let's declared type must restate the recast target `&{target_name}`",
@@ -788,6 +794,58 @@ fn record_view_type_layout(
         return None;
     };
     record_view_layout(program, name.as_str(), visiting)
+}
+
+/// Mutable byte views must preserve every target fact after arbitrary writes.
+/// Until the general bidirectional entailment solver lands, the complete
+/// decidable subset is a raw named record whose transitive fields are raw
+/// fact-free scalar primitives or records with no default-domain facts.
+fn record_view_is_fact_free(
+    program: &TypedTrees,
+    name: &str,
+    visiting: &mut HashSet<String>,
+) -> bool {
+    if !visiting.insert(name.to_owned()) {
+        return false;
+    }
+    let Some(data) = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == name)
+    else {
+        visiting.remove(name);
+        return false;
+    };
+    if !data.where_facts.is_empty() || data.zero_gated {
+        visiting.remove(name);
+        return false;
+    }
+    for member in program.data_members(data) {
+        let omega_typed_trees::data::DataMember::Field(field) = member else {
+            visiting.remove(name);
+            return false;
+        };
+        let TypeReferenceNode::Named {
+            name: field_name, ..
+        } = program
+            .type_reference_table
+            .type_reference(field.type_reference)
+        else {
+            visiting.remove(name);
+            return false;
+        };
+        if let Some(primitive) = PrimitiveType::from_name(field_name.as_str()) {
+            if primitive == PrimitiveType::Bool {
+                visiting.remove(name);
+                return false;
+            }
+        } else if !record_view_is_fact_free(program, field_name.as_str(), visiting) {
+            visiting.remove(name);
+            return false;
+        }
+    }
+    visiting.remove(name);
+    true
 }
 
 /// The literal upper bound the incoming edges place on `offset` at this

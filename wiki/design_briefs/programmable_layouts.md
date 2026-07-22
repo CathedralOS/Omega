@@ -75,6 +75,9 @@ The same normalized geometry may feed different compiler-owned consumers:
 - shared byte-region record views containing a plan-laid subrecord (implemented
   for fixed scalar records in both native and interpreter execution, including
   stored integer widening from projected fields on x86-64 and AArch64);
+- mutable byte-region record views for recursively fact-free fixed records
+  (implemented with nested plan-laid field write-through in both native and
+  interpreter execution, plus x86-64/AArch64 compile rails);
 - placed-view projection over an authorized external extent; or
 - a materializer that resolves symbolic data/entry identities into an artifact
   or post-load structure.
@@ -165,12 +168,13 @@ loan ends. Foreign validation or executable conversion remains an ordinary
 contracted machine.
 
 Implementation status (2026-07-22): shared scalar, bounded interior-byte, and
-nested plan-laid record reads are live. Fact-free mutable scalar views are also
-live end to end over both equal-width scalar places and bounded offsets within
-byte regions, including bit-exact full-footprint writes and reads in both native
-backends and the interpreter. Fact-bearing mutable targets reject. Mutable
-record views remain the next tiling-and-write-back rung; they are rejected
-rather than lowered partially.
+nested plan-laid record reads are live. Fact-free mutable scalar views are live
+end to end over equal-width scalar places and bounded byte-region offsets.
+Recursively fact-free mutable record views are also live over bounded byte
+regions: nested ordinary/plan-laid scalar projections preserve exact offsets
+and bit patterns in both native backends and the interpreter. Fact-bearing
+mutable targets reject. General bidirectional fact entailment and non-record
+tiling remain staged.
 
 ## Policy selection
 
