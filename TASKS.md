@@ -668,7 +668,11 @@ slot owner may override by type. The migration order remains load-bearing.
    lowering, and qualified leaves cannot inherit the legacy bare-field
    shorthand. The obsolete standalone Value pass/wrong-target fixtures have
    been removed, and the qualified unresolved-path rail now depends only on
-   ordinary const/case resolution. The four target filesystem `struct stat`
+   ordinary const/case resolution. `Binding::Value`, its normalized provider
+   representation, and the compiler substitution pass are now deleted; the
+   remaining parser compatibility path emits a directed migration diagnostic
+   for integer rows, and trust-report coverage derives plans from external
+   leaves. The four target filesystem `struct stat`
    tables have now been deleted after foreign-record fact migration; a tracked-
    source invariant pins that no authored `provides` declaration remains.
    The obsolete standalone `host ... provides` syscall example is gone; the

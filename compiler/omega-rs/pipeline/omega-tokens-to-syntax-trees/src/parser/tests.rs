@@ -151,6 +151,24 @@ fn retired_spawn_forms_name_the_task_runtime_migration() {
 }
 
 #[test]
+fn retired_provides_values_name_the_data_migration() {
+    let source = r#"
+        boundary trait Flags { machine open_read() -> i32; }
+        demo_target provides Flags { open_read -> 0 }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("integer provides values must be retired");
+    assert!(
+        error
+            .message
+            .contains("integer `provides` values are retired")
+            && error.message.contains("target layout/format policy")
+    );
+}
+
+#[test]
 fn erased_join_type_is_rejected_but_join_names_are_ordinary() {
     let retired = "machine run(task: Join<i32>) {}";
     let tokens = Lexer::new(retired)
@@ -439,7 +457,11 @@ fn rejects_exit_contract_clauses_on_explicit_states() {
         .expect("tokenize should succeed");
     let error = parse_syntax_trees(&tokens)
         .expect_err("states admit arrival requires rather than exit contracts");
-    assert!(error.message.contains("state signatures admit only arrival `requires`"));
+    assert!(
+        error
+            .message
+            .contains("state signatures admit only arrival `requires`")
+    );
 }
 
 #[test]

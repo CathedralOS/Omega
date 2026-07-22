@@ -1,13 +1,12 @@
 //! Target-scoped machine selection (fs portable-contract settle 2026-07-18):
 //! `<target> machine Path(..) {..}` declares a PER-TARGET implementation of a
-//! portable contract signature, held beside that target's provides rows and
-//! gated by the same target filter. This stage runs BEFORE symbol resolution
+//! portable contract signature, gated by the target filter. This stage runs BEFORE symbol resolution
 //! in both engines' pipelines (the differential contract: the interpreter
 //! sees the SAME selected program natives are built from):
 //!
 //! - the SELECTED target's machine has its marker cleared -- from resolution
 //!   onward it is an ordinary machine, and no downstream stage grows a
-//!   per-target concept (const-v0 discipline, exactly like provides values);
+//!   per-target concept;
 //! - non-selected machines keep their marker and stay INERT (resolution skips
 //!   them), so four targets' same-name implementations never collide.
 //!
@@ -19,7 +18,7 @@
 //!   unresolved call site would bury the real cause).
 //!
 //! An unknown target name on a machine is silently never-selected, matching
-//! the provides-row semantic (a row for a hypothetical target is inert
+//! the target-scoped declaration semantic (a hypothetical target is inert
 //! everywhere, which is also what makes fail-canaries host-portable).
 
 use omega_core::diagnostics::Diagnostic;

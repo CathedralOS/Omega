@@ -31,13 +31,6 @@ pub fn compile_to_checked(
     crate::pipeline::generic_instances::desugar_generic_data_instances(&mut syntax.syntax_trees)?;
     let plan_laid_records =
         crate::pipeline::plan_laid::desugar_plan_laid_value_types(&mut syntax.syntax_trees)?;
-    // PORTABLE VALUES rung V2 -- exactly as the full `compile` pipeline does:
-    // the interpreter must see the SAME substituted program natives are built
-    // from (the differential contract).
-    crate::pipeline::provides_values::substitute_provides_values(
-        &mut syntax.syntax_trees,
-        target_name,
-    )?;
     // TARGET-SCOPED MACHINES -- exactly as the full `compile` pipeline does:
     // the interpreter runs the SELECTED target's implementations.
     let target_default_machine_names = crate::pipeline::target_machines::filter_target_machines(

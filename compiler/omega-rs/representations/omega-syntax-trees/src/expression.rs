@@ -112,7 +112,7 @@ impl ExpressionTable {
     }
 
     /// Replace a node in place. Reserved for the pre-resolution DESUGAR
-    /// passes (provides-value substitution) -- downstream stages treat the
+    /// passes (const substitution) -- downstream stages treat the
     /// table as immutable.
     pub fn replace_expression(&mut self, handle: ExpressionHandle, node: ExpressionNode) {
         *self.expressions.get_mut(handle) = node;

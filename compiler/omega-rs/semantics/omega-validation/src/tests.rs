@@ -2628,9 +2628,9 @@ mod provider_plan {
             trait_name: "Console".to_owned(),
             methods: Vec::new(),
         };
-        let row = |method: &str, value: i64| ProviderPlanRow {
+        let row = |method: &str, number: u32| ProviderPlanRow {
             method: method.to_owned(),
-            binding: ProviderBinding::Value { value },
+            binding: ProviderBinding::Syscall { number },
         };
         let plan = |rows: Vec<ProviderPlanRow>| ProviderPlan {
             name: "p".to_owned(),

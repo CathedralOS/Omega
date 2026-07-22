@@ -106,7 +106,6 @@ impl HostProviderMappingKind {
         match case {
             "Syscall" => payload.parse().ok().map(|number| Self::Syscall { number }),
             "VtableSlot" => payload.parse().ok().map(|index| Self::VtableSlot { index }),
-            "Value" => payload.parse().ok().map(|value| Self::Value { value }),
             "DllImport" => {
                 let (module, symbol) = payload.split_once(',')?;
                 Some(Self::DllImport {
@@ -135,14 +134,13 @@ impl HostProviderMappingKind {
             Self::TableFunction { field } => {
                 format!("TableFunction({})", field.as_str())
             }
-            Self::Value { value } => format!("Value({value})"),
         }
     }
 }
 
-/// The compiler-known, CLOSED `Binding` sum (extern brief §12.1): each provides
-/// arm binds a boundary-trait method to ONE mechanism the compiler knows how to
-/// lower. A new mechanism = a new case + new lowering, never user-invented --
+/// The compiler-known, CLOSED external `Binding` sum: each leaf binds a
+/// boundary-trait method to ONE mechanism the compiler knows how to lower. A
+/// new mechanism = a new case + new lowering, never user-invented --
 /// same discipline as `FieldPlan`. Each kind also implies the edge's calling
 /// convention (`Syscall` -> the syscall plan; `DllImport`/`VtableSlot` -> the C
 /// plan), so nobody names a convention in the common case (`calling_plans.md`).
@@ -165,11 +163,6 @@ pub enum HostProviderMappingKind {
     /// table pointer is DISPATCH-ONLY -- never a wire argument (EFI table
     /// services take no This; protocol/COM methods do).
     TableFunction { field: Identifier },
-    /// A per-target named CONSTANT, not a call mechanism: `O_CREATE -> 32768`
-    /// (portable-values settle, 2026-07-07 -- the libc-crate half of the Rust
-    /// split). The row supplies the number a boundary trait's declared const
-    /// resolves to on this target; it never lowers to a call.
-    Value { value: i64 },
 }
 
 impl Default for HostProviderMappingKind {
@@ -650,8 +643,8 @@ pub struct SatisfiesClause {
     pub requirement: Option<Identifier>,
     pub alias: Option<Identifier>,
     /// PRV4 step 1: `satisfies Requirement via <Binding>` -- the irreducible
-    /// EXTERNAL LEAF. The binding expression is the closed compile-time sum
-    /// (the provides grammar's RHS); its normalized rendering becomes the
+    /// EXTERNAL LEAF. The binding expression is the closed compile-time sum;
+    /// its normalized rendering becomes the
     /// machine's ExternalRealization supply identity. Only legal on a
     /// BODYLESS machine (a composite lowering is an ordinary checked body).
     pub via: Option<HostProviderMappingKind>,

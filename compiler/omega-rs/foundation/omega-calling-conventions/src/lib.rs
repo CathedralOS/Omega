@@ -1060,8 +1060,7 @@ pub struct ProvidesRow {
     /// The bound trait method's DECLARED parameter count, read from the
     /// boundary trait's signature at row extraction. The field-model
     /// encoders compare it against a call's operand list to detect a
-    /// prepended result place. Zero for the static mechanisms and value
-    /// rows (unused there).
+    /// prepended result place. Zero for static mechanisms.
     pub parameter_count: usize,
     /// Canonical source-selected plan for this concrete service method.
     pub boundary_entry_plan: Option<BoundaryEntryPlan>,
@@ -1091,12 +1090,6 @@ pub enum ProvidesBindingKind {
     /// This; protocol/COM methods do).
     TableFunction {
         field: String,
-    },
-    /// A per-target named CONSTANT (`O_CREATE -> 32768`): carried on the row
-    /// stream but never a call binding -- the const-resolution rung consumes
-    /// it; the ABI merge skips it.
-    Value {
-        value: i64,
     },
 }
 
@@ -1144,12 +1137,6 @@ pub fn merge_provides_rows(plan: &mut HostAbiPlan, provides: &[ProvidesRow]) -> 
     // the duplicate-binding check below catches a genuinely repeated
     // (trait, method) pair like any other collision.
     for row in provides {
-        // VALUE rows are constants, not call mechanisms: skip them BEFORE the
-        // operation-key checks (their names are naturally outside the closed
-        // catalog and must not trip the unknown-key collision).
-        if matches!(row.binding, ProvidesBindingKind::Value { .. }) {
-            continue;
-        }
         let key = HostOperationKey::from_names(&row.trait_name, &row.method);
         if plan
             .bindings
@@ -1164,7 +1151,6 @@ pub fn merge_provides_rows(plan: &mut HostAbiPlan, provides: &[ProvidesRow]) -> 
             ));
         }
         let mechanism = match &row.binding {
-            ProvidesBindingKind::Value { .. } => unreachable!("value rows skipped above"),
             ProvidesBindingKind::VtableSlot { index } => {
                 HostBindingMechanism::VtableSlot { index: *index }
             }

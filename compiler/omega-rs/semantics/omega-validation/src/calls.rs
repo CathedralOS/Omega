@@ -3560,9 +3560,8 @@ fn scan_expression_calls(
     }
     // Unknown TWO-segment path (`Type::Case`, `Trait::NAME`): the sibling of the
     // bare-name check above. A LEGITIMATE qualified case (`Signal::Green`) or a
-    // substituted const/provides-value resolves to a valid symbol before this
-    // stage; an unresolved `Scope::tail` -- a bogus case (`Signal::Blue`), a
-    // provides value missing on the selected target, or a typo -- keeps BOTH the
+    // substituted const resolves to a valid symbol before this stage; an
+    // unresolved `Scope::tail` -- a bogus case (`Signal::Blue`) or a typo -- keeps BOTH the
     // head and leaf symbols invalid and would silently read 0 (ZII) in value
     // position (native AND interpreter agree, so the differential cannot catch
     // it). Reject exactly that shape: both symbols unresolved.
