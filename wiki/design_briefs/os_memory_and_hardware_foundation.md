@@ -447,7 +447,9 @@ placement record from being substituted across contracts or implementations.
 When a boundary contract is retained, the composed encoded-machine evidence is
 also attached to exactly one placed compiler entry-function region. Final
 inventory emission rejects a missing or duplicate entry-symbol match, so the
-handler evidence cannot float beside an unrelated compiler-function span.
+handler evidence cannot float beside an unrelated compiler-function span. The
+typed placed inventory is recomputed after attachment, making that association
+part of its fingerprint rather than a presentation-only JSON annotation.
 The format writers also validate their own exact final import-thunk encodings
 after patching and relocation. PE `jmp [rip+disp32]` carries an
 instruction-pointer-only footprint; Mach-O `ADRP/LDR/BR X16` carries X16 plus
