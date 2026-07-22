@@ -45,10 +45,12 @@ pub(crate) fn filter_target_machines(
         let Some(target) = &machine.target else {
             continue;
         };
-        let full_name = match &machine.attached_data {
-            Some(data) => format!("{}::{}", data.as_str(), machine.name.as_str()),
-            None => machine.name.as_str().to_owned(),
-        };
+        // The parser's machine name is already the complete spelled path
+        // (`Owner::provider_defaults` for an attached declaration). Rebuilding
+        // it from `attached_data` would produce
+        // `Owner::Owner::provider_defaults`, which still groups target rows but
+        // cannot be resolved against the later typed machine.
+        let full_name = machine.name.as_str().to_owned();
         let row_selected = NativeTarget::from_omega_target_name(Some(target.as_str()))
             .is_ok_and(|resolved| resolved == selected);
         let entry = rows.entry(full_name).or_default();
