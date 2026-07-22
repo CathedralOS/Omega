@@ -647,8 +647,11 @@ slot owner may override by type. The migration order remains load-bearing.
    loaded dependency closure and is confined to the build root's slot-owner
    authority. Target-scoped package-owned `provider_defaults` machines now
    supply ordinary defaults, explicit build selection overrides them per slot,
-   and conflicting target defaults reject. Extend the same selection contract
-   to test/component slot owners. Coverage, signature conformance, transitive
+   and conflicting target defaults reject. Their selected full machine names
+   survive the syntax-to-typed handoff exactly once (without duplicating the
+   attached owner path), with default, override, and conflict canaries in the
+   authoritative rosters. Extend the same selection contract to test/component
+   slot owners. Coverage, signature conformance, transitive
    effect refinement, normalized identity, and selected-target-only ambiguity
    are already enforced.
 3. **PRV4e — foreign format facts.** Move foreign offsets and bit constants
