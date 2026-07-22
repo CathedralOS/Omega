@@ -1,5 +1,5 @@
-// Slot selection authority belongs to the build root (and later scoped
-// component/test owners). Merely spelling the declaration-shaped member call
+// Slot selection authority belongs to a build.omg root (free or scoped to a
+// component/test owner). Merely spelling the declaration-shaped member call
 // in ordinary code must not select or grant a provider.
 boundary trait Pick {
     machine choose() -> i32;

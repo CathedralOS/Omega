@@ -650,8 +650,12 @@ slot owner may override by type. The migration order remains load-bearing.
    and conflicting target defaults reject. Their selected full machine names
    survive the syntax-to-typed handoff exactly once (without duplicating the
    attached owner path), with default, override, and conflict canaries in the
-   authoritative rosters. Extend the same selection contract to test/component
-   slot owners. Coverage, signature conformance, transitive
+   authoritative rosters. Test/component slot owners now use the same contract
+   through an attached `Owner::build` declared at a `build.omg` root; the
+   toolchain-provided `Build` vocabulary recognizes that scoped form, while the
+   identical spelling in ordinary source remains unprivileged. Component, test,
+   and file-authority canaries are in the authoritative rosters. Coverage,
+   signature conformance, transitive
    effect refinement, normalized identity, and selected-target-only ambiguity
    are already enforced.
 3. **PRV4e — foreign format facts.** Move foreign offsets and bit constants
