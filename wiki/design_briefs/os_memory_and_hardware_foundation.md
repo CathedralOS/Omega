@@ -382,7 +382,10 @@ against one retained boundary plan. Ordering and duplicate fragments cannot
 perturb that implementation-only evidence fingerprint. Validated inbound
 fragments now remain attached to the abstract-operation plan with
 `entry_storage` provenance, and `08_boundary_footprints.json` publishes the
-fragments plus their composed fingerprint. Its explicit
+fragments plus their composed fingerprint. The special bytes-handoff entry also
+retains a distinct `entry_slice_descriptor` fragment whose fixed x86-64 or
+AArch64 scratch set is declared beside the encoder that emits it, so both the
+raw-register spill and constructed slice view are covered. Its explicit
 `enumeration_complete: false` status is a firewall: this retained slice is
 checkable implementation evidence, not yet the final certificate.
 The final certificate must still aggregate the specialized handler body,

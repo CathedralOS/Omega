@@ -88,6 +88,9 @@ pub fn boundary_footprint_fragments_json(plan: &AbstractOperationPlan) -> String
                 omega_abstract_operations::BoundaryFootprintFragmentOrigin::EntryStorage => {
                     "entry_storage"
                 }
+                omega_abstract_operations::BoundaryFootprintFragmentOrigin::EntrySliceDescriptor => {
+                    "entry_slice_descriptor"
+                }
             },
         );
         json.push_str(", \"evidence\": ");
@@ -122,11 +125,21 @@ mod boundary_footprint_tests {
                     MachineStateSet::empty(),
                 ),
             });
+        plan.boundary_footprints
+            .fragments
+            .push(BoundaryFootprintFragment {
+                origin: BoundaryFootprintFragmentOrigin::EntrySliceDescriptor,
+                evidence: StateFootprintEvidence::new(
+                    RegisterSet::new([MachineRegister::X86Rax]),
+                    MachineStateSet::empty(),
+                ),
+            });
 
         let json = boundary_footprint_fragments_json(&plan);
 
         assert!(json.contains("\"enumeration_complete\": false"));
         assert!(json.contains("\"origin\": \"entry_storage\""));
+        assert!(json.contains("\"origin\": \"entry_slice_descriptor\""));
         assert!(json.contains("\"registers\": [\"X86R15\"]"));
         assert!(json.contains("\"fingerprint\": \"0x"));
     }

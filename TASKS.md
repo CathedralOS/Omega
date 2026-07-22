@@ -459,10 +459,13 @@ schemas recover the same instance without publishing policy type identity.
    once against the retained entry plan, and retain an order- and duplicate-
    insensitive implementation-evidence fingerprint. Validated inbound-storage
    fragments now survive instruction selection and abstract-operation lowering
-   with explicit `entry_storage` provenance. The backend publishes both those
-   fragments and their composed fingerprint in `08_boundary_footprints.json`,
-   whose `enumeration_complete: false` firewall prevents this partial slice from
-   being mistaken for the final certificate. Whole-body evidence, save/restore
+   with explicit `entry_storage` provenance. The special bytes-handoff slice
+   descriptor now contributes its own `entry_slice_descriptor` fragment from
+   encoder-owned x86-64/AArch64 scratch declarations, closing the previously
+   omitted half of that entry prologue. The backend publishes these fragments
+   and their composed fingerprint in `08_boundary_footprints.json`, whose
+   `enumeration_complete: false` firewall prevents this partial slice from being
+   mistaken for the final certificate. Whole-body evidence, save/restore
    specialization, and post-layout enumeration across handler code, exits,
    veneers, thunks, and admitted leaves remain; final placement must still prove
    that enumeration is complete.

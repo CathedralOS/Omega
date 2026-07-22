@@ -1,4 +1,4 @@
-use omega_compiler::{compile, compile_to_checked, CompileOptions, CompileReport};
+use omega_compiler::{CompileOptions, CompileReport, compile, compile_to_checked};
 use omega_core::diagnostics::Diagnostic;
 use std::fs;
 #[cfg(not(windows))]
@@ -860,8 +860,10 @@ fn linux_x64_dungeon_crawler_emits_elf_with_runtime_storage_syscalls() {
     // (read syscall number) + syscall. Its presence proves stdin input works via the
     // syscall path (a win32-import read would emit a `call rel32`, no read syscall).
     assert!(
-        elf.windows(12)
-            .any(|w| w == [0xba, 0x01, 0x00, 0x00, 0x00, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x05]),
+        elf.windows(12).any(|w| w
+            == [
+                0xba, 0x01, 0x00, 0x00, 0x00, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x05
+            ]),
         "ELF should set up a read(2) line-read loop (mov edx,1; mov eax,0; syscall)"
     );
 
@@ -34923,6 +34925,14 @@ fn entry_run_args_bytes_canary_runs() {
         write_output: true,
     })
     .expect("entry run-args canary should compile");
+    let footprint_artifact = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
+        .expect("entry run-args footprint evidence should be written");
+    assert!(
+        footprint_artifact.contains("\"origin\": \"entry_storage\"")
+            && footprint_artifact.contains("\"origin\": \"entry_slice_descriptor\"")
+            && footprint_artifact.contains("\"enumeration_complete\": false"),
+        "bytes handoff must retain both entry-storage and descriptor evidence without claiming final completeness"
+    );
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("entry run-args canary should run");

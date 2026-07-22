@@ -6,6 +6,7 @@ use omega_calling_conventions::{StateFootprintEvidence, compose_state_footprints
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoundaryFootprintFragmentOrigin {
     EntryStorage,
+    EntrySliceDescriptor,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

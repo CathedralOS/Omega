@@ -1,5 +1,8 @@
 use crate::InstructionSelectionInput;
-use crate::{derive_boundary_entry_storage, derive_boundary_exit};
+use crate::{
+    derive_boundary_entry_slice_descriptor_footprint, derive_boundary_entry_storage,
+    derive_boundary_exit,
+};
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::statement::StatementNode;
 use omega_checked_trees::types::PrimitiveType;
@@ -42,8 +45,9 @@ use omega_abstract_operations::{
     SelectedInstructionKind,
 };
 use omega_calling_conventions::{
-    CallSignature, CallingPolicy, MachineRegister, SystemVEightbyteClass, ValueClass,
-    ValueLocation, ValueShape, evaluate_ordinary_boundary_entry_plan,
+    CallSignature, CallingPolicy, MachineRegister, StateFootprintEvidence, SystemVEightbyteClass,
+    ValidatedBoundaryEntryPlan, ValueClass, ValueLocation, ValueShape,
+    evaluate_ordinary_boundary_entry_plan,
 };
 use omega_layout::{DataShape, TypeLayoutDescriptor};
 use operation_aliases::bind_runtime_operation_aliases;
@@ -1462,9 +1466,21 @@ pub(super) fn select_entry_argument_register_writes(
         let destinations = (0..4)
             .map(|index| (spill_base + index * 8, ValueShape::integer(8, 8)))
             .collect::<Vec<_>>();
-        let footprint =
+        let selected =
             select_normalized_entry_argument_writes(input, &destinations, selected_instructions);
-        retain_entry_storage_footprint(boundary_footprints, footprint);
+        let descriptor_footprint =
+            derive_boundary_entry_slice_descriptor_footprint(&selected.boundary)
+                .expect("bytes-handoff descriptor must fit the validated entry state ceiling");
+        retain_boundary_footprint(
+            boundary_footprints,
+            omega_abstract_operations::BoundaryFootprintFragmentOrigin::EntryStorage,
+            selected.footprint,
+        );
+        retain_boundary_footprint(
+            boundary_footprints,
+            omega_abstract_operations::BoundaryFootprintFragmentOrigin::EntrySliceDescriptor,
+            descriptor_footprint,
+        );
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::WriteEntryArgumentsSliceDescriptor {
                 descriptor_offset,
@@ -1543,9 +1559,13 @@ pub(super) fn select_entry_argument_register_writes(
         let destinations = (0..(*byte_size / 8))
             .map(|index| (*byte_offset + index * 8, ValueShape::integer(8, 8)))
             .collect::<Vec<_>>();
-        let footprint =
+        let selected =
             select_normalized_entry_argument_writes(input, &destinations, selected_instructions);
-        retain_entry_storage_footprint(boundary_footprints, footprint);
+        retain_boundary_footprint(
+            boundary_footprints,
+            omega_abstract_operations::BoundaryFootprintFragmentOrigin::EntryStorage,
+            selected.footprint,
+        );
         return;
     }
 
@@ -1567,27 +1587,34 @@ pub(super) fn select_entry_argument_register_writes(
     {
         return;
     }
-    let footprint =
+    let selected =
         select_normalized_entry_argument_writes(input, &destinations, selected_instructions);
-    retain_entry_storage_footprint(boundary_footprints, footprint);
+    retain_boundary_footprint(
+        boundary_footprints,
+        omega_abstract_operations::BoundaryFootprintFragmentOrigin::EntryStorage,
+        selected.footprint,
+    );
 }
 
-fn retain_entry_storage_footprint(
+fn retain_boundary_footprint(
     plan: &mut omega_abstract_operations::BoundaryFootprintPlan,
-    evidence: omega_calling_conventions::StateFootprintEvidence,
+    origin: omega_abstract_operations::BoundaryFootprintFragmentOrigin,
+    evidence: StateFootprintEvidence,
 ) {
     plan.fragments
-        .push(omega_abstract_operations::BoundaryFootprintFragment {
-            origin: omega_abstract_operations::BoundaryFootprintFragmentOrigin::EntryStorage,
-            evidence,
-        });
+        .push(omega_abstract_operations::BoundaryFootprintFragment { origin, evidence });
+}
+
+struct SelectedNormalizedEntryStorage {
+    boundary: ValidatedBoundaryEntryPlan,
+    footprint: StateFootprintEvidence,
 }
 
 fn select_normalized_entry_argument_writes(
     input: &InstructionSelectionInput<'_>,
     destinations: &[(usize, ValueShape)],
     selected_instructions: &mut SelectedInstructionSink,
-) -> omega_calling_conventions::StateFootprintEvidence {
+) -> SelectedNormalizedEntryStorage {
     let result = normalized_entry_indirect_result_shape(input);
     let signature = CallSignature {
         parameters: destinations.iter().map(|(_, shape)| *shape).collect(),
@@ -1620,7 +1647,10 @@ fn select_normalized_entry_argument_writes(
             source_statement: 0,
         });
     }
-    footprint
+    SelectedNormalizedEntryStorage {
+        boundary,
+        footprint,
+    }
 }
 
 pub(super) fn normalized_entry_indirect_result_shape(
