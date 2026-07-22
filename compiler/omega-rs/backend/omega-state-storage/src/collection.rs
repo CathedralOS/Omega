@@ -550,10 +550,11 @@ fn local_data_requires_storage(
 
     // A RECAST local is an address-bearing runtime view, not a substitutable
     // scalar alias (`simple_local_binding_value_from_table` deliberately
-    // refuses to fold it). When its only uses occur in later `let`
-    // initializers, the final liveness scan cannot see them and used to elide
-    // the view's slot. Projected reads then had no base address and silently
-    // decoded zeros. Keep the slot for that otherwise-invisible use shape;
+    // refuses to fold it). When its only uses occur in a later `let`
+    // initializer or ASSIGNMENT VALUE, the final liveness scan cannot see them
+    // and used to elide the view's slot. Projected reads then either decoded
+    // zeros or alias-expanded back to a cast-rooted path that storage selection
+    // cannot place. Keep the slot for those otherwise-invisible use shapes;
     // ordinary statement uses remain covered by the final scan below.
     if initializer_is_recast(expressions, initial_value)
         && statements
@@ -561,6 +562,12 @@ fn local_data_requires_storage(
             .skip(local_statement_index + 1)
             .any(|statement| {
                 local_data_value_references_symbol(expressions, statement, local_symbol, local_name)
+                    || assignment_value_references_symbol(
+                        expressions,
+                        statement,
+                        local_symbol,
+                        local_name,
+                    )
             })
     {
         return true;
