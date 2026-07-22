@@ -191,10 +191,7 @@ boundary trait FilesystemHost {
     machine errno() -> i32 effects filesystem_io;
 }
 
-// Foreign open flags and `struct stat` layouts are ordinary checked target code
-// in `filesystem_impl.omg`. Importing every target definition keeps this module
-// self-contained; target filtering keeps non-selected declarations inert.
-use omega::language::std::targets::windows_x64;
-use omega::language::std::targets::macos_arm64;
-use omega::language::std::targets::linux_x64;
-use omega::language::std::targets::linux_arm64;
+// Target-specific `Filesystem` wrapper machines and `StatLayout` policies are
+// imported by `filesystem.omg`, where their attached data and result types are
+// declared. The raw boundary deliberately does not import those implementations:
+// raw-seam clients need only `FilesystemHost` and `Path`.
