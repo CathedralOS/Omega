@@ -2946,6 +2946,13 @@ fn select_runtime_dispatch_local_initializer_write(
     else {
         return;
     };
+    // A result-slot copy is the complete initializer only when the authored
+    // initializer itself is the value call. For `let x = f() + 63`, the slot
+    // is merely an operand and the full expression still has to be lowered;
+    // treating every AssignmentValue result as the whole initializer silently
+    // dropped the surrounding arithmetic.
+    let initializer_is_direct_call =
+        matches!(expressions.expression(initializer), ExpressionNode::Call(_));
     let copied_aliases =
         RuntimeAliasBuffer::copy_from_bindings(alias_expressions, aliases, expressions);
     let resolved_initializer = crate::selection::bindings::resolve_runtime_alias_binding_handle(
@@ -3155,14 +3162,16 @@ fn select_runtime_dispatch_local_initializer_write(
     // before attempting to lower the copied initializer expression itself:
     // resolving a bare scalar callee body here can rebind its parameters to
     // unrelated caller-frame operands and overwrite the correct result.
-    if copy_assignment_value_call_result_into_local(
+    if initializer_is_direct_call
+        && copy_assignment_value_call_result_into_local(
         input,
         dispatch_index,
         source_key,
         statement_index,
         slot,
         selected_instructions,
-    ) {
+    )
+    {
         return;
     }
 
