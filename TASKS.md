@@ -643,8 +643,11 @@ slot owner may override by type. The migration order remains load-bearing.
    and call their ordinary target encoder. Native lowering defers an outer
    value result until the complete nested statement-call splice has executed,
    and direct aggregate construction restores omitted fields and padding to
-   their zero representation before applying named fields. The remaining
-   `struct stat` offsets have now moved as well: the four target filesystem
+   their zero representation before applying named fields. Aggregate
+   construction through reference and indexed destinations retains the
+   composed pointee/index place while performing that whole-value zero fill,
+   rather than overwriting a frame slot that carries an input reference. The
+   remaining `struct stat` offsets have now moved as well: the four target filesystem
    packages author checked `StatLayout` policies, while portable copy and
    metadata decoding project semantic fields through one `StatView`. No
    `FilesystemHost::ST_*` value remains consumed. Shared record recasts may

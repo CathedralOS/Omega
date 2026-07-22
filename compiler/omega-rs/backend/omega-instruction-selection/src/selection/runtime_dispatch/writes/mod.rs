@@ -13,9 +13,19 @@ use super::super::lookups::state_mutation_for_statement;
 use super::text_writes::runtime_text_builder_write_in_table_emit;
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
-use crate::selection::storage_places::resolve_runtime_storage_place_in_table;
+use crate::selection::storage_places::{
+    resolve_runtime_frame_base_double_indexed_source_in_table,
+    resolve_runtime_frame_base_indexed_target_in_table,
+    resolve_runtime_frame_fixed_indexed_target_in_table,
+    resolve_runtime_frame_indexed_target_in_table,
+    resolve_runtime_machine_double_indexed_source_in_table,
+    resolve_runtime_machine_indexed_target_in_table,
+    resolve_runtime_pointee_fixed_indexed_target_in_table,
+    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
+};
 use omega_abstract_operations::{
-    RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
+    Place, PlaceStep, RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction,
+    SelectedInstructionKind,
 };
 use omega_checked_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableIndexedExpression,
@@ -422,15 +432,13 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
     }
 
     if let ExpressionNode::StructLiteral(struct_literal) = expressions.expression(value).clone() {
-        // Construction replaces the WHOLE value. Zero the complete direct
+        // Construction replaces the WHOLE value. Zero the complete resolved
         // target first so fields omitted from the literal regain their ZII
         // representation instead of retaining bytes from a prior value. This
         // is observable for repeated OpenOptions assignments: `{ read: true }`
         // must clear an earlier `{ write: true, create: true }` before the
         // target encoder reads it. Named fields overwrite the zeroes below.
-        // Non-direct targets retain the existing field-by-field paths until
-        // their generalized fill operation lands.
-        let mut emitted = zero_direct_struct_target(
+        let mut emitted = zero_struct_target(
             input,
             dispatch_index,
             operation_source_key,
@@ -938,12 +946,13 @@ fn push_unlowered_literal_field_poison(
     });
 }
 
-/// Zero a directly addressable aggregate target in machine/frame storage.
+/// Zero an aggregate target in machine/frame storage, retaining any deref or
+/// runtime-index path needed to reach the aggregate.
 /// Struct/case construction is whole-value replacement, and omitted fields are
 /// represented by zero. Chunked scalar writes keep the operation target-neutral
 /// while covering arbitrary record sizes and padding.
 #[allow(clippy::too_many_arguments)]
-fn zero_direct_struct_target(
+fn zero_struct_target(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation_source_key: StateKey,
@@ -954,7 +963,7 @@ fn zero_direct_struct_target(
     static_values: &mut RuntimeStaticValues,
     selected_instructions: &mut SelectedInstructionSink,
 ) -> bool {
-    let Some(place) = resolve_runtime_storage_place_in_table(
+    let Some((place, byte_count)) = resolve_struct_target_place(
         input,
         dispatch_index,
         target_source_key,
@@ -963,32 +972,203 @@ fn zero_direct_struct_target(
     ) else {
         return false;
     };
-    if place.byte_count == 0 {
+    if byte_count == 0 {
         return false;
     }
 
     invalidate_runtime_static_value_in_table(static_values, expressions, target);
     let mut zeroed = 0usize;
-    while zeroed < place.byte_count {
-        let step = match place.byte_count - zeroed {
+    while zeroed < byte_count {
+        let step = match byte_count - zeroed {
             remaining if remaining >= 8 => 8,
             remaining if remaining >= 4 => 4,
             remaining if remaining >= 2 => 2,
             _ => 1,
         };
+        let chunk_target = place
+            .with_step(PlaceStep::ConstOffset(zeroed))
+            .expect("a zero-fill offset merges into the place's trailing const step");
         selected_instructions.push(SelectedInstruction {
-            kind: crate::selection::runtime_dispatch::write_place_integer_direct(
-                place.region,
-                place.byte_offset + zeroed,
-                0,
-                step,
-            ),
+            kind: SelectedInstructionKind::WritePlaceInteger {
+                target: chunk_target,
+                value: 0,
+                byte_size: step,
+            },
             source_key: operation_source_key,
             source_statement: statement_index,
         });
         zeroed += step;
     }
     true
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_struct_target_place(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    target_source_key: StateKey,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+) -> Option<(Place, usize)> {
+    if let Some(indexed) = resolve_runtime_frame_indexed_target_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) {
+        let place = Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            indexed.descriptor_offset,
+        )
+        .with_step(PlaceStep::Deref)?
+        .with_step(PlaceStep::ScaledIndex {
+            index_region: indexed.index_region,
+            index_offset: indexed.index_offset,
+            element_byte_size: indexed.element_byte_size,
+        })?
+        .with_step(PlaceStep::ConstOffset(indexed.field_byte_offset))?;
+        return Some((place, indexed.byte_count));
+    }
+
+    if let Some(indexed) = resolve_runtime_frame_base_indexed_target_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) {
+        let place = Place::at(RuntimeStorageRegion::RuntimeFrame, indexed.base_byte_offset)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: indexed.index_offset,
+                element_byte_size: indexed.element_byte_size,
+            })?
+            .with_step(PlaceStep::ConstOffset(indexed.field_byte_offset))?;
+        return Some((place, indexed.byte_count));
+    }
+
+    if let Some(indexed) = resolve_runtime_machine_indexed_target_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) {
+        let place = Place::at(RuntimeStorageRegion::Machine, indexed.base_byte_offset)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: indexed.index_region,
+                index_offset: indexed.index_offset,
+                element_byte_size: indexed.element_byte_size,
+            })?
+            .with_step(PlaceStep::ConstOffset(indexed.field_byte_offset))?;
+        return Some((place, indexed.byte_count));
+    }
+
+    if let Some(indexed) = resolve_runtime_frame_base_double_indexed_source_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) {
+        let place = Place::at(RuntimeStorageRegion::RuntimeFrame, indexed.base_byte_offset)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: indexed.outer_index_offset,
+                element_byte_size: indexed.outer_stride,
+            })?
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: RuntimeStorageRegion::RuntimeFrame,
+                index_offset: indexed.inner_index_offset,
+                element_byte_size: indexed.inner_stride,
+            })?
+            .with_step(PlaceStep::ConstOffset(indexed.field_byte_offset))?;
+        return Some((place, indexed.byte_count));
+    }
+
+    if let Some(indexed) = resolve_runtime_machine_double_indexed_source_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) {
+        let place = Place::at(RuntimeStorageRegion::Machine, indexed.base_byte_offset)
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: indexed.outer_index_region,
+                index_offset: indexed.outer_index_offset,
+                element_byte_size: indexed.outer_stride,
+            })?
+            .with_step(PlaceStep::ScaledIndex {
+                index_region: indexed.inner_index_region,
+                index_offset: indexed.inner_index_offset,
+                element_byte_size: indexed.inner_stride,
+            })?
+            .with_step(PlaceStep::ConstOffset(indexed.field_byte_offset))?;
+        return Some((place, indexed.byte_count));
+    }
+
+    if let Some(indexed) = resolve_runtime_frame_fixed_indexed_target_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) && let Some(field_byte_offset) = indexed.pointee_field_byte_offset()
+    {
+        let place = Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            indexed.descriptor_offset,
+        )
+        .with_step(PlaceStep::Deref)?
+        .with_step(PlaceStep::ConstOffset(field_byte_offset))?;
+        return Some((place, indexed.byte_count));
+    }
+
+    if let Some(pointee) = resolve_runtime_pointee_fixed_indexed_target_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) {
+        let place = Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            pointee.pointer_byte_offset,
+        )
+        .with_step(PlaceStep::Deref)?
+        .with_step(PlaceStep::ConstOffset(pointee.field_byte_offset))?;
+        return Some((place, pointee.pointee_byte_size));
+    }
+
+    if let Some(pointee) = resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) {
+        let place = Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            pointee.pointer_byte_offset,
+        )
+        .with_step(PlaceStep::Deref)?
+        .with_step(PlaceStep::ConstOffset(pointee.field_byte_offset))?;
+        return Some((place, pointee.pointee_byte_size));
+    }
+
+    let direct = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    )?;
+    Some((
+        Place::at(direct.region, direct.byte_offset),
+        direct.byte_count,
+    ))
 }
 
 /// Write the i32 CASE TAG of a case construction (`target = Type::Case { .. }`)

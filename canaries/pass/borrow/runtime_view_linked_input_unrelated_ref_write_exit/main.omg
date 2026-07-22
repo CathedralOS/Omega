@@ -34,6 +34,8 @@ machine pick(bag: &mut Bag) -> &mut Cell {
 machine fill(a: &mut Bag, b: &mut Bag) {
     let cell: &mut Cell = pick(a);
     // `cell` borrows `a` (the single ref input of `pick`); `b` is unentangled.
+    // Whole-record construction must also zero through `b`'s pointee place,
+    // never the frame slot that stores the `b` pointer itself.
     b.cells[0] = Cell { value: 1 };
     cell.value = 7;
 }
