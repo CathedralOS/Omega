@@ -1180,6 +1180,24 @@ pub fn encode_runtime_value_compare(
     Ok(bytes)
 }
 
+/// Closed may-write ceiling of the recursive runtime-value comparison
+/// encoder. Individual operand trees use subsets of these fixed destination,
+/// scratch-pool, address-helper, and FP registers.
+pub fn runtime_value_compare_register_write_ceiling() -> RegisterSet {
+    let mut registers = (9..=15)
+        .chain([17])
+        .chain(19..=21)
+        .chain([26])
+        .map(MachineRegister::Aarch64X)
+        .collect::<Vec<_>>();
+    registers.extend([MachineRegister::Aarch64V(0), MachineRegister::Aarch64V(1)]);
+    RegisterSet::new(registers)
+}
+
+pub fn runtime_value_compare_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 pub fn encode_runtime_machine_integer_write(
     byte_offset: usize,
     byte_size: usize,

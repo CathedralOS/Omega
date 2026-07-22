@@ -3,7 +3,8 @@ use crate::{
     derive_boundary_dispatch_scaffold_footprint,
     derive_boundary_exit_indirect_result_copy_footprint,
     derive_boundary_exit_result_register_footprint, derive_boundary_place_guard_footprint,
-    derive_boundary_runtime_text_guard_footprint, derive_boundary_static_guard_footprint,
+    derive_boundary_runtime_text_guard_footprint, derive_boundary_runtime_value_guard_footprint,
+    derive_boundary_static_guard_footprint,
 };
 use omega_abstract_operations::AbstractOperationPlan;
 use omega_checked_trees::expression::ExpressionTable;
@@ -221,6 +222,7 @@ fn select_entry_instructions(
             &mut boundary_footprints,
             entry_boundary.as_ref(),
             input,
+            runtime_value_operands,
             instructions.span(instruction_span).unwrap_or_default(),
         );
         return (instruction_span, candidates, boundary_footprints);
@@ -255,6 +257,7 @@ fn select_entry_instructions(
         &mut boundary_footprints,
         entry_boundary.as_ref(),
         input,
+        runtime_value_operands,
         instructions.span(instruction_span).unwrap_or_default(),
     );
     (instruction_span, candidates, boundary_footprints)
@@ -264,6 +267,7 @@ fn retain_exit_footprints(
     plan: &mut omega_abstract_operations::BoundaryFootprintPlan,
     boundary: Option<&omega_calling_conventions::ValidatedBoundaryEntryPlan>,
     input: &InstructionSelectionInput<'_>,
+    runtime_value_operands: &Arena<AbstractValueOperand>,
     instructions: &[AbstractOperation],
 ) {
     let Some(boundary) = boundary else {
@@ -330,6 +334,22 @@ fn retain_exit_footprints(
             },
         )
         .expect("retained place guards must name and fit the entry boundary contract");
+    }
+    let evidence = derive_boundary_runtime_value_guard_footprint(
+        boundary,
+        runtime_value_operands,
+        instructions.iter().map(|instruction| &instruction.kind),
+    )
+    .expect("selected runtime-value guards must fit the validated entry state ceiling");
+    if !evidence.machine_state().is_empty() {
+        plan.retain_validated_fragment(
+            boundary,
+            omega_abstract_operations::BoundaryFootprintFragment {
+                origin: omega_abstract_operations::BoundaryFootprintFragmentOrigin::RuntimeValueGuardComparison,
+                evidence,
+            },
+        )
+        .expect("retained runtime-value guards must name and fit the entry boundary contract");
     }
     let evidence = derive_boundary_call_return_mechanics_footprint(
         boundary,

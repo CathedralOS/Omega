@@ -422,13 +422,17 @@ canaries exercise the literal-buffer path. Place-pair and place-vs-immediate
 guards likewise retain `place_guard_comparison` evidence: x86-64 covers the
 complete place walk and compare scratch, while AArch64 covers its admitted
 direct-place shapes and offset-dependent address scratch. Cross-target artifact
-canaries exercise the place-pair path. The artifact's explicit
+canaries exercise the place-pair path. Recursive `CompareRuntimeValues` guards
+add `runtime_value_guard_comparison` evidence from each ISA's closed evaluator
+may-write ceiling. x86 reports balanced push/pop SP use only for operand trees
+that contain nested binary evaluation, and that stack scratch is scoped to an
+ordinary call-return activation. Cross-target artifacts exercise text-equality
+value operands. The artifact's explicit
 `enumeration_complete: false` status is a firewall: this retained slice is
 checkable implementation evidence, not yet the final certificate.
-The final certificate must still aggregate computed-runtime-value body guard evidence,
-StatePlan-driven nonordinary save/restore and return sequences, relaxation
-products, veneers/thunks, generated stubs, and admitted indirect leaves after
-final placement.
+The final certificate must still aggregate StatePlan-driven nonordinary
+save/restore and return sequences, relaxation products, veneers/thunks,
+generated stubs, and admitted indirect leaves after final placement.
 
 ## Symbolic materialization and admitted executable installation
 

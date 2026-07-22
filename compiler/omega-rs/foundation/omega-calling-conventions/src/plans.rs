@@ -666,6 +666,39 @@ pub fn validate_call_return_mechanics_footprint(
     )
 }
 
+/// Validate the recursive runtime-value guard evaluator. Its x86 lowering may
+/// use balanced push/pop pairs while evaluating nested `Binary` operands; that
+/// stack effect is prescribed only for an ordinary call-return activation.
+/// Every other state class remains under the boundary's transitive ceiling.
+pub fn validate_runtime_value_guard_footprint(
+    validated: &ValidatedBoundaryEntryPlan,
+    evidence: &StateFootprintEvidence,
+) -> Result<(), PlanDiagnostic> {
+    let stack_use = MachineStateSet::new([MachineState::StackPointer]);
+    let uses_stack = evidence.machine_state().contains_all(stack_use);
+    if uses_stack
+        && (validated.plan().call.policy.architecture() != Architecture::X86_64
+            || validated.plan().call.entry_control != EntryControl::CallReturn)
+    {
+        return Err(PlanDiagnostic(
+            "runtime-value guard stack scratch requires an x86 call-return activation".into(),
+        ));
+    }
+    validate_state_footprint_under_ceiling(
+        validated,
+        evidence,
+        validated
+            .plan()
+            .state
+            .permitted_transitive_use
+            .union(if uses_stack {
+                stack_use
+            } else {
+                MachineStateSet::empty()
+            }),
+    )
+}
+
 fn validate_state_footprint_under_ceiling(
     validated: &ValidatedBoundaryEntryPlan,
     evidence: &StateFootprintEvidence,
@@ -2375,6 +2408,21 @@ mod tests {
             ),
         )
         .expect("ordinary caller-volatile condition flags fit the state ceiling");
+    }
+
+    #[test]
+    fn runtime_value_guard_stack_scratch_is_not_admitted_for_interrupt_return() {
+        let validated = validate_boundary_entry_plan(strict_x86_entry(), &integer_signature(1))
+            .expect("strict interrupt boundary");
+        let evidence = StateFootprintEvidence::new(
+            RegisterSet::new([MachineRegister::X86R10]),
+            MachineStateSet::new([MachineState::Flags, MachineState::StackPointer]),
+        );
+
+        let error = validate_runtime_value_guard_footprint(&validated, &evidence)
+            .expect_err("interrupt-return body must not borrow ordinary stack scratch");
+
+        assert!(error.0.contains("x86 call-return activation"));
     }
 
     #[test]
