@@ -1,21 +1,15 @@
 // An unresolved TWO-segment path in value position (`Nowhere::NOPE`) must be
-// a clean compile error, not a silent ZII read (found while probing
-// provides-value V2, 2026-07-08). It is the multi-segment sibling of the
-// closed bare-name existence check (undeclared_bare_name_rejected): a
-// legitimate qualified case (`Signal::Green`) or a substituted
-// const/provides-value resolves to a valid symbol before validation, so a
-// path whose head AND leaf symbols both stay unresolved names nothing and
-// would read 0 (native and interpreter agree -- differential-invisible).
+// a clean compile error, not a silent ZII read. It is the multi-segment sibling
+// of the closed bare-name existence check (undeclared_bare_name_rejected): a
+// legitimate qualified case (`Signal::Green`) or scoped const resolves to a
+// valid symbol before validation, so a path whose head AND leaf symbols both
+// stay unresolved names nothing and would read 0 (native and interpreter agree
+// -- differential-invisible).
 // `Signal::Blue` (a bogus case of a real enum) is the same shape and is
 // caught too; the positive twin (a REAL qualified case in value position)
 // is pinned by runtime_qualified_case_value_exit.
 use omega::language::std::console;
-boundary trait Beeper { machine noop(); }
 data Main { console: Console; }
-local_unchecked provides Beeper {
-    MAGIC -> 63;
-    DELTA -> 7;
-}
 machine Main::main(&mut self) {
     let code: i32 = Nowhere::NOPE + 7;
     transition code == 70 { true -> good() _ -> bad(71) }

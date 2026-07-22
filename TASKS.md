@@ -578,13 +578,16 @@ slot owner may override by type. The migration order remains load-bearing.
    `Binding::TableFunction` so its dispatch-only table pointer stays off the
    foreign signature. The real seven-file UEFI package compiles without any
    source-level `provides` declaration.
-   All non-Value canary source now uses the external-leaf surface as well:
+   All callable canary source now uses the external-leaf surface as well:
    the closed Binding-form, ambiguity, duplicate-requirement, and unknown-case
    rails no longer depend on compatibility tables. Candidate validation
    rejects duplicate realizations inside one provider type before coverage or
    lowering, and qualified leaves cannot inherit the legacy bare-field
-   shorthand. The only three source-level `provides` blocks left in the corpus
-   are Value-specific fixtures pending foreign-record fact migration.
+   shorthand. The obsolete standalone Value pass/wrong-target fixtures have
+   been removed, and the qualified unresolved-path rail now depends only on
+   ordinary const/case resolution. The only authored `provides` blocks left are
+   the four target filesystem `struct stat` offset tables pending
+   foreign-record fact migration.
    The obsolete standalone `host ... provides` syscall example is gone; the
    qualified external-leaf syscall canary already pins both x86-64 and AArch64
    admission, argument registers, syscall-number registers, and supervisor-call

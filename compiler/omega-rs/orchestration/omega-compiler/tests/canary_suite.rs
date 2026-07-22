@@ -122,6 +122,62 @@ fn filesystem_open_flags_are_not_provider_values() {
     }
 }
 
+#[test]
+fn provides_syntax_is_confined_to_legacy_filesystem_offset_tables() {
+    let root = repo_root();
+    let tracked = Command::new("git")
+        .args([
+            "-C",
+            root.to_str().expect("UTF-8 repository path"),
+            "ls-files",
+            "-z",
+            "*.omg",
+        ])
+        .output()
+        .expect("list tracked Omega source files");
+    assert!(tracked.status.success(), "git ls-files should succeed");
+
+    let allowed = [
+        "omega/language/std/targets/linux_arm64/filesystem.provides.omg",
+        "omega/language/std/targets/linux_x64/filesystem.provides.omg",
+        "omega/language/std/targets/macos_arm64/filesystem.provides.omg",
+        "omega/language/std/targets/windows_x64/filesystem.provides.omg",
+    ];
+    let mut declarations = Vec::new();
+
+    for relative in String::from_utf8_lossy(&tracked.stdout).split('\0') {
+        if relative.is_empty() {
+            continue;
+        }
+        let normalized = relative.replace('\\', "/");
+        let path = root.join(relative);
+        if !path.is_file() {
+            // Permit verification before a staged deletion has been committed;
+            // committed CI sees only paths that still exist.
+            continue;
+        }
+        let source =
+            fs::read_to_string(path).unwrap_or_else(|error| panic!("read {relative}: {error}"));
+        for line in source.lines() {
+            let trimmed = line.trim_start();
+            if !trimmed.starts_with("//")
+                && trimmed.contains(" provides ")
+                && trimmed.ends_with('{')
+            {
+                declarations.push(normalized.clone());
+            }
+        }
+    }
+
+    declarations.sort();
+    let mut expected = allowed.into_iter().map(str::to_owned).collect::<Vec<_>>();
+    expected.sort();
+    assert_eq!(
+        declarations, expected,
+        "authored `provides` syntax must stay confined to the four transitional struct-stat offset tables"
+    );
+}
+
 #[cfg(windows)]
 #[test]
 fn windows_x64_cli_mvp_emits_runnable_pe() {
@@ -28643,49 +28699,6 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
-#[test]
-fn runtime_provides_value_exit_canary_runs() {
-    let canary = pass_canary("capabilities/runtime_provides_value_exit");
-    let main_path = canary.join("main.omg");
-
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
-        .expect("provides-value canary should compile to checked trees");
-    let outcome = omega_interpreter::interpret(&checked, &[]);
-    assert_eq!(
-        outcome.exit_code, 70,
-        "interpreter oracle should exit 70 (63 + 7 through two value rows), got {}",
-        outcome.exit_code
-    );
-
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-provides-value-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("provides-value canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("provides-value canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected substituted provides values to reach 70, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
 // SINGLE-TARGET PARADIGM INTERNALS: a machine implemented by exactly ONE
 // non-selected target (the windows dir-walk's find-enumeration helpers on a
 // posix compile) filters SILENTLY with its callers -- the loud missing-row
@@ -36797,7 +36810,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/acquires_filesystem_authority",
     "capabilities/stores_capability",
     "capabilities/external_leaf_binding_forms",
-    "capabilities/runtime_provides_value_exit",
     "targets/target_machine_gating_exit",
     "targets/single_target_internal_machine_skipped",
     "traits/ring_requirement_satisfies_exit",
@@ -37925,7 +37937,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "providers/via_unknown_binding_rejected",
     "providers/via_bare_field_binding_rejected",
     "providers/duplicate_external_leaf_rejected",
-    "capabilities/provides_value_wrong_target_rejected",
     "targets/target_machine_missing_rejected",
     "targets/target_machine_duplicate_rejected",
     "traits/default_keyword_retired",
