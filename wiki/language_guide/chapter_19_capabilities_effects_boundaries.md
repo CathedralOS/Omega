@@ -217,12 +217,12 @@ target. It may not declare a new effect outside the trait requirement.
 
 ```omega
 boundary trait Console {
-    machine write_line(text: String)
+    machine write_line(text: &[u8])
     effects
         stdout_io;
 }
 
-machine Console::write_line(text: String)
+machine Console::write_line(text: &[u8])
 effects
     stdout_io
 {
@@ -319,11 +319,11 @@ data ByteRead {
 }
 
 boundary trait Console {
-    machine write(text: String)
+    machine write(text: &[u8])
     effects
         stdout_io;
 
-    machine write_line(text: String)
+    machine write_line(text: &[u8])
     effects
         stdout_io;
 
@@ -355,25 +355,25 @@ EOF path executes no write at all).
 
 Implementation state: the standard Console is now a boundary trait with effect
 rows. Its friendly `write` and `write_line` members are ordinary checked Omega
-adapters over `write_byte`: they borrow the owned `String` through
-`as_view().bytes()` and walk the slice with a measured state machine. The raw
-byte operation remains the provider leaf. Legacy composite provider rows remain
-temporarily for deliberately nonstandard carrier and semantic-test declarations;
-the ordinary corpus now imports the standard package. `TASKS.md` tracks the
-remaining surface migrations and compatibility-row deletion.
+adapters over `write_byte`: they accept a borrowed byte view directly and walk
+it with a measured state machine. The raw byte operation remains the provider
+leaf. `read_line` temporarily retains an owned `String` destination until the
+allocator-backed or explicitly bounded mutable-carrier contract lands. Legacy
+composite provider rows remain temporarily for deliberately nonstandard carrier
+and semantic-test declarations; the ordinary corpus now imports the standard
+package. `TASKS.md` tracks the remaining input-surface migration and
+compatibility-row deletion.
 
 Domain requirements stay normal proof language. A filesystem boundary should
 not invent special "initialized" words when a domain is what it means:
 
 ```omega
-domain String::NonEmpty {
-    self.length > 0;
+domain [u8]::NonEmpty {
+    self.len > 0;
 }
 
 boundary trait Filesystem {
-    machine open(path: String)
-    requires
-        path in String::NonEmpty
+    machine open(path: &[u8] in NonEmpty)
     effects
         filesystem_io;
 }
@@ -386,17 +386,15 @@ actually needs:
 
 ```omega
 boundary trait CConsole {
-    machine write(text: String)
-    requires
-        text in String::Utf8 & String::NoNul
+    machine write(text: &[u8] in Utf8 & NoNul)
     effects
         stdout_io;
 }
 ```
 
 That keeps encoding and interop requirements inside Omega's ordinary domain
-system. The same shape applies to a borrowed `string` window passed across a
-boundary.
+system. The byte slice is the borrowed window passed across the boundary; no
+separate `string` view type is required.
 
 Text measures and text domains split by cost:
 

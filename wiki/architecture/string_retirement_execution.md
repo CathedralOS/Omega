@@ -81,6 +81,14 @@
 > declarations share an unqualified lookup identity only when their normalized
 > fact sets agree. Reusing the normalized name with different facts is a compile
 > error rather than an order-dependent choice of declaration.
+>
+> The standard Console output surface no longer owns text. `write` and
+> `write_line` accept `&[u8]` and their checked adapters walk that view directly;
+> the former `String -> &string -> bytes` adapter chain has been deleted.
+> Bounded-carrier fields, literals, and legacy String callers all cross this seam
+> in both engines, while a ZII bounded carrier arrives as an empty view. Mutable
+> `read_line` remains on the compatibility surface until it has an honest
+> allocator-backed or explicitly bounded destination contract.
 
 > **Migration-cost lesson:** this is not a mechanical keyword deletion. The
 > historical corpus exercised owned `String` natively across fields, copies,
@@ -144,7 +152,7 @@ carrier (the grant validator already exists).
    canary actually proves. This keeps batches reviewable and exposes missing
    carrier lowering before the builtin disappears. Re-run the focused native
    test and interpreter oracle for each batch.
-   Fourteen pass-canary sources still declare builtin `String`/`string` as of
+   Eleven pass-canary sources still declare builtin `String`/`string` as of
    2026-07-21; derive the current count from the corpus rather than treating this
    snapshot as a completion condition.
 2. **Keystone** — once source users are gone,

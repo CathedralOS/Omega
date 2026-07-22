@@ -1,13 +1,14 @@
-// RUN CANARY (exit 70) + interpreter differential. A never-written String
-// field (all-zero {ptr, len} descriptor) passed to a HOST write call: the
-// host marshal (Stdout.write, first_text_argument) must treat len 0 as the
-// empty string and never dereference the null pointer. This is a DIFFERENT
-// path from the texteq encoders' internal null guard (pinned separately by
-// zii_default_string_equality_exit) -- the descriptor here crosses the
-// boundary into host argument marshaling. A regression is a SIGSEGV or
-// garbage write before the exit call; any non-70 outcome catches it.
+// RUN CANARY (exit 70) + interpreter differential. A never-written bounded
+// UTF-8 carrier is empty `{len, bytes}` text when passed through the host-write
+// adapter. This pins the carrier-to-borrowed-view boundary path independently
+// of bounded-carrier equality.
 use omega::language::std::console;
-data Main { console: Console; never: String; }
+
+domain [u8; 16]::Utf8 {
+    valid_utf8(self);
+}
+
+data Main { console: Console; never: [u8; 16] in Utf8; }
 machine Main::main(&mut self) {
     self.console.write_line(self.never);
     self.console.write_line("after-zii");

@@ -12,10 +12,10 @@ data ByteRead {
 }
 
 boundary trait Console {
-    machine write_line(text: String)
+    machine write_line(text: &[u8])
     effects
         stdout_io;
-    machine write(text: String)
+    machine write(text: &[u8])
     effects
         stdout_io;
     machine read_line(out_line: &mut String)
@@ -37,8 +37,8 @@ boundary trait Console {
         process_exit;
 }
 
-// Friendly text output is checked Omega code over the byte-level boundary
-// leaf. The private writer walks a borrowed byte view as one measured state
+// Friendly output is checked Omega code over the byte-level boundary leaf.
+// The private writer walks a borrowed byte view as one measured state
 // loop. Each guarded edge stages the head byte and tail slice; the loop state's
 // body performs the byte effect only after that edge was selected.
 machine console_write_bytes(console: Console, bytes: &[u8], newline: bool)
@@ -75,20 +75,16 @@ effects
     state done() { }
 }
 
-machine console_write(console: Console, text: String) satisfies Console::write
+machine console_write(console: Console, text: &[u8]) satisfies Console::write
 effects
     stdout_io
 {
-    let view: &string = text.as_view();
-    let bytes: &[u8] = view.bytes();
-    console_write_bytes(console, bytes, false);
+    console_write_bytes(console, text, false);
 }
 
-machine console_write_line(console: Console, text: String) satisfies Console::write_line
+machine console_write_line(console: Console, text: &[u8]) satisfies Console::write_line
 effects
     stdout_io
 {
-    let view: &string = text.as_view();
-    let bytes: &[u8] = view.bytes();
-    console_write_bytes(console, bytes, true);
+    console_write_bytes(console, text, true);
 }
