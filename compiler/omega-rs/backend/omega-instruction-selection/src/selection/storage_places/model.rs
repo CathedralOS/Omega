@@ -10,6 +10,7 @@ pub(in crate::selection) struct RuntimeStoragePlace {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::selection) struct RuntimeFrameIndexedTarget {
     pub(in crate::selection) descriptor_offset: usize,
+    pub(in crate::selection) index_region: RuntimeStorageRegion,
     pub(in crate::selection) index_offset: usize,
     pub(in crate::selection) element_byte_size: usize,
     pub(in crate::selection) field_byte_offset: usize,

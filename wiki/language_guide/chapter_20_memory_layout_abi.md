@@ -302,10 +302,13 @@ cannot invalidate the source type. This is a static representation judgment,
 not an unchecked transmute or a value conversion. The implemented mutable
 subset accepts equal-width fact-free primitive places, proven-in-bounds scalar
 offsets into byte regions, and recursively fact-free fixed record shapes over
-such regions. Record field projection follows ordinary or validated plan-laid
-offsets recursively; reads and writes preserve the complete scalar footprints
-in both native backends and the interpreter. Fact-bearing record or scalar
-targets remain rejected until their bidirectional implication can be proved.
+such regions. Those record shapes may contain literal-length fixed arrays,
+including arrays of nested records. Record fields and statically or dynamically
+indexed array elements follow ordinary or validated plan-laid offsets
+recursively; reads and writes preserve the complete scalar footprints in both
+native backends and the interpreter. Fact-bearing record, array-element, or
+scalar targets remain rejected until their bidirectional implication can be
+proved.
 
 See [`Programmable Layouts`](../design_briefs/programmable_layouts.md) and the
 [`OS Memory And Hardware Foundation`](../design_briefs/os_memory_and_hardware_foundation.md)

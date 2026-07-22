@@ -22482,6 +22482,22 @@ fn mutable_record_recast_rejects_fact_bearing_field() {
 }
 
 #[test]
+fn mutable_record_recast_rejects_fact_bearing_array_element() {
+    let canary = fail_canary("recast/recast_mut_record_array_fact_fenced");
+    let diagnostics = compile_canary_without_output(&canary)
+        .expect_err("fact-bearing mutable record array should be rejected");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("fact implication in BOTH directions"),
+        "expected the mutable record-array fact diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
 fn runtime_interior_byte_recast_exit_canary_runs() {
     // Rung B: `&self.buf[4] as &u32` assembles the little-endian u32 from
     // the byte region on both engines.
@@ -23108,6 +23124,70 @@ fn runtime_record_view_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
     let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_record_array_view_mutable_write_exit_canary_runs() {
+    let canary = pass_canary("recast/runtime_record_array_view_mutable_write_exit");
+    let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("mutable record-array view should compile to checked trees");
+    assert_eq!(
+        omega_interpreter::interpret(&checked, &[]).exit_code,
+        70,
+        "the interpreter must preserve nested array/record offsets"
+    );
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-record-array-mutable-view-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("mutable record-array view should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("mutable record-array view should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "native nested array projection must write the backing bytes; stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+
+    for target in ["windows_x64", "linux_arm64"] {
+        let cross_dir = std::env::temp_dir().join(format!(
+            "omega-record-array-mutable-view-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&cross_dir);
+        let source_dir = cross_dir.join("src");
+        let cross_build_dir = cross_dir.join("build");
+        fs::create_dir_all(&source_dir).expect("create record-array cross-target source");
+        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+            .expect("copy mutable record-array view canary");
+        fs::write(
+            source_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write record-array cross-target manifest");
+        compile(CompileOptions {
+            root_path: source_dir.join("main.omg"),
+            build_dir: Some(cross_build_dir),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("mutable record-array view should cross-compile for {target}: {diagnostics:?}")
+        });
+        let _ = fs::remove_dir_all(&cross_dir);
+    }
 }
 
 #[test]
@@ -38013,6 +38093,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "proofs/runtime_core_roster_ops_exit",
     "build/runtime_depend_mapping_exit",
     "recast/runtime_record_view_exit",
+    "recast/runtime_record_array_view_mutable_write_exit",
     "recast/constant_offset_record_view_after_write_exit",
     "arithmetic/runtime_f32_field_guard_exit",
     "collections/runtime_indexed_rmw_loop_exit",
@@ -38512,6 +38593,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "recast/recast_mut_fact_fenced",
     "recast/recast_mut_interior_fact_fenced",
     "recast/recast_mut_record_fact_fenced",
+    "recast/recast_mut_record_array_fact_fenced",
     "recast/recast_position_fenced",
     "recast/interior_recast_footprint_rejected",
     "recast/runtime_offset_footprint_rejected",

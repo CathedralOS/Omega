@@ -2404,14 +2404,35 @@ pub fn encode_runtime_frame_indexed_integer_write(
     byte_size: usize,
     value: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
+    encode_runtime_frame_indexed_integer_write_with_index_region(
+        descriptor_offset,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+        value,
+    )
+}
+
+pub fn encode_runtime_frame_indexed_integer_write_with_index_region(
+    descriptor_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_frame_indexed_integer_write_width(
         element_byte_size,
         field_byte_offset,
         byte_size,
     ));
-    append_runtime_frame_index_target_address(
+    append_runtime_frame_index_target_address_with_index_region(
         &mut bytes,
         16,
+        index_region,
         descriptor_offset,
         index_offset,
         element_byte_size,
@@ -3320,11 +3341,14 @@ fn append_runtime_frame_index_target_address_with_index_region(
     bytes.extend(encode_add_page_offset_placeholder(20));
     append_fixed_width_load_x_from_x_offset(bytes, address_register, 20, descriptor_offset, 19);
     let index_base = if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
-        // x15, NOT x21: the fixed-width index load below uses x21 as its
-        // offset-materialization scratch, which would destroy the base.
-        bytes.extend(encode_adrp_placeholder(15)); // machine base [reloc @ 32]
-        bytes.extend(encode_add_page_offset_placeholder(15));
-        15
+        // The fixed-width index load below uses x21 as its offset scratch.
+        // Prefer x15 for the machine base, except when the caller already
+        // holds the pointee address there (runtime value operands do); x19 is
+        // free after the descriptor load and is excluded from caller picks.
+        let machine_base = if address_register == 15 { 19 } else { 15 };
+        bytes.extend(encode_adrp_placeholder(machine_base)); // machine base [reloc @ 32]
+        bytes.extend(encode_add_page_offset_placeholder(machine_base));
+        machine_base
     } else {
         20
     };
@@ -4055,6 +4079,7 @@ fn append_runtime_value_operand(
         Ok(())
     } else if let Some((
         descriptor_offset,
+        index_region,
         index_offset,
         element_byte_size,
         field_byte_offset,
@@ -4081,7 +4106,7 @@ fn append_runtime_value_operand(
                 "AArch64 MVP encoder ran out of scratch registers for an indexed operand",
             ));
         };
-        append_runtime_frame_index_target_address(
+        append_runtime_frame_index_target_address_with_index_region(
             bytes,
             // x15, NOT x16: the caller may hold its own address in x16 across
             // operand evaluation (a binary write's target base, an indexed
@@ -4089,6 +4114,7 @@ fn append_runtime_value_operand(
             // x16 clobbered that and sent the caller's store to a wild
             // address (the transition-arg slice-sum SIGSEGV).
             15,
+            index_region,
             descriptor_offset,
             index_offset,
             element_byte_size,
@@ -4692,12 +4718,19 @@ fn append_runtime_text_equals_literal_operand(
         if field_byte_offset > 0 {
             append_add_constant_to_x_register(bytes, address_register, field_byte_offset)?;
         }
-    } else if let Some((descriptor_offset, index_offset, element_byte_size, field_byte_offset, _)) =
-        runtime_value_operands.frame_indexed(place)
+    } else if let Some((
+        descriptor_offset,
+        index_region,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        _,
+    )) = runtime_value_operands.frame_indexed(place)
     {
-        append_runtime_frame_index_target_address(
+        append_runtime_frame_index_target_address_with_index_region(
             bytes,
             address_register,
+            index_region,
             descriptor_offset,
             index_offset,
             element_byte_size,
@@ -5612,7 +5645,7 @@ pub(in crate::aarch64) fn runtime_value_operand_value_byte_size(
     if let Some((_, _, byte_size)) = operands.pointee(operand) {
         return Some(byte_size);
     }
-    if let Some((_, _, _, _, byte_size)) = operands.frame_indexed(operand) {
+    if let Some((_, _, _, _, _, byte_size)) = operands.frame_indexed(operand) {
         return Some(byte_size);
     }
     if let Some((_, _, _, _, byte_size)) = operands.frame_base_indexed(operand) {
@@ -6566,6 +6599,34 @@ mod tests {
                 "element_size={element_size}, field_offset={field_offset}"
             );
         }
+    }
+
+    #[test]
+    fn frame_indexed_operand_keeps_pointee_and_machine_index_bases_distinct() {
+        let mut bytes = Vec::new();
+        append_runtime_frame_index_target_address_with_index_region(
+            &mut bytes,
+            15,
+            omega_target_operations::RuntimeStorageRegion::Machine,
+            0x10,
+            0x40,
+            4,
+            2,
+            17,
+            26,
+        )
+        .unwrap();
+
+        let machine_adrp = u32::from_le_bytes(bytes[32..36].try_into().unwrap());
+        assert_eq!(
+            machine_adrp & 0x1f,
+            19,
+            "machine base must not overwrite x15"
+        );
+        assert_eq!(
+            bytes.len(),
+            widths::runtime_frame_index_setup_width(4, 2) + 8
+        );
     }
 
     /// New frame-indexed -> pointee copy encoder length must equal its width.

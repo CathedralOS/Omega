@@ -9,14 +9,15 @@
 //!   proven in-bounds `[u8; N]` region, bound as the direct
 //!   initializer of a reference-typed let whose stated type restates the
 //!   target. Shared views may weaken source facts. Mutable views require
-//!   recursively fact-free primitive or record target shapes, which proves the
-//!   required implication in BOTH directions. Lowering is address identity:
+//!   recursively fact-free primitive or record target shapes, including
+//!   literal-length fixed arrays nested in records, which proves the required
+//!   implication in BOTH directions. Lowering is address identity:
 //!   native reads/writes the place through the stated type; the interpreter
 //!   bit-reinterprets both sides of the alias or assembles/writes the complete
 //!   little-endian byte-region footprint.
-//! - **Fenced (deeper byte-view rung, L4/L5):** remaining record/array shapes
-//!   (byte-granular tiling over plan-laid layouts), interior recasts into
-//!   and non-let positions.
+//! - **Fenced (deeper byte-view rung, L4/L5):** top-level arrays and remaining
+//!   non-record shapes (byte-granular tiling over plan-laid layouts), interior
+//!   recasts into and non-let positions.
 //! - **Refused absolutely:** targets that would ESTABLISH a fact the bytes
 //!   don't prove (`bool`'s 0/1, text encodings) -- establishing facts is a
 //!   MINT's job (fallible, case-returning), never a recast's.
@@ -33,7 +34,9 @@ use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
 use omega_typed_trees::statement::StatementNode;
-use omega_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use omega_typed_trees::types::{
+    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
 use std::collections::HashSet;
 
 pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
@@ -363,12 +366,12 @@ fn judge_scalar_recast(
         .last()
         .map(|name| name.as_str().to_string())
         .unwrap_or_default();
-    // RUNG C2: a RECORD target with ALL-SCALAR fields, sized by the
-    // natural-alignment rule (kept in lockstep with omega-layout by the
-    // drift canary). The view snapshots size_of(record) bytes from the
-    // region; member reads are frame-resident record reads.
+    // RUNG C2: a fixed RECORD target, recursively containing primitives,
+    // records, and literal-length arrays, sized by the natural-alignment rule
+    // (kept in lockstep with omega-layout by the drift canary). The view keeps
+    // size_of(record) live bytes from the region.
     if PrimitiveType::from_name(&target_name).is_none() {
-        if let Some(record_size) = scalar_record_size(program, &target_name) {
+        if let Some(record_size) = fixed_record_size(program, &target_name) {
             if mutable_recast
                 && !record_view_is_fact_free(program, &target_name, &mut HashSet::new())
             {
@@ -428,7 +431,7 @@ fn judge_scalar_recast(
         }
         diagnostics.push(Diagnostic::error(format!(
             "{context}: recast target `{target_name}` is not a scalar primitive or an \
-             all-scalar record over a byte region; deeper shapes land with the \
+             eligible fixed record over a byte region; deeper shapes land with the \
              byte-view rung"
         )));
         return;
@@ -606,9 +609,9 @@ fn strip_mutable(program: &TypedTrees, expression: ExpressionHandle) -> Expressi
 /// The interior byte-region judgment's three-way answer (owner-measured
 /// diagnostic split 2026-07-11: a recognized shape whose OFFSET cannot be
 /// bounded must say so -- it used to fall through to the form errors
-/// ("not a scalar primitive or an all-scalar record" / "source must be a
-/// borrowed scalar place"), which misled: EfiMemoryDescriptor IS
-/// all-scalar; the real failure was the unproven bound).
+/// ("not a scalar primitive or an eligible fixed record" / "source must be a
+/// borrowed scalar place"), which misled: the real failure was the unproven
+/// bound).
 enum InteriorByteRegion {
     /// Not `<[u8; N] place>[k]` at all -- fall through to the other source
     /// classes and their form messages.
@@ -721,7 +724,7 @@ fn push_offset_unproven(
 /// LOCKSTEP: ordinary placement mirrors omega-layout's record rule, while
 /// plan-laid placement consumes `TypedTrees::plan_laid_layouts`, the same
 /// normalized record the layout builder trusts.
-fn scalar_record_size(program: &TypedTrees, name: &str) -> Option<usize> {
+fn fixed_record_size(program: &TypedTrees, name: &str) -> Option<usize> {
     record_view_layout(program, name, &mut HashSet::new()).map(|(size, _)| size)
 }
 
@@ -788,12 +791,20 @@ fn record_view_type_layout(
         let size = primitive.scalar_byte_size()?;
         return Some((size, size));
     }
-    let TypeReferenceNode::Named { name, .. } =
-        program.type_reference_table.type_reference(unwrapped)
-    else {
-        return None;
-    };
-    record_view_layout(program, name.as_str(), visiting)
+    match program.type_reference_table.type_reference(unwrapped) {
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(length),
+        } => {
+            let (element_size, element_align) =
+                record_view_type_layout(program, *element_type, visiting)?;
+            Some((element_size.checked_mul(*length)?, element_align))
+        }
+        TypeReferenceNode::Named { name, .. } => {
+            record_view_layout(program, name.as_str(), visiting)
+        }
+        _ => None,
+    }
 }
 
 /// Mutable byte views must preserve every target fact after arbitrary writes.
@@ -825,27 +836,32 @@ fn record_view_is_fact_free(
             visiting.remove(name);
             return false;
         };
-        let TypeReferenceNode::Named {
-            name: field_name, ..
-        } = program
-            .type_reference_table
-            .type_reference(field.type_reference)
-        else {
-            visiting.remove(name);
-            return false;
-        };
-        if let Some(primitive) = PrimitiveType::from_name(field_name.as_str()) {
-            if primitive == PrimitiveType::Bool {
-                visiting.remove(name);
-                return false;
-            }
-        } else if !record_view_is_fact_free(program, field_name.as_str(), visiting) {
+        if !record_view_type_is_fact_free(program, field.type_reference, visiting) {
             visiting.remove(name);
             return false;
         }
     }
     visiting.remove(name);
     true
+}
+
+fn record_view_type_is_fact_free(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    visiting: &mut HashSet<String>,
+) -> bool {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { name, .. } => {
+            PrimitiveType::from_name(name.as_str())
+                .is_some_and(|primitive| primitive != PrimitiveType::Bool)
+                || record_view_is_fact_free(program, name.as_str(), visiting)
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(_),
+        } => record_view_type_is_fact_free(program, *element_type, visiting),
+        _ => false,
+    }
 }
 
 /// The literal upper bound the incoming edges place on `offset` at this

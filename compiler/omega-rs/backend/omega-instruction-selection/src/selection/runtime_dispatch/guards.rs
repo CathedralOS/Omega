@@ -1093,6 +1093,7 @@ pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_descriptor_pl
         return Some(
             runtime_value_operands.insert(RuntimeValueOperand::FrameIndexed {
                 descriptor_offset: indexed_target.descriptor_offset,
+                index_region: indexed_target.index_region,
                 index_offset: indexed_target.index_offset,
                 element_byte_size: indexed_target.element_byte_size,
                 field_byte_offset: indexed_target.field_byte_offset,
@@ -1941,6 +1942,7 @@ fn resolve_runtime_value_operand_in_table(
         return Some(
             runtime_value_operands.insert(RuntimeValueOperand::FrameIndexed {
                 descriptor_offset: indexed_target.descriptor_offset,
+                index_region: indexed_target.index_region,
                 index_offset: indexed_target.index_offset,
                 element_byte_size: indexed_target.element_byte_size,
                 field_byte_offset: indexed_target.field_byte_offset,

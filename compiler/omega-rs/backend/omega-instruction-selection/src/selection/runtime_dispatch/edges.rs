@@ -417,6 +417,7 @@ fn select_runtime_dispatch_return_value(
         selected_instructions.push(SelectedInstruction {
             kind: crate::selection::runtime_dispatch::copy_places_from_indexed(
                 indexed.descriptor_offset,
+                indexed.index_region,
                 indexed.index_offset,
                 indexed.element_byte_size,
                 indexed.field_byte_offset,
@@ -946,6 +947,7 @@ fn select_runtime_dispatch_call_result_return(
             // region rides the place (rung 2c-v).
             let kind = crate::selection::runtime_dispatch::copy_places_from_indexed(
                 indexed.descriptor_offset,
+                indexed.index_region,
                 indexed.index_offset,
                 indexed.element_byte_size,
                 indexed.field_byte_offset,

@@ -23,7 +23,7 @@ pub trait RuntimeValueOperandSource {
     fn frame_indexed(
         &self,
         handle: RuntimeValueOperandHandle,
-    ) -> Option<(usize, usize, usize, usize, usize)>;
+    ) -> Option<(usize, RuntimeStorageRegion, usize, usize, usize, usize)>;
     fn frame_base_indexed(
         &self,
         handle: RuntimeValueOperandHandle,
@@ -141,16 +141,18 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
     fn frame_indexed(
         &self,
         handle: RuntimeValueOperandHandle,
-    ) -> Option<(usize, usize, usize, usize, usize)> {
+    ) -> Option<(usize, RuntimeStorageRegion, usize, usize, usize, usize)> {
         match self.get(handle) {
             RuntimeValueOperand::FrameIndexed {
                 descriptor_offset,
+                index_region,
                 index_offset,
                 element_byte_size,
                 field_byte_offset,
                 byte_size,
             } => Some((
                 *descriptor_offset,
+                *index_region,
                 *index_offset,
                 *element_byte_size,
                 *field_byte_offset,

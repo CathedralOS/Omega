@@ -801,6 +801,13 @@ pub enum WritePlaceShape {
         element_byte_size: usize,
         field_byte_offset: usize,
     },
+    FrameIndexedByRegion {
+        descriptor_offset: usize,
+        index_region: omega_target_operations::RuntimeStorageRegion,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+    },
     FrameBaseIndexed {
         base_byte_offset: usize,
         index_offset: usize,
@@ -870,11 +877,18 @@ pub fn classify_write_place_shape(target: &omega_target_operations::Place) -> Wr
         return WritePlaceShape::Unsupported;
     }
     if let Some(indexed) = single_indexed_path(target) {
-        if target.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-            && indexed.index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
-        {
-            return WritePlaceShape::FrameIndexed {
+        if target.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+            if indexed.index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                return WritePlaceShape::FrameIndexed {
+                    descriptor_offset: indexed.pointer_offset,
+                    index_offset: indexed.index_offset,
+                    element_byte_size: indexed.element_byte_size,
+                    field_byte_offset: indexed.field_offset,
+                };
+            }
+            return WritePlaceShape::FrameIndexedByRegion {
                 descriptor_offset: indexed.pointer_offset,
+                index_region: indexed.index_region,
                 index_offset: indexed.index_offset,
                 element_byte_size: indexed.element_byte_size,
                 field_byte_offset: indexed.field_offset,
@@ -927,6 +941,21 @@ pub fn encode_write_place_integer(
                 field_byte_offset,
             } => aarch64::encode_runtime_frame_indexed_integer_write(
                 descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+                value,
+            ),
+            WritePlaceShape::FrameIndexedByRegion {
+                descriptor_offset,
+                index_region,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+            } => aarch64::encode_runtime_frame_indexed_integer_write_with_index_region(
+                descriptor_offset,
+                index_region,
                 index_offset,
                 element_byte_size,
                 field_byte_offset,
@@ -1617,11 +1646,13 @@ pub fn encode_write_place_binary(
                     operator,
                     right,
                 ),
-                WritePlaceShape::Unsupported => Err(Diagnostic::error(
-                    "WritePlaceBinary on aarch64 serves direct, pointee, frame-indexed, \
+                WritePlaceShape::FrameIndexedByRegion { .. } | WritePlaceShape::Unsupported => {
+                    Err(Diagnostic::error(
+                        "WritePlaceBinary on aarch64 serves direct, pointee, frame-indexed, \
                      frame-base-indexed, machine-indexed, and machine-double-indexed \
                      place shapes only until the aarch64 place materializer lands",
-                )),
+                    ))
+                }
             }
         }
     }

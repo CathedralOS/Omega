@@ -172,9 +172,11 @@ nested plan-laid record reads are live. Fact-free mutable scalar views are live
 end to end over equal-width scalar places and bounded byte-region offsets.
 Recursively fact-free mutable record views are also live over bounded byte
 regions: nested ordinary/plan-laid scalar projections preserve exact offsets
-and bit patterns in both native backends and the interpreter. Fact-bearing
-mutable targets reject. General bidirectional fact entailment and non-record
-tiling remain staged.
+and bit patterns in both native backends and the interpreter. Literal-length
+fixed-array fields, including arrays of nested records and runtime-indexed
+element projections, participate in the same live view. Fact-bearing mutable
+targets and array elements reject. General bidirectional fact entailment and
+non-record tiling remain staged.
 
 ## Policy selection
 
