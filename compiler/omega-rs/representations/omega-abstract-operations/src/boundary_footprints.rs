@@ -1,4 +1,7 @@
-use omega_calling_conventions::{StateFootprintEvidence, compose_state_footprints};
+use omega_calling_conventions::{
+    PlanDiagnostic, StateFootprintEvidence, ValidatedBoundaryEntryPlan, compose_state_footprints,
+    validate_state_footprint,
+};
 
 /// Provenance of one independently derived boundary-code footprint fragment.
 /// The closed set grows only when the corresponding lowering stage can derive
@@ -22,11 +25,38 @@ pub struct BoundaryFootprintFragment {
 /// leaf enumeration are all represented after final placement.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BoundaryFootprintPlan {
+    /// Identity of the canonical boundary contract against which every
+    /// retained fragment was validated. This references requirement identity;
+    /// it does not contribute implementation evidence back into that identity.
+    pub boundary_contract_fingerprint: Option<u64>,
     pub fragments: Vec<BoundaryFootprintFragment>,
     pub enumeration_complete: bool,
 }
 
 impl BoundaryFootprintPlan {
+    /// Validate and retain one fragment under the same canonical boundary as
+    /// every fragment already in the plan. Evidence from a different policy or
+    /// signature must never be silently composed into this certificate.
+    pub fn retain_validated_fragment(
+        &mut self,
+        boundary: &ValidatedBoundaryEntryPlan,
+        fragment: BoundaryFootprintFragment,
+    ) -> Result<(), PlanDiagnostic> {
+        validate_state_footprint(boundary, &fragment.evidence)?;
+        let fingerprint = boundary.contract_fingerprint();
+        match self.boundary_contract_fingerprint {
+            Some(retained) if retained != fingerprint => {
+                return Err(PlanDiagnostic(
+                    "boundary footprint fragments name different validated contracts".into(),
+                ));
+            }
+            Some(_) => {}
+            None => self.boundary_contract_fingerprint = Some(fingerprint),
+        }
+        self.fragments.push(fragment);
+        Ok(())
+    }
+
     pub fn composed_evidence(&self) -> StateFootprintEvidence {
         compose_state_footprints(self.fragments.iter().map(|fragment| &fragment.evidence))
     }
@@ -40,6 +70,7 @@ mod tests {
     #[test]
     fn partial_plan_composes_fragment_evidence_without_claiming_completeness() {
         let plan = BoundaryFootprintPlan {
+            boundary_contract_fingerprint: Some(0x1234),
             fragments: vec![BoundaryFootprintFragment {
                 origin: BoundaryFootprintFragmentOrigin::EntryStorage,
                 evidence: StateFootprintEvidence::new(
@@ -51,6 +82,7 @@ mod tests {
         };
 
         assert!(!plan.enumeration_complete);
+        assert_eq!(plan.boundary_contract_fingerprint, Some(0x1234));
         assert_eq!(
             plan.composed_evidence().registers().as_slice(),
             &[MachineRegister::X86R15]
@@ -59,6 +91,51 @@ mod tests {
             plan.composed_evidence()
                 .machine_state()
                 .contains_all(MachineStateSet::new([MachineState::Flags]))
+        );
+    }
+
+    #[test]
+    fn retained_fragments_cannot_cross_boundary_contracts() {
+        use omega_calling_conventions::{
+            CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
+        };
+
+        let first = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8)],
+                result: None,
+            },
+        )
+        .expect("first boundary");
+        let second = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(4, 4)],
+                result: None,
+            },
+        )
+        .expect("second boundary");
+        let fragment = || BoundaryFootprintFragment {
+            origin: BoundaryFootprintFragmentOrigin::EntryStorage,
+            evidence: StateFootprintEvidence::new(
+                RegisterSet::new([MachineRegister::X86R15]),
+                MachineStateSet::empty(),
+            ),
+        };
+        let mut plan = BoundaryFootprintPlan::default();
+
+        plan.retain_validated_fragment(&first, fragment())
+            .expect("first fragment binds the plan");
+        let error = plan
+            .retain_validated_fragment(&second, fragment())
+            .expect_err("a different boundary contract must reject");
+
+        assert!(error.0.contains("different validated contracts"));
+        assert_eq!(plan.fragments.len(), 1);
+        assert_eq!(
+            plan.boundary_contract_fingerprint,
+            Some(first.contract_fingerprint())
         );
     }
 }

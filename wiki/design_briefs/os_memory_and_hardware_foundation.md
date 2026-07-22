@@ -392,6 +392,11 @@ relocated frame-base scratch, and AArch64 large-offset scratch. Indirect results
 add a structurally scoped `exit_indirect_result_copy` fragment for the copy
 through the captured hidden pointer; generic body copies are deliberately not
 classified as boundary evidence. Its explicit
+`boundary_contract_fingerprint` binds every retained fragment to the canonical
+validated plan under which it was checked. Fragment retention revalidates the
+evidence and rejects cross-contract composition; this is a reference to
+requirement identity, not implementation evidence entering that identity. The
+artifact's explicit
 `enumeration_complete: false` status is a firewall: this retained slice is
 checkable implementation evidence, not yet the final certificate.
 The final certificate must still aggregate the specialized handler body,

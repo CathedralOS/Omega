@@ -272,12 +272,15 @@ fn retain_exit_footprints(
     )
     .expect("selected exit-result registers must fit the validated entry state ceiling");
     if !evidence.registers().as_slice().is_empty() {
-        plan.fragments
-            .push(omega_abstract_operations::BoundaryFootprintFragment {
+        plan.retain_validated_fragment(
+            boundary,
+            omega_abstract_operations::BoundaryFootprintFragment {
                 origin:
                     omega_abstract_operations::BoundaryFootprintFragmentOrigin::ExitResultRegisters,
                 evidence,
-            });
+            },
+        )
+        .expect("retained result footprint must name and fit the entry boundary contract");
     }
     if input.runtime_storage.entry_indirect_result_pointer_size != 8 {
         return;
@@ -289,12 +292,15 @@ fn retain_exit_footprints(
     )
     .expect("selected indirect-result copies must fit the validated entry state ceiling");
     if !evidence.registers().as_slice().is_empty() {
-        plan.fragments
-            .push(omega_abstract_operations::BoundaryFootprintFragment {
-            origin:
-                omega_abstract_operations::BoundaryFootprintFragmentOrigin::ExitIndirectResultCopy,
-            evidence,
-        });
+        plan.retain_validated_fragment(
+            boundary,
+            omega_abstract_operations::BoundaryFootprintFragment {
+                origin:
+                    omega_abstract_operations::BoundaryFootprintFragmentOrigin::ExitIndirectResultCopy,
+                evidence,
+            },
+        )
+        .expect("retained indirect-result footprint must name the entry boundary contract");
     }
 }
 

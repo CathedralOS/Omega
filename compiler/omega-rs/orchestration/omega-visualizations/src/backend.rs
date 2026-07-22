@@ -68,7 +68,13 @@ pub fn boundary_footprint_fragments_json(plan: &AbstractOperationPlan) -> String
 
     let footprints = &plan.boundary_footprints;
     let composed = footprints.composed_evidence();
-    let mut json = String::from("{\n  \"enumeration_complete\": ");
+    let mut json = String::from("{\n  \"boundary_contract_fingerprint\": ");
+    if let Some(fingerprint) = footprints.boundary_contract_fingerprint {
+        push_string(&mut json, &format!("0x{fingerprint:016x}"));
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(",\n  \"enumeration_complete\": ");
     json.push_str(if footprints.enumeration_complete {
         "true"
     } else {
@@ -122,6 +128,7 @@ mod boundary_footprint_tests {
     #[test]
     fn boundary_footprint_json_preserves_fragment_provenance_and_incomplete_status() {
         let mut plan = AbstractOperationPlan::default();
+        plan.boundary_footprints.boundary_contract_fingerprint = Some(0x1234);
         plan.boundary_footprints
             .fragments
             .push(BoundaryFootprintFragment {
@@ -161,6 +168,7 @@ mod boundary_footprint_tests {
 
         let json = boundary_footprint_fragments_json(&plan);
 
+        assert!(json.contains("\"boundary_contract_fingerprint\": \"0x0000000000001234\""));
         assert!(json.contains("\"enumeration_complete\": false"));
         assert!(json.contains("\"origin\": \"entry_storage\""));
         assert!(json.contains("\"origin\": \"entry_slice_descriptor\""));
