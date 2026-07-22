@@ -16,5 +16,6 @@ pub use instruction::{
     TargetSemanticSummary, TargetValueOperand, TargetValueOperandHandle, TargetValueSummary,
 };
 pub use omega_abstract_operations::{
+    BoundaryFootprintFragment, BoundaryFootprintFragmentOrigin, BoundaryFootprintPlan,
     PLACE_MAX_STEPS, Place, PlaceStep, StateGuardLowering, StateGuardOperator,
 };

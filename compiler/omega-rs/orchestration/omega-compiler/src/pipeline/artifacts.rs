@@ -281,7 +281,7 @@ pub(super) fn write_backend_report(
     write_phase_text(
         options,
         "08_boundary_footprints.json",
-        &omega_visualizations::boundary_footprint_fragments_json(&plan.abstract_operations),
+        &omega_visualizations::boundary_footprint_fragments_json(&plan.encoded_machine),
     )?;
     write_phase_diagram(
         options,

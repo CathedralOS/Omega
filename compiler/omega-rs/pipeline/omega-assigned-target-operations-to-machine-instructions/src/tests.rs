@@ -67,6 +67,11 @@ fn copies_assigned_boundary_summary_to_machine_instruction_plan() {
             boundary_trait_symbol: trait_symbol,
             boundary_signature_symbol: signature_symbol,
         });
+    assigned_operations
+        .semantics
+        .boundaries
+        .footprints
+        .boundary_contract_fingerprint = Some(0x3456);
 
     let machine_instructions =
         build_machine_instructions(&assigned_operations).expect("machine instructions");
@@ -87,6 +92,14 @@ fn copies_assigned_boundary_summary_to_machine_instruction_plan() {
     assert_eq!(edge.call_ordinal, 1);
     assert_eq!(edge.boundary_trait_symbol, trait_symbol);
     assert_eq!(edge.boundary_signature_symbol, signature_symbol);
+    assert_eq!(
+        machine_instructions
+            .semantics
+            .boundaries
+            .footprints
+            .boundary_contract_fingerprint,
+        Some(0x3456)
+    );
 }
 
 #[test]

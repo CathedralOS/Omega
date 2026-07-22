@@ -17,7 +17,6 @@ impl AbstractOperationPlan {
             },
             AbstractSemanticSummary::with_capacity(0, 0, 0, 0, 0),
             Vec::new(),
-            Default::default(),
         )
     }
 }

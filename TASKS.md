@@ -507,9 +507,14 @@ schemas recover the same instance without publishing policy type identity.
    for its operand evaluator, and x86 derives balanced push/pop SP use only
    when the operand tree actually contains a nested binary. That stack scratch
    is admitted only for an ordinary call-return activation. Cross-target
-   artifacts exercise text-equality value operands. The
-   artifact's `enumeration_complete: false` firewall prevents this partial slice
-   from being mistaken for the final certificate.
+   artifacts exercise text-equality value operands. The semantic boundary
+   carrier is now canonical from abstract operations through target operations,
+   assigned operations, machine instructions, and encoded machine bytes.
+   `08_boundary_footprints.json` reads that post-emission carrier directly and
+   records `evidence_stage: encoded_machine`, rather than republishing an
+   earlier selection-plan copy. The artifact's `enumeration_complete: false`
+   firewall prevents this partial slice from being mistaken for the final
+   certificate.
    StatePlan-driven nonordinary save/restore and return specialization, and
    post-layout enumeration across handler code, veneers, thunks, and admitted
    leaves remain; final placement must still prove that enumeration is complete.

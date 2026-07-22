@@ -89,6 +89,11 @@ mod tests {
                 boundary_trait_symbol: trait_symbol,
                 boundary_signature_symbol: signature_symbol,
             });
+        target_operations
+            .semantics
+            .boundaries
+            .footprints
+            .boundary_contract_fingerprint = Some(0x4567);
 
         let machine_program = build_machine_program(&target_operations).expect("machine program");
 
@@ -105,6 +110,14 @@ mod tests {
         assert_eq!(edge.call_ordinal, 2);
         assert_eq!(edge.boundary_trait_symbol, trait_symbol);
         assert_eq!(edge.boundary_signature_symbol, signature_symbol);
+        assert_eq!(
+            machine_program
+                .semantics
+                .boundaries
+                .footprints
+                .boundary_contract_fingerprint,
+            Some(0x4567)
+        );
     }
 
     #[test]

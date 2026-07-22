@@ -28,11 +28,11 @@ pub fn abstract_operations_html(
     build_backend_cfg_diagram("abstract_operations", control_flow, &function_views)
 }
 
-/// Checkable ENT3 implementation-evidence artifact. `enumeration_complete`
-/// remains false until post-layout body/exit/veneer/thunk/leaf enumeration is
-/// wired; consumers must not mistake retained fragments for a final footprint
-/// certificate.
-pub fn boundary_footprint_fragments_json(plan: &AbstractOperationPlan) -> String {
+/// Checkable ENT3 implementation-evidence artifact sourced from the semantic
+/// boundary root after machine emission. `enumeration_complete` remains false
+/// until post-layout body/exit/veneer/thunk/leaf enumeration is wired;
+/// consumers must not mistake retained fragments for a final certificate.
+pub fn boundary_footprint_fragments_json(plan: &EncodedMachinePlan) -> String {
     fn push_string(output: &mut String, value: &str) {
         output.push('"');
         for character in value.chars() {
@@ -66,9 +66,11 @@ pub fn boundary_footprint_fragments_json(plan: &AbstractOperationPlan) -> String
         output.push_str("]}");
     }
 
-    let footprints = &plan.boundary_footprints;
+    let footprints = &plan.semantics.boundaries.footprints;
     let composed = footprints.composed_evidence();
-    let mut json = String::from("{\n  \"boundary_contract_fingerprint\": ");
+    let mut json = String::from(
+        "{\n  \"evidence_stage\": \"encoded_machine\",\n  \"boundary_contract_fingerprint\": ",
+    );
     if let Some(fingerprint) = footprints.boundary_contract_fingerprint {
         push_string(&mut json, &format!("0x{fingerprint:016x}"));
     } else {
@@ -145,9 +147,14 @@ mod boundary_footprint_tests {
 
     #[test]
     fn boundary_footprint_json_preserves_fragment_provenance_and_incomplete_status() {
-        let mut plan = AbstractOperationPlan::default();
-        plan.boundary_footprints.boundary_contract_fingerprint = Some(0x1234);
-        plan.boundary_footprints
+        let mut plan = EncodedMachinePlan::default();
+        plan.semantics
+            .boundaries
+            .footprints
+            .boundary_contract_fingerprint = Some(0x1234);
+        plan.semantics
+            .boundaries
+            .footprints
             .fragments
             .push(BoundaryFootprintFragment {
                 origin: BoundaryFootprintFragmentOrigin::EntryStorage,
@@ -156,7 +163,9 @@ mod boundary_footprint_tests {
                     MachineStateSet::empty(),
                 ),
             });
-        plan.boundary_footprints
+        plan.semantics
+            .boundaries
+            .footprints
             .fragments
             .push(BoundaryFootprintFragment {
                 origin: BoundaryFootprintFragmentOrigin::StaticGuardComparison,
@@ -169,7 +178,9 @@ mod boundary_footprint_tests {
                     MachineStateSet::new([omega_calling_conventions::MachineState::Flags]),
                 ),
             });
-        plan.boundary_footprints
+        plan.semantics
+            .boundaries
+            .footprints
             .fragments
             .push(BoundaryFootprintFragment {
                 origin: BoundaryFootprintFragmentOrigin::RuntimeTextGuardComparison,
@@ -182,7 +193,9 @@ mod boundary_footprint_tests {
                     MachineStateSet::new([omega_calling_conventions::MachineState::Flags]),
                 ),
             });
-        plan.boundary_footprints
+        plan.semantics
+            .boundaries
+            .footprints
             .fragments
             .push(BoundaryFootprintFragment {
                 origin: BoundaryFootprintFragmentOrigin::PlaceGuardComparison,
@@ -196,7 +209,9 @@ mod boundary_footprint_tests {
                     MachineStateSet::new([omega_calling_conventions::MachineState::Flags]),
                 ),
             });
-        plan.boundary_footprints
+        plan.semantics
+            .boundaries
+            .footprints
             .fragments
             .push(BoundaryFootprintFragment {
                 origin: BoundaryFootprintFragmentOrigin::RuntimeValueGuardComparison,
@@ -209,7 +224,9 @@ mod boundary_footprint_tests {
                     MachineStateSet::new([omega_calling_conventions::MachineState::Flags]),
                 ),
             });
-        plan.boundary_footprints
+        plan.semantics
+            .boundaries
+            .footprints
             .fragments
             .push(BoundaryFootprintFragment {
                 origin: BoundaryFootprintFragmentOrigin::DispatchScaffold,
@@ -218,7 +235,9 @@ mod boundary_footprint_tests {
                     MachineStateSet::new([omega_calling_conventions::MachineState::Flags]),
                 ),
             });
-        plan.boundary_footprints
+        plan.semantics
+            .boundaries
+            .footprints
             .fragments
             .push(BoundaryFootprintFragment {
                 origin: BoundaryFootprintFragmentOrigin::CallReturnMechanics,
@@ -227,7 +246,9 @@ mod boundary_footprint_tests {
                     MachineStateSet::empty(),
                 ),
             });
-        plan.boundary_footprints
+        plan.semantics
+            .boundaries
+            .footprints
             .fragments
             .push(BoundaryFootprintFragment {
                 origin: BoundaryFootprintFragmentOrigin::ExitIndirectResultCopy,
@@ -236,7 +257,9 @@ mod boundary_footprint_tests {
                     MachineStateSet::empty(),
                 ),
             });
-        plan.boundary_footprints
+        plan.semantics
+            .boundaries
+            .footprints
             .fragments
             .push(BoundaryFootprintFragment {
                 origin: BoundaryFootprintFragmentOrigin::ExitResultRegisters,
@@ -245,7 +268,9 @@ mod boundary_footprint_tests {
                     MachineStateSet::empty(),
                 ),
             });
-        plan.boundary_footprints
+        plan.semantics
+            .boundaries
+            .footprints
             .fragments
             .push(BoundaryFootprintFragment {
                 origin: BoundaryFootprintFragmentOrigin::EntrySliceDescriptor,
@@ -257,6 +282,7 @@ mod boundary_footprint_tests {
 
         let json = boundary_footprint_fragments_json(&plan);
 
+        assert!(json.contains("\"evidence_stage\": \"encoded_machine\""));
         assert!(json.contains("\"boundary_contract_fingerprint\": \"0x0000000000001234\""));
         assert!(json.contains("\"enumeration_complete\": false"));
         assert!(json.contains("\"origin\": \"entry_storage\""));

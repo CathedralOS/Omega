@@ -31,10 +31,14 @@ mod tests {
     use super::{MachineEmissionInput, emit_machine_bytes};
     use omega_assigned_target_operations::{AssignedTargetOperationPlan, SelectedInstructionKind};
     use omega_calling_conventions::build_host_abi_plan;
+    use omega_calling_conventions::{
+        MachineRegister, MachineStateSet, RegisterSet, StateFootprintEvidence,
+    };
     use omega_core::arena::HandleSpan;
     use omega_machine_instructions::{
-        AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, MachineInstruction,
-        MachineInstructionFunction, MachineInstructionKind, MachineInstructionPlan,
+        AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, BoundaryFootprintFragment,
+        BoundaryFootprintFragmentOrigin, MachineInstruction, MachineInstructionFunction,
+        MachineInstructionKind, MachineInstructionPlan,
     };
     use omega_target::NativeTarget;
 
@@ -92,6 +96,23 @@ mod tests {
             });
         machine_instructions
             .semantics
+            .boundaries
+            .footprints
+            .boundary_contract_fingerprint = Some(0x5678);
+        machine_instructions
+            .semantics
+            .boundaries
+            .footprints
+            .fragments
+            .push(BoundaryFootprintFragment {
+                origin: BoundaryFootprintFragmentOrigin::DispatchScaffold,
+                evidence: StateFootprintEvidence::new(
+                    RegisterSet::new([MachineRegister::X86R12]),
+                    MachineStateSet::empty(),
+                ),
+            });
+        machine_instructions
+            .semantics
             .ownership
             .permissions
             .insert(Default::default());
@@ -141,6 +162,10 @@ mod tests {
         assert_eq!(
             encoded.semantics.ownership.permissions.len(),
             machine_instructions.semantics.ownership.permissions.len()
+        );
+        assert_eq!(
+            encoded.semantics.boundaries.footprints,
+            machine_instructions.semantics.boundaries.footprints
         );
         assert_eq!(encoded.code.instructions.len(), 2);
         assert!(encoded.code.byte_count > 0);

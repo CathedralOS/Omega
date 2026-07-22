@@ -18,7 +18,7 @@ pub use semantics::*;
 pub use value_operands::*;
 
 pub use omega_target_operations::{
-    AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, HostOperationKey,
-    RuntimeStorageRegion, RuntimeTextReadSource, StateGuardLowering, StateGuardOperator,
-    TargetHostBinding,
+    AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, BoundaryFootprintFragment,
+    BoundaryFootprintFragmentOrigin, BoundaryFootprintPlan, HostOperationKey, RuntimeStorageRegion,
+    RuntimeTextReadSource, StateGuardLowering, StateGuardOperator, TargetHostBinding,
 };
