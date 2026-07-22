@@ -1,5 +1,17 @@
 use omega::language::std::console;
 
+domain [u8; 16]::Utf8 {
+    valid_utf8(self);
+}
+
+domain [u8; 32]::Utf8 {
+    valid_utf8(self);
+}
+
+domain [u8; 64]::Utf8 {
+    valid_utf8(self);
+}
+
 data CellId {
     case R00;
     case R01;
@@ -10,8 +22,8 @@ data Room {
     cell: CellId;
     depth: u32;
     branch: u32;
-    label: String;
-    description: String;
+    label: [u8; 16] in Utf8;
+    description: [u8; 64] in Utf8;
 }
 
 data Level {
@@ -35,7 +47,7 @@ data Main {
     builder: Builder;
     formatter: Formatter;
     level: Level;
-    line: String;
+    line: [u8; 32] in Utf8;
 }
 
 machine Main::main(&mut self) {
@@ -102,14 +114,18 @@ machine Builder::room_mut(&mut self, level: &mut Level, cell: CellId) -> &mut Ro
     }
 }
 
-machine Builder::room_label(&mut self, cell: CellId) -> String {
+machine Builder::room_label(&mut self, cell: CellId) -> [u8; 16] in Utf8 {
     transition {
         cell == CellId::R00 -> "Gate"
         _ -> "Branch Room"
     }
 }
 
-machine Builder::room_description(&mut self, depth: u32, branch_id: u32) -> String {
+machine Builder::room_description(
+    &mut self,
+    depth: u32,
+    branch_id: u32
+) -> [u8; 64] in Utf8 {
     transition {
         depth == 0 -> "Surface"
         _ -> "A bottomless dark room near the dungeon heart."
@@ -120,7 +136,7 @@ machine Formatter::write_current_cell(
     &mut self,
     level: Level,
     cell: CellId,
-    out_line: &mut String
+    out_line: &mut [u8; 32] in Utf8
 ) {
     let room: Room;
     self.lookup.find_room(level, cell, &mut room);
@@ -132,7 +148,10 @@ machine Lookup::find_room(
     level: Level,
     cell: CellId,
     out_room: &mut Room
-) {
+)
+ensures
+    out_room.label in Utf8
+{
     let rooms: &[Room] = level.rooms.as_slice();
 
     transition level.room_count > 0 {

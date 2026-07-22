@@ -679,15 +679,53 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
             expressions,
             value,
         )
-        && let Some(place) = resolve_runtime_storage_place_in_table(
+    {
+        let descriptor = input.runtime_abi.slice_descriptor();
+
+        // A carrier reached through a reference parameter is not inline in the
+        // parameter slot: that slot contains a pointer to `{len, bytes}`. Build
+        // the borrowed view from the pointee, otherwise the pointer slot itself
+        // is misread as the carrier length and adjacent frame bytes become the
+        // view (the mutable bounded-output -> Console crash).
+        if let Some(pointee) = resolve_runtime_pointee_slot_offset_in_table(
             input,
             dispatch_index,
             value_source_key,
             expressions,
             value,
-        )
-    {
-        let descriptor = input.runtime_abi.slice_descriptor();
+        ) {
+            selected_instructions.push(SelectedInstruction {
+                kind: crate::selection::runtime_dispatch::write_place_address_pointee(
+                    pointee.pointer_byte_offset,
+                    pointee.field_byte_offset + descriptor.len_size(),
+                    slot.byte_offset + descriptor.ptr_offset(),
+                ),
+                source_key: value_source_key,
+                source_statement: statement_index,
+            });
+            selected_instructions.push(SelectedInstruction {
+                kind: crate::selection::runtime_dispatch::copy_places_from_pointee(
+                    pointee.pointer_byte_offset,
+                    pointee.field_byte_offset,
+                    RuntimeStorageRegion::RuntimeFrame,
+                    slot.byte_offset + descriptor.len_offset(),
+                    descriptor.len_size(),
+                ),
+                source_key: value_source_key,
+                source_statement: statement_index,
+            });
+            return true;
+        }
+
+        let Some(place) = resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            value,
+        ) else {
+            return false;
+        };
         selected_instructions.push(SelectedInstruction {
             kind: crate::selection::runtime_dispatch::write_place_address_direct(
                 place.region,

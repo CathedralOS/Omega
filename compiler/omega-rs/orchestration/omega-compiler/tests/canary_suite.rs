@@ -17545,6 +17545,12 @@ fn runtime_enemy_clear_reentry_exit_canary_runs() {
 fn runtime_clear_carve_render_string_fields_exit_canary_runs() {
     let canary = pass_canary("dungeon/runtime_clear_carve_render_string_fields_exit");
     let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("runtime clear/carve/render carrier fields canary should check");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None);
+    assert_eq!(interpreted.exit_code, 198);
+    assert_eq!(interpreted.stdout, Vec::<u8>::new());
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-clear-carve-render-string-fields-{}",
         std::process::id()
@@ -31874,6 +31880,12 @@ fn runtime_mutable_carrier_parameter_concat_exit_canary_runs() {
 fn runtime_mutable_string_parameter_concat_write_line_canary_runs() {
     let canary = pass_canary("text/runtime_mutable_string_parameter_concat_write_line");
     let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("runtime mutable carrier parameter concat/write canary should check");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None);
+    assert_eq!(interpreted.exit_code, 77);
+    assert_eq!(interpreted.stdout, b"prefix omega\n".to_vec());
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-mutable-string-parameter-concat-write-line-{}",
         std::process::id()
@@ -31886,25 +31898,21 @@ fn runtime_mutable_string_parameter_concat_write_line_canary_runs() {
         target_name: None,
         write_output: true,
     })
-    .expect("runtime mutable string parameter concat write_line canary should compile");
+    .expect("runtime mutable carrier parameter concat write_line canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
-        .expect("runtime mutable string parameter concat write_line canary should run");
+        .expect("runtime mutable carrier parameter concat write_line canary should run");
 
     assert_eq!(
         output.status.code(),
         Some(77),
-        "expected runtime mutable string parameter concat write_line canary to print a generated pointee string and exit 77, got {:?}\nstdout:\n{}\nstderr:\n{}",
+        "expected runtime mutable carrier parameter concat write_line canary to print generated pointee text and exit 77, got {:?}\nstdout:\n{}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(
-        String::from_utf8_lossy(&output.stdout).contains("prefix omega"),
-        "expected generated line to be printed; stdout was:\n{}",
-        String::from_utf8_lossy(&output.stdout)
-    );
+    assert_eq!(output.stdout, b"prefix omega\n");
 
     let _ = fs::remove_dir_all(&build_dir);
 }
@@ -31913,6 +31921,12 @@ fn runtime_mutable_string_parameter_concat_write_line_canary_runs() {
 fn runtime_mutable_string_parameter_wrapped_concat_write_line_canary_runs() {
     let canary = pass_canary("text/runtime_mutable_string_parameter_wrapped_concat_write_line");
     let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("runtime wrapped mutable carrier concat/write canary should check");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None);
+    assert_eq!(interpreted.exit_code, 77);
+    assert_eq!(interpreted.stdout, b"prefix omega done\n".to_vec());
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-mutable-string-parameter-wrapped-concat-write-line-{}",
         std::process::id()
@@ -31925,25 +31939,21 @@ fn runtime_mutable_string_parameter_wrapped_concat_write_line_canary_runs() {
         target_name: None,
         write_output: true,
     })
-    .expect("runtime mutable string parameter wrapped concat write_line canary should compile");
+    .expect("runtime wrapped mutable carrier concat write_line canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
-        .expect("runtime mutable string parameter wrapped concat write_line canary should run");
+        .expect("runtime wrapped mutable carrier concat write_line canary should run");
 
     assert_eq!(
         output.status.code(),
         Some(77),
-        "expected runtime mutable string parameter wrapped concat write_line canary to print a generated pointee string and exit 77, got {:?}\nstdout:\n{}\nstderr:\n{}",
+        "expected wrapped mutable carrier concat write_line canary to print generated pointee text and exit 77, got {:?}\nstdout:\n{}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(
-        String::from_utf8_lossy(&output.stdout).contains("prefix omega done"),
-        "expected generated wrapped line to be printed; stdout was:\n{}",
-        String::from_utf8_lossy(&output.stdout)
-    );
+    assert_eq!(output.stdout, b"prefix omega done\n");
 
     let _ = fs::remove_dir_all(&build_dir);
 }
@@ -32169,6 +32179,10 @@ fn mutable_carrier_place_append_compiles_on_aarch64() {
     for (index, canary_name) in [
         "text/runtime_mutable_string_parameter_concat_exit",
         "text/runtime_mutable_struct_string_field_copy_concat_exit",
+        "text/runtime_mutable_string_parameter_concat_write_line",
+        "text/runtime_mutable_string_parameter_wrapped_concat_write_line",
+        "text/runtime_mutable_struct_string_field_copy_concat_write_line",
+        "dungeon/runtime_clear_carve_render_string_fields_exit",
     ]
     .into_iter()
     .enumerate()
@@ -32193,7 +32207,7 @@ fn mutable_carrier_place_append_compiles_on_aarch64() {
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
-                "AArch64 Place-shaped carrier append should compile for {canary_name}:\n{}",
+                "AArch64 carrier place/view/return lowering should compile for {canary_name}:\n{}",
                 diagnostics
                     .iter()
                     .map(ToString::to_string)
@@ -32209,6 +32223,12 @@ fn mutable_carrier_place_append_compiles_on_aarch64() {
 fn runtime_mutable_struct_string_field_copy_concat_write_line_canary_runs() {
     let canary = pass_canary("text/runtime_mutable_struct_string_field_copy_concat_write_line");
     let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("runtime mutable struct carrier field copy/write canary should check");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None);
+    assert_eq!(interpreted.exit_code, 77);
+    assert_eq!(interpreted.stdout, b"prefix omega done\n".to_vec());
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-mutable-struct-string-field-copy-concat-write-line-{}",
         std::process::id()
@@ -32221,25 +32241,21 @@ fn runtime_mutable_struct_string_field_copy_concat_write_line_canary_runs() {
         target_name: None,
         write_output: true,
     })
-    .expect("runtime mutable struct string field copy concat write_line canary should compile");
+    .expect("runtime mutable struct carrier field copy concat write_line canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
-        .expect("runtime mutable struct string field copy concat write_line canary should run");
+        .expect("runtime mutable struct carrier field copy concat write_line canary should run");
 
     assert_eq!(
         output.status.code(),
         Some(77),
-        "expected runtime mutable struct string field copy concat write_line canary to print copied-field generated text and exit 77, got {:?}\nstdout:\n{}\nstderr:\n{}",
+        "expected runtime mutable struct carrier field copy concat write_line canary to print copied-field text and exit 77, got {:?}\nstdout:\n{}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(
-        String::from_utf8_lossy(&output.stdout).contains("prefix omega done"),
-        "expected copied-field generated line to be printed; stdout was:\n{}",
-        String::from_utf8_lossy(&output.stdout)
-    );
+    assert_eq!(output.stdout, b"prefix omega done\n");
 
     let _ = fs::remove_dir_all(&build_dir);
 }

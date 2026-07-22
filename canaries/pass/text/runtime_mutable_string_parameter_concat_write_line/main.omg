@@ -1,19 +1,32 @@
 use omega::language::std::console;
 
+domain [u8; 16]::Utf8 {
+    valid_utf8(self);
+}
+
+domain [u8; 32]::Utf8 {
+    valid_utf8(self);
+}
+
 data Main {
     console: Console;
-    line: String;
-    suffix: String;
+    line: [u8; 32] in Utf8;
+    suffix: [u8; 16] in Utf8;
 }
 
 machine Main::main(&mut self) {
+    self.line = "";
     self.suffix = "omega";
 
     transition self.suffix {
         _ -> write_line(&mut self.line, self.suffix)
     }
 
-    state write_line(&mut self, out_line: &mut String, suffix: String) {
+    state write_line(
+        &mut self,
+        out_line: &mut [u8; 32] in Utf8,
+        suffix: [u8; 16] in Utf8
+    ) {
         out_line = "prefix " + suffix;
         self.console.write_line(out_line);
 

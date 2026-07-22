@@ -966,7 +966,7 @@ pub(super) fn resolve_runtime_storage_place_is_bounded_byte_buffer(
     .is_some_and(|descriptor| descriptor_is_bounded_byte_buffer(&descriptor))
 }
 
-fn descriptor_is_bounded_byte_buffer(descriptor: &TypeLayoutDescriptor) -> bool {
+pub(super) fn descriptor_is_bounded_byte_buffer(descriptor: &TypeLayoutDescriptor) -> bool {
     match descriptor {
         TypeLayoutDescriptor::Constrained { base_type, .. } => {
             descriptor_is_bounded_byte_buffer(base_type)

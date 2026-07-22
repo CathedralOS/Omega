@@ -2,7 +2,8 @@ use crate::InstructionSelectionInput;
 use crate::selection::runtime_dispatch::text_writes::string_literal_data_handle;
 use crate::selection::runtime_dispatch::writes::mutation::operators::supports_scalar_integer_write;
 use crate::selection::storage_places::{
-    enum_variant_value_in_table, resolve_runtime_frame_base_double_indexed_source_in_table,
+    descriptor_is_bounded_byte_buffer, enum_variant_value_in_table,
+    resolve_runtime_frame_base_double_indexed_source_in_table,
     resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table,
@@ -335,6 +336,22 @@ fn select_runtime_frame_slot_value_write_in_table_with_source_anchor_and_call_or
                 ),
             );
         }
+    }
+
+    // A literal returned into an owned bounded-carrier result slot must build
+    // `{len, inline_bytes}`. Treating it as ordinary storage (or as the legacy
+    // `{ptr, len}` String descriptor) leaves the guarded value-call result
+    // malformed before the caller copies it through a mutable reference.
+    if descriptor_is_bounded_byte_buffer(&slot.type_descriptor)
+        && let Some(value) = expressions.string_literal_value(value)
+    {
+        return Some(SelectedInstructionKind::WritePlaceBoundedBuffer {
+            target: omega_abstract_operations::Place::at(
+                RuntimeStorageRegion::RuntimeFrame,
+                slot.byte_offset,
+            ),
+            literal: std::sync::Arc::from(value),
+        });
     }
 
     if let Some(pointee) = resolve_runtime_pointee_slot_offset_in_table(

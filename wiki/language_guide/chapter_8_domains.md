@@ -826,7 +826,10 @@ boundary and the operators.
 > Standard Console output is already carrier-based: `write` and `write_line`
 > borrow `&[u8]`, and the checked adapter walks that view directly. An owned
 > bounded carrier projects its runtime length and inline byte address at the
-> call seam. The mutable `read_line` compatibility signature still names
+> call seam, including when reached through a mutable carrier reference. A
+> guard-selected literal returned as a bounded carrier is constructed in the
+> result slot as `{len, inline_bytes}`, not as a borrowed descriptor. The mutable
+> `read_line` compatibility signature still names
 > `String` pending the allocator/bounded-destination surface; this is an
 > implementation fence, not the target text model.
 
