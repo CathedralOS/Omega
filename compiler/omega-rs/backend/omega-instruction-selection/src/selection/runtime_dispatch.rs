@@ -396,6 +396,7 @@ pub(in crate::selection) fn select_computed_host_argument_write(
                 expressions,
                 RuntimeStorageRegion::RuntimeFrame,
                 target_offset,
+                None,
                 target_primitive,
                 cast.value,
                 cast.domain,

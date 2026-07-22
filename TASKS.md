@@ -1192,6 +1192,10 @@ stronger operations it needs instead of citing machine parameters generally.
   straight-line length proof tracks reaching writes, invalidates overlapping
   places, and drops its knowledge across calls or opaque effects; proven chains
   that fit compile, while the first append whose bound exceeds `N` rejects.
+  The numeric-output path now converts a runtime integer directly into a
+  runtime-indexed carrier element without an intermediate scalar field; native
+  AArch64 execution, x86-64 emission/relocation, and the interpreter oracle pin
+  that Place-shaped converted write.
   The 120 sample-only `pause: String` fields now use explicit
   `[u8; 256]` storage, preserving the former native read ceiling, and the three
   matching local Console declarations accept mutable byte views. The complete

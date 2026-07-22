@@ -204,6 +204,95 @@ pub(super) fn collect_runtime_storage_write_relocations(
             collect_runtime_value_operand_relocations(context, source_offset, *source);
             true
         }
+        SelectedInstructionKind::WritePlaceConvert {
+            target,
+            target_byte_size,
+            source,
+            source_byte_size,
+            source_is_float,
+            target_is_float,
+            source_signed,
+            target_signed,
+            trapping,
+            saturating,
+        } => {
+            let operand_start = match context.input.target.architecture {
+                Architecture::X86_64 => {
+                    let (_, sites) =
+                        omega_instruction_selection::x86_64_encode_write_place_convert_with_sites(
+                            context.input.assigned_target_operations,
+                            target,
+                            *target_byte_size,
+                            *source,
+                            *source_byte_size,
+                            *source_is_float,
+                            *target_is_float,
+                            *source_signed,
+                            *target_signed,
+                            *trapping,
+                            *saturating,
+                        )
+                        .expect("place convert reached relocation after successful layout");
+                    for (byte_offset, side) in sites.iter() {
+                        let region = match side {
+                            omega_instruction_selection::PlaceCopySide::Target => target.region,
+                            omega_instruction_selection::PlaceCopySide::TargetIndex => target
+                                .scaled_index_region()
+                                .expect("TargetIndex implies a scaled target step"),
+                            omega_instruction_selection::PlaceCopySide::TargetIndex2 => target
+                                .scaled_index_regions()
+                                .nth(1)
+                                .expect("TargetIndex2 implies two scaled target steps"),
+                            _ => unreachable!("a place convert materializes only its target"),
+                        };
+                        context.insert_data_address_at_relative_offset(
+                            byte_offset,
+                            context.storage_region_symbol_handle(region),
+                        );
+                    }
+                    omega_instruction_selection::place_binary_operand_start_width(target)
+                }
+                Architecture::Aarch64 => {
+                    context.insert_data_address_at_instruction_start(
+                        context.storage_region_symbol_handle(target.region),
+                    );
+                    let omega_instruction_selection::WritePlaceShape::MachineIndexed {
+                        base_byte_offset,
+                        index_region,
+                        index_offset,
+                        element_byte_size,
+                        field_byte_offset,
+                    } = omega_instruction_selection::classify_write_place_shape(target)
+                    else {
+                        unreachable!("unsupported aarch64 place convert refuses during layout")
+                    };
+                    if index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                        context.insert_data_address_at_relative_offset(
+                            omega_instruction_selection::runtime_machine_indexed_integer_runtime_frame_address_offset(
+                                context.input.target.architecture,
+                                base_byte_offset,
+                            ),
+                            context.runtime_frame_symbol_handle(),
+                        );
+                    }
+                    omega_instruction_selection::runtime_machine_indexed_integer_write_width(
+                        context.input.target.architecture,
+                        base_byte_offset,
+                        index_region,
+                        index_offset,
+                        element_byte_size,
+                        field_byte_offset,
+                        0,
+                    )
+                }
+            };
+            collect_runtime_value_operand_relocations(
+                context,
+                context.selected_text_offset + operand_start,
+                *source,
+            );
+            true
+        }
         SelectedInstructionKind::AtomicLoad {
             source_region,
             source_offset,

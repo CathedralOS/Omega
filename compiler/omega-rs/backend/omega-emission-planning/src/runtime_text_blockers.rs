@@ -137,6 +137,7 @@ fn state_value_has_planned_storage_write(
                         | SelectedInstructionKind::AppendPlaceBoundedBufferSource { .. }
                         | SelectedInstructionKind::WritePlaceAddress { .. }
                         | SelectedInstructionKind::WriteRuntimeStorageConvert { .. }
+                        | SelectedInstructionKind::WritePlaceConvert { .. }
                         | SelectedInstructionKind::CopyPlaces { .. }
                         // `asm { in <local>, <port> }`: the PortRead writes the
                         // byte into the local's place, covering the assignment

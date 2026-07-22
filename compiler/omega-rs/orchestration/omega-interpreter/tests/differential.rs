@@ -1454,6 +1454,24 @@ fn interpreter_executes_mutable_byte_region_recast_write_through() {
 }
 
 #[test]
+fn interpreter_executes_runtime_cast_into_indexed_carrier() {
+    let main_path = pass_canary("text/runtime_number_to_decimal_exit").join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "runtime indexed cast compile failed:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "runtime indexed cast should be supported, got {:?}",
+        outcome.error
+    );
+    assert_eq!(outcome.exit_code, 70);
+}
+
+#[test]
 fn interpreter_matches_native_on_supported_canaries() {
     let mut matched: Vec<String> = Vec::new();
     let mut skipped: Vec<(String, String)> = Vec::new();

@@ -3,14 +3,15 @@ use crate::selection::storage_places::{
     RuntimeStoragePlace, clamp_runtime_case_comparison_operands_in_table,
     classify_scalar_value_type_in_table, descriptor_primitive_type,
     resolve_binary_write_arithmetic_domain_in_table, resolve_runtime_frame_indexed_target_in_table,
+    resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
     resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
     runtime_storage_target_is_atomic_in_table,
 };
 use omega_abstract_operations::{
-    RuntimeStorageRegion, RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstructionKind,
-    StateGuardOperator,
+    Place, PlaceStep, RuntimeStorageRegion, RuntimeValueOperand, RuntimeValueOperandHandle,
+    SelectedInstructionKind, StateGuardOperator,
 };
 use omega_checked_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
@@ -1206,6 +1207,50 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_convert_mutation_wr
     };
     let source_expression = cast.value;
 
+    let target_primitive = resolve_runtime_storage_primitive_type_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    )
+    // A runtime-indexed target is intentionally not flattened to a direct
+    // storage leaf, so the ordinary target-descriptor resolver may not reach
+    // it. The cast result carries the exact primitive type that the checked
+    // assignment stores.
+    .or_else(|| {
+        expressions
+            .name_path_members(cast.target_type)
+            .last()
+            .and_then(|name| PrimitiveType::from_name(name.as_str()))
+    })?;
+
+    if let Some(target_place) = runtime_indexed_convert_target_place(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) {
+        let kind = build_runtime_convert_write(
+            input,
+            dispatch_index,
+            value_source_key,
+            statement_index,
+            expressions,
+            RuntimeStorageRegion::Machine,
+            0,
+            Some(target_place),
+            target_primitive,
+            source_expression,
+            cast.domain,
+            static_values,
+            runtime_value_operands,
+        )?;
+        invalidate_runtime_static_value_in_table(static_values, expressions, target);
+        return Some(kind);
+    }
+
     let target_place = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index,
@@ -1213,14 +1258,6 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_convert_mutation_wr
         expressions,
         target,
     )?;
-    let target_primitive = resolve_runtime_storage_primitive_type_in_table(
-        input,
-        dispatch_index,
-        target_source_key,
-        expressions,
-        target,
-    )?;
-
     let kind = build_runtime_convert_write(
         input,
         dispatch_index,
@@ -1229,6 +1266,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_convert_mutation_wr
         expressions,
         target_place.region,
         target_place.byte_offset,
+        None,
         target_primitive,
         source_expression,
         cast.domain,
@@ -1237,6 +1275,29 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_convert_mutation_wr
     )?;
     invalidate_runtime_static_value_in_table(static_values, expressions, target);
     Some(kind)
+}
+
+fn runtime_indexed_convert_target_place(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+) -> Option<Place> {
+    let indexed = resolve_runtime_machine_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        target,
+    )?;
+    Place::at(RuntimeStorageRegion::Machine, indexed.base_byte_offset)
+        .with_step(PlaceStep::ScaledIndex {
+            index_region: indexed.index_region,
+            index_offset: indexed.index_offset,
+            element_byte_size: indexed.element_byte_size,
+        })
+        .and_then(|place| place.with_step(PlaceStep::ConstOffset(indexed.field_byte_offset)))
 }
 
 /// A numeric `as` cast assigned to a frame slot (`let n: i32 = c as i32`, where the
@@ -1270,6 +1331,7 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_frame_slot_
         expressions,
         RuntimeStorageRegion::RuntimeFrame,
         slot.byte_offset,
+        None,
         target_primitive,
         cast.value,
         cast.domain,
@@ -1291,6 +1353,7 @@ pub(in crate::selection::runtime_dispatch) fn build_runtime_convert_write(
     expressions: &ExpressionTable,
     target_region: RuntimeStorageRegion,
     target_offset: usize,
+    target_place: Option<Place>,
     target_primitive: PrimitiveType,
     source_expression: ExpressionHandle,
     cast_domain: omega_core::arithmetic::ArithmeticDomain,
@@ -1342,22 +1405,42 @@ pub(in crate::selection::runtime_dispatch) fn build_runtime_convert_write(
         );
     }
 
-    Some(SelectedInstructionKind::WriteRuntimeStorageConvert {
-        target_region,
-        target_offset,
-        target_byte_size,
-        source,
-        source_byte_size,
-        source_is_float: source_primitive.accepts_float_literal(),
-        target_is_float: target_primitive.accepts_float_literal(),
-        source_signed: source_primitive.is_signed_integer(),
-        target_signed: target_primitive.is_signed_integer(),
-        // F4: a Trapping float->int cast carries its trap guard.
-        trapping: cast_domain == omega_core::arithmetic::ArithmeticDomain::Trapping
-            && source_primitive.accepts_float_literal()
-            && !target_primitive.accepts_float_literal(),
-        saturating: cast_domain == omega_core::arithmetic::ArithmeticDomain::Saturating
-            && source_primitive.accepts_float_literal()
-            && !target_primitive.accepts_float_literal(),
+    let source_is_float = source_primitive.accepts_float_literal();
+    let target_is_float = target_primitive.accepts_float_literal();
+    let source_signed = source_primitive.is_signed_integer();
+    let target_signed = target_primitive.is_signed_integer();
+    let trapping = cast_domain == omega_core::arithmetic::ArithmeticDomain::Trapping
+        && source_is_float
+        && !target_is_float;
+    let saturating = cast_domain == omega_core::arithmetic::ArithmeticDomain::Saturating
+        && source_is_float
+        && !target_is_float;
+    Some(if let Some(target) = target_place {
+        SelectedInstructionKind::WritePlaceConvert {
+            target,
+            target_byte_size,
+            source,
+            source_byte_size,
+            source_is_float,
+            target_is_float,
+            source_signed,
+            target_signed,
+            trapping,
+            saturating,
+        }
+    } else {
+        SelectedInstructionKind::WriteRuntimeStorageConvert {
+            target_region,
+            target_offset,
+            target_byte_size,
+            source,
+            source_byte_size,
+            source_is_float,
+            target_is_float,
+            source_signed,
+            target_signed,
+            trapping,
+            saturating,
+        }
     })
 }

@@ -5,11 +5,9 @@
 // and assert the carrier equals it. Exercises runtime divide/modulo, computed
 // carrier byte writes, and the carrier-vs-literal compare. Exits 70.
 //
-// NOTE the byte is computed into a u8 FIELD first (`byte = ch as u8`) and THEN
-// written (`out[p] = byte`): a CAST value written directly into a runtime-indexed
-// carrier (`out[p] = ch as u8`) is refused ("needs runtime value lowering") -- the
-// value-operand gap for a computed value into an indexed target. The field hop is
-// the sound workaround.
+// The digit conversion writes its cast value directly into the runtime-indexed
+// carrier. This pins converted-value lowering at an indexed destination without
+// a field temporary.
 
 use omega::language::std::console;
 
@@ -26,7 +24,6 @@ data Main {
     place: u32 in Wrapping;
     d: u32 in Wrapping;
     ch: u32 in Wrapping;
-    byte: u8 in Wrapping;
     i: u32 in Wrapping;
     p: u64;
 }
@@ -66,8 +63,7 @@ machine Main::main(&mut self) {
     }
     state digit_write(&mut self) {
         self.ch = self.d + 48;
-        self.byte = self.ch as u8 in Wrapping;
-        self.out[self.p] = self.byte;
+        self.out[self.p] = self.ch as u8 in Wrapping;
         self.place = self.place / 10;
         self.p = self.p + 1;
         transition { _ -> itoa_loop() }
