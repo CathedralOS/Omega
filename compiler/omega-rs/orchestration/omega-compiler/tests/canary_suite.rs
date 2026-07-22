@@ -100,30 +100,19 @@ fn filesystem_open_flags_are_not_provider_values() {
         "portable filesystem code must use semantic OpenOptions, not foreign provider constants"
     );
 
-    let retired = [
-        "O_WRONLY",
-        "O_RDWR",
-        "O_APPEND_BIT",
-        "O_CREATE_BIT",
-        "O_TRUNC_BIT",
-        "O_EXCL_BIT",
-        "O_BINARY",
-    ];
     for target in ["windows_x64", "macos_arm64", "linux_x64", "linux_arm64"] {
-        let relative = format!("omega/language/std/targets/{target}/filesystem.provides.omg");
+        let relative = format!("omega/language/std/targets/{target}/filesystem_impl.omg");
         let source = fs::read_to_string(root.join(&relative))
             .unwrap_or_else(|error| panic!("read {relative}: {error}"));
-        for name in retired {
-            assert!(
-                !source.contains(name),
-                "{relative} must not restore foreign open flag `{name}` as a provider Value row"
-            );
-        }
+        assert!(
+            source.contains("Filesystem::encode_open_options"),
+            "{relative} must keep foreign open flags in checked target-format code"
+        );
     }
 }
 
 #[test]
-fn provides_syntax_is_confined_to_legacy_filesystem_offset_tables() {
+fn provides_syntax_is_retired_from_omega_sources() {
     let root = repo_root();
     let tracked = Command::new("git")
         .args([
@@ -137,12 +126,6 @@ fn provides_syntax_is_confined_to_legacy_filesystem_offset_tables() {
         .expect("list tracked Omega source files");
     assert!(tracked.status.success(), "git ls-files should succeed");
 
-    let allowed = [
-        "omega/language/std/targets/linux_arm64/filesystem.provides.omg",
-        "omega/language/std/targets/linux_x64/filesystem.provides.omg",
-        "omega/language/std/targets/macos_arm64/filesystem.provides.omg",
-        "omega/language/std/targets/windows_x64/filesystem.provides.omg",
-    ];
     let mut declarations = Vec::new();
 
     for relative in String::from_utf8_lossy(&tracked.stdout).split('\0') {
@@ -169,12 +152,10 @@ fn provides_syntax_is_confined_to_legacy_filesystem_offset_tables() {
         }
     }
 
-    declarations.sort();
-    let mut expected = allowed.into_iter().map(str::to_owned).collect::<Vec<_>>();
-    expected.sort();
-    assert_eq!(
-        declarations, expected,
-        "authored `provides` syntax must stay confined to the four transitional struct-stat offset tables"
+    assert!(
+        declarations.is_empty(),
+        "authored `provides` syntax is retired; declarations remain:\n{}",
+        declarations.join("\n")
     );
 }
 

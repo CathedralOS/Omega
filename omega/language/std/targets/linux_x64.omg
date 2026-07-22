@@ -1,7 +1,5 @@
 // The `linux_x64` std target definition (file shape settled 2026-07-07:
-// `std/targets/<target>.omg` = the target def; its per-subsystem provides
-// rows live beside it in `std/targets/linux_x64/<subsystem>.provides.omg`).
-// build.omg's target selection (TASKS_FS open-work #3) will pick these files;
-// until then `filesystem_host.omg` imports every target def and the compiler's
-// target filter keeps non-selected targets' rows inert (load-bearing).
-use omega::language::std::targets::linux_x64::filesystem;
+// `std/targets/<target>.omg` = the target def; checked per-subsystem target
+// implementations live beneath `std/targets/linux_x64/`). Target filtering
+// keeps non-selected implementations inert.
+use omega::language::std::targets::linux_x64::filesystem_impl;
