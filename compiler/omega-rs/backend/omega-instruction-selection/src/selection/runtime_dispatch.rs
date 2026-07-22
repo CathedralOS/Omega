@@ -1473,11 +1473,13 @@ pub(super) fn select_entry_argument_register_writes(
                 .expect("bytes-handoff descriptor must fit the validated entry state ceiling");
         retain_boundary_footprint(
             boundary_footprints,
+            &selected.boundary,
             omega_abstract_operations::BoundaryFootprintFragmentOrigin::EntryStorage,
             selected.footprint,
         );
         retain_boundary_footprint(
             boundary_footprints,
+            &selected.boundary,
             omega_abstract_operations::BoundaryFootprintFragmentOrigin::EntrySliceDescriptor,
             descriptor_footprint,
         );
@@ -1563,6 +1565,7 @@ pub(super) fn select_entry_argument_register_writes(
             select_normalized_entry_argument_writes(input, &destinations, selected_instructions);
         retain_boundary_footprint(
             boundary_footprints,
+            &selected.boundary,
             omega_abstract_operations::BoundaryFootprintFragmentOrigin::EntryStorage,
             selected.footprint,
         );
@@ -1591,6 +1594,7 @@ pub(super) fn select_entry_argument_register_writes(
         select_normalized_entry_argument_writes(input, &destinations, selected_instructions);
     retain_boundary_footprint(
         boundary_footprints,
+        &selected.boundary,
         omega_abstract_operations::BoundaryFootprintFragmentOrigin::EntryStorage,
         selected.footprint,
     );
@@ -1599,11 +1603,15 @@ pub(super) fn select_entry_argument_register_writes(
 
 fn retain_boundary_footprint(
     plan: &mut omega_abstract_operations::BoundaryFootprintPlan,
+    boundary: &ValidatedBoundaryEntryPlan,
     origin: omega_abstract_operations::BoundaryFootprintFragmentOrigin,
     evidence: StateFootprintEvidence,
 ) {
-    plan.fragments
-        .push(omega_abstract_operations::BoundaryFootprintFragment { origin, evidence });
+    plan.retain_validated_fragment(
+        boundary,
+        omega_abstract_operations::BoundaryFootprintFragment { origin, evidence },
+    )
+    .expect("retained entry footprint must name and fit one validated boundary contract");
 }
 
 struct SelectedNormalizedEntryStorage {

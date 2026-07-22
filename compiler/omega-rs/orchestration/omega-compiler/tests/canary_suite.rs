@@ -1017,10 +1017,12 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         "abstract operations should render backend state blocks with ordered instruction lines"
     );
     assert!(
-        boundary_footprints.contains("\"enumeration_complete\": false")
+        boundary_footprints.contains("\"boundary_contract_fingerprint\": \"0x")
+            && !boundary_footprints.contains("\"boundary_contract_fingerprint\": null")
+            && boundary_footprints.contains("\"enumeration_complete\": false")
             && boundary_footprints.contains("\"composed\"")
             && boundary_footprints.contains("\"fragments\""),
-        "boundary footprint artifact should expose retained evidence without claiming final completeness"
+        "boundary footprint artifact should bind retained evidence to its validated contract without claiming final completeness"
     );
     assert!(
         machine_instructions.contains("Machine Instructions")
@@ -33465,9 +33467,10 @@ fn aarch64_large_result_entry_saves_x8_and_copies_through_it() {
     let footprint_artifact = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
         .expect("AAPCS64 indirect-result footprint evidence should be written");
     assert!(
-        footprint_artifact.contains("\"origin\": \"exit_indirect_result_copy\"")
+        footprint_artifact.contains("\"boundary_contract_fingerprint\": \"0x")
+            && footprint_artifact.contains("\"origin\": \"exit_indirect_result_copy\"")
             && footprint_artifact.contains("\"enumeration_complete\": false"),
-        "AAPCS64 hidden-result copy must retain evidence without claiming final completeness"
+        "AAPCS64 hidden-result copy must bind evidence to its contract without claiming final completeness"
     );
 
     let image = fs::read(build_dir.join("omega-program")).expect("read emitted AArch64 ELF");
@@ -33729,9 +33732,10 @@ fn sysv_large_result_entry_saves_and_uses_the_hidden_pointer() {
     let footprint_artifact = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
         .expect("SysV indirect-result footprint evidence should be written");
     assert!(
-        footprint_artifact.contains("\"origin\": \"exit_indirect_result_copy\"")
+        footprint_artifact.contains("\"boundary_contract_fingerprint\": \"0x")
+            && footprint_artifact.contains("\"origin\": \"exit_indirect_result_copy\"")
             && footprint_artifact.contains("\"enumeration_complete\": false"),
-        "SysV hidden-result copy must retain evidence without claiming final completeness"
+        "SysV hidden-result copy must bind evidence to its contract without claiming final completeness"
     );
 
     let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86-64 ELF");

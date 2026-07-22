@@ -472,6 +472,10 @@ schemas recover the same instance without publishing policy type identity.
    beside their encoders. The backend publishes these fragments and their
    composed fingerprint in
    `08_boundary_footprints.json`, whose
+   `boundary_contract_fingerprint` binds every fragment to the exact canonical
+   validated plan under which it was checked; retention rejects cross-contract
+   composition, while the implementation evidence remains outside requirement
+   identity. The artifact's
    `enumeration_complete: false` firewall prevents this partial slice from being
    mistaken for the final certificate. Whole-body evidence, save/restore
    specialization, return/restore sequences, and post-layout enumeration across
