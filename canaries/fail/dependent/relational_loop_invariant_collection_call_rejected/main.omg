@@ -1,0 +1,41 @@
+// SOUNDNESS BOUNDARY for the relational loop-head invariant. Every incoming
+// edge establishes `self.i < self.items.len`, but the sibling call can replace
+// the collection before the indexed read. Its recursive frame overlaps
+// `self.items`, so the Houdini candidate must fail closed.
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
+
+data Main {
+    items: [u8; 8] in Utf8;
+    i: u64;
+    value: u8;
+}
+
+machine Main::run(&mut self) {
+    self.items = "abcd";
+    self.i = 0;
+    transition self.i < self.items.len {
+        true -> loop_()
+        false -> done()
+    }
+
+    state loop_(&mut self) {
+        self.clear_items();
+        self.value = self.items[self.i];
+        self.i = self.i + 1;
+        transition self.i < self.items.len {
+            true -> loop_()
+            false -> done()
+        }
+    }
+
+    state done(&mut self) { }
+}
+
+machine Main::clear_items(&mut self) {
+    self.items = "";
+}

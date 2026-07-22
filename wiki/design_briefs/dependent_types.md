@@ -235,8 +235,13 @@ assumption cannot prove itself after a dependent place is mutated. Automatic
 Houdini inference has its first frame-aware candidate class: monotone counter
 bounds survive recursive may-write analysis across resolved sibling calls when
 their frames are disjoint, and are discarded for overlapping or opaque calls.
-Broader relational candidate discovery remains future work; authored arrival
-contracts do not depend on it.
+Its first relational class is live too: equivalent guards on every entry and
+back edge carry `i < self.collection.len` to an increasing-counter head even
+though the guards have distinct expression handles. The candidate crosses
+calls only when recursive frames are disjoint from both the counter and
+collection, and index reassignment kills the collection-relative fact. Further
+relational classes remain future work; authored arrival contracts do not depend
+on them.
 
 ## 6. Dynamic lowering — the runtime half
 
@@ -454,9 +459,11 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
   couplings. Driver: the memory-map walk (rides Cathedral M2's recast).
 - **R5 — Frames:** preserve-unless-written and authored state-level `requires`
   plus arrival facts are live; monotone counter inference crosses disjoint
-  sibling-call frames. Remaining work is the surface-blocked boundary write
-  clause and broader relational Houdini candidates. Driver: dependent facts
-  across sibling-machine calls.
+  sibling-call frames, and symbolic `i < self.collection.len` loop-head facts
+  now meet semantically across distinct entry/back-edge guards. Remaining work
+  is the surface-blocked boundary write clause, normalized frame publication,
+  and additional relational Houdini candidates. Driver: dependent facts across
+  sibling-machine calls.
 
 ## 9. Key sources
 

@@ -665,11 +665,18 @@ stronger operations it needs instead of citing machine parameters generally.
   summaries: inferred loop bounds cross resolved sibling calls whose may-write
   paths are disjoint from the counter, while overlapping or opaque calls still
   fail closed; reserved pure value builtins have an explicit empty write frame.
+  The first relational candidate is also live: when every entry and back edge
+  into an increasing-counter head establishes `i < self.collection.len`, the
+  checker carries that symbolic collection/index fact at the head across calls
+  proven disjoint from both places. Direct collection writes and opaque or
+  overlapping calls reject the candidate, and reassigning the index drops the
+  fact before any later access. This is semantic guard matching across distinct
+  expression handles, not a collapse of the dynamic length to a constant.
   **Language-design blocker:** the boundary write-frame clause's semantics are
   settled, but its public keyword/spelling is still explicitly provisional
   (`stores` in the guide). Do not mint syntax until that spelling is frozen.
   Engineering can continue on normalized frame storage/manifest identity and
-  broader Houdini candidate classes independently of the surface decision.
+  additional relational candidate classes independently of the surface decision.
 
 ### Domain facets, effects, termination, and trust
 

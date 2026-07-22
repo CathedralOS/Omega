@@ -355,6 +355,15 @@ The contract is part of the state's typed and specialization identity. It is
 not a comment or a body-local assertion: an unconditional edge to `fill(n)`
 is rejected unless the current proof context establishes `n <= self.cap`.
 
+For the common write-first machine-field loop, the checker also infers one
+relational arrival fact without authored syntax. If every entry and back edge
+to an increasing-counter head establishes the same
+`self.i < self.items.len`, and recursive call frames prove both places stable,
+that collection-relative index fact holds at the head. Equivalent guards in
+different states are matched semantically rather than by syntax-tree identity.
+Reassigning `self.i` immediately invalidates the fact; a collection write or an
+opaque/overlapping call prevents the candidate entirely.
+
 ## When The Checker Says No
 
 An undischarged dependent obligation is a compile error naming the missing
