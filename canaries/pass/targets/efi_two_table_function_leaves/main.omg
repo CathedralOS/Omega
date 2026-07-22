@@ -1,13 +1,8 @@
-// M2 BLOCKER 1 (landed 2026-07-11): TWO external leaf rows in one
-// image -- get_memory_map + exit_boot_services on the same trait. Names
-// outside the built-in host catalog now intern to stable Custom keys
-// (Copy, process-wide), so any number of authored rows coexist; the
-// selection/encoding/import arms that keyed the authored path on the old
-// (Unknown, Unknown) sentinel accept Custom alongside it. A genuinely
-// repeated (trait, method) pair still collides loudly:
-// fail/targets/duplicate_provides_row_rejected. Cross-compiled for
-// uefi_x64 on any host; M2's three-row image (output_string + these two)
-// is now expressible.
+// Two attached external TableFunction leaves in one image:
+// get_memory_map + exit_boot_services on the same trait. The table type owns
+// field placement, each leaf names its field, and the dispatch-only table
+// pointer stays outside the foreign signature. Cross-compiled for uefi_x64 on
+// any host; this is the same shape Cathedral's real boot package consumes.
 boundary trait BootServices {
     machine get_memory_map(
         this: addr,
@@ -36,8 +31,8 @@ uefi_x64 machine EfiBootServicesTable::get_memory_map_leaf(
     key: &mut u64,
     desc_size: &mut u64,
     desc_version: &mut u32
-) -> i32 satisfies BootServices::get_memory_map via Binding::VtableField(get_memory_map);
-uefi_x64 machine EfiBootServicesTable::exit_boot_services_leaf(this: addr, handle: addr, key: u64) -> i32 satisfies BootServices::exit_boot_services via Binding::VtableField(exit_boot_services);
+) -> i32 satisfies BootServices::get_memory_map via Binding::TableFunction(get_memory_map);
+uefi_x64 machine EfiBootServicesTable::exit_boot_services_leaf(this: addr, handle: addr, key: u64) -> i32 satisfies BootServices::exit_boot_services via Binding::TableFunction(exit_boot_services);
 data EfiSystemTable {
     hdr_signature: u64; hdr_revision: u32; hdr_header_size: u32; hdr_crc: u32; hdr_reserved: u32;
     firmware_vendor: addr; firmware_revision: u32; fw_pad: u32;

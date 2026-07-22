@@ -573,6 +573,11 @@ slot owner may override by type. The migration order remains load-bearing.
    out-parameter, and two-row service canaries plus the full SysV field-dispatch
    matrix have moved off `provides ... over Struct` while preserving layout-
    selected offsets and native aggregate calling plans.
+   Cathedral's boot image now consumes those same attached external leaves:
+   `SimpleTextOutput` uses `Binding::VtableField`, while `BootServices` uses
+   `Binding::TableFunction` so its dispatch-only table pointer stays off the
+   foreign signature. The real seven-file UEFI package compiles without any
+   source-level `provides` declaration.
    The obsolete standalone `host ... provides` syscall example is gone; the
    qualified external-leaf syscall canary already pins both x86-64 and AArch64
    admission, argument registers, syscall-number registers, and supervisor-call

@@ -1,7 +1,7 @@
 // RECAST 2026-07-11 (M2 blocker 1): distinct authored rows now COEXIST --
 // names outside the closed catalog intern to stable Custom keys, so the
 // old two-unknown-rows collision this canary pinned is the FEATURE now
-// (pass/targets/efi_two_provides_rows). What survives is the additive-only
+// (pass/targets/efi_two_table_function_leaves). What survives is the additive-only
 // rule: the SAME (trait, method) pair bound twice collides loudly.
 boundary trait Beeper {
     machine beep(value: i32) -> i32;
