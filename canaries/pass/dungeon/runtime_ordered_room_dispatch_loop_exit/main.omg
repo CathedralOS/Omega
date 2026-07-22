@@ -1,4 +1,8 @@
-use platform::console;
+use omega::language::std::console;
+
+domain [u8; 32]::Utf8 {
+    valid_utf8(self);
+}
 
 data CommandParser {}
 
@@ -64,8 +68,8 @@ data Main {
     dungeon: Dungeon;
     parser: CommandParser;
     view: GameView;
-    input: String;
-    output: String;
+    input: [u8; 32] in Utf8;
+    output: [u8; 32] in Utf8;
     current_room_index: u64;
     fountain_used: bool;
     bat_defeated: bool;

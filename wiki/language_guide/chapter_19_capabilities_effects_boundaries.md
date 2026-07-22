@@ -327,7 +327,7 @@ boundary trait Console {
     effects
         stdout_io;
 
-    machine read_line(out: &mut String)
+    machine read_line(out: &mut [u8])
     effects
         stdin_io;
 
@@ -357,12 +357,14 @@ Implementation state: the standard Console is now a boundary trait with effect
 rows. Its friendly `write` and `write_line` members are ordinary checked Omega
 adapters over `write_byte`: they accept a borrowed byte view directly and walk
 it with a measured state machine. The raw byte operation remains the provider
-leaf. `read_line` temporarily retains an owned `String` destination until the
-allocator-backed or explicitly bounded mutable-carrier contract lands. Legacy
-composite provider rows remain temporarily for deliberately nonstandard carrier
-and semantic-test declarations; the ordinary corpus now imports the standard
-package. `TASKS.md` tracks the remaining input-surface migration and
-compatibility-row deletion.
+leaf. `read_line` accepts a mutable byte view. Its current owned-destination
+route requires a concrete `[u8; N] in D` carrier at the call site: boundary
+planning derives `N` from that place, writes directly into its inline bytes,
+and establishes the carrier's runtime length. The legacy 256-byte String
+scratch limit is never reused for a shorter carrier. Legacy composite provider
+rows remain temporarily for deliberately nonstandard semantic-test
+declarations; the ordinary corpus imports the standard package. `TASKS.md`
+tracks compatibility-row deletion.
 
 Domain requirements stay normal proof language. A filesystem boundary should
 not invent special "initialized" words when a domain is what it means:

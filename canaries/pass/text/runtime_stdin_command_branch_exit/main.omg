@@ -1,16 +1,15 @@
 // #66: a stdin command parser over an owned `[u8; N] in Utf8` carrier. The line is
 // read straight into the carrier's inline bytes, borrowed as a `&[u8] in Utf8`
-// view, and matched against literals to resolve a command -- no `String`.
+// view, and matched against literals to resolve a command through the standard
+// Console surface -- no `String`.
+use omega::language::std::console;
+
 domain [u8]::Utf8 {
     valid_utf8(self);
 }
+
 domain [u8; 32]::Utf8 {
     valid_utf8(self);
-}
-boundary trait Console {
-    machine write_line(text: &[u8] in Utf8);
-    machine read_line(out_line: &mut [u8; 32] in Utf8);
-    machine exit_process(return_code: i32);
 }
 
 data Command {

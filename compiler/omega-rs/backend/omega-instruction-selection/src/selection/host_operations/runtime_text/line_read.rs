@@ -69,6 +69,17 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
     if !is_bounded_buffer && target_place.byte_count != input.runtime_abi.string_descriptor_size() {
         return None;
     }
+    // The host ABI's mutable-output capacity describes the legacy detached
+    // String scratch buffer. An owned `[u8; N]` carrier is the destination
+    // itself, so its inline capacity is authoritative: using the legacy limit
+    // here would allow a short carrier to be overwritten by a longer line.
+    let byte_capacity = if is_bounded_buffer {
+        target_place
+            .byte_count
+            .checked_sub(input.runtime_abi.pointer_size)?
+    } else {
+        byte_capacity
+    };
 
     Some(SelectedInstructionKind::ReadRuntimeTextLine {
         buffer: data_object,
