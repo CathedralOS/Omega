@@ -1,3 +1,7 @@
+// COMPILE CANARY: a nested field's declared ZII-admitting domain remains a
+// valid write source after the enclosing record crosses a mutable out-parameter
+// call. Alias invalidation may discard transient facts, but it must not discard
+// the enforced declared-domain invariant of `Cell::label`.
 domain [u8]::Utf8 {
     valid_utf8(self);
 }
@@ -33,19 +37,19 @@ machine Main::main(&mut self) {
     self.first.label = "A1";
     self.second.id = CellId::A2;
     self.second.label = "A2";
-    scan(self.first, CellId::A2, mut self.selected);
-    scan(self.second, CellId::A2, mut self.selected);
+    scan(self.first, CellId::A2, &mut self.selected);
+    scan(self.second, CellId::A2, &mut self.selected);
     self.line.text = self.selected.label;
     self.console.write_line(self.line.text);
 
     transition {
-        _ -> self()
+        _ -> self
     }
 
 
     state scan(cell: Cell, id: CellId, out_cell: &mut Cell) {
         transition {
-            cell.id == id -> apply(cell, mut out_cell)
+            cell.id == id -> apply(cell, &mut out_cell)
             _ -> {}
         }
     }

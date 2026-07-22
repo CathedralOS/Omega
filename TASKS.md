@@ -1198,9 +1198,14 @@ stronger operations it needs instead of citing machine parameters generally.
   carrier writes now share Place-shaped lowering on x86-64 and AArch64. Immutable
   data parameters seed their nested declared-domain facts; writes through mutable
   parameters must establish those facts at the write, with a negative canary
-  pinning rejection of an unqualified source. By-value bounded carriers are also
-  distinguished from equally-sized fat descriptors during argument materialization,
-  so `{len, bytes}` is copied inline instead of being rewritten as `{ptr, len}`.
+  pinning rejection of an unqualified source. A nested declared-domain field
+  whose domain admits the carrier's ZII value also remains a valid write source
+  after its enclosing record crosses a mutable out-parameter call; the
+  compile canary is authoritative, while empty-violating domains still require
+  an established flow fact and retain their rejection rail. By-value bounded
+  carriers are also distinguished from equally-sized fat descriptors during
+  argument materialization, so `{len, bytes}` is copied inline instead of being
+  rewritten as `{ptr, len}`.
   Lookup records, their large-record variants, the clear/carve/render dungeon,
   and the full-level wrapper path now use bounded UTF-8 carriers in both engines.
   Their mutable-output lookup contract explicitly returns the

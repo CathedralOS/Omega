@@ -37755,6 +37755,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/call_requires_domain_membership_preserved_across_disjoint_literal_element_mutation",
     "control_flow/composite_field_guard_dispatch",
     "control_flow/composite_range_guard_dispatch",
+    "control_flow/guarded_leaf_branch_expansion",
     "control_flow/guarded_transition_dispatch",
     "control_flow/state_transition_chain",
     "control_flow/no_payload_case_variant_after_payload_dispatch_exit",
