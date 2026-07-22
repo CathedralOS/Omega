@@ -1099,9 +1099,66 @@ fn select_runtime_straight_line_local_initializer_write(
     // its later `view.field` local initializers dereference the ZII frame slot
     // (the programmable-layout `struct stat` decode either read zero or
     // faulted, depending on whether storage planning retained the view).
-    if let ExpressionNode::Cast(cast) = expressions.expression(resolved_initializer)
+    let recast_initializer = match expressions.expression(resolved_initializer) {
+        ExpressionNode::Mutable(inner)
+            if matches!(
+                expressions.expression(*inner),
+                ExpressionNode::Cast(cast) if cast.form.is_recast()
+            ) =>
+        {
+            *inner
+        }
+        _ => resolved_initializer,
+    };
+    if let ExpressionNode::Cast(cast) = expressions.expression(recast_initializer)
         && cast.form.is_recast()
     {
+        // Mutable recasts always carry the backing ADDRESS. Unlike a shared
+        // scalar view, a writable view may not content-spill into its slot:
+        // later mutation resolves the slot as a pointer and writes through it.
+        if cast.form == omega_core::cast_form::CastForm::RecastMutable {
+            if let Some(place) = resolve_runtime_storage_place_in_table(
+                input,
+                expansion.dispatch_index,
+                operation.source_key,
+                expressions,
+                cast.value,
+            ) {
+                selected_instructions.push(SelectedInstruction {
+                    kind: crate::selection::runtime_dispatch::write_place_address_direct(
+                        place.region,
+                        place.byte_offset,
+                        slot.byte_offset,
+                    ),
+                    source_key: operation.source_key,
+                    source_statement: operation.statement_index,
+                });
+                return;
+            }
+            if let Some(indexed) =
+                crate::selection::storage_places::resolve_runtime_machine_indexed_target_in_table(
+                    input,
+                    expansion.dispatch_index,
+                    operation.source_key,
+                    expressions,
+                    cast.value,
+                )
+            {
+                selected_instructions.push(SelectedInstruction {
+                    kind: crate::selection::runtime_dispatch::write_place_address_machine_indexed(
+                        indexed.base_byte_offset,
+                        indexed.index_region,
+                        indexed.index_offset,
+                        indexed.element_byte_size,
+                        indexed.field_byte_offset,
+                        slot.byte_offset,
+                    ),
+                    source_key: operation.source_key,
+                    source_statement: operation.statement_index,
+                });
+                return;
+            }
+        }
         let target_size = expressions
             .name_path_members(cast.target_type)
             .last()

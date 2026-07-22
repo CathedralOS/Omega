@@ -970,9 +970,13 @@ stronger operations it needs instead of citing machine parameters generally.
   can now size and project a nested plan-laid record recursively, with a native
   and interpreter differential canary; widening and explicit narrowing
   conversions from projected plan-laid scalar places lower natively and
-  cross-compile on both backend families, and `struct stat` now uses target
-  `StatLayout` policies rather than compatibility offsets. Continue non-scalar
-  and mutable recast views.
+  cross-compile on both backend families. Fact-free equal-width mutable scalar
+  recasts now preserve address identity and bit-exact write-through in native
+  and interpreter execution, cross-compile on x86-64 and AArch64, and reject a
+  fact-bearing source unless the required bidirectional implication can be
+  proved. `struct stat` now uses target `StatLayout` policies rather than
+  compatibility offsets. Continue non-scalar mutable record/interior views and
+  their full tiling/fact-equivalence judgment.
 - **L6a — Extent.** The normalized conservation foundation is live in
   `omega-extents`: admitted one-shot root grants mint nonempty ranges;
   move-split preserves exact geometry; only compatible siblings from one

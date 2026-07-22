@@ -2963,10 +2963,74 @@ fn select_runtime_dispatch_local_initializer_write(
     // -- emit the byte copy directly (the judged class guarantees the
     // region holds the footprint). Same-width recasts fall through to the
     // ordinary strip.
+    let recast_initializer = match expressions.expression(resolved_initializer) {
+        // `&mut x as &mut T` parses as Mutable(Cast(..)); shared recasts are
+        // bare Cast nodes. Normalize only for recast recognition so ordinary
+        // mutable borrows retain their existing initializer lowering.
+        omega_checked_trees::expression::ExpressionNode::Mutable(inner)
+            if matches!(
+                expressions.expression(*inner),
+                omega_checked_trees::expression::ExpressionNode::Cast(cast)
+                    if cast.form.is_recast()
+            ) =>
+        {
+            *inner
+        }
+        _ => resolved_initializer,
+    };
     if let omega_checked_trees::expression::ExpressionNode::Cast(cast) =
-        expressions.expression(resolved_initializer)
+        expressions.expression(recast_initializer)
         && cast.form.is_recast()
     {
+        // A MUTABLE recast must retain ADDRESS identity even when its referee
+        // fits in a word. Shared scalar recasts deliberately content-spill for
+        // flat reads; doing that here would make `view = value` dereference the
+        // copied bits as a pointer. Materialize the backing place address.
+        if cast.form == omega_core::cast_form::CastForm::RecastMutable {
+            if let Some(place) =
+                crate::selection::storage_places::resolve_runtime_storage_place_in_table(
+                    input,
+                    dispatch_index,
+                    resolved_initializer_source_key,
+                    expressions,
+                    cast.value,
+                )
+            {
+                selected_instructions.push(SelectedInstruction {
+                    kind: write_place_address_direct(
+                        place.region,
+                        place.byte_offset,
+                        slot.byte_offset,
+                    ),
+                    source_key,
+                    source_statement: statement_index,
+                });
+                return;
+            }
+            if let Some(indexed) =
+                crate::selection::storage_places::resolve_runtime_machine_indexed_target_in_table(
+                    input,
+                    dispatch_index,
+                    resolved_initializer_source_key,
+                    expressions,
+                    cast.value,
+                )
+            {
+                selected_instructions.push(SelectedInstruction {
+                    kind: write_place_address_machine_indexed(
+                        indexed.base_byte_offset,
+                        indexed.index_region,
+                        indexed.index_offset,
+                        indexed.element_byte_size,
+                        indexed.field_byte_offset,
+                        slot.byte_offset,
+                    ),
+                    source_key,
+                    source_statement: statement_index,
+                });
+                return;
+            }
+        }
         let target_size = expressions
             .name_path_members(cast.target_type)
             .last()
@@ -3259,6 +3323,16 @@ fn strip_recast_initializer(
     match expressions.expression(initializer) {
         omega_checked_trees::expression::ExpressionNode::Cast(cast) if cast.form.is_recast() => {
             cast.value
+        }
+        omega_checked_trees::expression::ExpressionNode::Mutable(inner) => {
+            match expressions.expression(*inner) {
+                omega_checked_trees::expression::ExpressionNode::Cast(cast)
+                    if cast.form.is_recast() =>
+                {
+                    cast.value
+                }
+                _ => initializer,
+            }
         }
         _ => initializer,
     }
