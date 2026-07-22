@@ -818,6 +818,17 @@ fn value_proves_domain(
         return true;
     }
 
+    // A place whose DECLARED leaf type carries a ZII-admitting domain implying
+    // the target domain remains a valid source even when flow invalidation has
+    // discarded its transient membership fact (for example, after the enclosing
+    // record crosses a mutable out-parameter call). Its zero/default value is
+    // in-domain and every later write is checked by this pass, so that restricted
+    // declaration is an invariant of the place rather than merely an
+    // entry-context fact. Empty-violating domains still require a flow proof.
+    if declared_value_domain_implies(program, state_flow, value, domain_symbol) {
+        return true;
+    }
+
     let value_label = program.expression_table.display_name(value);
     let value_place = crate::flow::canonical_place_from_expression_in_state(
         program,
@@ -880,6 +891,42 @@ fn value_proves_domain(
                 }
             })
         })
+}
+
+/// Whether `value` is a state place whose declared leaf type carries a
+/// ZII-admitting domain that implies `domain_symbol`.
+fn declared_value_domain_implies(
+    program: &omega_typed_trees::TypedTrees,
+    state_flow: &FlowStateFact,
+    value: ExpressionHandle,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == state_flow.machine_symbol)
+    else {
+        return false;
+    };
+    let Some(state) =
+        crate::find_state_in_machine(program, state_flow.machine_symbol, state_flow.state_symbol)
+    else {
+        return false;
+    };
+    let Some(value_type) =
+        crate::field_domain::assignment_target_type_reference(program, machine, state, value)
+    else {
+        return false;
+    };
+    let Some(value_domain) = crate::field_domain::domain_constraint_name(program, value_type)
+        .and_then(|name| crate::field_domain::resolve_domain_symbol(program, &name))
+    else {
+        return false;
+    };
+    if !crate::field_domain::domain_admits_empty_byte_sequence(program, value_domain) {
+        return false;
+    }
+    program_domain_implies(program, value_domain, domain_symbol)
 }
 
 /// Whether `value` is a value-position call whose resolved target state declares
