@@ -50,28 +50,28 @@ machine Main::main(&mut self) {
     let inner: i32 in Wrapping = self.add(1, 2);
     let nested: i32 in Wrapping = self.add(inner, 3);
 
-    transition s == 70 { true -> check_point(p, t, b, nested) _ -> bad() }
+    transition s == 70 { true -> check_point(p, t, b, nested) _ -> bad(71) }
 
     state check_point(&mut self, p: Point, t: Tag, b: bool, nested: i32 in Wrapping) {
-        transition p.x == 30 { true -> check_bool(t, b, nested) _ -> bad() }
+        transition p.x == 30 { true -> check_bool(t, b, nested) _ -> bad(72) }
     }
     state check_bool(&mut self, t: Tag, b: bool, nested: i32 in Wrapping) {
-        transition b { true -> check_nested(t, nested) _ -> bad() }
+        transition b { true -> check_nested(t, nested) _ -> bad(73) }
     }
     state check_nested(&mut self, t: Tag, nested: i32 in Wrapping) {
-        transition nested == 6 { true -> check_tag(t) _ -> bad() }
+        transition nested == 6 { true -> check_tag(t) _ -> bad(74) }
     }
     state check_tag(&mut self, t: Tag) {
-        transition t { Tag::Found { v } -> check_v(v) Tag::Missing -> bad() }
+        transition t { Tag::Found { v } -> check_v(v) Tag::Missing -> bad(75) }
     }
     state check_v(&mut self, v: i32 in Trapping) {
-        transition v == 28 { true -> good() _ -> bad() }
+        transition v == 28 { true -> good() _ -> bad(76) }
     }
 
     state good(&mut self) {
         self.console.exit_process(70);
     }
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(&mut self, code: i32 in Trapping) {
+        self.console.exit_process(code);
     }
 }
