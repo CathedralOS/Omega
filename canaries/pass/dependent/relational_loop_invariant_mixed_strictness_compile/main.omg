@@ -1,0 +1,69 @@
+// R5/Houdini strictness-aware composition. Either link may supply the strict
+// inequality needed for indexing: `i < limit <= len` and `i <= limit < len`.
+// The disjoint sibling call also pins the existing machine-wide stability law.
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
+
+data Main {
+    items: [u8; 8] in Utf8;
+    i: u64;
+    limit: u64;
+    value: u8;
+    other: u64;
+}
+
+machine Main::run(&mut self) { }
+
+machine Main::strict_edge(&mut self)
+requires
+    self.limit <= self.items.len
+{
+    self.i = 0;
+    transition self.i < self.limit {
+        true -> strict_edge_loop()
+        false -> done()
+    }
+
+    state strict_edge_loop(&mut self) {
+        self.touch_other();
+        self.value = self.items[self.i];
+        self.i = self.i + 1;
+        transition self.i < self.limit {
+            true -> strict_edge_loop()
+            false -> done()
+        }
+    }
+
+    state done(&mut self) { }
+}
+
+machine Main::strict_bridge(&mut self)
+requires
+    self.limit < self.items.len
+{
+    self.i = 0;
+    transition self.i <= self.limit {
+        true -> strict_bridge_loop()
+        false -> done()
+    }
+
+    state strict_bridge_loop(&mut self) {
+        self.touch_other();
+        self.value = self.items[self.i];
+        self.i = self.i + 1;
+        transition self.i <= self.limit {
+            true -> strict_bridge_loop()
+            false -> done()
+        }
+    }
+
+    state done(&mut self) { }
+}
+
+machine Main::touch_other(&mut self) {
+    self.other = 1;
+}

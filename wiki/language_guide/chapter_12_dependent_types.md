@@ -369,9 +369,11 @@ different states are matched semantically rather than by syntax-tree identity.
 Reassigning `self.i` immediately invalidates the fact; a collection write or an
 opaque/overlapping call prevents the candidate entirely.
 
-One stable intermediate bound may be composed too. If the edge guards establish
-`self.i < self.limit` and the machine arrival contract states
-`self.limit < self.items.len`, the head receives `self.i < self.items.len`.
+One stable intermediate bound may be composed too. Either relation may supply
+the strict link: edge/contract chains `self.i < self.limit <= self.items.len`
+and `self.i <= self.limit < self.items.len` both give the head
+`self.i < self.items.len`. A fully non-strict chain does not; it permits the
+out-of-bounds equality case and is rejected.
 Because the bridge premise was established at machine arrival, the checker
 requires `self.limit` and `self.items` to remain frame-stable in every machine
 state, including the preheader. A preheader assignment or overlapping call

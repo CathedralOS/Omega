@@ -34265,22 +34265,28 @@ fn relational_loop_invariant_canaries_pin_symbolic_head_fact() {
 
 #[test]
 fn relational_loop_invariant_canaries_pin_stable_limit_composition() {
-    let pass = pass_canary("dependent/relational_loop_invariant_stable_limit_compile");
-    compile_canary_without_output(&pass).unwrap_or_else(|diagnostics| {
-        panic!(
-            "stable limit and collection facts should compose at the loop head:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
+    for canary_name in [
+        "dependent/relational_loop_invariant_stable_limit_compile",
+        "dependent/relational_loop_invariant_mixed_strictness_compile",
+    ] {
+        let pass = pass_canary(canary_name);
+        compile_canary_without_output(&pass).unwrap_or_else(|diagnostics| {
+            panic!(
+                "stable relational bounds should compose at the loop head for {canary_name}:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+    }
 
     for canary_name in [
         "dependent/relational_loop_invariant_limit_bridge_absent_rejected",
         "dependent/relational_loop_invariant_limit_call_rejected",
         "dependent/relational_loop_invariant_limit_preheader_write_rejected",
+        "dependent/relational_loop_invariant_fully_nonstrict_rejected",
     ] {
         let fail = fail_canary(canary_name);
         let diagnostics = compile_canary_without_output(&fail)
@@ -37397,6 +37403,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "dependent/loop_invariant_survives_disjoint_sibling_call_compile",
     "dependent/relational_loop_invariant_dynamic_length_compile",
     "dependent/relational_loop_invariant_stable_limit_compile",
+    "dependent/relational_loop_invariant_mixed_strictness_compile",
     "dependent/data_where_invariant_window_restored_exit",
     "dependent/data_where_gated_machine_established_exit",
     "dependent/range_sugar_gated_construction_compile",
@@ -37916,6 +37923,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "dependent/relational_loop_invariant_limit_bridge_absent_rejected",
     "dependent/relational_loop_invariant_limit_call_rejected",
     "dependent/relational_loop_invariant_limit_preheader_write_rejected",
+    "dependent/relational_loop_invariant_fully_nonstrict_rejected",
     "dependent/data_where_invariant_window_unclosed_rejected",
     "dependent/data_where_gated_machine_unestablished_rejected",
     "dependent/range_sugar_gated_field_omitted_rejected",
