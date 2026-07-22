@@ -465,15 +465,14 @@ machine build(b: &mut Build) {
 "#,
     )
     .expect("write build.omg");
-    let main_with = |value: i64| {
+    let main_with = |slot: i64| {
         format!(
             r#"boundary trait Console {{ machine exit_process(return_code: i32); }}
 boundary trait Flags {{
     machine open_read() -> i32;
 }}
-demo_target provides Flags {{
-    open_read -> {value}
-}}
+machine open_read() -> i32
+    satisfies Flags::open_read via Binding::VtableSlot({slot});
 data Main {{ console: Console; }}
 machine Main::main(&mut self) {{
     self.console.exit_process(70);
@@ -493,7 +492,7 @@ machine Main::main(&mut self) {{
     compile(options()).expect("granted plan project should compile");
     let lock = std::fs::read_to_string(project.join("omega.lock")).expect("lock written");
     assert!(
-        lock.contains("provider plan: demo_target::Flags"),
+        lock.contains("provider plan: satisfies::Flags"),
         "expected the plan receipt:\n{lock}"
     );
 
@@ -510,9 +509,9 @@ machine Main::main(&mut self) {{
 
 #[test]
 fn derived_provider_plans_surface_as_trust_rows() {
-    // PRV3: an authored `provides` block derives a ProviderPlan; the plan
-    // surfaces as a dev-active trust row (fingerprint shown) until the
-    // final build grants it by name or trait leaf.
+    // A bodyless external leaf derives a ProviderPlan; the plan surfaces as a
+    // dev-active trust row (fingerprint shown) until the final build grants it
+    // by name or trait leaf.
     let project = std::env::temp_dir().join(format!("omega-plan-rows-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&project);
     std::fs::create_dir_all(&project).expect("create project dir");
@@ -522,9 +521,8 @@ fn derived_provider_plans_surface_as_trust_rows() {
 boundary trait Flags {
     machine open_read() -> i32;
 }
-demo_target provides Flags {
-    open_read -> 0
-}
+machine open_read() -> i32
+    satisfies Flags::open_read via Binding::VtableSlot(1);
 data Main { console: Console; }
 machine Main::main(&mut self) {
     self.console.exit_process(70);
@@ -540,17 +538,17 @@ machine Main::main(&mut self) {
         target_name: None,
         write_output: true,
     })
-    .expect("provides project should compile");
+    .expect("external-leaf project should compile");
 
     let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
         .expect("trust report should be written");
     assert!(
-        report.contains("provider plan: demo_target::Flags ["),
+        report.contains("provider plan: satisfies::Flags ["),
         "expected the derived plan row with its fingerprint:\n{report}"
     );
     let plan_row = report
         .lines()
-        .find(|line| line.contains("provider plan: demo_target::Flags"))
+        .find(|line| line.contains("provider plan: satisfies::Flags"))
         .unwrap_or_default();
     assert!(
         plan_row.contains("own-package (dev-active)") && plan_row.contains("STANDING WARNING"),

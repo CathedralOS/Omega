@@ -17,7 +17,6 @@ mod output;
 mod plan_laid;
 mod project;
 mod provider_plans;
-mod provides_values;
 pub mod source;
 mod stage;
 mod stages;

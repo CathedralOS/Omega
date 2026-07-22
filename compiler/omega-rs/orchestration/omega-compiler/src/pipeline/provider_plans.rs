@@ -71,9 +71,6 @@ pub(super) fn derive_provider_plans(
                         field: field.as_str().to_owned(),
                     }
                 }
-                HostProviderMappingKind::Value { value } => {
-                    ProviderBinding::Value { value: *value }
-                }
             };
             rows.push(ProviderPlanRow {
                 method: mapping.machine.as_str().to_owned(),
@@ -236,9 +233,6 @@ pub(crate) fn derive_satisfies_plans(
                             table: provider_type.clone(),
                             field: field.as_str().to_owned(),
                         }
-                    }
-                    HostProviderMappingKind::Value { value } => {
-                        ProviderBinding::Value { value: *value }
                     }
                 },
             };

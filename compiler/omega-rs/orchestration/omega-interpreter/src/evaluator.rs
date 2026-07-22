@@ -8,14 +8,11 @@ use crate::{FilesystemAccess, InterpretOptions};
 #[path = "evaluator_real_fs.rs"]
 mod real_fs;
 
-/// Per-target open-flag BIT POSITIONS, mirroring the `FilesystemHost` open-flag
-/// provides values in `omega/language/std/filesystem_host.omg` (the single
-/// source of truth; the wrapper composes flag words from them at compile time).
-/// The differential oracle compiles for `host()` and runs ON the host, so the
-/// host's flag numerology matches the substituted program -- selecting by
-/// `cfg!(target_os)` needs no target threading. The differential fs canaries
-/// (create_new/open_with) are the drift guard against this table diverging from
-/// the .omg source. Access mode (O_WRONLY 1 / O_RDWR 2, mask 0x3) is universal.
+/// Per-target open-flag BIT POSITIONS, mirroring the checked target encoders in
+/// `std/targets/<target>/filesystem_impl.omg`. The differential oracle compiles
+/// for `host()` and runs ON the host, so selecting by `cfg!(target_os)` needs no
+/// target threading. The create/open differential canaries guard this mirror.
+/// Access mode (O_WRONLY 1 / O_RDWR 2, mask 0x3) is universal.
 mod host_open_flags {
     #[cfg(target_os = "windows")]
     pub const O_CREAT_BIT: i32 = 8;
@@ -118,11 +115,9 @@ const VIRTUAL_UID: u32 = 501;
 const VIRTUAL_GID: u32 = 20;
 
 /// Byte offsets at which the hermetic FS lays out a `struct stat` for the HOST
-/// target, MIRRORING the `FilesystemHost` `ST_*_OFF` provides values for that same
-/// target -- the wrapper's `decode_metadata`/`copy` read `stat_buf[ST_*_OFF + k]`,
-/// and a program compiled for `host()` runs here, so this must agree offset-for-
-/// offset with the selected target's provides row. The differential canary is the
-/// drift guard between this Rust mirror and the `.omg` rows.
+/// target, mirroring the selected target's checked `StatLayout` policy. A
+/// program compiled for `host()` runs here, so the differential canary guards
+/// this Rust carrier against the `.omg` layout policy.
 ///
 /// Non-windows hosts use the darwin/POSIX layout (every field has a real home).
 /// Windows uses the msvcrt `_stat64` layout (56 bytes); the fields absent or
@@ -3007,7 +3002,7 @@ impl<'program> Evaluator<'program> {
             "open_create" => {
                 // `open(path, flags, mode)` with O_CREAT (Rust `File::create_new`,
                 // `OpenOptions.create`/`.create_new`). Flag bits are the HOST's
-                // (host_open_flags, mirroring the per-target provides values). This
+                // (host_open_flags, mirroring the checked target encoder). This
                 // adds the O_EXCL/EEXIST atomic
                 // create-new guard + create-mode recording; every other flag bit
                 // (O_TRUNC/O_APPEND/access/EACCES/ENOENT) is handled by the shared
@@ -4088,7 +4083,7 @@ impl<'program> Evaluator<'program> {
                 }
             };
             // Lay the fields out at the HOST target's stat offsets (mirrors the
-            // FilesystemHost ST_*_OFF provides row the wrapper's decode reads). On
+            // selected StatLayout policy the wrapper projects). On
             // windows the width-mismatched/absent fields go to a synthetic tail; a
             // real native `_stat64` would leave that tail zero.
             use host_stat_offsets as off;

@@ -57,9 +57,6 @@ pub enum ProviderBinding {
     VtableField { table: String, field: String },
     /// UEFI service-table function (the boot-services shape).
     TableFunction { table: String, field: String },
-    /// A portable compile-time constant (`provides` Value rows): no call,
-    /// the name substitutes to the integer before resolution.
-    Value { value: i64 },
     /// An ORDINARY CHECKED MACHINE realizing the requirement (the ruling's
     /// composite form: lowering sequences and argument adaptation are
     /// checked Omega code with an explicit satisfies edge, never authored
@@ -239,9 +236,7 @@ impl ProviderPlan {
     }
 
     /// PRV2: full structural validation against the schema -- every method
-    /// bound exactly once, no stray rows, and per-method shape checks
-    /// (a Value binding cannot serve a result-less method's call; a
-    /// byte-read shape needs a result). Returns NAMED errors; empty =
+    /// bound exactly once and no stray rows. Returns NAMED errors; empty =
     /// structurally valid.
     pub fn validate_against_schema(&self) -> Vec<String> {
         let mut errors = self.validate_candidate_against_schema();
@@ -258,28 +253,12 @@ impl ProviderPlan {
                 ));
             }
         }
-        for row in &self.rows {
-            if matches!(row.binding, ProviderBinding::Value { .. })
-                && !self
-                    .schema
-                    .methods
-                    .iter()
-                    .any(|method| method.name == row.method)
-            {
-                errors.push(format!(
-                    "plan `{}` binds `{}`, which is not a `{}` method",
-                    self.name, row.method, self.schema.trait_name
-                ));
-            }
-        }
         errors
     }
 
     /// Validate one candidate before coverage/selection. Partial candidates
     /// are legitimate, but a candidate cannot duplicate a requirement, name a
-    /// callable row outside its schema, or use a Value row where call arguments
-    /// exist. Unmatched compatibility Value rows remain inert until PRV4f
-    /// removes that surface. This is the additive-only conformance check;
+    /// callable row outside its schema. This is the additive-only conformance check;
     /// selection decides whether the surviving candidate covers the complete
     /// slot.
     pub fn validate_candidate_against_schema(&self) -> Vec<String> {
@@ -298,31 +277,15 @@ impl ProviderPlan {
             }
         }
         for row in &self.rows {
-            let Some(method) = self
+            if !self
                 .schema
                 .methods
                 .iter()
-                .find(|method| method.name == row.method)
-            else {
-                // Compatibility `provides` plans still carry per-target Value
-                // constants beside callable rows until PRV4f migrates the
-                // remaining foreign-record facts. They do not participate in
-                // candidate coverage and must not mask call-row defects.
-                if matches!(row.binding, ProviderBinding::Value { .. }) {
-                    continue;
-                }
+                .any(|method| method.name == row.method)
+            {
                 errors.push(format!(
                     "plan `{}` binds `{}`, which is not a `{}` method",
                     self.name, row.method, self.schema.trait_name
-                ));
-                continue;
-            };
-            if matches!(row.binding, ProviderBinding::Value { .. }) && method.parameter_count > 0 {
-                errors.push(format!(
-                    "plan `{}` binds `{}::{}` to a portable Value, but the method \
-                     takes {} argument(s) -- Value rows serve zero-argument \
-                     constants",
-                    self.name, self.schema.trait_name, method.name, method.parameter_count
                 ));
             }
         }
@@ -352,7 +315,7 @@ impl ProviderPlan {
 mod tests {
     use super::*;
 
-    /// The built-in Console lowering, spelled as a ProviderPlan VALUE --
+    /// The built-in Console lowering, spelled as a ProviderPlan value --
     /// the PRV4 relocation target (windows.rs insert_platform_lowering's
     /// rows as data). Construction is free; nothing consumes this yet.
     fn windows_console_plan() -> ProviderPlan {
@@ -438,17 +401,17 @@ mod tests {
 
     #[test]
     fn validation_names_every_structural_defect() {
-        // PRV2: missing binding, stray row, and the Value-with-arguments
-        // shape check each produce a NAMED error.
+        // PRV2: missing binding, stray row, and duplicate binding each produce
+        // a NAMED error.
         let mut plan = windows_console_plan();
         plan.rows.remove(0);
         plan.rows.push(ProviderPlanRow {
             method: "not_a_method".to_owned(),
-            binding: ProviderBinding::Value { value: 1 },
+            binding: ProviderBinding::Syscall { number: 1 },
         });
         plan.rows.push(ProviderPlanRow {
             method: "exit_process".to_owned(),
-            binding: ProviderBinding::Value { value: 0 },
+            binding: ProviderBinding::Syscall { number: 0 },
         });
         let errors = plan.validate_against_schema();
         assert!(
@@ -469,13 +432,6 @@ mod tests {
                 .any(|error| error.contains("binds `Console::exit_process` 2 times")),
             "duplicate named: {errors:?}"
         );
-        assert!(
-            errors
-                .iter()
-                .any(|error| error.contains("portable Value") && error.contains("exit_process")),
-            "Value-with-arguments named: {errors:?}"
-        );
-
         assert!(windows_console_plan().validate_against_schema().is_empty());
     }
 

@@ -120,9 +120,6 @@ fn extract_provides_rows(
                         field: field.as_str().to_owned(),
                     }
                 }
-                HostProviderMappingKind::Value { value } => {
-                    ProvidesBindingKind::Value { value: *value }
-                }
             };
             rows.push(ProvidesRow {
                 target_name: provider.target.as_str().to_owned(),
@@ -209,9 +206,6 @@ fn extract_provides_rows(
                     ProvidesBindingKind::TableFunction {
                         field: field.as_str().to_owned(),
                     }
-                }
-                HostProviderMappingKind::Value { value } => {
-                    ProvidesBindingKind::Value { value: *value }
                 }
             };
             rows.push(ProvidesRow {
@@ -366,14 +360,6 @@ impl Compiler {
         )?;
         let plan_laid_records =
             crate::pipeline::plan_laid::desugar_plan_laid_value_types(&mut syntax.syntax_trees)?;
-        // PORTABLE VALUES (2026-07-07 settle, rung V2): the SELECTED target's
-        // provides VALUE rows substitute into `Trait::NAME` paths here, so no
-        // later stage -- including the interpreter -- grows a per-target
-        // concept; each use IS the target's number (const-v0 discipline).
-        crate::pipeline::provides_values::substitute_provides_values(
-            &mut syntax.syntax_trees,
-            self.options.target_name.as_deref(),
-        )?;
         // TARGET-SCOPED MACHINES (fs portable-contract settle 2026-07-18):
         // the SELECTED target's `<target> machine` implementations become
         // ordinary machines; every other target's stay inert. Loud edges:

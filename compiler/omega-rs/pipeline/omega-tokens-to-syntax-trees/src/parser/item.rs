@@ -524,12 +524,11 @@ fn parse_provider_binding_case<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     legacy_provides_arm: bool,
 ) -> ParseResult<'tokens, 'source, HostProviderMappingKind> {
-    // An INTEGER-led RHS is a per-target VALUE row (`O_CREATE -> 32768`),
-    // not a call mechanism -- the portable-values half of the provides table.
-    if legacy_provides_arm {
-        if let Ok((value, input)) = input.take_integer() {
-            return Ok((HostProviderMappingKind::Value { value }, input));
-        }
+    if legacy_provides_arm && input.at_integer() {
+        return Err(input.error_here(
+            "integer `provides` values are retired: declare an ordinary `const` for semantic \
+             constants or a target layout/format policy for foreign encodings",
+        ));
     }
     let (case, input) = input.take_identifier()?;
     match case.as_str() {
@@ -582,8 +581,7 @@ fn parse_provider_binding_case<'tokens, 'source>(
         other if legacy_provides_arm => Err(input.error_here(format!(
             "unknown `provides` binding `{other}`: the compatibility vocabulary is \
              `Syscall(n)`, `DllImport(\"module\", \"symbol\")`, `VtableSlot(n)`, \
-             `VtableField(field)`, `TableFunction(field)`, a bare fn-ptr field \
-             name, or a per-target integer Value row"
+             `VtableField(field)`, `TableFunction(field)`, or a bare fn-ptr field name"
         ))),
         other => Err(input.error_here(format!(
             "unknown Binding case `{other}`: external leaves require one of \

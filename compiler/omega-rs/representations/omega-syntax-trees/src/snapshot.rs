@@ -714,7 +714,6 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                         HostProviderMappingKind::TableFunction { field } => {
                             ("table_function", 0, None, Some(field.as_str().to_owned()))
                         }
-                        HostProviderMappingKind::Value { value } => ("value", *value, None, None),
                     };
                     HostProviderMappingSnapshot {
                         machine: snapshot_identifier(&mapping.machine),

@@ -63,14 +63,14 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     // NO clean msvcrt equivalent (pread/pwrite, *at, link/symlink/readlink,
     // read_dir, flock, chown, futimens, realpath) keep the clean "no native
     // lowering" diagnostic. The stat family IS wired (2026-07-08): the wrapper's
-    // `decode_metadata` reads per-target `struct _stat64` offsets from the
-    // `FilesystemHost` ST_*_OFF provides row, so `_stat64`/`_fstat64` land.
+    // `decode_metadata` projects the target's checked `StatLayout`, so
+    // `_stat64`/`_fstat64` land.
     // `read_symlink_metadata` stays fenced (msvcrt has no `lstat`; mapping it to
     // `_stat64` would silently FOLLOW symlinks -- wrong, not just approximate).
     ("Filesystem", "open", "msvcrt.dll", "_open"),
     // `open_create` = `_open(path, flags, mode)` -- unfenced 2026-07-08 now that
-    // the wrapper composes msvcrt flag words from the per-target `FilesystemHost`
-    // provides values (create_new/open_with no longer emit darwin O_CREAT 0x200,
+    // the checked windows target encoder composes msvcrt flag words
+    // (create_new/open_with no longer emit darwin O_CREAT 0x200,
     // which is msvcrt O_TRUNC). msvcrt `_open` takes the create `mode` as a
     // trailing variadic int; on win64 it lands in a normal arg register, so the
     // general import-call encoder marshals all three args like any Win64 call.
@@ -422,7 +422,7 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             PlatformCallData::None,
         );
         // `open_create` unfenced 2026-07-08: the wrapper now composes msvcrt
-        // flag words from the per-target `FilesystemHost` provides values, so
+        // flag words in checked target code, so
         // create_new/open_with no longer risk the darwin-O_CREAT-is-msvcrt-
         // O_TRUNC silent truncation. `_open(path, flags, mode)` rides the same
         // general import call as `open` (the trailing mode is a normal win64
