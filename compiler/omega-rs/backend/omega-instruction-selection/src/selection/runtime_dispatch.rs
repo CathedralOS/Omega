@@ -1440,7 +1440,7 @@ pub(super) fn select_entry_argument_register_writes(
     input: &InstructionSelectionInput<'_>,
     selected_instructions: &mut SelectedInstructionSink,
     boundary_footprints: &mut omega_abstract_operations::BoundaryFootprintPlan,
-) {
+) -> Option<ValidatedBoundaryEntryPlan> {
     // THE BYTES HANDOFF -- `run(&self, args: &[u8])`: when the entry's sole
     // declared parameter is a byte slice, the prologue SPILLS the platform's
     // four argument registers into the reserved spill region and binds `args`
@@ -1461,7 +1461,7 @@ pub(super) fn select_entry_argument_register_writes(
                     .then_some(slot.byte_offset)
             });
         let Some(descriptor_offset) = descriptor_offset else {
-            return;
+            return None;
         };
         let destinations = (0..4)
             .map(|index| (spill_base + index * 8, ValueShape::integer(8, 8)))
@@ -1490,7 +1490,7 @@ pub(super) fn select_entry_argument_register_writes(
             source_key: input.entry_key,
             source_statement: 0,
         });
-        return;
+        return Some(selected.boundary);
     }
 
     // TYPED entry parameters: each declared non-self parameter receives its
@@ -1528,7 +1528,7 @@ pub(super) fn select_entry_argument_register_writes(
     if parameter_slots.len() != declared_parameter_count {
         // Aggregates and descriptor-shaped arguments need source-policy ABI
         // classification before this lowering can populate them honestly.
-        return;
+        return None;
     }
     parameter_slots.sort_unstable_by_key(|(byte_offset, _, _)| *byte_offset);
 
@@ -1566,7 +1566,7 @@ pub(super) fn select_entry_argument_register_writes(
             omega_abstract_operations::BoundaryFootprintFragmentOrigin::EntryStorage,
             selected.footprint,
         );
-        return;
+        return Some(selected.boundary);
     }
 
     let destinations = parameter_slots
@@ -1585,7 +1585,7 @@ pub(super) fn select_entry_argument_register_writes(
             CallingPolicy::Aapcs64 | CallingPolicy::MicrosoftX64 | CallingPolicy::SystemVAMD64
         )
     {
-        return;
+        return None;
     }
     let selected =
         select_normalized_entry_argument_writes(input, &destinations, selected_instructions);
@@ -1594,6 +1594,7 @@ pub(super) fn select_entry_argument_register_writes(
         omega_abstract_operations::BoundaryFootprintFragmentOrigin::EntryStorage,
         selected.footprint,
     );
+    Some(selected.boundary)
 }
 
 fn retain_boundary_footprint(
@@ -1615,7 +1616,8 @@ fn select_normalized_entry_argument_writes(
     destinations: &[(usize, ValueShape)],
     selected_instructions: &mut SelectedInstructionSink,
 ) -> SelectedNormalizedEntryStorage {
-    let result = normalized_entry_indirect_result_shape(input);
+    let result = normalized_entry_result_shape(input);
+    let indirect_result = normalized_entry_indirect_result_shape(input);
     let signature = CallSignature {
         parameters: destinations.iter().map(|(_, shape)| *shape).collect(),
         result,
@@ -1625,7 +1627,7 @@ fn select_normalized_entry_argument_writes(
         &signature,
     )
     .expect("runtime entry signature must have a normalized boundary entry plan");
-    let indirect_result_pointer_byte_offset = result.map(|_| {
+    let indirect_result_pointer_byte_offset = indirect_result.map(|_| {
         assert_eq!(
             input.runtime_storage.entry_indirect_result_pointer_size, 8,
             "large native entry result must reserve its destination pointer"
@@ -1656,13 +1658,25 @@ fn select_normalized_entry_argument_writes(
 pub(super) fn normalized_entry_indirect_result_shape(
     input: &InstructionSelectionInput<'_>,
 ) -> Option<ValueShape> {
-    let shape = normalized_entry_record_result_shape(input)?;
+    let shape = normalized_entry_result_shape(input)?;
     let is_indirect = match CallingPolicy::native_for_target(input.target) {
         CallingPolicy::MicrosoftX64 => !matches!(shape.byte_size, 1 | 2 | 4 | 8),
         CallingPolicy::Aapcs64 | CallingPolicy::SystemVAMD64 => shape.byte_size > 16,
         _ => false,
     };
     (matches!(shape.class, ValueClass::Integer) && is_indirect).then_some(shape)
+}
+
+fn normalized_entry_result_shape(input: &InstructionSelectionInput<'_>) -> Option<ValueShape> {
+    if let Some(shape) = normalized_entry_record_result_shape(input) {
+        return Some(shape);
+    }
+    let primitive = normalized_entry_scalar_result_primitive(input)?;
+    let byte_size = u16::try_from(primitive.scalar_byte_size()?).ok()?;
+    Some(match primitive {
+        PrimitiveType::F32 | PrimitiveType::F64 => ValueShape::float(byte_size),
+        _ => ValueShape::integer(byte_size, byte_size.max(1)),
+    })
 }
 
 pub(super) fn normalized_entry_record_result_placement(

@@ -622,13 +622,7 @@ pub fn encode_runtime_storage_copy_to_return_register_bytes(
 
     // Mirrors `append_guard_load`'s direct/indirect offset handling so the
     // width helper's `load_data_offset_width` stays exact.
-    let direct = match byte_size {
-        1 => byte_offset <= 4095,
-        2 => byte_offset.is_multiple_of(2) && byte_offset / 2 <= 4095,
-        4 => byte_offset.is_multiple_of(4) && byte_offset / 4 <= 4095,
-        8 => byte_offset.is_multiple_of(8) && byte_offset / 8 <= 4095,
-        _ => false,
-    };
+    let direct = runtime_storage_result_offset_is_direct(byte_offset, byte_size);
     let base_register = if direct {
         16
     } else {
@@ -683,6 +677,31 @@ pub fn encode_runtime_storage_copy_to_return_register_bytes(
         super::widths::runtime_storage_copy_to_return_register_width(byte_offset, byte_size)
     );
     Ok(bytes)
+}
+
+fn runtime_storage_result_offset_is_direct(byte_offset: usize, byte_size: usize) -> bool {
+    match byte_size {
+        1 => byte_offset <= 4095,
+        2 => byte_offset.is_multiple_of(2) && byte_offset / 2 <= 4095,
+        4 => byte_offset.is_multiple_of(4) && byte_offset / 4 <= 4095,
+        8 => byte_offset.is_multiple_of(8) && byte_offset / 8 <= 4095,
+        _ => false,
+    }
+}
+
+/// Exact register footprint of the runtime-frame result load above. Large or
+/// unscaled offsets use x26 as the adjusted base and x19 while materializing
+/// that offset; direct loads need only the relocated x16 base.
+pub fn runtime_storage_copy_to_return_register_clobbers(
+    register: MachineRegister,
+    byte_offset: usize,
+    byte_size: usize,
+) -> RegisterSet {
+    let mut registers = vec![register, MachineRegister::Aarch64X(16)];
+    if !runtime_storage_result_offset_is_direct(byte_offset, byte_size) {
+        registers.extend([MachineRegister::Aarch64X(19), MachineRegister::Aarch64X(26)]);
+    }
+    RegisterSet::new(registers)
 }
 
 #[cfg(test)]

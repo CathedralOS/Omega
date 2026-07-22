@@ -43,6 +43,55 @@ pub fn derive_boundary_entry_slice_descriptor_footprint(
     Ok(evidence)
 }
 
+/// Derive the exact register footprint of selected direct-result
+/// materialization instructions and validate it under the complete entry
+/// plan's state ceiling. Indirect result memory copies and the final return
+/// sequence are intentionally separate fragments.
+pub fn derive_boundary_exit_result_register_footprint<'instruction>(
+    boundary: &ValidatedBoundaryEntryPlan,
+    instructions: impl IntoIterator<Item = &'instruction SelectedInstructionKind>,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    let architecture = boundary.plan().call.policy.architecture();
+    let mut registers = Vec::new();
+    for instruction in instructions {
+        let clobbers = match instruction {
+            SelectedInstructionKind::WriteReturnRegisterInteger { register, .. } => {
+                match architecture {
+                    omega_target::Architecture::X86_64 => {
+                        omega_isa_x86_64::return_register_integer_write_clobbers(*register)
+                    }
+                    omega_target::Architecture::Aarch64 => {
+                        omega_isa_aarch64::return_register_integer_write_clobbers(*register)
+                    }
+                }
+            }
+            SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+                register,
+                byte_offset,
+                byte_size,
+                ..
+            } => match architecture {
+                omega_target::Architecture::X86_64 => {
+                    omega_isa_x86_64::runtime_storage_copy_to_return_register_clobbers(*register)
+                }
+                omega_target::Architecture::Aarch64 => {
+                    omega_isa_aarch64::runtime_storage_copy_to_return_register_clobbers(
+                        *register,
+                        *byte_offset,
+                        *byte_size,
+                    )
+                }
+            },
+            _ => continue,
+        };
+        registers.extend_from_slice(clobbers.as_slice());
+    }
+    let evidence =
+        StateFootprintEvidence::new(RegisterSet::new(registers), MachineStateSet::empty());
+    validate_state_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
 /// Derive result placement and exit control for a compiler-owned entry stub.
 /// This consumes the complete plan so result lowering cannot accidentally
 /// accept placements from a carrier whose state obligations are invalid.
@@ -478,6 +527,76 @@ mod tests {
         assert_eq!(
             evidence.registers().as_slice(),
             &[MachineRegister::Aarch64X(16), MachineRegister::Aarch64X(17),]
+        );
+    }
+
+    #[test]
+    fn exit_result_register_footprint_unions_x86_immediate_and_runtime_loads() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: Some(ValueShape::integer(8, 8)),
+            },
+        )
+        .expect("SysV result boundary");
+        let instructions = [
+            SelectedInstructionKind::WriteReturnRegisterInteger {
+                register: MachineRegister::X86Rax,
+                byte_size: 8,
+                value: 1,
+            },
+            SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+                register: MachineRegister::X86Xmm(0),
+                region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 24,
+                byte_size: 8,
+            },
+        ];
+
+        let evidence = derive_boundary_exit_result_register_footprint(&boundary, &instructions)
+            .expect("x86 result evidence");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::X86Rax,
+                MachineRegister::X86R15,
+                MachineRegister::X86Xmm(0),
+            ]
+        );
+    }
+
+    #[test]
+    fn exit_result_register_footprint_tracks_aarch64_large_offset_scratch() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: Some(ValueShape::float(8)),
+            },
+        )
+        .expect("AAPCS64 result boundary");
+        let instructions = [
+            SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+                register: MachineRegister::Aarch64V(0),
+                region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 4097,
+                byte_size: 8,
+            },
+        ];
+
+        let evidence = derive_boundary_exit_result_register_footprint(&boundary, &instructions)
+            .expect("AArch64 result evidence");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(19),
+                MachineRegister::Aarch64X(26),
+                MachineRegister::Aarch64V(0),
+            ]
         );
     }
 
