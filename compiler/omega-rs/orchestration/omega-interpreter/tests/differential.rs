@@ -225,6 +225,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_value_call_struct_literal_arms_exit", 70),
     ("calls/runtime_value_call_self_field_enum_match_exit", 70),
     ("calls/runtime_value_call_struct_result_to_target_exit", 70),
+    ("calls/runtime_call_value", 70),
     ("calls/runtime_call_in_inlined_substate_exit", 70),
     ("calls/runtime_call_result_after_splice_mutation_exit", 70),
     (
