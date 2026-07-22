@@ -1,3 +1,5 @@
+// COMPILE CANARY: one exclusive borrow and a disjoint by-value input may be
+// passed to a helper that writes through the borrow.
 data Main {
     left: i32;
     right: i32;
@@ -6,7 +8,7 @@ data Main {
 machine Main::main(&mut self) {
     self.left = 1;
     self.right = 2;
-    copy(mut self.left, self.right);
+    copy(&mut self.left, self.right);
 
 
     state copy(out_value: &mut i32, input_value: i32) {

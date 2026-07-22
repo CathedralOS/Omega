@@ -19,7 +19,7 @@ machine Main::main(&mut self) {
         binary32.precision,
         binary64.precision,
         ieee_specials,
-        binary32.rounds_to_nearest_ties_to_even,
+        binary32.rounds_to_nearest_ties_to_even
     );
 
     state verify(
@@ -27,7 +27,7 @@ machine Main::main(&mut self) {
         binary32_precision: u32,
         binary64_precision: u32,
         specials: bool,
-        rounding: bool,
+        rounding: bool
     ) {
         transition binary32_precision == 24 && binary64_precision == 53 && specials && rounding {
             true -> done()

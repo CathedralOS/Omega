@@ -1,3 +1,6 @@
+// COMPILE CANARY: exact arithmetic through a local slice alias writes an
+// indexed record and then updates a sibling field through the mutable record
+// parameter. The precondition supplies both the index and increment bounds.
 data Exit {
     destination: u32;
 }
@@ -32,9 +35,11 @@ machine Main::append_exit(
     &mut self,
     room: &mut Room,
     destination: u32
-) {
+)
+requires room.exit_count < 4
+{
     let exits: &mut [Exit] = room.exits.as_mut_slice();
-    let index: u64 = room.exit_count;
+    let index: u32 [0..=3] = room.exit_count;
 
     exits[index] = Exit { destination: destination };
     room.exit_count = index + 1;
