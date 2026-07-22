@@ -30,6 +30,16 @@ pub struct EmittedImageOutput {
     pub final_image_imports: usize,
     pub final_image_relocations: usize,
     pub executable_regions: crate::PlacedExecutableRegionInventory,
+    pub compiler_text_validation: Option<CompilerTextValidationEvidence>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CompilerTextValidationEvidence {
+    pub encoded_text_fingerprint: u64,
+    pub final_compiler_text_fingerprint: u64,
+    pub relocation_envelope_fingerprint: u64,
+    pub derivation_fingerprint: u64,
+    pub text_relocation_count: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,5 +63,6 @@ pub fn emitted_direct_executable_output(output: ExecutableImageOutput) -> Emitte
         final_image_imports: output.imports,
         final_image_relocations: output.relocations,
         executable_regions: output.executable_regions,
+        compiler_text_validation: None,
     }
 }

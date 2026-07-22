@@ -538,6 +538,9 @@ schemas recover the same instance without publishing policy type identity.
    encoded-machine bytes only within declared relocation bitfields, preserving
    AArch64 opcode and register bits rather than treating whole instructions as
    mutable; format-owned thunk tails retain their separate exact validators.
+   The encoded, final-prefix, and canonical relocation-envelope identities now
+   compose into published compiler-text derivation evidence, and that identity
+   participates in the boundary/placement binding fingerprint.
    It names its currently covered and missing classes and likewise refuses to
    claim complete enumeration.
    StatePlan-driven nonordinary save/restore and return specialization, and

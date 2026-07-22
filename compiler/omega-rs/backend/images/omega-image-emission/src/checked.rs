@@ -2,7 +2,8 @@ use crate::dispatch::emit_executable_image;
 use crate::input::ExecutableImageInput;
 use omega_core::diagnostics::Diagnostic;
 use omega_image::{
-    EmittedImageOutput, FinalExecutableRegionOrigin, PlacedExecutableRegionInventory,
+    CompilerTextValidationEvidence, EmittedImageOutput, FinalExecutableRegionOrigin,
+    PlacedExecutableRegionInventory,
 };
 use omega_object_file::{RelocationKind, RelocationPlan, SectionKind};
 use omega_target::Architecture;
@@ -25,12 +26,12 @@ pub fn emit_checked_executable_image(
     let encoded_text_bytes = input.text_bytes;
     let relocations = input.relocations;
     if let Some(emitted_output) = emit_executable_image(input) {
-        let emitted_output = emitted_output?;
-        validate_final_text_relocation_envelope(
+        let mut emitted_output = emitted_output?;
+        emitted_output.compiler_text_validation = Some(validate_final_text_relocation_envelope(
             encoded_text_bytes,
             &emitted_output.final_text_bytes,
             relocations,
-        )?;
+        )?);
         validate_compiler_entry_call_return_bytes(
             architecture,
             &entry_symbol,
@@ -52,7 +53,7 @@ fn validate_final_text_relocation_envelope(
     encoded_text_bytes: &[u8],
     final_text_bytes: &[u8],
     relocations: &RelocationPlan,
-) -> Result<(), Diagnostic> {
+) -> Result<CompilerTextValidationEvidence, Diagnostic> {
     if final_text_bytes.len() < encoded_text_bytes.len() {
         return Err(Diagnostic::error(format!(
             "relocated .text truncated compiler code from {} to {} byte(s)",
@@ -64,6 +65,7 @@ fn validate_final_text_relocation_envelope(
     // their own exact final-byte validators in the image writers.
     let final_compiler_text = &final_text_bytes[..encoded_text_bytes.len()];
     let mut mutable_bits = vec![0u8; encoded_text_bytes.len()];
+    let mut text_relocations = Vec::new();
     for (_, relocation) in relocations.records() {
         if relocation.section != SectionKind::Text {
             continue;
@@ -110,6 +112,11 @@ fn validate_final_text_relocation_envelope(
             )));
         }
         mutable_bits[relocation.offset..end].copy_from_slice(masks);
+        text_relocations.push((
+            relocation.offset,
+            relocation.byte_width,
+            relocation_kind_tag(relocation.kind),
+        ));
     }
 
     for (offset, ((encoded, final_byte), mutable_mask)) in encoded_text_bytes
@@ -125,7 +132,68 @@ fn validate_final_text_relocation_envelope(
             )));
         }
     }
-    Ok(())
+    text_relocations.sort_unstable();
+    let encoded_text_fingerprint = fingerprint_bytes(encoded_text_bytes);
+    let final_compiler_text_fingerprint = fingerprint_bytes(final_compiler_text);
+    let mut relocation_envelope_fingerprint = 0xcbf2_9ce4_8422_2325u64;
+    for (offset, width, kind) in &text_relocations {
+        fingerprint_into(
+            &mut relocation_envelope_fingerprint,
+            &(*offset as u64).to_le_bytes(),
+        );
+        fingerprint_into(
+            &mut relocation_envelope_fingerprint,
+            &(*width as u64).to_le_bytes(),
+        );
+        fingerprint_into(&mut relocation_envelope_fingerprint, &[*kind]);
+    }
+    let mut derivation_fingerprint = 0xcbf2_9ce4_8422_2325u64;
+    fingerprint_into(
+        &mut derivation_fingerprint,
+        &encoded_text_fingerprint.to_le_bytes(),
+    );
+    fingerprint_into(
+        &mut derivation_fingerprint,
+        &final_compiler_text_fingerprint.to_le_bytes(),
+    );
+    fingerprint_into(
+        &mut derivation_fingerprint,
+        &relocation_envelope_fingerprint.to_le_bytes(),
+    );
+    fingerprint_into(
+        &mut derivation_fingerprint,
+        &(text_relocations.len() as u64).to_le_bytes(),
+    );
+    Ok(CompilerTextValidationEvidence {
+        encoded_text_fingerprint,
+        final_compiler_text_fingerprint,
+        relocation_envelope_fingerprint,
+        derivation_fingerprint,
+        text_relocation_count: text_relocations.len(),
+    })
+}
+
+fn relocation_kind_tag(kind: RelocationKind) -> u8 {
+    match kind {
+        RelocationKind::Aarch64Page21 => 1,
+        RelocationKind::Aarch64PageOffset12 => 2,
+        RelocationKind::Aarch64Branch26 => 3,
+        RelocationKind::Absolute64 => 4,
+        RelocationKind::X86_64Relative32 => 5,
+    }
+}
+
+fn fingerprint_bytes(bytes: &[u8]) -> u64 {
+    let mut fingerprint = 0xcbf2_9ce4_8422_2325u64;
+    fingerprint_into(&mut fingerprint, bytes);
+    fingerprint
+}
+
+fn fingerprint_into(fingerprint: &mut u64, bytes: &[u8]) {
+    for byte in bytes {
+        *fingerprint ^= u64::from(*byte);
+        *fingerprint = fingerprint.wrapping_mul(0x0000_0100_0000_01b3);
+    }
 }
 
 fn validate_compiler_entry_call_return_bytes(
@@ -289,8 +357,11 @@ mod tests {
             kind: RelocationKind::X86_64Relative32,
         });
 
-        validate_final_text_relocation_envelope(&encoded, &relocated, &relocations)
+        let evidence = validate_final_text_relocation_envelope(&encoded, &relocated, &relocations)
             .expect("declared displacement bytes may change");
+        assert_eq!(evidence.text_relocation_count, 1);
+        assert_ne!(evidence.encoded_text_fingerprint, 0);
+        assert_ne!(evidence.derivation_fingerprint, 0);
         relocated[0] = 0x90;
         let diagnostic =
             validate_final_text_relocation_envelope(&encoded, &relocated, &relocations)

@@ -38,10 +38,20 @@ pub(super) fn write_output(
             .map_err(|diagnostic| vec![diagnostic])?;
         }
 
+        let compiler_text_validation = image.compiler_text_validation.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "checked executable image omitted compiler-text validation evidence",
+            )]
+        })?;
         let output_path = build_dir.join(&image.file_name);
         write_output_file(&output_path, &image.bytes, true)
             .map_err(|diagnostic| vec![diagnostic])?;
-        write_executable_region_inventory(options, footprints, &image.executable_regions)?;
+        write_executable_region_inventory(
+            options,
+            footprints,
+            &compiler_text_validation,
+            &image.executable_regions,
+        )?;
 
         // The GUI-subsystem translation for Mach-O: PE stamps Subsystem 2 into
         // the image header so Windows never attaches a console box; macOS has no
@@ -74,6 +84,7 @@ pub(super) fn write_output(
 fn write_executable_region_inventory(
     options: &CompileOptions,
     footprints: &omega_target_operations::BoundaryFootprintPlan,
+    compiler_text_validation: &omega_image::CompilerTextValidationEvidence,
     inventory: &omega_image::PlacedExecutableRegionInventory,
 ) -> Result<(), Vec<Diagnostic>> {
     fn push_string(output: &mut String, value: &str) {
@@ -122,6 +133,7 @@ fn write_executable_region_inventory(
     let binding_fingerprint = boundary_placement_binding_fingerprint(
         footprints.boundary_contract_fingerprint,
         implementation_evidence_fingerprint,
+        compiler_text_validation.derivation_fingerprint,
         inventory.inventory_fingerprint,
     );
     let mut json = String::from(
@@ -134,8 +146,14 @@ fn write_executable_region_inventory(
         json.push_str("null");
     }
     json.push_str(&format!(
-        ",\n  \"implementation_evidence_fingerprint\": \"0x{implementation_evidence_fingerprint:016x}\",\n  \"implementation_fragment_count\": {},\n  \"inventory_fingerprint\": \"0x{:016x}\",\n  \"boundary_placement_binding_fingerprint\": \"0x{binding_fingerprint:016x}\",\n",
-        footprints.fragments.len(), inventory.inventory_fingerprint
+        ",\n  \"implementation_evidence_fingerprint\": \"0x{implementation_evidence_fingerprint:016x}\",\n  \"implementation_fragment_count\": {},\n  \"compiler_text_validation\": {{\"encoded_text_fingerprint\": \"0x{:016x}\", \"final_compiler_text_fingerprint\": \"0x{:016x}\", \"relocation_envelope_fingerprint\": \"0x{:016x}\", \"derivation_fingerprint\": \"0x{:016x}\", \"text_relocation_count\": {}}},\n  \"inventory_fingerprint\": \"0x{:016x}\",\n  \"boundary_placement_binding_fingerprint\": \"0x{binding_fingerprint:016x}\",\n",
+        footprints.fragments.len(),
+        compiler_text_validation.encoded_text_fingerprint,
+        compiler_text_validation.final_compiler_text_fingerprint,
+        compiler_text_validation.relocation_envelope_fingerprint,
+        compiler_text_validation.derivation_fingerprint,
+        compiler_text_validation.text_relocation_count,
+        inventory.inventory_fingerprint
     ));
     json.push_str(&format!(
         "  \"text_address\": \"0x{:016x}\",\n  \"text_byte_count\": {},\n  \"text_fingerprint\": \"0x{:016x}\",\n  \"regions\": [",
@@ -190,6 +208,7 @@ fn write_executable_region_inventory(
 fn boundary_placement_binding_fingerprint(
     boundary_contract_fingerprint: Option<u64>,
     implementation_evidence_fingerprint: u64,
+    compiler_text_derivation_fingerprint: u64,
     inventory_fingerprint: u64,
 ) -> u64 {
     let mut hash = 0xcbf2_9ce4_8422_2325u64;
@@ -206,6 +225,7 @@ fn boundary_placement_binding_fingerprint(
             .to_le_bytes(),
     )
     .chain(implementation_evidence_fingerprint.to_le_bytes())
+    .chain(compiler_text_derivation_fingerprint.to_le_bytes())
     .chain(inventory_fingerprint.to_le_bytes())
     {
         hash ^= u64::from(byte);
@@ -224,20 +244,27 @@ mod executable_region_inventory_tests {
 
     #[test]
     fn placement_binding_changes_with_contract_evidence_or_final_inventory() {
-        let baseline = boundary_placement_binding_fingerprint(Some(1), 2, 3);
+        let baseline = boundary_placement_binding_fingerprint(Some(1), 2, 3, 4);
         assert_ne!(
             baseline,
-            boundary_placement_binding_fingerprint(Some(4), 2, 3)
+            boundary_placement_binding_fingerprint(Some(5), 2, 3, 4)
         );
         assert_ne!(
             baseline,
-            boundary_placement_binding_fingerprint(Some(1), 5, 3)
+            boundary_placement_binding_fingerprint(Some(1), 5, 3, 4)
         );
         assert_ne!(
             baseline,
-            boundary_placement_binding_fingerprint(Some(1), 2, 6)
+            boundary_placement_binding_fingerprint(Some(1), 2, 6, 4)
         );
-        assert_ne!(baseline, boundary_placement_binding_fingerprint(None, 2, 3));
+        assert_ne!(
+            baseline,
+            boundary_placement_binding_fingerprint(Some(1), 2, 3, 7)
+        );
+        assert_ne!(
+            baseline,
+            boundary_placement_binding_fingerprint(None, 2, 3, 4)
+        );
     }
 }
 

@@ -462,6 +462,11 @@ change; opcode and register bits must remain identical. Bad widths, overlap,
 out-of-range records, and mutations outside that envelope reject before the
 output leaves checked image emission. Format-owned thunk tails retain their
 separate exact validators.
+The compiler publishes the encoded-prefix, final-prefix, and canonical
+relocation-envelope fingerprints plus their composed derivation identity. The
+boundary/placement binding includes that derivation identity, so a valid final
+inventory cannot be paired with evidence from a different encoded-to-final
+derivation.
 The format writers also validate their own exact final import-thunk encodings
 after patching and relocation. PE `jmp [rip+disp32]` carries an
 instruction-pointer-only footprint; Mach-O `ADRP/LDR/BR X16` carries X16 plus

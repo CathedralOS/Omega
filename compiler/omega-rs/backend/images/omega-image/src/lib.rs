@@ -18,7 +18,8 @@ pub use model::{
     bind_compiler_entry_footprint, place_executable_regions,
 };
 pub use output::{
-    EmittedImageOutput, ExecutableImageOutput, ImageOutputKind, emitted_direct_executable_output,
+    CompilerTextValidationEvidence, EmittedImageOutput, ExecutableImageOutput, ImageOutputKind,
+    emitted_direct_executable_output,
 };
 pub use symbols::{
     final_image_imports_symbol, final_image_symbol_address, final_image_symbol_name,
