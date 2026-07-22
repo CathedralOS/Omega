@@ -13,7 +13,7 @@ data Main {
     kibibytes: i32 in Wrapping;
     bytes: i32 in Wrapping;
     recovered: i32 in Wrapping;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

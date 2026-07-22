@@ -20,7 +20,7 @@ data Main {
     console: Console;
     players: [Player; 3];
     total: i32;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

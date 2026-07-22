@@ -14,7 +14,7 @@ data Main {
     i: u32 in Wrapping;
     mask: u32 in Wrapping;
     test: u32 in Wrapping;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

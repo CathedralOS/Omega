@@ -11,7 +11,7 @@ data Game {
     view: GameView;
     input: String;
     output: String;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Game::initialize(

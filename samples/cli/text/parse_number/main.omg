@@ -19,7 +19,7 @@ use omega::language::std::console;
 
 data Main {
     console: Console;
-    pause: String;
+    pause: [u8; 256];
     text: [u8; 4] in Utf8;
     tens: i32;
     ones: i32;

@@ -13,7 +13,7 @@ use omega::language::std::console;
 
 data Main {
     console: Console;
-    pause: String;
+    pause: [u8; 256];
     digits: [i32; 11];
     r: i32 [-1..=10];
     par: i32 in Wrapping;

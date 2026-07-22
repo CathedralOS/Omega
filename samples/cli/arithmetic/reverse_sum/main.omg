@@ -22,7 +22,7 @@ data Main {
     i: i32 [-1..=4];
     // Wrapping DECLARED: sums array elements, which carry no range facts yet.
     acc: i32 in Wrapping;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

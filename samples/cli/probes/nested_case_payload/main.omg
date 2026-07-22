@@ -47,7 +47,7 @@ data State [copy, zero_init] {
 data Main {
     console: Console;
     st: State;
-    pause: String;
+    pause: [u8; 256];
 }
 
 // Inner dispatcher: interpret op code on accumulator with value n.

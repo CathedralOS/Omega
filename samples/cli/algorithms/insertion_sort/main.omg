@@ -54,7 +54,7 @@ data Sorter [copy, zero_init] {
 data Main {
     console: Console;
     s: Sorter;
-    pause: String;
+    pause: [u8; 256];
 }
 
 // ---- Per-pair compare-and-swap machines ----

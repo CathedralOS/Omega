@@ -14,7 +14,7 @@ use omega::language::std::console;
 
 data Main {
     console: Console;
-    pause: String;
+    pause: [u8; 256];
     n: i32 [0..=21];
     d: i32 [0..=21];
     count: i32 [0..=21];

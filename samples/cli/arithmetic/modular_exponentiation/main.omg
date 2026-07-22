@@ -27,7 +27,7 @@ data ModExp [copy, zero_init] {
 data Main {
     console: Console;
     state: ModExp;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

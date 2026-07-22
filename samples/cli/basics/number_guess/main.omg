@@ -31,7 +31,7 @@ data Search [copy, zero_init] {
 data Main {
     console: Console;
     search: Search;
-    pause: String;
+    pause: [u8; 256];
 }
 
 // Perform one binary-search step: compute mid = (lo+hi)/2, compare to target.

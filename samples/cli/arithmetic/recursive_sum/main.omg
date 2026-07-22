@@ -36,7 +36,7 @@ data Main {
     console: Console;
     arr: [i32 in Wrapping; 4];
     summer: Summer;
-    pause: String;
+    pause: [u8; 256];
 }
 
 // Recursive value-returning machine: sum all elements in slice s.

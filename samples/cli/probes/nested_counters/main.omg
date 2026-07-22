@@ -77,7 +77,7 @@ data Outer [copy, zero_init] {
 data Main {
     console: Console;
     state: Outer;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::set_value(&mut self, v: i32 [0..=1000]) {

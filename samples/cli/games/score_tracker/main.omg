@@ -33,7 +33,7 @@ data Main {
     console: Console;
     scores: [i32 in Saturating; 2];
     tracker: Tracker;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

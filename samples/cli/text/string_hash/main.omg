@@ -30,7 +30,7 @@ data Main {
     hash: u32 in Wrapping;
     digest: u32 in Wrapping;
     out: i32;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

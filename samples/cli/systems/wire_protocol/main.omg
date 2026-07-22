@@ -54,7 +54,7 @@ data Main {
     written: u64;
     read: u64;
     verdict: WireVerdict;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

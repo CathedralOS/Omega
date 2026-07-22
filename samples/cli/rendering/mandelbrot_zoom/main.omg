@@ -40,7 +40,7 @@ data Main {
     k: i32 [0..=40];
     idx: i32;
     ch: u8 in Wrapping;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

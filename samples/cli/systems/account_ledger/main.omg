@@ -95,7 +95,7 @@ data Main {
     console: Console;
     accounts: [Account; 4];
     query_count: i32 in Wrapping;
-    pause: String;
+    pause: [u8; 256];
 }
 
 // ── write helpers: deposit/withdraw per const index ────────────────────────────

@@ -38,7 +38,7 @@ data Grid [copy, zero_init] {
 data Main {
     console: Console;
     g: Grid;
-    pause: String;
+    pause: [u8; 256];
 }
 
 // Initialize the board with the 2x2 block still-life at positions 5,6,9,10.

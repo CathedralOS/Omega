@@ -30,7 +30,7 @@ data Main {
     ints: [i32 in Wrapping; 7];
     entries: [Entry; 7];
     walker: Walker;
-    pause: String;
+    pause: [u8; 256];
 }
 
 // Probe A: i32 slice accumulation.

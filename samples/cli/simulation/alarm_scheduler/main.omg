@@ -63,7 +63,7 @@ data Alarm [copy, zero_init] {
 data Main {
     console: Console;
     alarm: Alarm;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::dispatch(&mut self, event: AlarmEvent) {

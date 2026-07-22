@@ -26,7 +26,7 @@ data Main {
     console: Console;
     px: i32 in Saturating;
     py: i32 in Saturating;
-    pause: String;
+    pause: [u8; 256];
 }
 
 // Dispatch on the direction, returning the unit step as a struct literal per arm.

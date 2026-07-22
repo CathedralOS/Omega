@@ -52,7 +52,7 @@ data Vm [copy, zero_init] {
 data Main {
     console: Console;
     vm: Vm;
-    pause: String;
+    pause: [u8; 256];
 }
 
 // Initialize VM: sp = -1 (empty stack).

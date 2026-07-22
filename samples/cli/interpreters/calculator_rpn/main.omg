@@ -33,7 +33,7 @@ data Stack [copy, zero_init] {
 data Main {
     console: Console;
     stack: Stack;
-    pause: String;
+    pause: [u8; 256];
 }
 
 // ---------------------------------------------------------------------------

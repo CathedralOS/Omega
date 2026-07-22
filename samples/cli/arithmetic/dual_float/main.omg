@@ -35,7 +35,7 @@ data Floats [copy, zero_init] {
 data Main {
     console: Console;
     f: Floats;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

@@ -22,7 +22,7 @@ data Main {
     ch: u32 in Wrapping;
     byte: u8 in Wrapping;
     p: u64;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

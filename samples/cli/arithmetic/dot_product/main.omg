@@ -22,7 +22,7 @@ data Main {
     b: [i32; 3] in Wrapping;
     i: i32 [0..=3];
     sum: i32 in Wrapping;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

@@ -46,7 +46,7 @@ data Main {
     dist: i32 [-23..=23];     // dx + dy folds bounded from their ranges
     level: i32;               // (dist + frame) % 8 folds bounded; range-checked at `bounds`
     c: u8;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

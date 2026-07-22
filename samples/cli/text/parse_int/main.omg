@@ -22,7 +22,7 @@ use omega::language::std::console;
 
 data Main {
     console: Console;
-    pause: String;
+    pause: [u8; 256];
     text: [u8; 8] in Utf8;
     i: i32 [0..=8];
     b: u8;

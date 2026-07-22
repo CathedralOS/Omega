@@ -29,7 +29,7 @@ data Main {
     p1: i32 in Wrapping;   // pos + 1 (a computed index must be a field, not inline)
     tc: u8;
     oc: u8;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

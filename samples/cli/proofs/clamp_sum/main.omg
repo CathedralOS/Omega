@@ -26,7 +26,7 @@ machine Clamper::clamp_sum(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrappin
 data Main {
     console: Console;
     clamper: Clamper;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

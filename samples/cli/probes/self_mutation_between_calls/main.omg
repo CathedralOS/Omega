@@ -58,7 +58,7 @@ data State [copy, zero_init] {
 data Main {
     console: Console;
     st: State;
-    pause: String;
+    pause: [u8; 256];
 }
 
 // Value-returning machine that reads self.st.multiplier.

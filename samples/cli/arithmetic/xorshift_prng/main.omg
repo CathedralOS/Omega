@@ -19,7 +19,7 @@ data Main {
     state: u32 in Wrapping;
     scratch: u32 in Wrapping;
     output: i32;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

@@ -33,7 +33,7 @@ data Ledger [copy, zero_init] {
 data Main {
     console: Console;
     ledger: Ledger;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

@@ -34,7 +34,7 @@ data Main {
     r: u32 in Wrapping;   // current row
     c: u32 in Wrapping;   // current column (write index into the line buffer)
     lab: u8;              // glyph for the current cell
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

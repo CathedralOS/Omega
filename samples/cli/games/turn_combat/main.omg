@@ -20,7 +20,7 @@ data Main {
     console: Console;
     hero: Fighter;
     monster: Fighter;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {

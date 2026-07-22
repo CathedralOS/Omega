@@ -19,7 +19,7 @@ data AlarmEvent {
 data Main {
     console: Console;
     fire_count: i32 in Saturating;
-    pause: String;
+    pause: [u8; 256];
 }
 
 machine Main::dispatch(&mut self, event: AlarmEvent) {
