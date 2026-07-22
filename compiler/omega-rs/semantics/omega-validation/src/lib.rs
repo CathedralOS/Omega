@@ -409,7 +409,7 @@ fn validate_state_statement_node(
             // `declared_place_type` returns None -- fall back to the array/slice
             // ELEMENT type so the store checks below see the real slot type.
             .or_else(|| {
-                places::declared_indexed_element_type(
+                places::declared_indexed_projection_type(
                     program,
                     machine,
                     machine_symbols.state(state_name),

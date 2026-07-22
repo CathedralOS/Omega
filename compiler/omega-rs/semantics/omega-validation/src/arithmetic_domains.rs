@@ -2179,7 +2179,7 @@ fn analyze(
             // Wrapping` carries the domain on the ARRAY, so its bare-`i32`
             // element read as Exact broke Wrapping-array canaries with
             // spurious overflow + domain-mixing rejects).
-            crate::places::declared_indexed_element_type_raw(program, machine, state, expression)
+            crate::places::declared_indexed_projection_type_raw(program, machine, state, expression)
                 .filter(|handle| range_constraint_interval(program, *handle).is_some())
         }) {
             Some(handle) => {

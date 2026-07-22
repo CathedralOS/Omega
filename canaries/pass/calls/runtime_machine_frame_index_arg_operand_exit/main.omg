@@ -1,6 +1,9 @@
 // Machine-array reads at FRAME indices as BINARY OPERANDS
-// (`self.arr[k] + self.cells[j].v` -- incl. a struct element FIELD) and as a
-// transition ARGUMENT (`self.report(self.arr[k])`). 9+30=39 -> report(9) -> 1.
+// (`self.arr[k] + self.cells[j].v` -- incl. a range-refined struct element
+// FIELD) and as a transition ARGUMENT (`self.report(self.arr[k])`). The field
+// projection pins that synthetic operand hoists retain the leaf's declared
+// range instead of becoming an unprovable ranged-local store.
+// 9+30=39 -> report(9) -> 1.
 use omega::language::std::console;
 data Cell {
     v: i32 [0..=50];
