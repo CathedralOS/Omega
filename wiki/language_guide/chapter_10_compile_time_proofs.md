@@ -137,8 +137,21 @@ Working rules: the relation must be proven an equivalence (reflexive,
 symmetric, transitive — ordinary lemma obligations); the mint is
 carrier-only (`seq as Real`; `42 as Real` does not compile — that road
 runs through `Rat` and a constant stream); a machine on the carrier is
-callable on the quotient only when it carries the respect proof
-(`ensures equiv(a, b) => f(a) == f(b)` — bucket-safe outputs); and proven
+callable on the quotient only when it carries an ordinary structural respect
+proof — bucket-safe carrier outputs are stated with the relation itself:
+
+```omega
+machine f_respects(a: Carrier, b: Carrier)
+requires equiv(a, b)
+ensures equiv(f(a), f(b))
+{
+}
+```
+
+For a multi-argument operation, each varying carrier-argument pair needs its
+own relation premise. A boundary axiom may be cited as an assumption elsewhere,
+but cannot admit either an equivalence or a respect certificate: both require
+checked proof machines. Finally, proven
 `equiv(a, b)` makes `(a as Real) == (b as Real)` a fact. Equality on a
 quotient means "same bucket," never "same representative".
 

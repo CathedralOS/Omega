@@ -1,0 +1,39 @@
+data Representative {
+    case Zero;
+    case Next(previous: Representative);
+}
+
+machine equivalent(a: Representative, b: Representative) -> bool {
+    transition { _ -> (true) }
+}
+
+machine equivalent_reflexive(a: Representative)
+ensures equivalent(a, a)
+{
+}
+
+// A trusted axiom may be cited normally, but it cannot establish the checked
+// equivalence admission required to create a quotient.
+boundary machine equivalent_symmetric_axiom(a: Representative, b: Representative)
+requires equivalent(a, b)
+ensures equivalent(b, a);
+
+machine equivalent_transitive(
+    a: Representative,
+    b: Representative,
+    c: Representative
+)
+requires
+    equivalent(a, b)
+    equivalent(b, c)
+ensures equivalent(a, c)
+{
+}
+
+data EquivalenceClass = Representative % equivalent;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
