@@ -1,0 +1,32 @@
+use omega::language::core::task;
+
+// MP6/TR3: TaskRuntime's machine-parameter contract admits Suspend and Block,
+// not arbitrary service effects. A selected target must refine that authored
+// contract at specialization; whole-program inference cannot widen it.
+boundary data Disk;
+boundary machine Disk::touch(value: i32) effects filesystem_io;
+
+data Job {
+    value: i32;
+}
+
+data Worker { }
+machine Worker::run(job: Job) -> i32 effects filesystem_io {
+    let value: i32 = job.value;
+    Disk::touch(value);
+    value
+}
+
+machine Task::settle<T>(self) { }
+
+data Main {
+    runtime: &TaskRuntime;
+}
+
+machine Main::probe(&mut self) {
+    let job: Job = Job { value: 7 };
+    let task: Task<i32> = self.runtime.start<Worker::run>(job);
+    Task::settle(task);
+}
+
+machine Main::main(&mut self) { }

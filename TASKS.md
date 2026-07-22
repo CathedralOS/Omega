@@ -763,9 +763,12 @@ stronger operations it needs instead of citing machine parameters generally.
 
 1. **MP6 — remaining consuming slices.** `Seq`'s consuming `map`/`filter` are
    now core machines: recursive static-machine selections specialize to direct
-   calls, with no runtime callable, dictionary, or capture inference. Still add
-   the nested proof schemas used by N5/N6, task-runtime machine selection, and
-   the remaining build-surface canaries.
+   calls, with no runtime callable, dictionary, or capture inference. Task-runtime
+   `start<M>`/`try_start<M>` selection now has an authored core-import canary:
+   both calls retain the concrete target, suspension reachability, and normalized
+   activation identity in checked facts and the build manifest, while a target
+   whose effects exceed the authored machine-parameter ceiling rejects. Still add
+   the nested proof schemas used by N5/N6 and the remaining build-surface canaries.
 
 ## Type, proof, and semantic-model work
 

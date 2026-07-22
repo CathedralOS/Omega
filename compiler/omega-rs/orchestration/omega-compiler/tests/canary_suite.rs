@@ -37587,6 +37587,74 @@ fn boundary_equality_recast_witness_compiles_to_checked_trees() {
         .expect("boundary equality/recast witness should reach checked trees");
 }
 
+#[test]
+fn task_runtime_machine_selection_reaches_checked_activation_plans() {
+    let canary = pass_canary("tasks/task_runtime_machine_selection_compile");
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("core task-runtime machine selection should reach checked trees");
+    let activations = checked.facts.contract_plans.task_activations.as_slice();
+
+    assert_eq!(
+        activations.len(),
+        2,
+        "the authored start and try_start calls must each elaborate one activation"
+    );
+    assert!(activations.iter().any(|activation| matches!(
+        activation.operation,
+        omega_checked_trees::TaskStartOperation::Start
+    )));
+    assert!(activations.iter().any(|activation| matches!(
+        activation.operation,
+        omega_checked_trees::TaskStartOperation::TryStart
+    )));
+    for activation in activations {
+        let target = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == activation.target_machine)
+            .expect("activation target machine should survive specialization");
+        assert_eq!(target.name.as_str(), "Worker::run");
+        assert!(activation.plan.candidate().reaches_suspend);
+        assert_ne!(
+            activation.plan.normalized_identity().normalized_identity(),
+            0,
+            "the complete selected activation demand must have a public identity"
+        );
+    }
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-task-runtime-machine-selection-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("task-runtime machine selection should emit build artifacts");
+    let manifest = fs::read_to_string(build_dir.join("05_task_activations.json"))
+        .expect("task activation manifest should be written");
+    assert!(manifest.contains("\"operation\": \"start\""));
+    assert!(manifest.contains("\"operation\": \"try_start\""));
+    assert_eq!(
+        manifest
+            .matches("\"target_machine\": \"Worker::run\"")
+            .count(),
+        2
+    );
+    assert_eq!(manifest.matches("\"reaches_suspend\": true").count(), 2);
+    assert_eq!(manifest.matches("\"activation_plan_id\": \"0x").count(), 2);
+    assert_eq!(
+        manifest
+            .matches("\"runtime_admission\": {\"status\": \"pending_provider\"}")
+            .count(),
+        2
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 const ACTIVE_PASS_CANARIES: &[&str] = &[
     "ownership/linear_property_surface",
     "ownership/linear_branch_reconciliation",
@@ -38169,6 +38237,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "core/task_core_linear_claim",
     "core/task_lifecycle_operations",
     "core/task_outcome_linear_payloads",
+    "tasks/task_runtime_machine_selection_compile",
     "core/collections_core_surface",
     "core/nat_core_surface",
     "core/int_core_surface",
@@ -38517,6 +38586,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "generics/const_data_where_domain_membership_false",
     "core/task_core_scope_loss",
     "core/task_outcome_linear_payload_scope_loss",
+    "tasks/task_runtime_machine_selection_effect_mismatch",
     "core/start_outcome_linear_arguments_scope_loss",
     "ownership/copy_linear_conflict",
     "ownership/linear_field_erased_by_affine_container",

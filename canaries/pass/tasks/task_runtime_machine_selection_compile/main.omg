@@ -1,0 +1,40 @@
+use omega::language::core::task;
+
+// MP6/TR3: task activation consumes the ordinary compile-time machine-symbol
+// parameter surface. `Worker::run` is selected statically and survives as the
+// concrete activation target; no runtime callable or inferred capture exists.
+boundary data Sleeper;
+boundary machine Sleeper::park(token: i32) effects Suspend;
+
+data Job {
+    value: i32;
+}
+
+data Worker { }
+machine Worker::run(job: Job) -> i32 effects Suspend {
+    let value: i32 = job.value;
+    Sleeper::park(value);
+    value
+}
+
+// Provider dispatch is deliberately outside this frontend/plan canary. This
+// consumer closes each linear bootstrap claim locally after elaboration.
+machine Task::settle<T>(self) { }
+
+data Main {
+    runtime: &TaskRuntime;
+}
+
+machine Main::probe(&mut self) {
+    let job: Job = Job { value: 7 };
+    let task: Task<i32> = self.runtime.start<Worker::run>(job);
+    Task::settle(task);
+
+    let retry: Job = Job { value: 9 };
+    let outcome: StartOutcome<i32, Job> =
+        self.runtime.try_start<Worker::run>(retry);
+    let retry_task: Task<i32> = outcome.task;
+    Task::settle(retry_task);
+}
+
+machine Main::main(&mut self) { }
