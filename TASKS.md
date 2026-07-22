@@ -527,10 +527,13 @@ schemas recover the same instance without publishing policy type identity.
    instruction-pointer effects, while Mach-O `ADRP/LDR/BR X16` records X16 plus
    instruction-pointer effects. Mutated encodings reject, and the per-region
    evidence is published in the final inventory and covered by its fingerprint.
+   The composed encoded-machine evidence now attaches to exactly one placed
+   compiler entry-function region whenever a boundary contract is retained;
+   final inventory emission rejects a missing or duplicate entry-symbol match.
    It names its currently covered and missing classes and likewise refuses to
    claim complete enumeration.
    StatePlan-driven nonordinary save/restore and return specialization, and
-   footprint decoding/validation across compiler-function handler regions,
+   final-byte footprint decoding/validation for compiler-function handler regions,
    relaxation products, veneers, generated stubs, and admitted leaves remain;
    final placement must still prove that enumeration is complete.
 4. **IDT1 — symbolic materialization (normalized foundation complete).**
