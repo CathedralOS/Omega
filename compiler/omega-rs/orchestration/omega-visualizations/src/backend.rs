@@ -28,6 +28,110 @@ pub fn abstract_operations_html(
     build_backend_cfg_diagram("abstract_operations", control_flow, &function_views)
 }
 
+/// Checkable ENT3 implementation-evidence artifact. `enumeration_complete`
+/// remains false until post-layout body/exit/veneer/thunk/leaf enumeration is
+/// wired; consumers must not mistake retained fragments for a final footprint
+/// certificate.
+pub fn boundary_footprint_fragments_json(plan: &AbstractOperationPlan) -> String {
+    fn push_string(output: &mut String, value: &str) {
+        output.push('"');
+        for character in value.chars() {
+            match character {
+                '"' => output.push_str("\\\""),
+                '\\' => output.push_str("\\\\"),
+                '\n' => output.push_str("\\n"),
+                '\r' => output.push_str("\\r"),
+                '\t' => output.push_str("\\t"),
+                character => output.push(character),
+            }
+        }
+        output.push('"');
+    }
+
+    fn push_evidence(
+        output: &mut String,
+        evidence: &omega_calling_conventions::StateFootprintEvidence,
+    ) {
+        output.push_str("{\"fingerprint\": \"0x");
+        output.push_str(&format!("{:016x}", evidence.evidence_fingerprint()));
+        output.push_str("\", \"machine_state_bits\": ");
+        output.push_str(&evidence.machine_state().bits().to_string());
+        output.push_str(", \"registers\": [");
+        for (index, register) in evidence.registers().as_slice().iter().enumerate() {
+            if index > 0 {
+                output.push_str(", ");
+            }
+            push_string(output, &format!("{register:?}"));
+        }
+        output.push_str("]}");
+    }
+
+    let footprints = &plan.boundary_footprints;
+    let composed = footprints.composed_evidence();
+    let mut json = String::from("{\n  \"enumeration_complete\": ");
+    json.push_str(if footprints.enumeration_complete {
+        "true"
+    } else {
+        "false"
+    });
+    json.push_str(",\n  \"composed\": ");
+    push_evidence(&mut json, &composed);
+    json.push_str(",\n  \"fragments\": [");
+    for (index, fragment) in footprints.fragments.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        json.push_str("\n    {\"origin\": ");
+        push_string(
+            &mut json,
+            match fragment.origin {
+                omega_abstract_operations::BoundaryFootprintFragmentOrigin::EntryStorage => {
+                    "entry_storage"
+                }
+            },
+        );
+        json.push_str(", \"evidence\": ");
+        push_evidence(&mut json, &fragment.evidence);
+        json.push('}');
+    }
+    if !footprints.fragments.is_empty() {
+        json.push('\n');
+        json.push_str("  ");
+    }
+    json.push_str("]\n}\n");
+    json
+}
+
+#[cfg(test)]
+mod boundary_footprint_tests {
+    use super::*;
+    use omega_abstract_operations::{BoundaryFootprintFragment, BoundaryFootprintFragmentOrigin};
+    use omega_calling_conventions::{
+        MachineRegister, MachineStateSet, RegisterSet, StateFootprintEvidence,
+    };
+
+    #[test]
+    fn boundary_footprint_json_preserves_fragment_provenance_and_incomplete_status() {
+        let mut plan = AbstractOperationPlan::default();
+        plan.boundary_footprints
+            .fragments
+            .push(BoundaryFootprintFragment {
+                origin: BoundaryFootprintFragmentOrigin::EntryStorage,
+                evidence: StateFootprintEvidence::new(
+                    RegisterSet::new([MachineRegister::X86R15]),
+                    MachineStateSet::empty(),
+                ),
+            });
+
+        let json = boundary_footprint_fragments_json(&plan);
+
+        assert!(json.contains("\"enumeration_complete\": false"));
+        assert!(json.contains("\"origin\": \"entry_storage\""));
+        assert!(json.contains("\"registers\": [\"X86R15\"]"));
+        assert!(json.contains("\"fingerprint\": \"0x"));
+    }
+}
+
 pub fn target_operations_html(
     plan: &TargetOperationPlan,
     control_flow: &ControlFlowPlan,

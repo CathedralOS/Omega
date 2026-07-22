@@ -34,11 +34,17 @@ mod tests {
             },
         }];
 
-        let plan =
-            AbstractOperationPlan::with_roots(code.clone(), semantics.clone(), candidates.clone());
+        let footprints = crate::BoundaryFootprintPlan::default();
+        let plan = AbstractOperationPlan::with_roots(
+            code.clone(),
+            semantics.clone(),
+            candidates.clone(),
+            footprints.clone(),
+        );
 
         assert_eq!(plan.code, code);
         assert_eq!(plan.semantics, semantics);
         assert_eq!(plan.permission_realization_candidates, candidates);
+        assert_eq!(plan.boundary_footprints, footprints);
     }
 }

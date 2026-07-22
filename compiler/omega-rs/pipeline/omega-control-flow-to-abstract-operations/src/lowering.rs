@@ -26,5 +26,6 @@ pub(crate) fn build_abstract_operation_plan(
         instruction_plan.code,
         semantics,
         instruction_plan.permission_realization_candidates,
+        instruction_plan.boundary_footprints,
     )
 }
