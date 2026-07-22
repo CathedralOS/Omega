@@ -147,6 +147,26 @@ Rules:
   A concrete `CauchySeq<leibniz_term>` argument is checked against `S`'s full
   callable contract. This is schema identity only: finite-layout data rejects
   machine parameters, and `S` cannot be stored as a field type.
+- A machine-parameter signature may itself declare machine parameters. Its
+  nested requirements follow it in the same clause stream:
+
+  ```omega
+  machine forward<machine Schema, machine Selected>(value: Stream<Selected>) -> Stream<Selected>
+  where machine Schema<machine Inner>(value: Stream<Inner>) -> Stream<Inner>
+  where machine Inner(index: Nat) -> Rat;
+  where machine Selected(index: Nat) -> Rat;
+  {
+      Schema<Selected>(value)
+  }
+  ```
+
+  Refinement is binder-positional: a selected generic schema may call its
+  nested parameter something other than `Inner`, but its complete nested
+  parameter/result shape, effects, termination guarantee, and contracts must
+  conservatively refine the authored requirement. Forwarding a distinct
+  machine parameter uses that same judgment. Specialization first replaces
+  `Schema` and `Selected`, then continues to a fixed point until the nested
+  call is direct and contains no runtime callable representation.
 - Every machine parameter must have an authored `where machine M(...)`
   contract at its declaration. The compiler never infers that abstraction
   from `M(...)` uses or from the machines currently supplied by consumers,

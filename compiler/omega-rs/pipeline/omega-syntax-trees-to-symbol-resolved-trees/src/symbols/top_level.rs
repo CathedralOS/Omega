@@ -4,6 +4,7 @@ mod machines;
 mod operators;
 mod traits;
 
+use omega_core::arena::Arena;
 use omega_core::symbols::{
     SymbolHandle, SymbolKind, SymbolTable, builtin_function_symbols, builtin_type_symbols,
 };
@@ -54,5 +55,90 @@ pub(super) fn next_child_of_kind(
         child
     } else {
         SymbolHandle::invalid()
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn assign_machine_parameter_signature_symbols(
+    symbols: &SymbolTable,
+    data_type_parameters: &mut Arena<omega_symbol_resolved_trees::data::TypeParameter>,
+    state_parameters: &mut Arena<omega_symbol_resolved_trees::signature::StateParameter>,
+    child_type_references: &mut Arena<omega_symbol_resolved_trees::types::TypeReference>,
+    contract: &mut omega_symbol_resolved_trees::signature::StateSignature,
+    owner_symbol: SymbolHandle,
+    inherited_type_parameters: &[omega_symbol_resolved_trees::data::TypeParameter],
+    self_symbol: SymbolHandle,
+) {
+    use omega_symbol_resolved_trees::data::TypeParameterKind;
+
+    contract.symbol = owner_symbol;
+    let mut children = symbols.child_handles(owner_symbol).into_iter().flatten();
+
+    for parameter in data_type_parameters.span_mut_or_empty(contract.type_parameters) {
+        let kind = match parameter.kind {
+            TypeParameterKind::Machine { .. } => SymbolKind::MachineParameter,
+            _ => SymbolKind::TypeParameter,
+        };
+        parameter.symbol = next_child_of_kind(&mut children, symbols, kind);
+    }
+
+    let mut local_type_parameters = inherited_type_parameters.to_vec();
+    local_type_parameters
+        .extend_from_slice(data_type_parameters.span_or_empty(contract.type_parameters));
+
+    let nested_count = contract.type_parameters.len();
+    for index in 0..nested_count {
+        let (parameter_symbol, kind) = {
+            let parameter = &data_type_parameters.span_or_empty(contract.type_parameters)[index];
+            (parameter.symbol, parameter.kind.clone())
+        };
+        let resolved_kind = match kind {
+            TypeParameterKind::Type => TypeParameterKind::Type,
+            TypeParameterKind::Const { mut type_reference } => {
+                crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
+                    symbols,
+                    child_type_references,
+                    &local_type_parameters,
+                    self_symbol,
+                    &mut type_reference,
+                );
+                TypeParameterKind::Const { type_reference }
+            }
+            TypeParameterKind::Machine { mut contract } => {
+                assign_machine_parameter_signature_symbols(
+                    symbols,
+                    data_type_parameters,
+                    state_parameters,
+                    child_type_references,
+                    &mut contract,
+                    parameter_symbol,
+                    &local_type_parameters,
+                    self_symbol,
+                );
+                TypeParameterKind::Machine { contract }
+            }
+        };
+        data_type_parameters.span_mut_or_empty(contract.type_parameters)[index].kind =
+            resolved_kind;
+    }
+
+    for parameter in state_parameters.span_mut_or_empty(contract.parameters) {
+        parameter.symbol = next_child_of_kind(&mut children, symbols, SymbolKind::Parameter);
+        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
+            symbols,
+            child_type_references,
+            &local_type_parameters,
+            self_symbol,
+            &mut parameter.type_reference,
+        );
+    }
+    if let Some(return_type) = &mut contract.return_type {
+        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
+            symbols,
+            child_type_references,
+            &local_type_parameters,
+            self_symbol,
+            return_type,
+        );
     }
 }

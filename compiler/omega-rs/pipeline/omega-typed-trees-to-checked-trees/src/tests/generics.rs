@@ -173,6 +173,79 @@ fn generic_body_call_is_accepted_modularly_by_checked_lowering() {
 }
 
 #[test]
+fn higher_order_machine_schema_specializes_nested_selection_to_fixed_point() {
+    let source = r#"
+        data Index {
+            case Zero;
+            case Next(previous: Index);
+        }
+
+        data Stream<machine S>
+        where machine S(index: Index) -> Index;
+        {
+            case Empty;
+            case More(sample: Index, tail: Stream<S>);
+        }
+
+        boundary machine sample(index: Index) -> Index;
+
+        machine identity_schema<machine Chosen>(value: Stream<Chosen>) -> Stream<Chosen>
+        where machine Chosen(index: Index) -> Index;
+        {
+            value
+        }
+
+        machine forward_schema<machine Schema, machine Selected>(value: Stream<Selected>) -> Stream<Selected>
+        where machine Schema<machine Inner>(value: Stream<Inner>) -> Stream<Inner>
+        where machine Inner(index: Index) -> Index;
+        where machine Selected(index: Index) -> Index;
+        {
+            Schema<Selected>(value)
+        }
+
+        machine accepts_concrete(value: Stream<sample>) -> Stream<sample> {
+            forward_schema<identity_schema, sample>(value)
+        }
+
+        data Main {}
+        machine Main::run(&mut self) {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("higher-order schema should specialize");
+
+    for name in ["forward_schema", "identity_schema"] {
+        assert!(
+            checked.machine_specializations.iter().any(|specialization| {
+                checked
+                    .machines()
+                    .iter()
+                    .any(|machine| {
+                        machine.symbol == specialization.template
+                            && machine.name.as_str() == name
+                    })
+            }),
+            "{name} should have a concrete specialization"
+        );
+    }
+    assert!(
+        checked
+            .expression_table
+            .iter_expressions()
+            .filter_map(|(_, expression)| match expression {
+                omega_typed_trees::expression::ExpressionNode::Call(call) => Some(call),
+                _ => None,
+            })
+            .all(|call| call.machine_arguments.is_empty() && call.target.as_str() != "Schema")
+    );
+}
+
+#[test]
 fn generic_body_must_discharge_machine_parameter_preconditions() {
     let source = r#"
         data Main {}

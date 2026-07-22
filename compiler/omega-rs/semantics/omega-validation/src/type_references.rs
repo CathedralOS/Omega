@@ -497,7 +497,7 @@ fn validate_machine_data_argument(
     parameter: &TypeParameter,
     contract: &omega_typed_trees::signature::StateSignature,
     argument: TypeReferenceHandle,
-    type_parameter_scope: TypeParameterScope<'_>,
+    _type_parameter_scope: TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let TypeReferenceNode::Named { symbol, name } =
@@ -516,14 +516,6 @@ fn validate_machine_data_argument(
         return;
     }
 
-    if let Some(forwarded) = type_parameter_scope.machine_parameter(*symbol, name.as_str()) {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine parameter `{}` cannot yet be forwarded into proof data `{base_name}` from distinct machine parameter `{}`; N7 higher-order signature refinement is required",
-            parameter.name, forwarded.name
-        )));
-        return;
-    }
-
     let generic_types = program
         .data_definitions()
         .iter()
@@ -536,6 +528,10 @@ fn validate_machine_data_argument(
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
+    // A distinct in-scope machine parameter is admissible only through the
+    // same recursive refinement judgment as a concrete symbol. This is the
+    // higher-order N7 path (`Family<Inner>` inside a schema parameter): its
+    // authored contract, never its name alone, proves compatibility.
     crate::machine_parameters::validate_data_machine_selection(
         program,
         base_name,

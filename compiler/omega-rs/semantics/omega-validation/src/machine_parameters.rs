@@ -15,7 +15,7 @@ use omega_typed_trees::machine::Machine;
 use omega_typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::StatementNode;
-use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use omega_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn validate_static_machine_arguments(
     program: &TypedTrees,
@@ -69,26 +69,50 @@ fn validate_call_selection(
     arguments: &[StaticMachineArgument],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some((callee, _)) = machine_and_state(program, target_symbol) else {
+    let (requirements, generic_types): (Vec<_>, Vec<_>) = if let Some((callee, _)) =
+        machine_and_state(program, target_symbol)
+    {
+        (
+            program
+                .machine_type_parameters(callee)
+                .iter()
+                .filter_map(|parameter| match &parameter.kind {
+                    TypeParameterKind::Machine { contract } => Some((parameter, contract)),
+                    _ => None,
+                })
+                .collect(),
+            program
+                .machine_type_parameters(callee)
+                .iter()
+                .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+                .collect(),
+        )
+    } else if let Some((declaring_machine, signature)) =
+        program.machine_parameter_signature(target_symbol)
+    {
+        (
+            program
+                .state_signature_type_parameters(signature)
+                .iter()
+                .filter_map(|parameter| match &parameter.kind {
+                    TypeParameterKind::Machine { contract } => Some((parameter, contract)),
+                    _ => None,
+                })
+                .collect(),
+            program
+                .machine_type_parameters(declaring_machine)
+                .iter()
+                .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+                .collect(),
+        )
+    } else {
         if !arguments.is_empty() {
             diagnostics.push(Diagnostic::error(format!(
-                "call `{target_name}` supplies static machine arguments, but its generic callee did not resolve"
-            )));
+                    "call `{target_name}` supplies static machine arguments, but its generic callee did not resolve"
+                )));
         }
         return;
     };
-
-    let requirements: Vec<(
-        &TypeParameter,
-        &omega_typed_trees::signature::StateSignature,
-    )> = program
-        .machine_type_parameters(callee)
-        .iter()
-        .filter_map(|parameter| match &parameter.kind {
-            TypeParameterKind::Machine { contract } => Some((parameter, contract)),
-            _ => None,
-        })
-        .collect();
 
     if arguments.len() != requirements.len() {
         diagnostics.push(Diagnostic::error(format!(
@@ -99,11 +123,6 @@ fn validate_call_selection(
         return;
     }
 
-    let generic_types: Vec<&TypeParameter> = program
-        .machine_type_parameters(callee)
-        .iter()
-        .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
-        .collect();
     let mut bindings = Vec::new();
 
     for ((parameter, requirement), selected) in requirements.into_iter().zip(arguments) {
@@ -127,32 +146,76 @@ fn validate_call_selection(
             )));
             continue;
         }
-        let Some((actual_machine, actual_state)) = machine_and_state(program, selected.symbol)
-        else {
-            diagnostics.push(Diagnostic::error(format!(
-                "static machine argument `{rendered}` does not name a callable machine entry"
-            )));
-            continue;
-        };
-        if !program.machine_type_parameters(actual_machine).is_empty() {
-            diagnostics.push(Diagnostic::error(format!(
-                "static machine argument `{rendered}` is still generic; select a concrete machine symbol"
-            )));
-            continue;
-        }
-
-        validate_callable_shape(
+        validate_selected_callable_shape(
             program,
             target_name,
             parameter,
             requirement,
-            actual_machine,
-            actual_state,
+            selected.symbol,
+            &rendered,
             &generic_types,
             &mut bindings,
             diagnostics,
         );
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_selected_callable_shape(
+    program: &TypedTrees,
+    generic_call: &str,
+    parameter: &TypeParameter,
+    requirement: &omega_typed_trees::signature::StateSignature,
+    selected_symbol: SymbolHandle,
+    selected_name: &str,
+    generic_types: &[&TypeParameter],
+    bindings: &mut Vec<TypeBinding>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let Some((actual_machine, actual_state)) = machine_and_state(program, selected_symbol) {
+        validate_callable_shape(
+            program,
+            generic_call,
+            parameter,
+            requirement,
+            actual_machine,
+            actual_state,
+            generic_types,
+            bindings,
+            diagnostics,
+        );
+        return;
+    }
+
+    if let Some((actual_parameter, actual_signature)) =
+        machine_parameter_contract(program, selected_symbol)
+    {
+        let label = format!(
+            "machine parameter `{}` forwarded into `{generic_call}`",
+            actual_parameter.name
+        );
+        validate_callable_parts(
+            program,
+            &label,
+            parameter,
+            requirement,
+            program.state_signature_type_parameters(actual_signature),
+            program.state_signature_parameters(actual_signature),
+            actual_signature.return_type,
+            program.state_signature_effects(actual_signature),
+            actual_signature.terminates_guarantee,
+            program.state_signature_contracts(actual_signature),
+            generic_types,
+            bindings,
+            &mut Vec::new(),
+            diagnostics,
+        );
+        return;
+    }
+
+    diagnostics.push(Diagnostic::error(format!(
+        "static machine argument `{selected_name}` does not name a callable machine entry or an in-scope machine parameter"
+    )));
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -167,12 +230,58 @@ fn validate_callable_shape(
     bindings: &mut Vec<TypeBinding>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let required_parameters = program.state_signature_parameters(requirement);
-    let actual_parameters = program.state_parameters(actual_state);
     let label = format!(
         "machine argument `{}` for `{generic_call}`",
         actual_machine.name
     );
+    validate_callable_parts(
+        program,
+        &label,
+        parameter,
+        requirement,
+        program.machine_type_parameters(actual_machine),
+        program.state_parameters(actual_state),
+        actual_state.return_type,
+        program.machine_effects(actual_machine),
+        actual_machine.terminates,
+        program.machine_contracts(actual_machine),
+        generic_types,
+        bindings,
+        &mut Vec::new(),
+        diagnostics,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_callable_parts(
+    program: &TypedTrees,
+    label: &str,
+    parameter: &TypeParameter,
+    requirement: &omega_typed_trees::signature::StateSignature,
+    actual_type_parameters: &[TypeParameter],
+    actual_parameters: &[StateParameter],
+    actual_return_type: TypeReferenceHandle,
+    actual_effects: &[omega_typed_trees::name::Identifier],
+    actual_terminates: bool,
+    actual_contracts: &[SignatureContract],
+    generic_types: &[&TypeParameter],
+    bindings: &mut Vec<TypeBinding>,
+    binder_bindings: &mut Vec<BinderBinding>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    validate_callable_type_parameters(
+        program,
+        label,
+        parameter,
+        requirement,
+        actual_type_parameters,
+        generic_types,
+        bindings,
+        binder_bindings,
+        diagnostics,
+    );
+
+    let required_parameters = program.state_signature_parameters(requirement);
     if required_parameters.len() != actual_parameters.len() {
         diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: expected {} parameter(s), got {}",
@@ -204,6 +313,7 @@ fn validate_callable_shape(
             required.type_reference,
             generic_types,
             bindings,
+            binder_bindings,
         ) {
             diagnostics.push(Diagnostic::error(format!(
                 "{label} does not refine `{}`: parameter {} expects `{}`, got `{}`",
@@ -217,21 +327,22 @@ fn validate_callable_shape(
 
     if !required_type_matches(
         program,
-        actual_state.return_type,
+        actual_return_type,
         requirement.return_type,
         generic_types,
         bindings,
+        binder_bindings,
     ) {
         diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: expected return `{}`, got `{}`",
             parameter.name,
             program.display_type_reference(requirement.return_type),
-            program.display_type_reference(actual_state.return_type)
+            program.display_type_reference(actual_return_type)
         )));
     }
 
     let allowed_effects = program.state_signature_effects(requirement);
-    for effect in program.machine_effects(actual_machine) {
+    for effect in actual_effects {
         if !allowed_effects.iter().any(|allowed| allowed == effect) {
             diagnostics.push(Diagnostic::error(format!(
                 "{label} does not refine `{}`: effect `{effect}` exceeds its authored ceiling",
@@ -240,7 +351,7 @@ fn validate_callable_shape(
         }
     }
 
-    if requirement.terminates_guarantee && !actual_machine.terminates {
+    if requirement.terminates_guarantee && !actual_terminates {
         diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: the requirement guarantees termination",
             parameter.name
@@ -252,11 +363,117 @@ fn validate_callable_shape(
         &label,
         parameter,
         requirement,
-        actual_machine,
+        actual_contracts,
         required_parameters,
         actual_parameters,
         diagnostics,
     );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_callable_type_parameters(
+    program: &TypedTrees,
+    label: &str,
+    parameter: &TypeParameter,
+    requirement: &omega_typed_trees::signature::StateSignature,
+    actual_parameters: &[TypeParameter],
+    generic_types: &[&TypeParameter],
+    bindings: &mut Vec<TypeBinding>,
+    binder_bindings: &mut Vec<BinderBinding>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let required_parameters = program.state_signature_type_parameters(requirement);
+    if required_parameters.len() != actual_parameters.len() {
+        diagnostics.push(Diagnostic::error(format!(
+            "{label} does not refine `{}`: its callable signature expects {} generic parameter(s), got {}",
+            parameter.name,
+            required_parameters.len(),
+            actual_parameters.len()
+        )));
+        return;
+    }
+
+    // Establish every positional binder mapping before descending into any
+    // one nested requirement. Sibling contracts may mention one another, and
+    // their authored names are intentionally irrelevant to refinement.
+    for (required, actual) in required_parameters.iter().zip(actual_parameters) {
+        binder_bindings.push(BinderBinding {
+            required: required.symbol,
+            actual: actual.symbol,
+        });
+    }
+
+    for (index, (required, actual)) in required_parameters
+        .iter()
+        .zip(actual_parameters)
+        .enumerate()
+    {
+        match (&required.kind, &actual.kind) {
+            (TypeParameterKind::Type, TypeParameterKind::Type) => {
+                if (actual.bounds.copy && !required.bounds.copy)
+                    || (actual.bounds.zero_init && !required.bounds.zero_init)
+                    || actual.bounds.carry.is_some() && required.bounds.carry != actual.bounds.carry
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{label} does not refine `{}`: generic parameter {} demands stronger type properties",
+                        parameter.name, index
+                    )));
+                }
+            }
+            (
+                TypeParameterKind::Const {
+                    type_reference: required_type,
+                },
+                TypeParameterKind::Const {
+                    type_reference: actual_type,
+                },
+            ) => {
+                if !required_type_matches(
+                    program,
+                    *actual_type,
+                    *required_type,
+                    generic_types,
+                    bindings,
+                    binder_bindings,
+                ) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{label} does not refine `{}`: const generic parameter {} has a different type",
+                        parameter.name, index
+                    )));
+                }
+            }
+            (
+                TypeParameterKind::Machine {
+                    contract: required_contract,
+                },
+                TypeParameterKind::Machine {
+                    contract: actual_contract,
+                },
+            ) => {
+                let nested_label = format!("nested machine parameter `{}` of {label}", actual.name);
+                validate_callable_parts(
+                    program,
+                    &nested_label,
+                    required,
+                    required_contract,
+                    program.state_signature_type_parameters(actual_contract),
+                    program.state_signature_parameters(actual_contract),
+                    actual_contract.return_type,
+                    program.state_signature_effects(actual_contract),
+                    actual_contract.terminates_guarantee,
+                    program.state_signature_contracts(actual_contract),
+                    generic_types,
+                    bindings,
+                    binder_bindings,
+                    diagnostics,
+                );
+            }
+            _ => diagnostics.push(Diagnostic::error(format!(
+                "{label} does not refine `{}`: generic parameter {} has a different kind",
+                parameter.name, index
+            ))),
+        }
+    }
 }
 
 /// N7 data-family admission uses the same refinement judgment as a generic
@@ -273,26 +490,13 @@ pub(crate) fn validate_data_machine_selection(
     generic_types: &[&TypeParameter],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some((actual_machine, actual_state)) = machine_and_state(program, selected_symbol) else {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine argument `{selected_name}` for proof data `{family_name}` does not name a callable machine entry"
-        )));
-        return;
-    };
-    if !program.machine_type_parameters(actual_machine).is_empty() {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine argument `{selected_name}` for proof data `{family_name}` is still generic; select a concrete machine symbol"
-        )));
-        return;
-    }
-
-    validate_callable_shape(
+    validate_selected_callable_shape(
         program,
         family_name,
         parameter,
         requirement,
-        actual_machine,
-        actual_state,
+        selected_symbol,
+        selected_name,
         generic_types,
         &mut Vec::new(),
         diagnostics,
@@ -305,34 +509,58 @@ struct TypeBinding {
     actual: TypeReferenceHandle,
 }
 
+#[derive(Clone, Copy)]
+struct BinderBinding {
+    required: SymbolHandle,
+    actual: SymbolHandle,
+}
+
 fn required_type_matches(
     program: &TypedTrees,
     actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     generic_types: &[&TypeParameter],
     bindings: &mut Vec<TypeBinding>,
+    binder_bindings: &[BinderBinding],
 ) -> bool {
     if !actual.is_valid() || !required.is_valid() {
         return actual.is_valid() == required.is_valid();
     }
     if let TypeReferenceNode::Named { symbol, name } =
         program.type_reference_table.type_reference(required)
-        && let Some(parameter) = generic_types.iter().find(|parameter| {
+    {
+        if let Some(binding) = binder_bindings
+            .iter()
+            .find(|binding| binding.required == *symbol)
+        {
+            return matches!(
+                program.type_reference_table.type_reference(actual),
+                TypeReferenceNode::Named { symbol, .. } if *symbol == binding.actual
+            );
+        }
+        if let Some(parameter) = generic_types.iter().find(|parameter| {
             (parameter.symbol.is_valid() && parameter.symbol == *symbol)
                 || parameter.name.as_str() == name.as_str()
-        })
-    {
-        if let Some(binding) = bindings
-            .iter()
-            .find(|binding| binding.symbol == parameter.symbol)
-        {
-            return crate::type_references::type_references_match(program, actual, binding.actual);
+        }) {
+            if let Some(binding) = bindings
+                .iter()
+                .find(|binding| binding.symbol == parameter.symbol)
+            {
+                return required_type_matches(
+                    program,
+                    actual,
+                    binding.actual,
+                    &[],
+                    &mut Vec::new(),
+                    binder_bindings,
+                );
+            }
+            bindings.push(TypeBinding {
+                symbol: parameter.symbol,
+                actual,
+            });
+            return true;
         }
-        bindings.push(TypeBinding {
-            symbol: parameter.symbol,
-            actual,
-        });
-        return true;
     }
 
     match (
@@ -358,6 +586,7 @@ fn required_type_matches(
                     *required_inner,
                     generic_types,
                     bindings,
+                    binder_bindings,
                 )
         }
         (
@@ -375,8 +604,109 @@ fn required_type_matches(
             *required_base,
             generic_types,
             bindings,
+            binder_bindings,
         ),
+        (
+            TypeReferenceNode::FixedArray {
+                element_type: actual_element,
+                length: actual_length,
+            },
+            TypeReferenceNode::FixedArray {
+                element_type: required_element,
+                length: required_length,
+            },
+        ) => {
+            fixed_array_lengths_match(actual_length, required_length, binder_bindings)
+                && required_type_matches(
+                    program,
+                    *actual_element,
+                    *required_element,
+                    generic_types,
+                    bindings,
+                    binder_bindings,
+                )
+        }
+        (
+            TypeReferenceNode::Slice {
+                element_type: actual_element,
+            },
+            TypeReferenceNode::Slice {
+                element_type: required_element,
+            },
+        ) => required_type_matches(
+            program,
+            *actual_element,
+            *required_element,
+            generic_types,
+            bindings,
+            binder_bindings,
+        ),
+        (
+            TypeReferenceNode::Generic {
+                base_symbol: actual_base,
+                base_name: actual_name,
+                arguments: actual_arguments,
+            },
+            TypeReferenceNode::Generic {
+                base_symbol: required_base,
+                base_name: required_name,
+                arguments: required_arguments,
+            },
+        ) => {
+            let same_base = if actual_base.is_valid() && required_base.is_valid() {
+                actual_base == required_base
+            } else {
+                actual_name == required_name
+            };
+            let actual_arguments = program
+                .type_reference_table
+                .type_reference_handles(*actual_arguments);
+            let required_arguments = program
+                .type_reference_table
+                .type_reference_handles(*required_arguments);
+            same_base
+                && actual_arguments.len() == required_arguments.len()
+                && actual_arguments
+                    .iter()
+                    .zip(required_arguments)
+                    .all(|(actual, required)| {
+                        required_type_matches(
+                            program,
+                            *actual,
+                            *required,
+                            generic_types,
+                            bindings,
+                            binder_bindings,
+                        )
+                    })
+        }
         _ => crate::type_references::type_references_match(program, actual, required),
+    }
+}
+
+fn fixed_array_lengths_match(
+    actual: &FixedArrayLength,
+    required: &FixedArrayLength,
+    binder_bindings: &[BinderBinding],
+) -> bool {
+    match (actual, required) {
+        (FixedArrayLength::Literal(actual), FixedArrayLength::Literal(required)) => {
+            actual == required
+        }
+        (
+            FixedArrayLength::ConstParameter { symbol: actual, .. },
+            FixedArrayLength::ConstParameter {
+                symbol: required, ..
+            },
+        ) => binder_bindings
+            .iter()
+            .find(|binding| binding.required == *required)
+            .map_or(actual == required, |binding| binding.actual == *actual),
+        (
+            FixedArrayLength::ConstCall { name: actual },
+            FixedArrayLength::ConstCall { name: required },
+        ) => actual == required,
+        _ => false,
     }
 }
 
@@ -386,13 +716,12 @@ fn validate_contract_facts(
     label: &str,
     parameter: &TypeParameter,
     requirement: &omega_typed_trees::signature::StateSignature,
-    actual_machine: &Machine,
+    actual_contracts: &[SignatureContract],
     required_parameters: &[StateParameter],
     actual_parameters: &[StateParameter],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let required_contracts = program.state_signature_contracts(requirement);
-    let actual_contracts = program.machine_contracts(actual_machine);
     for kind in [
         SignatureContractKind::Requires,
         SignatureContractKind::Ensures,
@@ -502,6 +831,56 @@ fn contract_kind_name(kind: SignatureContractKind) -> &'static str {
         SignatureContractKind::Ensures => "ensures",
         SignatureContractKind::Boundary => "boundary",
     }
+}
+
+fn machine_parameter_contract(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<(
+    &TypeParameter,
+    &omega_typed_trees::signature::StateSignature,
+)> {
+    for machine in program.machines() {
+        if let Some(found) =
+            machine_parameter_contract_in(program, program.machine_type_parameters(machine), symbol)
+        {
+            return Some(found);
+        }
+    }
+    for data in program.data_definitions() {
+        if let Some(found) =
+            machine_parameter_contract_in(program, program.data_type_parameters(data), symbol)
+        {
+            return Some(found);
+        }
+    }
+    None
+}
+
+fn machine_parameter_contract_in<'program>(
+    program: &'program TypedTrees,
+    parameters: &'program [TypeParameter],
+    symbol: SymbolHandle,
+) -> Option<(
+    &'program TypeParameter,
+    &'program omega_typed_trees::signature::StateSignature,
+)> {
+    for parameter in parameters {
+        let TypeParameterKind::Machine { contract } = &parameter.kind else {
+            continue;
+        };
+        if parameter.symbol == symbol || contract.symbol == symbol {
+            return Some((parameter, contract));
+        }
+        if let Some(found) = machine_parameter_contract_in(
+            program,
+            program.state_signature_type_parameters(contract),
+            symbol,
+        ) {
+            return Some(found);
+        }
+    }
+    None
 }
 
 fn machine_and_state(

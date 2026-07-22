@@ -1,0 +1,41 @@
+// N7 higher-order rung: Schema is itself generic over a static machine.
+// The nested binder is alpha-renamed by the concrete implementation, while
+// the distinct Selected parameter is forwarded through both Stream and the
+// direct Schema<Selected> invocation.
+data Index {
+    case Zero;
+    case Next(previous: Index);
+}
+
+data Stream<machine S>
+where machine S(index: Index) -> Index;
+{
+    case Empty;
+    case More(sample: Index, tail: Stream<S>);
+}
+
+boundary machine sample(index: Index) -> Index;
+
+machine identity_schema<machine Chosen>(value: Stream<Chosen>) -> Stream<Chosen>
+where machine Chosen(index: Index) -> Index;
+{
+    value
+}
+
+machine forward_schema<machine Schema, machine Selected>(value: Stream<Selected>) -> Stream<Selected>
+where machine Schema<machine Inner>(value: Stream<Inner>) -> Stream<Inner>
+where machine Inner(index: Index) -> Index;
+where machine Selected(index: Index) -> Index;
+{
+    Schema<Selected>(value)
+}
+
+machine accepts_concrete(value: Stream<sample>) -> Stream<sample> {
+    forward_schema<identity_schema, sample>(value)
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

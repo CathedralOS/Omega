@@ -50,6 +50,26 @@ pub(crate) fn validate_callable_state_signatures(
             StateSignatureOwner::Machine(machine.name.as_str()),
             &type_parameters,
         );
+        validate_machine_parameter_signatures(
+            program,
+            symbols,
+            diagnostics,
+            program.machine_type_parameters(machine),
+            &type_parameters,
+            machine.name.as_str(),
+        );
+    }
+
+    for definition in program.data_definitions() {
+        let type_parameters = program.data_type_parameters(definition);
+        validate_machine_parameter_signatures(
+            program,
+            symbols,
+            diagnostics,
+            type_parameters,
+            type_parameters,
+            definition.name.as_str(),
+        );
     }
 
     for trait_definition in program.traits() {
@@ -94,6 +114,7 @@ struct StateSignatureView<'program> {
 pub(crate) enum StateSignatureOwner<'program> {
     Machine(&'program str),
     Trait(&'program str),
+    Requirement(&'program str),
 }
 
 impl fmt::Display for StateSignatureOwner<'_> {
@@ -101,7 +122,70 @@ impl fmt::Display for StateSignatureOwner<'_> {
         match self {
             Self::Machine(machine) => write!(formatter, "machine `{machine}`"),
             Self::Trait(trait_definition) => write!(formatter, "trait `{trait_definition}`"),
+            Self::Requirement(parameter) => {
+                write!(formatter, "machine-parameter requirement `{parameter}`")
+            }
         }
+    }
+}
+
+fn validate_machine_parameter_signatures<'program>(
+    program: &'program TypedTrees,
+    symbols: &TopLevelSymbols<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+    parameters: &'program [omega_typed_trees::data::TypeParameter],
+    inherited_type_parameters: &[omega_typed_trees::data::TypeParameter],
+    declaration: &'program str,
+) {
+    for parameter in parameters {
+        let omega_typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind
+        else {
+            continue;
+        };
+        let nested = program.state_signature_type_parameters(contract);
+        for (index, nested_parameter) in nested.iter().enumerate() {
+            if nested[..index]
+                .iter()
+                .any(|previous| previous.name == nested_parameter.name)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine-parameter requirement `{}` on `{declaration}` has duplicate generic parameter `{}`",
+                    parameter.name, nested_parameter.name
+                )));
+            }
+        }
+
+        let mut local_type_parameters = inherited_type_parameters.to_vec();
+        for nested_parameter in nested {
+            if !local_type_parameters
+                .iter()
+                .any(|existing| existing.symbol == nested_parameter.symbol)
+            {
+                local_type_parameters.push(nested_parameter.clone());
+            }
+        }
+        validate_state_signature_types(
+            std::iter::once(StateSignatureView {
+                name: contract.name.as_str(),
+                parameters: program.state_signature_parameters(contract),
+                return_type: contract.return_type,
+                effects: program.state_signature_effects(contract),
+                contracts: program.state_signature_contracts(contract),
+            }),
+            program,
+            symbols,
+            diagnostics,
+            StateSignatureOwner::Requirement(parameter.name.as_str()),
+            &local_type_parameters,
+        );
+        validate_machine_parameter_signatures(
+            program,
+            symbols,
+            diagnostics,
+            nested,
+            &local_type_parameters,
+            declaration,
+        );
     }
 }
 

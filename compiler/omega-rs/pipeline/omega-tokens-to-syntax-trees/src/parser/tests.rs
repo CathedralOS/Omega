@@ -2126,6 +2126,70 @@ fn parses_machine_parameter_with_mandatory_contract() {
 }
 
 #[test]
+fn parses_higher_order_machine_parameter_contract() {
+    let source = r#"
+        machine apply<machine Schema, machine Sample>(value: u64) -> u64
+        where machine Schema<machine Inner>(value: u64) -> u64
+        where machine Inner(value: u64) -> u64;
+        where machine Sample(value: u64) -> u64;
+        {
+            Schema<Sample>(value)
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("higher-order contract should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("generic machine");
+    let parameters = parsed.items.type_parameters(machine.type_parameters);
+    assert_eq!(parameters.len(), 2);
+    let omega_syntax_trees::item::TypeParameterKind::Machine {
+        contract: Some(schema),
+    } = &parameters[0].kind
+    else {
+        panic!("Schema should carry its authored machine contract");
+    };
+    let nested = parsed.items.type_parameters(schema.type_parameters);
+    assert_eq!(nested.len(), 1);
+    assert_eq!(nested[0].name.as_str(), "Inner");
+    let omega_syntax_trees::item::TypeParameterKind::Machine {
+        contract: Some(inner),
+    } = &nested[0].kind
+    else {
+        panic!("Inner should carry its authored nested contract");
+    };
+    assert_eq!(parsed.items.state_parameters(inner.parameters).len(), 1);
+}
+
+#[test]
+fn rejects_higher_order_parameter_without_nested_contract() {
+    let source = r#"
+        machine apply<machine Schema>()
+        where machine Schema<machine Inner>()
+        {
+        }
+        "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("missing nested contract must fail");
+    assert!(
+        error
+            .message
+            .contains("machine parameter `Inner` requires an authored declaration-site contract"),
+        "got: {}",
+        error.message
+    );
+}
+
+#[test]
 fn rejects_machine_parameter_without_authored_contract() {
     let source = r#"
         machine map<machine F>() -> u64 {

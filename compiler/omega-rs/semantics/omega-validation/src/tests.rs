@@ -231,6 +231,71 @@ fn generic_body_call_is_checked_against_machine_parameter_contract() {
 }
 
 #[test]
+fn higher_order_machine_parameter_refines_and_forwards_distinct_schema() {
+    let typed = typed_program_from_source(
+        r#"
+        data Index {
+            case Zero;
+            case Next(previous: Index);
+        }
+
+        data Stream<machine S>
+        where machine S(index: Index) -> Index;
+        {
+            case Empty;
+            case More(sample: Index, tail: Stream<S>);
+        }
+
+        boundary machine sample(index: Index) -> Index;
+
+        machine identity_schema<machine Chosen>(value: Stream<Chosen>) -> Stream<Chosen>
+        where machine Chosen(index: Index) -> Index;
+        {
+            value
+        }
+
+        machine forward_schema<machine Schema, machine Selected>(value: Stream<Selected>) -> Stream<Selected>
+        where machine Schema<machine Inner>(value: Stream<Inner>) -> Stream<Inner>
+        where machine Inner(index: Index) -> Index;
+        where machine Selected(index: Index) -> Index;
+        {
+            Schema<Selected>(value)
+        }
+
+        machine accepts_concrete(value: Stream<sample>) -> Stream<sample> {
+            forward_schema<identity_schema, sample>(value)
+        }
+        "#,
+    );
+
+    let forward = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "forward_schema")
+        .expect("forward_schema");
+    let selected = typed
+        .machine_type_parameters(forward)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "Selected")
+        .expect("Selected");
+    let call = typed
+        .expression_table
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            omega_typed_trees::expression::ExpressionNode::Call(call)
+                if call.target.as_str() == "Schema" =>
+            {
+                Some(call)
+            }
+            _ => None,
+        })
+        .expect("Schema<Selected> call");
+    assert_eq!(call.machine_arguments[0].symbol, selected.symbol);
+    super::validate_static_machine_selections(&typed)
+        .expect("higher-order static schema should refine and validate");
+}
+
+#[test]
 fn generic_body_call_rejects_argument_outside_machine_parameter_contract() {
     let typed = typed_program_from_source(
         r#"
