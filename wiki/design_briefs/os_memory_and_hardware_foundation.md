@@ -396,12 +396,17 @@ classified as boundary evidence. Its explicit
 validated plan under which it was checked. Fragment retention revalidates the
 evidence and rejects cross-contract composition; this is a reference to
 requirement identity, not implementation evidence entering that identity. The
-artifact's explicit
+fixed ordinary `CallReturn` path also retains `call_return_mechanics` evidence.
+x86-64 records `ret`'s RSP, stack, and control writes; AArch64 records its fixed
+frame prologue and x19-x30, SP, and control restoration. Provenance-aware
+validation admits these prescribed boundary mechanics without widening the
+handler body's transitive-state ceiling. The artifact's explicit
 `enumeration_complete: false` status is a firewall: this retained slice is
 checkable implementation evidence, not yet the final certificate.
 The final certificate must still aggregate the specialized handler body,
-save/restore and return sequences, relaxation products, veneers/thunks,
-generated stubs, and admitted indirect leaves after final placement.
+StatePlan-driven nonordinary save/restore and return sequences, relaxation
+products, veneers/thunks, generated stubs, and admitted indirect leaves after
+final placement.
 
 ## Symbolic materialization and admitted executable installation
 

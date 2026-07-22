@@ -1,5 +1,6 @@
 use crate::{
-    InstructionSelectionInput, derive_boundary_exit_indirect_result_copy_footprint,
+    InstructionSelectionInput, derive_boundary_call_return_mechanics_footprint,
+    derive_boundary_exit_indirect_result_copy_footprint,
     derive_boundary_exit_result_register_footprint,
 };
 use omega_abstract_operations::AbstractOperationPlan;
@@ -266,6 +267,20 @@ fn retain_exit_footprints(
     let Some(boundary) = boundary else {
         return;
     };
+    let evidence = derive_boundary_call_return_mechanics_footprint(
+        boundary,
+        instructions.iter().map(|instruction| &instruction.kind),
+    )
+    .expect("selected function entry/return must match the validated boundary control contract");
+    plan.retain_validated_fragment(
+        boundary,
+        omega_abstract_operations::BoundaryFootprintFragment {
+            origin: omega_abstract_operations::BoundaryFootprintFragmentOrigin::CallReturnMechanics,
+            evidence,
+        },
+    )
+    .expect("retained function mechanics must name and fit the entry boundary contract");
+
     let evidence = derive_boundary_exit_result_register_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),

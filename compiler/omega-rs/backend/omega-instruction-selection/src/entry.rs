@@ -2,7 +2,8 @@ use omega_abstract_operations::SelectedInstructionKind;
 use omega_calling_conventions::{
     BoundaryEntryPlan, CallSignature, EntryControl, IndirectPointerLocation, MachineStateSet,
     PlanDiagnostic, RegisterSet, StateFootprintEvidence, ValidatedBoundaryEntryPlan, ValueLocation,
-    ValueShape, validate_boundary_entry_plan, validate_state_footprint,
+    ValueShape, validate_boundary_entry_plan, validate_call_return_mechanics_footprint,
+    validate_state_footprint,
 };
 
 /// The observable exit half of one validated boundary plan. Result fragments
@@ -40,6 +41,67 @@ pub fn derive_boundary_entry_slice_descriptor_footprint(
     };
     let evidence = StateFootprintEvidence::new(registers, MachineStateSet::empty());
     validate_state_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
+/// Derive the exact fixed prologue/epilogue register and machine-state writes
+/// for an ordinary call-return boundary. Stack/control effects are prescribed
+/// by `EntryControl::CallReturn`, so their validator is deliberately distinct
+/// from handler-body transitive state validation.
+pub fn derive_boundary_call_return_mechanics_footprint<'instruction>(
+    boundary: &ValidatedBoundaryEntryPlan,
+    instructions: impl IntoIterator<Item = &'instruction SelectedInstructionKind>,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    if boundary.plan().call.entry_control != EntryControl::CallReturn {
+        return Err(PlanDiagnostic(
+            "ordinary function entry/return lowering requires CallReturn entry control".into(),
+        ));
+    }
+    let architecture = boundary.plan().call.policy.architecture();
+    let mut registers = Vec::new();
+    let mut additional_state = MachineStateSet::empty();
+    let mut enter_count = 0usize;
+    let mut return_count = 0usize;
+    for instruction in instructions {
+        let (writes, state) = match instruction {
+            SelectedInstructionKind::EnterFunction => {
+                enter_count += 1;
+                match architecture {
+                    omega_target::Architecture::X86_64 => (
+                        omega_isa_x86_64::function_enter_register_writes(),
+                        omega_isa_x86_64::function_enter_additional_machine_state(),
+                    ),
+                    omega_target::Architecture::Aarch64 => (
+                        omega_isa_aarch64::function_enter_register_writes(),
+                        omega_isa_aarch64::function_enter_additional_machine_state(),
+                    ),
+                }
+            }
+            SelectedInstructionKind::LeaveFunction => {
+                return_count += 1;
+                match architecture {
+                    omega_target::Architecture::X86_64 => (
+                        omega_isa_x86_64::return_register_writes(),
+                        omega_isa_x86_64::return_additional_machine_state(),
+                    ),
+                    omega_target::Architecture::Aarch64 => (
+                        omega_isa_aarch64::return_register_writes(),
+                        omega_isa_aarch64::return_additional_machine_state(),
+                    ),
+                }
+            }
+            _ => continue,
+        };
+        registers.extend_from_slice(writes.as_slice());
+        additional_state = additional_state.union(state);
+    }
+    if enter_count != 1 || return_count != 1 {
+        return Err(PlanDiagnostic(format!(
+            "ordinary boundary mechanics require exactly one function entry and return (found {enter_count} entries and {return_count} returns)"
+        )));
+    }
+    let evidence = StateFootprintEvidence::new(RegisterSet::new(registers), additional_state);
+    validate_call_return_mechanics_footprint(boundary, &evidence)?;
     Ok(evidence)
 }
 
@@ -593,6 +655,81 @@ mod tests {
             evidence.registers().as_slice(),
             &[MachineRegister::Aarch64X(16), MachineRegister::Aarch64X(17),]
         );
+    }
+
+    #[test]
+    fn call_return_mechanics_track_x86_stack_and_control_writes() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("SysV call-return boundary");
+        let instructions = [
+            SelectedInstructionKind::EnterFunction,
+            SelectedInstructionKind::LeaveFunction,
+        ];
+
+        let evidence = derive_boundary_call_return_mechanics_footprint(&boundary, &instructions)
+            .expect("x86 call-return mechanics");
+
+        assert_eq!(evidence.registers().as_slice(), &[MachineRegister::X86Rsp]);
+        assert!(evidence.machine_state().contains_all(MachineStateSet::new([
+            MachineState::GeneralRegisters,
+            MachineState::InstructionPointer,
+            MachineState::StackPointer,
+        ])));
+    }
+
+    #[test]
+    fn call_return_mechanics_track_aarch64_frame_restore_and_control_writes() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("AAPCS64 call-return boundary");
+        let instructions = [
+            SelectedInstructionKind::EnterFunction,
+            SelectedInstructionKind::LeaveFunction,
+        ];
+
+        let evidence = derive_boundary_call_return_mechanics_footprint(&boundary, &instructions)
+            .expect("AArch64 call-return mechanics");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &(19..=30).map(MachineRegister::Aarch64X).collect::<Vec<_>>()
+        );
+        assert!(evidence.machine_state().contains_all(MachineStateSet::new([
+            MachineState::GeneralRegisters,
+            MachineState::InstructionPointer,
+            MachineState::StackPointer,
+        ])));
+    }
+
+    #[test]
+    fn call_return_mechanics_reject_an_incomplete_selected_pair() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("SysV call-return boundary");
+
+        let error = derive_boundary_call_return_mechanics_footprint(
+            &boundary,
+            &[SelectedInstructionKind::EnterFunction],
+        )
+        .expect_err("missing return must reject");
+
+        assert!(error.0.contains("exactly one function entry and return"));
     }
 
     #[test]

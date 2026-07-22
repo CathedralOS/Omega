@@ -13,7 +13,8 @@ pub use plans::{
     ValidatedBoundaryEntryPlan, ValueClass, ValueLocation, ValuePlacement, ValueShape,
     compose_state_footprints, evaluate_call_plan, evaluate_ordinary_boundary_entry_plan,
     validate_boundary_entry_plan, validate_boundary_plan_result, validate_call_plan,
-    validate_composed_state_footprint, validate_state_footprint,
+    validate_call_return_mechanics_footprint, validate_composed_state_footprint,
+    validate_state_footprint,
 };
 pub use windows::windows_import_library;
 

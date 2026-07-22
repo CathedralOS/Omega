@@ -11,8 +11,9 @@ pub use place_copy::{
 
 use omega_calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, EntryControl, HostCapability, HostOperation,
-    HostOperationKey, IndirectPointerLocation, MachineRegister, RegisterSet, SystemVEightbyteClass,
-    ValueClass, ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan, validate_call_plan,
+    HostOperationKey, IndirectPointerLocation, MachineRegister, MachineState, MachineStateSet,
+    RegisterSet, SystemVEightbyteClass, ValueClass, ValueLocation, ValuePlacement, ValueShape,
+    evaluate_call_plan, validate_call_plan,
 };
 use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::diagnostics::Diagnostic;
@@ -41,6 +42,27 @@ pub fn return_width() -> usize {
 
 pub fn encode_return_bytes() -> [u8; 1] {
     [0xc3]
+}
+
+/// Register writes performed by the ordinary x86-64 function-entry sequence.
+/// It is deliberately empty because this backend emits no x86 prologue.
+pub fn function_enter_register_writes() -> RegisterSet {
+    RegisterSet::default()
+}
+
+pub fn function_enter_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::empty()
+}
+
+/// Exact state written by `ret`: RSP advances and control resumes at the
+/// caller-provided return address. The explicit RSP identity is retained in
+/// addition to its semantic stack-pointer class.
+pub fn return_register_writes() -> RegisterSet {
+    RegisterSet::new([MachineRegister::X86Rsp])
+}
+
+pub fn return_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::InstructionPointer, MachineState::StackPointer])
 }
 
 pub fn machine_halt_width() -> usize {
