@@ -299,6 +299,7 @@ pub(super) fn parse_machine_parameter_contracts<'tokens, 'source>(
 
         let contract = omega_syntax_trees::item::StateSignature {
             name: name.clone(),
+            type_parameters: HandleSpan::empty(),
             is_default: false,
             parameters,
             return_type,

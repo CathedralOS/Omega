@@ -1066,6 +1066,14 @@ impl TypedTrees {
         self.state_parameters.span_or_empty(signature.parameters)
     }
 
+    pub fn state_signature_type_parameters(
+        &self,
+        signature: &signature::StateSignature,
+    ) -> &[data::TypeParameter] {
+        self.data_type_parameters
+            .span_or_empty(signature.type_parameters)
+    }
+
     pub fn push_state_signature_effect(
         &mut self,
         signature: &mut signature::StateSignature,

@@ -27,6 +27,7 @@ pub(super) fn parse_state_signature<'tokens, 'source>(
     Ok((
         StateSignature {
             name,
+            type_parameters: HandleSpan::empty(),
             is_default: false,
             parameters,
             return_type,

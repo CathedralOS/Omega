@@ -13,6 +13,7 @@ pub struct StateSignature {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateSignatureStorage {
+    pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: Option<TypeReference>,

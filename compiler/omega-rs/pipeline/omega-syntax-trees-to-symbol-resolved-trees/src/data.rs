@@ -145,6 +145,7 @@ pub(crate) fn lower_type_parameters(
                         lowerer,
                         syntax_trees,
                         &contract.name,
+                        contract.type_parameters,
                         contract.parameters,
                         contract.return_type,
                         contract.is_default,

@@ -221,6 +221,7 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                         syntax_trees,
                         &omega_syntax_trees::item::StateSignature {
                             name: signature.name.clone(),
+                            type_parameters: signature.type_parameters,
                             is_default: signature.is_default,
                             parameters: signature.parameters,
                             return_type: signature.return_type,
