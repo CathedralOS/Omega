@@ -1093,6 +1093,101 @@ fn select_runtime_straight_line_local_initializer_write(
         bindings,
         operation.statement_index,
     );
+    // A judged recast local is an address-bearing runtime view. The ordinary
+    // dispatch path materializes that address before projected uses; a value
+    // callee spliced into a straight-line branch must do the same. Otherwise
+    // its later `view.field` local initializers dereference the ZII frame slot
+    // (the programmable-layout `struct stat` decode either read zero or
+    // faulted, depending on whether storage planning retained the view).
+    if let ExpressionNode::Cast(cast) = expressions.expression(resolved_initializer)
+        && cast.form.is_recast()
+    {
+        let target_size = expressions
+            .name_path_members(cast.target_type)
+            .last()
+            .and_then(|name| {
+                omega_checked_trees::types::PrimitiveType::from_name(name.as_str())
+                    .and_then(|primitive| primitive.scalar_byte_size())
+                    .or_else(|| {
+                        input
+                            .layouts
+                            .data_layouts
+                            .iter()
+                            .find(|(_, data)| data.name.as_str() == name.as_str())
+                            .map(|(_, data)| data.layout.size)
+                    })
+            });
+        if let Some(size) = target_size
+            && let Some(place) = resolve_runtime_storage_place_in_table(
+                input,
+                expansion.dispatch_index,
+                operation.source_key,
+                expressions,
+                cast.value,
+            )
+            && size != place.byte_count
+        {
+            let kind = if size > input.runtime_abi.pointer_size {
+                crate::selection::runtime_dispatch::write_place_address_direct(
+                    place.region,
+                    place.byte_offset,
+                    slot.byte_offset,
+                )
+            } else {
+                crate::selection::runtime_dispatch::copy_places_direct(
+                    place.region,
+                    place.byte_offset,
+                    RuntimeStorageRegion::RuntimeFrame,
+                    slot.byte_offset,
+                    size,
+                )
+            };
+            selected_instructions.push(SelectedInstruction {
+                kind,
+                source_key: operation.source_key,
+                source_statement: operation.statement_index,
+            });
+            return;
+        }
+        if let Some(size) = target_size
+            && let Some(indexed) =
+                crate::selection::storage_places::resolve_runtime_machine_indexed_target_in_table(
+                    input,
+                    expansion.dispatch_index,
+                    operation.source_key,
+                    expressions,
+                    cast.value,
+                )
+        {
+            let kind = if size > input.runtime_abi.pointer_size {
+                crate::selection::runtime_dispatch::write_place_address_machine_indexed(
+                    indexed.base_byte_offset,
+                    indexed.index_region,
+                    indexed.index_offset,
+                    indexed.element_byte_size,
+                    indexed.field_byte_offset,
+                    slot.byte_offset,
+                )
+            } else {
+                crate::selection::runtime_dispatch::copy_places_from_machine_indexed(
+                    indexed.base_byte_offset,
+                    indexed.index_region,
+                    indexed.index_offset,
+                    indexed.element_byte_size,
+                    indexed.field_byte_offset,
+                    RuntimeStorageRegion::RuntimeFrame,
+                    slot.byte_offset,
+                    size,
+                )
+            };
+            selected_instructions.push(SelectedInstruction {
+                kind,
+                source_key: operation.source_key,
+                source_statement: operation.statement_index,
+            });
+            return;
+        }
+    }
     let static_values = RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
     if emit_runtime_frame_slot_slice_descriptor_write_in_table(
         input,

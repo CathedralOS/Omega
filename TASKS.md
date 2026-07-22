@@ -624,15 +624,19 @@ slot owner may override by type. The migration order remains load-bearing.
    value result until the complete nested statement-call splice has executed,
    and direct aggregate construction restores omitted fields and padding to
    their zero representation before applying named fields. The remaining
-   `Binding::Value` filesystem consumers are `struct stat` offsets. Shared
-   record recasts may now contain a plan-laid subrecord in both native and
-   interpreter execution. Recast locals now remain materialized type-bearing
-   views instead of being flattened back to their byte-element initializer, so
-   stored widening from a projected plan-laid `u16` into `u64` lowers on both
-   x86-64 and AArch64 instead of reporting `NeedsMachineOwnedWrite`/`needs
-   runtime value lowering`. The focused synthetic view canary pins the exact
-   non-native offsets, interpreter agreement, and cross-target conversion.
-   Author the four target `StatLayout` policies and cut portable decode over.
+   `struct stat` offsets have now moved as well: the four target filesystem
+   packages author checked `StatLayout` policies, while portable copy and
+   metadata decoding project semantic fields through one `StatView`. No
+   `FilesystemHost::ST_*` value remains consumed. Shared record recasts may
+   contain a plan-laid subrecord in both native and interpreter execution.
+   Recast locals remain materialized type-bearing views instead of being
+   flattened back to their byte-element initializer, including when their only
+   uses are later local initializers; straight-line nested value bodies also
+   materialize the view address before projected reads. Stored widening from a
+   projected plan-laid `u16` into `u64` lowers on both x86-64 and AArch64. The
+   focused synthetic view canary pins exact non-native offsets, recast liveness,
+   interpreter agreement, and cross-target conversion. PRV4e is complete; the
+   four now-unconsumed compatibility tables retire with PRV4f.
 4. **PRV4f — compatibility deletion.** After the last consumers move, delete
    `Value`, populate tables, `provides` syntax, and every compatibility
    consumer. The unused `Binding::Instruction` carrier is already gone:
@@ -938,9 +942,10 @@ stronger operations it needs instead of citing machine parameters generally.
   fact-free shapes, enforce validate/materialize mint exclusivity, and prove
   codec conformance through ordinary policy machines. Shared record recasts
   can now size and project a nested plan-laid record recursively, with a native
-  and interpreter differential canary; lower widening/narrowing conversions
-  from projected plan-laid scalar places before migrating `struct stat` off
-  compatibility offsets.
+  and interpreter differential canary; widening conversions from projected
+  plan-laid scalar places lower natively, and `struct stat` now uses target
+  `StatLayout` policies rather than compatibility offsets. Continue non-scalar
+  and mutable recast views plus narrowing conversion coverage.
 - **L6a — Extent.** The normalized conservation foundation is live in
   `omega-extents`: admitted one-shot root grants mint nonempty ranges;
   move-split preserves exact geometry; only compatible siblings from one

@@ -44,18 +44,20 @@ data ForeignView {
 data Main {
     console: Console;
     bytes: [u8; 32];
-    widened_low: u64;
 }
 
 machine Main::main(&mut self) {
     self.bytes[8] = 30;
     self.bytes[24] = 40;
     let view: &ForeignView = &self.bytes[0] as &ForeignView;
+    // Both uses occur in later local initializers. The native liveness pass
+    // must still retain and initialize the recast's address-bearing slot.
     // Windows `struct stat` exposes narrow u16 fields that the portable
     // metadata record stores at a wider integer width. Pin that a projected
     // plan-laid scalar remains a typed pointee load when converted and stored.
-    self.widened_low = view.value.low as u64;
-    transition self.widened_low == 30 && view.value.high == 40 {
+    let low: u64 = view.value.low as u64;
+    let high: u64 = view.value.high;
+    transition low == 30 && high == 40 {
         true -> good()
         _ -> bad()
     }
