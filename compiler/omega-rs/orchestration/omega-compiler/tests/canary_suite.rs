@@ -33462,6 +33462,14 @@ fn aarch64_large_result_entry_saves_x8_and_copies_through_it() {
     })
     .expect("AAPCS64 indirect entry result should preserve and populate x8's pointer");
 
+    let footprint_artifact = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
+        .expect("AAPCS64 indirect-result footprint evidence should be written");
+    assert!(
+        footprint_artifact.contains("\"origin\": \"exit_indirect_result_copy\"")
+            && footprint_artifact.contains("\"enumeration_complete\": false"),
+        "AAPCS64 hidden-result copy must retain evidence without claiming final completeness"
+    );
+
     let image = fs::read(build_dir.join("omega-program")).expect("read emitted AArch64 ELF");
     let register_mask = 0xffc0_03ffu32;
     assert!(
@@ -33717,6 +33725,14 @@ fn sysv_large_result_entry_saves_and_uses_the_hidden_pointer() {
         write_output: true,
     })
     .expect("SysV MEMORY-result entry should preserve and populate its hidden pointer");
+
+    let footprint_artifact = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
+        .expect("SysV indirect-result footprint evidence should be written");
+    assert!(
+        footprint_artifact.contains("\"origin\": \"exit_indirect_result_copy\"")
+            && footprint_artifact.contains("\"enumeration_complete\": false"),
+        "SysV hidden-result copy must retain evidence without claiming final completeness"
+    );
 
     let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86-64 ELF");
     assert!(

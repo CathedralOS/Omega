@@ -388,13 +388,15 @@ AArch64 scratch set is declared beside the encoder that emits it, so both the
 raw-register spill and constructed slice view are covered. Direct result
 materialization similarly retains `exit_result_registers` evidence for both
 immediate writes and runtime-storage loads, including target result registers,
-relocated frame-base scratch, and AArch64 large-offset scratch. Its explicit
+relocated frame-base scratch, and AArch64 large-offset scratch. Indirect results
+add a structurally scoped `exit_indirect_result_copy` fragment for the copy
+through the captured hidden pointer; generic body copies are deliberately not
+classified as boundary evidence. Its explicit
 `enumeration_complete: false` status is a firewall: this retained slice is
 checkable implementation evidence, not yet the final certificate.
 The final certificate must still aggregate the specialized handler body,
-save/restore and indirect-result/return sequences, relaxation products,
-veneers/thunks, generated stubs, and admitted indirect leaves after final
-placement.
+save/restore and return sequences, relaxation products, veneers/thunks,
+generated stubs, and admitted indirect leaves after final placement.
 
 ## Symbolic materialization and admitted executable installation
 

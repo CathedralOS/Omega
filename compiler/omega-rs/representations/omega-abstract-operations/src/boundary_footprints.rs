@@ -8,6 +8,7 @@ pub enum BoundaryFootprintFragmentOrigin {
     EntryStorage,
     EntrySliceDescriptor,
     ExitResultRegisters,
+    ExitIndirectResultCopy,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
