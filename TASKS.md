@@ -671,7 +671,12 @@ stronger operations it needs instead of citing machine parameters generally.
   proven disjoint from both places. Direct collection writes and opaque or
   overlapping calls reject the candidate, and reassigning the index drops the
   fact before any later access. This is semantic guard matching across distinct
-  expression handles, not a collapse of the dynamic length to a constant.
+  expression handles, not a collapse of the dynamic length to a constant. The
+  next stable-limit class is live as well: semantic entry/back-edge
+  `i < self.limit` guards compose with an authored machine requirement
+  `self.limit < self.collection.len`. Because that bridge originates at machine
+  arrival, both limit and collection must be frame-stable across the whole
+  machine (including preheaders), not only within the natural loop.
   **Language-design blocker:** the boundary write-frame clause's semantics are
   settled, but its public keyword/spelling is still explicitly provisional
   (`stores` in the guide). Do not mint syntax until that spelling is frozen.

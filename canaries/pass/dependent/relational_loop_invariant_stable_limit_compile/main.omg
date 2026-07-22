@@ -1,0 +1,48 @@
+// R5/Houdini stable-limit composition. Distinct entry/back-edge guards prove
+// `self.i < self.limit`; the machine arrival contract proves
+// `self.limit < self.items.len`. With counter, limit, and collection stable
+// across the disjoint sibling call, the loop head may compose those relations
+// and prove the indexed read.
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
+
+data Main {
+    items: [u8; 8] in Utf8;
+    i: u64;
+    limit: u64;
+    value: u8;
+    other: u64;
+}
+
+machine Main::run(&mut self) { }
+
+machine Main::scan(&mut self)
+requires
+    self.limit < self.items.len
+{
+    self.i = 0;
+    transition self.i < self.limit {
+        true -> loop_()
+        false -> done()
+    }
+
+    state loop_(&mut self) {
+        self.touch_other();
+        self.value = self.items[self.i];
+        self.i = self.i + 1;
+        transition self.i < self.limit {
+            true -> loop_()
+            false -> done()
+        }
+    }
+
+    state done(&mut self) { }
+}
+
+machine Main::touch_other(&mut self) {
+    self.other = 1;
+}
