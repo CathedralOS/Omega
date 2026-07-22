@@ -50,6 +50,10 @@ impl BackendArtifactRoots {
         &self.encoded_machine.semantics.boundaries
     }
 
+    pub fn boundary_footprints(&self) -> &omega_abstract_operations::BoundaryFootprintPlan {
+        &self.encoded_machine.semantics.boundaries.footprints
+    }
+
     pub fn ownership_summary(&self) -> &EncodedMachineOwnershipSummary {
         &self.encoded_machine.semantics.ownership
     }
@@ -82,6 +86,10 @@ mod tests {
             1
         );
         assert_eq!(artifacts.boundary_summary().policy_checks.len(), 1);
+        assert_eq!(
+            artifacts.boundary_footprints(),
+            &omega_abstract_operations::BoundaryFootprintPlan::default()
+        );
         assert_eq!(artifacts.value_summary().values.len(), 0);
         assert_eq!(artifacts.ownership_summary().permissions.len(), 0);
 

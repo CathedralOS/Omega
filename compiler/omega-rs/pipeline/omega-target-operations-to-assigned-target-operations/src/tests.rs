@@ -92,6 +92,11 @@ fn copies_target_boundary_policy_checks_to_assigned_plan() {
     target_operations
         .semantics
         .boundaries
+        .footprints
+        .boundary_contract_fingerprint = Some(0x2345);
+    target_operations
+        .semantics
+        .boundaries
         .policy_checks
         .insert(AbstractBoundaryPolicyCheck {
             boundary_policy: "omega::host::targets::linux".into(),
@@ -117,5 +122,13 @@ fn copies_target_boundary_policy_checks_to_assigned_plan() {
     assert_eq!(
         check.boundary_policy.as_ref(),
         "omega::host::targets::linux"
+    );
+    assert_eq!(
+        assigned_operations
+            .semantics
+            .boundaries
+            .footprints
+            .boundary_contract_fingerprint,
+        Some(0x2345)
     );
 }

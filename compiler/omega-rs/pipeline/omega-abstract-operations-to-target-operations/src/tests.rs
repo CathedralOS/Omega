@@ -2,10 +2,12 @@ use crate::build_target_operation_plan;
 use omega_abstract_operations::{
     AbstractBoundaryEdge, AbstractBoundaryLink, AbstractBoundaryPolicyVerdict,
     AbstractOperationPlan, AbstractPermissionEvent, AbstractSourceBoundaryEdge, AbstractValueFact,
-    AbstractValueOrigin, AbstractValueStatementRole,
+    AbstractValueOrigin, AbstractValueStatementRole, BoundaryFootprintFragment,
+    BoundaryFootprintFragmentOrigin,
 };
 use omega_calling_conventions::{
-    HostCapability, HostOperation, HostOperationKey, build_host_abi_plan,
+    HostCapability, HostOperation, HostOperationKey, MachineRegister, MachineStateSet, RegisterSet,
+    StateFootprintEvidence, build_host_abi_plan,
 };
 use omega_core::symbols::SymbolHandle;
 use omega_platform_interface::HostCallPlan;
@@ -78,6 +80,23 @@ fn copies_abstract_source_boundary_edges_to_target_plan() {
             boundary_trait_symbol: trait_symbol,
             boundary_signature_symbol: signature_symbol,
         });
+    abstract_operations
+        .semantics
+        .boundaries
+        .footprints
+        .boundary_contract_fingerprint = Some(0x1234);
+    abstract_operations
+        .semantics
+        .boundaries
+        .footprints
+        .fragments
+        .push(BoundaryFootprintFragment {
+            origin: BoundaryFootprintFragmentOrigin::EntryStorage,
+            evidence: StateFootprintEvidence::new(
+                RegisterSet::new([MachineRegister::X86R15]),
+                MachineStateSet::empty(),
+            ),
+        });
 
     let target_operations = build_target_operation_plan(
         NativeTarget::host(),
@@ -99,6 +118,18 @@ fn copies_abstract_source_boundary_edges_to_target_plan() {
     assert_eq!(edge.call_ordinal, 1);
     assert_eq!(edge.boundary_trait_symbol, trait_symbol);
     assert_eq!(edge.boundary_signature_symbol, signature_symbol);
+    assert_eq!(
+        target_operations
+            .semantics
+            .boundaries
+            .footprints
+            .boundary_contract_fingerprint,
+        Some(0x1234)
+    );
+    assert_eq!(
+        target_operations.semantics.boundaries.footprints.fragments[0].origin,
+        BoundaryFootprintFragmentOrigin::EntryStorage
+    );
 }
 
 #[test]

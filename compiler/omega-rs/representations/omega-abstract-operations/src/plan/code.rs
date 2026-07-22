@@ -17,7 +17,6 @@ pub struct AbstractOperationPlan {
     pub code: AbstractOperationCode,
     pub semantics: AbstractSemanticSummary,
     pub permission_realization_candidates: Vec<crate::PermissionRealizationCandidate>,
-    pub boundary_footprints: crate::BoundaryFootprintPlan,
 }
 
 impl AbstractOperationPlan {
@@ -25,13 +24,11 @@ impl AbstractOperationPlan {
         code: AbstractOperationCode,
         semantics: AbstractSemanticSummary,
         permission_realization_candidates: Vec<crate::PermissionRealizationCandidate>,
-        boundary_footprints: crate::BoundaryFootprintPlan,
     ) -> Self {
         Self {
             code,
             semantics,
             permission_realization_candidates,
-            boundary_footprints,
         }
     }
 }

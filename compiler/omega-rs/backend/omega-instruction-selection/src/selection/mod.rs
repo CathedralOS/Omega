@@ -55,7 +55,7 @@ pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> Abstract
             instructions,
         });
     instruction_plan.permission_realization_candidates = permission_realization_candidates;
-    instruction_plan.boundary_footprints = boundary_footprints;
+    instruction_plan.semantics.boundaries.footprints = boundary_footprints;
 
     instruction_plan
 }

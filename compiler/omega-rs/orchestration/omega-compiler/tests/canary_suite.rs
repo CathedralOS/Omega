@@ -1017,14 +1017,15 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         "abstract operations should render backend state blocks with ordered instruction lines"
     );
     assert!(
-        boundary_footprints.contains("\"boundary_contract_fingerprint\": \"0x")
+        boundary_footprints.contains("\"evidence_stage\": \"encoded_machine\"")
+            && boundary_footprints.contains("\"boundary_contract_fingerprint\": \"0x")
             && !boundary_footprints.contains("\"boundary_contract_fingerprint\": null")
             && boundary_footprints.contains("\"origin\": \"call_return_mechanics\"")
             && boundary_footprints.contains("\"origin\": \"dispatch_scaffold\"")
             && boundary_footprints.contains("\"enumeration_complete\": false")
             && boundary_footprints.contains("\"composed\"")
             && boundary_footprints.contains("\"fragments\""),
-        "boundary footprint artifact should bind retained evidence to its validated contract without claiming final completeness"
+        "boundary footprint artifact should publish post-emission retained evidence bound to its validated contract without claiming final completeness"
     );
     assert!(
         machine_instructions.contains("Machine Instructions")

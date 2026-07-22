@@ -427,7 +427,12 @@ add `runtime_value_guard_comparison` evidence from each ISA's closed evaluator
 may-write ceiling. x86 reports balanced push/pop SP use only for operand trees
 that contain nested binary evaluation, and that stack scratch is scoped to an
 ordinary call-return activation. Cross-target artifacts exercise text-equality
-value operands. The artifact's explicit
+value operands. The footprint plan lives in the canonical semantic boundary
+summary and is retained unchanged through target selection, assignment, machine
+instruction lowering, and machine-byte emission. The machine-readable artifact
+is generated from that encoded-machine carrier and names
+`evidence_stage: encoded_machine`; it no longer reads the earlier abstract-plan
+root. The artifact's explicit
 `enumeration_complete: false` status is a firewall: this retained slice is
 checkable implementation evidence, not yet the final certificate.
 The final certificate must still aggregate StatePlan-driven nonordinary

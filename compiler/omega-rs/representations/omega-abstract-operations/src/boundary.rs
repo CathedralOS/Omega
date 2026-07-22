@@ -67,6 +67,10 @@ pub struct AbstractBoundarySummary {
     pub edges: Arena<AbstractBoundaryEdge>,
     pub links: Arena<AbstractBoundaryLink>,
     pub policy_checks: Arena<AbstractBoundaryPolicyCheck>,
+    /// Retained, contract-bound evidence for the generated boundary-code
+    /// footprint. This lives in the semantic boundary root so every later
+    /// representation carries the same canonical evidence through emission.
+    pub footprints: crate::BoundaryFootprintPlan,
 }
 
 impl AbstractBoundarySummary {
@@ -83,6 +87,7 @@ impl AbstractBoundarySummary {
             edges: Arena::with_capacity(edge_capacity),
             links: Arena::new(),
             policy_checks: Arena::new(),
+            footprints: crate::BoundaryFootprintPlan::default(),
         }
     }
 }
