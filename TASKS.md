@@ -777,9 +777,11 @@ stronger operations it needs instead of citing machine parameters generally.
   supervisor packages, then migrate samples. Package ergonomics do not justify
   new core syntax without a semantic impossibility.
 - **Allocator migration.** Replace ambient legacy `alloc` with explicit
-  `Arena`/`Allocation` contracts and migrate Cathedral's obsolete bootstrap
-  `Region`/`mint_region` carrier to `Extent`. Structural multiplicity, not a
-  permanent semantic ban, governs debt-bearing `Allocation<T>`.
+  `Arena`/`Allocation` contracts. Cathedral's bootstrap range-authority source
+  now uses the settled `Extent`/`mint_extent` spelling; connect that temporary
+  plain carrier to Omega's eventual opaque linear Extent surface rather than
+  reintroducing `Region`. Structural multiplicity, not a permanent semantic
+  ban, governs debt-bearing `Allocation<T>`.
 - **Vec and slices.** Implement owned dynamic `Vec<T>` storage plus
   `as_slice`/`as_mut_slice` over real allocation/extents.
 
