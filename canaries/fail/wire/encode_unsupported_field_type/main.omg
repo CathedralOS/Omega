@@ -1,5 +1,6 @@
 // Wire stage 2a: the compact_binary v0 encoder covers primitive integer
-// scalars (i32/i64/u32/u64/bool) plus String. A schema field outside that
+// scalars (i32/i64/u32/u64/bool), runtime-sized borrowed text, and one-level
+// nested schemas. A schema field outside that
 // set -- here an f64 -- rejects the encode call with a clear diagnostic
 // instead of silently mis-encoding.
 

@@ -1025,9 +1025,13 @@ stronger operations it needs instead of citing machine parameters generally.
   migrating its retired `capability`/`entry` architecture; live portable and
   target-provider homes are recorded in `omega/host/README.md`. The two
   standalone nested-command run fixtures now use bounded UTF-8 input and retain
-  their native `look` result. Continue the failure-fixture and
-  core-compatibility owners, then retire the compatibility type and
-  compiler branches in the order recorded by
+  their native `look` result. The failure corpus no longer declares builtin
+  `String`/`string`: semantic negatives now use bounded carriers, borrowed text,
+  or carrier-independent payloads, while obsolete primitive-only restrictions
+  and unlisted compatibility fossils were deleted. Wire diagnostics and fixture
+  names now describe runtime-sized text rather than advertising the
+  compatibility type. Continue the core-compatibility owner, then retire the
+  compatibility type and compiler branches in the order recorded by
   `wiki/architecture/string_retirement_execution.md`.
 - **Atomics remainder.** The closed ordering vocabulary and operation-specific
   legality rules now reject release-bearing loads, acquire-bearing stores,

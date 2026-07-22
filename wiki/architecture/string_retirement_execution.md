@@ -184,8 +184,14 @@ carrier (the grant validator already exists).
    it encoded superseded `capability`/`entry` architecture; the live standard
    boundary and target-provider homes are recorded in `omega/host/README.md`.
    The two standalone nested-command run fixtures now use bounded UTF-8 input
-   and retain their native `look` result. Deliberate compatibility/failure
-   fixtures and the core surface remain separate owners.
+   and retain their native `look` result. The negative corpus is migrated too:
+   tests that still express real borrow, domain, generic-bound, parser, provider,
+   or wire constraints now use carrier-native types, while tests that existed
+   only to reject operations on the retired owned primitive were deleted. Stale
+   fail directories not enumerated by the canary suite were removed rather than
+   preserved as misleading source examples. No fail-canary source declares
+   builtin `String` or `string`; the core compatibility surface is now the last
+   source owner.
 2. **Keystone** — once source users are gone,
    `semantics/omega-validation/src/expression_types.rs` stops a string literal /
    `ExpressionNode::String` from satisfying `PrimitiveType::String`; it should

@@ -1,1 +1,0 @@
-decoding an owned `String` is not implemented yet -- it must copy the field's bytes out of the decode buffer into owned storage, which requires the runtime allocator

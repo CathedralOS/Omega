@@ -1,6 +1,6 @@
 // Accessing a field/`.len`/index of a PRIMITIVE scalar (`x.field` for an i32 x)
 // used to compile silently and read a ZII 0 -- a primitive has no members or
-// elements. Rejected now (numeric/bool receivers; struct/array/slice/String left
+// elements. Rejected now (numeric/bool receivers; struct/array/slice left
 // to their own resolution).
 use omega::language::std::console;
 data Main { console: Console; }

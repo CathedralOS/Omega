@@ -1,17 +1,21 @@
 // Wire REPEATED fields: only stage 2 scalar elements (i32/i64/u32/u64/bool)
-// have an honest packed encoding today. A repeated String would make every
+// have an honest packed encoding today. Repeated borrowed text makes every
 // element runtime-sized -- the compile-time worst case the out-buffer
-// guarantee rests on would not exist -- so `[String; N]` rejects the encode
+// guarantee rests on would not exist, so the encode
 // call loudly instead of half-supporting it.
 
 use omega::language::std::console;
 
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
+
 data NameList {
-    0: names: [String; 4];
+    0: names: [[u8; 8] in Utf8; 4];
 }
 
 data NameListValue {
-    names: [String; 4];
+    names: [[u8; 8] in Utf8; 4];
     names_count: u64;
 }
 

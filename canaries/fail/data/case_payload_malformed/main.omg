@@ -1,9 +1,9 @@
-// Payload fields are NAMED (`case Say(text: String);`); a bare type with no
+// Payload fields are NAMED (`case Say(value: i32);`); a bare type with no
 // field name is malformed and must be a parse error, not silently accepted.
 
 data Command {
     case None;
-    case Say(String);
+    case Say(i32);
 }
 
 data Main {

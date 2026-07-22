@@ -3,7 +3,7 @@
 domain [u8]::Checked {
     no_nul(self);
 }
-domain String::Checked {
+domain [u8; 16]::Checked {
     no_nul(self);
 }
 data Text

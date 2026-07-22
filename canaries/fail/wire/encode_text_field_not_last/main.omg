@@ -1,19 +1,23 @@
-// Wire stage 2a: a String field's byte count is runtime-sized, so the
+// Wire stage 2a: a borrowed text field's byte count is runtime-sized, so the
 // compact_binary v0 encoder requires it to carry the schema's HIGHEST field
 // number (it must encode last). Every append before the trailing byte-copy
 // stays covered by the compile-time worst-case out-buffer budget; a field
-// AFTER the String would write with that guarantee already spent. Here the
-// String holds field 0 and a u32 follows at field 1 -- rejected.
+// AFTER the text would write with that guarantee already spent. Here text
+// holds field 0 and a u32 follows at field 1 -- rejected.
 
 use omega::language::std::console;
 
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+
 data LabelMessage {
-    0: label: String;
+    0: label: &[u8] in Utf8;
     1: count: u32;
 }
 
 data LabelSample {
-    label: String;
+    label: &[u8] in Utf8;
     count: u32;
 }
 

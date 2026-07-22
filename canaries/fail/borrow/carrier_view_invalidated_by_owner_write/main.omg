@@ -1,0 +1,19 @@
+domain [u8; 16]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+
+data Main {
+    text: [u8; 16] in Utf8;
+}
+
+machine Main::main(&mut self) {
+    self.text = "hello";
+
+    let view: &[u8] in Utf8 = self.text.as_view();
+    self.text = "goodbye";
+
+    let first: u8 = view[0];
+}

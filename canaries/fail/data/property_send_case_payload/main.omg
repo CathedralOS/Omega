@@ -1,0 +1,15 @@
+// `[send]` itself is retired. Carry contracts describe the independent
+// suspension, CPU-affinity, thread-affinity, and address-stability axes.
+// The diagnostic is independent of the case payload's carrier.
+
+data Message [send] {
+    case Empty;
+    case Label(value: i32);
+}
+
+data Main {
+    value: i32;
+}
+
+machine Main::main(&mut self) {
+}

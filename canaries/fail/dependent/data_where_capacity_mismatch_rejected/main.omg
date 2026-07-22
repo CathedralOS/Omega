@@ -1,9 +1,13 @@
+domain [u8; 5]::Utf8 {
+    valid_utf8(self);
+}
+
 data Buffer
 where
     used == storage.capacity,
 {
     used: u64;
-    storage: String;
+    storage: [u8; 5] in Utf8;
 }
 
 data Main {

@@ -1,6 +1,0 @@
-// Non-`+` arithmetic on text (`s - t`, `s * s`) used to compile silently -- text
-// supports only concatenation (`+`), `==`, and `!=`. Rejected now. String concat and
-// equality stay valid.
-use omega::language::std::console;
-data Main { console: Console; }
-machine Main::main(&mut self) { let a: String = "abc"; let b: String = "d"; let c: String = a - b; self.console.exit_process(0); }

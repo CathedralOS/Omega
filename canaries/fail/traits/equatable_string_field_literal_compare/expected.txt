@@ -1,1 +1,0 @@
-cannot synthesize structural `==` for `String` field `label` of `Tag` against a constructed literal
