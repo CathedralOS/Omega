@@ -1,0 +1,38 @@
+// RUN CANARY (exit 70) + interpreter differential. A mutable scalar view at a
+// runtime offset preserves the whole proven byte-region footprint. Writing
+// 0x04030201 through `&mut u32` updates bytes k..k+4 little-endian, leaves the
+// surrounding sentinels untouched, and a subsequent view read observes the
+// same bits. The declared offset range proves k + 4 <= 8.
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    buf: [u8; 8];
+    k: u32 [0..=4];
+}
+
+machine Main::main(&mut self) {
+    self.buf[0] = 9;
+    self.buf[1] = 8;
+    self.buf[6] = 7;
+    self.buf[7] = 6;
+    self.k = 2;
+
+    let view: &mut u32 = &mut self.buf[self.k] as &mut u32;
+    view = 67305985;
+    transition self.buf[0] == 9
+        && self.buf[1] == 8
+        && self.buf[2] == 1
+        && self.buf[3] == 2
+        && self.buf[4] == 3
+        && self.buf[5] == 4
+        && self.buf[6] == 7
+        && self.buf[7] == 6
+        && view == 67305985 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}
