@@ -34223,6 +34223,47 @@ fn task_lifecycle_operations_conserve_the_linear_claim() {
 }
 
 #[test]
+fn relational_loop_invariant_canaries_pin_symbolic_head_fact() {
+    let pass = pass_canary("dependent/relational_loop_invariant_dynamic_length_compile");
+    compile_canary_without_output(&pass).unwrap_or_else(|diagnostics| {
+        panic!(
+            "relational loop invariant should prove the indexed access:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+
+    let fail = fail_canary("dependent/relational_loop_invariant_reassigned_index_rejected");
+    let diagnostics = compile_canary_without_output(&fail)
+        .expect_err("reassigning the index must invalidate the relational loop fact");
+    let rendered = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("cannot prove index `self.i` is within length 8"),
+        "expected stale relational index rejection:\n{rendered}"
+    );
+
+    let fail = fail_canary("dependent/relational_loop_invariant_collection_call_rejected");
+    let diagnostics = compile_canary_without_output(&fail)
+        .expect_err("a collection-overlapping call must block the relational loop fact");
+    let rendered = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("cannot prove index `self.i` is within length 8"),
+        "expected collection-frame overlap rejection:\n{rendered}"
+    );
+}
+
+#[test]
 fn pass_canaries_compile() {
     // COLLECT-ALL, not first-panic: a serial panic at the first failing
     // member masked every member ordered after it (this is the same
@@ -37320,6 +37361,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "dependent/proof_value_call_frame_preserves_dependent_forward_compile",
     "dependent/state_arrival_contract_guarded_compile",
     "dependent/loop_invariant_survives_disjoint_sibling_call_compile",
+    "dependent/relational_loop_invariant_dynamic_length_compile",
     "dependent/data_where_invariant_window_restored_exit",
     "dependent/data_where_gated_machine_established_exit",
     "dependent/range_sugar_gated_construction_compile",
@@ -37834,6 +37876,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "dependent/proof_value_call_frame_invalidates_dependent_forward_rejected",
     "dependent/state_arrival_contract_unproven_rejected",
     "dependent/loop_invariant_invalidated_by_sibling_call_rejected",
+    "dependent/relational_loop_invariant_reassigned_index_rejected",
+    "dependent/relational_loop_invariant_collection_call_rejected",
     "dependent/data_where_invariant_window_unclosed_rejected",
     "dependent/data_where_gated_machine_unestablished_rejected",
     "dependent/range_sugar_gated_field_omitted_rejected",

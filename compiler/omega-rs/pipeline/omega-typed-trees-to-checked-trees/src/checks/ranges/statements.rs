@@ -49,6 +49,14 @@ pub(super) fn check_statement(
             facts.forget_index_upper_bound(
                 &program.expression_table.display_name(assignment.target),
             );
+            // Collection-relative index/range facts (`i < items.len`,
+            // `i <= items.len`) name the scalar value in their second slot.
+            // Reassigning that scalar invalidates them too; otherwise a guard
+            // or loop-head invariant about the old value could prove an access
+            // using the new value.
+            facts.forget_index_position_facts(
+                &program.expression_table.display_name(assignment.target),
+            );
             // The `>= 0` fact is likewise STALE on reassignment -- the new value
             // may be negative. A `>= 0` guard re-establishes it where it holds.
             facts.forget_non_negative(&program.expression_table.display_name(assignment.target));

@@ -35,12 +35,16 @@ pub(super) struct LoopInvariant {
     kind: InvariantKind,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum InvariantKind {
     /// `i < bound` (exclusive). Decreasing counter.
     UpperBound(i64),
     /// `i >= 0`. Increasing counter with a non-negative init.
     NonNegative,
+    /// `i < collection.len`. Every incoming edge to the loop head establishes
+    /// the same symbolic relation, and the collection place is stable through
+    /// the loop. Kept collection-relative rather than collapsed to a constant.
+    IndexWithin(String),
 }
 
 #[derive(Clone)]
@@ -144,8 +148,7 @@ pub(super) fn collect_loop_invariant_facts(
                 &loop_states,
                 counter,
                 &index_name,
-            )
-            else {
+            ) else {
                 continue;
             };
 
@@ -184,7 +187,7 @@ pub(super) fn collect_loop_invariant_facts(
                 invariants.push(LoopInvariant {
                     state: state_symbol,
                     index_name: index_name.clone(),
-                    kind,
+                    kind: kind.clone(),
                 });
             }
 
@@ -213,6 +216,40 @@ pub(super) fn collect_loop_invariant_facts(
                     kind: InvariantKind::UpperBound(bound),
                 });
             }
+
+            // Relational Houdini candidate: every ENTRY and BACK edge into the
+            // head establishes `counter < the_same_collection.len`. This is a
+            // semantic meet, so equivalent guards authored in different states
+            // do not need to share an expression handle. The collection itself
+            // must remain stable throughout the natural loop; direct writes and
+            // opaque/overlapping calls reject the candidate. As with the
+            // constant increasing bound above, seed the relation at the HEAD
+            // only and let statement-level invalidation drop it after a counter
+            // reassignment.
+            if matches!(direction, Direction::Increasing)
+                && let Some(collection) = loop_head_index_collection(
+                    program,
+                    states,
+                    &edges,
+                    &loop_states,
+                    head.symbol,
+                    counter,
+                )
+                && loop_preserves_path(
+                    program,
+                    machine,
+                    &call_frames,
+                    states,
+                    &loop_states,
+                    &collection,
+                )
+            {
+                invariants.push(LoopInvariant {
+                    state: head.symbol,
+                    index_name: index_name.clone(),
+                    kind: InvariantKind::IndexWithin(collection),
+                });
+            }
         }
     }
 
@@ -230,12 +267,16 @@ pub(super) fn seed_loop_invariant_facts(
         .iter()
         .filter(|invariant| invariant.state == state.symbol)
     {
-        match invariant.kind {
+        match &invariant.kind {
             InvariantKind::UpperBound(exclusive_upper_bound) => {
-                facts.prove_index_upper_bound(invariant.index_name.clone(), exclusive_upper_bound);
+                facts.prove_index_upper_bound(invariant.index_name.clone(), *exclusive_upper_bound);
             }
             InvariantKind::NonNegative => {
                 facts.prove_non_negative(invariant.index_name.clone());
+            }
+            InvariantKind::IndexWithin(collection) => {
+                facts.prove_index(collection.clone(), invariant.index_name.clone());
+                facts.prove_range_bound(collection.clone(), invariant.index_name.clone());
             }
         }
     }
@@ -418,6 +459,148 @@ fn back_edge_counter_upper_bound(
         bound = Some(bound.map_or(edge_bound, |current| current.max(edge_bound)));
     }
     bound
+}
+
+/// The collection label `C` for a relational loop-head invariant
+/// `counter < C.len`, when EVERY incoming edge to `head` (both loop entries and
+/// back edges) establishes that same relation. At least one edge of each kind
+/// is required. Comparing labels is deliberate: guards parsed in different
+/// states have different expression handles even when they name the same
+/// machine place.
+fn loop_head_index_collection(
+    program: &omega_typed_trees::TypedTrees,
+    states: &[State],
+    edges: &[Edge],
+    loop_states: &[SymbolHandle],
+    head: SymbolHandle,
+    counter: SymbolHandle,
+) -> Option<String> {
+    let mut collection: Option<String> = None;
+    let mut saw_entry = false;
+    let mut saw_back_edge = false;
+
+    for edge in edges.iter().filter(|edge| edge.target == head) {
+        let source = find_state(states, edge.source)?;
+        let edge_collection = source_arm_to_head_index_collection(program, source, head, counter)?;
+        match &collection {
+            Some(known) if known != &edge_collection => return None,
+            None => collection = Some(edge_collection),
+            _ => {}
+        }
+        if loop_states.contains(&edge.source) {
+            saw_back_edge = true;
+        } else {
+            saw_entry = true;
+        }
+    }
+
+    if saw_entry && saw_back_edge {
+        collection
+    } else {
+        None
+    }
+}
+
+/// The `C` in the unique positive arm `counter < C.len` from `source` to
+/// `head`. Continuation/convergent/unguarded/ambiguous edges fail closed, just
+/// as for the constant upper-bound candidate.
+fn source_arm_to_head_index_collection(
+    program: &omega_typed_trees::TypedTrees,
+    source: &State,
+    head: SymbolHandle,
+    counter: SymbolHandle,
+) -> Option<String> {
+    let mut found: Option<String> = None;
+    for statement in program.statement_table.statements(source.statement_nodes) {
+        let StatementNode::Transition(transition) = statement else {
+            continue;
+        };
+        let target_is_head = transition_target_symbol(program, transition.target) == Some(head);
+        let continuation_is_head =
+            transition_target_symbol(program, transition.continuation) == Some(head);
+        if !target_is_head && !continuation_is_head {
+            continue;
+        }
+        if continuation_is_head {
+            return None;
+        }
+        let TransitionGuardNode::When(guard) = transition.guard else {
+            return None;
+        };
+        let edge_collection = parse_counter_index_collection(program, guard, counter)?;
+        if found.is_some() {
+            return None;
+        }
+        found = Some(edge_collection);
+    }
+    found
+}
+
+/// Parse the strict relation `counter < C.len` (or `C.len > counter`) and
+/// return the stable machine-place label `C`. The parser unwraps the
+/// transition arm's synthesized `subject == true` shell. Restricting the
+/// collection to a `self.*` place avoids pretending that source-state locals or
+/// parameters automatically denote the target state's collection.
+fn parse_counter_index_collection(
+    program: &omega_typed_trees::TypedTrees,
+    guard: ExpressionHandle,
+    counter: SymbolHandle,
+) -> Option<String> {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+        return None;
+    };
+    if binary.operator == BinaryOperator::Equal {
+        let inner = boolean_equality_inner(program, binary.left, binary.right)?;
+        return parse_counter_index_collection(program, inner, counter);
+    }
+    let possible_length = match binary.operator {
+        BinaryOperator::Less if expression_is_counter_member(program, binary.left, counter) => {
+            binary.right
+        }
+        BinaryOperator::Greater if expression_is_counter_member(program, binary.right, counter) => {
+            binary.left
+        }
+        _ => return None,
+    };
+    let ExpressionNode::Member(length) = program.expression_table.expression(possible_length)
+    else {
+        return None;
+    };
+    if length.member.as_str() != "len" {
+        return None;
+    }
+    let collection = program.expression_table.display_name(length.receiver);
+    collection.starts_with("self.").then_some(collection)
+}
+
+/// Whether `path` stays unchanged throughout the natural loop. Direct writes
+/// and calls (including nested value calls) are treated with the same path
+/// overlap law as R5. An opaque call summary rejects the candidate.
+fn loop_preserves_path(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &Machine,
+    call_frames: &omega_validation::CallFrameResolver<'_>,
+    states: &[State],
+    loop_states: &[SymbolHandle],
+    path: &str,
+) -> bool {
+    for &state_symbol in loop_states {
+        let Some(state) = find_state(states, state_symbol) else {
+            return false;
+        };
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            if statement_may_write_path(machine, call_frames, statement, path) != Some(false) {
+                return false;
+            }
+            if let StatementNode::Assignment(assignment) = statement {
+                let target = program.expression_table.display_name(assignment.target);
+                if omega_validation::frame_paths_overlap(&target, path) {
+                    return false;
+                }
+            }
+        }
+    }
+    true
 }
 
 /// The counter upper bound carried by `source`'s arm to `head`. `None` if `source` reaches
@@ -677,14 +860,7 @@ fn counter_entry_init(
     let mut current = start;
     loop {
         let state = find_state(states, current)?;
-        match probe_state_init(
-            program,
-            machine,
-            call_frames,
-            state,
-            counter,
-            counter_path,
-        ) {
+        match probe_state_init(program, machine, call_frames, state, counter, counter_path) {
             InitProbe::Constant(value) => return Some(value),
             InitProbe::Unknown => return None,
             InitProbe::Untouched => {}

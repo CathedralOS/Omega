@@ -71,6 +71,20 @@ impl RangeFacts<'_> {
             .retain(|(known_index, _)| known_index != index);
     }
 
+    /// Drops collection-relative facts whose INDEX/BOUND position names
+    /// `index`. These facts describe the old scalar value, just like a
+    /// constant upper bound does, and become stale on reassignment.
+    ///
+    /// Collection-key invalidation is intentionally separate: assigning a new
+    /// scalar index does not change the collection, while assigning a new
+    /// collection uses `forget_collection_facts`.
+    pub(in crate::checks::ranges) fn forget_index_position_facts(&mut self, index: &str) {
+        self.proven_indexes
+            .retain(|(_, known_index)| known_index != index);
+        self.proven_range_bounds
+            .retain(|(_, known_bound)| known_bound != index);
+    }
+
     /// The tightest (smallest) proven EXCLUSIVE upper bound for `index`, if any.
     /// Used to carry a bound across `field = otherfield + const`.
     pub(in crate::checks::ranges) fn proven_index_upper_bound(&self, index: &str) -> Option<i64> {

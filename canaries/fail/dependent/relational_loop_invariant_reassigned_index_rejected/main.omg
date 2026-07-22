@@ -1,0 +1,36 @@
+// SOUNDNESS BOUNDARY for the relational loop-head invariant. Both incoming
+// edges establish `self.i < self.items.len`, but the head increments `self.i`
+// before indexing. The relation described the old value and must be forgotten
+// on reassignment; a one-character carrier reaches the access with i == len.
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
+
+data Main {
+    items: [u8; 8] in Utf8;
+    i: u64;
+    value: u8;
+}
+
+machine Main::run(&mut self) {
+    self.items = "x";
+    self.i = 0;
+    transition self.i < self.items.len {
+        true -> loop_()
+        false -> done()
+    }
+
+    state loop_(&mut self) {
+        self.i = self.i + 1;
+        self.value = self.items[self.i];
+        transition self.i < self.items.len {
+            true -> loop_()
+            false -> done()
+        }
+    }
+
+    state done(&mut self) { }
+}

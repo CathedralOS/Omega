@@ -1,0 +1,44 @@
+// R5/Houdini relational candidate: the entry edge and every back edge prove
+// `self.i < self.items.len`. They are distinct guard expressions, so the plain
+// expression-handle meet cannot carry either one to the write-first loop head.
+// The relational loop pass recognizes their shared symbolic collection and
+// admits the indexed read without collapsing the carrier's dynamic logical
+// length to its fixed storage capacity.
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
+
+data Main {
+    items: [u8; 8] in Utf8;
+    i: u64;
+    value: u8;
+    other: u64;
+}
+
+machine Main::run(&mut self) {
+    self.items = "abcd";
+    self.i = 0;
+    transition self.i < self.items.len {
+        true -> loop_()
+        false -> done()
+    }
+
+    state loop_(&mut self) {
+        self.touch_other();
+        self.value = self.items[self.i];
+        self.i = self.i + 1;
+        transition self.i < self.items.len {
+            true -> loop_()
+            false -> done()
+        }
+    }
+
+    state done(&mut self) { }
+}
+
+machine Main::touch_other(&mut self) {
+    self.other = 1;
+}
