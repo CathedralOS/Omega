@@ -478,9 +478,13 @@ schemas recover the same instance without publishing policy type identity.
    validated plan under which it was checked; retention rejects cross-contract
    composition, while the implementation evidence remains outside requirement
    identity. Fixed ordinary `CallReturn` mechanics now contribute a separate
-   `call_return_mechanics` fragment: x86-64 records `ret`'s RSP, stack, and
-   control writes, while AArch64 records the fixed frame prologue plus x19-x30,
-   SP, and control restoration. Provenance-aware validation admits those
+   `call_return_mechanics` fragment: AArch64 records its fixed frame prologue
+   plus x19-x30, SP, and control restoration. The x86-64 path now also has a
+   fixed 64-byte frame that preserves the union of generated-code nonvolatile
+   GPRs under SysV AMD64 and Microsoft x64; incoming stack unmarshalling
+   includes that frame bias, and the mechanics evidence records the complete
+   restoration.
+   Provenance-aware validation admits those
    prescribed stack/control effects without widening the handler body's
    transitive-state ceiling. Runtime-dispatching entries now also retain a
    structurally scoped `dispatch_scaffold` fragment: the target encoders own

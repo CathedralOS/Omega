@@ -807,7 +807,20 @@ mod tests {
         let evidence = derive_boundary_call_return_mechanics_footprint(&boundary, &instructions)
             .expect("x86 call-return mechanics");
 
-        assert_eq!(evidence.registers().as_slice(), &[MachineRegister::X86Rsp]);
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::X86Rbx,
+                MachineRegister::X86Rsp,
+                MachineRegister::X86Rbp,
+                MachineRegister::X86Rsi,
+                MachineRegister::X86Rdi,
+                MachineRegister::X86R12,
+                MachineRegister::X86R13,
+                MachineRegister::X86R14,
+                MachineRegister::X86R15,
+            ]
+        );
         assert!(evidence.machine_state().contains_all(MachineStateSet::new([
             MachineState::GeneralRegisters,
             MachineState::InstructionPointer,

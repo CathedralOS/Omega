@@ -36,29 +36,72 @@ pub struct X86_64RelocationSite {
     pub kind: X86_64RelocationSiteKind,
 }
 
-pub fn return_width() -> usize {
-    1
+/// Bytes reserved by the fixed ordinary x86-64 frame. Saving eight registers
+/// keeps the entry stack's modulo-16 alignment unchanged, so the existing
+/// SysV and Microsoft x64 outbound-call reservations remain valid.
+pub const FUNCTION_FRAME_BYTES: usize = 64;
+
+pub fn function_enter_width() -> usize {
+    12
 }
 
-pub fn encode_return_bytes() -> [u8; 1] {
-    [0xc3]
+/// Preserve the union of the SysV AMD64 and Microsoft x64 nonvolatile GPRs
+/// used by generated Omega code: rbx, rbp, rsi, rdi, and r12-r15.
+pub fn encode_function_enter_bytes() -> [u8; 12] {
+    [
+        0x53, // push rbx
+        0x55, // push rbp
+        0x56, // push rsi
+        0x57, // push rdi
+        0x41, 0x54, // push r12
+        0x41, 0x55, // push r13
+        0x41, 0x56, // push r14
+        0x41, 0x57, // push r15
+    ]
+}
+
+pub fn return_width() -> usize {
+    13
+}
+
+pub fn encode_return_bytes() -> [u8; 13] {
+    [
+        0x41, 0x5f, // pop r15
+        0x41, 0x5e, // pop r14
+        0x41, 0x5d, // pop r13
+        0x41, 0x5c, // pop r12
+        0x5f, // pop rdi
+        0x5e, // pop rsi
+        0x5d, // pop rbp
+        0x5b, // pop rbx
+        0xc3, // ret
+    ]
 }
 
 /// Register writes performed by the ordinary x86-64 function-entry sequence.
-/// It is deliberately empty because this backend emits no x86 prologue.
+/// Pushes only update SP; the stored nonvolatile register values are reads.
 pub fn function_enter_register_writes() -> RegisterSet {
     RegisterSet::default()
 }
 
 pub fn function_enter_additional_machine_state() -> MachineStateSet {
-    MachineStateSet::empty()
+    MachineStateSet::new([MachineState::StackPointer])
 }
 
-/// Exact state written by `ret`: RSP advances and control resumes at the
-/// caller-provided return address. The explicit RSP identity is retained in
-/// addition to its semantic stack-pointer class.
+/// Exact state written while restoring the fixed frame and returning. The
+/// explicit RSP identity is retained in addition to its stack-pointer class.
 pub fn return_register_writes() -> RegisterSet {
-    RegisterSet::new([MachineRegister::X86Rsp])
+    RegisterSet::new([
+        MachineRegister::X86Rbx,
+        MachineRegister::X86Rsp,
+        MachineRegister::X86Rbp,
+        MachineRegister::X86Rsi,
+        MachineRegister::X86Rdi,
+        MachineRegister::X86R12,
+        MachineRegister::X86R13,
+        MachineRegister::X86R14,
+        MachineRegister::X86R15,
+    ])
 }
 
 pub fn return_additional_machine_state() -> MachineStateSet {
@@ -513,7 +556,7 @@ pub fn entry_stack_argument_write_clobbers() -> RegisterSet {
 
 /// Copy an incoming x86-64 stack argument into runtime-frame storage. Calling
 /// plans measure `stack_byte_offset` from the ABI stack-argument area, so the
-/// source is eight bytes beyond that offset at entry (past the return address).
+/// source is beyond the fixed saved-register frame and return address.
 pub fn encode_entry_stack_argument_write_bytes(
     stack_byte_offset: u32,
     byte_offset: usize,
@@ -525,7 +568,7 @@ pub fn encode_entry_stack_argument_write_bytes(
         )));
     }
     let source_offset = stack_byte_offset
-        .checked_add(8)
+        .checked_add((FUNCTION_FRAME_BYTES + 8) as u32)
         .ok_or_else(|| Diagnostic::error("x86-64 incoming stack offset overflow"))?;
     let source_offset = i32::try_from(source_offset)
         .map_err(|_| Diagnostic::error("x86-64 incoming stack offset exceeds disp32"))?;
@@ -632,7 +675,7 @@ pub fn encode_entry_indirect_argument_write_bytes(
             stack_byte_offset, ..
         } => {
             let source_offset = stack_byte_offset
-                .checked_add(8)
+                .checked_add((FUNCTION_FRAME_BYTES + 8) as u32)
                 .ok_or_else(|| Diagnostic::error("x86-64 incoming pointer offset overflow"))?;
             let source_offset = i32::try_from(source_offset)
                 .map_err(|_| Diagnostic::error("x86-64 incoming pointer offset exceeds disp32"))?;
@@ -685,6 +728,25 @@ mod entry_argument_register_tests {
     use omega_calling_conventions::MachineRegister;
 
     #[test]
+    fn ordinary_frame_preserves_generated_nonvolatile_gprs_and_alignment() {
+        assert_eq!(FUNCTION_FRAME_BYTES, 64);
+        assert_eq!(encode_function_enter_bytes().len(), function_enter_width());
+        assert_eq!(encode_return_bytes().len(), return_width());
+        assert_eq!(
+            encode_function_enter_bytes(),
+            [
+                0x53, 0x55, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57
+            ]
+        );
+        assert_eq!(
+            encode_return_bytes(),
+            [
+                0x41, 0x5f, 0x41, 0x5e, 0x41, 0x5d, 0x41, 0x5c, 0x5f, 0x5e, 0x5d, 0x5b, 0xc3
+            ]
+        );
+    }
+
+    #[test]
     fn scalar_float_entry_arguments_store_from_the_selected_xmm_register() {
         let bytes = encode_entry_argument_register_write_bytes(MachineRegister::X86Xmm(8), 8, 8)
             .expect("movsd entry store");
@@ -712,7 +774,7 @@ mod entry_argument_register_tests {
         let bytes =
             encode_entry_stack_argument_write_bytes(32, 24, 8).expect("incoming stack copy");
         assert_eq!(bytes.len(), 25);
-        assert_eq!(&bytes[10..18], &[0x4c, 0x8b, 0x94, 0x24, 40, 0, 0, 0]);
+        assert_eq!(&bytes[10..18], &[0x4c, 0x8b, 0x94, 0x24, 104, 0, 0, 0]);
         assert_eq!(&bytes[18..25], &[0x4d, 0x89, 0x97, 24, 0, 0, 0]);
     }
 
@@ -748,7 +810,7 @@ mod entry_argument_register_tests {
             entry_indirect_argument_write_width(pointer, 16)
         );
         assert_eq!(entry_indirect_argument_frame_base_offset(pointer), 8);
-        assert_eq!(&bytes[..8], &[0x4c, 0x8b, 0x9c, 0x24, 40, 0, 0, 0]);
+        assert_eq!(&bytes[..8], &[0x4c, 0x8b, 0x9c, 0x24, 104, 0, 0, 0]);
         assert_eq!(&bytes[8..10], &[0x49, 0xbf]);
     }
 }

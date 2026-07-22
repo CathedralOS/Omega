@@ -33664,8 +33664,8 @@ fn sysv_mixed_aggregate_entry_rolls_wholly_to_stack() {
     .expect("register-exhausted SysV mixed record should cross-compile wholly from the stack");
 
     let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86-64 ELF");
-    let first_load = [0x4c, 0x8b, 0x94, 0x24, 8, 0, 0, 0];
-    let second_load = [0x4c, 0x8b, 0x94, 0x24, 16, 0, 0, 0];
+    let first_load = [0x4c, 0x8b, 0x94, 0x24, 72, 0, 0, 0];
+    let second_load = [0x4c, 0x8b, 0x94, 0x24, 80, 0, 0, 0];
     assert!(
         image
             .windows(43)
@@ -33699,8 +33699,8 @@ fn sysv_small_aggregate_entry_rolls_wholly_to_stack() {
     .expect("register-exhausted SysV record should cross-compile wholly from the stack");
 
     let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86-64 ELF");
-    let first_load = [0x4c, 0x8b, 0x94, 0x24, 8, 0, 0, 0];
-    let second_load = [0x4c, 0x8b, 0x94, 0x24, 16, 0, 0, 0];
+    let first_load = [0x4c, 0x8b, 0x94, 0x24, 72, 0, 0, 0];
+    let second_load = [0x4c, 0x8b, 0x94, 0x24, 80, 0, 0, 0];
     assert!(
         image
             .windows(43)
@@ -33732,7 +33732,7 @@ fn sysv_large_aggregate_entry_copies_the_memory_class_stack_value() {
     .expect("SysV MEMORY-class entry record should copy from the incoming stack");
 
     let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86-64 ELF");
-    for source_offset in [8u8, 16, 24] {
+    for source_offset in [72u8, 80, 88] {
         let load = [0x4c, 0x8b, 0x94, 0x24, source_offset, 0, 0, 0];
         assert!(
             image.windows(load.len()).any(|window| window == load),
@@ -33760,7 +33760,7 @@ fn sysv_wide_aggregate_entry_uses_general_memory_classification() {
     .expect("SysV record beyond 32 bytes should use general MEMORY stack passing");
 
     let image = fs::read(build_dir.join("omega-program")).expect("read emitted x86-64 ELF");
-    for source_offset in [8u8, 16, 24, 32, 40] {
+    for source_offset in [72u8, 80, 88, 96, 104] {
         let load = [0x4c, 0x8b, 0x94, 0x24, source_offset, 0, 0, 0];
         assert!(
             image.windows(load.len()).any(|window| window == load),
@@ -34938,8 +34938,8 @@ fn efi_large_aggregate_stack_entry_loads_pointer_after_shadow_space() {
     assert!(
         image
             .windows(10)
-            .any(|window| { window == [0x4c, 0x8b, 0x9c, 0x24, 40, 0, 0, 0, 0x49, 0xbf] }),
-        "expected fifth-slot pointer loaded after return address and shadow space"
+            .any(|window| { window == [0x4c, 0x8b, 0x9c, 0x24, 104, 0, 0, 0, 0x49, 0xbf] }),
+        "expected fifth-slot pointer loaded after saved frame, return address, and shadow space"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
@@ -34973,15 +34973,20 @@ fn efi_fifth_entry_argument_unmarshals_from_the_ms_x64_stack_area() {
         })
         .expect(".text section should exist");
 
-    // Four 17-byte register stores precede the fifth parameter's 25-byte
-    // stack copy. The source displacement is return address (8) + shadow
-    // space (32), and the destination is the fifth 8-byte frame slot.
-    let stack_copy = &image[text_raw + 68..text_raw + 93];
+    let prologue = [
+        0x53, 0x55, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57,
+    ];
+    assert_eq!(&image[text_raw..text_raw + prologue.len()], &prologue);
+
+    // The fixed 12-byte frame prologue and four 17-byte register stores
+    // precede the fifth parameter's 25-byte stack copy. Its source displacement
+    // is saved frame (64) + return address (8) + shadow space (32).
+    let stack_copy = &image[text_raw + 80..text_raw + 105];
     assert_eq!(&stack_copy[0..2], &[0x49, 0xbf], "mov r15, frame base");
     assert_eq!(
         &stack_copy[10..18],
-        &[0x4c, 0x8b, 0x94, 0x24, 40, 0, 0, 0],
-        "mov r10, [rsp + return-address + shadow-space]"
+        &[0x4c, 0x8b, 0x94, 0x24, 104, 0, 0, 0],
+        "mov r10, [rsp + saved-frame + return-address + shadow-space]"
     );
     assert_eq!(
         &stack_copy[18..25],

@@ -45,10 +45,8 @@ mod tests {
         let host_abi = build_host_abi_plan(target);
         let data = omega_target_operations::TargetDataPlan::default();
         let mut machine_instructions = MachineInstructionPlan::with_capacity(target, 1, 2);
-        // EnterFunction is deliberately zero-width on x86_64 (the backend
-        // manages frames without a prologue), so the function also needs a
-        // LeaveFunction -- which encodes a real `ret` on every architecture --
-        // for the encoded byte count to be observable on any host.
+        // Exercise both halves of the fixed ordinary frame so the semantic
+        // summary test also crosses architecture-specific entry/return bytes.
         let instructions = machine_instructions.code.instructions.insert_many([
             MachineInstruction {
                 selected_instruction_index: 7,
