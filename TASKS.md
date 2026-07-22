@@ -994,11 +994,13 @@ stronger operations it needs instead of citing machine parameters generally.
   resolution, and typed trees; admits it only for a proof-only carrier and a
   checked pure binary relation with structurally matching reflexivity,
   symmetry, and transitivity proof machines; restricts `as` minting to the
-  carrier; and transports a required relation fact into equality of quotient
-  casts. Complete the heterogeneous
-  `data Real = CauchySeq % converges_together` case across machine-indexed
-  carrier instances, attach respect certificates to callable lifted
-  operations, and build the ordinary-core `Real` surface.
+  carrier family (including any concrete machine-indexed instance); and
+  transports a required relation fact into equality of quotient casts. The
+  heterogeneous family boundary is pinned in both directions: distinct
+  `CauchySeq<S>` generators share the quotient while a different data family
+  cannot mint it. Attach respect certificates to callable lifted operations,
+  then build the ordinary-core
+  `data Real = CauchySeq % converges_together` surface.
 - **N7 — nested schemas (complete).** Proof-only data may declare `<machine S>`
   with its mandatory `where machine S(...)` contract. Recursive occurrences
   forward the family parameter, concrete arguments are checked through the full
