@@ -32,9 +32,18 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             "data name `Slice` is reserved: `Slice<T>` is the slice type (alias of `[T]`)",
         ));
     }
-    let (type_parameters, next) = parse_type_parameters(syntax_trees, input)?;
+    // N7: proof-data families may be indexed by static machine symbols using
+    // the same parameter/contract pair as generic machines. The selected
+    // symbol is metadata only; no field stores a callable value.
+    let (type_parameters, next) = parse_machine_type_parameters(syntax_trees, input)?;
     input = next;
     let (properties, next) = parse_property_brackets(input)?;
+    input = next;
+    let ((), next) = crate::parser::machine::parse_machine_parameter_contracts(
+        syntax_trees,
+        type_parameters,
+        input,
+    )?;
     input = next;
     // R2 rung 1 (ch12 "Dependent Data"): the DEFAULT-DOMAIN facts --
     // `data M where count * stride <= len, { ... }` -- bare field names,
@@ -113,8 +122,13 @@ pub(super) fn parse_boundary_data_definition<'tokens, 'source>(
             "data name `Slice` is reserved: `Slice<T>` is the slice type (alias of `[T]`)",
         ));
     }
-    let (type_parameters, input) = parse_type_parameters(syntax_trees, input)?;
+    let (type_parameters, input) = parse_machine_type_parameters(syntax_trees, input)?;
     let (properties, input) = parse_property_brackets(input)?;
+    let ((), input) = crate::parser::machine::parse_machine_parameter_contracts(
+        syntax_trees,
+        type_parameters,
+        input,
+    )?;
     if input.at_contextual("where") {
         return Err(input.error_here(
             "opaque `boundary data` has no visible fields for a default-domain `where` clause",

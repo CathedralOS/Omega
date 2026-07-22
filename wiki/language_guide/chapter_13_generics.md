@@ -142,6 +142,11 @@ Rules:
   against its `where machine` signature and monomorphized per instance like
   every generic. After substitution, each use of `M` is a direct static
   call. No runtime value exists — the parameter is gone by codegen.
+- Recursive proof-only data may use the same form to index a family:
+  `data CauchySeq<machine S> where machine S(index: Nat) -> Rat; { ... }`.
+  A concrete `CauchySeq<leibniz_term>` argument is checked against `S`'s full
+  callable contract. This is schema identity only: finite-layout data rejects
+  machine parameters, and `S` cannot be stored as a field type.
 - Every machine parameter must have an authored `where machine M(...)`
   contract at its declaration. The compiler never infers that abstraction
   from `M(...)` uses or from the machines currently supplied by consumers,

@@ -70,6 +70,13 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
         }
         Item::Data(data_definition) => {
             count_identifier(&data_definition.name, counts);
+            for parameter in syntax_trees
+                .items
+                .type_parameters(data_definition.type_parameters)
+            {
+                count_identifier(&parameter.name, counts);
+                count_type_parameter_kind(syntax_trees, &parameter.kind, counts);
+            }
             for member in syntax_trees.items.data_members(data_definition.members) {
                 match member {
                     crate::item::DataMember::Field(field) => {

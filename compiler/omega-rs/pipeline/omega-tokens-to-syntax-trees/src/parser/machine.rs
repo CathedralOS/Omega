@@ -230,7 +230,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
 /// The parameter list only names symbols (`<machine F>`); every such symbol
 /// must receive exactly one authored `where machine F(...)` requirement before
 /// the executable body's clauses begin. Nothing is inferred from uses.
-fn parse_machine_parameter_contracts<'tokens, 'source>(
+pub(super) fn parse_machine_parameter_contracts<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     type_parameters: HandleSpan<omega_syntax_trees::item::TypeParameter>,
     mut input: Input<'tokens, 'source>,

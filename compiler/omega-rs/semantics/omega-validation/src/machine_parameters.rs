@@ -259,6 +259,46 @@ fn validate_callable_shape(
     );
 }
 
+/// N7 data-family admission uses the same refinement judgment as a generic
+/// call, but its selected symbol is carried in a generic type argument rather
+/// than an expression call node. Keeping this entry point here prevents proof
+/// data from growing a weaker, shape-only callback check.
+pub(crate) fn validate_data_machine_selection(
+    program: &TypedTrees,
+    family_name: &str,
+    parameter: &TypeParameter,
+    requirement: &omega_typed_trees::signature::StateSignature,
+    selected_symbol: SymbolHandle,
+    selected_name: &str,
+    generic_types: &[&TypeParameter],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some((actual_machine, actual_state)) = machine_and_state(program, selected_symbol) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine argument `{selected_name}` for proof data `{family_name}` does not name a callable machine entry"
+        )));
+        return;
+    };
+    if !program.machine_type_parameters(actual_machine).is_empty() {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine argument `{selected_name}` for proof data `{family_name}` is still generic; select a concrete machine symbol"
+        )));
+        return;
+    }
+
+    validate_callable_shape(
+        program,
+        family_name,
+        parameter,
+        requirement,
+        actual_machine,
+        actual_state,
+        generic_types,
+        &mut Vec::new(),
+        diagnostics,
+    );
+}
+
 #[derive(Clone, Copy)]
 struct TypeBinding {
     symbol: SymbolHandle,
@@ -466,16 +506,21 @@ fn contract_kind_name(kind: SignatureContractKind) -> &'static str {
 
 fn machine_and_state(
     program: &TypedTrees,
-    state_symbol: SymbolHandle,
+    selected_symbol: SymbolHandle,
 ) -> Option<(&Machine, &State)> {
-    if !state_symbol.is_valid() {
+    if !selected_symbol.is_valid() {
         return None;
     }
     program.machines().iter().find_map(|machine| {
-        program
-            .machine_states(machine)
+        let states = program.machine_states(machine);
+        states
             .iter()
-            .find(|state| state.symbol == state_symbol)
+            .find(|state| state.symbol == selected_symbol)
+            .or_else(|| {
+                (machine.symbol == selected_symbol)
+                    .then(|| states.first())
+                    .flatten()
+            })
             .map(|state| (machine, state))
     })
 }

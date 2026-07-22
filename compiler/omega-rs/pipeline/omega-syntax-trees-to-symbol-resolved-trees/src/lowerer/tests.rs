@@ -331,10 +331,15 @@ fn resolves_self_parameter_type_to_machine_symbol() {
         .first()
         .expect("self parameter");
 
-    let omega_symbol_resolved_trees::types::TypeReference::SelfType { symbol } =
+    let omega_symbol_resolved_trees::types::TypeReference::Reference(reference) =
         &parameter.type_reference
     else {
-        panic!("self parameter type should stay explicit");
+        panic!("self parameter should retain its authored reference shell");
+    };
+    let omega_symbol_resolved_trees::types::TypeReference::SelfType { symbol } =
+        program.child_type_reference(reference.referee)
+    else {
+        panic!("self parameter referee should stay explicit");
     };
 
     assert_eq!(*symbol, machine.symbol);
