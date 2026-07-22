@@ -157,9 +157,9 @@ struct SegmentSlice {
     is_empty: bool,
     is_tail: bool,
     /// The dispatched call immediately before this segment, if any.
-    previous_boundary: Option<(usize, usize)>,
+    previous_boundary: Option<(usize, usize, StateCallRole)>,
     /// The dispatched call that ends this segment, if any.
-    boundary: Option<(usize, usize)>,
+    boundary: Option<(usize, usize, StateCallRole)>,
 }
 
 /// Compute which operations of `segment_key`'s control-flow state belong to this
@@ -174,19 +174,27 @@ fn segment_filter(
         segment_index: 0,
         ..segment_key
     };
-    let mut boundaries: Vec<(usize, usize)> = context
+    let mut boundaries: Vec<(usize, usize, StateCallRole)> = context
         .state_calls
         .calls
         .iter()
         .map(|(_, state_call)| state_call)
         .filter(|state_call| state_call.source_key == control_key)
         .filter(|state_call| state_call_splits_runtime_body(context, state_call))
-        .map(|state_call| (state_call.statement_index, state_call.call_ordinal))
+        .map(|state_call| {
+            (
+                state_call.statement_index,
+                state_call.call_ordinal,
+                state_call.role,
+            )
+        })
         .collect();
     if boundaries.is_empty() {
         return None;
     }
-    boundaries.sort_unstable();
+    boundaries.sort_unstable_by_key(|(statement_index, call_ordinal, _)| {
+        (*statement_index, *call_ordinal)
+    });
 
     let count = boundaries.len();
     let segment = segment_key.segment_index;
@@ -251,7 +259,9 @@ fn append_state_body_operations(
         if let Some(slice) = segment
             && slice
                 .boundary
-                .is_some_and(|(statement_index, _)| statement_index == operation.statement_index)
+                .is_some_and(|(statement_index, _, _)| {
+                    statement_index == operation.statement_index
+                })
         {
             append_call_argument_operations_for_segment(
                 context,
@@ -629,15 +639,17 @@ fn append_call_argument_operations_for_segment(
         let follows_previous =
             segment
                 .previous_boundary
-                .is_none_or(|(previous_statement, previous_ordinal)| {
+                .is_none_or(|(previous_statement, previous_ordinal, previous_role)| {
                     statement_index != previous_statement
-                        || state_call.call_ordinal > previous_ordinal
+                        || (previous_role != StateCallRole::Statement
+                            && state_call.call_ordinal > previous_ordinal)
                 });
         let precedes_boundary =
             segment
                 .boundary
-                .is_none_or(|(boundary_statement, boundary_ordinal)| {
+                .is_none_or(|(boundary_statement, boundary_ordinal, boundary_role)| {
                     statement_index != boundary_statement
+                        || boundary_role == StateCallRole::Statement
                         || state_call.call_ordinal < boundary_ordinal
                 });
         if follows_previous && precedes_boundary {

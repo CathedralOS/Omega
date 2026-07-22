@@ -246,9 +246,12 @@ schemas recover the same instance without publishing policy type identity.
    booleans, while terminal `min`/`max`/`sqrt` builtins receive result scratch
    only when their builtin symbol matches. Native canaries pin `a < b` as exit 1
    and `max(a, b)` as exit 70. Dispatch-local initialization now consumes an
-   assignment value-call's already-materialized result before considering the
-   copied initializer expression, preserving single evaluation and preventing
-   a bare callee body from being rebound against unrelated caller-frame slots.
+   bare assignment value-call's already-materialized result before considering
+   the copied initializer expression, preserving single evaluation and
+   preventing a bare callee body from being rebound against unrelated
+   caller-frame slots. Compound initializers still lower the full expression;
+   their call-result slots are operands rather than replacements for the
+   surrounding arithmetic.
    Authored scalar helper calls in entry-terminal position already preserve the
    callee's native result register through entry termination; the former
    compile-only free-standing `add_i32(3, 4)` canary now executes and pins exit 7.
