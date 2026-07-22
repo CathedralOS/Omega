@@ -1,0 +1,3 @@
+machine TestHarness::build(&mut self, b: &mut Build) {
+    b.select_provider<Pick, TestProvider>();
+}

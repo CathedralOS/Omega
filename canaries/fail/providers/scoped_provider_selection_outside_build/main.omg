@@ -1,0 +1,25 @@
+// An attached `Owner::build` has provider-selection authority only at a
+// build.omg root. The same spelling in ordinary source remains an ordinary
+// runtime machine and must not gain the toolchain Build vocabulary or marker.
+boundary trait Pick {
+    machine choose() -> i32;
+}
+
+data FirstProvider { }
+machine FirstProvider::choose() -> i32 satisfies Pick::choose {
+    transition { _ -> (1) }
+}
+
+data SecondProvider { }
+machine SecondProvider::choose() -> i32 satisfies Pick::choose {
+    transition { _ -> (2) }
+}
+
+data Build { }
+data ComponentOwner { }
+machine ComponentOwner::build(&mut self, b: &mut Build) {
+    b.select_provider<Pick, SecondProvider>();
+}
+
+data Main { }
+machine Main::main(&mut self) { }

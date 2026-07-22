@@ -125,11 +125,12 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
 }
 
 /// The TOOLCHAIN-PROVIDED build vocabulary (build_and_package_model.md): a
-/// build.omg is just `machine build(b: &mut Build) { ... }` -- the `Build` /
-/// `Subsystem` types are CORE-DEFINED, never authored per file. When the
-/// program declares a `build` machine and no `Build` data of its own, the
-/// prelude is injected as a virtual source (a program-declared `Build` wins,
-/// which keeps migration and deliberate overrides possible).
+/// build.omg is just `machine build(b: &mut Build) { ... }` or the scoped
+/// `machine Owner::build(&mut self, b: &mut Build) { ... }` -- the `Build` /
+/// `Subsystem` types are CORE-DEFINED, never authored per file. When a
+/// build.omg root declares either build-machine shape and no `Build` data of
+/// its own, the prelude is injected as a virtual source (a program-declared
+/// `Build` wins, which keeps migration and deliberate overrides possible).
 const BUILD_PRELUDE: &str = r#"
 // Toolchain-provided build vocabulary (virtual source; build_and_package_model.md).
 data Subsystem {
@@ -156,10 +157,14 @@ fn inject_build_prelude(
     let mut has_build_machine = false;
     let mut has_build_data = false;
     for (_, file) in source_storage.files.iter() {
+        let is_build_file =
+            file.path.file_name().and_then(|name| name.to_str()) == Some("build.omg");
         for root_item in &file.root_items {
             match source_storage.syntax_trees.root_item(*root_item) {
                 omega_syntax_trees::item::Item::Machine(machine)
-                    if machine.name.as_str() == "build" =>
+                    if is_build_file
+                        && (machine.name.as_str() == "build"
+                            || machine.name.as_str().ends_with("::build")) =>
                 {
                     has_build_machine = true;
                 }

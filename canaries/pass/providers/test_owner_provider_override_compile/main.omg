@@ -1,0 +1,20 @@
+// PRV4c: a test harness owning a boundary slot may select one complete
+// provider type without reconstructing rows. Like component ownership, this
+// is the attached build-machine form of the existing selection contract.
+boundary trait Pick {
+    machine choose() -> i32;
+}
+
+data ProductionProvider { }
+machine ProductionProvider::choose() -> i32 satisfies Pick::choose {
+    transition { _ -> (1) }
+}
+
+data TestProvider { }
+machine TestProvider::choose() -> i32 satisfies Pick::choose {
+    transition { _ -> (2) }
+}
+
+data TestHarness { }
+data Main { }
+machine Main::main(&mut self) { }
