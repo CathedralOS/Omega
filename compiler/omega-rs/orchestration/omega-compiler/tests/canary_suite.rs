@@ -1010,6 +1010,14 @@ fn contract_canary_visualizes_flow_contract_summaries() {
             && boundary_footprints.contains("\"fragments\""),
         "boundary footprint artifact should publish post-emission retained evidence bound to its validated contract without claiming final completeness"
     );
+    let compiler_entry_region = executable_regions
+        .lines()
+        .find(|line| line.contains("\"origin\": \"compiler_function\""))
+        .expect("final inventory should contain the compiler entry function");
+    assert!(
+        compiler_entry_region.contains("\"footprint\": {\"fingerprint\": \"0x"),
+        "the exact placed compiler entry region must retain its composed encoded-machine footprint:\n{compiler_entry_region}"
+    );
     assert!(
         executable_regions.contains("\"placement_stage\": \"final_image\"")
             && executable_regions.contains("\"origin\": \"compiler_function\"")

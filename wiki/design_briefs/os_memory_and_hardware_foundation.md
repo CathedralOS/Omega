@@ -444,6 +444,10 @@ bind those records to the exact relocated bytes. The artifact repeats the exact
 boundary-contract and composed implementation-evidence identities from the
 encoded carrier and hashes them with the final inventory identity, preventing a
 placement record from being substituted across contracts or implementations.
+When a boundary contract is retained, the composed encoded-machine evidence is
+also attached to exactly one placed compiler entry-function region. Final
+inventory emission rejects a missing or duplicate entry-symbol match, so the
+handler evidence cannot float beside an unrelated compiler-function span.
 The format writers also validate their own exact final import-thunk encodings
 after patching and relocation. PE `jmp [rip+disp32]` carries an
 instruction-pointer-only footprint; Mach-O `ADRP/LDR/BR X16` carries X16 plus
@@ -452,7 +456,8 @@ attached per-region evidence participates in the inventory fingerprint.
 The inventory explicitly lists relaxation products, veneers, generated stubs,
 and admitted leaves as missing classes, so this new post-layout seam cannot
 accidentally promote the partial evidence to a complete certificate.
-The final certificate must still aggregate StatePlan-driven nonordinary
+The final certificate must still decode and validate compiler-function bytes,
+then aggregate StatePlan-driven nonordinary
 save/restore and return sequences, decoded compiler-function handler regions,
 relaxation products, veneers, generated stubs, and admitted indirect leaves
 after final placement.
