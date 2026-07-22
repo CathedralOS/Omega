@@ -82,6 +82,32 @@ fn write_executable_region_inventory(
         output.push('"');
     }
 
+    fn push_footprint(
+        output: &mut String,
+        footprint: Option<&omega_calling_conventions::StateFootprintEvidence>,
+    ) {
+        let Some(footprint) = footprint else {
+            output.push_str("null");
+            return;
+        };
+        output.push_str("{\"fingerprint\": ");
+        push_string(
+            output,
+            &format!("0x{:016x}", footprint.evidence_fingerprint()),
+        );
+        output.push_str(&format!(
+            ", \"machine_state_bits\": {}, \"registers\": [",
+            footprint.machine_state().bits()
+        ));
+        for (index, register) in footprint.registers().as_slice().iter().enumerate() {
+            if index > 0 {
+                output.push_str(", ");
+            }
+            push_string(output, &format!("{register:?}"));
+        }
+        output.push_str("]}");
+    }
+
     let implementation_evidence_fingerprint = footprints.composed_evidence().evidence_fingerprint();
     let binding_fingerprint = boundary_placement_binding_fingerprint(
         footprints.boundary_contract_fingerprint,
@@ -120,9 +146,11 @@ fn write_executable_region_inventory(
         json.push_str(", \"symbol\": ");
         push_string(&mut json, &region.symbol);
         json.push_str(&format!(
-            ", \"section_offset\": {}, \"address\": \"0x{:016x}\", \"byte_count\": {}, \"byte_fingerprint\": \"0x{:016x}\"}}",
+            ", \"section_offset\": {}, \"address\": \"0x{:016x}\", \"byte_count\": {}, \"byte_fingerprint\": \"0x{:016x}\", \"footprint\": ",
             region.section_offset, region.address, region.byte_count, region.byte_fingerprint
         ));
+        push_footprint(&mut json, region.footprint.as_ref());
+        json.push('}');
     }
     if !inventory.regions.is_empty() {
         json.push('\n');

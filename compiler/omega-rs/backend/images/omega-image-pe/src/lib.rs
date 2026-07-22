@@ -15,7 +15,10 @@ mod sections;
 use constants::TEXT_RVA;
 use entry::pe_entry_rva;
 use headers::{PeHeaderInput, write_dos_header, write_pe_headers, write_section_header};
-use imports::{build_import_table, install_import_thunks, patch_import_thunks};
+use imports::{
+    build_import_table, install_import_thunks, patch_import_thunks,
+    validate_import_thunk_footprints,
+};
 use sections::plan_pe_sections;
 
 pub fn emit_pe_x86_64_executable(
@@ -35,6 +38,7 @@ pub fn emit_pe_x86_64_executable(
 
     patch_import_thunks(&mut image, &layout, &import_thunks, &import_table.iat_rvas)?;
     apply_x86_64_relocations(&mut image, &layout, "PE direct executable")?;
+    validate_import_thunk_footprints(&mut image, &import_thunks)?;
     let executable_regions = place_executable_regions(&image, layout)?;
 
     let entry_rva = pe_entry_rva(&image)?;

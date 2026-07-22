@@ -13,6 +13,10 @@ pub struct FinalExecutableRegion {
     pub section_offset: usize,
     pub byte_count: usize,
     pub symbol: String,
+    /// Exact register/machine-state writes derived from final bytes when this
+    /// region has a closed format-owned encoding. Compiler functions retain
+    /// their composed evidence in the semantic boundary carrier instead.
+    pub footprint: Option<omega_calling_conventions::StateFootprintEvidence>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,6 +27,7 @@ pub struct PlacedExecutableRegion {
     pub byte_count: usize,
     pub byte_fingerprint: u64,
     pub symbol: String,
+    pub footprint: Option<omega_calling_conventions::StateFootprintEvidence>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -107,6 +112,7 @@ pub fn place_executable_regions(
             byte_count: region.byte_count,
             byte_fingerprint: byte_fingerprint(&image.memory.text[region.section_offset..end]),
             symbol: region.symbol,
+            footprint: region.footprint,
         });
     }
     if cursor < image.memory.text.len() {
@@ -187,6 +193,13 @@ fn executable_inventory_fingerprint(
         fingerprint_bytes(&mut hash, &region.byte_fingerprint.to_le_bytes());
         fingerprint_bytes(&mut hash, region.symbol.as_bytes());
         fingerprint_bytes(&mut hash, &[0]);
+        match &region.footprint {
+            Some(footprint) => {
+                fingerprint_bytes(&mut hash, &[1]);
+                fingerprint_bytes(&mut hash, &footprint.evidence_fingerprint().to_le_bytes());
+            }
+            None => fingerprint_bytes(&mut hash, &[0]),
+        }
     }
     for gap in gaps {
         fingerprint_bytes(&mut hash, &(gap.section_offset as u64).to_le_bytes());
@@ -228,12 +241,14 @@ mod tests {
                 section_offset: 0,
                 byte_count: 4,
                 symbol: "entry".into(),
+                footprint: None,
             },
             FinalExecutableRegion {
                 origin: FinalExecutableRegionOrigin::ImportThunk,
                 section_offset: 8,
                 byte_count: 4,
                 symbol: "host_call".into(),
+                footprint: None,
             },
         ]);
 
@@ -280,12 +295,14 @@ mod tests {
                 section_offset: 0,
                 byte_count: 6,
                 symbol: "entry".into(),
+                footprint: None,
             },
             FinalExecutableRegion {
                 origin: FinalExecutableRegionOrigin::ImportThunk,
                 section_offset: 4,
                 byte_count: 4,
                 symbol: "host_call".into(),
+                footprint: None,
             },
         ]);
 

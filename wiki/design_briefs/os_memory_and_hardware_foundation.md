@@ -444,12 +444,18 @@ bind those records to the exact relocated bytes. The artifact repeats the exact
 boundary-contract and composed implementation-evidence identities from the
 encoded carrier and hashes them with the final inventory identity, preventing a
 placement record from being substituted across contracts or implementations.
+The format writers also validate their own exact final import-thunk encodings
+after patching and relocation. PE `jmp [rip+disp32]` carries an
+instruction-pointer-only footprint; Mach-O `ADRP/LDR/BR X16` carries X16 plus
+instruction-pointer effects. Opcode mutations reject before placement, and the
+attached per-region evidence participates in the inventory fingerprint.
 The inventory explicitly lists relaxation products, veneers, generated stubs,
 and admitted leaves as missing classes, so this new post-layout seam cannot
 accidentally promote the partial evidence to a complete certificate.
 The final certificate must still aggregate StatePlan-driven nonordinary
-save/restore and return sequences, relaxation products, veneers/thunks,
-generated stubs, and admitted indirect leaves after final placement.
+save/restore and return sequences, decoded compiler-function handler regions,
+relaxation products, veneers, generated stubs, and admitted indirect leaves
+after final placement.
 
 ## Symbolic materialization and admitted executable installation
 

@@ -40,6 +40,7 @@ pub(super) fn copy_object_executable_regions(image: &mut FinalImage, object: &Ob
                 section_offset: symbol.offset,
                 byte_count: symbol.size,
                 symbol: symbol.name.clone(),
+                footprint: None,
             }),
     );
 }

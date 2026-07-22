@@ -1,6 +1,9 @@
 use crate::layout::align_to;
 use crate::load_commands::MachoDylib;
-use omega_calling_conventions::{DARWIN_LIBOBJC_PATH, darwin_import_library};
+use omega_calling_conventions::{
+    DARWIN_LIBOBJC_PATH, MachineRegister, MachineState, MachineStateSet, RegisterSet,
+    StateFootprintEvidence, darwin_import_library,
+};
 use omega_core::diagnostics::Diagnostic;
 use omega_image::{
     FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageLayout,
@@ -130,6 +133,7 @@ pub(crate) fn install_import_thunks(image: &mut FinalImage) -> Vec<MachoImportTh
             section_offset: text_offset,
             byte_count: 12,
             symbol: symbol.clone(),
+            footprint: None,
         });
 
         let library = darwin_import_library(&symbol);
@@ -168,6 +172,65 @@ pub(crate) fn patch_import_thunks(
         write_u32_at(&mut image.memory.text, thunk.text_offset + 8, 0xd61f_0200)?;
     }
 
+    Ok(())
+}
+
+/// Validate the final patched Mach-O thunk opcode shape and attach its exact
+/// architectural effect. The fixed sequence uses X16 as its sole scratch
+/// register and transfers control without changing flags, stack, or vectors.
+pub(crate) fn validate_import_thunk_footprints(
+    image: &mut FinalImage,
+    thunks: &[MachoImportThunk],
+) -> Result<(), Diagnostic> {
+    for thunk in thunks {
+        let end = thunk.text_offset.checked_add(12).ok_or_else(|| {
+            Diagnostic::error(format!(
+                "Mach-O import thunk `{}` range overflows",
+                thunk.symbol
+            ))
+        })?;
+        let bytes = image
+            .memory
+            .text
+            .get(thunk.text_offset..end)
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "Mach-O import thunk `{}` is out of final .text bounds",
+                    thunk.symbol
+                ))
+            })?;
+        let adrp = u32::from_le_bytes(bytes[0..4].try_into().expect("four-byte ADRP"));
+        let ldr = u32::from_le_bytes(bytes[4..8].try_into().expect("four-byte LDR"));
+        let br = u32::from_le_bytes(bytes[8..12].try_into().expect("four-byte BR"));
+        if adrp & 0x9f00_001f != 0x9000_0010
+            || ldr & 0xffc0_03ff != 0xf940_0210
+            || br != 0xd61f_0200
+        {
+            return Err(Diagnostic::error(format!(
+                "Mach-O import thunk `{}` does not match ADRP X16; LDR X16, [X16, #imm]; BR X16",
+                thunk.symbol
+            )));
+        }
+        let region = image
+            .executable_regions
+            .iter_mut()
+            .find(|region| {
+                region.origin == FinalExecutableRegionOrigin::ImportThunk
+                    && region.section_offset == thunk.text_offset
+                    && region.byte_count == 12
+                    && region.symbol == thunk.symbol
+            })
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "Mach-O import thunk `{}` is missing its executable-region record",
+                    thunk.symbol
+                ))
+            })?;
+        region.footprint = Some(StateFootprintEvidence::new(
+            RegisterSet::new([MachineRegister::Aarch64X(16)]),
+            MachineStateSet::new([MachineState::InstructionPointer]),
+        ));
+    }
     Ok(())
 }
 
@@ -270,15 +333,15 @@ fn write_u32_at(text: &mut [u8], offset: usize, value: u32) -> Result<(), Diagno
 
 #[cfg(test)]
 mod tests {
-    use super::install_import_thunks;
+    use super::{install_import_thunks, patch_import_thunks, validate_import_thunk_footprints};
+    use omega_calling_conventions::MachineRegister;
     use omega_core::arena::Handle;
     use omega_image::{
-        FinalExecutableRegionOrigin, FinalImage, FinalImageImport, FinalImageRelocation,
-        FinalImageSymbol,
+        FinalExecutableRegionOrigin, FinalImage, FinalImageImport, FinalImageLayout,
+        FinalImageRelocation, FinalImageSymbol,
     };
 
-    #[test]
-    fn installed_import_thunks_enter_the_executable_region_inventory() {
+    fn image_with_referenced_import() -> FinalImage {
         let mut image = FinalImage::with_capacity(
             FinalImage::default().target,
             Default::default(),
@@ -302,8 +365,30 @@ mod tests {
                 symbol_handle: symbol,
                 ..FinalImageRelocation::default()
             });
+        image
+    }
+
+    fn patch_test_thunks(image: &mut FinalImage, thunks: &[super::MachoImportThunk]) {
+        patch_import_thunks(
+            image,
+            &FinalImageLayout {
+                text_address: 0x1000,
+                data_address: 0x2000,
+                bss_address: 0x3000,
+            },
+            thunks,
+        )
+        .expect("test Mach-O thunk should patch");
+    }
+
+    #[test]
+    fn installed_import_thunks_enter_the_executable_region_inventory() {
+        let mut image = image_with_referenced_import();
 
         let thunks = install_import_thunks(&mut image);
+        patch_test_thunks(&mut image, &thunks);
+        validate_import_thunk_footprints(&mut image, &thunks)
+            .expect("patched Mach-O thunk bytes should validate");
 
         assert_eq!(thunks.len(), 1);
         assert_eq!(image.executable_regions.len(), 1);
@@ -313,5 +398,26 @@ mod tests {
         );
         assert_eq!(image.executable_regions[0].byte_count, 12);
         assert_eq!(image.executable_regions[0].symbol, "_write");
+        let footprint = image.executable_regions[0]
+            .footprint
+            .as_ref()
+            .expect("validated thunk should carry footprint evidence");
+        assert!(
+            footprint
+                .registers()
+                .contains(MachineRegister::Aarch64X(16))
+        );
+    }
+
+    #[test]
+    fn mutated_import_thunk_opcode_rejects_final_validation() {
+        let mut image = image_with_referenced_import();
+        let thunks = install_import_thunks(&mut image);
+        patch_test_thunks(&mut image, &thunks);
+        image.memory.text[9] = 0;
+
+        let diagnostic = validate_import_thunk_footprints(&mut image, &thunks)
+            .expect_err("mutated Mach-O thunk opcode must reject");
+        assert!(diagnostic.message.contains("ADRP X16"));
     }
 }
