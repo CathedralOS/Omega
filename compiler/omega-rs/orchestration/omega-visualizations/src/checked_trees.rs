@@ -415,7 +415,45 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
 
         json.push_str(",\n      \"implementation\": {");
         let mut has_implementation_field = false;
+        if let Some(contract) = program.facts.contract_plans.for_machine(machine.symbol) {
+            json.push_str("\n        \"inferred_write_frames\": [");
+            for (frame_index, state_frame) in contract.inferred_write_frames.iter().enumerate() {
+                if frame_index > 0 {
+                    json.push(',');
+                }
+                let state_name = program
+                    .machine_states(machine)
+                    .iter()
+                    .find(|state| state.symbol == state_frame.state)
+                    .map(|state| state.name.as_str())
+                    .unwrap_or("<unknown>");
+                json.push_str("\n          {\"state\": ");
+                push_json_string(&mut json, state_name);
+                json.push_str(", \"completeness\": ");
+                push_json_string(
+                    &mut json,
+                    match state_frame.frame.completeness() {
+                        omega_facts::WriteFrameCompleteness::Complete => "complete",
+                        omega_facts::WriteFrameCompleteness::Opaque => "opaque",
+                    },
+                );
+                json.push_str(", \"fingerprint\": \"0x");
+                json.push_str(&format!("{:016x}", state_frame.frame.fingerprint()));
+                json.push_str("\", \"paths\": [");
+                push_json_strings(&mut json, state_frame.frame.paths());
+                json.push_str("]}");
+            }
+            if !contract.inferred_write_frames.is_empty() {
+                json.push('\n');
+                json.push_str("        ");
+            }
+            json.push(']');
+            has_implementation_field = true;
+        }
         if let Some(fact) = program.facts.termination.for_machine(machine.symbol) {
+            if has_implementation_field {
+                json.push(',');
+            }
             json.push_str("\n        \"checked_termination\": ");
             push_termination_json(&mut json, &fact.checked_summary);
             json.push_str(",\n        \"resolved_ranking_view\": ");
@@ -1408,6 +1446,7 @@ mod tests {
                 supply_mode: MachineSupplyMode::CheckedBody,
                 published_effect_row: EffectRowId::NULL,
                 published_termination: TerminationGuarantee::NoGuarantee,
+                inferred_write_frames: Vec::new(),
                 fingerprint: 0x1234,
             });
         program
@@ -1431,7 +1470,9 @@ mod tests {
 
         assert!(contract.contains("\"fingerprint\": \"0x0000000000001234\""));
         assert!(contract.contains("\"kind\": \"no_guarantee\""));
+        assert!(!contract.contains("inferred_write_frames"));
         assert!(!contract.contains("remaining"));
+        assert!(json[implementation_start..].contains("\"inferred_write_frames\": []"));
         assert!(json[implementation_start..].contains("\"kind\": \"eventual_terminal\""));
         assert!(json[implementation_start..].contains("\"subjects\": [\"remaining\"]"));
         assert!(json[implementation_start..].contains("\"view\": \"Nat::Descending\""));

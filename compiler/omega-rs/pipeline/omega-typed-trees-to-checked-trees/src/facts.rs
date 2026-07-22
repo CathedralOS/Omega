@@ -92,6 +92,7 @@ fn build_contract_plans(
     effect_rows: &omega_checked_trees::EffectRowFacts,
 ) -> omega_checked_trees::MachineContractPlans {
     let mut machines = Vec::new();
+    let frame_resolver = omega_validation::CallFrameResolver::new(program);
     for machine in program.machines() {
         let published_effect_row = machine.effect_row;
         let members = effect_rows.rows.members(published_effect_row).to_vec();
@@ -244,11 +245,24 @@ fn build_contract_plans(
             &published_termination,
             &canonical_facts,
         );
+        let inferred_write_frames = program
+            .machine_states(machine)
+            .iter()
+            .map(|state| omega_checked_trees::StateWriteFramePlan {
+                state: state.symbol,
+                frame: frame_resolver
+                    .as_ref()
+                    .map_or_else(omega_facts::NormalizedWriteFrame::opaque, |resolver| {
+                        resolver.inferred_state_write_frame(machine, state)
+                    }),
+            })
+            .collect();
         machines.push(omega_checked_trees::MachineContractPlan {
             machine: machine.symbol,
             supply_mode: machine.supply_mode,
             published_effect_row,
             published_termination,
+            inferred_write_frames,
             fingerprint,
         });
     }

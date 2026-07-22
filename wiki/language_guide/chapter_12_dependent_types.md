@@ -325,8 +325,13 @@ ensures self.len == n + 1
 
 **Design status:** the upper-bound and trust semantics above are settled, but
 the public clause keyword/spelling is still provisional. Compiler work may
-continue on normalized write-frame plans and manifest identity; source syntax
-must not be minted until the spelling is frozen.
+continue without source syntax: inferred intra-unit frames are already stored
+per state as normalized complete-or-opaque checked plans. Complete paths sort
+and deduplicate, state parameters normalize positionally, and each frame has a
+deterministic implementation fingerprint. The machine-contract artifact places
+these plans under `implementation`; they never enter the authored contract or
+specialization fingerprint. Source syntax must not be minted until the spelling
+is frozen.
 
 A state's signature is its arrival contract. Parameter refinements —
 dependent ones included — plus an explicit state-level `requires` are proven
