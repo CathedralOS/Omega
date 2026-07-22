@@ -1,7 +1,7 @@
 // P4d: platform blocks are retired -- a host surface is a boundary trait
 // with declared effects rows (std's Console is the model).
 platform Console {
-    entry write_line(text: String);
+    entry write_line(text: &[u8]);
 }
 data Main { console: Console; }
 machine Main::main(&mut self) {}

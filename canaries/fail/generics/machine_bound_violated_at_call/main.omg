@@ -1,10 +1,10 @@
 // Frozen decision 13 residue: machine-call monomorphization arguments are
 // bound-checked. `copy_it<T [copy]>` demands a `[copy]` argument type at
-// every call-site instantiation; `Heavy` owns a String, declares no
+// every call-site instantiation; `Heavy` declares no
 // properties, and is rejected.
 
 data Heavy {
-    note: String;
+    note: i64;
 }
 
 data Main {

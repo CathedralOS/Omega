@@ -2,7 +2,7 @@
 // element-wise equality, so it reached the backend as a multi-byte runtime
 // compare it cannot encode ("cannot load N-byte runtime operands"). Rejected at
 // check now with a precise message (element-wise array equality is a possible
-// future feature). Struct `==` (structural) and String `==` stay valid.
+// future feature). Struct `==` (structural) stays valid.
 use omega::language::std::console;
 data Main { console: Console; xs: [i32; 3]; ys: [i32; 3]; }
 machine Main::main(&mut self) {

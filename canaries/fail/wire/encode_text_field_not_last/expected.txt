@@ -1,0 +1,1 @@
+data `LabelMessage` field `label`: a runtime-sized text field must carry the schema's highest field number so it encodes last

@@ -1,8 +1,10 @@
 // Chapter 3: every reachable terminal path in a typed machine must produce a
 // value compatible with the declared return type. Here the terminal expression
-// is a String where the signature declares i32.
-data Main {}
+// is a bool where the signature declares i32.
+data Main {
+    flag: bool;
+}
 
 machine Main::main(&mut self) -> i32 {
-    "hello"
+    self.flag
 }

@@ -5,17 +5,16 @@
 // requirement so the standard Console adapter cannot mask the signature error
 // with a duplicate-adapter diagnostic.
 boundary trait TestConsole {
-    machine write_line(text: String)
+    machine write_line(text: &[u8])
     effects
         stdout_io;
 }
 
 data Main {
     console: TestConsole;
-    text: String;
 }
 
-machine write_line_bad(code: i32, text: String) satisfies TestConsole::write_line
+machine write_line_bad(code: i32, text: &[u8]) satisfies TestConsole::write_line
 effects
     stdout_io
 {
@@ -23,6 +22,5 @@ effects
 }
 
 machine Main::main(&mut self) {
-    self.text = "Hi";
-    self.console.write_line(self.text);
+    self.console.write_line("Hi");
 }

@@ -555,9 +555,9 @@ fn validate_wire_encode_call(
         return;
     }
 
-    // Schema side: the stage 2a scalar set plus String plus nested message
-    // fields, and the worst-case byte budget the out buffer must cover (era
-    // varint + per-field tag varint + max value varint; a String field
+    // Schema side: the stage 2a scalar set plus runtime-sized text plus nested
+    // message fields, and the worst-case byte budget the out buffer must cover (era
+    // varint + per-field tag varint + max value varint; a text field
     // budgets its tag + max length varint -- its CONTENT is runtime-sized, so
     // the emitted byte-copy is the one append that bounds-checks against the
     // buffer at runtime instead; a nested message field budgets its tag + the
@@ -570,9 +570,8 @@ fn validate_wire_encode_call(
         Vec::new();
     let mut text_fields: Vec<&WireField> = Vec::new();
     // Borrowed byte slices `&[u8]`: the zero-copy RAW-bytes/text field. Encodes
-    // exactly like the old String content (length varint + raw bytes) and rides
-    // the same runtime-sized Text constraints (at most one, encodes last), but
-    // matches a `&[u8]` value field rather than an owned `String`.
+    // as length varint + raw bytes, rides the same runtime-sized Text constraints
+    // (at most one, encodes last), and matches a `&[u8]` value field.
     let mut byte_slice_fields: Vec<&WireField> = Vec::new();
     let mut max_field_number = i64::MIN;
     let mut schema_rejects = false;
@@ -584,9 +583,9 @@ fn validate_wire_encode_call(
         // byte-length varint + back-to-back element varints (protobuf's
         // packed encoding). The declared maximum bounds it statically, so it
         // joins the worst-case budget like a scalar and may sit anywhere.
-        // Only scalar elements are honest today: a String element is
-        // runtime-sized and a nested-message element would need per-element
-        // staging, so both reject loudly.
+        // Only scalar elements are honest today: a text element is runtime-sized
+        // and a nested-message element would need per-element staging, so both
+        // reject loudly.
         if let Some((_, max_count)) = program.wire_field_fixed_array(field) {
             if field.number < 0 {
                 diagnostics.push(Diagnostic::error(format!(
@@ -598,7 +597,7 @@ fn validate_wire_encode_call(
             }
             let Some(repeated) = program.wire_field_repeated_encoding(field) else {
                 diagnostics.push(Diagnostic::error(format!(
-                    "data `{}` field `{}`: a repeated wire field's element must be a stage 2 scalar (i32, i64, u32, u64, bool); `{}` is not supported (repeated String and repeated nested messages reject until they have an honest encoding)",
+                    "data `{}` field `{}`: a repeated wire field's element must be a stage 2 scalar (i32, i64, u32, u64, bool); `{}` is not supported (repeated runtime-sized text and repeated nested messages reject until they have an honest encoding)",
                     schema.name,
                     field.name,
                     program.display_type_reference(field.type_reference)
@@ -615,7 +614,7 @@ fn validate_wire_encode_call(
             continue;
         }
         // A borrowed byte slice `&[u8]` encodes as RAW bytes (length varint +
-        // the bytes), runtime-sized like the old String content, so it joins
+        // the bytes), runtime-sized, so it joins
         // `text_fields` (at most one, must encode last) and matches a `&[u8]`
         // value field below. (A `[u8; N]` owned array is a repeated field,
         // handled above; only the borrowed slice reaches here.)
@@ -642,7 +641,7 @@ fn validate_wire_encode_call(
         let nested = program.wire_field_nested_schema(field);
         if encoding.is_none() && nested.is_none() {
             diagnostics.push(Diagnostic::error(format!(
-                "data `{}` field `{}`: `{}` is not encodable by the compact_binary v0 encoder yet; wire stage 2 supports i32, i64, u32, u64, bool, String, and a sibling wire schema (one nesting level)",
+                "data `{}` field `{}`: `{}` is not encodable by the compact_binary v0 encoder yet; wire stage 2 supports i32, i64, u32, u64, bool, runtime-sized text (`&[u8] in Utf8`), and a sibling wire schema (one nesting level)",
                 schema.name,
                 field.name,
                 program.display_type_reference(field.type_reference)
@@ -665,12 +664,12 @@ fn validate_wire_encode_call(
             // sub-message's fields WITHOUT an era discriminator (decision 10:
             // the era rides only the top-level envelope). The whole framing
             // is statically bounded, so it joins the worst-case budget like a
-            // scalar -- but only a scalar-only child body is bounded: String
-            // content is runtime-sized and a doubly-nested body would need a
-            // second staging region, so both reject (one honest level first).
+            // scalar -- but only a scalar-only child body is bounded: text content
+            // is runtime-sized and a doubly-nested body would need a second staging
+            // region, so both reject (one honest level first).
             let Some(nested_worst) = program.wire_nested_field_worst_case(child) else {
                 diagnostics.push(Diagnostic::error(format!(
-                    "data `{}` field `{}`: nested wire schema `{}` must contain only scalar fields (i32, i64, u32, u64, bool); String and doubly-nested message fields inside a nested message are not supported yet",
+                    "data `{}` field `{}`: nested wire schema `{}` must contain only scalar fields (i32, i64, u32, u64, bool); runtime-sized text and doubly-nested message fields inside a nested message are not supported yet",
                     schema.name, field.name, child.name
                 )));
                 schema_rejects = true;
@@ -693,22 +692,22 @@ fn validate_wire_encode_call(
             };
         current_fields.push((field, primitive.expect("encoding implies primitive")));
     }
-    // A String field's byte count is runtime-sized, so every append AFTER it
+    // A text field's byte count is runtime-sized, so every append AFTER it
     // would run with the compile-time capacity guarantee already spent. The
-    // encoder therefore takes at most ONE String field, and it must encode
-    // LAST (the highest field number); everything before it stays covered by
-    // the worst-case budget, and the trailing byte-copy is runtime-bounded.
+    // encoder therefore takes at most ONE runtime-sized text field, and it must
+    // encode LAST (the highest field number); everything before it stays covered
+    // by the worst-case budget, and the trailing byte-copy is runtime-bounded.
     if let [first_text, more_text @ ..] = text_fields.as_slice() {
         for field in more_text {
             diagnostics.push(Diagnostic::error(format!(
-                "data `{}` field `{}`: the compact_binary v0 encoder supports at most one String field per message (String content is runtime-sized, so only the final field can be unbounded)",
+                "data `{}` field `{}`: the compact_binary v0 encoder supports at most one runtime-sized text field per message (text content is runtime-sized, so only the final field can be unbounded)",
                 schema.name, field.name
             )));
             schema_rejects = true;
         }
         if more_text.is_empty() && first_text.number != max_field_number {
             diagnostics.push(Diagnostic::error(format!(
-                "data `{}` field `{}`: a String field must carry the schema's highest field number so it encodes last; its byte count is runtime-sized, and any field after it would lose the compile-time out-buffer guarantee",
+                "data `{}` field `{}`: a runtime-sized text field must carry the schema's highest field number so it encodes last; its byte count is runtime-sized, and any field after it would lose the compile-time out-buffer guarantee",
                 schema.name, first_text.name
             )));
             schema_rejects = true;
