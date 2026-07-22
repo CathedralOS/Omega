@@ -1,0 +1,46 @@
+// SOUNDNESS BOUNDARY: the arrival contract supplies
+// `self.limit < self.items.len`, and every incoming edge guards i by limit, but
+// a sibling can replace limit before the indexed read. Its overlapping frame
+// blocks the composed loop-head relation.
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
+
+data Main {
+    items: [u8; 8] in Utf8;
+    i: u64;
+    limit: u64;
+    value: u8;
+}
+
+machine Main::run(&mut self) { }
+
+machine Main::scan(&mut self)
+requires
+    self.limit < self.items.len
+{
+    self.i = 0;
+    transition self.i < self.limit {
+        true -> loop_()
+        false -> done()
+    }
+
+    state loop_(&mut self) {
+        self.clear_limit();
+        self.value = self.items[self.i];
+        self.i = self.i + 1;
+        transition self.i < self.limit {
+            true -> loop_()
+            false -> done()
+        }
+    }
+
+    state done(&mut self) { }
+}
+
+machine Main::clear_limit(&mut self) {
+    self.limit = 0;
+}

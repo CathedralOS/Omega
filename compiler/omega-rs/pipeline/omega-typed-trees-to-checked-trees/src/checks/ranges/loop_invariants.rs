@@ -53,6 +53,14 @@ struct Edge {
     target: SymbolHandle,
 }
 
+#[derive(Clone, PartialEq, Eq)]
+enum StrictUpper {
+    /// `counter < self.collection.len`.
+    CollectionLength(String),
+    /// `counter < self.bound`.
+    Place(String),
+}
+
 /// One write a state performs to the counter field, classified for G1.
 #[derive(PartialEq)]
 enum CounterWrite {
@@ -243,6 +251,33 @@ pub(super) fn collect_loop_invariant_facts(
                     &loop_states,
                     &collection,
                 )
+            {
+                invariants.push(LoopInvariant {
+                    state: head.symbol,
+                    index_name: index_name.clone(),
+                    kind: InvariantKind::IndexWithin(collection),
+                });
+            }
+
+            // Second relational class: every incoming edge establishes
+            // `counter < self.limit`, while the machine arrival contract
+            // establishes `self.limit < self.collection.len`. The two strict
+            // relations compose to `counter < collection.len` at the head.
+            // Both contract-owned places must be frame-stable throughout the
+            // whole machine (including preheaders); otherwise the arrival
+            // contract could describe old values before the first loop edge.
+            if matches!(direction, Direction::Increasing)
+                && let Some(bound) = loop_head_upper_place(
+                    program,
+                    states,
+                    &edges,
+                    &loop_states,
+                    head.symbol,
+                    counter,
+                )
+                && let Some(collection) = machine_strict_bound_collection(program, machine, &bound)
+                && machine_preserves_path(program, machine, &call_frames, &bound)
+                && machine_preserves_path(program, machine, &call_frames, &collection)
             {
                 invariants.push(LoopInvariant {
                     state: head.symbol,
@@ -475,16 +510,46 @@ fn loop_head_index_collection(
     head: SymbolHandle,
     counter: SymbolHandle,
 ) -> Option<String> {
-    let mut collection: Option<String> = None;
+    match loop_head_strict_upper(program, states, edges, loop_states, head, counter)? {
+        StrictUpper::CollectionLength(collection) => Some(collection),
+        StrictUpper::Place(_) => None,
+    }
+}
+
+/// The stable machine place `B` for a relational loop-head invariant
+/// `counter < B`, under the same all-entry/all-back-edge rule.
+fn loop_head_upper_place(
+    program: &omega_typed_trees::TypedTrees,
+    states: &[State],
+    edges: &[Edge],
+    loop_states: &[SymbolHandle],
+    head: SymbolHandle,
+    counter: SymbolHandle,
+) -> Option<String> {
+    match loop_head_strict_upper(program, states, edges, loop_states, head, counter)? {
+        StrictUpper::Place(bound) => Some(bound),
+        StrictUpper::CollectionLength(_) => None,
+    }
+}
+
+fn loop_head_strict_upper(
+    program: &omega_typed_trees::TypedTrees,
+    states: &[State],
+    edges: &[Edge],
+    loop_states: &[SymbolHandle],
+    head: SymbolHandle,
+    counter: SymbolHandle,
+) -> Option<StrictUpper> {
+    let mut upper: Option<StrictUpper> = None;
     let mut saw_entry = false;
     let mut saw_back_edge = false;
 
     for edge in edges.iter().filter(|edge| edge.target == head) {
         let source = find_state(states, edge.source)?;
-        let edge_collection = source_arm_to_head_index_collection(program, source, head, counter)?;
-        match &collection {
-            Some(known) if known != &edge_collection => return None,
-            None => collection = Some(edge_collection),
+        let edge_upper = source_arm_to_head_strict_upper(program, source, head, counter)?;
+        match &upper {
+            Some(known) if known != &edge_upper => return None,
+            None => upper = Some(edge_upper),
             _ => {}
         }
         if loop_states.contains(&edge.source) {
@@ -495,22 +560,22 @@ fn loop_head_index_collection(
     }
 
     if saw_entry && saw_back_edge {
-        collection
+        upper
     } else {
         None
     }
 }
 
-/// The `C` in the unique positive arm `counter < C.len` from `source` to
-/// `head`. Continuation/convergent/unguarded/ambiguous edges fail closed, just
-/// as for the constant upper-bound candidate.
-fn source_arm_to_head_index_collection(
+/// The strict upper term in the unique positive arm from `source` to `head`.
+/// Continuation/convergent/unguarded/ambiguous edges fail closed, just as for
+/// the constant upper-bound candidate.
+fn source_arm_to_head_strict_upper(
     program: &omega_typed_trees::TypedTrees,
     source: &State,
     head: SymbolHandle,
     counter: SymbolHandle,
-) -> Option<String> {
-    let mut found: Option<String> = None;
+) -> Option<StrictUpper> {
+    let mut found: Option<StrictUpper> = None;
     for statement in program.statement_table.statements(source.statement_nodes) {
         let StatementNode::Transition(transition) = statement else {
             continue;
@@ -527,31 +592,30 @@ fn source_arm_to_head_index_collection(
         let TransitionGuardNode::When(guard) = transition.guard else {
             return None;
         };
-        let edge_collection = parse_counter_index_collection(program, guard, counter)?;
+        let edge_upper = parse_counter_strict_upper(program, guard, counter)?;
         if found.is_some() {
             return None;
         }
-        found = Some(edge_collection);
+        found = Some(edge_upper);
     }
     found
 }
 
-/// Parse the strict relation `counter < C.len` (or `C.len > counter`) and
-/// return the stable machine-place label `C`. The parser unwraps the
-/// transition arm's synthesized `subject == true` shell. Restricting the
-/// collection to a `self.*` place avoids pretending that source-state locals or
-/// parameters automatically denote the target state's collection.
-fn parse_counter_index_collection(
+/// Parse `counter < upper` (or `upper > counter`) where `upper` is either a
+/// stable `self.*` place or `self.collection.len`. The parser unwraps the
+/// transition arm's synthesized `subject == true` shell. Source-state locals
+/// and parameters deliberately do not carry across a state boundary.
+fn parse_counter_strict_upper(
     program: &omega_typed_trees::TypedTrees,
     guard: ExpressionHandle,
     counter: SymbolHandle,
-) -> Option<String> {
+) -> Option<StrictUpper> {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
         return None;
     };
     if binary.operator == BinaryOperator::Equal {
         let inner = boolean_equality_inner(program, binary.left, binary.right)?;
-        return parse_counter_index_collection(program, inner, counter);
+        return parse_counter_strict_upper(program, inner, counter);
     }
     let possible_length = match binary.operator {
         BinaryOperator::Less if expression_is_counter_member(program, binary.left, counter) => {
@@ -562,15 +626,97 @@ fn parse_counter_index_collection(
         }
         _ => return None,
     };
-    let ExpressionNode::Member(length) = program.expression_table.expression(possible_length)
+    let ExpressionNode::Member(member) = program.expression_table.expression(possible_length)
     else {
         return None;
     };
-    if length.member.as_str() != "len" {
-        return None;
+    if member.member.as_str() == "len" {
+        let collection = program.expression_table.display_name(member.receiver);
+        return collection
+            .starts_with("self.")
+            .then_some(StrictUpper::CollectionLength(collection));
     }
-    let collection = program.expression_table.display_name(length.receiver);
-    collection.starts_with("self.").then_some(collection)
+    let bound = program.expression_table.display_name(possible_length);
+    bound
+        .starts_with("self.")
+        .then_some(StrictUpper::Place(bound))
+}
+
+/// The collection `C` named by an authored machine-arrival requirement
+/// `bound < C.len` (or `C.len > bound`). This is not flow inference: the
+/// requirement is already an assumed machine contract fact. We only recover
+/// its exact two place labels so the loop candidate can prove both remain
+/// frame-stable before composing it with `counter < bound`.
+fn machine_strict_bound_collection(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &Machine,
+    bound: &str,
+) -> Option<String> {
+    use omega_typed_trees::domain::ProofFact;
+    use omega_typed_trees::signature::SignatureContractKind;
+
+    for contract in program.machine_contracts(machine) {
+        if contract.kind != SignatureContractKind::Requires {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let ProofFact::Expression(expression) = fact else {
+                continue;
+            };
+            if let Some(collection) =
+                strict_bound_collection_in_expression(program, *expression, bound)
+            {
+                return Some(collection);
+            }
+        }
+    }
+    None
+}
+
+fn strict_bound_collection_in_expression(
+    program: &omega_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    bound: &str,
+) -> Option<String> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => {
+            strict_bound_collection_in_expression(program, atomic.value, bound)
+        }
+        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And => {
+            strict_bound_collection_in_expression(program, binary.left, bound)
+                .or_else(|| strict_bound_collection_in_expression(program, binary.right, bound))
+        }
+        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Equal => {
+            let inner = boolean_equality_inner(program, binary.left, binary.right)?;
+            strict_bound_collection_in_expression(program, inner, bound)
+        }
+        ExpressionNode::Binary(binary) => {
+            let possible_length = match binary.operator {
+                BinaryOperator::Less
+                    if program.expression_table.display_name(binary.left) == bound =>
+                {
+                    binary.right
+                }
+                BinaryOperator::Greater
+                    if program.expression_table.display_name(binary.right) == bound =>
+                {
+                    binary.left
+                }
+                _ => return None,
+            };
+            let ExpressionNode::Member(length) =
+                program.expression_table.expression(possible_length)
+            else {
+                return None;
+            };
+            if length.member.as_str() != "len" {
+                return None;
+            }
+            let collection = program.expression_table.display_name(length.receiver);
+            collection.starts_with("self.").then_some(collection)
+        }
+        _ => None,
+    }
 }
 
 /// Whether `path` stays unchanged throughout the natural loop. Direct writes
@@ -588,15 +734,44 @@ fn loop_preserves_path(
         let Some(state) = find_state(states, state_symbol) else {
             return false;
         };
-        for statement in program.statement_table.statements(state.statement_nodes) {
-            if statement_may_write_path(machine, call_frames, statement, path) != Some(false) {
+        if !state_preserves_path(program, machine, call_frames, state, path) {
+            return false;
+        }
+    }
+    true
+}
+
+/// Arrival-contract relations are established only at machine entry. To use
+/// one as a loop invariant, its named place must survive every machine state,
+/// including preheaders outside the natural loop; otherwise a preheader write
+/// could make the contract fact stale before the first loop edge.
+fn machine_preserves_path(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &Machine,
+    call_frames: &omega_validation::CallFrameResolver<'_>,
+    path: &str,
+) -> bool {
+    program
+        .machine_states(machine)
+        .iter()
+        .all(|state| state_preserves_path(program, machine, call_frames, state, path))
+}
+
+fn state_preserves_path(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &Machine,
+    call_frames: &omega_validation::CallFrameResolver<'_>,
+    state: &State,
+    path: &str,
+) -> bool {
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        if statement_may_write_path(machine, call_frames, statement, path) != Some(false) {
+            return false;
+        }
+        if let StatementNode::Assignment(assignment) = statement {
+            let target = program.expression_table.display_name(assignment.target);
+            if omega_validation::frame_paths_overlap(&target, path) {
                 return false;
-            }
-            if let StatementNode::Assignment(assignment) = statement {
-                let target = program.expression_table.display_name(assignment.target);
-                if omega_validation::frame_paths_overlap(&target, path) {
-                    return false;
-                }
             }
         }
     }

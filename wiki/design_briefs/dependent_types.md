@@ -240,6 +240,11 @@ back edge carry `i < self.collection.len` to an increasing-counter head even
 though the guards have distinct expression handles. The candidate crosses
 calls only when recursive frames are disjoint from both the counter and
 collection, and index reassignment kills the collection-relative fact. Further
+composition now handles a stable intermediate limit: edge facts
+`i < self.limit` plus an authored machine-arrival requirement
+`self.limit < self.collection.len` establish the collection index fact. Since
+the second premise originates at machine arrival, limit and collection must be
+frame-stable through every machine state, including preheaders. Further
 relational classes remain future work; authored arrival contracts do not depend
 on them.
 
@@ -460,9 +465,11 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
 - **R5 — Frames:** preserve-unless-written and authored state-level `requires`
   plus arrival facts are live; monotone counter inference crosses disjoint
   sibling-call frames, and symbolic `i < self.collection.len` loop-head facts
-  now meet semantically across distinct entry/back-edge guards. Remaining work
-  is the surface-blocked boundary write clause, normalized frame publication,
-  and additional relational Houdini candidates. Driver: dependent facts across
+  now meet semantically across distinct entry/back-edge guards. Stable
+  `i < self.limit < self.collection.len` chains also compose an authored arrival
+  premise under machine-wide frame stability. Remaining work is the
+  surface-blocked boundary write clause, normalized frame publication, and
+  additional relational Houdini candidates. Driver: dependent facts across
   sibling-machine calls.
 
 ## 9. Key sources

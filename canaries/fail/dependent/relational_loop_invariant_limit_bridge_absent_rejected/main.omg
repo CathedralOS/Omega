@@ -1,0 +1,37 @@
+// FALSE TWIN: entry/back-edge guards establish `self.i < self.limit`, but no
+// machine contract relates `self.limit` to `self.items.len`. The checker must
+// not invent the missing bridge to the collection.
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 8]::Utf8 {
+    valid_utf8(self);
+}
+
+data Main {
+    items: [u8; 8] in Utf8;
+    i: u64;
+    limit: u64;
+    value: u8;
+}
+
+machine Main::run(&mut self) { }
+
+machine Main::scan(&mut self) {
+    self.i = 0;
+    transition self.i < self.limit {
+        true -> loop_()
+        false -> done()
+    }
+
+    state loop_(&mut self) {
+        self.value = self.items[self.i];
+        self.i = self.i + 1;
+        transition self.i < self.limit {
+            true -> loop_()
+            false -> done()
+        }
+    }
+
+    state done(&mut self) { }
+}

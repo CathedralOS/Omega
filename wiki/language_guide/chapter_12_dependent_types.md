@@ -364,6 +364,14 @@ different states are matched semantically rather than by syntax-tree identity.
 Reassigning `self.i` immediately invalidates the fact; a collection write or an
 opaque/overlapping call prevents the candidate entirely.
 
+One stable intermediate bound may be composed too. If the edge guards establish
+`self.i < self.limit` and the machine arrival contract states
+`self.limit < self.items.len`, the head receives `self.i < self.items.len`.
+Because the bridge premise was established at machine arrival, the checker
+requires `self.limit` and `self.items` to remain frame-stable in every machine
+state, including the preheader. A preheader assignment or overlapping call
+therefore blocks this candidate even when the natural loop itself is read-only.
+
 ## When The Checker Says No
 
 An undischarged dependent obligation is a compile error naming the missing
