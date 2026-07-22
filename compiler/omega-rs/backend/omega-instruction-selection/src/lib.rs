@@ -11,7 +11,7 @@ pub use entry::{
     derive_boundary_entry_slice_descriptor_footprint, derive_boundary_entry_storage,
     derive_boundary_entry_storage_writes, derive_boundary_exit,
     derive_boundary_exit_indirect_result_copy_footprint,
-    derive_boundary_exit_result_register_footprint,
+    derive_boundary_exit_result_register_footprint, derive_boundary_static_guard_footprint,
 };
 pub use operands::*;
 pub use selection::build_instruction_plan;

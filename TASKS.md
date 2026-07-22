@@ -485,9 +485,12 @@ schemas recover the same instance without publishing policy type identity.
    transitive-state ceiling. Runtime-dispatching entries now also retain a
    structurally scoped `dispatch_scaffold` fragment: the target encoders own
    the exact x86-64 R12/AArch64 X28 dispatch-state writes and case-entry flag
-   effects, while guard evaluation remains outside this slice. The artifact's
+   effects. Storage-backed static guards add a separate
+   `static_guard_comparison` fragment with exact encoder-owned GPR/vector
+   scratch and flag effects; storage-free and other guard-lowering shapes are
+   deliberately excluded. The artifact's
    `enumeration_complete: false` firewall prevents this partial slice from being
-   mistaken for the final certificate. Remaining body/guard evidence,
+   mistaken for the final certificate. Remaining runtime/body guard evidence,
    StatePlan-driven nonordinary save/restore and return specialization, and
    post-layout enumeration across handler code, veneers, thunks, and admitted
    leaves remain; final placement must still prove that enumeration is complete.
