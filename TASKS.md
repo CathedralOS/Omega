@@ -1004,12 +1004,13 @@ stronger operations it needs instead of citing machine parameters generally.
   borrowed view typing now operate directly on byte views or bounded carriers.
   Input lowering derives each owned carrier's inline capacity from its concrete
   destination, so a short carrier can never inherit the legacy 256-byte read
-  limit. Two pass-canary sources still declare builtin `String`/`string`, both
-  exercising in-place append. Continue that migration. The backend's in-place
-  concat route is now alias-safe and never zeros
-  its source, but migrating the remaining `target = target + suffix` regressions
-  still requires a proven running-length bound rather than the conservative
-  `capacity(target) + capacity(suffix)` estimate. Follow
+  limit. No pass-canary source now declares builtin `String`/`string`: the final
+  two in-place-append regressions use bounded UTF-8 carriers. Their
+  straight-line length proof tracks reaching writes, invalidates overlapping
+  places, and drops its knowledge across calls or opaque effects; proven chains
+  that fit compile, while the first append whose bound exceeds `N` rejects.
+  Continue the sample/lattice/host-contract migration and then retire the
+  compatibility type and compiler branches in the order recorded by
   `wiki/architecture/string_retirement_execution.md`.
 - **Atomics remainder.** The closed ordering vocabulary and operation-specific
   legality rules now reject release-bearing loads, acquire-bearing stores,

@@ -1,14 +1,17 @@
-// Regression: chained in-place appends across separate statements
-// (`x = "a"; x = x + "b"; x = x + "c";`) then a guard `x == "abc"`. Each text
-// write gets its own materialize buffer, and the guard's text comparison read
-// the FIRST buffer ("ab", stale) instead of the most recent one ("abc"). The
-// guard now reads the latest buffer for the place in its state.
+// Regression: chained in-place appends on a bounded UTF-8 carrier across
+// separate statements (`x = "a"; x = x + "b"; x = x + "c";`) then a guard
+// `x == "abc"`. The checker follows the running byte length (1, 2, 3), each
+// append extends the carrier's inline bytes at its current length, and the
+// guard reads that updated carrier rather than a stale legacy scratch buffer.
 
+domain [u8; 16]::Utf8 {
+    valid_utf8(self);
+}
 use omega::language::std::console;
 
 data Main {
     console: Console;
-    line: String;
+    line: [u8; 16] in Utf8;
 }
 
 machine Main::main(&mut self) {

@@ -2728,13 +2728,17 @@ fn interpreter_matches_native_on_bounded_line_input_programs() {
             "{name}: interpreter declined: {:?}",
             outcome.error
         );
-        assert_eq!(outcome.exit_code, *expected_exit, "{name}: interpreter exit");
+        assert_eq!(
+            outcome.exit_code, *expected_exit,
+            "{name}: interpreter exit"
+        );
 
         let (native_code, native_stdout, native_stderr) =
             compile_and_run_native_with_stdin(name, main_path, stdin);
         assert_eq!(native_code, *expected_exit, "{name}: native exit");
         assert_eq!(
-            outcome.stdout, native_stdout,
+            outcome.stdout,
+            native_stdout,
             "{name}: stdout must agree byte-for-byte; native stderr: {}",
             String::from_utf8_lossy(&native_stderr)
         );

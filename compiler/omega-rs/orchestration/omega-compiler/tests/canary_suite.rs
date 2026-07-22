@@ -15832,6 +15832,11 @@ fn runtime_i64_full_width_exit_canary_runs() {
 fn runtime_chained_string_append_exit_canary_runs() {
     let canary = pass_canary("text/runtime_chained_string_append_exit");
     let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("chained bounded-carrier append canary should check");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None);
+    assert_eq!(interpreted.exit_code, 70);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-chained-string-append-{}",
         std::process::id()
@@ -15844,7 +15849,7 @@ fn runtime_chained_string_append_exit_canary_runs() {
         target_name: None,
         write_output: true,
     })
-    .expect("chained string append canary should compile");
+    .expect("chained bounded-carrier append canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -15909,6 +15914,11 @@ fn runtime_string_concat_two_fields_exit_canary_runs() {
 fn runtime_machine_string_append_in_place_exit_canary_runs() {
     let canary = pass_canary("text/runtime_machine_string_append_in_place_exit");
     let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("bounded-carrier append-in-place canary should check");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None);
+    assert_eq!(interpreted.exit_code, 70);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-string-append-in-place-{}",
         std::process::id()
@@ -15921,7 +15931,7 @@ fn runtime_machine_string_append_in_place_exit_canary_runs() {
         target_name: None,
         write_output: true,
     })
-    .expect("string append-in-place canary should compile");
+    .expect("bounded-carrier append-in-place canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -32203,6 +32213,8 @@ fn bounded_carrier_regressions_compile_on_aarch64() {
         "dungeon/runtime_ordered_room_dispatch_loop_exit",
         "dungeon/runtime_ordered_room_dispatch_large_machine_exit",
         "dungeon/runtime_ordered_room_dispatch_real_show_states_exit",
+        "text/runtime_chained_string_append_exit",
+        "text/runtime_machine_string_append_in_place_exit",
     ]
     .into_iter()
     .enumerate()

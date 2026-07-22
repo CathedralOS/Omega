@@ -161,9 +161,14 @@ carrier (the grant validator already exists).
    canary actually proves. This keeps batches reviewable and exposes missing
    carrier lowering before the builtin disappears. Re-run the focused native
    test and interpreter oracle for each batch.
-   Two pass-canary sources still declare builtin `String`/`string` as of
-   2026-07-21; derive the current count from the corpus rather than treating this
-   snapshot as a completion condition.
+   The pass-canary corpus has no builtin `String`/`string` declarations as of
+   2026-07-21. The final two sources were in-place append regressions; a
+   conservative straight-line reaching-length proof now admits each bounded
+   chain that fits and still rejects a provable overflow. Samples, lattice
+   inputs, legacy host contracts, deliberate fail fixtures, and the core
+   compatibility surface remain separate migration owners; derive their live
+   inventory from the tree rather than treating this snapshot as a completion
+   condition.
 2. **Keystone** — once source users are gone,
    `semantics/omega-validation/src/expression_types.rs` stops a string literal /
    `ExpressionNode::String` from satisfying `PrimitiveType::String`; it should
