@@ -1,0 +1,17 @@
+// MP6: build-time specialization must validate the selected machine against
+// the authored contract before interpretation. The compiler may not execute a
+// conveniently coercible but differently typed helper.
+machine wrong_width(value: u32) -> u32 {
+    value
+}
+
+machine apply<machine F>(value: u16) -> u16
+where machine F(value: u16) -> u16;
+{
+    F(value)
+}
+
+machine build(b: &mut Build) {
+    let selected: u16 = apply<wrong_width>(70);
+    b.subsystem = Subsystem::Unspecified { value: selected };
+}

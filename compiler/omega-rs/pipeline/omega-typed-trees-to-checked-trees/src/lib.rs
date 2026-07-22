@@ -20,6 +20,18 @@ pub fn lower_typed_trees(
     lowerer::lower_typed_trees(program)
 }
 
+/// Validate and consume compile-time machine-symbol selections, rewriting
+/// every complete generic call tuple to direct concrete calls. The ordinary
+/// checked-tree path invokes this before validation; orchestration also uses
+/// it on a private clone before interpreting build.omg so build-time execution
+/// sees the same specialized program as runtime lowering.
+pub fn specialize_static_machine_calls(
+    program: &mut omega_typed_trees::TypedTrees,
+) -> Result<(), Vec<omega_core::diagnostics::Diagnostic>> {
+    omega_validation::validate_static_machine_selections(program)?;
+    monomorphization::monomorphize_generic_machine_value_calls(program)
+}
+
 pub use monomorphization::generic_machine_template_fingerprint;
 /// The v0 asm-intrinsic discharge gate (asm requires a freestanding boundary
 /// root) -- re-exported for the ORCHESTRATION layer, which owns the

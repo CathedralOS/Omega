@@ -396,6 +396,60 @@ fn static_machine_argument_specializes_body_calls_to_direct_symbols() {
 }
 
 #[test]
+fn free_static_machine_specialization_preserves_authored_target_name() {
+    let source = r#"
+        data Main {}
+
+        machine chosen(value: u16) -> u16 {
+            value
+        }
+
+        machine apply<machine F>(value: u16) -> u16
+        where machine F(item: u16) -> u16
+        {
+            F(value)
+        }
+
+        machine caller() -> u16 {
+            apply<chosen>(70)
+        }
+
+        machine Main::run(&mut self) {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let chosen_symbol = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "chosen")
+        .and_then(|machine| typed.machine_states(machine).first())
+        .map(|state| state.symbol)
+        .expect("chosen entry symbol");
+
+    let checked = lower_typed_trees(typed).expect("free static selection should specialize");
+    let direct_call = checked
+        .expression_table
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            omega_typed_trees::expression::ExpressionNode::Call(call)
+                if call.target_symbol == chosen_symbol =>
+            {
+                Some(call)
+            }
+            _ => None,
+        })
+        .expect("F(value) should become a direct chosen call");
+    assert_eq!(direct_call.target.as_str(), "chosen");
+    assert_ne!(direct_call.target.as_str(), "entry");
+    assert!(direct_call.machine_arguments.is_empty());
+}
+
+#[test]
 fn static_machine_specialization_identity_is_reproducible() {
     fn fingerprint(source: &str) -> u64 {
         let tokens = Lexer::new(source)
