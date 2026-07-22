@@ -1,13 +1,12 @@
-// String catalog: String fields in a data type with field copies,
-// string concatenation, equality guards, and a numeric score derived
-// from string-matching results.
+// Text catalog: bounded UTF-8 fields in a data type with field copies,
+// concatenation, equality guards, and a numeric score derived from matches.
 //
-// Exercises: String field assignments, copying String fields between places,
-// `+` concatenation of String fields and literals, `==` equality guards on
-// String fields, and a numeric accumulator driven by string-guard arms.
+// Exercises: carrier field assignments, copying carriers between places,
+// `+` concatenation of carrier fields and literals, `==` equality guards, and
+// a numeric accumulator driven by text-guard arms.
 //
-// Scenario: a small catalog with two entries. Each entry has a `name: String`
-// and a `score: i32`. After setting up the entries, the program verifies
+// Scenario: a small catalog with two entries. Each entry has a bounded UTF-8
+// name and a score. After setting up the entries, the program verifies
 // the names match expected values, builds a combined label by concatenation,
 // verifies the concatenated label, and totals the scores.
 //
@@ -30,10 +29,16 @@
 //
 // Expected exit: 70.
 
+domain [u8; 5]::Utf8 {
+    valid_utf8(self);
+}
+domain [u8; 16]::Utf8 {
+    valid_utf8(self);
+}
 use omega::language::std::console;
 
 data Entry {
-    name: String;
+    name: [u8; 5] in Utf8;
     // Ranged so `entry1.score + entry2.score` is verifiably bounded (<= 200):
     // Exact arithmetic on nested fields carries the overflow obligation, and a
     // range discharges it by proof -- no overflow domain needed.
@@ -43,7 +48,7 @@ data Entry {
 data Catalog {
     entry1: Entry;
     entry2: Entry;
-    label: String;
+    label: [u8; 16] in Utf8;
     total: i32;
 }
 
@@ -72,7 +77,7 @@ machine Main::compute_total(&mut self) {
 }
 
 machine Main::main(&mut self) {
-    self.console.write_line("string_catalog: String fields, concatenation, and equality-guard checks");
+    self.console.write_line("string_catalog: bounded UTF-8 fields, concatenation, and equality guards");
     self.set_entry1();
     self.set_entry2();
     self.build_label();

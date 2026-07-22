@@ -1012,10 +1012,12 @@ stronger operations it needs instead of citing machine parameters generally.
   The 120 sample-only `pause: String` fields now use explicit
   `[u8; 256]` storage, preserving the former native read ceiling, and the three
   matching local Console declarations accept mutable byte views. The complete
-  sample compile and documented-exit runtime sweeps stay green. Sample-side
-  builtin declarations are now confined to the eleven dungeon source files and
-  the deliberate `text/string_catalog` workload. Continue those owners, the
-  lattice/host-contract migration, and then retire the compatibility type and
+  sample compile and documented-exit runtime sweeps stay green. The standalone
+  `text/string_catalog` sample and its lattice mirror now use bounded UTF-8
+  fields as well, with capacity proofs covering their concatenated label.
+  Sample-side builtin declarations are now confined to the eleven dungeon
+  source files. Continue that owner, the remaining lattice/host-contract
+  migration, and then retire the compatibility type and
   compiler branches in the order recorded by
   `wiki/architecture/string_retirement_execution.md`.
 - **Atomics remainder.** The closed ordering vocabulary and operation-specific

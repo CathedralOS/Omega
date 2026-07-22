@@ -168,12 +168,14 @@ carrier (the grant validator already exists).
    inputs, legacy host contracts, deliberate fail fixtures, and the core
    compatibility surface remain separate migration owners; derive their live
    inventory from the tree rather than treating this snapshot as a completion
-   condition.
+   condition. The standalone `text/string_catalog` sample and its lattice
+   mirror now use bounded UTF-8 fields, including an explicit capacity for the
+   concatenated label.
    The generic sample pause surface is also migrated: 120 scratch fields use
    `[u8; 256]`, matching the old native read ceiling rather than shortening the
    consumed line. The sample compile and documented-exit runtime sweeps cover
    the batch. Remaining sample declarations are concentrated in the eleven-file
-   dungeon workload and the intentional `text/string_catalog` workload.
+   dungeon workload.
 2. **Keystone** — once source users are gone,
    `semantics/omega-validation/src/expression_types.rs` stops a string literal /
    `ExpressionNode::String` from satisfying `PrimitiveType::String`; it should
