@@ -36403,6 +36403,43 @@ fn plan_laid_value_by_value_param_exit_canary_runs() {
 }
 
 #[test]
+fn plan_laid_record_view_exit_canary_runs() {
+    // A byte-region record view whose only field is a plan-laid foreign
+    // record. Both engines must consume the plan's low@8/high@24 offsets;
+    // native packing would read the gaps and exit 71.
+    let canary = pass_canary("layouts/runtime_plan_laid_record_view_exit");
+    let main_path = canary.join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .expect("plan-laid record-view canary should compile to checked trees");
+    assert_eq!(
+        omega_interpreter::interpret(&checked, &[]).exit_code,
+        70,
+        "the interpreter must decode the validated plan offsets"
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-plan-laid-view-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("plan-laid record-view canary should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("plan-laid record-view canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "native projection must consume the validated plan offsets; stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn value_call_sequential_result_slots_exit_canary_runs() {
     // Two sequential value-position calls where callee 1 (`f`) has an internal
     // `let rr = r * r` binding and callee 2 (`g`) takes MORE arguments.
@@ -36845,6 +36882,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "comptime/runtime_const_array_length_exit",
     "layouts/runtime_plan_laid_value_field_exit",
     "layouts/runtime_plan_laid_value_by_value_param_exit",
+    "layouts/runtime_plan_laid_record_view_exit",
     "control_flow/runtime_compare_pair_dispatch_exit",
     "arithmetic/runtime_float_self_compare_nan_exit",
     "arithmetic/runtime_abs_desugar_exit",

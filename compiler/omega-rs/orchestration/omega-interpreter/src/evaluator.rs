@@ -70,9 +70,9 @@ use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
 };
-use omega_typed_trees::types::PrimitiveType;
+use omega_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::rc::Rc;
 
 const STEP_BUDGET: u64 = 10_000_000;
@@ -5864,63 +5864,199 @@ impl<'program> Evaluator<'program> {
         Ok(Some(assembled))
     }
 
-    /// Rung C2's record view: decode each all-scalar field little-endian at
-    /// its natural-alignment offset within the byte region.
+    /// Rung C2's record view: decode fixed records little-endian from the same
+    /// geometry native lowering consumes. Ordinary records use natural
+    /// packing; plan-laid records use their validated offsets. Named fields
+    /// recurse, permitting a plain wrapper around a plan-laid foreign record.
     fn assemble_record_view(
         &mut self,
         type_name: &str,
         cells: &[Cell],
         base_offset: usize,
     ) -> EvalResult<Option<Value>> {
+        self.assemble_record_view_inner(type_name, cells, base_offset, &mut HashSet::new())
+    }
+
+    fn assemble_record_view_inner(
+        &self,
+        type_name: &str,
+        cells: &[Cell],
+        base_offset: usize,
+        visiting: &mut HashSet<String>,
+    ) -> EvalResult<Option<Value>> {
+        if !visiting.insert(type_name.to_owned()) {
+            return Ok(None);
+        }
         let Some(data) = self.find_data_by_name(type_name) else {
+            visiting.remove(type_name);
             return Ok(None);
         };
-        let mut field_specs: Vec<(String, PrimitiveType, usize)> = Vec::new();
-        let mut offset = 0usize;
+        let mut field_specs: Vec<(String, TypeReferenceHandle, usize, usize)> = Vec::new();
         for member in self.program.data_members(data) {
             let omega_typed_trees::data::DataMember::Field(field) = member else {
+                visiting.remove(type_name);
                 return Ok(None);
             };
-            let Some(primitive) = self.program.primitive_type_reference(field.type_reference)
+            let Some((size, align)) = self.record_view_type_layout(field.type_reference, visiting)
             else {
+                visiting.remove(type_name);
                 return Ok(None);
             };
-            let Some(size) = primitive.scalar_byte_size() else {
-                return Ok(None);
-            };
-            offset = offset.div_ceil(size) * size;
-            field_specs.push((field.name.as_str().to_owned(), primitive, offset));
-            offset += size;
+            field_specs.push((
+                field.name.as_str().to_owned(),
+                field.type_reference,
+                size,
+                align,
+            ));
         }
-        let type_symbol = data.symbol;
-        let mut fields = std::collections::BTreeMap::new();
-        for (name, primitive, field_offset) in field_specs {
-            let size = primitive.scalar_byte_size().unwrap_or(0);
-            let mut bits: u64 = 0;
-            for byte_index in 0..size {
-                let cell = cells
-                    .get(base_offset + field_offset + byte_index)
-                    .ok_or_else(|| {
-                        Halt::Trap(format!(
-                            "record view reads byte {} past the region",
-                            base_offset + field_offset + byte_index
-                        ))
-                    })?;
-                let byte = cell.borrow().as_int().unwrap_or(0) as u64 & 0xFF;
-                bits |= byte << (8 * byte_index);
+
+        let offsets = if let Some(plan) = self
+            .program
+            .plan_laid_layouts
+            .iter()
+            .find(|plan| plan.data_name == type_name)
+        {
+            if plan.offsets.len() != field_specs.len() {
+                visiting.remove(type_name);
+                return Ok(None);
             }
-            let value = match primitive {
-                PrimitiveType::F32 => Value::Float(f32::from_bits(bits as u32) as f64),
-                PrimitiveType::F64 => Value::Float(f64::from_bits(bits)),
-                integer => Value::Int(wrap_to_width(bits as i64, integer)),
-            };
-            fields.insert(name, value.cell());
+            plan.offsets.clone()
+        } else {
+            let mut offsets = Vec::with_capacity(field_specs.len());
+            let mut offset = 0usize;
+            for (_, _, size, align) in &field_specs {
+                offset = offset.div_ceil(*align) * *align;
+                offsets.push(offset);
+                let Some(next) = offset.checked_add(*size) else {
+                    visiting.remove(type_name);
+                    return Ok(None);
+                };
+                offset = next;
+            }
+            offsets
+        };
+
+        let type_symbol = data.symbol;
+        let mut field_values = std::collections::BTreeMap::new();
+        for ((name, type_reference, _, _), field_offset) in field_specs.into_iter().zip(offsets) {
+            let value =
+                if let Some(primitive) = self.program.primitive_type_reference(type_reference) {
+                    let size = primitive.scalar_byte_size().unwrap_or(0);
+                    let mut bits: u64 = 0;
+                    for byte_index in 0..size {
+                        let cell = cells
+                            .get(base_offset + field_offset + byte_index)
+                            .ok_or_else(|| {
+                                Halt::Trap(format!(
+                                    "record view reads byte {} past the region",
+                                    base_offset + field_offset + byte_index
+                                ))
+                            })?;
+                        let byte = cell.borrow().as_int().unwrap_or(0) as u64 & 0xFF;
+                        bits |= byte << (8 * byte_index);
+                    }
+                    match primitive {
+                        PrimitiveType::F32 => Value::Float(f32::from_bits(bits as u32) as f64),
+                        PrimitiveType::F64 => Value::Float(f64::from_bits(bits)),
+                        integer => Value::Int(wrap_to_width(bits as i64, integer)),
+                    }
+                } else {
+                    let Some(nested_name) = self.record_view_named_type(type_reference) else {
+                        visiting.remove(type_name);
+                        return Ok(None);
+                    };
+                    let Some(nested) = self.assemble_record_view_inner(
+                        nested_name,
+                        cells,
+                        base_offset + field_offset,
+                        visiting,
+                    )?
+                    else {
+                        visiting.remove(type_name);
+                        return Ok(None);
+                    };
+                    nested
+                };
+            field_values.insert(name, value.cell());
         }
+        visiting.remove(type_name);
         Ok(Some(Value::Struct {
             type_symbol,
             type_name: type_name.to_owned().into(),
-            fields,
+            fields: field_values,
         }))
+    }
+
+    fn record_view_type_layout(
+        &self,
+        type_reference: TypeReferenceHandle,
+        visiting: &mut HashSet<String>,
+    ) -> Option<(usize, usize)> {
+        if let Some(primitive) = self.program.primitive_type_reference(type_reference) {
+            let size = primitive.scalar_byte_size()?;
+            return Some((size, size));
+        }
+        let name = self.record_view_named_type(type_reference)?;
+        self.record_view_data_layout(name, visiting)
+    }
+
+    fn record_view_data_layout(
+        &self,
+        type_name: &str,
+        visiting: &mut HashSet<String>,
+    ) -> Option<(usize, usize)> {
+        if !visiting.insert(type_name.to_owned()) {
+            return None;
+        }
+        let data = self.find_data_by_name(type_name)?;
+        let mut field_layouts = Vec::new();
+        for member in self.program.data_members(data) {
+            let omega_typed_trees::data::DataMember::Field(field) = member else {
+                visiting.remove(type_name);
+                return None;
+            };
+            let Some(layout) = self.record_view_type_layout(field.type_reference, visiting) else {
+                visiting.remove(type_name);
+                return None;
+            };
+            field_layouts.push(layout);
+        }
+        let result = if let Some(plan) = self
+            .program
+            .plan_laid_layouts
+            .iter()
+            .find(|plan| plan.data_name == type_name)
+        {
+            (plan.offsets.len() == field_layouts.len()).then_some((plan.size, plan.align))
+        } else {
+            let mut offset = 0usize;
+            let mut max_align = 1usize;
+            for (size, align) in field_layouts {
+                offset = offset.div_ceil(align) * align;
+                offset = offset.checked_add(size)?;
+                max_align = max_align.max(align);
+            }
+            Some((offset.div_ceil(max_align) * max_align, max_align))
+        };
+        visiting.remove(type_name);
+        result
+    }
+
+    fn record_view_named_type(&self, mut type_reference: TypeReferenceHandle) -> Option<&str> {
+        loop {
+            match self
+                .program
+                .type_reference_table
+                .type_reference(type_reference)
+            {
+                TypeReferenceNode::Constrained { base_type, .. }
+                | TypeReferenceNode::Reference {
+                    referee: base_type, ..
+                } => type_reference = *base_type,
+                TypeReferenceNode::Named { name, .. } => return Some(name.as_str()),
+                _ => return None,
+            }
+        }
     }
 
     fn eval_recast(&self, value: Value, target: Option<PrimitiveType>) -> EvalResult<Value> {

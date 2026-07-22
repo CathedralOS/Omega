@@ -33,6 +33,7 @@ use omega_typed_trees::TypedTrees;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
 use omega_typed_trees::statement::StatementNode;
 use omega_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use std::collections::HashSet;
 
 pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     // The blessed positions: direct initializers of reference-typed lets
@@ -664,30 +665,88 @@ fn push_offset_unproven(
     )));
 }
 
-/// The natural-alignment size of an ALL-SCALAR-FIELD record (each field at
-/// the next multiple of its own size; total padded to the widest field).
-/// `None` when the name is no data definition or any field is non-scalar.
-/// LOCKSTEP: this mirrors omega-layout's scalar-record rule; the drift
-/// canary pins agreement (see the C2 note in TASKS.md).
+/// The fixed size of a byte-view-safe record. Ordinary records use natural
+/// packing; a synthesized plan-laid record uses the already validated plan's
+/// exact size/alignment/offsets. Named record fields recurse, which permits a
+/// plain wrapper around a plan-laid foreign record without teaching recast
+/// syntax to parse a policy application. Cycles and non-record shapes refuse.
+///
+/// LOCKSTEP: ordinary placement mirrors omega-layout's record rule, while
+/// plan-laid placement consumes `TypedTrees::plan_laid_layouts`, the same
+/// normalized record the layout builder trusts.
 fn scalar_record_size(program: &TypedTrees, name: &str) -> Option<usize> {
+    record_view_layout(program, name, &mut HashSet::new()).map(|(size, _)| size)
+}
+
+fn record_view_layout(
+    program: &TypedTrees,
+    name: &str,
+    visiting: &mut HashSet<String>,
+) -> Option<(usize, usize)> {
+    if !visiting.insert(name.to_owned()) {
+        return None;
+    }
     let data = program
         .data_definitions()
         .iter()
         .find(|data| data.name.as_str() == name)?;
-    let mut offset = 0usize;
-    let mut max_align = 1usize;
+    let mut fields = Vec::new();
     for member in program.data_members(data) {
         let omega_typed_trees::data::DataMember::Field(field) = member else {
+            visiting.remove(name);
             return None;
         };
-        let size = crate::places::unwrapped_type_reference(program, field.type_reference)
-            .and_then(|unwrapped| program.primitive_type_reference(unwrapped))
-            .and_then(|primitive| primitive.scalar_byte_size())?;
-        offset = offset.div_ceil(size) * size;
-        offset += size;
-        max_align = max_align.max(size);
+        let Some(layout) = record_view_type_layout(program, field.type_reference, visiting) else {
+            visiting.remove(name);
+            return None;
+        };
+        fields.push(layout);
     }
-    Some(offset.div_ceil(max_align) * max_align)
+
+    let result = if let Some(plan) = program
+        .plan_laid_layouts
+        .iter()
+        .find(|plan| plan.data_name == name)
+    {
+        if plan.offsets.len() != fields.len()
+            || fields.iter().zip(&plan.offsets).any(|((size, _), offset)| {
+                offset.checked_add(*size).is_none_or(|end| end > plan.size)
+            })
+        {
+            None
+        } else {
+            Some((plan.size, plan.align))
+        }
+    } else {
+        let mut offset = 0usize;
+        let mut max_align = 1usize;
+        for (size, align) in fields {
+            offset = offset.div_ceil(align) * align;
+            offset = offset.checked_add(size)?;
+            max_align = max_align.max(align);
+        }
+        Some((offset.div_ceil(max_align) * max_align, max_align))
+    };
+    visiting.remove(name);
+    result
+}
+
+fn record_view_type_layout(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    visiting: &mut HashSet<String>,
+) -> Option<(usize, usize)> {
+    let unwrapped = crate::places::unwrapped_type_reference(program, type_reference)?;
+    if let Some(primitive) = program.primitive_type_reference(unwrapped) {
+        let size = primitive.scalar_byte_size()?;
+        return Some((size, size));
+    }
+    let TypeReferenceNode::Named { name, .. } =
+        program.type_reference_table.type_reference(unwrapped)
+    else {
+        return None;
+    };
+    record_view_layout(program, name.as_str(), visiting)
 }
 
 /// The literal upper bound the incoming edges place on `offset` at this

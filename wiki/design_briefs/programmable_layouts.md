@@ -72,6 +72,8 @@ The same normalized geometry may feed different compiler-owned consumers:
 
 - a codec plan for bytes in buffers the program owns;
 - direct field projection for ordinary plan-laid values;
+- shared byte-region record views containing a plan-laid subrecord (implemented
+  for fixed scalar records in both native and interpreter execution);
 - placed-view projection over an authorized external extent; or
 - a materializer that resolves symbolic data/entry identities into an artifact
   or post-load structure.
