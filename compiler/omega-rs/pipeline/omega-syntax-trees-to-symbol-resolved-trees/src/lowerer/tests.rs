@@ -273,6 +273,64 @@ fn lowers_machine_contract_clauses() {
 }
 
 #[test]
+fn resolves_generic_calls_inside_machine_contracts() {
+    let source = r#"
+    data Index {
+        case Zero;
+        case Next(previous: Index);
+    }
+
+    machine generic<machine S>(value: Index) -> Index
+    where machine S(index: Index) -> Index;
+    {
+        value
+    }
+
+    machine witness<machine Selected>(value: Index)
+    where machine Selected(index: Index) -> Index;
+    ensures generic<Selected>(value) == value
+    {
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let witness = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "witness")
+        .expect("witness machine");
+    let ensures = program
+        .machine_contracts(witness)
+        .iter()
+        .find(|contract| {
+            contract.kind == omega_symbol_resolved_trees::signature::SignatureContractKind::Ensures
+        })
+        .expect("witness ensures");
+    let [omega_symbol_resolved_trees::domain::ProofFact::Expression(expression)] =
+        program.proof_facts(ensures.facts)
+    else {
+        panic!("one expression fact")
+    };
+    let omega_symbol_resolved_trees::expression::ExpressionNode::Binary(binary) =
+        program.tables.bodies.expressions.expression(*expression)
+    else {
+        panic!("equality expression")
+    };
+    let omega_symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+        program.tables.bodies.expressions.expression(binary.left)
+    else {
+        panic!("generic call on equality left")
+    };
+    assert!(call.target_symbol.is_valid());
+    assert_eq!(call.machine_arguments.len(), 1);
+    assert!(call.machine_arguments[0].symbol.is_valid());
+}
+
+#[test]
 fn lowers_attached_main_state_name_as_main() {
     let source = r#"
     data Main {

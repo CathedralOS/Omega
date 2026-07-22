@@ -142,6 +142,11 @@ Rules:
   against its `where machine` signature and monomorphized per instance like
   every generic. After substitution, each use of `M` is a direct static
   call. No runtime value exists — the parameter is gone by codegen.
+- A static-machine selection in `requires` or `ensures` instantiates a logical
+  contract schema, not an executable call site. It is checked against the same
+  callable requirement but does not by itself monomorphize the selected generic
+  machine; universal quotient relations and their law witnesses therefore stay
+  universal.
 - Recursive proof-only data may use the same form to index a family:
   `data CauchySeq<machine S> where machine S(index: Nat) -> Rat; { ... }`.
   A concrete `CauchySeq<leibniz_term>` argument is checked against `S`'s full

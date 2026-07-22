@@ -14,6 +14,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::{SymbolHandle, SymbolKind};
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::TypeParameterKind;
+use omega_typed_trees::domain::ProofFact;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use omega_typed_trees::signature::StateSignature;
 use omega_typed_trees::statement::{StatementHandle, StatementNode};
@@ -145,11 +146,17 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
 
     let mut type_proposals = Vec::new();
     let mut machine_proposals = Vec::new();
+    let contract_expressions = contract_expression_handles(program);
 
-    // Static selections may occur in any expression position. Their symbols
-    // alone are sufficient to bind machine parameters and to infer type
-    // parameters from requirement/implementation shape.
-    for (_, expression) in program.expression_table.iter_expressions() {
+    // Static selections may occur in any EXECUTABLE expression position.
+    // Contract calls are universal logical propositions, not runtime call
+    // sites: using one as specialization evidence consumes the generic schema
+    // and can rewrite every law stated over it to one accidental concrete
+    // tuple (notably heterogeneous quotient relations).
+    for (handle, expression) in program.expression_table.iter_expressions() {
+        if contract_expressions.contains(&handle) {
+            continue;
+        }
         let ExpressionNode::Call(call) = expression else {
             continue;
         };
@@ -238,7 +245,8 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
     // path below remains the cheap single-tuple case; this ledger is what
     // lets the multi-tuple path clone once per unique specialization and
     // rewrite only the calls that selected it.
-    let selections = collect_call_selections(program, &candidates, &callee_states);
+    let selections =
+        collect_call_selections(program, &candidates, &callee_states, &contract_expressions);
 
     for (candidate_index, parameter_index, binding) in type_proposals {
         if type_reference_is_still_generic(program, binding, &all_type_parameter_symbols) {
@@ -535,6 +543,7 @@ fn collect_call_selections(
     program: &TypedTrees,
     candidates: &[Candidate],
     callee_states: &[CalleeState],
+    contract_expressions: &[ExpressionHandle],
 ) -> Vec<CallSelection> {
     let mut selections = Vec::new();
     let mut covered_expressions = Vec::new();
@@ -625,7 +634,7 @@ fn collect_call_selections(
     // authored machine requirement. Preserve the old all-expression scan for
     // precisely that case.
     for (handle, expression) in program.expression_table.iter_expressions() {
-        if covered_expressions.contains(&handle) {
+        if covered_expressions.contains(&handle) || contract_expressions.contains(&handle) {
             continue;
         }
         let ExpressionNode::Call(call) = expression else {
@@ -659,6 +668,93 @@ fn collect_call_selections(
     }
 
     selections
+}
+
+/// Every expression node reachable from an ordinary machine/state contract.
+/// These nodes share the global expression arena with executable bodies, but
+/// their static-machine selections quantify a proof schema and must never
+/// trigger runtime monomorphization.
+fn contract_expression_handles(program: &TypedTrees) -> Vec<ExpressionHandle> {
+    let mut handles = Vec::new();
+    for machine in program.machines() {
+        for contract in program.machine_contracts(machine) {
+            collect_contract_facts(program, contract.facts, &mut handles);
+        }
+        for state in program.machine_states(machine) {
+            for contract in program.state_contracts(state) {
+                collect_contract_facts(program, contract.facts, &mut handles);
+            }
+        }
+    }
+    handles
+}
+
+fn collect_contract_facts(
+    program: &TypedTrees,
+    facts: omega_core::arena::HandleSpan<ProofFact>,
+    handles: &mut Vec<ExpressionHandle>,
+) {
+    for fact in program.proof_facts.span_or_empty(facts) {
+        if let ProofFact::Expression(expression) = fact {
+            collect_expression_tree(program, *expression, handles);
+        }
+    }
+}
+
+fn collect_expression_tree(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    handles: &mut Vec<ExpressionHandle>,
+) {
+    if !expression.is_valid() || handles.contains(&expression) {
+        return;
+    }
+    handles.push(expression);
+    match program.expression_table.expression(expression) {
+        ExpressionNode::ArrayLiteral(values) => {
+            for value in program.expression_table.expression_handles(*values) {
+                collect_expression_tree(program, *value, handles);
+            }
+        }
+        ExpressionNode::Atomic(atomic) => {
+            collect_expression_tree(program, atomic.value, handles);
+            collect_expression_tree(program, atomic.result, handles);
+        }
+        ExpressionNode::Binary(binary) => {
+            collect_expression_tree(program, binary.left, handles);
+            collect_expression_tree(program, binary.right, handles);
+        }
+        ExpressionNode::Cast(cast) => collect_expression_tree(program, cast.value, handles),
+        ExpressionNode::Call(call) => {
+            collect_expression_tree(program, call.receiver, handles);
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                collect_expression_tree(program, *argument, handles);
+            }
+        }
+        ExpressionNode::Indexed(indexed) => {
+            collect_expression_tree(program, indexed.collection, handles);
+            collect_expression_tree(program, indexed.index, handles);
+        }
+        ExpressionNode::Member(member) => {
+            collect_expression_tree(program, member.receiver, handles)
+        }
+        ExpressionNode::Mutable(inner) => collect_expression_tree(program, *inner, handles),
+        ExpressionNode::Range(range) => {
+            collect_expression_tree(program, range.start, handles);
+            collect_expression_tree(program, range.end, handles);
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            for field in program.expression_table.struct_fields(literal.fields) {
+                collect_expression_tree(program, field.value, handles);
+            }
+        }
+        ExpressionNode::Unary(unary) => collect_expression_tree(program, unary.operand, handles),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_) => {}
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -998,13 +998,18 @@ stronger operations it needs instead of citing machine parameters generally.
   transports a required relation fact into equality of quotient casts. The
   heterogeneous family boundary is pinned in both directions: distinct
   `CauchySeq<S>` generators share the quotient while a different data family
-  cannot mint it. Checked pure free operations whose carrier arguments and
-  return share the quotient carrier now lift onto quotient arguments only when
-  an ordinary proof machine structurally establishes the relation over paired
-  outputs from pairwise-related inputs; missing certificates reject, and
-  boundary axioms cannot masquerade as equivalence or respect proofs. Extend
-  lifting through attached/receiver operation forms, then build the
-  ordinary-core `data Real = CauchySeq % converges_together` surface.
+  cannot mint it. Relation and law contracts may now quantify over independent
+  left/right generator symbols (`relation<A, B>(CauchySeq<A>, CauchySeq<B>)`):
+  contract references resolve those lexical selections, and proof-only
+  selections remain universal schema arguments instead of accidentally
+  monomorphizing the relation to one concrete pair. Checked pure free operations
+  whose carrier arguments and return share the quotient carrier now lift onto
+  quotient arguments only when an ordinary proof machine structurally
+  establishes the relation over paired outputs from pairwise-related inputs;
+  missing certificates reject, and boundary axioms cannot masquerade as
+  equivalence or respect proofs. Extend lifting through attached/receiver
+  operation forms, then build the ordinary-core `data Real = CauchySeq %
+  converges_together` surface from the honest N8 convergence corpus.
 - **N7 — nested schemas (complete).** Proof-only data may declare `<machine S>`
   with its mandatory `where machine S(...)` contract. Recursive occurrences
   forward the family parameter, concrete arguments are checked through the full
