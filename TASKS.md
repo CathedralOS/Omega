@@ -457,10 +457,15 @@ schemas recover the same instance without publishing policy type identity.
    result placement plus call/return control. Independently derived footprint
    fragments now compose through deterministic register/state union, validate
    once against the retained entry plan, and retain an order- and duplicate-
-   insensitive implementation-evidence fingerprint. Whole-body evidence,
-   save/restore specialization, and post-layout enumeration across handler code,
-   exits, veneers, thunks, and admitted leaves remain; final placement must
-   still prove that enumeration is complete.
+   insensitive implementation-evidence fingerprint. Validated inbound-storage
+   fragments now survive instruction selection and abstract-operation lowering
+   with explicit `entry_storage` provenance. The backend publishes both those
+   fragments and their composed fingerprint in `08_boundary_footprints.json`,
+   whose `enumeration_complete: false` firewall prevents this partial slice from
+   being mistaken for the final certificate. Whole-body evidence, save/restore
+   specialization, and post-layout enumeration across handler code, exits,
+   veneers, thunks, and admitted leaves remain; final placement must still prove
+   that enumeration is complete.
 4. **IDT1 — symbolic materialization (normalized foundation complete).**
    `LayoutPlan` now uses compiler-issued field keys normalized back to names;
    repeated `Bits` entries validate exact logical-source tiling plus

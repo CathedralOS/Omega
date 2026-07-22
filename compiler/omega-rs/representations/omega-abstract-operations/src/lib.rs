@@ -34,3 +34,5 @@ pub use values::{
     AbstractValueFact, AbstractValueFactHandle, AbstractValueOrigin, AbstractValueStatementRole,
     AbstractValueSummary,
 };
+mod boundary_footprints;
+pub use boundary_footprints::*;

@@ -1435,6 +1435,7 @@ pub(crate) fn select_runtime_unaliased_storage_mutation_write_with_scratch(
 pub(super) fn select_entry_argument_register_writes(
     input: &InstructionSelectionInput<'_>,
     selected_instructions: &mut SelectedInstructionSink,
+    boundary_footprints: &mut omega_abstract_operations::BoundaryFootprintPlan,
 ) {
     // THE BYTES HANDOFF -- `run(&self, args: &[u8])`: when the entry's sole
     // declared parameter is a byte slice, the prologue SPILLS the platform's
@@ -1461,7 +1462,9 @@ pub(super) fn select_entry_argument_register_writes(
         let destinations = (0..4)
             .map(|index| (spill_base + index * 8, ValueShape::integer(8, 8)))
             .collect::<Vec<_>>();
-        select_normalized_entry_argument_writes(input, &destinations, selected_instructions);
+        let footprint =
+            select_normalized_entry_argument_writes(input, &destinations, selected_instructions);
+        retain_entry_storage_footprint(boundary_footprints, footprint);
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::WriteEntryArgumentsSliceDescriptor {
                 descriptor_offset,
@@ -1540,7 +1543,9 @@ pub(super) fn select_entry_argument_register_writes(
         let destinations = (0..(*byte_size / 8))
             .map(|index| (*byte_offset + index * 8, ValueShape::integer(8, 8)))
             .collect::<Vec<_>>();
-        select_normalized_entry_argument_writes(input, &destinations, selected_instructions);
+        let footprint =
+            select_normalized_entry_argument_writes(input, &destinations, selected_instructions);
+        retain_entry_storage_footprint(boundary_footprints, footprint);
         return;
     }
 
@@ -1562,14 +1567,27 @@ pub(super) fn select_entry_argument_register_writes(
     {
         return;
     }
-    select_normalized_entry_argument_writes(input, &destinations, selected_instructions);
+    let footprint =
+        select_normalized_entry_argument_writes(input, &destinations, selected_instructions);
+    retain_entry_storage_footprint(boundary_footprints, footprint);
+}
+
+fn retain_entry_storage_footprint(
+    plan: &mut omega_abstract_operations::BoundaryFootprintPlan,
+    evidence: omega_calling_conventions::StateFootprintEvidence,
+) {
+    plan.fragments
+        .push(omega_abstract_operations::BoundaryFootprintFragment {
+            origin: omega_abstract_operations::BoundaryFootprintFragmentOrigin::EntryStorage,
+            evidence,
+        });
 }
 
 fn select_normalized_entry_argument_writes(
     input: &InstructionSelectionInput<'_>,
     destinations: &[(usize, ValueShape)],
     selected_instructions: &mut SelectedInstructionSink,
-) {
+) -> omega_calling_conventions::StateFootprintEvidence {
     let result = normalized_entry_indirect_result_shape(input);
     let signature = CallSignature {
         parameters: destinations.iter().map(|(_, shape)| *shape).collect(),
@@ -1594,13 +1612,15 @@ fn select_normalized_entry_argument_writes(
         indirect_result_pointer_byte_offset,
     )
     .expect("runtime entry must lower from its validated boundary plan");
-    for kind in entry_storage.writes {
+    let crate::DerivedBoundaryEntryStorage { writes, footprint } = entry_storage;
+    for kind in writes {
         selected_instructions.push(SelectedInstruction {
             kind,
             source_key: input.entry_key,
             source_statement: 0,
         });
     }
+    footprint
 }
 
 pub(super) fn normalized_entry_indirect_result_shape(

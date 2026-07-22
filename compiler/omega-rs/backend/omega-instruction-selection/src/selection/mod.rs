@@ -29,12 +29,13 @@ use state_bodies::{StateBodyVisitStack, runtime_reachable_states, select_state_b
 pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> AbstractOperationPlan {
     let mut instruction_plan = estimated_instruction_plan(input);
 
-    let (instructions, mut permission_realization_candidates) = select_entry_instructions(
-        input,
-        &mut instruction_plan.code.operands,
-        &mut instruction_plan.code.runtime_value_operands,
-        &mut instruction_plan.code.instructions,
-    );
+    let (instructions, mut permission_realization_candidates, boundary_footprints) =
+        select_entry_instructions(
+            input,
+            &mut instruction_plan.code.operands,
+            &mut instruction_plan.code.runtime_value_operands,
+            &mut instruction_plan.code.instructions,
+        );
     append_trivial_affine_drop_realizations(input, &mut permission_realization_candidates);
     append_elided_no_debt_realizations(input, &mut permission_realization_candidates);
 
@@ -47,6 +48,7 @@ pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> Abstract
             instructions,
         });
     instruction_plan.permission_realization_candidates = permission_realization_candidates;
+    instruction_plan.boundary_footprints = boundary_footprints;
 
     instruction_plan
 }
@@ -181,8 +183,10 @@ fn select_entry_instructions(
 ) -> (
     omega_core::arena::HandleSpan<AbstractOperation>,
     Vec<omega_abstract_operations::PermissionRealizationCandidate>,
+    omega_abstract_operations::BoundaryFootprintPlan,
 ) {
     let mut selected_instructions = SelectedInstructionSink::new(instructions, input.control_flow);
+    let mut boundary_footprints = omega_abstract_operations::BoundaryFootprintPlan::default();
 
     selected_instructions.push(entry_instruction(input));
     // The platform boundary establishes entry parameters by writing the
@@ -191,7 +195,11 @@ fn select_entry_instructions(
     // dispatching or straight-line body begins; zero-initialized storage is not
     // establishment evidence.
     selected_instructions.begin_state_entry_permission_site(input.entry_key);
-    select_entry_argument_register_writes(input, &mut selected_instructions);
+    select_entry_argument_register_writes(
+        input,
+        &mut selected_instructions,
+        &mut boundary_footprints,
+    );
     selected_instructions.end_permission_site();
 
     if input.runtime_dispatch_loop.needed {
@@ -202,7 +210,8 @@ fn select_entry_instructions(
             &mut selected_instructions,
         );
         selected_instructions.push(exit_instruction(input));
-        return selected_instructions.finish();
+        let (instructions, candidates) = selected_instructions.finish();
+        return (instructions, candidates, boundary_footprints);
     }
 
     let schedule_context =
@@ -229,7 +238,8 @@ fn select_entry_instructions(
     );
 
     selected_instructions.push(exit_instruction(input));
-    selected_instructions.finish()
+    let (instructions, candidates) = selected_instructions.finish();
+    (instructions, candidates, boundary_footprints)
 }
 
 fn entry_instruction(input: &InstructionSelectionInput<'_>) -> AbstractOperation {

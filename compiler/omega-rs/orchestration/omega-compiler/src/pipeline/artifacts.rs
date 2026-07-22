@@ -278,6 +278,11 @@ pub(super) fn write_backend_report(
             &plan.control_flow,
         ),
     )?;
+    write_phase_text(
+        options,
+        "08_boundary_footprints.json",
+        &omega_visualizations::boundary_footprint_fragments_json(&plan.abstract_operations),
+    )?;
     write_phase_diagram(
         options,
         "09_target_operations.html",
@@ -435,6 +440,7 @@ pub(super) fn remove_stale_phase_diagrams(options: &CompileOptions) -> Result<()
             "backend_report.txt",
             "slots.txt",
             "08_abstract_operations.html",
+            "08_boundary_footprints.json",
             "09_target_operations.html",
             "10_assigned_target_operations.html",
             "11_machine_instructions.html",

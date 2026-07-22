@@ -1,4 +1,4 @@
-use omega_compiler::{CompileOptions, CompileReport, compile, compile_to_checked};
+use omega_compiler::{compile, compile_to_checked, CompileOptions, CompileReport};
 use omega_core::diagnostics::Diagnostic;
 use std::fs;
 #[cfg(not(windows))]
@@ -860,10 +860,8 @@ fn linux_x64_dungeon_crawler_emits_elf_with_runtime_storage_syscalls() {
     // (read syscall number) + syscall. Its presence proves stdin input works via the
     // syscall path (a win32-import read would emit a `call rel32`, no read syscall).
     assert!(
-        elf.windows(12).any(|w| w
-            == [
-                0xba, 0x01, 0x00, 0x00, 0x00, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x05
-            ]),
+        elf.windows(12)
+            .any(|w| w == [0xba, 0x01, 0x00, 0x00, 0x00, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x05]),
         "ELF should set up a read(2) line-read loop (mov edx,1; mov eax,0; syscall)"
     );
 
@@ -982,6 +980,8 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         .expect("checked tree visualization should be written");
     let abstract_operations = fs::read_to_string(build_dir.join("08_abstract_operations.html"))
         .expect("abstract operations visualization should be written");
+    let boundary_footprints = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
+        .expect("boundary footprint evidence should be written");
     let machine_instructions = fs::read_to_string(build_dir.join("11_machine_instructions.html"))
         .expect("machine instructions visualization should be written");
 
@@ -1013,6 +1013,12 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         abstract_operations.contains("Main::main::main [0]")
             && abstract_operations.contains("00 EnterFunction @ statement 0"),
         "abstract operations should render backend state blocks with ordered instruction lines"
+    );
+    assert!(
+        boundary_footprints.contains("\"enumeration_complete\": false")
+            && boundary_footprints.contains("\"composed\"")
+            && boundary_footprints.contains("\"fragments\""),
+        "boundary footprint artifact should expose retained evidence without claiming final completeness"
     );
     assert!(
         machine_instructions.contains("Machine Instructions")
