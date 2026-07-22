@@ -1288,7 +1288,17 @@ stronger operations it needs instead of citing machine parameters generally.
 - **Termination firewall.** Pin one public `terminates` requirement inherited
   by acyclic and cyclic providers; swap descending and bounded-increasing
   witnesses without changing caller/import-slot identity; reject runtime
-  non-tail lowering and ungranted progress profiles.
+  non-tail lowering and ungranted progress profiles. Proof-only cross-machine
+  SCCs now admit non-tail calls only when every member carries one structural
+  witness and every edge passes a strict case-payload subterm into the callee's
+  ranked parameter; unmeasured and nondecreasing cycles reject, and all three
+  cases are authoritative canaries. **Language-design blocker:** the runtime
+  mutual-recursion notes disagree on whether a cycle may contain forwarding
+  (non-increasing) edges when their subgraph is acyclic or whether every
+  cross-machine edge must be strict. Keep the two aggregate-decrease fixtures
+  out of the authoritative pass roster until that admissibility rule is frozen;
+  this does not block proof-only SCCs because they require strict structural
+  descent on every edge.
 - **Kinded effects.** Demonstrate separate service reach and `Suspend`/`Block`
   members, recursive inference, public-ceiling failures, provider subset
   admission, and stable normalized IDs independent of prover strength.

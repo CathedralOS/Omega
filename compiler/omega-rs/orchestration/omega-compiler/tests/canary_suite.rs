@@ -38224,6 +38224,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "dependent/data_where_gated_literal_proves",
     "termination/default_order_unsigned_width_countdown_compile",
     "termination/runtime_shrinking_slice_recursion_exit",
+    "termination/proof_non_tail_joint_machine_cycle_compile",
     // --- Language-guide chapter coverage (Ch1-22) ---
     "calls/runtime_local_string_field_copy_through_mut_exit",
     "calls/runtime_min_call_result_arithmetic_exit",
@@ -38760,6 +38761,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "termination/increasing_unbounded_rejected",
     "termination/rank_floor_unconsumed",
     "termination/requirement_witness_rejected",
+    "termination/proof_joint_machine_cycle_unmeasured",
+    "termination/proof_joint_machine_cycle_nondecreasing",
     "dependent/data_where_literal_violates",
     "dependent/data_where_write_violates",
     "dependent/data_where_read_before_establish",
