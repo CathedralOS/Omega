@@ -38924,11 +38924,10 @@ fn sysv_vtable_field_call_emits_indirect_dispatch() {
 // reads the layout-computed +40 field. Cross-compiled for uefi_x64 on every
 // host.
 #[test]
-fn efi_two_provides_rows_cross_compile() {
-    // M2 blocker 1: two authored provides rows coexist (interned Custom
-    // keys); cross-compiled for uefi_x64 on any host.
-    let canary = pass_canary("targets/efi_two_provides_rows");
-    let build_dir = std::env::temp_dir().join(format!("omega-two-rows-{}", std::process::id()));
+fn efi_two_table_function_leaves_cross_compile() {
+    let canary = pass_canary("targets/efi_two_table_function_leaves");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-two-table-leaves-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
@@ -38936,7 +38935,21 @@ fn efi_two_provides_rows_cross_compile() {
         target_name: Some("uefi_x64".to_owned()),
         write_output: true,
     })
-    .expect("two provides rows should cross-compile for uefi_x64");
+    .expect("two attached table-function leaves should cross-compile for uefi_x64");
+    let report = fs::read_to_string(build_dir.join("backend_report.txt"))
+        .expect("backend report should be written");
+    assert!(
+        report.contains(
+            "BootServices.get_memory_map table function EfiBootServicesTable.get_memory_map"
+        ),
+        "get_memory_map must select the attached TableFunction leaf"
+    );
+    assert!(
+        report.contains(
+            "BootServices.exit_boot_services table function EfiBootServicesTable.exit_boot_services"
+        ),
+        "exit_boot_services must select the attached TableFunction leaf"
+    );
     let _ = fs::remove_dir_all(&build_dir);
 }
 

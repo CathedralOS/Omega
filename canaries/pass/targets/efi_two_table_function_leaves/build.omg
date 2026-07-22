@@ -1,0 +1,8 @@
+// Frontier registration for the target-scoped external leaves below.
+target uefi_x64 {
+}
+
+machine build(b: &mut Build) {
+    b.subsystem = Subsystem::EfiApplication;
+    b.freestanding = true;
+}
