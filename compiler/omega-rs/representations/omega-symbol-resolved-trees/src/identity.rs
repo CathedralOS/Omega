@@ -69,25 +69,13 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
     for data_definition in &program.data_definitions {
         count_declaration_name(&data_definition.name, &mut counts);
         for parameter in program.data_type_parameters(data_definition.type_parameters) {
-            count_declaration_name(&parameter.name, &mut counts);
-            if let crate::data::TypeParameterKind::Machine { contract } = &parameter.kind {
-                count_declaration_name(&contract.name, &mut counts);
-                count_optional_type_reference(
-                    contract.return_type.as_ref(),
-                    child_type_references,
-                    expression_table,
-                    &mut counts,
-                );
-                for contract_parameter in program.state_parameters(contract.parameters) {
-                    count_declaration_name(&contract_parameter.name, &mut counts);
-                    count_type_reference(
-                        &contract_parameter.type_reference,
-                        child_type_references,
-                        expression_table,
-                        &mut counts,
-                    );
-                }
-            }
+            count_type_parameter(
+                program,
+                parameter,
+                child_type_references,
+                expression_table,
+                &mut counts,
+            );
         }
         for member in program.data_members(data_definition.members) {
             match member {
@@ -149,25 +137,13 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
     for machine in &program.machines {
         count_declaration_name(&machine.name, &mut counts);
         for parameter in program.machine_type_parameters(machine) {
-            count_declaration_name(&parameter.name, &mut counts);
-            if let crate::data::TypeParameterKind::Machine { contract } = &parameter.kind {
-                count_declaration_name(&contract.name, &mut counts);
-                count_optional_type_reference(
-                    contract.return_type.as_ref(),
-                    child_type_references,
-                    expression_table,
-                    &mut counts,
-                );
-                for contract_parameter in program.state_parameters(contract.parameters) {
-                    count_declaration_name(&contract_parameter.name, &mut counts);
-                    count_type_reference(
-                        &contract_parameter.type_reference,
-                        child_type_references,
-                        expression_table,
-                        &mut counts,
-                    );
-                }
-            }
+            count_type_parameter(
+                program,
+                parameter,
+                child_type_references,
+                expression_table,
+                &mut counts,
+            );
         }
         for contained in program.machine_contained_objects(machine.contains) {
             count_declaration_name(&contained.name, &mut counts);
@@ -291,6 +267,62 @@ fn count_operator(
     }
     if let Some(return_type) = &operator.return_type {
         count_type_reference(return_type, child_type_references, expression_table, counts);
+    }
+}
+
+fn count_type_parameter(
+    program: &SymbolResolvedTrees,
+    parameter: &crate::data::TypeParameter,
+    child_type_references: &omega_core::arena::Arena<crate::types::TypeReference>,
+    expression_table: &ExpressionTable,
+    counts: &mut IdentityStorageCounts,
+) {
+    count_declaration_name(&parameter.name, counts);
+    match &parameter.kind {
+        crate::data::TypeParameterKind::Type => {}
+        crate::data::TypeParameterKind::Const { type_reference } => {
+            count_type_reference(
+                type_reference,
+                child_type_references,
+                expression_table,
+                counts,
+            );
+        }
+        crate::data::TypeParameterKind::Machine { contract } => {
+            count_declaration_name(&contract.name, counts);
+            for nested in program.data_type_parameters(contract.type_parameters) {
+                count_type_parameter(
+                    program,
+                    nested,
+                    child_type_references,
+                    expression_table,
+                    counts,
+                );
+            }
+            for contract_parameter in program.state_parameters(contract.parameters) {
+                count_declaration_name(&contract_parameter.name, counts);
+                count_type_reference(
+                    &contract_parameter.type_reference,
+                    child_type_references,
+                    expression_table,
+                    counts,
+                );
+            }
+            count_optional_type_reference(
+                contract.return_type.as_ref(),
+                child_type_references,
+                expression_table,
+                counts,
+            );
+            for effect in program.signature_effects(contract.effects) {
+                count_declaration_name(effect, counts);
+            }
+            for contract in program.signature_contracts(contract.contracts) {
+                for fact in program.proof_facts(contract.facts) {
+                    count_proof_fact(program, fact, expression_table, counts);
+                }
+            }
+        }
     }
 }
 

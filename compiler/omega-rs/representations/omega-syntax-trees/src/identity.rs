@@ -376,6 +376,13 @@ fn count_state_signature(
     counts: &mut AstIdentityStorageCounts,
 ) {
     count_identifier(&signature.name, counts);
+    for parameter in syntax_trees
+        .items
+        .type_parameters(signature.type_parameters)
+    {
+        count_identifier(&parameter.name, counts);
+        count_type_parameter_kind(syntax_trees, &parameter.kind, counts);
+    }
     for parameter in syntax_trees.items.state_parameters(signature.parameters) {
         count_state_parameter(syntax_trees, *parameter, counts);
     }
@@ -402,6 +409,13 @@ fn count_state_signature_node(
     counts: &mut AstIdentityStorageCounts,
 ) {
     count_identifier(&signature.name, counts);
+    for parameter in syntax_trees
+        .items
+        .type_parameters(signature.type_parameters)
+    {
+        count_identifier(&parameter.name, counts);
+        count_type_parameter_kind(syntax_trees, &parameter.kind, counts);
+    }
     for parameter in syntax_trees.items.state_parameters(signature.parameters) {
         count_state_parameter(syntax_trees, *parameter, counts);
     }

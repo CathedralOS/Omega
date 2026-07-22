@@ -313,6 +313,7 @@ pub struct StateSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct StateSignatureSnapshot {
     pub name: IdentifierSnapshot,
+    pub type_parameters: Vec<TypeParameterSnapshot>,
     pub is_default: bool,
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: TypeReferenceSnapshot,
@@ -1061,6 +1062,12 @@ fn snapshot_state_signature(
 ) -> StateSignatureSnapshot {
     StateSignatureSnapshot {
         name: snapshot_identifier(&signature.name),
+        type_parameters: syntax_trees
+            .items
+            .type_parameters(signature.type_parameters)
+            .iter()
+            .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
+            .collect(),
         is_default: signature.is_default,
         parameters: syntax_trees
             .items
@@ -1094,6 +1101,12 @@ fn snapshot_state_signature_node(
 ) -> StateSignatureSnapshot {
     StateSignatureSnapshot {
         name: snapshot_identifier(&signature.name),
+        type_parameters: syntax_trees
+            .items
+            .type_parameters(signature.type_parameters)
+            .iter()
+            .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
+            .collect(),
         is_default: signature.is_default,
         parameters: syntax_trees
             .items

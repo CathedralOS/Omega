@@ -1,0 +1,1 @@
+machine parameter `Bad` forwarded into `Schema` does not refine `Inner`: expected return `Index`, got `bool`

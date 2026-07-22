@@ -1,0 +1,30 @@
+data Index {
+    case Zero;
+    case Next(previous: Index);
+}
+
+boundary machine sample(index: Index) -> Index;
+
+machine bad_schema<machine Chosen>(value: Index) -> Index
+where machine Chosen(index: Index) -> bool;
+{
+    value
+}
+
+machine forward_schema<machine Schema, machine Selected>(value: Index) -> Index
+where machine Schema<machine Inner>(value: Index) -> Index
+where machine Inner(index: Index) -> Index;
+where machine Selected(index: Index) -> Index;
+{
+    Schema<Selected>(value)
+}
+
+machine rejected(value: Index) -> Index {
+    forward_schema<bad_schema, sample>(value)
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

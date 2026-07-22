@@ -36,30 +36,32 @@ pub(super) fn infer_hoist_temp_type(
     // to `max(x, 0-x)`; clamp's outer call has a non-place first arg and is not
     // hoisted). Only a `self.<field>` first arg is typeable here, which is exactly
     // what the hoist predicate requires; any other call shape yields no type.
-    let builtin_first_arg: Option<Option<ExpressionHandle>> =
-        match expressions.expression(initial_value) {
-            ExpressionNode::Call(call)
-                if !call.receiver.is_valid()
-                    && matches!(call.target.as_str(), "min" | "max" | "sqrt") =>
-            {
-                Some(
-                    expressions
-                        .expression_handles(call.arguments)
-                        .first()
-                        .copied(),
-                )
-            }
-            // A USER value-machine call hoisted out of a guard comparison
-            // (`let __hoist = self.dbl(5)`, syntax->symbol-resolved
-            // `hoist_scalar_value_call_comparison`): the temp's type is the
-            // callee's DECLARED return type, resolved by target symbol over
-            // the machine-state arena. An inferred-return callee cannot be
-            // typed at this phase -- reject it with the actionable fix
-            // instead of the confusing Unit frame-slot layout error.
-            ExpressionNode::Call(call) => {
-                let target_symbol = call.target_symbol;
-                let target_name = call.target.as_str().to_string();
-                let declared_return = target_symbol
+    let builtin_first_arg: Option<Option<ExpressionHandle>> = match expressions
+        .expression(initial_value)
+    {
+        ExpressionNode::Call(call)
+            if !call.receiver.is_valid()
+                && matches!(call.target.as_str(), "min" | "max" | "sqrt") =>
+        {
+            Some(
+                expressions
+                    .expression_handles(call.arguments)
+                    .first()
+                    .copied(),
+            )
+        }
+        // A USER value-machine call hoisted out of a guard comparison
+        // (`let __hoist = self.dbl(5)`, syntax->symbol-resolved
+        // `hoist_scalar_value_call_comparison`): the temp's type is the
+        // callee's DECLARED return type, resolved by target symbol over
+        // the machine-state arena. An inferred-return callee cannot be
+        // typed at this phase -- reject it with the actionable fix
+        // instead of the confusing Unit frame-slot layout error.
+        ExpressionNode::Call(call) => {
+            let target_symbol = call.target_symbol;
+            let target_name = call.target.as_str().to_string();
+            let mut machine_substitutions = Vec::new();
+            let declared_return = target_symbol
                     .is_valid()
                     .then(|| {
                         lowerer
@@ -91,27 +93,52 @@ pub(super) fn infer_hoist_temp_type(
                                             if parameter.symbol == target_symbol
                                                 || contract.symbol == target_symbol =>
                                         {
+                                            machine_substitutions.extend(
+                                                lowerer
+                                                    .source_trees
+                                                    .data_type_parameters(contract.type_parameters)
+                                                    .iter()
+                                                    .filter(|parameter| {
+                                                        matches!(
+                                                            parameter.kind,
+                                                            resolved::data::TypeParameterKind::Machine { .. }
+                                                        )
+                                                    })
+                                                    .zip(call.machine_arguments.iter())
+                                                    .filter_map(|(parameter, argument)| {
+                                                        argument.path.last().map(|name| {
+                                                            (
+                                                                parameter.symbol,
+                                                                argument.symbol,
+                                                                crate::name::lower_name(name),
+                                                            )
+                                                        })
+                                                    }),
+                                            );
                                             contract.return_type.clone()
                                         }
                                         _ => None,
                                     })
                             })
                     });
-                let Some(declared_return) = declared_return else {
-                    return Err(Diagnostic::error(format!(
-                        "a value-machine call in a guard comparison needs the callee's \
+            let Some(declared_return) = declared_return else {
+                return Err(Diagnostic::error(format!(
+                    "a value-machine call in a guard comparison needs the callee's \
                          return type declared: annotate `{target_name}` with an explicit \
                          `-> Type`, or bind the call to a typed `let` first and guard \
                          the local"
-                    )));
-                };
-                return Ok(Some(lower_type_reference_into_table(
-                    lowerer,
-                    &declared_return,
-                )?));
-            }
-            _ => None,
-        };
+                )));
+            };
+            let declared_return = lower_type_reference_into_table(lowerer, &declared_return)?;
+            substitute_machine_parameters_in_type(
+                &mut lowerer.typed_trees.type_reference_table,
+                declared_return,
+                &machine_substitutions,
+            );
+            return Ok(Some(declared_return));
+        }
+        _ => None,
+    };
     if let Some(first) = builtin_first_arg {
         let Some(first) = first else {
             return Ok(None);
@@ -347,6 +374,55 @@ pub(super) fn infer_hoist_temp_type(
             constraints,
         },
     )))
+}
+
+fn substitute_machine_parameters_in_type(
+    table: &mut typed::types::TypeReferenceTable,
+    handle: typed::types::TypeReferenceHandle,
+    substitutions: &[(
+        omega_core::symbols::SymbolHandle,
+        omega_core::symbols::SymbolHandle,
+        typed::name::Identifier,
+    )],
+) {
+    if !handle.is_valid() || substitutions.is_empty() {
+        return;
+    }
+    let node = table.type_reference(handle).clone();
+    match node {
+        typed::types::TypeReferenceNode::Named { symbol, .. } => {
+            if let Some((_, replacement, name)) = substitutions
+                .iter()
+                .find(|(parameter, _, _)| *parameter == symbol)
+            {
+                table.substitute_node(
+                    handle,
+                    typed::types::TypeReferenceNode::Named {
+                        symbol: *replacement,
+                        name: name.clone(),
+                    },
+                );
+            }
+        }
+        typed::types::TypeReferenceNode::Reference { referee, .. } => {
+            substitute_machine_parameters_in_type(table, referee, substitutions);
+        }
+        typed::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            substitute_machine_parameters_in_type(table, base_type, substitutions);
+        }
+        typed::types::TypeReferenceNode::FixedArray { element_type, .. }
+        | typed::types::TypeReferenceNode::Slice { element_type } => {
+            substitute_machine_parameters_in_type(table, element_type, substitutions);
+        }
+        typed::types::TypeReferenceNode::Generic { arguments, .. } => {
+            let arguments = table.type_reference_handles(arguments).to_vec();
+            for argument in arguments {
+                substitute_machine_parameters_in_type(table, argument, substitutions);
+            }
+        }
+        typed::types::TypeReferenceNode::DynamicTrait { .. }
+        | typed::types::TypeReferenceNode::Unit => {}
+    }
 }
 
 /// Resolves the resolved `TypeReference` of an indexed read's COLLECTION.

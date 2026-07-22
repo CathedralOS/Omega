@@ -1530,6 +1530,65 @@ fn substitute_cloned_type_parameters(
                 .substitute_node(occurrence, replacement.clone());
         }
     }
+    substitute_machine_parameter_type_references(program, candidate, Some(type_start));
+}
+
+fn substitute_machine_parameter_type_references(
+    program: &mut TypedTrees,
+    candidate: &Candidate,
+    type_start: Option<usize>,
+) {
+    for ((parameter_symbol, _, _), binding) in candidate
+        .machine_parameters
+        .iter()
+        .zip(candidate.machine_bindings.iter())
+    {
+        let binding = binding.as_ref().expect("complete specialization");
+        let name = binding
+            .path
+            .last()
+            .cloned()
+            .or_else(|| state_by_symbol(program, binding.symbol).map(|state| state.name.clone()))
+            .expect("admitted static machine argument has an entry name");
+        let occurrences: Vec<_> = program
+            .type_reference_table
+            .named_references()
+            .filter(|(handle, symbol, _)| {
+                type_start.is_none_or(|start| handle.arena_index() as usize >= start)
+                    && symbol == parameter_symbol
+            })
+            .map(|(handle, _, _)| handle)
+            .collect();
+        for occurrence in occurrences {
+            program.type_reference_table.substitute_node(
+                occurrence,
+                TypeReferenceNode::Named {
+                    symbol: binding.symbol,
+                    name: name.clone(),
+                },
+            );
+        }
+    }
+}
+
+fn substitute_forwarded_machine_arguments(
+    arguments: &mut [StaticMachineArgument],
+    rewrites: &[(
+        SymbolHandle,
+        SymbolHandle,
+        omega_typed_trees::name::Identifier,
+    )],
+) {
+    for argument in arguments {
+        let Some((_, symbol, name)) = rewrites
+            .iter()
+            .find(|(parameter, _, _)| *parameter == argument.symbol)
+        else {
+            continue;
+        };
+        argument.symbol = *symbol;
+        argument.path = vec![name.clone()].into_boxed_slice();
+    }
 }
 
 fn rewrite_cloned_calls(
@@ -1568,6 +1627,7 @@ fn rewrite_cloned_calls(
                 call.target_symbol = *target;
                 call.target = name.clone();
             }
+            substitute_forwarded_machine_arguments(&mut call.machine_arguments, &rewrites);
             if state_symbols
                 .iter()
                 .any(|(_, concrete)| *concrete == call.target_symbol)
@@ -1593,6 +1653,7 @@ fn rewrite_cloned_calls(
             call.target_symbol = *target;
             call.target = name.clone();
         }
+        substitute_forwarded_machine_arguments(&mut call.machine_arguments, &rewrites);
         if state_symbols
             .iter()
             .any(|(_, concrete)| *concrete == call.target_symbol)
@@ -1718,6 +1779,8 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
         })
         .collect();
 
+    substitute_machine_parameter_type_references(program, candidate, None);
+
     let state_spans: Vec<HandleSpan<StatementNode>> = program
         .machines()
         .iter()
@@ -1736,6 +1799,7 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
                 call.target_symbol = *symbol;
                 call.target = name.clone();
             }
+            substitute_forwarded_machine_arguments(&mut call.machine_arguments, &rewrites);
             if candidate.state_symbols.contains(&call.target_symbol) {
                 call.machine_arguments = Box::default();
             }
@@ -1758,6 +1822,7 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
             call.target_symbol = *symbol;
             call.target = name.clone();
         }
+        substitute_forwarded_machine_arguments(&mut call.machine_arguments, &rewrites);
         if candidate.state_symbols.contains(&call.target_symbol) {
             call.machine_arguments = Box::default();
         }

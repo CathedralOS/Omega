@@ -306,6 +306,7 @@ pub struct StateSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct StateSignatureSnapshot {
     pub name: String,
+    pub type_parameters: Vec<String>,
     pub is_default: bool,
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: Option<TypeReferenceSnapshot>,
@@ -745,6 +746,11 @@ fn state_signature_snapshot(
 ) -> StateSignatureSnapshot {
     StateSignatureSnapshot {
         name: signature.name.to_string(),
+        type_parameters: program
+            .state_signature_type_parameters(signature)
+            .iter()
+            .map(|parameter| parameter.name.to_string())
+            .collect(),
         is_default: signature.is_default,
         parameters: program
             .state_signature_parameters(signature)

@@ -233,7 +233,16 @@ pub(super) fn parse_machine<'tokens, 'source>(
 pub(super) fn parse_machine_parameter_contracts<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     type_parameters: HandleSpan<omega_syntax_trees::item::TypeParameter>,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ()> {
+    parse_machine_parameter_contracts_in(syntax_trees, type_parameters, input, true)
+}
+
+fn parse_machine_parameter_contracts_in<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    type_parameters: HandleSpan<omega_syntax_trees::item::TypeParameter>,
     mut input: Input<'tokens, 'source>,
+    reject_unknown_parameter: bool,
 ) -> ParseResult<'tokens, 'source, ()> {
     loop {
         if !input.at_contextual("where") {
@@ -255,18 +264,25 @@ pub(super) fn parse_machine_parameter_contracts<'tokens, 'source>(
             break;
         }
 
-        let parameter_index = syntax_trees
+        let Some(parameter_index) = syntax_trees
             .items
             .type_parameters(type_parameters)
             .iter()
             .position(|parameter| parameter.name == name)
-            .ok_or_else(|| {
-                after_name.error_here(format!(
+        else {
+            if reject_unknown_parameter {
+                return Err(after_name.error_here(format!(
                     "`where machine {}` has no matching `<machine {}>` parameter",
                     name.as_str(),
                     name.as_str()
-                ))
-            })?;
+                )));
+            }
+            // A nested signature's requirements are written in the same
+            // clause stream as its owner's remaining requirements. An
+            // unknown name at this level therefore belongs to the caller;
+            // leave the complete `where machine` clause unconsumed.
+            break;
+        };
 
         match &syntax_trees.items.type_parameters(type_parameters)[parameter_index].kind {
             omega_syntax_trees::item::TypeParameterKind::Machine { contract: None } => {}
@@ -285,12 +301,23 @@ pub(super) fn parse_machine_parameter_contracts<'tokens, 'source>(
             }
         }
 
+        let (nested_type_parameters, after_type_parameters) =
+            parse_machine_type_parameters(syntax_trees, after_name)?;
         let (parameters, after_parameters) =
-            parse_optional_state_parameters(syntax_trees, after_name)?;
+            parse_optional_state_parameters(syntax_trees, after_type_parameters)?;
         let (return_type, after_return) =
             parse_optional_return_type(syntax_trees, after_parameters)?;
+        let ((), after_nested_contracts) = parse_machine_parameter_contracts_in(
+            syntax_trees,
+            nested_type_parameters,
+            after_return,
+            false,
+        )?;
         let ((effects, contracts, terminates_guarantee), mut rest) =
-            crate::parser::trait_definition::parse_signature_clauses(syntax_trees, after_return)?;
+            crate::parser::trait_definition::parse_signature_clauses(
+                syntax_trees,
+                after_nested_contracts,
+            )?;
         // Permit a separator after the requirement. The semicolon belongs to
         // this `where machine` signature, never to the generic machine body.
         if rest.at_punctuation(PunctuationKind::Semicolon) {
@@ -299,7 +326,7 @@ pub(super) fn parse_machine_parameter_contracts<'tokens, 'source>(
 
         let contract = omega_syntax_trees::item::StateSignature {
             name: name.clone(),
-            type_parameters: HandleSpan::empty(),
+            type_parameters: nested_type_parameters,
             is_default: false,
             parameters,
             return_type,

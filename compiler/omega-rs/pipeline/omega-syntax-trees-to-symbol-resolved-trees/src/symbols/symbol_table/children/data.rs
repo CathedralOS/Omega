@@ -1,6 +1,7 @@
 use omega_core::symbols::{SymbolHandle, SymbolKind, SymbolTableBuilder};
 use omega_symbol_resolved_trees::SymbolResolvedTrees;
 
+use super::insert_machine_parameter_signature_children;
 use crate::symbols::symbol_table::names::symbol_seed;
 
 pub(in crate::symbols::symbol_table) fn insert_data_symbol_children(
@@ -44,14 +45,12 @@ pub(in crate::symbols::symbol_table) fn insert_data_symbol_children(
             omega_symbol_resolved_trees::data::TypeParameterKind::Machine { contract },
         ) = (parameter_symbol, &parameter.kind)
         {
-            builder.insert_children(
+            insert_machine_parameter_signature_children(
+                builder,
+                program,
                 parameter_symbol,
-                program
-                    .state_parameters(contract.parameters)
-                    .iter()
-                    .map(|parameter| {
-                        symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)
-                    }),
+                contract,
+                has_sources,
             );
         }
     }

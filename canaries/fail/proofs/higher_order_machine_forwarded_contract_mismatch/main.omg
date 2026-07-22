@@ -1,0 +1,18 @@
+data Index {
+    case Zero;
+    case Next(previous: Index);
+}
+
+machine forward_bad<machine Schema, machine Bad>(value: Index) -> Index
+where machine Schema<machine Inner>(value: Index) -> Index
+where machine Inner(index: Index) -> Index;
+where machine Bad(index: Index) -> bool;
+{
+    Schema<Bad>(value)
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

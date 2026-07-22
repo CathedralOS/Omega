@@ -66,25 +66,7 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
     for data_definition in typed_trees.data_definitions() {
         count_declaration_name(&data_definition.name, &mut counts);
         for parameter in typed_trees.data_type_parameters(data_definition) {
-            count_declaration_name(&parameter.name, &mut counts);
-            if let crate::data::TypeParameterKind::Machine { contract } = &parameter.kind {
-                count_declaration_name(&contract.name, &mut counts);
-                if contract.return_type.is_valid() {
-                    count_type_reference_handle(
-                        &typed_trees.type_reference_table,
-                        contract.return_type,
-                        &mut counts,
-                    );
-                }
-                for contract_parameter in typed_trees.state_signature_parameters(contract) {
-                    count_declaration_name(&contract_parameter.name, &mut counts);
-                    count_type_reference_handle(
-                        &typed_trees.type_reference_table,
-                        contract_parameter.type_reference,
-                        &mut counts,
-                    );
-                }
-            }
+            count_type_parameter(typed_trees, parameter, &mut counts);
         }
         for member in typed_trees.data_members(data_definition) {
             match member {
@@ -143,25 +125,7 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
     for machine in typed_trees.machines() {
         count_declaration_name(&machine.name, &mut counts);
         for parameter in typed_trees.machine_type_parameters(machine) {
-            count_declaration_name(&parameter.name, &mut counts);
-            if let crate::data::TypeParameterKind::Machine { contract } = &parameter.kind {
-                count_declaration_name(&contract.name, &mut counts);
-                if contract.return_type.is_valid() {
-                    count_type_reference_handle(
-                        &typed_trees.type_reference_table,
-                        contract.return_type,
-                        &mut counts,
-                    );
-                }
-                for contract_parameter in typed_trees.state_signature_parameters(contract) {
-                    count_declaration_name(&contract_parameter.name, &mut counts);
-                    count_type_reference_handle(
-                        &typed_trees.type_reference_table,
-                        contract_parameter.type_reference,
-                        &mut counts,
-                    );
-                }
-            }
+            count_type_parameter(typed_trees, parameter, &mut counts);
         }
         for contained in typed_trees.machine_contained_objects(machine) {
             count_declaration_name(&contained.name, &mut counts);
@@ -261,6 +225,49 @@ fn count_operator(
             operator.return_type,
             counts,
         );
+    }
+}
+
+fn count_type_parameter(
+    typed_trees: &TypedTrees,
+    parameter: &crate::data::TypeParameter,
+    counts: &mut IdentityStorageCounts,
+) {
+    count_declaration_name(&parameter.name, counts);
+    match &parameter.kind {
+        crate::data::TypeParameterKind::Type => {}
+        crate::data::TypeParameterKind::Const { type_reference } => {
+            count_type_reference_handle(&typed_trees.type_reference_table, *type_reference, counts);
+        }
+        crate::data::TypeParameterKind::Machine { contract } => {
+            count_declaration_name(&contract.name, counts);
+            for nested in typed_trees.state_signature_type_parameters(contract) {
+                count_type_parameter(typed_trees, nested, counts);
+            }
+            for contract_parameter in typed_trees.state_signature_parameters(contract) {
+                count_declaration_name(&contract_parameter.name, counts);
+                count_type_reference_handle(
+                    &typed_trees.type_reference_table,
+                    contract_parameter.type_reference,
+                    counts,
+                );
+            }
+            if contract.return_type.is_valid() {
+                count_type_reference_handle(
+                    &typed_trees.type_reference_table,
+                    contract.return_type,
+                    counts,
+                );
+            }
+            for effect in typed_trees.state_signature_effects(contract) {
+                count_declaration_name(effect, counts);
+            }
+            for contract in typed_trees.state_signature_contracts(contract) {
+                for fact in typed_trees.tables.proof_facts.span_or_empty(contract.facts) {
+                    count_proof_fact(typed_trees, fact, counts);
+                }
+            }
+        }
     }
 }
 
