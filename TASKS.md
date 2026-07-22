@@ -118,7 +118,9 @@ and relocation sites. AArch64 fragmented compatibility calls and indirect-call
 footprint contracts remain below. Ordinary/firmware entry lowering now validates a combined
 boundary plan with no interrupted state, no save/restore obligation, a
 provider-selected stack, non-preemptive entry semantics, and a transitive state
-ceiling derived exactly from the ABI volatile-register classes.
+ceiling derived from the ABI volatile-register classes plus caller-volatile
+condition flags, so honest body/dispatch evidence can include comparisons
+without claiming protected interrupted state.
 
 The policy-result foundation now represents source evaluation explicitly as
 `Accepted(BoundaryEntryPlan)` or a structured `Rejected` reason. Accepted plans
