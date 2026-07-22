@@ -465,14 +465,18 @@ schemas recover the same instance without publishing policy type identity.
    omitted half of that entry prologue. Direct exit-result materialization now
    contributes `exit_result_registers` evidence as well: immediate writes and
    runtime-storage loads use encoder-owned result/base/large-offset scratch sets
-   and validate against the same complete entry plan. The backend publishes
-   these fragments and their composed fingerprint in
+   and validate against the same complete entry plan. Structurally identified
+   hidden-result copies now add `exit_indirect_result_copy` evidence without
+   sweeping ordinary body `CopyPlaces` operations into the boundary slice;
+   x86-64 shared-base and AArch64 pointee-copy scratch identities remain owned
+   beside their encoders. The backend publishes these fragments and their
+   composed fingerprint in
    `08_boundary_footprints.json`, whose
    `enumeration_complete: false` firewall prevents this partial slice from being
    mistaken for the final certificate. Whole-body evidence, save/restore
-   specialization, indirect-result copies and return/restore sequences, and
-   post-layout enumeration across handler code, veneers, thunks, and admitted
-   leaves remain; final placement must still prove that enumeration is complete.
+   specialization, return/restore sequences, and post-layout enumeration across
+   handler code, veneers, thunks, and admitted leaves remain; final placement
+   must still prove that enumeration is complete.
 4. **IDT1 — symbolic materialization (normalized foundation complete).**
    `LayoutPlan` now uses compiler-issued field keys normalized back to names;
    repeated `Bits` entries validate exact logical-source tiling plus

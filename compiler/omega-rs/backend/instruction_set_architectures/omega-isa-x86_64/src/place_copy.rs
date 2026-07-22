@@ -24,6 +24,7 @@
 //! one side may be indexed (r11 is the single index scratch). Everything
 //! else REFUSES LOUDLY -- legalization, not silent truncation.
 
+use omega_calling_conventions::{MachineRegister, RegisterSet};
 use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{Place, PlaceStep};
 
@@ -584,6 +585,18 @@ pub fn encode_copy_places(
     } else {
         encode_place_copy_with_sites(source, target, byte_count)
     }
+}
+
+/// Exact scratch footprint of a direct-source to dereferenced-target copy,
+/// the shape used by an indirect boundary result. The shared-base materializer
+/// holds the source base in r14, hops the target pointer into r15, and stages
+/// non-empty chunks through rax.
+pub fn copy_places_to_pointee_clobbers(byte_count: usize) -> RegisterSet {
+    let mut registers = vec![MachineRegister::X86R14, MachineRegister::X86R15];
+    if byte_count > 0 {
+        registers.push(MachineRegister::X86Rax);
+    }
+    RegisterSet::new(registers)
 }
 
 /// The SHARED-BASE copy: both places root in the SAME region, so ONE base

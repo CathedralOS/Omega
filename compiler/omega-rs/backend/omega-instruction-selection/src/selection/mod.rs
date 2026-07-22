@@ -1,4 +1,7 @@
-use crate::{InstructionSelectionInput, derive_boundary_exit_result_register_footprint};
+use crate::{
+    InstructionSelectionInput, derive_boundary_exit_indirect_result_copy_footprint,
+    derive_boundary_exit_result_register_footprint,
+};
 use omega_abstract_operations::AbstractOperationPlan;
 use omega_checked_trees::expression::ExpressionTable;
 use omega_core::arena::Arena;
@@ -211,9 +214,10 @@ fn select_entry_instructions(
         );
         selected_instructions.push(exit_instruction(input));
         let (instruction_span, candidates) = selected_instructions.finish();
-        retain_exit_result_register_footprint(
+        retain_exit_footprints(
             &mut boundary_footprints,
             entry_boundary.as_ref(),
+            input,
             instructions.span(instruction_span).unwrap_or_default(),
         );
         return (instruction_span, candidates, boundary_footprints);
@@ -244,17 +248,19 @@ fn select_entry_instructions(
 
     selected_instructions.push(exit_instruction(input));
     let (instruction_span, candidates) = selected_instructions.finish();
-    retain_exit_result_register_footprint(
+    retain_exit_footprints(
         &mut boundary_footprints,
         entry_boundary.as_ref(),
+        input,
         instructions.span(instruction_span).unwrap_or_default(),
     );
     (instruction_span, candidates, boundary_footprints)
 }
 
-fn retain_exit_result_register_footprint(
+fn retain_exit_footprints(
     plan: &mut omega_abstract_operations::BoundaryFootprintPlan,
     boundary: Option<&omega_calling_conventions::ValidatedBoundaryEntryPlan>,
+    input: &InstructionSelectionInput<'_>,
     instructions: &[AbstractOperation],
 ) {
     let Some(boundary) = boundary else {
@@ -265,14 +271,31 @@ fn retain_exit_result_register_footprint(
         instructions.iter().map(|instruction| &instruction.kind),
     )
     .expect("selected exit-result registers must fit the validated entry state ceiling");
-    if evidence.registers().as_slice().is_empty() {
+    if !evidence.registers().as_slice().is_empty() {
+        plan.fragments
+            .push(omega_abstract_operations::BoundaryFootprintFragment {
+                origin:
+                    omega_abstract_operations::BoundaryFootprintFragmentOrigin::ExitResultRegisters,
+                evidence,
+            });
+    }
+    if input.runtime_storage.entry_indirect_result_pointer_size != 8 {
         return;
     }
-    plan.fragments
-        .push(omega_abstract_operations::BoundaryFootprintFragment {
-            origin: omega_abstract_operations::BoundaryFootprintFragmentOrigin::ExitResultRegisters,
+    let evidence = derive_boundary_exit_indirect_result_copy_footprint(
+        boundary,
+        input.runtime_storage.entry_indirect_result_pointer_base,
+        instructions.iter().map(|instruction| &instruction.kind),
+    )
+    .expect("selected indirect-result copies must fit the validated entry state ceiling");
+    if !evidence.registers().as_slice().is_empty() {
+        plan.fragments
+            .push(omega_abstract_operations::BoundaryFootprintFragment {
+            origin:
+                omega_abstract_operations::BoundaryFootprintFragmentOrigin::ExitIndirectResultCopy,
             evidence,
         });
+    }
 }
 
 fn entry_instruction(input: &InstructionSelectionInput<'_>) -> AbstractOperation {

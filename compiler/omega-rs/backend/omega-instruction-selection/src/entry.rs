@@ -92,6 +92,71 @@ pub fn derive_boundary_exit_result_register_footprint<'instruction>(
     Ok(evidence)
 }
 
+/// Derive the exact scratch footprint of selected copies into an indirect
+/// result destination captured in `pointer_byte_offset`. Structural matching
+/// keeps ordinary body `CopyPlaces` operations outside this boundary fragment.
+pub fn derive_boundary_exit_indirect_result_copy_footprint<'instruction>(
+    boundary: &ValidatedBoundaryEntryPlan,
+    pointer_byte_offset: usize,
+    instructions: impl IntoIterator<Item = &'instruction SelectedInstructionKind>,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    let expected_byte_size = match boundary
+        .plan()
+        .call
+        .result
+        .as_ref()
+        .map(|result| result.locations.as_slice())
+    {
+        Some([ValueLocation::Indirect { byte_size, .. }]) => usize::from(*byte_size),
+        _ => 0,
+    };
+    let architecture = boundary.plan().call.policy.architecture();
+    let mut registers = Vec::new();
+    for instruction in instructions {
+        let SelectedInstructionKind::CopyPlaces {
+            source,
+            target,
+            byte_count,
+        } = instruction
+        else {
+            continue;
+        };
+        let crate::CopyPlacesShape::ToPointee {
+            source_offset,
+            pointer_byte_offset: actual_pointer_byte_offset,
+            field_byte_offset,
+        } = crate::classify_copy_places_shape(source, target)
+        else {
+            continue;
+        };
+        if expected_byte_size == 0
+            || *byte_count != expected_byte_size
+            || actual_pointer_byte_offset != pointer_byte_offset
+            || field_byte_offset != 0
+        {
+            continue;
+        }
+        let clobbers = match architecture {
+            omega_target::Architecture::X86_64 => {
+                omega_isa_x86_64::copy_places_to_pointee_clobbers(*byte_count)
+            }
+            omega_target::Architecture::Aarch64 => {
+                omega_isa_aarch64::runtime_storage_copy_to_runtime_pointee_clobbers(
+                    source_offset,
+                    actual_pointer_byte_offset,
+                    field_byte_offset,
+                    *byte_count,
+                )
+            }
+        };
+        registers.extend_from_slice(clobbers.as_slice());
+    }
+    let evidence =
+        StateFootprintEvidence::new(RegisterSet::new(registers), MachineStateSet::empty());
+    validate_state_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
 /// Derive result placement and exit control for a compiler-owned entry stub.
 /// This consumes the complete plan so result lowering cannot accidentally
 /// accept placements from a carrier whose state obligations are invalid.
@@ -596,6 +661,84 @@ mod tests {
                 MachineRegister::Aarch64X(19),
                 MachineRegister::Aarch64X(26),
                 MachineRegister::Aarch64V(0),
+            ]
+        );
+    }
+
+    fn indirect_result_copy_instruction(
+        source_offset: usize,
+        pointer_offset: usize,
+        byte_count: usize,
+    ) -> SelectedInstructionKind {
+        let target = omega_abstract_operations::Place::at(
+            omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            pointer_offset,
+        )
+        .with_step(omega_abstract_operations::PlaceStep::Deref)
+        .expect("pointee target");
+        SelectedInstructionKind::CopyPlaces {
+            source: omega_abstract_operations::Place::at(
+                omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                source_offset,
+            ),
+            target,
+            byte_count,
+        }
+    }
+
+    #[test]
+    fn indirect_result_copy_footprint_tracks_x86_shared_base_scratch() {
+        let result = ValueShape::integer(24, 8);
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: Some(result),
+            },
+        )
+        .expect("SysV indirect result");
+        let instructions = [
+            indirect_result_copy_instruction(64, 32, 24),
+            indirect_result_copy_instruction(96, 40, 24),
+        ];
+
+        let evidence =
+            derive_boundary_exit_indirect_result_copy_footprint(&boundary, 32, &instructions)
+                .expect("x86 indirect-result evidence");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::X86Rax,
+                MachineRegister::X86R14,
+                MachineRegister::X86R15,
+            ]
+        );
+    }
+
+    #[test]
+    fn indirect_result_copy_footprint_tracks_aarch64_pointee_scratch() {
+        let result = ValueShape::integer(24, 8);
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: Some(result),
+            },
+        )
+        .expect("AAPCS64 indirect result");
+        let instructions = [indirect_result_copy_instruction(64, 32, 24)];
+
+        let evidence =
+            derive_boundary_exit_indirect_result_copy_footprint(&boundary, 32, &instructions)
+                .expect("AArch64 indirect-result evidence");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(20),
             ]
         );
     }

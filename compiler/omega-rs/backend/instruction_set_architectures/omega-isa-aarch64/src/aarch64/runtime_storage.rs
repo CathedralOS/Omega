@@ -1,3 +1,4 @@
+use omega_calling_conventions::{MachineRegister, RegisterSet};
 use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{
     RuntimeValueOperandHandle, RuntimeValueOperandSource, StateGuardOperator,
@@ -3108,6 +3109,33 @@ pub fn encode_runtime_storage_copy_to_runtime_pointee(
     })?;
 
     Ok(bytes)
+}
+
+/// Exact scratch footprint of the direct-source to runtime-pointee encoder
+/// above. Base/result registers are unconditional; x19 participates only when
+/// a base adjustment exceeds one ADD immediate, while x19/x26 participate when
+/// a chunk offset needs an address scratch.
+pub fn runtime_storage_copy_to_runtime_pointee_clobbers(
+    source_offset: usize,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> RegisterSet {
+    let mut registers = vec![MachineRegister::Aarch64X(16), MachineRegister::Aarch64X(20)];
+    if byte_count > 0 {
+        registers.push(MachineRegister::Aarch64X(17));
+    }
+    if source_offset > 4095 || pointer_byte_offset > 4095 || field_byte_offset > 4095 {
+        registers.push(MachineRegister::Aarch64X(19));
+    }
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        if !data_offset_encodable(offset, chunk_size) {
+            registers.extend([MachineRegister::Aarch64X(19), MachineRegister::Aarch64X(26)]);
+        }
+        Ok(())
+    })
+    .expect("runtime copy chunk partition is total");
+    RegisterSet::new(registers)
 }
 
 pub fn encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame(
