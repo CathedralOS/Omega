@@ -77,6 +77,15 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 count_identifier(&parameter.name, counts);
                 count_type_parameter_kind(syntax_trees, &parameter.kind, counts);
             }
+            if let Some(quotient) = &data_definition.quotient {
+                count_type_reference_handle(syntax_trees, quotient.carrier, counts);
+                for member in syntax_trees
+                    .items
+                    .identifier_path_members(quotient.relation)
+                {
+                    count_identifier(member, counts);
+                }
+            }
             for member in syntax_trees.items.data_members(data_definition.members) {
                 match member {
                     crate::item::DataMember::Field(field) => {

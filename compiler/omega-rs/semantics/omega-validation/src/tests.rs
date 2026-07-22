@@ -123,6 +123,138 @@ fn concrete_generic_carry_keeps_restrictive_substituted_arguments() {
 }
 
 #[test]
+fn quotient_admits_proven_equivalence_and_carrier_congruence() {
+    let typed = typed_program_from_source(
+        r#"
+        data Carrier {
+            case Zero;
+            case Next(prev: Carrier);
+        }
+
+        machine equivalent(a: Carrier, b: Carrier) -> bool {
+            transition { _ -> (true) }
+        }
+
+        machine equivalent_reflexive(a: Carrier)
+        ensures equivalent(a, a)
+        {
+        }
+
+        machine equivalent_symmetric(a: Carrier, b: Carrier)
+        requires equivalent(a, b)
+        ensures equivalent(b, a)
+        {
+        }
+
+        machine equivalent_transitive(a: Carrier, b: Carrier, c: Carrier)
+        requires
+            equivalent(a, b)
+            equivalent(b, c)
+        ensures equivalent(a, c)
+        {
+        }
+
+        data Quotient = Carrier % equivalent;
+
+        machine quotient_congruence(a: Carrier, b: Carrier)
+        requires equivalent(a, b)
+        ensures (a as Quotient) == (b as Quotient)
+        {
+        }
+        "#,
+    );
+    validate_program(&typed).expect("proven equivalence should admit its quotient");
+}
+
+#[test]
+fn quotient_rejects_missing_equivalence_law() {
+    let typed = typed_program_from_source(
+        r#"
+        data Carrier { case Zero; case Next(prev: Carrier); }
+        machine equivalent(a: Carrier, b: Carrier) -> bool {
+            transition { _ -> (true) }
+        }
+        machine equivalent_reflexive(a: Carrier)
+        ensures equivalent(a, a) { }
+        machine equivalent_transitive(a: Carrier, b: Carrier, c: Carrier)
+        requires equivalent(a, b), equivalent(b, c)
+        ensures equivalent(a, c) { }
+        data Quotient = Carrier % equivalent;
+        "#,
+    );
+    let diagnostics = validate_program(&typed).expect_err("symmetry evidence is mandatory");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("missing a structurally matching symmetry proof machine")
+    }));
+}
+
+#[test]
+fn quotient_construction_is_carrier_only() {
+    let typed = typed_program_from_source(
+        r#"
+        data Carrier { case Zero; case Next(prev: Carrier); }
+        machine equivalent(a: Carrier, b: Carrier) -> bool {
+            transition { _ -> (true) }
+        }
+        machine equivalent_reflexive(a: Carrier)
+        ensures equivalent(a, a) { }
+        machine equivalent_symmetric(a: Carrier, b: Carrier)
+        requires equivalent(a, b);
+        ensures equivalent(b, a) { }
+        machine equivalent_transitive(a: Carrier, b: Carrier, c: Carrier)
+        requires equivalent(a, b), equivalent(b, c)
+        ensures equivalent(a, c) { }
+        data Quotient = Carrier % equivalent;
+        machine bad() -> Quotient {
+            transition { _ -> (42 as Quotient) }
+        }
+        "#,
+    );
+    let diagnostics = validate_program(&typed).expect_err("non-carrier mint must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("quotient construction is carrier-only")
+    }));
+}
+
+#[test]
+fn quotient_equality_requires_the_declared_relation_fact() {
+    let typed = typed_program_from_source(
+        r#"
+        data Carrier { case Zero; case Next(prev: Carrier); }
+        machine equivalent(a: Carrier, b: Carrier) -> bool {
+            transition { _ -> (true) }
+        }
+        machine equivalent_reflexive(a: Carrier)
+        ensures equivalent(a, a) { }
+        machine equivalent_symmetric(a: Carrier, b: Carrier)
+        requires equivalent(a, b);
+        ensures equivalent(b, a) { }
+        machine equivalent_transitive(a: Carrier, b: Carrier, c: Carrier)
+        requires equivalent(a, b), equivalent(b, c)
+        ensures equivalent(a, c) { }
+        data Quotient = Carrier % equivalent;
+        machine bad_congruence(a: Carrier, b: Carrier)
+        ensures (a as Quotient) == (b as Quotient)
+        {
+        }
+        "#,
+    );
+    let diagnostics = validate_program(&typed).expect_err("unrelated representatives must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove quotient equality")
+            && diagnostic
+                .message
+                .contains("equivalent(left_carrier, right_carrier)")
+    }));
+}
+
+#[test]
 fn static_machine_argument_refines_authored_generic_contract() {
     let typed = typed_program_from_source(
         r#"

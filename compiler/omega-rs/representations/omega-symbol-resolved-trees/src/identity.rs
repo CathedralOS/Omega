@@ -77,6 +77,17 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
                 &mut counts,
             );
         }
+        if let Some(quotient) = &data_definition.quotient {
+            count_type_reference(
+                &quotient.carrier,
+                child_type_references,
+                expression_table,
+                &mut counts,
+            );
+            for member in &quotient.relation {
+                count_declaration_name(member, &mut counts);
+            }
+        }
         for member in program.data_members(data_definition.members) {
             match member {
                 DataMember::Field(field) => {

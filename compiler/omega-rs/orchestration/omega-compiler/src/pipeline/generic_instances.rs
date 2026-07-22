@@ -398,6 +398,7 @@ pub(crate) fn desugar_generic_data_instances(
                 properties,
                 where_facts,
                 members: HandleSpan::from_parts(first, count),
+                quotient: None,
             }));
 
             // CONTAINER instance: clone each attached machine with the type

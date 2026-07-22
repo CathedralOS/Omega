@@ -16,6 +16,10 @@ pub struct DataDefinitionStorage {
     pub supply_mode: omega_core::semantics::DataSupplyMode,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub properties: DataProperties,
+    /// N6 proof-only quotient metadata. The carrier is resolved like an
+    /// ordinary type reference; the relation keeps its authored path and its
+    /// resolved machine symbol so validation never re-resolves by text.
+    pub quotient: Option<QuotientDefinition>,
     /// R2 (ch12): DEFAULT-DOMAIN facts. Facts that hold at zero are born
     /// established; facts that reject zero gate value establishment while
     /// leaving the representation zero-expressible. Construction and writes
@@ -26,6 +30,13 @@ pub struct DataDefinitionStorage {
     /// zeroed storage as the type is refused by rung 3's access gate).
     pub zero_gated: bool,
     pub members: HandleSpan<DataMember>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuotientDefinition {
+    pub carrier: TypeReference,
+    pub relation: Vec<DiagnosticName>,
+    pub relation_symbol: SymbolHandle,
 }
 
 /// Declared type properties (`data Point [copy, zero_init]`). The spelling

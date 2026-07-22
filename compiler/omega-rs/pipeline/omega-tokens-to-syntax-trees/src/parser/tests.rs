@@ -2242,6 +2242,59 @@ fn parses_machine_parameter_on_proof_data_declaration() {
 }
 
 #[test]
+fn parses_proof_quotient_data_declaration() {
+    let source = r#"
+        data Carrier {
+            case Value;
+        }
+
+        data Quotient = Carrier % Laws::equivalent;
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("quotient declaration should parse");
+    let quotient = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Data(data) if data.name.as_str() == "Quotient" => {
+                data.quotient.as_ref()
+            }
+            _ => None,
+        })
+        .expect("Quotient metadata");
+    assert!(matches!(
+        parsed.type_references.type_reference(quotient.carrier),
+        TypeReferenceNode::Named(name) if name.as_str() == "Carrier"
+    ));
+    assert_eq!(
+        parsed
+            .items
+            .identifier_path_members(quotient.relation)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Laws", "equivalent"]
+    );
+}
+
+#[test]
+fn quotient_rejects_runtime_data_properties() {
+    let source = "data Quotient [copy] = Carrier % equivalent;";
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("quotient properties must reject");
+    assert!(
+        error
+            .message
+            .contains("quotient data declaration cannot declare runtime data properties"),
+        "got: {}",
+        error.message
+    );
+}
+
+#[test]
 fn parses_static_machine_symbol_call_argument() {
     let source = r#"
         data Card {}

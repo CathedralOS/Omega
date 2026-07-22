@@ -1,0 +1,48 @@
+// N6: a quotient is admitted only from an ordinary proof-only carrier and a
+// structurally proven equivalence. Construction is carrier-only, while the
+// declared relation transports representative equality to quotient equality.
+data Representative {
+    case Zero;
+    case Next(previous: Representative);
+}
+
+machine equivalent(a: Representative, b: Representative) -> bool {
+    transition { _ -> (true) }
+}
+
+machine equivalent_reflexive(a: Representative)
+ensures equivalent(a, a)
+{
+}
+
+machine equivalent_symmetric(a: Representative, b: Representative)
+requires equivalent(a, b)
+ensures equivalent(b, a)
+{
+}
+
+machine equivalent_transitive(
+    a: Representative,
+    b: Representative,
+    c: Representative
+)
+requires
+    equivalent(a, b)
+    equivalent(b, c)
+ensures equivalent(a, c)
+{
+}
+
+data EquivalenceClass = Representative % equivalent;
+
+machine quotient_congruence(a: Representative, b: Representative)
+requires equivalent(a, b)
+ensures (a as EquivalenceClass) == (b as EquivalenceClass)
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

@@ -140,6 +140,11 @@ callable on the quotient only when it carries the respect proof
 `equiv(a, b)` makes `(a as Real) == (b as Real)` a fact. Equality on a
 quotient means "same bucket," never "same representative".
 
+Equivalence admission is structural, not name-based. The relation is a
+checked, pure binary machine over the carrier, and ordinary proof machines
+establish the three laws through their `requires` and `ensures` facts; neither
+the relation nor its law witnesses receive privileged spellings.
+
 ## Proof Views
 
 Runtime data often needs a mathematical view before it can be reasoned about.

@@ -10,6 +10,9 @@ pub struct DataDefinition {
     pub supply_mode: omega_core::semantics::DataSupplyMode,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub properties: DataProperties,
+    /// N6 proof-only quotient metadata, retained through typing so proof and
+    /// validation consumers share the exact carrier/relation identity.
+    pub quotient: Option<QuotientDefinition>,
     /// R2 rung 2 slice 2 (ch12): the ADMITTED zero-satisfying
     /// default-domain facts, copied from the resolved record. INERT until
     /// rung 3 wires entailment hypotheses + write obligations ATOMICALLY.
@@ -28,11 +31,19 @@ impl Default for DataDefinition {
             supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
             type_parameters: HandleSpan::empty(),
             properties: DataProperties::default(),
+            quotient: None,
             where_facts: HandleSpan::empty(),
             zero_gated: false,
             members: HandleSpan::empty(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuotientDefinition {
+    pub carrier: TypeReferenceHandle,
+    pub relation: Vec<Identifier>,
+    pub relation_symbol: SymbolHandle,
 }
 
 /// Declared type properties (`data Point [copy, zero_init]`). The spelling

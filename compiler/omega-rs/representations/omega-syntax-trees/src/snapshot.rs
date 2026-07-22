@@ -65,6 +65,8 @@ pub enum ItemSnapshot {
         supply: &'static str,
         type_parameters: Vec<TypeParameterSnapshot>,
         properties: DataPropertiesSnapshot,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        quotient: Option<QuotientSnapshot>,
         members: Vec<DataMemberSnapshot>,
     },
     Domain {
@@ -164,6 +166,12 @@ pub struct DataPropertiesSnapshot {
     pub zero_init: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub carry: Option<CarryPolicySnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct QuotientSnapshot {
+    pub carrier: TypeReferenceSnapshot,
+    pub relation: Vec<IdentifierSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -599,6 +607,14 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
                 .collect(),
             properties: snapshot_data_properties(value.properties),
+            quotient: value.quotient.as_ref().map(|quotient| QuotientSnapshot {
+                carrier: snapshot_type_reference_handle(syntax_trees, quotient.carrier),
+                relation: snapshot_identifier_slice(
+                    syntax_trees
+                        .items
+                        .identifier_path_members(quotient.relation),
+                ),
+            }),
             members: syntax_trees
                 .items
                 .data_members(value.members)

@@ -15,6 +15,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
         supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
         type_parameters: omega_core::arena::HandleSpan::empty(),
         properties: crate::item::DataProperties::default(),
+        quotient: None,
         where_facts: omega_core::arena::HandleSpan::empty(),
         members: omega_core::arena::HandleSpan::from_parts(
             syntax_trees
@@ -49,6 +50,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
                     zero_init: false,
                     carry: None,
                 },
+                quotient: None,
                 members: vec![super::DataMemberSnapshot::Field {
                     name: super::IdentifierSnapshot {
                         text: "field".to_owned(),

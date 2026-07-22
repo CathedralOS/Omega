@@ -5,7 +5,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_symbol_resolved_trees::data::{
     DataDefinition, DataDefinitionStorage, DataField, DataMember, DataProperties, DataVariant,
-    TypeParameter, TypeParameterKind,
+    QuotientDefinition, TypeParameter, TypeParameterKind,
 };
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
@@ -17,6 +17,22 @@ pub(crate) fn lower_data_definition(
     let type_parameters =
         lower_type_parameters(lowerer, syntax_trees, data_definition.type_parameters)?;
     let members = lower_data_members(lowerer, syntax_trees, data_definition.members)?;
+    let quotient = data_definition
+        .quotient
+        .as_ref()
+        .map(|quotient| {
+            Ok::<_, Diagnostic>(QuotientDefinition {
+                carrier: lower_type_reference_handle(lowerer, syntax_trees, quotient.carrier)?,
+                relation: syntax_trees
+                    .items
+                    .identifier_path_members(quotient.relation)
+                    .iter()
+                    .map(crate::name::lower_name)
+                    .collect(),
+                relation_symbol: SymbolHandle::invalid(),
+            })
+        })
+        .transpose()?;
     // R2 rung 2 slice 1 (ch12 gating): lower the default-domain facts and
     // classify AT ZERO. Zero-satisfying facts are admitted -- the value is
     // born established (the zero-constructible tier); they stay INERT until
@@ -72,6 +88,7 @@ pub(crate) fn lower_data_definition(
                 carry: data_definition.properties.carry,
                 multiplicity: data_definition.properties.multiplicity,
             },
+            quotient,
             where_facts,
             zero_gated,
             members,

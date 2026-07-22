@@ -223,7 +223,16 @@ pub struct DataDefinitionSnapshot {
     pub name: String,
     pub supply: String,
     pub type_parameters: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quotient: Option<QuotientDefinitionSnapshot>,
     pub members: Vec<DataMemberSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct QuotientDefinitionSnapshot {
+    pub carrier: TypeReferenceSnapshot,
+    pub relation: Vec<String>,
+    pub relation_symbol: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -535,6 +544,14 @@ fn data_definition_snapshot(
             .iter()
             .map(|parameter| parameter.name.to_string())
             .collect(),
+        quotient: data
+            .quotient
+            .as_ref()
+            .map(|quotient| QuotientDefinitionSnapshot {
+                carrier: type_reference_snapshot(program, &quotient.carrier),
+                relation: quotient.relation.iter().map(ToString::to_string).collect(),
+                relation_symbol: quotient.relation_symbol.arena_index(),
+            }),
         members: program
             .data_members(data.members)
             .iter()
