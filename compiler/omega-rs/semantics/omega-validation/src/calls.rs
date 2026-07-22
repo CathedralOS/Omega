@@ -3571,10 +3571,9 @@ fn scan_expression_calls(
         && !path.symbol.is_valid()
     {
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` uses `{}::{}`, which resolves to no case, \
-             constant, or per-target value -- it would silently read 0 (ZII). \
-             Check the spelling (and, for a per-target value, that the selected \
-             target's provides table declares it)",
+            "machine `{}` state `{}` uses `{}::{}`, which resolves to no case or \
+             constant -- it would silently read 0 (ZII). Check the spelling and \
+             ensure the declaration is imported",
             machine.name.as_str(),
             state.name.as_str(),
             scope.as_str(),

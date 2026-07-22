@@ -383,7 +383,7 @@ pub(super) fn control_flow_to_backend_plan(
     checked: CheckedProgramSurface,
     target_name: Option<&str>,
     freestanding: bool,
-    provides_rows: &[omega_calling_conventions::ProvidesRow],
+    external_binding_rows: &[omega_calling_conventions::ExternalBindingRow],
     control_flow: ControlFlowPlan,
     workers: omega_core::parallel::WorkerPoolHandle,
     timings: &mut CompileTimings,
@@ -395,7 +395,7 @@ pub(super) fn control_flow_to_backend_plan(
         checked.program,
         target,
         freestanding,
-        provides_rows,
+        external_binding_rows,
         Arc::new(control_flow),
         workers,
     )

@@ -3277,9 +3277,8 @@ struct TableIndexedTargetPath {
 }
 
 /// Fold a COMPILE-TIME-CONSTANT index expression to its value: a bare integer
-/// literal, or a binary of constants. `stat_buf[FilesystemHost::ST_*_OFF + k]`
-/// becomes `stat_buf[24 + 0]` once the provides substitution turns `ST_*_OFF`
-/// into a literal -- a pure-const BINARY, which the bare-`Integer` match below
+/// literal, or a binary of constants. A projected plan-laid offset plus a
+/// constant index becomes a pure-const BINARY, which the bare-`Integer` match below
 /// used to reject, so the fixed-index resolver fell through and the read landed
 /// at offset 0. Runtime (non-const) indices still return None here: those are
 /// hoisted to a slotted temp at the frontend, so ONLY a pure-const binary newly

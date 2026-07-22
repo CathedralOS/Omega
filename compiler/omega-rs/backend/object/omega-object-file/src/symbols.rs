@@ -9,7 +9,7 @@ pub struct SymbolPlan {
     pub size: usize,
     pub kind: SymbolKind,
     /// For `SymbolKind::Import`: the library the binding named (an authored
-    /// `provides ... DllImport(module, symbol)` row or a populate table).
+    /// `Binding::DllImport(module, symbol)` leaf or a built-in table).
     /// Empty means "consult the per-target import catalog" -- the historical
     /// lookup path -- and is the ZII default for every non-import symbol.
     pub import_library: String,

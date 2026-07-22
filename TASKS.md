@@ -679,9 +679,11 @@ slot owner may override by type. The migration order remains load-bearing.
    qualified external-leaf syscall canary already pins both x86-64 and AArch64
    admission, argument registers, syscall-number registers, and supervisor-call
    instructions.
-   Delete the now-source-unused compatibility representation, provider-plan
-   path, grammar, and loader fallback; keep only a directed retirement
-   diagnostic if it remains useful.
+   Compatibility deletion is complete: the `HostProvider` AST item and mapping
+   arena, snapshot/copy/identity support, legacy provider-plan derivation,
+   authored grammar, and `.provides.omg` loader fallback are gone. The parser
+   keeps only a directed retirement diagnostic, and the valid backend carrier
+   is now named `ExternalBindingRow` under an external-binding policy identity.
 ### Compile-time machine parameters and generics
 
 The source model is fixed: `<machine M>` requires an authored

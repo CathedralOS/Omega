@@ -1143,13 +1143,13 @@ const RUN_CANARIES: &[(&str, i32)] = &[
 const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
     (
         "providers/runtime_import_call_argument_exit",
-        "NATIVE-ONLY: an authored provides DllImport call (libSystem exit) -- \
+        "NATIVE-ONLY: a source external DllImport call (libSystem exit) -- \
          the interpreter has no provider for authored bindings yet (same open \
-         item as windows_provides_import_exit)",
+         item as windows_external_import_exit)",
     ),
     (
         "capabilities/windows_provides_import_exit",
-        "NATIVE-ONLY (windows-gated run test): an AUTHORED provides import (msvcrt abs through the program's own DllImport row) -- the interpreter has no provider for authored bindings yet (open item, TASKS_FS provides thread)",
+        "NATIVE-ONLY (windows-gated run test): a source external import (msvcrt abs through the program's own DllImport leaf) -- the interpreter has no provider for authored external bindings yet",
     ),
     (
         "filesystem/windows_find_enumeration_exit",

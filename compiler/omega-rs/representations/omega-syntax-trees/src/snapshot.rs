@@ -3,9 +3,8 @@ use crate::expression::{
 };
 use crate::identifier::Identifier;
 use crate::item::{
-    BoundaryLevel, CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember,
-    HostProviderMappingKind, Item, LibraryFunction, ProofFact, StateParameterNode, StateSignature,
-    WireDataMember,
+    BoundaryLevel, CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember, Item,
+    LibraryFunction, ProofFact, StateParameterNode, StateSignature, WireDataMember,
 };
 use crate::statement::{
     AssemblyFactKind, StatementNode, TransitionGuardNode, TransitionTargetNode,
@@ -105,11 +104,6 @@ pub enum ItemSnapshot {
     Provider {
         name: Vec<IdentifierSnapshot>,
         category: &'static str,
-    },
-    HostProvider {
-        target: IdentifierSnapshot,
-        boundary_trait: Vec<IdentifierSnapshot>,
-        mappings: Vec<HostProviderMappingSnapshot>,
     },
     Export {
         path: Vec<IdentifierSnapshot>,
@@ -270,18 +264,6 @@ pub struct TargetHostSnapshot {
 pub struct TargetHostSettingSnapshot {
     pub name: IdentifierSnapshot,
     pub value: TargetHostSettingValueSnapshot,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct HostProviderMappingSnapshot {
-    pub machine: IdentifierSnapshot,
-    pub kind: &'static str,
-    /// Syscall number / VtableSlot index (0 for DllImport).
-    pub value: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub module: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub symbol: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -685,45 +667,6 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         Item::Provider(value) => ItemSnapshot::Provider {
             name: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.name)),
             category: value.category.name(),
-        },
-        Item::HostProvider(value) => ItemSnapshot::HostProvider {
-            target: snapshot_identifier(&value.target),
-            boundary_trait: snapshot_identifier_slice(
-                syntax_trees
-                    .items
-                    .identifier_path_members(value.boundary_trait),
-            ),
-            mappings: syntax_trees
-                .items
-                .host_provider_mappings(value.mappings)
-                .iter()
-                .map(|mapping| {
-                    let (kind, value, module, symbol) = match &mapping.binding {
-                        HostProviderMappingKind::Syscall { number } => {
-                            ("syscall", *number, None, None)
-                        }
-                        HostProviderMappingKind::VtableSlot { index } => {
-                            ("vtable_slot", *index, None, None)
-                        }
-                        HostProviderMappingKind::DllImport { module, symbol } => {
-                            ("dll_import", 0, Some(module.clone()), Some(symbol.clone()))
-                        }
-                        HostProviderMappingKind::VtableField { field } => {
-                            ("vtable_field", 0, None, Some(field.as_str().to_owned()))
-                        }
-                        HostProviderMappingKind::TableFunction { field } => {
-                            ("table_function", 0, None, Some(field.as_str().to_owned()))
-                        }
-                    };
-                    HostProviderMappingSnapshot {
-                        machine: snapshot_identifier(&mapping.machine),
-                        kind,
-                        value,
-                        module,
-                        symbol,
-                    }
-                })
-                .collect(),
         },
         Item::Export(value) => ItemSnapshot::Export {
             path: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.path)),

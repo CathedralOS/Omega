@@ -41,8 +41,7 @@ pub(crate) fn lower_item(
             // A machine still carrying a target marker here was NOT selected:
             // the pre-resolution filter (pipeline/target_machines.rs) clears
             // the selected target's marker and validates the loud edges, so a
-            // marked machine is inert -- exactly like a non-selected provides
-            // row. (Without the filter, EVERY target machine stays inert and
+            // marked machine is inert. (Without the filter, EVERY target machine stays inert and
             // its call sites fail resolution loudly -- never a silent success.)
             if machine.target.is_none() {
                 lower_machine_into(lowerer, syntax_trees, machine)?;
@@ -95,7 +94,6 @@ pub(crate) fn lower_item(
         | syntax::item::Item::Module(_)
         | syntax::item::Item::Package(_)
         | syntax::item::Item::Provider(_)
-        | syntax::item::Item::HostProvider(_)
         | syntax::item::Item::Export(_)
         | syntax::item::Item::Library(_)
         | syntax::item::Item::Target(_)

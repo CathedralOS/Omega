@@ -82,7 +82,7 @@ pub(crate) fn filter_target_machines(
             return Err(vec![Diagnostic::error(format!(
                 "machine `{full_name}` has no implementation for the selected target -- \
                  target-scoped implementations exist for: {} (add this target's \
-                 `<target> machine {full_name}(..)` beside its provides rows)",
+                 `<target> machine {full_name}(..)` in that target package)",
                 providers.join(", "),
             ))]);
         }

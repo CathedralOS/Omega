@@ -1,94 +1,12 @@
-//! PRV3 (the admission vertical): authored `provides` blocks DERIVE
-//! ProviderPlan values -- the bridge from today's rows to the typed
-//! carrier -- and each plan is admitted through the chapter-10 trust path:
-//! own-package dev-active (standing warning) until the final build grants
-//! it by name, with the lockfile receipt hashing the plan's NORMALIZED
-//! IDENTITY (identity_fingerprint), so a plan that changes under a grant
-//! drifts. Implicit selection consumes only a unique covering candidate;
-//! explicit binding under slot-owner authority lands with PRV4c's build API.
+//! Provider plans derive from checked `satisfies` closures and are admitted
+//! through the chapter-10 trust path. Own-package plans remain dev-active with
+//! a standing warning until the final build grants them; lockfile receipts hash
+//! normalized plan identity so a changed plan drifts. Implicit selection
+//! consumes only a unique covering candidate, while explicit selection remains
+//! under slot-owner authority.
 
 use omega_effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 use omega_typed_trees::TypedTrees;
-
-/// Derive one plan per authored `<target> provides <Trait> { .. }` block.
-/// The schema reifies from the TYPED boundary trait when it exists (the
-/// honest surface); a provides block over an unknown trait derives an
-/// empty-schema plan whose validation names every row as stray -- loud,
-/// never silent.
-pub(super) fn derive_provider_plans(
-    syntax_trees: &omega_syntax_trees::SyntaxTrees,
-    typed: &TypedTrees,
-) -> Vec<ProviderPlan> {
-    let mut plans: Vec<ProviderPlan> = Vec::new();
-    for item in syntax_trees.root_items() {
-        let omega_syntax_trees::item::Item::HostProvider(provider) = item else {
-            continue;
-        };
-        let trait_leaf = syntax_trees
-            .items
-            .identifier_path_members(provider.boundary_trait)
-            .last()
-            .map(|member| member.as_str().to_owned())
-            .unwrap_or_default();
-        let schema = typed
-            .traits()
-            .iter()
-            .find(|definition| {
-                definition.name.as_str() == trait_leaf
-                    || definition
-                        .name
-                        .as_str()
-                        .rsplit("::")
-                        .next()
-                        .is_some_and(|leaf| leaf == trait_leaf)
-            })
-            .and_then(|definition| ServiceSchema::from_typed(typed, definition))
-            .unwrap_or_else(|| ServiceSchema {
-                trait_name: trait_leaf.clone(),
-                methods: Vec::new(),
-            });
-        let mut rows = Vec::new();
-        for mapping in syntax_trees.items.host_provider_mappings(provider.mappings) {
-            use omega_syntax_trees::item::HostProviderMappingKind;
-            let binding = match &mapping.binding {
-                HostProviderMappingKind::Syscall { number } => ProviderBinding::Syscall {
-                    number: u32::try_from(*number).unwrap_or_default(),
-                },
-                HostProviderMappingKind::DllImport { module, symbol } => ProviderBinding::Import {
-                    library: module.as_str().to_owned(),
-                    symbol: symbol.as_str().to_owned(),
-                },
-                HostProviderMappingKind::VtableSlot { index } => {
-                    ProviderBinding::VtableSlot { index: *index }
-                }
-                HostProviderMappingKind::VtableField { field } => ProviderBinding::VtableField {
-                    table: provider.vtable_struct.as_str().to_owned(),
-                    field: field.as_str().to_owned(),
-                },
-                HostProviderMappingKind::TableFunction { field } => {
-                    ProviderBinding::TableFunction {
-                        table: provider.vtable_struct.as_str().to_owned(),
-                        field: field.as_str().to_owned(),
-                    }
-                }
-            };
-            rows.push(ProviderPlanRow {
-                method: mapping.machine.as_str().to_owned(),
-                binding,
-            });
-        }
-        plans.push(ProviderPlan {
-            name: format!("{}::{}", provider.target.as_str(), trait_leaf),
-            provider_type: String::new(),
-            target: provider.target.as_str().to_owned(),
-            schema,
-            rows,
-            effect_set: omega_effects::EffectSet::empty(),
-            origin_package: String::new(),
-        });
-    }
-    plans
-}
 
 /// PRV4 order step (2): derive plans from explicit SATISFIES edges -- one
 /// plan per (provider type, boundary trait, target), assembled only from
@@ -204,36 +122,30 @@ pub(crate) fn derive_satisfies_plans(
                     plans.len() - 1
                 });
             let plan = &mut plans[position];
-            use omega_syntax_trees::item::HostProviderMappingKind;
+            use omega_syntax_trees::item::ExternalBinding;
             let row_binding = match binding {
                 None => ProviderBinding::CheckedAdapter {
                     machine: machine.name.as_str().to_owned(),
                 },
                 Some(binding) => match binding {
-                    HostProviderMappingKind::Syscall { number } => ProviderBinding::Syscall {
+                    ExternalBinding::Syscall { number } => ProviderBinding::Syscall {
                         number: u32::try_from(*number).unwrap_or_default(),
                     },
-                    HostProviderMappingKind::DllImport { module, symbol } => {
-                        ProviderBinding::Import {
-                            library: module.clone(),
-                            symbol: symbol.clone(),
-                        }
-                    }
-                    HostProviderMappingKind::VtableSlot { index } => {
+                    ExternalBinding::DllImport { module, symbol } => ProviderBinding::Import {
+                        library: module.clone(),
+                        symbol: symbol.clone(),
+                    },
+                    ExternalBinding::VtableSlot { index } => {
                         ProviderBinding::VtableSlot { index: *index }
                     }
-                    HostProviderMappingKind::VtableField { field } => {
-                        ProviderBinding::VtableField {
-                            table: provider_type.clone(),
-                            field: field.as_str().to_owned(),
-                        }
-                    }
-                    HostProviderMappingKind::TableFunction { field } => {
-                        ProviderBinding::TableFunction {
-                            table: provider_type.clone(),
-                            field: field.as_str().to_owned(),
-                        }
-                    }
+                    ExternalBinding::VtableField { field } => ProviderBinding::VtableField {
+                        table: provider_type.clone(),
+                        field: field.as_str().to_owned(),
+                    },
+                    ExternalBinding::TableFunction { field } => ProviderBinding::TableFunction {
+                        table: provider_type.clone(),
+                        field: field.as_str().to_owned(),
+                    },
                 },
             };
             plan.rows.push(ProviderPlanRow {

@@ -7,13 +7,12 @@ use crate::identifier::Identifier;
 use crate::item::{
     BoundaryLevel, BoundaryMode, BoundaryPolicy, CapabilityContract, CapabilityContractKind,
     CapabilityDefinition, CapabilityField, CapabilityMember, CapabilityState, DataDefinition,
-    DataField, DataMember, DataVariant, DomainDefinition, HostProviderDefinition,
-    HostProviderMapping, Item, ItemHandle, ItemTable, LibraryDefinition, LibraryFunction, Machine,
-    MeasureDefinition, OperatorDefinition, ProofFact, ProofMembershipFact, State, StateHandle,
-    StateParameterHandle, StateParameterNode, StateSignature, StateSignatureHandle,
-    TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue, TraitDefinition,
-    TypeParameter, UseItem, WireDataDefinition, WireDataField, WireDataMember, WireDataReserved,
-    WireDataVersion,
+    DataField, DataMember, DataVariant, DomainDefinition, Item, ItemHandle, ItemTable,
+    LibraryDefinition, LibraryFunction, Machine, MeasureDefinition, OperatorDefinition, ProofFact,
+    ProofMembershipFact, State, StateHandle, StateParameterHandle, StateParameterNode,
+    StateSignature, StateSignatureHandle, TargetDefinition, TargetHost, TargetHostSetting,
+    TargetHostSettingValue, TraitDefinition, TypeParameter, UseItem, WireDataDefinition,
+    WireDataField, WireDataMember, WireDataReserved, WireDataVersion,
 };
 use crate::statement::{
     StatementHandle, StatementNode, StatementTable, TableAssemblyFact, TableAssignment, TableCall,
@@ -116,7 +115,6 @@ impl SyntaxTrees {
             | Item::Operator(_)
             | Item::Package(_)
             | Item::Provider(_)
-            | Item::HostProvider(_)
             | Item::Target(_)
             | Item::WireData(_)
             | Item::Use(_) => {}
@@ -226,9 +224,6 @@ impl SyntaxTrees {
                 name: self.copy_item_identifier_span(other, provider.name),
                 category: provider.category,
             }),
-            Item::HostProvider(host_provider) => {
-                Item::HostProvider(self.copy_host_provider_definition(other, host_provider))
-            }
             Item::Export(export_item) => Item::Export(crate::item::ExportItem {
                 path: self.copy_item_identifier_span(other, export_item.path),
                 alias: export_item.alias.clone(),
@@ -409,19 +404,6 @@ impl SyntaxTrees {
         }
     }
 
-    fn copy_host_provider_definition(
-        &mut self,
-        other: &SyntaxTrees,
-        host_provider: &HostProviderDefinition,
-    ) -> HostProviderDefinition {
-        HostProviderDefinition {
-            target: host_provider.target.clone(),
-            boundary_trait: self.copy_item_identifier_span(other, host_provider.boundary_trait),
-            vtable_struct: host_provider.vtable_struct.clone(),
-            mappings: self.copy_host_provider_mapping_span(other, host_provider.mappings),
-        }
-    }
-
     fn copy_wire_data_definition(
         &mut self,
         other: &SyntaxTrees,
@@ -585,21 +567,6 @@ impl SyntaxTrees {
                 type_reference: this.copy_type_reference_handle(other, field.type_reference),
             },
             |this, field| this.items.append_data_payload_field(field),
-        )
-    }
-
-    fn copy_host_provider_mapping_span(
-        &mut self,
-        other: &SyntaxTrees,
-        span: HandleSpan<HostProviderMapping>,
-    ) -> HandleSpan<HostProviderMapping> {
-        self.copy_mapped_span(
-            other.items.host_provider_mappings(span),
-            |_this, mapping| HostProviderMapping {
-                machine: mapping.machine.clone(),
-                binding: mapping.binding.clone(),
-            },
-            |this, mapping| this.items.append_host_provider_mapping(mapping),
         )
     }
 

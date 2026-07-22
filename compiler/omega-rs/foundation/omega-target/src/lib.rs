@@ -87,7 +87,7 @@ impl NativeTarget {
     /// (`efi_application`), exactly as they did on a Windows host; this
     /// entry only pins architecture + format so the efi family
     /// cross-compiles from ANY host. The name was already load-bearing in
-    /// source (`uefi_x64 provides ...` rows, D15).
+    /// source (`uefi_x64` external leaves, D15).
     pub fn uefi_x64() -> Self {
         Self {
             architecture: Architecture::X86_64,

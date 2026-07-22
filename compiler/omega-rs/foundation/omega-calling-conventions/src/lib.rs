@@ -185,7 +185,7 @@ impl HostOperationKey {
 /// the closed catalog generalized). A name outside the built-in catalog
 /// interns to a stable index for the life of the process, so the key stays
 /// `Copy` and binding/call sites agree by construction. Leaked once per
-/// DISTINCT name (bounded by the program's provides surface).
+/// DISTINCT name (bounded by the program's external-binding surface).
 fn interned_names() -> &'static std::sync::Mutex<Vec<&'static str>> {
     use std::sync::{Mutex, OnceLock};
     static NAMES: OnceLock<Mutex<Vec<&'static str>>> = OnceLock::new();
@@ -242,7 +242,7 @@ pub enum HostCapability {
     /// the arm64 HFA calling convention (a `CGRect` = 4 doubles passed in v0–v3);
     /// `CGImageCreate`/`CGColorSpace…` build the blit surface.
     CoreGraphics,
-    /// A string-interned AUTHORED capability (a provides row whose trait
+    /// A string-interned source capability (an external binding whose trait
     /// name is outside the built-in catalog; M2 blocker 1). The index
     /// resolves through the process-wide interner, so the key stays `Copy`
     /// and binding/call sites agree by construction.
@@ -1041,22 +1041,19 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
 /// empty-import-table path produces a clean import-free image; a boundary
 /// call in such a program fails with the ordinary missing-lowering
 /// diagnostic rather than silently binding to an OS that will not be there.
-/// One parsed `provides` arm, threaded from the program source (the extern
-/// brief's Binding sum): `<target> provides <Trait> { <method> -> <Binding> }`.
+/// One selected bodyless external leaf, threaded from the program's closed
+/// `Binding` sum into ABI planning.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProvidesRow {
-    /// The target identifier the `provides` block named (`windows_x64` in
-    /// `windows_x64 provides Beeper { .. }`). Hosted merges only consume rows
-    /// whose name resolves to the COMPILE target; freestanding programs
-    /// consume every row (their target naming rides the target-block
-    /// redesign).
+pub struct ExternalBindingRow {
+    /// The leaf's target identifier. Hosted merges only consume rows whose
+    /// target resolves to the compile target; freestanding programs consume
+    /// every selected row.
     pub target_name: String,
     pub trait_name: String,
     pub method: String,
-    /// The `over <Struct>` clause's vtable struct (the field model, extern
-    /// brief SS12.1). EMPTY when the block had no over clause; REQUIRED for
-    /// `VtableField`/`TableFunction` bindings (the merge enforces it loudly).
-    pub vtable_struct: String,
+    /// The attached provider data type that owns the table layout. Empty for
+    /// free leaves and required for table-field bindings.
+    pub table_type: String,
     /// The bound trait method's DECLARED parameter count, read from the
     /// boundary trait's signature at row extraction. The field-model
     /// encoders compare it against a call's operand list to detect a
@@ -1064,11 +1061,11 @@ pub struct ProvidesRow {
     pub parameter_count: usize,
     /// Canonical source-selected plan for this concrete service method.
     pub boundary_entry_plan: Option<BoundaryEntryPlan>,
-    pub binding: ProvidesBindingKind,
+    pub binding: ExternalBindingKind,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ProvidesBindingKind {
+pub enum ExternalBindingKind {
     Syscall {
         number: i64,
     },
@@ -1079,9 +1076,8 @@ pub enum ProvidesBindingKind {
     VtableSlot {
         index: i64,
     },
-    /// Dispatch by fn-ptr FIELD of the row's `vtable_struct` (the field
-    /// model): the byte offset comes from the layout plan, resolved by the
-    /// backend pass -- no magic slot counts.
+    /// Dispatch by a fn-ptr field of the row's `table_type`; the layout plan
+    /// supplies its byte offset.
     VtableField {
         field: String,
     },
@@ -1093,13 +1089,12 @@ pub enum ProvidesBindingKind {
     },
 }
 
-/// The boundary-policy path provides-sourced bindings live under: the program
-/// AUTHORED the binding, so the policy is its own declaration.
-pub const PROVIDES_BOUNDARY_POLICY: &str = "omega::host::provides";
+/// The boundary-policy path for source-authored external leaves.
+pub const EXTERNAL_BINDING_BOUNDARY_POLICY: &str = "omega::host::external_binding";
 
 pub fn build_freestanding_abi_plan(
     target: NativeTarget,
-    provides: &[ProvidesRow],
+    external_bindings: &[ExternalBindingRow],
 ) -> Result<HostAbiPlan, String> {
     let mut plan = HostAbiPlan {
         target,
@@ -1108,26 +1103,23 @@ pub fn build_freestanding_abi_plan(
         platform_call_lowerings: Arena::new(),
         boundary_policies: Arena::new(),
     };
-    merge_provides_rows(&mut plan, provides)?;
+    merge_external_binding_rows(&mut plan, external_bindings)?;
     Ok(plan)
 }
 
-/// Append authored `provides` rows to an ABI plan. For a FREESTANDING target
-/// the plan starts empty (the rows ARE the platform surface); for a HOSTED
-/// target the rows EXTEND the built-in tables. Additive only: a row whose
-/// operation key collides with an existing binding is a loud error, never a
-/// silent override -- built-ins keep their meaning, and the same rule catches
-/// two provides rows for one method. Built-in lowerings also stay ahead of the
-/// provides wildcard rows in table order, and exact platform matches beat
-/// `"*"`, so an authored method NAME shared with a built-in state cannot
-/// shadow it.
-pub fn merge_provides_rows(plan: &mut HostAbiPlan, provides: &[ProvidesRow]) -> Result<(), String> {
-    if provides.is_empty() {
+/// Append selected external leaves to an ABI plan. Freestanding plans begin
+/// empty; hosted plans extend their built-in tables. A colliding operation is
+/// always a loud error, never an override.
+pub fn merge_external_binding_rows(
+    plan: &mut HostAbiPlan,
+    external_bindings: &[ExternalBindingRow],
+) -> Result<(), String> {
+    if external_bindings.is_empty() {
         return Ok(());
     }
-    if !plan.allows_boundary_policy(PROVIDES_BOUNDARY_POLICY) {
+    if !plan.allows_boundary_policy(EXTERNAL_BINDING_BOUNDARY_POLICY) {
         plan.boundary_policies.insert(HostBoundaryPolicy {
-            path: PROVIDES_BOUNDARY_POLICY.into(),
+            path: EXTERNAL_BINDING_BOUNDARY_POLICY.into(),
             checked: true,
         });
     }
@@ -1136,7 +1128,7 @@ pub fn merge_provides_rows(plan: &mut HostAbiPlan, provides: &[ProvidesRow]) -> 
     // intern to stable Custom keys, so any number of authored rows coexist;
     // the duplicate-binding check below catches a genuinely repeated
     // (trait, method) pair like any other collision.
-    for row in provides {
+    for row in external_bindings {
         let key = HostOperationKey::from_names(&row.trait_name, &row.method);
         if plan
             .bindings
@@ -1144,53 +1136,51 @@ pub fn merge_provides_rows(plan: &mut HostAbiPlan, provides: &[ProvidesRow]) -> 
             .any(|(_, binding)| binding.operation_key == key)
         {
             return Err(format!(
-                "provides `{}::{}` collides with an existing binding for the same \
-                 operation on this target -- authored rows extend the platform \
-                 tables, they never override them",
+                "external binding `{}::{}` collides with an existing binding for the same \
+                 operation on this target -- source bindings extend the platform tables; \
+                 they never override them",
                 row.trait_name, row.method
             ));
         }
         let mechanism = match &row.binding {
-            ProvidesBindingKind::VtableSlot { index } => {
+            ExternalBindingKind::VtableSlot { index } => {
                 HostBindingMechanism::VtableSlot { index: *index }
             }
-            ProvidesBindingKind::VtableField { field } => {
-                if row.vtable_struct.is_empty() {
+            ExternalBindingKind::VtableField { field } => {
+                if row.table_type.is_empty() {
                     return Err(format!(
-                        "provides `{}::{}`: a bare-field binding (`{}`) needs the block's \
-                         `over <Struct>` clause naming the vtable struct whose fields it \
-                         indexes (the field model, extern brief SS12.1)",
+                        "external binding `{}::{}`: `Binding::VtableField({})` requires an \
+                         attached provider data type that owns the vtable layout",
                         row.trait_name, row.method, field
                     ));
                 }
                 HostBindingMechanism::VtableField {
-                    table: row.vtable_struct.as_str().into(),
+                    table: row.table_type.as_str().into(),
                     field: field.as_str().into(),
                     byte_offset: 0,
                     parameter_count: row.parameter_count,
                 }
             }
-            ProvidesBindingKind::TableFunction { field } => {
-                if row.vtable_struct.is_empty() {
+            ExternalBindingKind::TableFunction { field } => {
+                if row.table_type.is_empty() {
                     return Err(format!(
-                        "provides `{}::{}`: a `TableFunction({})` binding needs the block's \
-                         `over <Struct>` clause naming the service table struct whose \
-                         fields it indexes",
+                        "external binding `{}::{}`: `Binding::TableFunction({})` requires an \
+                         attached provider data type that owns the service-table layout",
                         row.trait_name, row.method, field
                     ));
                 }
                 HostBindingMechanism::TableFunction {
-                    table: row.vtable_struct.as_str().into(),
+                    table: row.table_type.as_str().into(),
                     field: field.as_str().into(),
                     byte_offset: 0,
                     parameter_count: row.parameter_count,
                 }
             }
-            ProvidesBindingKind::DllImport { module, symbol } => HostBindingMechanism::Import {
+            ExternalBindingKind::DllImport { module, symbol } => HostBindingMechanism::Import {
                 library: module.as_str().into(),
                 symbol: symbol.as_str().into(),
             },
-            ProvidesBindingKind::Syscall { number } => HostBindingMechanism::Syscall {
+            ExternalBindingKind::Syscall { number } => HostBindingMechanism::Syscall {
                 name: row.method.as_str().into(),
                 number: u32::try_from(*number).map_err(|_| {
                     format!(
@@ -1203,10 +1193,9 @@ pub fn merge_provides_rows(plan: &mut HostAbiPlan, provides: &[ProvidesRow]) -> 
                 })?,
                 // The current Linux x86-64 and AArch64 plans both place the
                 // number in their abstract register 8 and use supervisor-call
-                // immediate zero. Calling<C> will move these evaluated facts
-                // out of the compatibility row when ENT2 lands; the authored
-                // binding already reaches the same backend mechanism as the
-                // built-in Linux table rather than a second syscall encoder.
+                // immediate zero. The authored binding reaches the same
+                // backend mechanism as the built-in Linux table rather than a
+                // second syscall encoder.
                 number_register: 8,
                 supervisor_call: 0,
             },
@@ -1214,7 +1203,7 @@ pub fn merge_provides_rows(plan: &mut HostAbiPlan, provides: &[ProvidesRow]) -> 
         plan.bindings.insert(HostBinding {
             operation_key: key,
             mechanism,
-            boundary_policy: PROVIDES_BOUNDARY_POLICY.into(),
+            boundary_policy: EXTERNAL_BINDING_BOUNDARY_POLICY.into(),
             boundary_entry_plan: row.boundary_entry_plan.clone(),
         });
         // The call-site lowering: the receiver's boundary-trait name is the
@@ -1237,9 +1226,9 @@ impl HostAbiPlan {
             .any(|(_, allowed)| allowed.checked && allowed.path.as_ref() == policy)
     }
 
-    /// Evaluate one compatibility binding's complete normalized boundary
+    /// Evaluate one binding's complete normalized boundary
     /// plan. This is the shared source for outbound call projection and future
-    /// inbound-stub/state-ceiling consumers; compatibility fields are checked
+    /// inbound-stub/state-ceiling consumers; mechanism fields are checked
     /// against the call half while the ordinary state half remains attached.
     pub fn evaluate_binding_boundary_entry_plan(
         &self,
@@ -1250,7 +1239,7 @@ impl HostAbiPlan {
             && self.target.object_format != ObjectFormat::Elf
         {
             return Err(PlanDiagnostic(format!(
-                "Linux syscall compatibility binding is not valid for target {:?}/{:?}",
+                "Linux syscall binding is not valid for target {:?}/{:?}",
                 self.target.architecture, self.target.object_format
             )));
         }
@@ -1307,7 +1296,7 @@ impl HostAbiPlan {
         Ok(boundary)
     }
 
-    /// ENT2 compatibility projection retained for outbound consumers. It is
+    /// Outbound call-plan projection retained for consumers. It is
     /// deliberately derived from the complete boundary plan rather than
     /// evaluating a separate call-only oracle.
     pub fn evaluate_binding_call_plan(
@@ -1323,7 +1312,7 @@ impl HostAbiPlan {
     }
 
     /// Resolve the authoritative complete plan for a selected binding.
-    /// Authored source plans win; compatibility bindings retain target-derived
+    /// Authored source plans win; built-in bindings retain target-derived
     /// evaluation. Revalidation against the concrete selected signature keeps
     /// both call placement and state obligations tied to one accepted plan.
     pub fn binding_boundary_entry_plan(
@@ -1401,11 +1390,11 @@ pub fn host_operation_fixed_leading_immediate(
 }
 
 #[cfg(test)]
-mod compatibility_binding_tests {
+mod binding_plan_tests {
     use super::{
-        CallSignature, CallingPolicy, HostBindingMechanism, ProvidesBindingKind, ProvidesRow,
-        ValueShape, build_host_abi_plan, evaluate_ordinary_boundary_entry_plan,
-        merge_provides_rows,
+        CallSignature, CallingPolicy, ExternalBindingKind, ExternalBindingRow,
+        HostBindingMechanism, ValueShape, build_host_abi_plan,
+        evaluate_ordinary_boundary_entry_plan, merge_external_binding_rows,
     };
     use omega_target::NativeTarget;
 
@@ -1448,7 +1437,7 @@ mod compatibility_binding_tests {
     }
 
     #[test]
-    fn provides_binding_retains_and_resolves_its_source_selected_plan() {
+    fn external_binding_retains_and_resolves_its_source_selected_plan() {
         let signature = CallSignature {
             parameters: vec![ValueShape::integer(8, 8)],
             result: Some(ValueShape::integer(8, 8)),
@@ -1460,16 +1449,16 @@ mod compatibility_binding_tests {
                 .clone();
         let source_plan = source_boundary.call.clone();
         let mut abi = build_host_abi_plan(NativeTarget::windows_x64());
-        merge_provides_rows(
+        merge_external_binding_rows(
             &mut abi,
-            &[ProvidesRow {
+            &[ExternalBindingRow {
                 target_name: "windows_x64".to_owned(),
                 trait_name: "SourceService".to_owned(),
                 method: "invoke".to_owned(),
-                vtable_struct: String::new(),
+                table_type: String::new(),
                 parameter_count: 1,
                 boundary_entry_plan: Some(source_boundary.clone()),
-                binding: ProvidesBindingKind::DllImport {
+                binding: ExternalBindingKind::DllImport {
                     module: "source.dll".to_owned(),
                     symbol: "invoke".to_owned(),
                 },
