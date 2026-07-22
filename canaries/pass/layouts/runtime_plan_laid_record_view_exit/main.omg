@@ -53,10 +53,11 @@ machine Main::main(&mut self) {
     // Both uses occur in later local initializers. The native liveness pass
     // must still retain and initialize the recast's address-bearing slot.
     // Windows `struct stat` exposes narrow u16 fields that the portable
-    // metadata record stores at a wider integer width. Pin that a projected
-    // plan-laid scalar remains a typed pointee load when converted and stored.
+    // metadata record stores at a wider integer width. Pin both directions:
+    // projected plan-laid scalars remain typed pointee loads through widening
+    // and explicit narrowing conversions.
     let low: u64 = view.value.low as u64;
-    let high: u64 = view.value.high;
+    let high: u16 = view.value.high as u16;
     transition low == 30 && high == 40 {
         true -> good()
         _ -> bad()
