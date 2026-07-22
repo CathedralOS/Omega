@@ -32012,6 +32012,10 @@ fn runtime_local_struct_string_field_concat_exit_canary_runs() {
 fn runtime_lookup_struct_field_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_lookup_struct_field_concat_exit");
     let main_path = canary.join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("runtime lookup carrier concat should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.exit_code, 190, "interpreter lookup carrier concat");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-lookup-struct-field-concat-{}",
         std::process::id()
@@ -32045,6 +32049,13 @@ fn runtime_lookup_struct_field_concat_exit_canary_runs() {
 fn runtime_large_lookup_struct_field_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_large_lookup_struct_field_concat_exit");
     let main_path = canary.join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("large lookup carrier concat should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 192,
+        "interpreter large lookup carrier concat"
+    );
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-large-lookup-struct-field-concat-{}",
         std::process::id()
@@ -32078,6 +32089,13 @@ fn runtime_large_lookup_struct_field_concat_exit_canary_runs() {
 fn runtime_large_room_lookup_struct_field_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_large_room_lookup_struct_field_concat_exit");
     let main_path = canary.join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("large room lookup carrier concat should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 200,
+        "interpreter large-room lookup carrier concat"
+    );
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-large-room-lookup-struct-field-concat-{}",
         std::process::id()

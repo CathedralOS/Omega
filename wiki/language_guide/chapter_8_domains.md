@@ -814,6 +814,14 @@ boundary and the operators.
 > through `&mut Data.field` must prove the assigned value is in that field's
 > declared domain (or obtain the fact from a checked guarantee). Merely naming a
 > domain on the field never blesses arbitrary bytes written through a parameter.
+>
+> Fixed capacities do not create distinct meanings for a domain name. It is
+> therefore valid to declare the same normalized domain over several bounded
+> carriers, for example `[u8; 16]::Utf8` and `[u8; 64]::Utf8`, when their
+> normalized fact sets are equal. An unqualified `in Utf8` then denotes that one
+> semantic domain. If repeated declarations under the same normalized name carry
+> different facts, validation rejects them; declaration order never selects a
+> meaning.
 
 ### Establishing the domain: construction, validation, and the wire
 

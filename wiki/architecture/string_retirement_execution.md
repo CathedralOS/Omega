@@ -71,6 +71,16 @@
 > mutating boundary with no matching guarantee cannot preserve a stale fact.
 > General boolean postcondition substitution remains ordinary frame work, not a
 > text-retirement blocker.
+>
+> Lookup records are now on the carrier path as well. The ordinary and
+> large-record lookup canaries (including the large room payload) store labels,
+> descriptions, and output lines as bounded `Utf8` carriers and run through both
+> engines. A machine that fills a record through `&mut` explicitly guarantees
+> the returned field membership (`ensures out_room.label in Utf8`); callers do
+> not retain a pre-call field fact across mutation. Capacity-specialized domain
+> declarations share an unqualified lookup identity only when their normalized
+> fact sets agree. Reusing the normalized name with different facts is a compile
+> error rather than an order-dependent choice of declaration.
 
 > **Migration-cost lesson:** this is not a mechanical keyword deletion. The
 > historical corpus exercised owned `String` natively across fields, copies,
@@ -134,6 +144,9 @@ carrier (the grant validator already exists).
    canary actually proves. This keeps batches reviewable and exposes missing
    carrier lowering before the builtin disappears. Re-run the focused native
    test and interpreter oracle for each batch.
+   Fourteen pass-canary sources still declare builtin `String`/`string` as of
+   2026-07-21; derive the current count from the corpus rather than treating this
+   snapshot as a completion condition.
 2. **Keystone** — once source users are gone,
    `semantics/omega-validation/src/expression_types.rs` stops a string literal /
    `ExpressionNode::String` from satisfying `PrimitiveType::String`; it should
