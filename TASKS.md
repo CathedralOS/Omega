@@ -492,9 +492,14 @@ schemas recover the same instance without publishing policy type identity.
    effects. Storage-backed static guards add a separate
    `static_guard_comparison` fragment with exact encoder-owned GPR/vector
    scratch and flag effects; storage-free and other guard-lowering shapes are
-   deliberately excluded. The artifact's
-   `enumeration_complete: false` firewall prevents this partial slice from being
-   mistaken for the final certificate. Remaining runtime/body guard evidence,
+   deliberately excluded. Dedicated runtime-text literal-buffer and
+   descriptor-vs-literal comparisons now add a
+   `runtime_text_guard_comparison` fragment with their encoder-owned base,
+   pointer, length, loop, byte-scratch, large-offset, and flag effects. Exact
+   x86-64/AArch64 artifact canaries exercise the literal-buffer path. The
+   artifact's `enumeration_complete: false` firewall prevents this partial slice
+   from being mistaken for the final certificate. Remaining computed-runtime-
+   value and place-shaped body guard evidence,
    StatePlan-driven nonordinary save/restore and return specialization, and
    post-layout enumeration across handler code, veneers, thunks, and admitted
    leaves remain; final placement must still prove that enumeration is complete.

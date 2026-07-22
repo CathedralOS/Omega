@@ -1094,6 +1094,56 @@ fn static_guard_footprints_reach_x86_and_aarch64_artifacts() {
 }
 
 #[test]
+fn runtime_text_guard_footprints_reach_x86_and_aarch64_artifacts() {
+    let canary = pass_canary("text/runtime_local_struct_string_field_concat_exit");
+    for (target, expected_registers) in [
+        ("linux_x64", "[\"X86Rax\", \"X86R15\"]"),
+        ("linux_arm64", "[\"Aarch64X(16)\", \"Aarch64X(17)\"]"),
+    ] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-runtime-text-guard-footprint-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source = scratch.join("src");
+        let output = scratch.join("out");
+        fs::create_dir_all(&source).expect("create runtime-text guard source directory");
+        fs::copy(canary.join("main.omg"), source.join("main.omg"))
+            .expect("copy runtime-text guard canary");
+        fs::write(
+            source.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write runtime-text guard target");
+
+        compile(CompileOptions {
+            root_path: source.join("main.omg"),
+            build_dir: Some(output.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("runtime-text guard should compile for {target}: {diagnostics:?}")
+        });
+        let abstract_operations = fs::read_to_string(output.join("08_abstract_operations.html"))
+            .expect("runtime-text guard abstract operations should be written");
+        let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
+            .expect("runtime-text guard footprint evidence should be written");
+        assert!(
+            abstract_operations.contains("CompareRuntimeTextLiteral"),
+            "{target} canary must exercise the dedicated runtime-text literal guard encoder"
+        );
+        assert!(
+            footprints.contains("\"origin\": \"runtime_text_guard_comparison\"")
+                && footprints.contains(expected_registers)
+                && footprints.contains("\"enumeration_complete\": false"),
+            "{target} artifact must retain exact runtime-text guard evidence without claiming completeness"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
 fn boundary_trait_canary_reports_capability_use() {
     let canary = pass_canary("traits/boundary_trait_effects_host_call");
     let main_path = canary.join("main.omg");

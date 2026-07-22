@@ -7083,6 +7083,17 @@ pub fn runtime_text_literal_compare_branch_next_offset(byte_index: usize) -> usi
     10 + byte_index * 15 + 15
 }
 
+/// Exact register writes of the literal-buffer guard encoder below. Every
+/// path materializes the buffer in r15 and loads the compared/delimiter byte
+/// through AL before its flag-setting comparisons.
+pub fn runtime_text_literal_compare_register_writes() -> RegisterSet {
+    RegisterSet::new([MachineRegister::X86Rax, MachineRegister::X86R15])
+}
+
+pub fn runtime_text_literal_compare_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 pub fn encode_runtime_text_literal_compare(
     literal: &str,
     failure_branch_distances: impl ExactSizeIterator<Item = isize>,
@@ -7256,6 +7267,24 @@ pub fn encode_runtime_text_storage_compare_bytes(
     );
 
     Ok(bytes)
+}
+
+/// Exact register writes of the descriptor-vs-literal content comparison.
+/// The emitted loop owns both relocated bases, pointer/length/index state,
+/// and CL as its byte scratch.
+pub fn runtime_text_storage_compare_register_writes() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::X86Rax,
+        MachineRegister::X86Rcx,
+        MachineRegister::X86R8,
+        MachineRegister::X86R9,
+        MachineRegister::X86R14,
+        MachineRegister::X86R15,
+    ])
+}
+
+pub fn runtime_text_storage_compare_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
 }
 
 /// Byte offset (within a `CompareRuntimeTextStorage`) of the rel32 displacement

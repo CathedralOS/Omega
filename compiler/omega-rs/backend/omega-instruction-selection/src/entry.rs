@@ -237,6 +237,58 @@ pub fn derive_boundary_static_guard_footprint<'instruction>(
     Ok(evidence)
 }
 
+/// Derive the fixed register/state effects of the two dedicated runtime-text
+/// guard encoders. Computed text equality carried as a runtime value operand
+/// and place-shaped comparisons remain separate later slices; this fragment
+/// is limited to instruction kinds whose complete bytes are owned by the
+/// literal and descriptor-vs-literal encoders.
+pub fn derive_boundary_runtime_text_guard_footprint<'instruction>(
+    boundary: &ValidatedBoundaryEntryPlan,
+    instructions: impl IntoIterator<Item = &'instruction SelectedInstructionKind>,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    let architecture = boundary.plan().call.policy.architecture();
+    let mut registers = Vec::new();
+    let mut additional_state = MachineStateSet::empty();
+    for instruction in instructions {
+        let (writes, state) = match (architecture, instruction) {
+            (
+                omega_target::Architecture::X86_64,
+                SelectedInstructionKind::CompareRuntimeTextLiteral { .. },
+            ) => (
+                omega_isa_x86_64::runtime_text_literal_compare_register_writes(),
+                omega_isa_x86_64::runtime_text_literal_compare_additional_machine_state(),
+            ),
+            (
+                omega_target::Architecture::X86_64,
+                SelectedInstructionKind::CompareRuntimeTextStorage { .. },
+            ) => (
+                omega_isa_x86_64::runtime_text_storage_compare_register_writes(),
+                omega_isa_x86_64::runtime_text_storage_compare_additional_machine_state(),
+            ),
+            (
+                omega_target::Architecture::Aarch64,
+                SelectedInstructionKind::CompareRuntimeTextLiteral { .. },
+            ) => (
+                omega_isa_aarch64::runtime_text_literal_compare_register_writes(),
+                omega_isa_aarch64::runtime_text_literal_compare_additional_machine_state(),
+            ),
+            (
+                omega_target::Architecture::Aarch64,
+                SelectedInstructionKind::CompareRuntimeTextStorage { .. },
+            ) => (
+                omega_isa_aarch64::runtime_text_storage_compare_register_writes(),
+                omega_isa_aarch64::runtime_text_storage_compare_additional_machine_state(),
+            ),
+            _ => continue,
+        };
+        registers.extend_from_slice(writes.as_slice());
+        additional_state = additional_state.union(state);
+    }
+    let evidence = StateFootprintEvidence::new(RegisterSet::new(registers), additional_state);
+    validate_state_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
 /// Derive the exact register footprint of selected direct-result
 /// materialization instructions and validate it under the complete entry
 /// plan's state ceiling. Indirect result memory copies and the final return
@@ -1070,6 +1122,84 @@ mod tests {
 
         assert!(evidence.registers().as_slice().is_empty());
         assert!(evidence.machine_state().is_empty());
+    }
+
+    fn runtime_text_guard_instructions() -> [SelectedInstructionKind; 2] {
+        [
+            SelectedInstructionKind::CompareRuntimeTextLiteral {
+                buffer: omega_abstract_operations::AbstractDataObjectHandle::invalid(),
+                literal: std::sync::Arc::from("omega"),
+            },
+            SelectedInstructionKind::CompareRuntimeTextStorage {
+                buffer: omega_abstract_operations::AbstractDataObjectHandle::invalid(),
+                source_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                source_offset: 65_537,
+                operator: omega_abstract_operations::StateGuardOperator::Equal,
+            },
+        ]
+    }
+
+    #[test]
+    fn runtime_text_guards_track_x86_literal_and_descriptor_loop_scratch() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("SysV text-guard boundary");
+
+        let evidence = derive_boundary_runtime_text_guard_footprint(
+            &boundary,
+            &runtime_text_guard_instructions(),
+        )
+        .expect("x86 runtime-text guard evidence");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::X86Rax,
+                MachineRegister::X86Rcx,
+                MachineRegister::X86R8,
+                MachineRegister::X86R9,
+                MachineRegister::X86R14,
+                MachineRegister::X86R15,
+            ]
+        );
+        assert!(
+            evidence
+                .machine_state()
+                .contains_all(MachineStateSet::new([MachineState::Flags]))
+        );
+    }
+
+    #[test]
+    fn runtime_text_guards_track_aarch64_literal_and_descriptor_loop_scratch() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("AAPCS64 text-guard boundary");
+
+        let evidence = derive_boundary_runtime_text_guard_footprint(
+            &boundary,
+            &runtime_text_guard_instructions(),
+        )
+        .expect("AArch64 runtime-text guard evidence");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[14, 15, 16, 17, 19, 20, 21, 26].map(MachineRegister::Aarch64X)
+        );
+        assert!(
+            evidence
+                .machine_state()
+                .contains_all(MachineStateSet::new([MachineState::Flags]))
+        );
     }
 
     #[test]

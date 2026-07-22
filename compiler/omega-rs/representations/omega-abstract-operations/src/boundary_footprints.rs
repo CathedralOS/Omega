@@ -15,6 +15,7 @@ pub enum BoundaryFootprintFragmentOrigin {
     CallReturnMechanics,
     DispatchScaffold,
     StaticGuardComparison,
+    RuntimeTextGuardComparison,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

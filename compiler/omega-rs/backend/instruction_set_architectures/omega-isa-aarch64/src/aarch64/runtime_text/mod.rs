@@ -58,7 +58,13 @@ pub use byte_io::{
     encode_runtime_byte_read_import, encode_runtime_byte_read_syscall,
     encode_runtime_byte_write_import, encode_runtime_byte_write_syscall,
 };
-pub use compare::{encode_runtime_text_literal_compare, encode_runtime_text_storage_compare_bytes};
+pub use compare::{
+    encode_runtime_text_literal_compare, encode_runtime_text_storage_compare_bytes,
+    runtime_text_literal_compare_additional_machine_state,
+    runtime_text_literal_compare_register_writes,
+    runtime_text_storage_compare_additional_machine_state,
+    runtime_text_storage_compare_register_writes,
+};
 pub use read::{
     encode_runtime_text_line_read_carrier_import, encode_runtime_text_line_read_carrier_syscall,
     encode_runtime_text_line_read_import, encode_runtime_text_line_read_syscall,

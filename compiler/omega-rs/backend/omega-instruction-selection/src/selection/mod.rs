@@ -2,7 +2,8 @@ use crate::{
     InstructionSelectionInput, derive_boundary_call_return_mechanics_footprint,
     derive_boundary_dispatch_scaffold_footprint,
     derive_boundary_exit_indirect_result_copy_footprint,
-    derive_boundary_exit_result_register_footprint, derive_boundary_static_guard_footprint,
+    derive_boundary_exit_result_register_footprint, derive_boundary_runtime_text_guard_footprint,
+    derive_boundary_static_guard_footprint,
 };
 use omega_abstract_operations::AbstractOperationPlan;
 use omega_checked_trees::expression::ExpressionTable;
@@ -299,6 +300,21 @@ fn retain_exit_footprints(
             },
         )
         .expect("retained static guards must name and fit the entry boundary contract");
+    }
+    let evidence = derive_boundary_runtime_text_guard_footprint(
+        boundary,
+        instructions.iter().map(|instruction| &instruction.kind),
+    )
+    .expect("selected runtime text guards must fit the validated entry state ceiling");
+    if !evidence.machine_state().is_empty() {
+        plan.retain_validated_fragment(
+            boundary,
+            omega_abstract_operations::BoundaryFootprintFragment {
+                origin: omega_abstract_operations::BoundaryFootprintFragmentOrigin::RuntimeTextGuardComparison,
+                evidence,
+            },
+        )
+        .expect("retained runtime text guards must name and fit the entry boundary contract");
     }
     let evidence = derive_boundary_call_return_mechanics_footprint(
         boundary,
