@@ -351,7 +351,7 @@ fn validates_local_state_call_arguments_from_source_pipeline() {
 fn rejects_unknown_trait_machine_effects() {
     let source = r#"
     boundary trait Console {
-        machine write_line(text: String)
+        machine write_line(text: &[u8])
         effects
             stdoutish;
     }
@@ -1535,7 +1535,7 @@ fn rejects_domain_import_cycles() {
 fn rejects_machine_effects_outside_trait_ceiling() {
     let source = r#"
     boundary trait Console {
-        machine write_line(text: String)
+        machine write_line(text: &[u8])
         effects
             stdout_io;
     }
@@ -1543,7 +1543,7 @@ fn rejects_machine_effects_outside_trait_ceiling() {
     data ConsoleImpl {
     }
 
-    machine ConsoleImpl::write_line(text: String) satisfies Console
+    machine ConsoleImpl::write_line(text: &[u8]) satisfies Console
     effects
         stdout_io, filesystem_io
     {
@@ -1576,7 +1576,7 @@ fn rejects_machine_effects_outside_trait_ceiling() {
 fn accepts_machine_effects_within_trait_ceiling() {
     let source = r#"
     boundary trait Console {
-        machine write_line(text: String)
+        machine write_line(text: &[u8])
         effects
             stdout_io;
     }
@@ -1584,7 +1584,7 @@ fn accepts_machine_effects_within_trait_ceiling() {
     data ConsoleImpl {
     }
 
-    machine ConsoleImpl::write_line(text: String) satisfies Console
+    machine ConsoleImpl::write_line(text: &[u8]) satisfies Console
     effects
         stdout_io
     {
@@ -1611,7 +1611,7 @@ fn accepts_machine_effects_within_trait_ceiling() {
 fn accepts_machine_effects_below_trait_ceiling() {
     let source = r#"
     boundary trait Console {
-        machine write_line(text: String)
+        machine write_line(text: &[u8])
         effects
             stdout_io;
     }
@@ -1619,7 +1619,7 @@ fn accepts_machine_effects_below_trait_ceiling() {
     data TestConsole {
     }
 
-    machine TestConsole::write_line(text: String) satisfies Console {
+    machine TestConsole::write_line(text: &[u8]) satisfies Console {
     }
 
     data Main {
@@ -1643,7 +1643,7 @@ fn accepts_machine_effects_below_trait_ceiling() {
 fn rejects_declared_machine_effects_below_reached_effects() {
     let source = r#"
     boundary trait Console {
-        machine read_line(out: &mut String)
+        machine read_line(out: &mut [u8; 32])
         effects
             stdin_io;
     }
@@ -1651,7 +1651,7 @@ fn rejects_declared_machine_effects_below_reached_effects() {
     data ConsoleImpl {
     }
 
-    machine ConsoleImpl::read_line(out: &mut String) satisfies Console
+    machine ConsoleImpl::read_line(out: &mut [u8; 32]) satisfies Console
     effects
         stdin_io
     {
@@ -1665,7 +1665,7 @@ fn rejects_declared_machine_effects_below_reached_effects() {
     effects
         stdout_io
     {
-        let line: String;
+        let line: [u8; 32];
         self.console.read_line(&mut line);
     }
     "#;
@@ -1737,7 +1737,7 @@ mod effects_analysis {
     fn propagates_machine_effects_to_call_sites() {
         let source = r#"
         boundary trait Console {
-            machine write_line(text: String)
+            machine write_line(text: &[u8])
             effects
                 stdout_io;
         }
@@ -1745,7 +1745,7 @@ mod effects_analysis {
         data ConsoleImpl {
         }
 
-        machine ConsoleImpl::write_line(text: String) satisfies Console
+        machine ConsoleImpl::write_line(text: &[u8]) satisfies Console
         effects
             stdout_io
         {
@@ -1800,7 +1800,7 @@ mod effects_analysis {
         let program = lower(
             r#"
             boundary trait Console {
-                machine write_line(text: String)
+                machine write_line(text: &[u8])
                 effects
                     stdout_io;
             }
@@ -1828,7 +1828,7 @@ mod effects_analysis {
         let program = lower(
             r#"
             boundary trait LocalFiles {
-                machine write_bytes(path: String)
+                machine write_bytes(path: &[u8])
                 effects
                     filesystem_io;
             }
@@ -1836,7 +1836,7 @@ mod effects_analysis {
             data Disk {
             }
 
-            machine Disk::write_bytes(path: String) satisfies LocalFiles
+            machine Disk::write_bytes(path: &[u8]) satisfies LocalFiles
             effects
                 filesystem_io
             {

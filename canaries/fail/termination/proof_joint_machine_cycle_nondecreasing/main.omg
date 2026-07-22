@@ -1,0 +1,22 @@
+// FAIL CANARY: a measured proof-only SCC must pass a strict case-payload
+// subterm on every edge. Forwarding the ranking subject unchanged would admit
+// an infinite proof computation and must reject.
+data ProofNat {
+    case Zero;
+    case Succ(prev: ProofNat);
+}
+
+data Main {}
+machine Main::main(&mut self) {}
+
+machine left(n: ProofNat) -> ProofNat
+terminates by n;
+{
+    right(n)
+}
+
+machine right(n: ProofNat) -> ProofNat
+terminates by n;
+{
+    left(n)
+}

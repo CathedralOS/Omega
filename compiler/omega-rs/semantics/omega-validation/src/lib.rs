@@ -90,7 +90,8 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     // classification named.
     let proof_only = omega_typed_trees::proof_only::classify(program);
     proof_only_faces::validate_proof_only_consumption(program, &proof_only, &mut diagnostics);
-    // Q6 ruling: machine call cycles are banned regardless of boundedness.
+    // Q6/MR4: runtime call cycles require the constant-stack tail admission;
+    // erased proof-only SCCs instead require strict structural descent.
     call_cycles::validate_machine_call_cycles(program, &symbols, &mut diagnostics);
     data::validate_zero_init_establishment(program, &mut diagnostics);
     properties::validate_data_properties(program, &symbols, &mut diagnostics);

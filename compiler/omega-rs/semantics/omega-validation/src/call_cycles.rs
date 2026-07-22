@@ -1,16 +1,21 @@
-//! Q6 ruling (Zach, 2026-07-13): machine CALL cycles are banned ("yes
-//! fucking banned"), regardless of boundedness. The specializer already
-//! refuses UNBOUNDED cycles ("calls into a recursive cycle"), but a bounded
+//! Q6 runtime ruling (Zach, 2026-07-13): ordinary machine CALL cycles are
+//! banned unless the later MR4 constant-stack tail-cycle admission proves
+//! every required edge. The specializer already refuses UNBOUNDED cycles
+//! ("calls into a recursive cycle"), but a bounded
 //! `A -> B -> A` -- the dungeon's old find_item_at/find_item_after pair,
 //! spelled through arm-target `self.SIBLING(..)` calls -- was absorbed by
 //! clone specialization and compiled. Absorbable does not make it legal
 //! Omega: calls are stack-based; repetition is a STATE transition. This walk
 //! sees every call spelling (statement calls, value-position calls, and
 //! `self.X(..)` transition/match arm targets), builds the machine-level call
-//! graph, and rejects any cycle with the cycle path named.
+//! graph, and rejects any unqualified runtime cycle with the cycle path named.
+//! Proof-only machines are a separate stratum: they emit no frames and may
+//! form non-tail SCCs only when every member is structurally measured and every
+//! edge passes a strict case-payload subterm to the callee's ranked parameter.
 
 use crate::symbols::TopLevelSymbols;
 use omega_core::diagnostics::Diagnostic;
+use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_typed_trees::machine::Machine;
@@ -22,6 +27,7 @@ pub(crate) fn validate_machine_call_cycles(
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let proof_only = omega_typed_trees::proof_only::classify(program);
     let machines = program.machines();
     let mut index_of: HashMap<u32, usize> = HashMap::with_capacity(machines.len());
     for (index, machine) in machines.iter().enumerate() {
@@ -102,6 +108,7 @@ pub(crate) fn validate_machine_call_cycles(
                 &edges,
                 &edge_is_tail,
                 &edge_decreases,
+                &proof_only,
                 start,
                 &mut color,
                 &mut Vec::new(),
@@ -117,6 +124,7 @@ fn dfs_report_cycles(
     edges: &[Vec<usize>],
     edge_is_tail: &HashMap<(usize, usize), bool>,
     edge_decreases: &HashMap<(usize, usize), bool>,
+    proof_only: &omega_typed_trees::proof_only::ProofOnlyClassification,
     node: usize,
     color: &mut [u8],
     path: &mut Vec<usize>,
@@ -181,6 +189,34 @@ fn dfs_report_cycles(
                     })
                     .map(|&member| format!("`{}`", machines[member].name))
                     .collect();
+                let proof_cycle = cycle
+                    .iter()
+                    .all(|&member| proof_only.is_proof_machine(program, &machines[member]));
+                // Proof-only machines emit no runtime frames, so their call
+                // SCCs do not need tail-call lowering. They do still need a
+                // structural well-foundedness proof: every member is measured
+                // and every edge passes a strict subterm of the caller's
+                // ranking subject to the callee's ranking position.
+                if proof_cycle {
+                    if unmeasured.is_empty() && undecreasing.is_empty() {
+                        continue;
+                    }
+                    let reason = if !unmeasured.is_empty() {
+                        format!("unmeasured proof machine(s): {}", unmeasured.join(", "),)
+                    } else {
+                        format!(
+                            "the ranking subject does not structurally decrease on edge(s): {}",
+                            undecreasing.join(", "),
+                        )
+                    };
+                    diagnostics.push(Diagnostic::error(format!(
+                        "proof-only machine call cycle: `{}` -- {reason}; every member of a \
+                         proof-only call cycle must declare `terminates by <param>;`, and every \
+                         edge must pass a case-payload subterm of the caller's ranking subject",
+                        names.join("` -> `"),
+                    )));
+                    continue;
+                }
                 // MR4 ADMISSION (2026-07-20): a cycle whose every edge is a
                 // tail transition arm target, every member measured, and
                 // every edge PROVEN to strictly decrease the callee's
@@ -231,6 +267,7 @@ fn dfs_report_cycles(
                 edges,
                 edge_is_tail,
                 edge_decreases,
+                proof_only,
                 next,
                 color,
                 path,
@@ -264,6 +301,13 @@ fn collect_statement_edges(
             if receiver_members.is_empty()
                 || matches!(receiver_members, [receiver] if receiver.as_str() == "self")
             {
+                let decreases = proof_edge_decrease_proven(
+                    program,
+                    machine,
+                    symbols,
+                    &call.target,
+                    program.statement_table.expression_handles(call.arguments),
+                );
                 add_edge_for_name(
                     program,
                     machine,
@@ -271,7 +315,7 @@ fn collect_statement_edges(
                     index_of,
                     &call.target,
                     false,
-                    false,
+                    decreases,
                     out,
                 );
             }
@@ -320,6 +364,12 @@ fn collect_statement_edges(
                                 target,
                                 *arguments,
                                 zero_excluded,
+                            ) || proof_edge_decrease_proven(
+                                program,
+                                machine,
+                                symbols,
+                                target,
+                                program.statement_table.expression_handles(*arguments),
                             );
                             add_edge_for_name(
                                 program, machine, symbols, index_of, target, true, decreases, out,
@@ -376,6 +426,13 @@ fn collect_expression_edges(
                         )
                 );
             if receiver_is_selfish {
+                let decreases = proof_edge_decrease_proven(
+                    program,
+                    machine,
+                    symbols,
+                    &call.target,
+                    program.expression_table.expression_handles(call.arguments),
+                );
                 add_edge_for_name(
                     program,
                     machine,
@@ -383,7 +440,7 @@ fn collect_expression_edges(
                     index_of,
                     &call.target,
                     false,
-                    false,
+                    decreases,
                     out,
                 );
             } else {
@@ -516,6 +573,129 @@ fn equals_zero_subject(program: &TypedTrees, guard: ExpressionHandle) -> Option<
         return Some(name);
     }
     None
+}
+
+/// Proof-stratum cross-machine descent: both caller and callee declare one
+/// ranking subject, and the argument delivered to the callee's ranked
+/// parameter is a strict member subterm of the caller's subject (`n.prev`, or
+/// a deeper member chain). Proof-only SCC admission consumes this evidence;
+/// runtime SCCs continue to use the separate tail-edge MR4 proof below.
+fn proof_edge_decrease_proven(
+    program: &TypedTrees,
+    machine: &Machine,
+    symbols: &TopLevelSymbols<'_>,
+    target: &omega_typed_trees::name::Identifier,
+    arguments: &[ExpressionHandle],
+) -> bool {
+    let Some(caller_witness) = machine.termination_plan.implementation_witness.as_ref() else {
+        return false;
+    };
+    let [caller_subject] = caller_witness.subjects.as_slice() else {
+        return false;
+    };
+    let Some(caller_measure_symbol) = program
+        .machine_states(machine)
+        .first()
+        .and_then(|entry| {
+            program
+                .state_parameters(entry)
+                .iter()
+                .find(|parameter| parameter.name.as_str() == caller_subject.as_str())
+        })
+        .map(|parameter| parameter.symbol)
+    else {
+        return false;
+    };
+    let Some((callee_machine, callee_entry)) = machine
+        .attached_data
+        .as_ref()
+        .and_then(|attached_data| {
+            symbols.attached_machine_state(program, attached_data.as_str(), target.as_str())
+        })
+        .or_else(|| crate::calls::free_machine_entry_state(program, symbols, target.as_str()))
+    else {
+        return false;
+    };
+    let Some(callee_witness) = callee_machine
+        .termination_plan
+        .implementation_witness
+        .as_ref()
+    else {
+        return false;
+    };
+    let [callee_subject] = callee_witness.subjects.as_slice() else {
+        return false;
+    };
+    let Some(measure_position) = program
+        .state_parameters(callee_entry)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .position(|parameter| parameter.name.as_str() == callee_subject.as_str())
+    else {
+        return false;
+    };
+    arguments.get(measure_position).is_some_and(|argument| {
+        expression_is_strict_member_of(
+            program,
+            *argument,
+            caller_measure_symbol,
+            caller_subject.as_str(),
+        )
+    })
+}
+
+fn expression_is_strict_member_of(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    root_symbol: SymbolHandle,
+    root_name: &str,
+) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => {
+            expression_is_strict_member_of(program, atomic.value, root_symbol, root_name)
+        }
+        ExpressionNode::Cast(cast) => {
+            expression_is_strict_member_of(program, cast.value, root_symbol, root_name)
+        }
+        ExpressionNode::Member(member) => {
+            expression_is_rooted_at_name(program, member.receiver, root_symbol, root_name)
+        }
+        ExpressionNode::Mutable(inner) => {
+            expression_is_strict_member_of(program, *inner, root_symbol, root_name)
+        }
+        _ => false,
+    }
+}
+
+fn expression_is_rooted_at_name(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    root_symbol: SymbolHandle,
+    root_name: &str,
+) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => {
+            expression_is_rooted_at_name(program, atomic.value, root_symbol, root_name)
+        }
+        ExpressionNode::Cast(cast) => {
+            expression_is_rooted_at_name(program, cast.value, root_symbol, root_name)
+        }
+        ExpressionNode::Member(member) => {
+            expression_is_rooted_at_name(program, member.receiver, root_symbol, root_name)
+        }
+        ExpressionNode::Mutable(inner) => {
+            expression_is_rooted_at_name(program, *inner, root_symbol, root_name)
+        }
+        ExpressionNode::Name(path) => {
+            path.symbol == root_symbol
+                || (!path.symbol.is_valid()
+                    && matches!(
+                        program.expression_table.name_path_members(path.members),
+                        [only] if only.as_str() == root_name
+                    ))
+        }
+        _ => false,
+    }
 }
 
 /// MR4 admission v1: prove the tail edge strictly decreases the CALLEE's

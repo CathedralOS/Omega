@@ -1,0 +1,24 @@
+// FAIL CANARY: proof-only call cycles emit no runtime frames, but erasure does
+// not prove termination. Every member of the SCC must declare a structural
+// ranking witness.
+data ProofNat {
+    case Zero;
+    case Succ(prev: ProofNat);
+}
+
+data Main {}
+machine Main::main(&mut self) {}
+
+machine left(n: ProofNat) -> ProofNat {
+    transition n {
+        ProofNat::Zero -> ProofNat::Zero
+        ProofNat::Succ { prev } -> ProofNat::Succ { prev: right(prev) }
+    }
+}
+
+machine right(n: ProofNat) -> ProofNat {
+    transition n {
+        ProofNat::Zero -> ProofNat::Zero
+        ProofNat::Succ { prev } -> ProofNat::Succ { prev: left(prev) }
+    }
+}
