@@ -25,6 +25,20 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                 &type_parameters,
                 data_type_parameters.span_mut_or_empty(data_definition.type_parameters),
             );
+            if let Some(quotient) = &mut data_definition.quotient {
+                assign_type_reference_symbol_with_locals(
+                    symbols,
+                    child_type_references,
+                    &type_parameters,
+                    &mut quotient.carrier,
+                );
+                quotient.relation_symbol = symbols
+                    .find_descendant_by_path(
+                        symbols.root(),
+                        quotient.relation.iter().map(|member| member.as_str()),
+                    )
+                    .unwrap_or_else(SymbolHandle::invalid);
+            }
             for member in data_members.span_mut_or_empty(data_definition.members) {
                 match member {
                     omega_symbol_resolved_trees::data::DataMember::Field(field) => {

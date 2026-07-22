@@ -1,12 +1,12 @@
-use crate::parser::input::{Input, ParseResult};
+use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use crate::parser::type_reference::{
     parse_type_reference_handle, parse_type_reference_handle_allowing_borrow,
 };
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::{
-    DataDefinition, DataField, DataMember, DataProperties, DataVariant, TypeParameter,
-    TypeParameterKind,
+    DataDefinition, DataField, DataMember, DataProperties, DataVariant, QuotientDefinition,
+    TypeParameter, TypeParameterKind,
 };
 use omega_tokens::PunctuationKind;
 
@@ -45,6 +45,36 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
         input,
     )?;
     input = next;
+    // N6: a quotient is the bodyless data form
+    // `data Real = CauchySeq % converges_together;`. The carrier remains a
+    // normal type reference (including a bare generic family); `%` is the
+    // quotient former here rather than the expression-level modulo operator.
+    if input.at_punctuation(PunctuationKind::Equal) {
+        if properties != DataProperties::default() {
+            return Err(input.error_here(
+                "a quotient data declaration cannot declare runtime data properties; its values are proof-only equivalence classes",
+            ));
+        }
+        input = input.take_punctuation(PunctuationKind::Equal, "=")?;
+        let (carrier, next) = parse_type_reference_handle(syntax_trees, input)?;
+        input = next.take_punctuation(PunctuationKind::Percent, "%")?;
+        let (relation, next) = parse_path_handle_span(input, |member| {
+            syntax_trees.items.append_identifier_path_member(member)
+        })?;
+        input = next.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        return Ok((
+            ParsedDataDefinition::Plain(DataDefinition {
+                name,
+                supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
+                type_parameters,
+                properties,
+                quotient: Some(QuotientDefinition { carrier, relation }),
+                where_facts: HandleSpan::empty(),
+                members: HandleSpan::empty(),
+            }),
+            input,
+        ));
+    }
     // R2 rung 1 (ch12 "Dependent Data"): the DEFAULT-DOMAIN facts --
     // `data M where count * stride <= len, { ... }` -- bare field names,
     // comma-separated, ending at the body brace (trailing comma tolerated
@@ -101,6 +131,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
             type_parameters,
             properties,
+            quotient: None,
             where_facts,
             members,
         }),
@@ -141,6 +172,7 @@ pub(super) fn parse_boundary_data_definition<'tokens, 'source>(
             supply_mode: omega_core::semantics::DataSupplyMode::BoundaryOpaque,
             type_parameters,
             properties,
+            quotient: None,
             where_facts: HandleSpan::empty(),
             members: HandleSpan::empty(),
         },

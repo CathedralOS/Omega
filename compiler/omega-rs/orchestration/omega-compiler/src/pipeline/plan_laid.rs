@@ -235,6 +235,7 @@ pub(crate) fn desugar_plan_laid_value_types(
             properties: schema_info.properties,
             where_facts: omega_core::arena::HandleSpan::empty(),
             members: HandleSpan::from_parts(first, count),
+            quotient: None,
         }));
     }
 

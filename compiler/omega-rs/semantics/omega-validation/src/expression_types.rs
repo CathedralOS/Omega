@@ -538,6 +538,17 @@ pub(crate) fn validate_cast_types(
         .expression_table
         .name_path_members(cast.target_type)
         .last();
+    // N6 quotient mint: `carrier as Quotient` is not a scalar conversion.
+    // It introduces an equivalence class while retaining no representative,
+    // and is legal only from the quotient's exact carrier family.
+    if let Some(target_name) = target_name
+        && let Some(quotient_data) = program.data_definitions().iter().find(|definition| {
+            definition.name.as_str() == target_name.as_str() && definition.quotient.is_some()
+        })
+    {
+        validate_quotient_mint(program, machine, state, cast, quotient_data, diagnostics);
+        return;
+    }
     // Target must be a scalar primitive.
     if let Some(target) = target_name
         && PrimitiveType::from_name(target.as_str()).is_none()
@@ -601,6 +612,82 @@ pub(crate) fn validate_cast_types(
             target.name(),
             program.expression_table.display_name(cast.value),
         )));
+    }
+}
+
+fn validate_quotient_mint(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    cast: &TableCastExpression,
+    quotient_data: &omega_typed_trees::data::DataDefinition,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let quotient = quotient_data
+        .quotient
+        .as_ref()
+        .expect("quotient target was selected by quotient metadata");
+    let expected = base_data_symbol(program, quotient.carrier);
+    let actual = expression_data_symbol(program, machine, state, cast.value);
+    if expected.is_none() || actual != expected {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` constructs quotient `{}` from `{}`, but quotient construction is carrier-only: expected `{}`",
+            machine.name,
+            state.map(|state| state.name.as_str()).unwrap_or(""),
+            quotient_data.name,
+            expression_type_name_handle(program, cast.value),
+            program.display_type_reference_with_constraints(quotient.carrier),
+        )));
+    }
+    if cast.semantic_domain.count() != 0 || cast.domain != ArithmeticDomain::Exact {
+        diagnostics.push(Diagnostic::error(format!(
+            "quotient construction `as {}` cannot carry an arithmetic or semantic-domain policy suffix",
+            quotient_data.name,
+        )));
+    }
+}
+
+fn base_data_symbol(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<omega_core::symbols::SymbolHandle> {
+    if !type_reference.is_valid() {
+        return None;
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
+        TypeReferenceNode::Generic { base_symbol, .. } => Some(*base_symbol),
+        TypeReferenceNode::Constrained { base_type, .. } => base_data_symbol(program, *base_type),
+        _ => None,
+    }
+}
+
+fn expression_data_symbol(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    expression: ExpressionHandle,
+) -> Option<omega_core::symbols::SymbolHandle> {
+    if let Some(type_reference) =
+        crate::places::declared_place_type(program, machine, state, expression).or_else(|| {
+            match program.expression_table.expression(expression) {
+                ExpressionNode::Call(call) => {
+                    crate::arithmetic_domains::call_return_type(program, machine, call)
+                }
+                _ => None,
+            }
+        })
+    {
+        return base_data_symbol(program, type_reference);
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::StructLiteral(literal) => program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == literal.type_name.as_str())
+            .map(|definition| definition.symbol),
+        ExpressionNode::Mutable(inner) => expression_data_symbol(program, machine, state, *inner),
+        _ => None,
     }
 }
 

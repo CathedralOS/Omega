@@ -68,6 +68,16 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
         for parameter in typed_trees.data_type_parameters(data_definition) {
             count_type_parameter(typed_trees, parameter, &mut counts);
         }
+        if let Some(quotient) = &data_definition.quotient {
+            count_type_reference_handle(
+                &typed_trees.type_reference_table,
+                quotient.carrier,
+                &mut counts,
+            );
+            for member in &quotient.relation {
+                count_declaration_name(member, &mut counts);
+            }
+        }
         for member in typed_trees.data_members(data_definition) {
             match member {
                 DataMember::Field(field) => {

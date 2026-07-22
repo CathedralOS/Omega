@@ -266,6 +266,13 @@ pub(crate) fn validate_machine_contract_entailment(
             .or_else(|| recognize_guarded_structural_value_arms(program, machine, &structural))
     };
     let judge_structural = |fact: ExpressionHandle| -> StructuralJudgment {
+        if let Some(proven) = quotient_equality_from_requires(program, &requires, fact) {
+            return if proven {
+                StructuralJudgment::Proven
+            } else {
+                StructuralJudgment::Unknown
+            };
+        }
         if let Some(term) = &sole_arm_result {
             let mut bound = structural.clone();
             bound
@@ -448,15 +455,25 @@ pub(crate) fn validate_machine_contract_entailment(
                     let suggestion = suggest_missing_citation(program, &proof_only, machine, *fact)
                         .map(|note| format!("; {note}"))
                         .unwrap_or_default();
-                    diagnostics.push(Diagnostic::error(format!(
-                        "machine `{}` ensures contract proof fact `{}` speaks about proof-only \
-                         `{held}`, which no entailment tier judges yet -- accepting it would \
-                         certify an unproven structural claim. Spell the fact over integer \
-                         measures, or wait for the structural extraction tier (math roster \
-                         N3){suggestion}",
-                        machine.name,
-                        program.expression_table.display_name(*fact),
-                    )));
+                    if let Some((quotient, relation)) = quotient_equality_names(program, *fact) {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "machine `{}` cannot prove quotient equality `{}`: add the \
+                             corresponding `{relation}(left_carrier, right_carrier)` requires \
+                             fact for quotient `{quotient}`",
+                            machine.name,
+                            program.expression_table.display_name(*fact),
+                        )));
+                    } else {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "machine `{}` ensures contract proof fact `{}` speaks about proof-only \
+                             `{held}`, which no entailment tier judges yet -- accepting it would \
+                             certify an unproven structural claim. Spell the fact over integer \
+                             measures, or wait for the structural extraction tier (math roster \
+                             N3){suggestion}",
+                            machine.name,
+                            program.expression_table.display_name(*fact),
+                        )));
+                    }
                     fenced_structural = true;
                 }
             }
@@ -545,6 +562,145 @@ pub(crate) fn validate_machine_contract_entailment(
             }
         }
     }
+}
+
+/// N6 quotient congruence: equality of two quotient mints is exactly the
+/// quotient relation over their carrier expressions. `Some(false)` means the
+/// goal is a well-formed quotient equality but its relation premise is absent;
+/// callers reject it instead of letting the generic structural tier stand down.
+fn quotient_equality_from_requires(
+    program: &TypedTrees,
+    requires: &[ExpressionHandle],
+    fact: ExpressionHandle,
+) -> Option<bool> {
+    let (quotient, left, right) = quotient_equality_goal(program, fact)?;
+    let relation = quotient.quotient.as_ref()?;
+    Some(requires.iter().any(|required| {
+        relation_fact_call(program, *required).is_some_and(|call| {
+            relation_call_matches_quotient(program, call, relation.relation_symbol)
+                && matches!(
+                    program.expression_table.expression_handles(call.arguments),
+                    [required_left, required_right]
+                        if (program.expression_table.expressions_structurally_equal(*required_left, left)
+                            && program.expression_table.expressions_structurally_equal(*required_right, right))
+                            || (program.expression_table.expressions_structurally_equal(*required_left, right)
+                                && program.expression_table.expressions_structurally_equal(*required_right, left))
+                )
+        })
+    }))
+}
+
+fn quotient_equality_names(
+    program: &TypedTrees,
+    fact: ExpressionHandle,
+) -> Option<(String, String)> {
+    let (definition, _, _) = quotient_equality_goal(program, fact)?;
+    let quotient = definition.quotient.as_ref()?;
+    Some((
+        definition.name.as_str().to_owned(),
+        quotient
+            .relation
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>()
+            .join("::"),
+    ))
+}
+
+fn quotient_equality_goal(
+    program: &TypedTrees,
+    fact: ExpressionHandle,
+) -> Option<(
+    &omega_typed_trees::data::DataDefinition,
+    ExpressionHandle,
+    ExpressionHandle,
+)> {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
+        return None;
+    };
+    if binary.operator != BinaryOperator::Equal {
+        return None;
+    }
+    let (ExpressionNode::Cast(left), ExpressionNode::Cast(right)) = (
+        program.expression_table.expression(binary.left),
+        program.expression_table.expression(binary.right),
+    ) else {
+        return None;
+    };
+    if left.form.is_recast() || right.form.is_recast() {
+        return None;
+    }
+    let left_name = program
+        .expression_table
+        .name_path_members(left.target_type)
+        .last()?;
+    let right_name = program
+        .expression_table
+        .name_path_members(right.target_type)
+        .last()?;
+    if left_name.as_str() != right_name.as_str() {
+        return None;
+    }
+    let quotient = program.data_definitions().iter().find(|definition| {
+        definition.name.as_str() == left_name.as_str() && definition.quotient.is_some()
+    })?;
+    Some((quotient, left.value, right.value))
+}
+
+fn relation_fact_call(
+    program: &TypedTrees,
+    fact: ExpressionHandle,
+) -> Option<&omega_typed_trees::expression::TableCallExpression> {
+    match program.expression_table.expression(fact) {
+        ExpressionNode::Call(call) => Some(call),
+        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Equal => {
+            if matches!(
+                program.expression_table.expression(binary.right),
+                ExpressionNode::Boolean(true)
+            ) {
+                relation_fact_call(program, binary.left)
+            } else if matches!(
+                program.expression_table.expression(binary.left),
+                ExpressionNode::Boolean(true)
+            ) {
+                relation_fact_call(program, binary.right)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+fn relation_call_matches_quotient(
+    program: &TypedTrees,
+    call: &omega_typed_trees::expression::TableCallExpression,
+    relation_symbol: omega_core::symbols::SymbolHandle,
+) -> bool {
+    if call.target_symbol == relation_symbol {
+        return true;
+    }
+    let relation_name = program
+        .data_definitions()
+        .iter()
+        .filter_map(|definition| definition.quotient.as_ref())
+        .find(|quotient| quotient.relation_symbol == relation_symbol)
+        .and_then(|quotient| quotient.relation.last())
+        .map(|name| name.as_str());
+    if relation_name.is_some_and(|name| call.target.as_str() == name) {
+        return true;
+    }
+    program.machines().iter().any(|machine| {
+        (machine.symbol == relation_symbol
+            || program
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == relation_symbol))
+            && program
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == call.target_symbol)
+    })
 }
 
 /// One recognized transition arm of an inductive machine body.
@@ -4627,6 +4783,11 @@ impl<'program> StructuralJudge<'program> {
                     arguments,
                 })
             }
+            ExpressionNode::Boolean(value) => Some(StructuralTerm::Constructor {
+                data: "bool".to_owned(),
+                case: value.to_string(),
+                fields: Vec::new(),
+            }),
             // A structural theorem may recurse on an ordinary scalar
             // measure (`build(n - 1)`) while its result lives in proof data.
             // The structural judge does not interpret that scalar algebra;
@@ -4695,7 +4856,25 @@ impl<'program> StructuralJudge<'program> {
 
     fn judge(&self, program: &TypedTrees, fact: ExpressionHandle) -> StructuralJudgment {
         let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
-            return StructuralJudgment::Unknown;
+            // A boolean-valued proof call is itself a proposition. Resolve a
+            // closed checked application exactly as `call == true`; N6
+            // equivalence laws use this ordinary contract shape.
+            let Some(term) = structural_term(program, fact) else {
+                return StructuralJudgment::Unknown;
+            };
+            return match self.resolve(term) {
+                StructuralTerm::Constructor { data, case, fields }
+                    if data == "bool" && case == "true" && fields.is_empty() =>
+                {
+                    StructuralJudgment::Proven
+                }
+                StructuralTerm::Constructor { data, case, fields }
+                    if data == "bool" && case == "false" && fields.is_empty() =>
+                {
+                    StructuralJudgment::Refuted
+                }
+                _ => StructuralJudgment::Unknown,
+            };
         };
         match binary.operator {
             BinaryOperator::And => {
@@ -5845,6 +6024,11 @@ fn structural_term(program: &TypedTrees, expression: ExpressionHandle) -> Option
                 program.expression_table.display_name(expression),
             ))
         }
+        ExpressionNode::Boolean(value) => Some(StructuralTerm::Constructor {
+            data: "bool".to_owned(),
+            case: value.to_string(),
+            fields: Vec::new(),
+        }),
         ExpressionNode::Member(_) => Some(StructuralTerm::Opaque(
             program.expression_table.display_name(expression),
         )),

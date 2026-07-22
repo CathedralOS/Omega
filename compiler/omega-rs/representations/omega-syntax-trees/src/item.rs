@@ -466,6 +466,11 @@ pub struct DataDefinition {
     pub supply_mode: omega_core::semantics::DataSupplyMode,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub properties: DataProperties,
+    /// N6: a proof-only quotient declaration (`data Q = Carrier % relation;`).
+    /// Quotients have no authored members: their values are equivalence classes
+    /// of carrier values, and the relation path names the ordinary proof machine
+    /// whose equivalence obligations admit the declaration.
+    pub quotient: Option<QuotientDefinition>,
     /// R2 rung 1 (ch12 "Dependent Data"): the DEFAULT-DOMAIN facts --
     /// `data M where count * stride <= len, { ... }` -- bare field names,
     /// any number of facts, holding at every observation. Parsed and
@@ -473,6 +478,12 @@ pub struct DataDefinition {
     /// rung 2 consumes the model (never a silent drop).
     pub where_facts: HandleSpan<ProofFact>,
     pub members: HandleSpan<DataMember>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuotientDefinition {
+    pub carrier: crate::types::TypeReferenceHandle,
+    pub relation: HandleSpan<Identifier>,
 }
 
 /// A standalone conformance item (frozen decision 8): `Point satisfies

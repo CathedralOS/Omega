@@ -19,6 +19,7 @@ mod places;
 mod proof_facts;
 mod proof_only_faces;
 mod properties;
+mod quotients;
 mod recasts;
 mod state_signatures;
 mod struct_literals;
@@ -89,6 +90,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     // spelled); every runtime consumption face refuses with the
     // classification named.
     let proof_only = omega_typed_trees::proof_only::classify(program);
+    quotients::validate_quotients(program, &proof_only, &mut diagnostics);
     proof_only_faces::validate_proof_only_consumption(program, &proof_only, &mut diagnostics);
     // Q6/MR4: runtime call cycles require the constant-stack tail admission;
     // erased proof-only SCCs instead require strict structural descent.

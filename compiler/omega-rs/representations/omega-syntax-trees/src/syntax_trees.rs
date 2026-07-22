@@ -264,6 +264,13 @@ impl SyntaxTrees {
             supply_mode: data.supply_mode,
             type_parameters: self.copy_type_parameter_span(other, data.type_parameters),
             properties: data.properties,
+            quotient: data
+                .quotient
+                .as_ref()
+                .map(|quotient| crate::item::QuotientDefinition {
+                    carrier: self.copy_type_reference_handle(other, quotient.carrier),
+                    relation: self.copy_item_identifier_span(other, quotient.relation),
+                }),
             where_facts: self.copy_domain_fact_span(other, data.where_facts),
             members: self.copy_data_member_span(other, data.members),
         }

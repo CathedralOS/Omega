@@ -17,6 +17,8 @@ use std::collections::HashMap;
 /// Why a data definition is proof-only. `describe` renders the chain.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProofOnlyReason {
+    /// An N6 quotient is an equivalence class with no runtime representative.
+    Quotient,
     /// The definition reaches itself through inline fields.
     Recursive,
     /// A field (or case payload field) holds a proof-only type inline.
@@ -42,6 +44,9 @@ impl ProofOnlyClassification {
     /// "`Wrapper` is proof-only: field `n` holds proof-only `Nat`".
     pub fn describe(&self, name: &str, symbol: SymbolHandle) -> Option<String> {
         Some(match self.reasons.get(&symbol.arena_index())? {
+            ProofOnlyReason::Quotient => {
+                format!("`{name}` is proof-only: quotient data has no representative layout")
+            }
             ProofOnlyReason::Recursive => {
                 format!("`{name}` is proof-only: recursive data has no layout")
             }
@@ -189,6 +194,14 @@ pub fn classify(program: &TypedTrees) -> ProofOnlyClassification {
     }
 
     let mut reasons: HashMap<u32, ProofOnlyReason> = HashMap::new();
+
+    // Quotients are proof-only by construction: an equivalence class does not
+    // expose or store a chosen representative.
+    for definition in definitions {
+        if definition.quotient.is_some() {
+            reasons.insert(definition.symbol.arena_index(), ProofOnlyReason::Quotient);
+        }
+    }
 
     // Recursion seeds: definitions that can reach themselves.
     for (start, definition) in definitions.iter().enumerate() {
