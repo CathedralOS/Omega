@@ -495,6 +495,8 @@ dependencies = [
  "omega-image-elf",
  "omega-image-macho",
  "omega-image-pe",
+ "omega-isa-aarch64",
+ "omega-isa-x86_64",
  "omega-object-file",
  "omega-target",
 ]

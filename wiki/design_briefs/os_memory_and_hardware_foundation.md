@@ -450,6 +450,11 @@ inventory emission rejects a missing or duplicate entry-symbol match, so the
 handler evidence cannot float beside an unrelated compiler-function span. The
 typed placed inventory is recomputed after attachment, making that association
 part of its fingerprint rather than a presentation-only JSON annotation.
+Direct-image emission also validates the fixed encoder-owned function-entry
+prologue and return epilogue against the exact relocated entry-region bytes on
+x86-64 and AArch64 before publication. The inventory names this narrow
+call-return class separately from compiler-function bodies that still require
+final-byte footprint decoding.
 The format writers also validate their own exact final import-thunk encodings
 after patching and relocation. PE `jmp [rip+disp32]` carries an
 instruction-pointer-only footprint; Mach-O `ADRP/LDR/BR X16` carries X16 plus
