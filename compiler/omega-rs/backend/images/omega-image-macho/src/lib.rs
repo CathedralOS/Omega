@@ -14,7 +14,10 @@ mod plan;
 
 use code_signature::macho_ad_hoc_code_signature;
 use entry::macho_entry_text_offset;
-use imports::{install_import_thunks, macho_bind_info, macho_dylib_list, patch_import_thunks};
+use imports::{
+    install_import_thunks, macho_bind_info, macho_dylib_list, patch_import_thunks,
+    validate_import_thunk_footprints,
+};
 use load_commands::{
     write_empty_macho_dysymtab_command, write_empty_macho_symtab_command,
     write_macho_code_signature_command, write_macho_dyld_info_command,
@@ -40,6 +43,7 @@ pub fn emit_macho_aarch64_executable(
 
     patch_import_thunks(&mut image, &layout, &import_thunks)?;
     apply_aarch64_relocations(&mut image, &layout, "Mach-O direct executable")?;
+    validate_import_thunk_footprints(&mut image, &import_thunks)?;
     let executable_regions = place_executable_regions(&image, layout)?;
 
     let mut bytes = Vec::new();

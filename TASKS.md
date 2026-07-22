@@ -522,12 +522,17 @@ schemas recover the same instance without publishing policy type identity.
    bind the inventory to the exact post-relocation bytes. That inventory names
    the same boundary-contract and composed implementation-evidence fingerprints
    as the encoded carrier, plus a combined boundary/placement binding identity.
+   Format-owned import thunks now validate their exact final opcode shapes after
+   patching and relocation before placement: PE `jmp [rip+disp32]` records only
+   instruction-pointer effects, while Mach-O `ADRP/LDR/BR X16` records X16 plus
+   instruction-pointer effects. Mutated encodings reject, and the per-region
+   evidence is published in the final inventory and covered by its fingerprint.
    It names its currently covered and missing classes and likewise refuses to
    claim complete enumeration.
    StatePlan-driven nonordinary save/restore and return specialization, and
-   footprint decoding/validation across the placed handler regions, relaxation
-   products, veneers, and admitted leaves remain; final placement must still
-   prove that enumeration is complete.
+   footprint decoding/validation across compiler-function handler regions,
+   relaxation products, veneers, generated stubs, and admitted leaves remain;
+   final placement must still prove that enumeration is complete.
 4. **IDT1 — symbolic materialization (normalized foundation complete).**
    `LayoutPlan` now uses compiler-issued field keys normalized back to names;
    repeated `Bits` entries validate exact logical-source tiling plus
