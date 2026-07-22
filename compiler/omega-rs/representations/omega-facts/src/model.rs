@@ -161,6 +161,15 @@ pub enum ContractFactKind {
     Boundary,
 }
 
+/// A contract expression after positional call/operator substitution. Typed
+/// expression handles remain owned by the immutable checked program, so flow
+/// elaboration records the canonical caller-term label in this fact-owned
+/// arena instead of pretending the callee expression handle changed meaning.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct InstantiatedExpression {
+    pub label: String,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum ProofObligationKind {
     #[default]
@@ -195,6 +204,9 @@ pub enum FactPayload {
         kind: ContractFactKind,
         fact: Handle<ProofFact>,
         expression: ExpressionHandle,
+        /// Invalid for declaration-shaped facts. Valid when a flow pass has
+        /// substituted formal parameters onto concrete caller operands.
+        instantiated: Handle<InstantiatedExpression>,
     },
     ContractDomainMembership {
         kind: ContractFactKind,

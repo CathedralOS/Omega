@@ -231,7 +231,7 @@ pub(super) fn build_runtime_storage_body_plan(
             // dodged it (machine region, not dispatch-keyed); the straight-line
             // builder dodged it (its own `locals` scan). Idempotent: the shared
             // `append_local_slot` skips a slot that already exists.
-            RuntimeDispatchBodyOperationKind::HostCall => {
+            RuntimeDispatchBodyOperationKind::HostCall { .. } => {
                 if let Some(local_storage) = local_storage_for_operation(
                     context,
                     operation.source_key,
@@ -1037,6 +1037,8 @@ fn append_state_call_result_slot(
             // pre-store ZII tag (the nested-value-call guard-ZII miscompile).
             .filter(|(symbol, _)| {
                 !local_slot_exists(plan, dispatch_index, source_key, statement_index, *symbol)
+                    && !local_storage_for_operation(context, source_key, statement_index)
+                        .is_some_and(|local| local.symbol == *symbol)
             })
             .unwrap_or_else(|| {
                 // The anonymous scratch name must be UNIQUE per call site: the

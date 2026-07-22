@@ -1,9 +1,10 @@
 # Design Brief: Task Runtime And Lifecycle
 
-Settled at the architectural level; implementation and final library spelling
-remain pending. Chapter 18 is the user-facing authority. This brief records the
-mechanical model so the implementation does not recreate `spawn`, `await`,
-implicit detach, or a mandatory pool abstraction.
+Settled at the architectural level. The core claim and outcome spellings are
+live; runtime-provider integration and the remaining library surface are still
+under implementation. Chapter 18 is the user-facing authority. This brief
+records the mechanical model so the implementation does not recreate `spawn`,
+`await`, implicit detach, or a mandatory pool abstraction.
 
 ## Direction
 
@@ -88,7 +89,20 @@ layouts, continuation size/alignment, cancellation and distinct-activation
 requirements, the local suspension-safety result, and separate migration
 demand envelopes for safe-point versus asynchronous crossings. The validator
 rejects unsafe possible suspension locally before any runtime is considered.
-Compiler elaboration and canonical-liveness derivation remain.
+Compiler elaboration is now live for concrete `TaskRuntime::start<M>` and
+`try_start<M>` specializations. It retains the concrete specialization symbol,
+derives `reaches_suspend` from the target's checked transitive effect row,
+sizes the continuation from target layout plus canonical crossing live values,
+joins safe-point carry demands, and emits `05_task_activations.json`. Missing
+crossing evidence fails closed. Because every `Task<T>` claim exposes
+cancellation-request authority, every activation plan requires a
+cancellation-capable runtime. The checker also emits one conservative
+all-instruction carry envelope per machine by joining every persistent slot,
+parameter, local, call signature, aggregate/cast temporary, and reference
+formation visible in checked trees. A complete envelope populates the
+asynchronous migration demand; unresolved coverage remains explicitly absent
+and admission fails closed. `05_carry_manifest.json` exposes both completeness
+and the joined policy.
 
 ## Start is transactional
 
@@ -258,8 +272,12 @@ correct migration-demand envelope from provider preemption granularity, rejects
 missing all-instruction analysis for asynchronous providers, and checks frame
 size/alignment, cancellation, inline completion, CPU/thread affinity, and
 continuation address stability. Its pessimistic opaque-runtime contract admits
-nothing accidentally. `TaskRuntime` boundary/provider-plan wiring and
-transactional start remain.
+nothing accidentally. Each validated demand has a normalized identity over all
+of those checked inputs; a successful admission derives its receipt identity
+from the complete demand and complete runtime behavior contract instead of
+accepting a caller-invented label. The activation artifact reports
+`pending_provider` until runtime identity/provenance is actually available.
+`TaskRuntime` boundary/provider-plan wiring and transactional start remain.
 
 ## Acceptance register
 
@@ -286,15 +304,26 @@ transactional start remain.
 
 1. Retire the stage-1 synchronous `spawn` desugar and erased `Join<T>` parser
    fiction with directed migration diagnostics.
-2. Land core `[linear] Task<T>`, then start/task outcome sums with
-   qualifier-aware generic payload propagation, and pin lifecycle conservation
-   on all control-flow paths. `Returned(LinearT)` and
-   `Rejected(LinearArguments)` must never erase the substituted payload debt.
-3. Extend compile-time machine-symbol parameters into task-target elaboration
-   and emit the normalized activation-plan artifact, including carry demands
-   derived from canonical liveness.
-4. Add the `TaskRuntime` boundary requirement, provider admission, and
-   transactional start ownership.
+2. Core `[linear] Task<T>`, `TaskOutcome<T>`, and
+   `StartOutcome<T, Arguments>` are live. Symbol-keyed generic substitution
+   preserves conditional payload debt through `Returned(LinearT)` and
+   `Rejected(LinearArguments)`, with pass and scope-loss canaries pinning both
+   sides. Receiver types now preserve shared `&self` versus consuming `self`;
+   lifecycle canaries prove `request_cancel` retains the claim and `finish`
+   consumes it into `TaskOutcome<T>`.
+3. Concrete compile-time machine-symbol specializations now retain their
+   executable instance identity. `TaskRuntime::start<M>` and `try_start<M>`
+   elaborate into validated activation plans and the normalized
+   `05_task_activations.json` artifact, including checked effect reach,
+   continuation layout, safe-point carry demands derived from canonical
+   liveness, and a separately checked all-instruction envelope for
+   asynchronous preemption. Incomplete type coverage remains absent and fails
+   asynchronous admission closed. Every plan requires the cancellation
+   support promised by the Task lifecycle.
+4. The opaque core `TaskRuntime` boundary surface and normalized
+   demand/admission identities are live; unresolved artifacts fail visibly as
+   `pending_provider`. Add provider identity/provenance, admission/dispatch,
+   and transactional `start`/`try_start` ownership.
 5. Implement provider provenance/child-lease accounting and prevent premature
    close/reclaim.
 6. Implement continuation/frame lowering and a first provider; an inline

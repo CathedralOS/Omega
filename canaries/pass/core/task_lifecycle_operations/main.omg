@@ -1,0 +1,19 @@
+use omega::language::core::task;
+
+// TR4 lifecycle conservation: requesting cancellation only borrows the live
+// claim. `finish` then consumes that same claim and establishes the ordinary
+// conditional TaskOutcome<T>, which must itself be settled.
+machine TaskOutcome::settle<T>(self) {}
+
+data Main {}
+
+machine Main::settle(task: Task<i32>) {
+    task.request_cancel();
+    let outcome: TaskOutcome<i32> = task.finish();
+    TaskOutcome::settle(outcome);
+}
+
+machine Main::main(&mut self) {
+    let task: Task<i32> = Task { provider: 1, activation: 7 };
+    Main::settle(task);
+}

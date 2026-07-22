@@ -11,6 +11,7 @@ pub(super) fn semantic_contract_payload(
                 kind,
                 fact: contract.fact,
                 expression: *expression,
+                instantiated: omega_core::arena::Handle::invalid(),
             }
         }
         omega_typed_trees::domain::ProofFact::Membership(membership) => {

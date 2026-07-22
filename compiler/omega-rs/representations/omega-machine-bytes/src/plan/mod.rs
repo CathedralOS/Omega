@@ -24,7 +24,7 @@ mod tests {
             bytes: Arena::with_capacity(3),
             byte_count: 4,
         };
-        let semantics = EncodedMachineSemanticSummary::with_capacity(5, 6, 7, 8, 9, 10, 11);
+        let semantics = EncodedMachineSemanticSummary::with_capacity(5, 6, 7, 8, 11);
 
         let plan = EncodedMachinePlan::with_roots(target, code.clone(), semantics.clone());
 

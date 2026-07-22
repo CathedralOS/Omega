@@ -31,6 +31,40 @@ pub(in crate::flow) fn append_call_ownership_events(
         .iter()
         .any(|parameter| parameter.is_self)
         && arguments.len() == declared_parameters.len();
+    let source = FlowOwnershipEventSource::Call {
+        statement_index: borrow_call.statement_index,
+        call_ordinal: borrow_call.call_ordinal,
+        target_symbol: borrow_call.target_symbol,
+    };
+
+    // A method-form call binds declared `self` through the receiver rather
+    // than through the positional argument span. Borrowed `&self`/`&mut self`
+    // carries no ownership, but a by-value `self` is the terminal transfer of
+    // that receiver and must emit the same move event as the explicit static
+    // spelling (`Type::consume(value)`). Without this edge, `value.finish()`
+    // left the original linear obligation live at scope exit.
+    if !includes_explicit_self
+        && borrow_call.has_receiver
+        && declared_parameters.iter().any(|parameter| {
+            parameter.is_self && type_requires_ownership(program, parameter.type_reference)
+        })
+    {
+        let receiver = match &call_site {
+            CallSite::Expression(call) => canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                borrow_call.statement_index,
+                call.receiver,
+            ),
+            CallSite::Statement(call) => canonical_place_from_symbol(call.receiver_symbol),
+            CallSite::TransitionNamed(_) => None,
+        }
+        .or_else(|| canonical_place_from_symbol(borrow_call.receiver_symbol));
+        if let Some(receiver) = receiver {
+            append_move_event_for_place(program, sink, receiver, source);
+        }
+    }
+
     let parameters = declared_parameters
         .iter()
         .filter(|parameter| includes_explicit_self || !parameter.is_self);
@@ -46,11 +80,7 @@ pub(in crate::flow) fn append_call_ownership_events(
             state.symbol,
             borrow_call.statement_index,
             *argument,
-            FlowOwnershipEventSource::Call {
-                statement_index: borrow_call.statement_index,
-                call_ordinal: borrow_call.call_ordinal,
-                target_symbol: borrow_call.target_symbol,
-            },
+            source,
         );
     }
 }

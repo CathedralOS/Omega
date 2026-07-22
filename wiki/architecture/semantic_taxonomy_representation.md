@@ -290,12 +290,28 @@ lease provenance until settlement or transfer. Provider-specific handles and
 physical frame locations are lowering details and must not be confused with
 machine-contract or result-type identity.
 
-Implementation status (TR2A, 2026-07-17): core owns the source-visible
-`[linear] Task<T>` claim carrier, and task-specific canaries pin transfer,
-conditional payload extraction, terminal by-value-self consumption, and scope
-loss. Generic terminal/start outcome sums remain gated on qualifier-aware
-payload propagation so substituted linear results and rejected argument
-bundles cannot lose their debts.
+Implementation status (TR2/TR3, 2026-07-21): core owns the source-visible
+`[linear] Task<T>` claim carrier plus `TaskOutcome<T>`,
+`StartOutcome<T, Arguments>`, and the opaque generic `TaskRuntime::start` /
+`try_start` boundary surface. Symbol-keyed generic substitution preserves
+conditional payload debt, with pass and scope-loss canaries covering returned
+linear results and rejected linear argument bundles.
+
+Concrete static-machine specializations retain their executable instance
+symbol. The compiler derives a validated `TaskActivationPlan` for each closed
+TaskRuntime start specialization and emits `05_task_activations.json`. The plan
+uses checked contract/entry/layout/calling identities, the normalized
+transitive effect row for `Suspend`, canonical crossing liveness/carry facts,
+and concrete target layout to size its continuation. Safe-point migration is
+therefore evidence-backed. A separate checked all-instruction envelope joins
+every persistent slot, parameter, local, call signature, aggregate/cast
+temporary, and reference formation for asynchronous preemption; unresolved
+coverage marks it incomplete and leaves the activation demand absent, so
+admission fails closed. The carry artifact exposes that completeness and
+joined policy. Every activation requires cancellation support because
+cancellation-request authority is part of every `Task<T>` claim. Provider
+admission/dispatch, claim provenance, and lease accounting remain later
+task-runtime rungs.
 
 ### Multiplicity and permission context
 
@@ -313,14 +329,49 @@ orthogonal to multiplicity. Flow joins operate over permission entries with
 path-sensitive sum state. Borrow events remain permission operations, not
 linear obligations by fiat.
 
-Implementation status (CML3, 2026-07-17): checked flow retains normalized
+Implementation status (CML4 migration, 2026-07-21): checked flow retains normalized
 `Establish | Transfer | Consume | AffineDrop` events, including whether a
 conditional sum event carries live payload debt. CML3's second slice propagates
 the same typed events through state graph, control flow, abstract/target/
 assigned operations, machine instructions/program/bytes, and the backend
-report. The older move/drop arenas remain compatibility output only; no
-semantic producer or consumer may reconstruct permission kind from that lossy
-pair.
+report. The older move/drop arenas remain compatibility output only through
+control flow and are dropped at the abstract-operation boundary; no backend
+representation carries them, and no semantic producer or consumer may
+reconstruct permission kind from that lossy pair.
+
+CML4's backend-realization slice preserves the control-flow arena identity on
+each abstract event and normalizes selection-time candidates into exactly one
+realization row per event. A row is either a sorted unique set of selected
+instruction indices or a narrow checked no-code reason. The latter is admitted
+only for explicit zero-code terminal consumes, no-live-debt events, and trivial
+affine discard; an empty selection site alone cannot prove a live establishment
+or transfer. Folded storage
+materializations may realize several transfers in one provenance chain; this
+does not mint a new origin. Candidate validation is all-or-nothing: missing,
+foreign, out-of-plan, or invalid no-code evidence publishes no ledger, and the
+backend report marks every event `UNLINKED`. Runtime/direct operation sites and
+dispatch-edge and state-call handoffs into target-state entry establishments
+cover the complete current ownership pass corpus. State/host call sites retain
+exact call ordinals. Named transition targets reserve their canonical ordinal
+before nested argument calls, while edge joins use target symbol as well as
+statement and ordinal; a nested two-obligation transition now retains a complete
+ten-event ledger. A runtime canary also carries a live linear obligation across
+a dispatched call's synthesized continuation and consumes it afterward. The
+continuation does not mint a permission event: it preserves the caller's
+canonical place and provenance; the later consuming call remains the eventful
+boundary. Two same-symbol nested calls in one transition retain distinct
+ordinals and jointly realize the target state's shared canonical event.
+Program-entry establishments are joined to the normalized platform argument
+writes before either straight-line or dispatched selection begins. A later
+consume cannot retroactively realize StateEntry, and a missing inbound write
+leaves the ledger incomplete rather than treating zero storage as
+establishment. A unique linear obligation returned from a state-local place is
+joined to the caller's receiving establishment without minting a caller-local
+origin. Nontrivial state-exit code actions are owner-blocked on the
+cleanup-edge, partial-value order, and proof/effect decisions in
+`OWNER_QUESTIONS.md` section 6. Composite per-field debt is owner-blocked on
+the resource-frontier and component-origin decisions in section 7. Broader
+resource algebra remains.
 
 ### Effects and observation
 

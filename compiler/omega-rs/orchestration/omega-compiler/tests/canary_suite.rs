@@ -1005,6 +1005,8 @@ fn boundary_trait_canary_reports_capability_use() {
         .expect("capability manifest should be written");
     let carry_manifest = fs::read_to_string(build_dir.join("05_carry_manifest.json"))
         .expect("carry manifest should be written");
+    let task_manifest = fs::read_to_string(build_dir.join("05_task_activations.json"))
+        .expect("task activation manifest should be written");
     assert!(
         manifest.contains("\"capability_flows\": {\"uses\": 2"),
         "capability manifest should report both boundary capability uses\n{}",
@@ -1013,9 +1015,16 @@ fn boundary_trait_canary_reports_capability_use() {
     assert!(
         carry_manifest.contains("\"effective\":")
             && carry_manifest.contains("\"suspension\":")
-            && carry_manifest.contains("\"address\":"),
+            && carry_manifest.contains("\"address\":")
+            && carry_manifest.contains("\"asynchronous_preemption\": [")
+            && carry_manifest.contains("\"analysis_complete\":"),
         "carry manifest should expose structured checked policies\n{}",
         carry_manifest
+    );
+    assert!(
+        task_manifest.contains("\"activations\": ["),
+        "task activation artifact should always expose its normalized root\n{}",
+        task_manifest
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -1094,18 +1103,14 @@ fn wire_cross_era_type_change_reports_requires_migration_verdict() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
-// The lowered ownership summary must stay visible per event in the backend
-// report's Artifact Semantic Spine: each move/drop names its place, its
-// machine/state, and its source point after surviving the full spine (checked
+// The canonical permission ledger must stay visible per event in the backend
+// report's Artifact Semantic Spine after surviving the full spine (checked
 // trees -> state graph -> control flow -> abstract -> target -> assigned ->
-// machine instructions -> encoded machine). The canary moves `self.seed` into
-// an owned local and moves the local out through a transition `Value` target,
-// so the spine must show both moves plus the local's exit-edge drop
-// obligation. Drops here are obligations, not emitted cleanup code: no type
-// carries a cleanup machine yet.
+// machine instructions -> encoded machine). Legacy move/drop compatibility
+// rows end at control flow and must not reappear in a backend artifact.
 #[test]
 fn backend_report_renders_ownership_summary_events() {
-    let canary = pass_canary("ownership/transition_value_owned_move");
+    let canary = pass_canary("ownership/linear_transfer_and_consume");
     let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-ownership-spine-canary-{}",
@@ -1119,25 +1124,415 @@ fn backend_report_renders_ownership_summary_events() {
         target_name: None,
         write_output: true,
     })
-    .expect("transition value owned move canary should compile");
+    .expect("linear transfer and consume canary should compile");
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
     assert!(
-        report.contains("- move `self.seed` in machine `Main::main` state `main` at statement 0"),
-        "spine should record the `self.seed` initializer move\n{}",
+        report.contains("permissions: 4"),
+        "spine should retain the complete permission ledger\n{}",
         report
     );
     assert!(
-        report.contains("- move `produced` in machine `Main::main` state `main` at statement 1"),
-        "spine should record the transition value target move of the owned local\n{}",
+        report.contains("permission realizations: 4 (complete)"),
+        "every permission event should have a normalized realization\n{}",
         report
     );
     assert!(
-        report.contains("- drop `produced` in machine `Main::main` state `main` at state exit"),
-        "spine should record the owned local's exit-edge drop obligation\n{}",
+        report.contains(
+            "- Establish `<unnamed>` in machine `Main::run` state `run` at statement 0 (multiplicity=Linear, access=Owned, provenance=Main::run::run at statement 0, obligation_live=true)"
+        ),
+        "spine should record linear establishment and its provenance\n{}",
         report
     );
+    assert!(
+        report
+            .matches("realization=selected-instructions[4, 5]")
+            .count()
+            == 3,
+        "folded establishment and transfer should share the exact selected materialization\n{}",
+        report
+    );
+    assert!(
+        report.contains(
+            "- Transfer `<unnamed>` in machine `Main::run` state `run` at statement 1 (multiplicity=Linear, access=Owned, provenance=Main::run::run at statement 0, obligation_live=true)"
+        ),
+        "spine should record transfer without minting new provenance\n{}",
+        report
+    );
+    assert!(
+        report.contains(
+            "- Establish `forwarded` in machine `Main::run` state `run` at statement 1 (multiplicity=Linear, access=Owned, provenance=Main::run::run at statement 0, obligation_live=true)"
+        ),
+        "spine should record the receiving place's established obligation\n{}",
+        report
+    );
+    assert!(
+        report.contains(
+            "- Consume `forwarded` in machine `Main::run` state `run` at call ordinal 0 in statement 2 (multiplicity=Linear, access=Owned, provenance=Main::run::run at statement 0, obligation_live=true)"
+        ),
+        "spine should record terminal consumption\n{}",
+        report
+    );
+    assert!(
+        report.contains("realization=checked-no-code(explicit-zero-code-consume)"),
+        "the zero-code consuming call should retain an explicit checked proof\n{}",
+        report
+    );
+    assert!(
+        !report.contains("\nmoves:")
+            && !report.contains("\ndrops:")
+            && !report.contains("UNLINKED")
+            && !report.contains("INCOMPLETE"),
+        "backend artifacts must not reconstruct legacy move/drop summaries\n{}",
+        report
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn backend_report_realizes_state_call_entry_at_call_site() {
+    let canary = pass_canary("ownership/linear_state_call_handoff");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-ownership-state-call-canary-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("linear state-call handoff canary should compile");
+
+    let report = fs::read_to_string(build_dir.join("backend_report.txt"))
+        .expect("backend report should be written");
+    assert!(
+        report.contains("permission realizations: 4 (complete)"),
+        "the state-call permission ledger should be complete\n{}",
+        report
+    );
+    let state_entry = report
+        .lines()
+        .find(|line| {
+            line.contains(
+                "- Establish `receipt` in machine `Main::consume` state `consume` at state entry",
+            )
+        })
+        .expect("target-state entry establishment should remain visible in the report");
+    assert!(
+        state_entry.contains("realization=selected-instructions[")
+            && !state_entry.contains("checked-no-code"),
+        "target-state entry should join the selected state-call handoff, got:\n{state_entry}"
+    );
+    assert!(
+        !report.contains("UNLINKED") && !report.contains("INCOMPLETE"),
+        "the state-call handoff must remain fail-closed and complete\n{}",
+        report
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn backend_report_separates_transition_and_nested_call_ordinals() {
+    let canary = pass_canary("ownership/linear_transition_nested_call_handoff");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-ownership-transition-multicall-canary-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("linear nested-call transition handoff canary should compile");
+
+    let report = fs::read_to_string(build_dir.join("backend_report.txt"))
+        .expect("backend report should be written");
+    assert!(
+        report.contains("permission realizations: 10 (complete)"),
+        "the multi-call transition permission ledger should be complete\n{}",
+        report
+    );
+    assert!(
+        report.contains(
+            "- Transfer `first` in machine `Main::run` state `run` at call ordinal 0 in statement 2"
+        ) && report.contains(
+            "- Transfer `second` in machine `Main::run` state `run` at call ordinal 1 in statement 2"
+        ),
+        "the transition target and nested value call must retain distinct canonical ordinals\n{}",
+        report
+    );
+    assert!(
+        report.contains("StateCall { role: TransitionArgument, call_ordinal: 1, target_key:"),
+        "runtime state-call planning must reserve ordinal 0 for the named transition target\n{}",
+        report
+    );
+    for event_prefix in [
+        "- Establish `receipt` in machine `Main::forward` state `forward` at state entry",
+        "- Transfer `receipt` in machine `Main::forward` state `forward` at statement 0",
+    ] {
+        let event = report
+            .lines()
+            .find(|line| line.contains(event_prefix))
+            .expect("forwarded obligation event should remain visible in the report");
+        assert!(
+            event.contains("realization=selected-instructions[")
+                && !event.contains("checked-no-code"),
+            "the inline return transfer should map to its selected result write, got:\n{event}"
+        );
+    }
+    assert!(
+        !report.contains("UNLINKED") && !report.contains("INCOMPLETE"),
+        "the multi-call handoff must remain fail-closed and complete\n{}",
+        report
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn backend_report_separates_repeated_transition_call_ordinals() {
+    let canary = pass_canary("ownership/linear_repeated_transition_call_handoff");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-ownership-repeated-transition-call-canary-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("repeated-target linear transition-call canary should compile");
+
+    let report = fs::read_to_string(build_dir.join("backend_report.txt"))
+        .expect("backend report should be written");
+    assert!(
+        report.contains("permission realizations: 10 (complete)"),
+        "the repeated-target permission ledger should be complete\n{}",
+        report
+    );
+    assert!(
+        report.contains(
+            "- Transfer `first` in machine `Main::run` state `run` at call ordinal 1 in statement 2"
+        ) && report.contains(
+            "- Transfer `second` in machine `Main::run` state `run` at call ordinal 2 in statement 2"
+        ),
+        "same-target calls must retain distinct canonical ordinals\n{}",
+        report
+    );
+    assert!(
+        report
+            .matches("StateCall { role: TransitionArgument, call_ordinal: 1, target_key:")
+            .count()
+            == 1
+            && report
+                .matches("StateCall { role: TransitionArgument, call_ordinal: 2, target_key:")
+                .count()
+                == 1,
+        "runtime planning must preserve both same-target call identities\n{}",
+        report
+    );
+    for event_prefix in [
+        "- Establish `receipt` in machine `Main::forward` state `forward` at state entry",
+        "- Transfer `receipt` in machine `Main::forward` state `forward` at statement 0",
+    ] {
+        let event = report
+            .lines()
+            .find(|line| line.contains(event_prefix))
+            .expect("shared forward event should remain visible in the report");
+        assert!(
+            event.contains("realization=selected-instructions[")
+                && event.contains(", ")
+                && !event.contains("checked-no-code"),
+            "the shared target event should join both call materializations, got:\n{event}"
+        );
+    }
+    assert!(
+        !report.contains("UNLINKED") && !report.contains("INCOMPLETE"),
+        "the repeated-target handoff must remain fail-closed and complete\n{}",
+        report
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn backend_report_realizes_linear_boundary_entry_from_prologue() {
+    let canary = pass_canary("ownership/linear_boundary_entry_handoff");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-ownership-boundary-entry-canary-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("linear boundary-entry handoff canary should compile");
+
+    let report = fs::read_to_string(build_dir.join("backend_report.txt"))
+        .expect("backend report should be written");
+    assert!(
+        report.contains("permission realizations: 2 (complete)"),
+        "the boundary-entry permission ledger should be complete\n{}",
+        report
+    );
+    let establishment = report
+        .lines()
+        .find(|line| {
+            line.contains(
+                "- Establish `handle` in machine `Main::main` state `main` at state entry",
+            )
+        })
+        .expect("boundary StateEntry establishment should remain visible in the report");
+    assert!(
+        establishment.contains("realization=selected-instructions[2]")
+            && !establishment.contains("checked-no-code"),
+        "the inbound platform write must realize entry establishment, got:\n{establishment}"
+    );
+    assert!(
+        report.contains("selected #2 EntryArgumentRegisterWrite"),
+        "the realization must identify the concrete entry-prologue write\n{}",
+        report
+    );
+    let consume = report
+        .lines()
+        .find(|line| {
+            line.contains(
+                "- Consume `handle` in machine `Main::main` state `main` at call ordinal 0 in statement 1",
+            )
+        })
+        .expect("boundary obligation consume should remain visible in the report");
+    assert!(
+        consume.contains("realization=checked-no-code(explicit-zero-code-consume)"),
+        "the empty release body should retain its independent no-code proof, got:\n{consume}"
+    );
+    assert!(
+        !report.contains("UNLINKED") && !report.contains("INCOMPLETE"),
+        "the boundary-entry handoff must remain fail-closed and complete\n{}",
+        report
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn linear_obligation_survives_dispatched_call_continuation() {
+    let canary = pass_canary("ownership/linear_live_across_call_continuation");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-ownership-call-continuation-canary-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("linear call-continuation canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("linear call-continuation canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "the post-continuation consume result should reach exit_process, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let report = fs::read_to_string(build_dir.join("backend_report.txt"))
+        .expect("backend report should be written");
+    assert!(
+        report.contains("permission realizations: 12 (complete)")
+            && !report.contains("UNLINKED")
+            && !report.contains("INCOMPLETE"),
+        "the continuation ownership ledger should remain fail-closed and complete\n{}",
+        report
+    );
+    assert!(
+        report.contains(
+            "state-call-result(AssignmentValue#0) `__call_result_2_AssignmentValue_0`: i32 offset 0"
+        ) && report.contains("local `code`: i32 offset 4")
+            && report.contains(
+                "write place integer 7 (4b) -> omega_runtime_frame_storage[ConstOffset(0)]"
+            )
+            && report.contains(
+                "call host operation Process.exit(scalar i32 omega_runtime_frame_storage@4)"
+            ),
+        "the continuation must materialize, separate, and consume the call result\n{}",
+        report
+    );
+    assert!(
+        report.contains("- #0 `self` Value: `receipt` required true")
+            && report.contains("- #1 `marker` Value: `false` required true"),
+        "the static attached call must restore implicit self before authored parameters\n{}",
+        report
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn backend_report_preserves_fresh_state_call_result_origin() {
+    let canary = pass_canary("ownership/linear_fresh_state_call_result_handoff");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-ownership-fresh-state-result-canary-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("fresh linear state-call result canary should compile");
+
+    let report = fs::read_to_string(build_dir.join("backend_report.txt"))
+        .expect("backend report should be written");
+    assert!(
+        report.contains("permission realizations: 4 (complete)")
+            && !report.contains("UNLINKED")
+            && !report.contains("INCOMPLETE"),
+        "the fresh state-call result ledger must remain complete\n{}",
+        report
+    );
+    for event_prefix in [
+        "- Establish `issued` in machine `Main::issue` state `issue` at statement 0",
+        "- Transfer `issued` in machine `Main::issue` state `issue` at statement 1",
+        "- Establish `returned` in machine `Main::run` state `run` at statement 0",
+        "- Consume `returned` in machine `Main::run` state `run` at call ordinal 0 in statement 1",
+    ] {
+        let event = report
+            .lines()
+            .find(|line| line.contains(event_prefix))
+            .expect("fresh-result permission event should remain visible");
+        assert!(
+            event.contains("provenance=Main::issue::issue at statement 0"),
+            "the event must preserve the callee-local origin, got:\n{event}"
+        );
+    }
 
     let _ = fs::remove_dir_all(&build_dir);
 }
@@ -33756,6 +34151,36 @@ fn asm_control_registers_enforce_authority_and_value_contracts() {
 }
 
 #[test]
+fn task_lifecycle_operations_conserve_the_linear_claim() {
+    let pass = pass_canary("core/task_lifecycle_operations");
+    compile_canary_without_output(&pass).unwrap_or_else(|diagnostics| {
+        panic!(
+            "task lifecycle operations should conserve the claim:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+
+    let fail = fail_canary("core/task_core_scope_loss");
+    let diagnostics = compile_canary_without_output(&fail)
+        .expect_err("request_cancel must not settle the task claim");
+    let rendered = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains(
+            "linear value `task` reaches scope exit without being consumed or transferred"
+        ),
+        "request_cancel should preserve the original live claim:\n{rendered}"
+    );
+}
+
+#[test]
 fn pass_canaries_compile() {
     // COLLECT-ALL, not first-panic: a serial panic at the first failing
     // member masked every member ordered after it (this is the same
@@ -36309,6 +36734,12 @@ fn executable_name() -> &'static str {
 const ACTIVE_PASS_CANARIES: &[&str] = &[
     "ownership/linear_property_surface",
     "ownership/linear_branch_reconciliation",
+    "ownership/linear_state_call_handoff",
+    "ownership/linear_transition_nested_call_handoff",
+    "ownership/linear_repeated_transition_call_handoff",
+    "ownership/linear_boundary_entry_handoff",
+    "ownership/linear_live_across_call_continuation",
+    "ownership/linear_fresh_state_call_result_handoff",
     "ownership/linear_assignment_establishes",
     "ownership/conditional_linear_sum",
     "ownership/conditional_linear_payload_extraction",
@@ -36861,6 +37292,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "core/fixed_vec_core_surface",
     "core/region_core_surface",
     "core/task_core_linear_claim",
+    "core/task_lifecycle_operations",
+    "core/task_outcome_linear_payloads",
     "core/collections_text_core_surface",
     "core/nat_core_surface",
     "core/int_core_surface",
@@ -37204,6 +37637,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "generics/const_data_where_machine_fact_nested_false",
     "generics/const_data_where_domain_membership_false",
     "core/task_core_scope_loss",
+    "core/task_outcome_linear_payload_scope_loss",
+    "core/start_outcome_linear_arguments_scope_loss",
     "ownership/copy_linear_conflict",
     "ownership/linear_field_erased_by_affine_container",
     "ownership/linear_mixed_branch_treatment",

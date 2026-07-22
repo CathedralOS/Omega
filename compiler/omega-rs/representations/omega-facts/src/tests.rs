@@ -286,6 +286,7 @@ fn expression_places_resolve_attached_data_members() {
     program.push_data_definition(omega_typed_trees::data::DataDefinition {
         symbol: player_type_symbol,
         name: Identifier::generated("Player"),
+        supply_mode: Default::default(),
         type_parameters: HandleSpan::empty(),
         properties: omega_typed_trees::data::DataProperties::default(),
         where_facts: Default::default(),
@@ -295,6 +296,7 @@ fn expression_places_resolve_attached_data_members() {
     let mut main_data = omega_typed_trees::data::DataDefinition {
         symbol: main_data_symbol,
         name: Identifier::generated("Main"),
+        supply_mode: Default::default(),
         type_parameters: HandleSpan::empty(),
         properties: omega_typed_trees::data::DataProperties::default(),
         where_facts: Default::default(),

@@ -14,9 +14,17 @@ pub(crate) fn build_abstract_operation_plan(
     input: &AbstractOperationLoweringInput<'_>,
 ) -> AbstractOperationPlan {
     let instruction_plan = build_instruction_plan(&InstructionSelectionInput::from(input));
+    let mut semantics = build_abstract_semantic_summary(input);
+    let _ = semantics
+        .ownership
+        .install_permission_realization_candidates(
+            &instruction_plan.permission_realization_candidates,
+            instruction_plan.code.instructions.len(),
+        );
 
     AbstractOperationPlan::with_roots(
         instruction_plan.code,
-        build_abstract_semantic_summary(input),
+        semantics,
+        instruction_plan.permission_realization_candidates,
     )
 }

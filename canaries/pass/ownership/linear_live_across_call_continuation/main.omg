@@ -1,0 +1,24 @@
+// PASS canary (decision 21): a linear obligation remains live while an
+// ordinary state call runs and is consumed only after control returns through
+// the caller's continuation segment. Realization must not lose or duplicate
+// the obligation across the synthesized continuation edge.
+
+use omega::language::std::console;
+
+data Receipt [linear] { code: i32; }
+machine Receipt::ack(self, marker: bool) -> i32 { self.code }
+
+data Helper {}
+machine Helper::ping(&mut self) {
+    transition { _ -> done() }
+    state done(&mut self) {}
+}
+
+data Main { helper: Helper; console: Console; }
+
+machine Main::main(&mut self) {
+    let receipt: Receipt = Receipt { code: 7 };
+    self.helper.ping();
+    let code: i32 = Receipt::ack(receipt, false);
+    self.console.exit_process(code);
+}

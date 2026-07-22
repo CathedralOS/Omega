@@ -20,7 +20,7 @@ impl AssignedTargetOperationPlan {
                 runtime_value_operands: Arena::with_capacity(runtime_value_operand_capacity),
                 host_bindings: Arena::with_capacity(host_binding_capacity),
             },
-            AssignedSemanticSummary::with_capacity(0, 0, 0, 0, 0, 0, 0),
+            AssignedSemanticSummary::with_capacity(0, 0, 0, 0, 0),
         )
     }
 }

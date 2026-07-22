@@ -83,7 +83,7 @@ mod tests {
         );
         assert_eq!(artifacts.boundary_summary().policy_checks.len(), 1);
         assert_eq!(artifacts.value_summary().values.len(), 0);
-        assert_eq!(artifacts.ownership_summary().moves.len(), 0);
+        assert_eq!(artifacts.ownership_summary().permissions.len(), 0);
 
         let (_, check) = artifacts
             .boundary_summary()

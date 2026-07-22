@@ -1,0 +1,18 @@
+// PASS canary: a state-local linear obligation returned through a state call
+// keeps its original provenance when the caller binds and later consumes it.
+// The receiving continuation must not mint an unrelated caller-side claim.
+data Receipt [linear] { code: i32; }
+machine Receipt::ack(self) {}
+
+data Main {}
+
+machine Main::issue(&mut self) -> Receipt {
+    let issued: Receipt = Receipt { code: 7 };
+    transition { _ -> issued }
+}
+
+machine Main::run(&mut self) -> i32 {
+    let returned: Receipt = self.issue();
+    Receipt::ack(returned);
+    0
+}

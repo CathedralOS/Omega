@@ -20,6 +20,7 @@ omega-facts = { path = "../../representations/omega-facts" }
 omega-machine-instructions = { path = "../../representations/omega-machine-instructions" }
 omega-object-file = { path = "../../backend/object/omega-object-file" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }
+omega-task-plans = { path = "../../foundation/omega-task-plans" }
 omega-symbol-resolved-trees = { path = "../../representations/omega-symbol-resolved-trees" }
 omega-syntax-trees = { path = "../../representations/omega-syntax-trees" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }

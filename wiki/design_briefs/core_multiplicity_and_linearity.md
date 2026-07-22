@@ -98,6 +98,11 @@ activation stopped. Scope exit with a live `Task<T>` is a compile error, not an
 implicit blocking finish or detach. Strict result use does not prove this rule:
 it catches a discarded return, not a bound handle reaching scope end.
 
+The receiver's type graph retains this distinction directly: `&self` and
+`&mut self` are reference types, while bare `self` is owned. Permission-event
+discovery therefore treats method-form and static-form consuming calls alike
+without guessing ownership from the method name.
+
 Likewise, drop guarantees only that the program relinquishes ownership of an
 affine handle. It does not promise that buffered bytes reached durable storage.
 Fallible or suspending work is an explicit `flush`, `close`, `commit`,
@@ -127,7 +132,7 @@ through checked control flow. The IR needs:
 - path-sensitive resource state for sums; and
 - explicit create, transfer, consume, and affine-drop events.
 
-Implementation status (CML3, 2026-07-17): these events now survive the full
+Implementation status (CML4 migration, 2026-07-21): these events now survive the full
 semantic pipeline with multiplicity, access, and transfer-stable provenance.
 Existing shared/exclusive borrow loans enter the same permission context at
 activation and leave it at weakening; their mature legality checks are not
@@ -136,16 +141,51 @@ cleanup is discovered directly from typed state ownership; the legacy drop
 summary is no longer producer input. Semantic transfers and consumes run the
 same canonical typed move-discovery traversal through an independent event
 sink, so the legacy move summary is likewise compatibility output only.
+Both compatibility arenas now terminate at control flow. Abstract operations
+and every later backend plan carry only the canonical permission ledger.
+The backend ledger now also records one fail-closed realization per canonical
+event: exact selected instruction indices, or a narrow checked no-code reason
+for an explicit zero-code terminal consume, no-live-debt event, or trivial
+affine discard. An empty selection site alone cannot prove a live establishment
+or transfer. Provenance-preserving folds deliberately let one materialization realize
+several transfers of the same obligation. Missing/foreign candidates or an
+invalid no-code proof publish no partial ledger and surface as `UNLINKED` in the
+backend report. Dispatch-edge and state-call argument materialization are joined
+to target-state entry establishment, exact ordinals survive runtime/direct state
+calls and statement-position host calls, and every current ownership pass canary
+has a complete ledger. Named transition targets reserve their canonical ordinal
+before nested argument calls, and target-symbol filtering separates their
+permission events. A live linear obligation also remains intact across a
+dispatched call's synthesized continuation and is consumed afterward; this is a
+same-place/provenance carry, so the continuation itself does not add a semantic
+permission event. Repeated same-symbol nested transition calls retain distinct
+ordinals and join both materializations to their shared target-state event.
+Normalized platform-entry parameter writes now realize program StateEntry
+events directly; missing inbound code fails closed, and later consumes cannot
+launder zero storage into establishment. Nontrivial state-exit cleanup is
+owner-blocked on the graph-edge timing, partial-value order, and proof/effect
+contract in `OWNER_QUESTIONS.md` section 6. Composite field extraction is
+separately owner-blocked on whether nominal and contained claims form one
+path-indexed resource frontier, and on component origin identity, in section 7.
+The broader resource algebra remains open.
 
 Consuming calls are classified from result flow: if a by-value `self` call
 returns a type carrying the obligation, it transfers rather than terminally
 consumes. One unambiguous moved input preserves its origin into the result;
-ambiguous multi-resource results remain conservative until the general
-resource algebra can state their mapping.
+one unambiguous obligation transferred through a target state's result also
+preserves its callee origin when the caller binds it. Ambiguous multi-resource
+results remain conservative until the general resource algebra can state their
+mapping.
+
+Generic conditional sums resolve payload multiplicity through symbol-keyed
+type-argument substitution. Consequently `TaskOutcome<LinearT>::Returned` and
+`StartOutcome<T, LinearArguments>::Rejected` carry live debt, while their
+payload-free or affine cases do not; generic template parameters cannot launder
+a concrete linear substitution.
 
 A backend may erase multiplicity after it has received a checked ownership and
 cleanup plan, but proof/debug artifacts must retain the conservation witness.
-The current move/drop-only summaries are not sufficient; see
+Compatibility move/drop summaries alone are not sufficient; see
 `architecture/semantic_taxonomy_representation.md`.
 
 ## Acceptance register

@@ -1433,7 +1433,7 @@ pub(crate) fn select_runtime_unaliased_storage_mutation_write_with_scratch(
 /// storage), so declared non-self parameters map 1:1 to the argument registers.
 /// Register and incoming-stack placements both flow from the plan; target
 /// encoders alone account for their entry-frame bias.
-fn select_entry_argument_register_writes(
+pub(super) fn select_entry_argument_register_writes(
     input: &InstructionSelectionInput<'_>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
@@ -1971,10 +1971,6 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    // The entry prologue's argument unmarshal runs FIRST (the incoming argument
-    // registers are volatile; anything else emitted here may clobber them).
-    select_entry_argument_register_writes(input, selected_instructions);
-
     selected_instructions.push(SelectedInstruction {
         kind: SelectedInstructionKind::EnterDispatchLoop {
             entry_dispatch_index: input.runtime_dispatch_loop.entry_dispatch_index,
@@ -2044,6 +2040,45 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
             let mut deferred_leaf_operations: Vec<RuntimeDispatchBodyOperation> = Vec::new();
 
             for (operation_index, operation) in operations.iter().enumerate() {
+                let (call_ordinal, call_target, target_entry) = match &operation.kind {
+                    RuntimeDispatchBodyOperationKind::InlineLeafStateCall {
+                        call_ordinal,
+                        target_key,
+                        ..
+                    }
+                    | RuntimeDispatchBodyOperationKind::InlineStateCall {
+                        call_ordinal,
+                        target_key,
+                        ..
+                    }
+                    | RuntimeDispatchBodyOperationKind::StateCall {
+                        call_ordinal,
+                        target_key,
+                        ..
+                    } => (
+                        Some(Some(*call_ordinal)),
+                        Some(target_key.state),
+                        Some(*target_key),
+                    ),
+                    RuntimeDispatchBodyOperationKind::StateCallResult {
+                        call_ordinal,
+                        target_key,
+                        ..
+                    } => (Some(Some(*call_ordinal)), Some(target_key.state), None),
+                    RuntimeDispatchBodyOperationKind::HostCall { call_ordinal } => {
+                        (Some(Some(*call_ordinal)), None, None)
+                    }
+                    _ => (None, None, None),
+                };
+                selected_instructions.begin_permission_site(
+                    operation.source_key,
+                    operation.statement_index,
+                    call_ordinal,
+                    call_target,
+                );
+                if let Some(target_key) = target_entry {
+                    selected_instructions.include_state_entry_permission_events(target_key);
+                }
                 bind_runtime_operation_aliases(
                     input,
                     operation,
@@ -2275,12 +2310,13 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                             ..
                         }
                     ) && operations.iter().skip(operation_index + 1).any(|later| {
-                        matches!(later.kind, RuntimeDispatchBodyOperationKind::HostCall)
-                            && state_key_matches_statement_source(
-                                later.source_key,
-                                operation.source_key,
-                            )
-                            && later.statement_index == operation.statement_index
+                        matches!(
+                            later.kind,
+                            RuntimeDispatchBodyOperationKind::HostCall { .. }
+                        ) && state_key_matches_statement_source(
+                            later.source_key,
+                            operation.source_key,
+                        ) && later.statement_index == operation.statement_index
                     });
                 let defers_to_local_initializer = (leaf_expansions_defer_to_local_initializer(
                     input,
@@ -2324,7 +2360,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                                         matches!(
                                             later.kind,
                                             RuntimeDispatchBodyOperationKind::LocalStorage { .. }
-                                                | RuntimeDispatchBodyOperationKind::HostCall
+                                                | RuntimeDispatchBodyOperationKind::HostCall { .. }
                                                 | RuntimeDispatchBodyOperationKind::Mutation { .. }
                                         ) && later.source_key == target_key
                                     })
@@ -2658,12 +2694,11 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     }
                 }
 
-                if matches!(operation.kind, RuntimeDispatchBodyOperationKind::HostCall)
-                    && let Some(host_call) = host_call_for_statement(
-                        input,
-                        operation.source_key,
-                        operation.statement_index,
-                    )
+                if matches!(
+                    operation.kind,
+                    RuntimeDispatchBodyOperationKind::HostCall { .. }
+                ) && let Some(host_call) =
+                    host_call_for_statement(input, operation.source_key, operation.statement_index)
                 {
                     let alias_bindings = runtime_aliases.bindings();
                     let alias_context =
@@ -2726,11 +2761,26 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     );
                 }
             }
+            selected_instructions.end_permission_site();
         }
 
         let case_edges = input.runtime_dispatch_loop.edges.span(dispatch_case.edges);
         if let Some(edges) = case_edges {
             for edge in edges {
+                selected_instructions.begin_permission_site(
+                    dispatch_case.key,
+                    edge.statement_index,
+                    Some(None),
+                    match edge.target {
+                        omega_state_graph::RuntimeTransitionTarget::State { key, .. } => {
+                            Some(key.state)
+                        }
+                        _ => None,
+                    },
+                );
+                if let omega_state_graph::RuntimeTransitionTarget::State { key, .. } = edge.target {
+                    selected_instructions.include_state_entry_permission_events(key);
+                }
                 select_runtime_dispatch_edge(
                     input,
                     edge,
@@ -2741,6 +2791,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     runtime_value_operands,
                     selected_instructions,
                 );
+                selected_instructions.end_permission_site();
             }
         }
         if case_edges.map_or(true, <[_]>::is_empty) {

@@ -21,18 +21,22 @@ use omega_abstract_operations::{
     AbstractFunctionPlan, AbstractOperation, AbstractOperationKind, AbstractValueOperand,
     InstructionOperand,
 };
-use runtime_dispatch::select_runtime_dispatch_loop_instructions;
+use runtime_dispatch::{
+    select_entry_argument_register_writes, select_runtime_dispatch_loop_instructions,
+};
 use state_bodies::{StateBodyVisitStack, runtime_reachable_states, select_state_body_instructions};
 
 pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> AbstractOperationPlan {
     let mut instruction_plan = estimated_instruction_plan(input);
 
-    let instructions = select_entry_instructions(
+    let (instructions, mut permission_realization_candidates) = select_entry_instructions(
         input,
         &mut instruction_plan.code.operands,
         &mut instruction_plan.code.runtime_value_operands,
         &mut instruction_plan.code.instructions,
     );
+    append_trivial_affine_drop_realizations(input, &mut permission_realization_candidates);
+    append_elided_no_debt_realizations(input, &mut permission_realization_candidates);
 
     instruction_plan
         .code
@@ -42,8 +46,95 @@ pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> Abstract
             source_key: input.entry_key,
             instructions,
         });
+    instruction_plan.permission_realization_candidates = permission_realization_candidates;
 
     instruction_plan
+}
+
+fn append_elided_no_debt_realizations(
+    input: &InstructionSelectionInput<'_>,
+    candidates: &mut Vec<omega_abstract_operations::PermissionRealizationCandidate>,
+) {
+    for (_, state) in input.control_flow.states.iter() {
+        let permission_span = state.ownership.permissions;
+        for (event_offset, event) in input
+            .control_flow
+            .semantics
+            .ownership
+            .permissions
+            .span_or_empty(permission_span)
+            .iter()
+            .enumerate()
+        {
+            if event.obligation_live {
+                continue;
+            }
+            let source_event_index = permission_span
+                .start()
+                .arena_index()
+                .checked_add(u32::try_from(event_offset).expect("permission event offset overflow"))
+                .expect("permission event index overflow");
+            if candidates
+                .iter()
+                .any(|candidate| candidate.source_event_index == source_event_index)
+            {
+                continue;
+            }
+            candidates.push(omega_abstract_operations::PermissionRealizationCandidate {
+                source_event_index,
+                kind:
+                    omega_abstract_operations::PermissionRealizationCandidateKind::CheckedNoCode {
+                        reason:
+                            omega_abstract_operations::CheckedNoCodePermissionReason::ElidedNoDebt,
+                    },
+            });
+        }
+    }
+}
+
+fn append_trivial_affine_drop_realizations(
+    input: &InstructionSelectionInput<'_>,
+    candidates: &mut Vec<omega_abstract_operations::PermissionRealizationCandidate>,
+) {
+    for (_, state) in input.control_flow.states.iter() {
+        let permission_span = state.ownership.permissions;
+        for (event_offset, event) in input
+            .control_flow
+            .semantics
+            .ownership
+            .permissions
+            .span_or_empty(permission_span)
+            .iter()
+            .enumerate()
+        {
+            if !matches!(
+                event.kind,
+                omega_core::semantics::PermissionEventKind::AffineDrop
+            ) || event.obligation_live
+            {
+                continue;
+            }
+            let source_event_index = permission_span
+                .start()
+                .arena_index()
+                .checked_add(u32::try_from(event_offset).expect("permission event offset overflow"))
+                .expect("permission event index overflow");
+            if candidates
+                .iter()
+                .any(|candidate| candidate.source_event_index == source_event_index)
+            {
+                continue;
+            }
+            candidates.push(
+                omega_abstract_operations::PermissionRealizationCandidate {
+                    source_event_index,
+                    kind: omega_abstract_operations::PermissionRealizationCandidateKind::CheckedNoCode {
+                        reason: omega_abstract_operations::CheckedNoCodePermissionReason::TrivialAffineDrop,
+                    },
+                },
+            );
+        }
+    }
 }
 
 fn estimated_instruction_plan(input: &InstructionSelectionInput<'_>) -> AbstractOperationPlan {
@@ -87,10 +178,21 @@ fn select_entry_instructions(
     operands: &mut Arena<InstructionOperand>,
     runtime_value_operands: &mut Arena<AbstractValueOperand>,
     instructions: &mut Arena<AbstractOperation>,
-) -> omega_core::arena::HandleSpan<AbstractOperation> {
-    let mut selected_instructions = SelectedInstructionSink::new(instructions);
+) -> (
+    omega_core::arena::HandleSpan<AbstractOperation>,
+    Vec<omega_abstract_operations::PermissionRealizationCandidate>,
+) {
+    let mut selected_instructions = SelectedInstructionSink::new(instructions, input.control_flow);
 
     selected_instructions.push(entry_instruction(input));
+    // The platform boundary establishes entry parameters by writing the
+    // incoming argument locations into their frame slots. Associate the exact
+    // prologue span with the canonical StateEntry events before either the
+    // dispatching or straight-line body begins; zero-initialized storage is not
+    // establishment evidence.
+    selected_instructions.begin_state_entry_permission_site(input.entry_key);
+    select_entry_argument_register_writes(input, &mut selected_instructions);
+    selected_instructions.end_permission_site();
 
     if input.runtime_dispatch_loop.needed {
         select_runtime_dispatch_loop_instructions(

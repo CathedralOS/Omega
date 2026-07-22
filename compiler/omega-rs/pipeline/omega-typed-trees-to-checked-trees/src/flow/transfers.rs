@@ -95,8 +95,15 @@ pub(super) fn propagate_statement_transfers(
                             domain_symbol,
                         })
                 }
-                FactPayload::BooleanExpression(expression)
-                | FactPayload::ContractBooleanExpression { expression, .. } => {
+                FactPayload::BooleanExpression(expression) => {
+                    (program.expression_table.display_name(expression) == source_label)
+                        .then_some(FactPayload::BooleanExpression(expression))
+                }
+                FactPayload::ContractBooleanExpression {
+                    expression,
+                    instantiated,
+                    ..
+                } if !instantiated.is_valid() => {
                     (program.expression_table.display_name(expression) == source_label)
                         .then_some(FactPayload::BooleanExpression(expression))
                 }

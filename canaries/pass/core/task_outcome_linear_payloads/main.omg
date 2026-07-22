@@ -1,0 +1,38 @@
+use omega::language::core::task;
+
+// TR2b: generic outcome payloads preserve the multiplicity of their concrete
+// substitutions. Returned(Receipt), Rejected(Receipt), and Started(Task<T>)
+// each transfer one live obligation; Cancelled carries none.
+data Receipt [linear] { code: i32; }
+machine Receipt::ack(self) {}
+machine Task::settle<T>(self) {}
+
+data Main {}
+
+machine Main::main(&mut self) -> i32 {
+    let returned_receipt: Receipt = Receipt { code: 7 };
+    let returned: TaskOutcome<Receipt> =
+        TaskOutcome::Returned { value: returned_receipt };
+    let returned_value: Receipt = returned.value;
+    Receipt::ack(returned_value);
+
+    let cancelled: TaskOutcome<Receipt> = TaskOutcome::Cancelled;
+    let failed: TaskOutcome<Receipt> = TaskOutcome::Failed {
+        receipt: TaskFailureReceipt { provider: 1, code: 2 }
+    };
+
+    let rejected_receipt: Receipt = Receipt { code: 9 };
+    let rejected: StartOutcome<i32, Receipt> = StartOutcome::Rejected {
+        arguments: rejected_receipt,
+        reason: StartRejection { code: 1 }
+    };
+    let recovered: Receipt = rejected.arguments;
+    Receipt::ack(recovered);
+
+    let task: Task<i32> = Task { provider: 1, activation: 11 };
+    let started: StartOutcome<i32, Receipt> =
+        StartOutcome::Started { task: task };
+    let claim: Task<i32> = started.task;
+    Task::settle(claim);
+    0
+}

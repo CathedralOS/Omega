@@ -33,12 +33,23 @@ pub(crate) fn semantic_fact_requirement_label(
                 symbol_name(program, domain_symbol)
             )
         }
-        FactPayload::ContractBooleanExpression { expression, .. }
-        | FactPayload::BooleanExpression(expression) => {
-            program.expression_table.display_name(expression)
+        FactPayload::ContractBooleanExpression { .. } | FactPayload::BooleanExpression(_) => {
+            semantic_boolean_fact_label(program, semantic, fact)
+                .unwrap_or_else(|| "unknown boolean expression".to_owned())
         }
         _ => "unknown contract fact".to_owned(),
     }
+}
+
+/// Canonical caller-term label for a semantic boolean fact. Declaration facts
+/// render their typed expression directly; flow-instantiated operator/call
+/// facts use the substitution record owned by the fact plan.
+pub(crate) fn semantic_boolean_fact_label(
+    program: &omega_typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    fact: &Fact,
+) -> Option<String> {
+    semantic.boolean_fact_label(program, fact)
 }
 
 pub(crate) fn requirement_place_label(

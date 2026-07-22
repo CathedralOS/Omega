@@ -435,11 +435,15 @@ fn append_state_body_operations(
         // A host call owns the statement-position operation, but machine value
         // calls nested in its arguments must execute first and leave their
         // results in the call-argument slots appended above.
-        if host_call_for_statement(context, state_key, operation.statement_index).is_some() {
+        if let Some(host_call) =
+            host_call_for_statement(context, state_key, operation.statement_index)
+        {
             operations.insert(body_operation(
                 state_key,
                 operation.statement_index,
-                RuntimeDispatchBodyOperationKind::HostCall,
+                RuntimeDispatchBodyOperationKind::HostCall {
+                    call_ordinal: host_call.call_ordinal,
+                },
             ));
             continue;
         }

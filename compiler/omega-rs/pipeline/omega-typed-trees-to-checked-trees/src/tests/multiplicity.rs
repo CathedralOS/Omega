@@ -238,6 +238,52 @@ fn consuming_call_that_returns_an_obligation_transfers_its_origin() {
 }
 
 #[test]
+fn state_call_result_preserves_a_locally_created_obligation_origin() {
+    let checked = checked(
+        r#"
+        data Receipt [linear] { code: i32; }
+        machine Receipt::ack(self) {}
+        data Main {}
+        machine Main::issue(&mut self) -> Receipt {
+            let issued: Receipt = Receipt { code: 7 };
+            transition { _ -> issued }
+        }
+        machine Main::run(&mut self) -> i32 {
+            let returned: Receipt = self.issue();
+            Receipt::ack(returned);
+            0
+        }
+        "#,
+    );
+
+    use omega_core::semantics::{PermissionAccess, PermissionEventKind};
+    let events = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event)
+        .filter(|event| event.access == PermissionAccess::Owned)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        events.iter().map(|event| event.kind).collect::<Vec<_>>(),
+        [
+            PermissionEventKind::Establish,
+            PermissionEventKind::Transfer,
+            PermissionEventKind::Establish,
+            PermissionEventKind::Consume,
+        ]
+    );
+    assert!(
+        events
+            .iter()
+            .all(|event| event.provenance == events[0].provenance),
+        "the state-call result must not mint a caller-side origin: {events:#?}"
+    );
+}
+
+#[test]
 fn permission_producer_discovers_transfers_without_legacy_moves() {
     let checked = checked(
         r#"
@@ -371,6 +417,85 @@ fn nested_conditional_payload_extraction_preserves_its_origin() {
             .all(|event| event.provenance == events[0].provenance),
         "nested transfers must conserve one origin: {events:#?}"
     );
+}
+
+#[test]
+fn generic_conditional_payload_substitution_preserves_linear_debt() {
+    let checked = checked(
+        r#"
+        data Receipt [linear] { code: i32; }
+        machine Receipt::ack(self) {}
+        data Outcome<T> {
+            case Empty;
+            case Returned(value: T);
+        }
+        data Main {}
+        machine Main::run() -> i32 {
+            let issued: Receipt = Receipt { code: 7 };
+            let outcome: Outcome<Receipt> = Outcome::Returned { value: issued };
+            let extracted: Receipt = outcome.value;
+            Receipt::ack(extracted);
+            0
+        }
+        "#,
+    );
+
+    use omega_core::semantics::{PermissionAccess, PermissionEventKind};
+    let events = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event)
+        .filter(|event| event.access == PermissionAccess::Owned)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        events.iter().map(|event| event.kind).collect::<Vec<_>>(),
+        [
+            PermissionEventKind::Establish,
+            PermissionEventKind::Transfer,
+            PermissionEventKind::Establish,
+            PermissionEventKind::Transfer,
+            PermissionEventKind::Establish,
+            PermissionEventKind::Consume,
+        ]
+    );
+    assert!(events.iter().all(|event| event.obligation_live));
+    assert!(
+        events
+            .iter()
+            .all(|event| event.provenance == events[0].provenance),
+        "generic substitution must conserve the payload origin: {events:#?}"
+    );
+}
+
+#[test]
+fn generic_conditional_empty_case_establishes_without_debt() {
+    let checked = checked(
+        r#"
+        data Receipt [linear] { code: i32; }
+        data Outcome<T> {
+            case Empty;
+            case Returned(value: T);
+        }
+        data Main {}
+        machine Main::run() -> i32 {
+            let outcome: Outcome<Receipt> = Outcome::Empty;
+            0
+        }
+        "#,
+    );
+    let event = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event)
+        .find(|event| event.kind == omega_core::semantics::PermissionEventKind::Establish)
+        .expect("generic conditional establishment event");
+    assert!(!event.obligation_live);
 }
 
 #[test]

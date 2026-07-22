@@ -1,5 +1,6 @@
 use crate::StateCallPlanningContext;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use omega_checked_trees::name::Identifier;
 use omega_control_flow::StateKey;
 use omega_control_flow::StateParameterFlow;
 use omega_core::arena::{Arena, HandleSpan};
@@ -25,22 +26,42 @@ pub(crate) fn build_call_arguments(
         .control_flow
         .expressions
         .expression_handles(raw_arguments);
+    // State-graph parameters omit an attached machine's implicit `self`.
+    // Static attached calls supply that receiver as one surplus leading
+    // argument (`Receipt::ack(receipt)`); instance calls obtain it from their
+    // receiver expression and have exactly the non-self parameter count.
+    let has_explicit_attached_self = raw_arguments.len() == parameters.len().saturating_add(1)
+        && context.control_flow.machines.iter().any(|(_, machine)| {
+            machine.symbol == target_key.machine && machine.attached_data.is_some()
+        });
 
     let mut arguments = HandleSpan::empty();
 
     for (index, expression) in raw_arguments.iter().enumerate() {
+        let parameter_index = index.saturating_sub(usize::from(has_explicit_attached_self));
+        let parameter = if has_explicit_attached_self && index == 0 {
+            None
+        } else {
+            parameters.get(parameter_index)
+        };
         output_arguments.append_to_span(
             &mut arguments,
             StateCallArgument {
                 index,
-                parameter_symbol: parameters
-                    .get(index)
-                    .map(|parameter| parameter.symbol)
-                    .unwrap_or_else(SymbolHandle::invalid),
-                parameter_name: parameters
-                    .get(index)
-                    .map(|parameter| parameter.name.clone())
-                    .unwrap_or_default(),
+                parameter_symbol: if has_explicit_attached_self && index == 0 {
+                    target_key.machine
+                } else {
+                    parameter
+                        .map(|parameter| parameter.symbol)
+                        .unwrap_or_else(SymbolHandle::invalid)
+                },
+                parameter_name: if has_explicit_attached_self && index == 0 {
+                    Identifier::generated_static("self")
+                } else {
+                    parameter
+                        .map(|parameter| parameter.name.clone())
+                        .unwrap_or_default()
+                },
                 expression: output_expressions
                     .copy_from(&context.control_flow.expressions, *expression),
                 kind: if argument_is_mutable_alias(
@@ -51,9 +72,7 @@ pub(crate) fn build_call_arguments(
                     call_ordinal,
                     index,
                     *expression,
-                ) || parameters
-                    .get(index)
-                    .is_some_and(|parameter| parameter.is_mutable_reference)
+                ) || parameter.is_some_and(|parameter| parameter.is_mutable_reference)
                 {
                     StateCallArgumentKind::MutableAlias
                 } else {

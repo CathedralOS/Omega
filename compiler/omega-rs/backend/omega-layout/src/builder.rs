@@ -69,6 +69,17 @@ pub fn build_layout_plan(
     Ok(builder.finish())
 }
 
+/// Compute the selected target's concrete size/alignment for one checked type
+/// reference. Task activation elaboration uses this for argument, outcome, and
+/// continuation-live values without duplicating layout rules.
+pub fn layout_type_reference(
+    program: &CheckedTrees,
+    target: NativeTarget,
+    type_reference: TypeReferenceHandle,
+) -> Result<TypeLayout, Diagnostic> {
+    LayoutBuilder::new(program, target).layout_type_reference_handle(type_reference)
+}
+
 struct LayoutBuilder<'program> {
     data_definitions: &'program [DataDefinition],
     data_layouts: Arena<DataLayout>,

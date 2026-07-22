@@ -55,7 +55,10 @@ pub(in crate::selection::host_operations) fn runtime_text_literal_for_host_call(
                     operations.iter().any(|operation| {
                         operation.source_key == host_call.source_key
                             && operation.statement_index == host_call.statement_index
-                            && matches!(operation.kind, RuntimeDispatchBodyOperationKind::HostCall)
+                            && matches!(
+                                operation.kind,
+                                RuntimeDispatchBodyOperationKind::HostCall { .. }
+                            )
                     })
                 })
         })
@@ -69,7 +72,10 @@ pub(in crate::selection::host_operations) fn runtime_text_literal_for_host_call(
     for operation in operations.iter() {
         if operation.source_key == host_call.source_key
             && operation.statement_index == host_call.statement_index
-            && matches!(operation.kind, RuntimeDispatchBodyOperationKind::HostCall)
+            && matches!(
+                operation.kind,
+                RuntimeDispatchBodyOperationKind::HostCall { .. }
+            )
         {
             break;
         }

@@ -25,8 +25,6 @@ impl AbstractSemanticSummary {
         source_boundary_edge_capacity: usize,
         boundary_edge_capacity: usize,
         ownership_segment_capacity: usize,
-        move_capacity: usize,
-        drop_capacity: usize,
         permission_capacity: usize,
     ) -> Self {
         Self::with_roots(
@@ -37,8 +35,6 @@ impl AbstractSemanticSummary {
             ),
             AbstractOwnershipSummary::with_capacity(
                 ownership_segment_capacity,
-                move_capacity,
-                drop_capacity,
                 permission_capacity,
             ),
         )

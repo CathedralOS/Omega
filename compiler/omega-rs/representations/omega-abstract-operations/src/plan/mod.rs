@@ -11,7 +11,11 @@ impl Default for AbstractOperationPlan {
 
 #[cfg(test)]
 mod tests {
-    use crate::{AbstractOperationCode, AbstractOperationPlan, AbstractSemanticSummary};
+    use crate::{
+        AbstractOperationCode, AbstractOperationPlan, AbstractSemanticSummary,
+        CheckedNoCodePermissionReason, PermissionRealizationCandidate,
+        PermissionRealizationCandidateKind,
+    };
     use omega_core::arena::Arena;
 
     #[test]
@@ -22,11 +26,19 @@ mod tests {
             operands: Arena::with_capacity(3),
             runtime_value_operands: Arena::with_capacity(4),
         };
-        let semantics = AbstractSemanticSummary::with_capacity(5, 6, 7, 8, 9, 10, 11);
+        let semantics = AbstractSemanticSummary::with_capacity(5, 6, 7, 8, 9);
+        let candidates = vec![PermissionRealizationCandidate {
+            source_event_index: 1,
+            kind: PermissionRealizationCandidateKind::CheckedNoCode {
+                reason: CheckedNoCodePermissionReason::ExplicitZeroCodeConsume,
+            },
+        }];
 
-        let plan = AbstractOperationPlan::with_roots(code.clone(), semantics.clone());
+        let plan =
+            AbstractOperationPlan::with_roots(code.clone(), semantics.clone(), candidates.clone());
 
         assert_eq!(plan.code, code);
         assert_eq!(plan.semantics, semantics);
+        assert_eq!(plan.permission_realization_candidates, candidates);
     }
 }

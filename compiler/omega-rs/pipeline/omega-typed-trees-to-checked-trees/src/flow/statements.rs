@@ -159,7 +159,7 @@ pub(super) fn append_state_statement_flow_facts(
         );
 
         if let StatementNode::Call(call) = statement {
-            append_operator_statement_domain_ensures(
+            append_operator_statement_ensures(
                 program,
                 semantic,
                 ctx,

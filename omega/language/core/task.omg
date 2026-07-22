@@ -13,9 +13,58 @@ data Task<T> [linear] {
     activation: u64;
 }
 
-// TaskOutcome<T> and StartOutcome<T, Arguments> deliberately do not ship in
-// this rung. Their generic payloads must propagate the substituted argument's
-// multiplicity: Returned(LinearT) and Rejected(LinearArguments) cannot erase
-// a debt merely because the generic declaration cannot see the substitution.
-// Land those sums with qualifier-aware generic payload propagation, then add
-// the TaskRuntime boundary operations in TR4.
+// Provider/lifecycle failures are ordinary affine records. Concrete providers
+// may wrap richer diagnostics; the core outcomes keep the runtime boundary
+// surface's payloads stable while provider admission is implemented.
+data TaskFailureReceipt {
+    provider: u64;
+    code: i32;
+}
+
+data StartRejection {
+    code: i32;
+}
+
+// These sums remain affine as nominal containers while their active payload
+// carries any substituted linear debt. `Returned(LinearT)` and
+// `Rejected(LinearArguments)` therefore participate in the same conditional
+// permission accounting as a non-generic `Empty | Live(Token)` sum.
+data TaskOutcome<T> {
+    case Cancelled;
+    case Returned(value: T);
+    case Failed(receipt: TaskFailureReceipt);
+}
+
+data StartOutcome<T, Arguments> {
+    case Started(task: Task<T>);
+    case Rejected(arguments: Arguments, reason: StartRejection);
+}
+
+// Cancellation requests retain the linear claim. `finish` is the terminal
+// operation: it may park while the provider reaches a lifecycle outcome and
+// consumes the claim exactly once.
+boundary machine Task::request_cancel<T>(&self)
+ensures true;
+
+boundary machine Task::finish<T>(self) -> TaskOutcome<T> effects Suspend, Block
+ensures true;
+
+// Runtime authority is opaque: source can receive a selected provider but
+// cannot construct or inspect one. These generic boundary signatures give
+// `start<M>` a nominal, machine-contract-checked surface for activation-plan
+// elaboration; provider admission/dispatch remains the next runtime layer.
+boundary data TaskRuntime;
+
+boundary machine TaskRuntime::start<T, Arguments, machine Target>(
+    &self,
+    arguments: Arguments
+) -> Task<T>
+where machine Target(arguments: Arguments) -> T effects Suspend, Block;
+ensures true;
+
+boundary machine TaskRuntime::try_start<T, Arguments, machine Target>(
+    &self,
+    arguments: Arguments
+) -> StartOutcome<T, Arguments>
+where machine Target(arguments: Arguments) -> T effects Suspend, Block;
+ensures true;

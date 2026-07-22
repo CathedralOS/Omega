@@ -1,0 +1,25 @@
+// PASS canary (decision 21): a transition target and a nested value call in
+// its arguments both transfer distinct linear obligations from one statement.
+// Backend realization must keep their call ordinals separate and join both
+// target-state entry establishments to the correct handoff site.
+
+data Receipt [linear] { code: i32; }
+machine Receipt::ack(self) {}
+
+data Main {}
+
+machine Main::forward(&mut self, receipt: Receipt) -> Receipt { receipt }
+
+machine Main::run(&mut self) -> i32 {
+    let first: Receipt = Receipt { code: 7 };
+    let second: Receipt = Receipt { code: 9 };
+    transition {
+        _ -> consume(first, self.forward(second))
+    }
+
+    state consume(&mut self, first: Receipt, second: Receipt) -> i32 {
+        Receipt::ack(first);
+        Receipt::ack(second);
+        0
+    }
+}
