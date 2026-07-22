@@ -804,8 +804,9 @@ boundary and the operators.
 > a `&[u8]` bytes field through the wire layer, plus replacing the builtin
 > Domains over byte views and bounded carriers, direct literal construction,
 > bounded return values, and native/interpreter carrier lowering are now built.
-> Wholesale `string`/`String` removal waits on the remaining corpus migration
-> and the allocator-backed growable carrier surface. Mutable boundary/operator
+> The pass-canary corpus is migrated off builtin `string`/`String`. Wholesale
+> removal still waits on the sample/lattice/legacy-host migration and the
+> allocator-backed growable carrier surface. Mutable boundary/operator
 > statement calls already invalidate facts for their exact mutable operands and
 > re-establish declared domain-membership guarantees on those caller places;
 > the text canaries exercise this rule over `[u8]`, not builtin `String`.
@@ -833,6 +834,11 @@ boundary and the operators.
 > derives its writable capacity from that call-site place before updating the
 > carrier's runtime length. Growable input remains allocator-gated; fixed input
 > no longer relies on builtin `String`.
+> In straight-line code, bounded text writes also retain a conservative maximum
+> runtime length for each place. A later `line = line + suffix` uses that
+> reaching bound rather than pretending `line` is already full; overlapping
+> writes invalidate the fact, and calls or opaque effects clear it. Capacity is
+> therefore proved, never recovered by truncation or a runtime overflow path.
 
 ### Establishing the domain: construction, validation, and the wire
 

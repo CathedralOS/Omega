@@ -366,6 +366,11 @@ rows remain temporarily for deliberately nonstandard semantic-test
 declarations; the ordinary corpus imports the standard package. `TASKS.md`
 tracks compatibility-row deletion.
 
+Bounded in-place text construction is likewise proof-carrying: straight-line
+reaching writes supply the current maximum length, overlapping writes invalidate
+it, and calls or opaque effects erase it conservatively. The provider never
+receives a request to append beyond the destination's proved capacity.
+
 Domain requirements stay normal proof language. A filesystem boundary should
 not invent special "initialized" words when a domain is what it means:
 

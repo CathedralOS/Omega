@@ -133,6 +133,8 @@ fn state_value_has_planned_storage_write(
                         | SelectedInstructionKind::WritePlaceBinary { .. }
                         | SelectedInstructionKind::WritePlaceString { .. }
                         | SelectedInstructionKind::WritePlaceBoundedBuffer { .. }
+                        | SelectedInstructionKind::AppendPlaceBoundedBufferLiteral { .. }
+                        | SelectedInstructionKind::AppendPlaceBoundedBufferSource { .. }
                         | SelectedInstructionKind::WritePlaceAddress { .. }
                         | SelectedInstructionKind::WriteRuntimeStorageConvert { .. }
                         | SelectedInstructionKind::CopyPlaces { .. }
@@ -324,6 +326,8 @@ fn runtime_text_write_has_selected_instruction(
                     instruction.kind,
                     SelectedInstructionKind::WritePlaceString { .. }
                         | SelectedInstructionKind::WritePlaceBoundedBuffer { .. }
+                        | SelectedInstructionKind::AppendPlaceBoundedBufferLiteral { .. }
+                        | SelectedInstructionKind::AppendPlaceBoundedBufferSource { .. }
                         | SelectedInstructionKind::WritePlaceAddress { .. }
                         | SelectedInstructionKind::WriteRuntimeTextLiteral { .. }
                         | SelectedInstructionKind::WriteRuntimeTextLiteralSegment { .. }
