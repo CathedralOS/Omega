@@ -1,0 +1,20 @@
+// RUN CANARY (exit 70) + interpreter differential. A recast local used only
+// inside a later ASSIGNMENT VALUE must retain its address-bearing slot. The
+// nested projected u16 read, widening cast, and bitmask mirror the portable
+// filesystem copy path's `StatView.value.mode` permission decode.
+use omega::language::std::console;
+
+data StatValue { mode: u16; }
+data StatView { tag: u32; value: StatValue; }
+data Main { console: Console; bytes: [u8; 8]; mode: u32; }
+
+machine Main::main(&mut self) {
+    self.bytes[4] = 255;
+    self.bytes[5] = 1;
+    let stat: &StatView = &self.bytes[0] as &StatView;
+    self.mode = (stat.value.mode as u32) & 511;
+    transition self.mode == 511 { true -> good() _ -> bad() }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
