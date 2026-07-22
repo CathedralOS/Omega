@@ -1,0 +1,20 @@
+// MP6: the build-time interpreter consumes the same static machine-symbol
+// specialization as ordinary code. The selected helper computes image
+// metadata; it is not a runtime callable or a compiler-side config grammar.
+target windows_x64 {
+}
+
+machine chosen_subsystem(value: u16) -> u16 {
+    value
+}
+
+machine apply<T, machine F>(value: T) -> T
+where machine F(value: T) -> T;
+{
+    F(value)
+}
+
+machine build(b: &mut Build) {
+    let selected: u16 = apply<chosen_subsystem>(70);
+    b.subsystem = Subsystem::Unspecified { value: selected };
+}

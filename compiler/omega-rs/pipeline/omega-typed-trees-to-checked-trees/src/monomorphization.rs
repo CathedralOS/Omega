@@ -1699,9 +1699,20 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
         .zip(candidate.machine_bindings.iter())
         .map(|((parameter_symbol, _, _), binding)| {
             let binding = binding.as_ref().expect("complete machine specialization");
-            let target = state_by_symbol(program, binding.symbol)
-                .map(|state| state.name.clone())
-                .or_else(|| binding.path.last().cloned())
+            // Preserve the authored symbol leaf for interpreter dispatch.
+            // Free machines expose an internal body state named `entry`; using
+            // that implementation detail here makes `F(value)` look like a
+            // sibling-state call and recursively re-enters the generic helper.
+            // The selected path is exact for both free (`chosen`) and attached
+            // (`Card::power`) machines; the state name is only a recovery path
+            // for synthetic arguments without authored path members.
+            let target = binding
+                .path
+                .last()
+                .cloned()
+                .or_else(|| {
+                    state_by_symbol(program, binding.symbol).map(|state| state.name.clone())
+                })
                 .expect("admitted static machine argument has an entry name");
             (*parameter_symbol, binding.symbol, target)
         })

@@ -767,8 +767,12 @@ stronger operations it needs instead of citing machine parameters generally.
    `start<M>`/`try_start<M>` selection now has an authored core-import canary:
    both calls retain the concrete target, suspension reachability, and normalized
    activation identity in checked facts and the build manifest, while a target
-   whose effects exceed the authored machine-parameter ceiling rejects. Still add
-   the nested proof schemas used by N5/N6 and the remaining build-surface canaries.
+   whose effects exceed the authored machine-parameter ceiling rejects. The
+   build-time interpreter now evaluates the same specialized tree: a selected
+   free helper computes PE subsystem metadata end to end, and a mismatched
+   helper rejects before interpretation. Free selections retain their authored
+   symbol leaf instead of leaking the internal `entry` state name. Still add the
+   nested proof schemas used by N5/N6.
 
 ## Type, proof, and semantic-model work
 

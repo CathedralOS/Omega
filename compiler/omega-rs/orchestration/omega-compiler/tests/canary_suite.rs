@@ -318,6 +318,35 @@ machine build(b: &mut Build) {
     }
 }
 
+#[test]
+fn build_static_machine_selection_reaches_pe_subsystem() {
+    let canary = pass_canary("build/static_machine_parameter_config_compile");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-build-static-machine-selection-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("windows_x64".into()),
+        write_output: true,
+    })
+    .expect("static machine selection in build.omg should compile to PE");
+
+    let bytes = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
+    let lfanew =
+        u32::from_le_bytes([bytes[0x3c], bytes[0x3d], bytes[0x3e], bytes[0x3f]]) as usize;
+    let subsystem_at = lfanew + 4 + 20 + 68;
+    assert_eq!(
+        u16::from_le_bytes([bytes[subsystem_at], bytes[subsystem_at + 1]]),
+        70,
+        "the selected helper's build-time result must reach PE metadata"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Cross-compile cli_mvp to a linux_x64 ELF and verify its structure + syscall
 // sequences. No execution (the suite host is Windows): the x86_64 Linux System V
 // syscall host-call path + ELF emission are validated by the emitted bytes. Guards
@@ -38219,6 +38248,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "proofs/ring_identity_slot_bridge_compile",
     "proofs/runtime_core_roster_ops_exit",
     "build/runtime_depend_mapping_exit",
+    "build/static_machine_parameter_config_compile",
     "recast/runtime_record_view_exit",
     "recast/runtime_record_array_view_mutable_write_exit",
     "recast/constant_offset_record_view_after_write_exit",
@@ -38744,6 +38774,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "control_flow/transition_fall_through_value_match",
     "calls/abs_call_argument_rejected",
     "build/build_machine_wrong_arity",
+    "build/static_machine_parameter_contract_mismatch",
     "build/accept_boundary_outside_build",
     "platform/platform_block_retired",
     "providers/via_with_body_rejected",
