@@ -737,6 +737,13 @@ pub fn entry_arguments_slice_descriptor_write_width() -> usize {
     35
 }
 
+/// Exact register footprint of the bytes-handoff descriptor encoder below.
+/// Keep this beside the implementation so certificate derivation cannot drift
+/// from its fixed frame-base and descriptor-address scratch choices.
+pub fn entry_arguments_slice_descriptor_write_clobbers() -> RegisterSet {
+    RegisterSet::new([MachineRegister::X86Rax, MachineRegister::X86R15])
+}
+
 /// The bytes-handoff half of the entry prologue: bind `args: &[u8]` as a view
 /// over the entry-argument spill -- write the slice descriptor
 /// {ptr @ desc+0 = frame+spill_offset, len @ desc+8 = byte_length}.

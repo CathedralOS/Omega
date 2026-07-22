@@ -1,8 +1,8 @@
 use omega_abstract_operations::SelectedInstructionKind;
 use omega_calling_conventions::{
     BoundaryEntryPlan, CallSignature, EntryControl, IndirectPointerLocation, MachineStateSet,
-    PlanDiagnostic, RegisterSet, StateFootprintEvidence, ValueLocation, ValueShape,
-    validate_boundary_entry_plan, validate_state_footprint,
+    PlanDiagnostic, RegisterSet, StateFootprintEvidence, ValidatedBoundaryEntryPlan, ValueLocation,
+    ValueShape, validate_boundary_entry_plan, validate_state_footprint,
 };
 
 /// The observable exit half of one validated boundary plan. Result fragments
@@ -21,6 +21,26 @@ pub struct DerivedBoundaryExit {
 pub struct DerivedBoundaryEntryStorage {
     pub writes: Vec<SelectedInstructionKind>,
     pub footprint: StateFootprintEvidence,
+}
+
+/// Derive and validate the fixed scratch footprint of the special
+/// `run(args: &[u8])` descriptor write. The ISA modules that emit the bytes own
+/// the scratch identities; this layer only turns them into boundary evidence
+/// and checks the retained state ceiling.
+pub fn derive_boundary_entry_slice_descriptor_footprint(
+    boundary: &ValidatedBoundaryEntryPlan,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    let registers = match boundary.plan().call.policy.architecture() {
+        omega_target::Architecture::X86_64 => {
+            omega_isa_x86_64::entry_arguments_slice_descriptor_write_clobbers()
+        }
+        omega_target::Architecture::Aarch64 => {
+            omega_isa_aarch64::entry_arguments_slice_descriptor_write_clobbers()
+        }
+    };
+    let evidence = StateFootprintEvidence::new(registers, MachineStateSet::empty());
+    validate_state_footprint(boundary, &evidence)?;
+    Ok(evidence)
 }
 
 /// Derive result placement and exit control for a compiler-owned entry stub.
@@ -417,6 +437,46 @@ mod tests {
 
         assert_eq!(
             derived.footprint.registers().as_slice(),
+            &[MachineRegister::Aarch64X(16), MachineRegister::Aarch64X(17),]
+        );
+    }
+
+    #[test]
+    fn bytes_handoff_descriptor_footprint_comes_from_the_x86_encoder() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::MicrosoftX64,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8); 4],
+                result: None,
+            },
+        )
+        .expect("Microsoft x64 bytes handoff");
+
+        let evidence = derive_boundary_entry_slice_descriptor_footprint(&boundary)
+            .expect("descriptor footprint");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[MachineRegister::X86Rax, MachineRegister::X86R15]
+        );
+    }
+
+    #[test]
+    fn bytes_handoff_descriptor_footprint_comes_from_the_aarch64_encoder() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8); 4],
+                result: None,
+            },
+        )
+        .expect("AAPCS64 bytes handoff");
+
+        let evidence = derive_boundary_entry_slice_descriptor_footprint(&boundary)
+            .expect("descriptor footprint");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
             &[MachineRegister::Aarch64X(16), MachineRegister::Aarch64X(17),]
         );
     }

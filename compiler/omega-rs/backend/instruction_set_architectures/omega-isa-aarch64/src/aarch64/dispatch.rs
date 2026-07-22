@@ -558,6 +558,10 @@ mod entry_argument_register_tests {
 /// `{ptr @ desc+0 = frame+spill_offset, len @ desc+8 = byte_length}`. One
 /// relocation (the frame pair at instruction start, shared with the
 /// register-write record). Fixed 28-byte shape.
+pub fn entry_arguments_slice_descriptor_write_clobbers() -> RegisterSet {
+    RegisterSet::new([MachineRegister::Aarch64X(16), MachineRegister::Aarch64X(17)])
+}
+
 pub fn encode_entry_arguments_slice_descriptor_write_bytes(
     descriptor_offset: usize,
     spill_offset: usize,
