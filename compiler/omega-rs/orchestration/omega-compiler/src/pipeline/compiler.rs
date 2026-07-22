@@ -553,7 +553,11 @@ impl Compiler {
             backend_plan_to_native_image_payload(&backend, subsystem, &mut timings)?;
 
         if self.options.write_output {
-            let output_path = write_output(&self.options, emitted)?;
+            let output_path = write_output(
+                &self.options,
+                emitted,
+                &backend.plan.encoded_machine.semantics.boundaries.footprints,
+            )?;
             write_emission_plan(
                 &self.options,
                 &backend.plan,
