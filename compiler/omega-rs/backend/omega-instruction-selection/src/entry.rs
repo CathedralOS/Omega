@@ -289,6 +289,73 @@ pub fn derive_boundary_runtime_text_guard_footprint<'instruction>(
     Ok(evidence)
 }
 
+/// Derive the complete effects of place-pair and place-vs-immediate guards.
+/// x86 place walks and AArch64's currently admitted direct-place shapes both
+/// obtain their scratch identities from the encoder modules that emit them.
+pub fn derive_boundary_place_guard_footprint<'instruction>(
+    boundary: &ValidatedBoundaryEntryPlan,
+    instructions: impl IntoIterator<Item = &'instruction SelectedInstructionKind>,
+) -> Result<StateFootprintEvidence, PlanDiagnostic> {
+    let architecture = boundary.plan().call.policy.architecture();
+    let mut registers = Vec::new();
+    let mut additional_state = MachineStateSet::empty();
+    for instruction in instructions {
+        let footprint = match (architecture, instruction) {
+            (
+                omega_target::Architecture::X86_64,
+                SelectedInstructionKind::ComparePlaces { is_float, .. },
+            ) => Some((
+                omega_isa_x86_64::place_compare_register_writes(*is_float),
+                omega_isa_x86_64::place_compare_additional_machine_state(),
+            )),
+            (
+                omega_target::Architecture::X86_64,
+                SelectedInstructionKind::ComparePlaceValue { .. },
+            ) => Some((
+                omega_isa_x86_64::place_value_compare_register_writes(),
+                omega_isa_x86_64::place_value_compare_additional_machine_state(),
+            )),
+            (
+                omega_target::Architecture::Aarch64,
+                SelectedInstructionKind::ComparePlaces {
+                    left,
+                    right,
+                    byte_size,
+                    is_float,
+                    ..
+                },
+            ) => match (left.const_offset(), right.const_offset()) {
+                (Some(left_offset), Some(right_offset)) => Some((
+                    omega_isa_aarch64::runtime_storage_compare_register_writes(
+                        left_offset,
+                        right_offset,
+                        *byte_size,
+                        *is_float,
+                    ),
+                    omega_isa_aarch64::runtime_storage_compare_additional_machine_state(),
+                )),
+                _ => None,
+            },
+            (
+                omega_target::Architecture::Aarch64,
+                SelectedInstructionKind::ComparePlaceValue { place, .. },
+            ) if place.const_offset().is_some() => Some((
+                omega_isa_aarch64::runtime_storage_value_compare_register_writes(),
+                omega_isa_aarch64::runtime_storage_value_compare_additional_machine_state(),
+            )),
+            _ => None,
+        };
+        let Some((writes, state)) = footprint else {
+            continue;
+        };
+        registers.extend_from_slice(writes.as_slice());
+        additional_state = additional_state.union(state);
+    }
+    let evidence = StateFootprintEvidence::new(RegisterSet::new(registers), additional_state);
+    validate_state_footprint(boundary, &evidence)?;
+    Ok(evidence)
+}
+
 /// Derive the exact register footprint of selected direct-result
 /// materialization instructions and validate it under the complete entry
 /// plan's state ceiling. Indirect result memory copies and the final return
@@ -1194,6 +1261,101 @@ mod tests {
         assert_eq!(
             evidence.registers().as_slice(),
             &[14, 15, 16, 17, 19, 20, 21, 26].map(MachineRegister::Aarch64X)
+        );
+        assert!(
+            evidence
+                .machine_state()
+                .contains_all(MachineStateSet::new([MachineState::Flags]))
+        );
+    }
+
+    fn place_guard_instructions() -> [SelectedInstructionKind; 2] {
+        [
+            SelectedInstructionKind::ComparePlaces {
+                left: omega_abstract_operations::Place::at(
+                    omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                    65_537,
+                ),
+                right: omega_abstract_operations::Place::at(
+                    omega_abstract_operations::RuntimeStorageRegion::Machine,
+                    131_073,
+                ),
+                byte_size: 8,
+                operator: omega_abstract_operations::StateGuardOperator::Equal,
+                is_float: true,
+            },
+            SelectedInstructionKind::ComparePlaceValue {
+                place: omega_abstract_operations::Place::at(
+                    omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                    40,
+                ),
+                byte_size: 8,
+                expected_value: 7,
+                operator: omega_abstract_operations::StateGuardOperator::Equal,
+            },
+        ]
+    }
+
+    #[test]
+    fn place_guards_track_x86_walk_bases_values_and_float_scratch() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("SysV place-guard boundary");
+
+        let evidence =
+            derive_boundary_place_guard_footprint(&boundary, &place_guard_instructions())
+                .expect("x86 place-guard evidence");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::X86R10,
+                MachineRegister::X86R11,
+                MachineRegister::X86R14,
+                MachineRegister::X86R15,
+                MachineRegister::X86Xmm(0),
+                MachineRegister::X86Xmm(1),
+            ]
+        );
+        assert!(
+            evidence
+                .machine_state()
+                .contains_all(MachineStateSet::new([MachineState::Flags]))
+        );
+    }
+
+    #[test]
+    fn place_guards_track_aarch64_large_offset_and_float_scratch() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("AAPCS64 place-guard boundary");
+
+        let evidence =
+            derive_boundary_place_guard_footprint(&boundary, &place_guard_instructions())
+                .expect("AArch64 place-guard evidence");
+
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(17),
+                MachineRegister::Aarch64X(19),
+                MachineRegister::Aarch64X(20),
+                MachineRegister::Aarch64X(21),
+                MachineRegister::Aarch64X(26),
+                MachineRegister::Aarch64V(0),
+                MachineRegister::Aarch64V(1),
+            ]
         );
         assert!(
             evidence

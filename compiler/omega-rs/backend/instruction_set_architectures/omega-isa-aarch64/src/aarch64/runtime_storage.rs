@@ -1,4 +1,4 @@
-use omega_calling_conventions::{MachineRegister, RegisterSet};
+use omega_calling_conventions::{MachineRegister, MachineState, MachineStateSet, RegisterSet};
 use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{
     RuntimeValueOperandHandle, RuntimeValueOperandSource, StateGuardOperator,
@@ -1009,6 +1009,37 @@ pub fn encode_runtime_storage_compare_bytes(
     Ok(bytes)
 }
 
+/// Exact register writes of the direct place-pair guard encoder. Large or
+/// unscaled offsets additionally use the caller-supplied x20/x21 address
+/// scratches; float comparisons stage raw operands in v0/v1.
+pub fn runtime_storage_compare_register_writes(
+    left_offset: usize,
+    right_offset: usize,
+    byte_size: usize,
+    is_float: bool,
+) -> RegisterSet {
+    let mut registers = vec![
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(19),
+        MachineRegister::Aarch64X(26),
+    ];
+    if !data_offset_encodable(left_offset, byte_size) {
+        registers.push(MachineRegister::Aarch64X(20));
+    }
+    if !data_offset_encodable(right_offset, byte_size) {
+        registers.push(MachineRegister::Aarch64X(21));
+    }
+    if is_float {
+        registers.extend([MachineRegister::Aarch64V(0), MachineRegister::Aarch64V(1)]);
+    }
+    RegisterSet::new(registers)
+}
+
+pub fn runtime_storage_compare_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 pub fn encode_runtime_storage_value_compare_bytes(
     byte_offset: usize,
     byte_size: usize,
@@ -1064,6 +1095,20 @@ pub fn encode_runtime_storage_value_compare_bytes(
         runtime_storage_value_compare_width(byte_offset, byte_size)
     );
     Ok(bytes)
+}
+
+/// Exact register writes of the direct place-vs-immediate guard encoder. x26
+/// is both the large-offset address scratch and the expected-value register.
+pub fn runtime_storage_value_compare_register_writes() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::Aarch64X(16),
+        MachineRegister::Aarch64X(17),
+        MachineRegister::Aarch64X(26),
+    ])
+}
+
+pub fn runtime_storage_value_compare_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
 }
 
 pub fn encode_runtime_value_compare(

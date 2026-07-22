@@ -24,7 +24,7 @@
 //! one side may be indexed (r11 is the single index scratch). Everything
 //! else REFUSES LOUDLY -- legalization, not silent truncation.
 
-use omega_calling_conventions::{MachineRegister, RegisterSet};
+use omega_calling_conventions::{MachineRegister, MachineState, MachineStateSet, RegisterSet};
 use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{Place, PlaceStep};
 
@@ -544,6 +544,26 @@ pub fn encode_place_compare(
     Ok((bytes, sites))
 }
 
+/// Exact register writes of the place-pair guard encoder. The materializer
+/// owns r14/r15 as address bases and r10/r11 as both index and loaded-value
+/// scratch; float comparisons additionally stage their operands in xmm0/1.
+pub fn place_compare_register_writes(is_float: bool) -> RegisterSet {
+    let mut registers = vec![
+        MachineRegister::X86R10,
+        MachineRegister::X86R11,
+        MachineRegister::X86R14,
+        MachineRegister::X86R15,
+    ];
+    if is_float {
+        registers.extend([MachineRegister::X86Xmm(0), MachineRegister::X86Xmm(1)]);
+    }
+    RegisterSet::new(registers)
+}
+
+pub fn place_compare_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
 /// The place-vs-immediate compare: the subject loads through its place into
 /// r10, the expected value stages in r11 (`mov r11, imm64` -- AFTER the
 /// walk, so the walk's r11 index scratch is long consumed), then cmp + the
@@ -565,6 +585,19 @@ pub fn encode_place_value_compare(
     super::append_cmp_r10_r11(&mut bytes, byte_size)?;
     super::append_failure_branch(&mut bytes, operator, failure_branch_distance - 4, false)?;
     Ok((bytes, sites))
+}
+
+/// Exact register writes of the place-vs-immediate guard encoder.
+pub fn place_value_compare_register_writes() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::X86R10,
+        MachineRegister::X86R11,
+        MachineRegister::X86R15,
+    ])
+}
+
+pub fn place_value_compare_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
 }
 
 /// The `CopyPlaces` entry: ONE routine that picks the emission shape from the

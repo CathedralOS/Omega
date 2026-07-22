@@ -1144,6 +1144,62 @@ fn runtime_text_guard_footprints_reach_x86_and_aarch64_artifacts() {
 }
 
 #[test]
+fn place_guard_footprints_reach_x86_and_aarch64_artifacts() {
+    let canary = pass_canary("control_flow/termination_index_distance_compile");
+    for (target, expected_registers) in [
+        (
+            "linux_x64",
+            "[\"X86R10\", \"X86R11\", \"X86R14\", \"X86R15\"]",
+        ),
+        (
+            "linux_arm64",
+            "[\"Aarch64X(16)\", \"Aarch64X(17)\", \"Aarch64X(19)\", \"Aarch64X(26)\"]",
+        ),
+    ] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-place-guard-footprint-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source = scratch.join("src");
+        let output = scratch.join("out");
+        fs::create_dir_all(&source).expect("create place-guard source directory");
+        fs::copy(canary.join("main.omg"), source.join("main.omg"))
+            .expect("copy place-guard canary");
+        fs::write(
+            source.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write place-guard target");
+
+        compile(CompileOptions {
+            root_path: source.join("main.omg"),
+            build_dir: Some(output.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("place guard should compile for {target}: {diagnostics:?}")
+        });
+        let abstract_operations = fs::read_to_string(output.join("08_abstract_operations.html"))
+            .expect("place-guard abstract operations should be written");
+        let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
+            .expect("place-guard footprint evidence should be written");
+        assert!(
+            abstract_operations.contains("ComparePlaces"),
+            "{target} canary must exercise the place-pair guard encoder"
+        );
+        assert!(
+            footprints.contains("\"origin\": \"place_guard_comparison\"")
+                && footprints.contains(expected_registers)
+                && footprints.contains("\"enumeration_complete\": false"),
+            "{target} artifact must retain exact place-guard evidence without claiming completeness"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
 fn boundary_trait_canary_reports_capability_use() {
     let canary = pass_canary("traits/boundary_trait_effects_host_call");
     let main_path = canary.join("main.omg");
