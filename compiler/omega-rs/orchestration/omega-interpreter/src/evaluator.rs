@@ -1561,8 +1561,8 @@ impl<'program> Evaluator<'program> {
                 }
                 let target = self.resolve_place(assignment.target, frame)?;
                 // Assigning to a `&mut` place writes THROUGH the reference into the aliased
-                // cell (so `out_line = ...` on an `out_line: &mut String` param mutates the
-                // caller's String), rather than rebinding the local to a non-reference value.
+                // cell (so assigning through a mutable text-carrier parameter mutates the
+                // caller's carrier), rather than rebinding the local to a non-reference value.
                 let target = self.deref_cell(target);
                 *target.borrow_mut() = value;
                 Ok(())
@@ -2042,7 +2042,7 @@ impl<'program> Evaluator<'program> {
                 // &mut place -> a Ref to the SAME cell (the whole point of the oracle). The
                 // param binding holds a `Ref`, so a later forward of that param (as a bare
                 // name) can detect it is a reference and keep aliasing -- otherwise a
-                // `&mut String` field passed down a call chain detaches after the first hop.
+                // mutable text carrier passed down a call chain detaches after the first hop.
                 let cell = self.resolve_place(*inner, frame)?;
                 // A RE-BORROW (`&mut t` where `t` is itself a `&mut` param)
                 // aliases the SAME target: forward the inner Ref instead of
@@ -2902,7 +2902,7 @@ impl<'program> Evaluator<'program> {
             }
             "read_line" => {
                 // Read up to (and including) the next newline from the remaining stdin into
-                // the `&mut String` out-parameter. CRLF is normalized (a trailing `\r` is
+                // the mutable text-carrier out-parameter. CRLF is normalized (a trailing `\r` is
                 // dropped). Returns whether a line was available (some programs ignore it).
                 let line = self.read_stdin_line();
                 if let Some(first) = arguments.first() {

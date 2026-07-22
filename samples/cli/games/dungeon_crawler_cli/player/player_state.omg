@@ -1,7 +1,7 @@
 use inventory::items;
 
 data Player {
-    name: String;
+    name: [u8; 16] in Utf8;
     level: u32 in Wrapping;
     xp: u32 in Wrapping;
     max_health: i32 in Wrapping;

@@ -2,7 +2,7 @@ use events::events;
 use rooms::map;
 
 data Exit {
-    command: String;
+    command: [u8; 8] in Utf8;
     direction: Direction;
     destination: CellId;
 }
@@ -11,8 +11,8 @@ data Room {
     cell: CellId;
     depth: u32 in Wrapping;
     branch: u32 in Wrapping;
-    label: String;
-    description: String;
+    label: [u8; 16] in Utf8;
+    description: [u8; 64] in Utf8;
     exits: [Exit; 4];
     exit_count: u64 in Wrapping;
     event: RoomEvent;

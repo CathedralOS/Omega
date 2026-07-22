@@ -9,15 +9,19 @@ data Game {
     dungeon: Dungeon;
     parser: CommandParser;
     view: GameView;
-    input: String;
-    output: String;
-    pause: [u8; 256];
+    input: [u8; 256] in Utf8;
+    output: [u8; 128] in Utf8;
+    pause: [u8; 256] in Utf8;
 }
 
 machine Game::initialize(
     &mut self,
     seed: u64 in Wrapping
-) {
+)
+ensures
+    self.input in Utf8,
+    self.output in Utf8
+{
     self.dungeon.initialize(seed);
     self.input = "";
     self.output = "";
@@ -34,6 +38,7 @@ machine Game::run_game_loop(&mut self) {
 
     state enter_room(&mut self) {
         self.dungeon.enter_room(self.dungeon.current_cell);
+        self.output = "";
         self.view.render_room(
             self.dungeon.level,
             self.dungeon.current_cell,
@@ -271,6 +276,7 @@ machine Game::run_game_loop(&mut self) {
     state finished(&mut self) {
         self.console.write_line("the crawl has ended -- goodbye (exit 0)");
         self.console.write_line("[press Enter to close]");
+        self.pause = "";
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }

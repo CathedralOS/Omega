@@ -18,7 +18,7 @@ data EnemyTier {
 
 data Enemy {
     kind: EnemyKind;
-    name: String;
+    name: [u8; 24] in Utf8;
     max_health: i32 in Wrapping;
     health: i32 in Wrapping;
     attack: i32 in Wrapping;

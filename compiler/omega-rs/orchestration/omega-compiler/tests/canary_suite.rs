@@ -768,8 +768,8 @@ fn atomics_cross_platform_emits_real_atomics() {
 
 // Cross-compile the dungeon crawler (the richest non-visual sample) to a linux_x64
 // ELF. Unlike cli_mvp this drives runtime-storage syscall arguments: the room
-// descriptions are String descriptors in statically-allocated state regions, so the
-// write(2) syscall marshals a runtime pointer/length into rsi/rdx via the r11/rax
+// descriptions are bounded UTF-8 carriers in statically-allocated state regions, so the
+// write(2) syscall marshals their runtime pointer/length into rsi/rdx via the r11/rax
 // staging path. No execution (Windows host); validated by the emitted ELF + the
 // presence of the runtime-storage load sequence (`mov r11, imm64` then a load).
 #[test]
@@ -802,15 +802,15 @@ fn linux_x64_dungeon_crawler_emits_elf_with_runtime_storage_syscalls() {
     );
     // Runtime-storage syscall marshalling: `mov r11, imm64` (49 BB, the relocated
     // region base) followed somewhere by `mov rax, [r11 + disp32]` (49 8B 83) and the
-    // staging `mov rsi, rax` (48 89 C6). Their presence proves a runtime String was
-    // marshalled into a syscall argument rather than rejected by the encoder.
+    // staging `mov rsi, rax` (48 89 C6). Their presence proves a runtime bounded carrier
+    // was marshalled into a syscall argument rather than rejected by the encoder.
     assert!(
         elf.windows(2).any(|w| w == [0x49, 0xbb]),
         "ELF should load a relocated region base into volatile r11 for a runtime-storage syscall arg"
     );
     assert!(
         elf.windows(3).any(|w| w == [0x49, 0x8b, 0x83]),
-        "ELF should read a String descriptor field into rax (mov rax, [r11+disp32])"
+        "ELF should read a bounded-carrier field into rax (mov rax, [r11+disp32])"
     );
     // The line read (read_line) lowers to a byte-at-a-time read(2) loop, NOT a win32
     // ReadFile import: each iteration reads one byte -- `mov edx,1` (count) + `mov eax,0`

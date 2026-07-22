@@ -243,15 +243,18 @@ machine MazeBuilder::blank_exit(&mut self) -> Exit {
 }
 
 machine MazeBuilder::empty_enemy(&mut self) -> Enemy {
-    Enemy {
-        kind: EnemyKind::Bat,
-        name: "",
-        max_health: 1,
-        health: 1,
-        attack: 1,
-        defense: 0,
-        xp_reward: 0,
-        depth: 0
+    let enemy: Enemy;
+    enemy.kind = EnemyKind::Bat;
+    enemy.name = "";
+    enemy.max_health = 1;
+    enemy.health = 1;
+    enemy.attack = 1;
+    enemy.defense = 0;
+    enemy.xp_reward = 0;
+    enemy.depth = 0;
+
+    transition {
+        _ -> enemy
     }
 }
 
@@ -343,7 +346,7 @@ machine MazeBuilder::room_mut(
 machine MazeBuilder::append_exit(
     &mut self,
     room: &mut Room,
-    command: String,
+    command: [u8; 8] in Utf8,
     direction: Direction,
     destination: CellId
 ) {
@@ -359,7 +362,7 @@ machine MazeBuilder::append_exit(
     state append_exit_slot_0(
         &mut self,
         room: &mut Room,
-        command: String,
+        command: [u8; 8] in Utf8,
         direction: Direction,
         destination: CellId
     ) {
@@ -371,7 +374,7 @@ machine MazeBuilder::append_exit(
     state append_exit_slot_1(
         &mut self,
         room: &mut Room,
-        command: String,
+        command: [u8; 8] in Utf8,
         direction: Direction,
         destination: CellId
     ) {
@@ -383,7 +386,7 @@ machine MazeBuilder::append_exit(
     state append_exit_slot_2(
         &mut self,
         room: &mut Room,
-        command: String,
+        command: [u8; 8] in Utf8,
         direction: Direction,
         destination: CellId
     ) {
@@ -395,7 +398,7 @@ machine MazeBuilder::append_exit(
     state append_exit_slot_3(
         &mut self,
         room: &mut Room,
-        command: String,
+        command: [u8; 8] in Utf8,
         direction: Direction,
         destination: CellId
     ) {
@@ -455,7 +458,7 @@ machine MazeBuilder::cell_index(
 machine MazeBuilder::room_label(
     &mut self,
     cell: CellId
-    ) -> String {
+    ) -> [u8; 16] in Utf8 {
     transition {
         cell == CellId::R00 -> "Gate"
         _ -> "Branch Room"
@@ -466,7 +469,7 @@ machine MazeBuilder::room_description(
     &mut self,
     depth: u32 in Wrapping,
     branch_id: u32 in Wrapping
-    ) -> String {
+    ) -> [u8; 64] in Utf8 {
     transition {
         depth == 0 -> "The old gate room breathes cold air from below."
         depth <= 2 -> "A shallow limestone room with fresh claw marks."
@@ -479,7 +482,7 @@ machine MazeBuilder::room_description(
 machine MazeBuilder::direction_command(
     &mut self,
     direction: Direction
-    ) -> String {
+    ) -> [u8; 8] in Utf8 {
     transition {
         direction == Direction::North -> "north"
         direction == Direction::South -> "south"

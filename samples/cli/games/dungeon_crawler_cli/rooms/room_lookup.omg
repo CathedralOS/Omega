@@ -9,7 +9,12 @@ machine RoomLookup::find_room(
     level: Level,
     cell: CellId,
     out_room: &mut Room
-) {
+)
+ensures
+    out_room.label in Utf8,
+    out_room.description in Utf8,
+    out_room.event.enemy.name in Utf8
+{
     let rooms: &[Room] = level.rooms.as_slice();
 
     transition level.room_count > 0 {
