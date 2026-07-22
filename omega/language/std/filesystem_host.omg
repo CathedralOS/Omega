@@ -191,12 +191,9 @@ boundary trait FilesystemHost {
     machine errno() -> i32 effects filesystem_io;
 }
 
-// Transitional per-target `struct stat` offset VALUE rows live in
-// `std/targets/<target>/filesystem.provides.omg`. Open flags are ordinary
-// checked target-format code in `filesystem_impl.omg`; the remaining offsets
-// retire when foreign record views consume programmable layouts directly.
-// Importing every target definition keeps this module self-contained; target
-// filtering keeps non-selected declarations inert.
+// Foreign open flags and `struct stat` layouts are ordinary checked target code
+// in `filesystem_impl.omg`. Importing every target definition keeps this module
+// self-contained; target filtering keeps non-selected declarations inert.
 use omega::language::std::targets::windows_x64;
 use omega::language::std::targets::macos_arm64;
 use omega::language::std::targets::linux_x64;

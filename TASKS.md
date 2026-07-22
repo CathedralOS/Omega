@@ -635,8 +635,8 @@ slot owner may override by type. The migration order remains load-bearing.
    materialize the view address before projected reads. Stored widening from a
    projected plan-laid `u16` into `u64` lowers on both x86-64 and AArch64. The
    focused synthetic view canary pins exact non-native offsets, recast liveness,
-   interpreter agreement, and cross-target conversion. PRV4e is complete; the
-   four now-unconsumed compatibility tables retire with PRV4f.
+   interpreter agreement, and cross-target conversion. PRV4e is complete; PRV4f
+   has deleted the four now-unconsumed compatibility tables.
 4. **PRV4f — compatibility deletion.** After the last consumers move, delete
    `Value`, populate tables, `provides` syntax, and every compatibility
    consumer. The unused `Binding::Instruction` carrier is already gone:
@@ -668,16 +668,16 @@ slot owner may override by type. The migration order remains load-bearing.
    lowering, and qualified leaves cannot inherit the legacy bare-field
    shorthand. The obsolete standalone Value pass/wrong-target fixtures have
    been removed, and the qualified unresolved-path rail now depends only on
-   ordinary const/case resolution. The only authored `provides` blocks left are
-   the four target filesystem `struct stat` offset tables pending
-   foreign-record fact migration.
+   ordinary const/case resolution. The four target filesystem `struct stat`
+   tables have now been deleted after foreign-record fact migration; a tracked-
+   source invariant pins that no authored `provides` declaration remains.
    The obsolete standalone `host ... provides` syscall example is gone; the
    qualified external-leaf syscall canary already pins both x86-64 and AArch64
    admission, argument registers, syscall-number registers, and supervisor-call
    instructions.
-   Retire those final Value fixtures with their owning surface, then delete the
-   compatibility grammar and keep only a directed retirement diagnostic if it
-   remains useful.
+   Delete the now-source-unused compatibility representation, provider-plan
+   path, grammar, and loader fallback; keep only a directed retirement
+   diagnostic if it remains useful.
 ### Compile-time machine parameters and generics
 
 The source model is fixed: `<machine M>` requires an authored

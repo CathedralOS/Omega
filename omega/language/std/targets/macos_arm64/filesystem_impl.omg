@@ -7,8 +7,7 @@
 // `___getdirentries64` records (d_reclen@16, d_namlen@18, d_type@20, name@21),
 // and `open_at`/`unlink_at` dirfd recursion for `remove_dir_all`. Every
 // machine is target-scoped (`macos_arm64 machine ...`): selected only when
-// compiling for this target, inert otherwise -- exactly like the provides
-// rows beside this file.
+// compiling for this target and inert otherwise.
 //
 // Darwin open flags are a foreign bitfield format, encoded by checked target
 // package code rather than smuggled through provider-plan VALUE rows. The
