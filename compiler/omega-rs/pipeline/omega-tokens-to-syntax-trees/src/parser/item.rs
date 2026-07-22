@@ -517,10 +517,19 @@ fn parse_host_provider_definition<'tokens, 'source>(
 pub(crate) fn parse_host_provider_binding<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HostProviderMappingKind> {
+    parse_provider_binding_case(input, true)
+}
+
+fn parse_provider_binding_case<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+    legacy_provides_arm: bool,
+) -> ParseResult<'tokens, 'source, HostProviderMappingKind> {
     // An INTEGER-led RHS is a per-target VALUE row (`O_CREATE -> 32768`),
     // not a call mechanism -- the portable-values half of the provides table.
-    if let Ok((value, input)) = input.take_integer() {
-        return Ok((HostProviderMappingKind::Value { value }, input));
+    if legacy_provides_arm {
+        if let Ok((value, input)) = input.take_integer() {
+            return Ok((HostProviderMappingKind::Value { value }, input));
+        }
     }
     let (case, input) = input.take_identifier()?;
     match case.as_str() {
@@ -567,16 +576,20 @@ pub(crate) fn parse_host_provider_binding<'tokens, 'source>(
         // fn-ptr FIELD of the block's `over` struct (the field model, extern
         // brief SS12.1). The over-clause requirement is enforced at
         // extraction, where the block context is in hand.
-        _ if !input.at_punctuation(PunctuationKind::LeftParen) => {
+        _ if legacy_provides_arm && !input.at_punctuation(PunctuationKind::LeftParen) => {
             Ok((HostProviderMappingKind::VtableField { field: case }, input))
         }
-        other => Err(input.error_here(format!(
-            "unknown `provides` binding `{other}`: the compiler-known Binding sum is \
+        other if legacy_provides_arm => Err(input.error_here(format!(
+            "unknown `provides` binding `{other}`: the compatibility vocabulary is \
              `Syscall(n)`, `DllImport(\"module\", \"symbol\")`, `VtableSlot(n)`, \
-             `VtableField(field)` (an attached provider data fn-ptr field), \
-             `TableFunction(field)` (a service-table fn-ptr field, table not passed), \
-             or a bare fn-ptr FIELD name of the block's `over` struct (This-call); a \
-             per-target VALUE row is a bare integer (`O_CREATE -> 32768`)"
+             `VtableField(field)`, `TableFunction(field)`, a bare fn-ptr field \
+             name, or a per-target integer Value row"
+        ))),
+        other => Err(input.error_here(format!(
+            "unknown Binding case `{other}`: external leaves require one of \
+             `Binding::Syscall(n)`, `Binding::DllImport(\"module\", \"symbol\")`, \
+             `Binding::VtableSlot(n)`, `Binding::VtableField(field)`, or \
+             `Binding::TableFunction(field)`"
         ))),
     }
 }
@@ -600,7 +613,7 @@ pub(crate) fn parse_external_provider_binding<'tokens, 'source>(
         ));
     }
     let input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
-    parse_host_provider_binding(input)
+    parse_provider_binding_case(input, false)
 }
 
 fn parse_module_declaration<'tokens, 'source>(

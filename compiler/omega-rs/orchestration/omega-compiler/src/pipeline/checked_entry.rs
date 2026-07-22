@@ -88,7 +88,7 @@ pub fn compile_to_checked(
     let selected_native_target = omega_target::NativeTarget::from_omega_target_name(target_name)
         .unwrap_or_else(|_| omega_target::NativeTarget::host());
     let diagnostics =
-        crate::pipeline::provider_plans::validate_adapter_refinement(&typed, &provider_plans);
+        crate::pipeline::provider_plans::validate_provider_plan_candidates(&typed, &provider_plans);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }

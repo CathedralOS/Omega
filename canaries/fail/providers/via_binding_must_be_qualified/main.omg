@@ -1,6 +1,5 @@
 // Binding cases are compiler vocabulary, not package-local constructors. The
-// explicit sum path keeps the supply slot unambiguous while legacy `provides`
-// compatibility rows retain their old bare spelling until PRV4f.
+// explicit sum path keeps the external supply slot unambiguous.
 boundary trait Process {
     machine exit(code: i32);
 }

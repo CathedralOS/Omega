@@ -1,0 +1,43 @@
+// Two leaves in the same provider type cannot both realize one requirement.
+// The derived conformance closure remains additive-only and rejects the
+// duplicate before provider selection or lowering.
+boundary trait BootServices {
+    machine get_memory_map(
+        this: addr,
+        map_size: &mut u64,
+        map: addr,
+        key: &mut u64,
+        desc_size: &mut u64,
+        desc_version: &mut u32
+    ) -> i32;
+    machine exit_boot_services(this: addr, handle: addr, key: u64) -> i32
+    effects device_io;
+}
+data EfiBootServicesTable {
+    hdr: u64;
+    raise_tpl: addr;
+    restore_tpl: addr;
+    allocate_pages: addr;
+    free_pages: addr;
+    get_memory_map: addr;
+    exit_boot_services: addr;
+}
+cross_platform_cli machine EfiBootServicesTable::get_memory_map_leaf(
+    this: addr,
+    map_size: &mut u64,
+    map: addr,
+    key: &mut u64,
+    desc_size: &mut u64,
+    desc_version: &mut u32
+) -> i32 satisfies BootServices::get_memory_map via Binding::VtableField(get_memory_map);
+cross_platform_cli machine EfiBootServicesTable::duplicate_get_memory_map_leaf(
+    this: addr,
+    map_size: &mut u64,
+    map: addr,
+    key: &mut u64,
+    desc_size: &mut u64,
+    desc_version: &mut u32
+) -> i32 satisfies BootServices::get_memory_map via Binding::VtableField(exit_boot_services);
+
+data Main { }
+machine Main::main(&mut self) { }

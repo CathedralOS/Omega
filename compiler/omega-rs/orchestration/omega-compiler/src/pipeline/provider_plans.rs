@@ -304,18 +304,23 @@ pub(crate) fn satisfies_plan_name(target: &str, trait_name: &str, provider_type:
     }
 }
 
-/// PRV4 adapter ADMISSION (the refinement half): a checked adapter's
-/// TRANSITIVE effects must fit inside the satisfied requirement's declared
-/// ceiling -- the requirement is the public contract; a hidden effect in
-/// the body refuses loudly (the decision-20 provider-admission rule, now
-/// enforced at plan derivation).
-pub(crate) fn validate_adapter_refinement(
+/// Validate every derived candidate before coverage and selection. A partial
+/// candidate may wait for more conformances, but duplicate/stray rows and
+/// malformed binding shapes are invalid in their own right. For checked
+/// adapters, transitive effects must also fit inside the satisfied
+/// requirement's declared ceiling.
+pub(crate) fn validate_provider_plan_candidates(
     typed: &TypedTrees,
     plans: &[omega_effects::provider_plan::ProviderPlan],
 ) -> Vec<omega_core::diagnostics::Diagnostic> {
     let mut diagnostics = Vec::new();
     let effect_plan = omega_effects::infer_effects(typed);
     for plan in plans {
+        diagnostics.extend(
+            plan.validate_candidate_against_schema()
+                .into_iter()
+                .map(omega_core::diagnostics::Diagnostic::error),
+        );
         for row in &plan.rows {
             match &row.binding {
                 ProviderBinding::VtableField { table, .. }
@@ -731,7 +736,7 @@ mod tests {
             },
         });
 
-        let diagnostics = validate_adapter_refinement(&TypedTrees::default(), &[plan]);
+        let diagnostics = validate_provider_plan_candidates(&TypedTrees::default(), &[plan]);
 
         assert_eq!(diagnostics.len(), 1);
         assert!(
