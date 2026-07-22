@@ -1021,6 +1021,9 @@ fn contract_canary_visualizes_flow_contract_summaries() {
     assert!(
         executable_regions.contains("\"placement_stage\": \"final_image\"")
             && executable_regions.contains("\"origin\": \"compiler_function\"")
+            && executable_regions.contains(
+                "\"final_byte_validated_classes\": [\"compiler_entry_call_return_mechanics\""
+            )
             && executable_regions.contains("\"enumeration_complete\": false")
             && executable_regions.contains("\"boundary_contract_fingerprint\": \"0x")
             && !executable_regions.contains("\"boundary_contract_fingerprint\": null")
@@ -1030,7 +1033,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
             && executable_regions.contains("\"byte_fingerprint\": \"0x")
             && executable_regions.contains("\"unclassified_gaps\"")
             && executable_regions.contains(
-                "\"missing_classes\": [\"relaxation_products\", \"veneers\", \"generated_stubs\", \"admitted_leaves\"]"
+                "\"missing_classes\": [\"compiler_function_bodies\", \"relaxation_products\", \"veneers\", \"generated_stubs\", \"admitted_leaves\"]"
             ),
         "final executable inventory should classify placed compiler code without claiming complete footprint enumeration"
     );

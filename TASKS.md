@@ -531,10 +531,13 @@ schemas recover the same instance without publishing policy type identity.
    compiler entry-function region whenever a boundary contract is retained;
    final inventory emission rejects a missing or duplicate entry-symbol match,
    and the typed inventory fingerprint covers that exact association.
+   Direct-image emission now validates the encoder-owned fixed entry prologue
+   and return epilogue against the exact relocated compiler entry bytes on both
+   architectures before publication; mutated final mechanics reject.
    It names its currently covered and missing classes and likewise refuses to
    claim complete enumeration.
    StatePlan-driven nonordinary save/restore and return specialization, and
-   final-byte footprint decoding/validation for compiler-function handler regions,
+   final-byte footprint decoding/validation for compiler-function bodies and handler regions,
    relaxation products, veneers, generated stubs, and admitted leaves remain;
    final placement must still prove that enumeration is complete.
 4. **IDT1 — symbolic materialization (normalized foundation complete).**
