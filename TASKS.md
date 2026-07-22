@@ -1015,9 +1015,13 @@ stronger operations it needs instead of citing machine parameters generally.
   sample compile and documented-exit runtime sweeps stay green. The standalone
   `text/string_catalog` sample and its lattice mirror now use bounded UTF-8
   fields as well, with capacity proofs covering their concatenated label.
-  Sample-side builtin declarations are now confined to the eleven dungeon
-  source files. Continue that owner, the remaining lattice/host-contract
-  migration, and then retire the compatibility type and
+  The eleven-file dungeon text workload and its lattice mirror now use bounded
+  UTF-8 carriers too: fixed room/player/enemy fields carry honest capacities,
+  scratch writers preserve their carrier qualification with explicit `Utf8`
+  postconditions, and the mirror incorporates the already-settled in-machine inventory
+  scan. No sample or lattice-corpus source now declares builtin `String` or
+  `string`. Continue the host-contract/core-compatibility owners, then retire
+  the compatibility type and
   compiler branches in the order recorded by
   `wiki/architecture/string_retirement_execution.md`.
 - **Atomics remainder.** The closed ordering vocabulary and operation-specific

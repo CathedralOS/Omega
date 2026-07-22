@@ -2170,8 +2170,8 @@ fn interpreter_dungeon_renders_depth_correct_rooms() {
         stdout.contains("A winding branch room where the walls sweat mineral dust."),
         "deep rooms (R03/R04) must render the depth-3..5 description\n{stdout}"
     );
-    // The per-line formatter machines (title/event/paths) write through `&mut String`
-    // params forwarded INTO transition-target states; guard that they render their own
+    // The per-line formatter machines (title/event/paths) write through mutable bounded
+    // UTF-8 carriers forwarded INTO transition-target states; guard that they render their own
     // text rather than echoing the stale description (multi-hop ref-forwarding).
     assert!(
         stdout.contains("The room is quiet."),

@@ -10,7 +10,7 @@ machine CommandParser::resolve_navigation(
     &mut self,
     level: Level,
     cell: CellId,
-    line: &String
+    line: &[u8; 256] in Utf8
     ) -> Navigation {
     let choice: NavigationChoice = self.resolve_command(line);
 
@@ -22,7 +22,7 @@ machine CommandParser::resolve_navigation(
 
 machine CommandParser::resolve_command(
     &mut self,
-    line: &String
+    line: &[u8; 256] in Utf8
     ) -> NavigationChoice {
     transition {
         line == "quit" -> NavigationChoice::Quit
@@ -46,7 +46,7 @@ machine CommandParser::resolve_exit(
     &mut self,
     level: Level,
     cell: CellId,
-    line: &String
+    line: &[u8; 256] in Utf8
     ) -> Navigation {
     transition {
         cell == CellId::R00 && line == "north" -> self.navigation(NavigationChoice::Move, CellId::R01)
@@ -70,7 +70,7 @@ machine CommandParser::resolve_exit(
 machine CommandParser::find_exit(
     &mut self,
     room: Room,
-    command: &String
+    command: &[u8; 256] in Utf8
     ) -> Navigation {
     let exits: &[Exit] = room.exits.as_slice();
 
@@ -84,7 +84,7 @@ machine CommandParser::find_exit_at(
     &mut self,
     exits: &[Exit],
     exit_count: u64 in Wrapping,
-    command: &String,
+    command: &[u8; 256] in Utf8,
     index: u64 in Wrapping
     ) -> Navigation {
     transition index < exits.len {
@@ -97,7 +97,7 @@ machine CommandParser::find_exit_at(
         &mut self,
         exits: &[Exit],
         exit_count: u64 in Wrapping,
-        command: &String,
+        command: &[u8; 256] in Utf8,
         index: u64 in Wrapping
     ) {
         let found: bool = self.direction_matches(exits[index].direction, command);
@@ -121,7 +121,7 @@ machine CommandParser::invalid_navigation(&mut self) -> Navigation {
 machine CommandParser::direction_matches(
     &mut self,
     direction: Direction,
-    command: &String
+    command: &[u8; 256] in Utf8
     ) -> bool {
     transition {
         direction == Direction::North && command == "north" -> true

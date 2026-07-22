@@ -44,8 +44,10 @@ machine Dungeon::enter_room(
 machine Dungeon::use_event(
     &mut self,
     cell: CellId,
-    line: &mut String
-) {
+    line: &mut [u8; 128] in Utf8
+)
+ensures line in Utf8
+{
     transition cell {
         CellId::R02 -> try_take_treasure(line)
         CellId::R04 -> try_use_fountain(line)
@@ -55,7 +57,7 @@ machine Dungeon::use_event(
 
     state try_take_treasure(
         &mut self,
-        line: &mut String
+        line: &mut [u8; 128] in Utf8
     ) {
         transition self.treasure_taken {
             false -> take_treasure(line)
@@ -65,7 +67,7 @@ machine Dungeon::use_event(
 
     state take_treasure(
         &mut self,
-        line: &mut String
+        line: &mut [u8; 128] in Utf8
     ) {
         self.player.inventory.gold = self.player.inventory.gold + 24;
         self.treasure_taken = true;
@@ -74,7 +76,7 @@ machine Dungeon::use_event(
 
     state try_use_fountain(
         &mut self,
-        line: &mut String
+        line: &mut [u8; 128] in Utf8
     ) {
         transition self.fountain_used {
             false -> use_fountain(line)
@@ -84,7 +86,7 @@ machine Dungeon::use_event(
 
     state use_fountain(
         &mut self,
-        line: &mut String
+        line: &mut [u8; 128] in Utf8
     ) {
         self.player.health = min(self.player.max_health, self.player.health + 12);
         self.fountain_used = true;
@@ -93,7 +95,7 @@ machine Dungeon::use_event(
 
     state try_take_gold(
         &mut self,
-        line: &mut String
+        line: &mut [u8; 128] in Utf8
     ) {
         transition self.gold_taken {
             false -> take_gold(line)
@@ -103,7 +105,7 @@ machine Dungeon::use_event(
 
     state take_gold(
         &mut self,
-        line: &mut String
+        line: &mut [u8; 128] in Utf8
     ) {
         self.player.inventory.gold = self.player.inventory.gold + 6;
         self.gold_taken = true;
@@ -112,7 +114,7 @@ machine Dungeon::use_event(
 
     state no_usable_event(
         &mut self,
-        line: &mut String
+        line: &mut [u8; 128] in Utf8
     ) {
         line = "There is nothing here to use.";
     }
@@ -121,8 +123,10 @@ machine Dungeon::use_event(
 machine Dungeon::fight(
     &mut self,
     cell: CellId,
-    line: &mut String
-) {
+    line: &mut [u8; 128] in Utf8
+)
+ensures line in Utf8
+{
     transition cell {
         CellId::R03 -> try_defeat_enemy(line)
         _ -> no_enemy(line)
@@ -130,7 +134,7 @@ machine Dungeon::fight(
 
     state try_defeat_enemy(
         &mut self,
-        line: &mut String
+        line: &mut [u8; 128] in Utf8
     ) {
         transition self.enemy_defeated {
             false -> defeat_enemy(line)
@@ -140,7 +144,7 @@ machine Dungeon::fight(
 
     state defeat_enemy(
         &mut self,
-        line: &mut String
+        line: &mut [u8; 128] in Utf8
     ) {
         self.player.inventory.gold = self.player.inventory.gold + 6;
         self.player.xp = self.player.xp + 5;
@@ -150,7 +154,7 @@ machine Dungeon::fight(
 
     state no_enemy(
         &mut self,
-        line: &mut String
+        line: &mut [u8; 128] in Utf8
     ) {
         line = "There is no enemy here.";
     }

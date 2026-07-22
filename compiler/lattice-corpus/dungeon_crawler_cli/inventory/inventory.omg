@@ -167,22 +167,25 @@ machine InventorySystem::find_item_at(
 
         match found {
             true -> index
-            false -> self.find_item_after(items, kind, next_index)
+            false -> scan_next(items, kind, next_index)
         }
     }
-}
 
-machine InventorySystem::find_item_after(
-    &mut self,
-    items: &[InventoryItem],
-    kind: ItemKind,
-    next_index: u64 in Wrapping
-    ) -> u64 {
-    let has_next: bool = next_index < items.len;
-
-    match has_next {
-        true -> self.find_item_at(items, kind, next_index)
-        false -> (32)
+    // Was a SIBLING MACHINE (find_item_after) forming an A -> B -> A
+    // machine-call cycle with this one -- banned (Q6 ruling, 2026-07-13:
+    // machine call cycles are banned; states are loops). The same scan is
+    // now an in-machine state pair: inspect_item <-> scan_next is a
+    // state-transition LOOP (constant stack), the blessed spelling.
+    state scan_next(
+        &mut self,
+        items: &[InventoryItem],
+        kind: ItemKind,
+        next_index: u64 in Wrapping
+    ) {
+        transition next_index < items.len {
+            true -> inspect_item(items, kind, next_index)
+            false -> (32)
+        }
     }
 }
 

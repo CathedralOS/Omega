@@ -174,8 +174,13 @@ carrier (the grant validator already exists).
    The generic sample pause surface is also migrated: 120 scratch fields use
    `[u8; 256]`, matching the old native read ceiling rather than shortening the
    consumed line. The sample compile and documented-exit runtime sweeps cover
-   the batch. Remaining sample declarations are concentrated in the eleven-file
-   dungeon workload.
+   the batch. The final eleven-file dungeon workload and its lattice mirror now
+   use bounded UTF-8 carriers as well. Its reusable output scratch stays a
+   domain-qualified carrier and each writer explicitly re-establishes `Utf8`;
+   persistent room, player, enemy, input, and output fields retain
+   declared domain facts. No sample or lattice-corpus source declares builtin
+   `String` or `string` now. Host contracts, deliberate compatibility/failure
+   fixtures, and the core surface remain separate owners.
 2. **Keystone** — once source users are gone,
    `semantics/omega-validation/src/expression_types.rs` stops a string literal /
    `ExpressionNode::String` from satisfying `PrimitiveType::String`; it should
