@@ -1638,8 +1638,13 @@ stronger operations it needs instead of citing machine parameters generally.
      borrower-contract/hardware-isolation evidence rejects before the agent
      receives the loan, so unrelated task/control storage remains unreachable;
      and
-  4. ordinary Omega cannot project, recast, address, or mutate another
-     activation's parked continuation.
+  4. **Live:** `Task<T>` remains only a lifecycle claim; compiler/provider-owned
+     parked continuation storage is absent from its source-visible fields.
+     Explicit fail canaries reject projection, recast, address-taking, and
+     mutation through shared or mutable task claims. The shared place resolver
+     now diagnoses missing members on typed locals and parameters, including
+     applied generic carriers, rather than letting a two-segment access become
+     a zero/default backend value.
   Keep forward-edge indirect targeting on sealed entry references and the
   runtime descriptor/object-safety work; do not mark all CFI as derived.
 

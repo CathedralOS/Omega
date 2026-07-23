@@ -1,0 +1,12 @@
+// A Task<T> is only a lifecycle claim. Compiler/provider-owned parked control
+// storage is not a field that ordinary Omega can project from another
+// activation's claim.
+use omega::language::core::task;
+
+data Main {}
+
+machine Main::inspect(task: &Task<i32>) {
+    let leaked: u64 = task.continuation;
+}
+
+machine Main::main(&mut self) {}

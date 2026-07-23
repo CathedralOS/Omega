@@ -3620,14 +3620,14 @@ fn scan_expression_calls(
             data.name.as_str()
         )));
     }
-    // Unknown NESTED-field READ (3+ segments): `self.o.inner.nonexistent` (final
-    // missing) and `self.o.bogus.value` (intermediate missing) used to compile
-    // and silently read a ZII 0. The walker reports only a provably-missing
-    // member on a provably-plain container -- versioned containers (fields in
-    // wire version blocks), contained-machine/owned-data roots, and non-data
-    // hops all skip. The recursion below revisits inner Member receivers, which
-    // resolve to the SAME missing hop (`self.o.bogus.value` then `self.o.bogus`),
-    // so an identical message is deduplicated rather than reported per level.
+    // Unknown data-typed local/parameter member READ, plus nested `self` reads:
+    // `task.continuation`, `self.o.inner.nonexistent` (final missing), and
+    // `self.o.bogus.value` (intermediate missing) must not become silent ZII
+    // reads. The walker reports only a provably-missing member on a
+    // provably-plain container -- versioned containers (fields in wire version
+    // blocks), contained-machine/owned-data roots, and non-data hops all skip.
+    // The recursion below may revisit the same missing hop, so an identical
+    // message is deduplicated rather than reported per level.
     if matches!(
         program.expression_table.expression(expression),
         ExpressionNode::Member(_) | ExpressionNode::Name(_)
