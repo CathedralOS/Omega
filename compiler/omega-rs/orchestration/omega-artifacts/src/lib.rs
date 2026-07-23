@@ -789,11 +789,39 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
     output.push_str(", \"domain\": ");
     push_entry_stack_json(output, record.boundary.state.stack);
     output.push_str(", \"local_wcsu_bytes\": ");
-    output.push_str(&record.stack.local_wcsu_bytes.to_string());
+    output.push_str(&record.stack.realization.local_wcsu_bytes().to_string());
     output.push_str(", \"composed_wcsu_bytes\": ");
-    output.push_str(&record.stack.composed_wcsu_bytes.to_string());
+    output.push_str(&record.stack.realization.composed_wcsu_bytes().to_string());
     output.push_str(", \"alignment\": ");
-    output.push_str(&record.stack.wcsu_alignment.to_string());
+    output.push_str(&record.stack.realization.wcsu_alignment().to_string());
+    output.push_str(", \"composition_fingerprint\": ");
+    push_hex_identity(output, record.stack.realization.composition_fingerprint());
+    output.push_str(", \"artifact_composition_fingerprint\": ");
+    push_hex_identity(
+        output,
+        record.stack.realization.artifact_composition_fingerprint(),
+    );
+    output.push_str(", \"contributing_roots\": [");
+    push_identity_set(
+        output,
+        record
+            .stack
+            .realization
+            .contributing_roots()
+            .iter()
+            .map(|identity| identity.normalized_identity()),
+    );
+    output.push_str("], \"provider_validation_receipts\": [");
+    push_identity_set(
+        output,
+        record
+            .stack
+            .realization
+            .validation_receipts()
+            .iter()
+            .map(|identity| identity.normalized_identity()),
+    );
+    output.push(']');
     output.push_str(", \"validation_receipt\": ");
     push_hex_identity(
         output,
@@ -1749,8 +1777,8 @@ mod tests {
     use std::collections::BTreeSet;
 
     use omega_calling_conventions::{
-        CallSignature, CallingPolicy, MachineRegister, MachineState, MachineStateSet, RegisterSet,
-        StateFootprintEvidence, ValueShape, evaluate_ordinary_boundary_entry_plan,
+        CallSignature, CallingPolicy, EntryStack, MachineRegister, MachineState, MachineStateSet,
+        RegisterSet, StateFootprintEvidence, ValueShape, evaluate_ordinary_boundary_entry_plan,
     };
     use omega_checked_trees::CheckedTrees;
     use omega_checked_trees::machine::Machine;
@@ -1762,10 +1790,11 @@ mod tests {
         AcknowledgementPolicyId, ComponentArtifactId, ComponentContractId, ComponentProviderId,
         ComponentVersionPin, ComponentVersionPinId, ExternalRootDiagnostic, ExternalRootId,
         FixedWorkCall, FixedWorkProviderSummary, InstalledRootRecord, MachineStateResourceColumn,
-        NestingRelationId, ProviderWorkSummaryId, ProviderWorkValidationReceiptId, RootAdmissionId,
-        RootEffectId, RootProviderId, RootSlotId, RootSlotOwnerId, StackResourceColumn,
-        StackValidationReceiptId, StateValidationReceiptId, StructuralWorkProfileId,
-        StructuralWorkResourceColumn, StructuralWorkValidationReceiptId, TrustReceiptId,
+        NestingRelationId, ProviderStackSummary, ProviderWorkSummaryId,
+        ProviderWorkValidationReceiptId, RootAdmissionId, RootEffectId, RootProviderId, RootSlotId,
+        RootSlotOwnerId, StackNestingRelation, StackResourceColumn, StackValidationReceiptId,
+        StateValidationReceiptId, StructuralWorkProfileId, StructuralWorkResourceColumn,
+        StructuralWorkValidationReceiptId, TrustReceiptId, compose_artifact_stacks,
         compose_fixed_work,
     };
     use omega_layout_plans::EntryStubId;
@@ -1853,8 +1882,29 @@ mod tests {
         };
         let composed_work =
             compose_fixed_work(work_root.identity, [&work_root, &leaf]).expect("fixed work");
+        let root_identity = root_id(1, ExternalRootId::from_normalized_identity);
+        let nesting_identity = root_id(11, NestingRelationId::from_normalized_identity);
+        let stack_summary = ProviderStackSummary {
+            root: root_identity,
+            provider: root_id(8, RootProviderId::from_normalized_identity),
+            stack: EntryStack::ProviderSelected,
+            local_wcsu_bytes: 2048,
+            wcsu_alignment: 16,
+            validation_receipt: root_id(29, StackValidationReceiptId::from_normalized_identity),
+        };
+        let composed_stack = compose_artifact_stacks(
+            &StackNestingRelation {
+                identity: nesting_identity,
+                edges: BTreeSet::new(),
+            },
+            [&stack_summary],
+        )
+        .expect("stack composition")
+        .demand(root_identity)
+        .expect("root stack demand")
+        .clone();
         let record = InstalledRootRecord {
-            root: root_id(1, ExternalRootId::from_normalized_identity),
+            root: root_identity,
             normalized_root_identity: 0x101,
             entry: entry_id(2),
             installed_code: install_id(3, InstalledCodeId::from_normalized_identity),
@@ -1867,16 +1917,14 @@ mod tests {
             provider: root_id(8, RootProviderId::from_normalized_identity),
             effects: BTreeSet::from([root_id(9, RootEffectId::from_normalized_identity)]),
             trust_receipts: BTreeSet::from([root_id(10, TrustReceiptId::from_normalized_identity)]),
-            nesting_relation: root_id(11, NestingRelationId::from_normalized_identity),
+            nesting_relation: nesting_identity,
             acknowledgement_policy: Some(root_id(
                 12,
                 AcknowledgementPolicyId::from_normalized_identity,
             )),
             stack: StackResourceColumn {
                 ceiling_bytes: 8192,
-                local_wcsu_bytes: 2048,
-                composed_wcsu_bytes: 4096,
-                wcsu_alignment: 16,
+                realization: composed_stack,
                 validation_receipt: root_id(25, StackValidationReceiptId::from_normalized_identity),
             },
             structural_work: StructuralWorkResourceColumn {
@@ -1924,7 +1972,7 @@ mod tests {
         );
         assert_eq!(
             parsed["roots"][0]["resources"]["stack"]["composed_wcsu_bytes"],
-            4096
+            2048
         );
         assert_eq!(
             parsed["roots"][0]["resources"]["structural_work"]["composed_units"],
