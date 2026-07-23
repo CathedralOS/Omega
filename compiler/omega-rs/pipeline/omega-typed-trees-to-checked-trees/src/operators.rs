@@ -6,8 +6,10 @@ use omega_core::arena::Arena;
 use omega_core::operator_spelling::OperatorSpelling;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
-use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use omega_typed_trees::operator::{SpelledOperator, resolve_spelling};
+use omega_typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableIndexedExpression,
+};
+use omega_typed_trees::operator::{SpelledOperator, resolve_spelling_for_operands};
 use omega_typed_trees::types::TypeReferenceHandle;
 
 mod receiver;
@@ -57,14 +59,13 @@ fn collect_expression_operator_use(
         }
         ExpressionNode::Indexed(indexed) => {
             let spelling = indexed_operator_spelling(program, indexed.index);
-            let receiver_type =
-                expression_type_reference_for_origin(program, indexed.collection, origin);
+            let operand_types = indexed_operand_types(program, indexed, origin);
             uses.append(operator_use_fact(
                 program,
                 expression,
                 origin,
                 spelling,
-                receiver_type,
+                &operand_types,
                 candidates,
             ));
             collect_expression_operator_use(
@@ -90,12 +91,15 @@ fn collect_expression_operator_use(
             if let Some(spelling) = binary_operator_spelling(binary.operator)
                 && let Some(receiver_type) =
                     expression_type_reference_for_origin(program, binary.left, origin)
+                && let right_type =
+                    expression_type_reference_for_origin(program, binary.right, origin)
                 && let Some(fact) = binary_operator_use_fact(
                     program,
                     expression,
                     origin,
                     spelling,
                     receiver_type,
+                    right_type,
                     candidates,
                 )
             {
@@ -194,9 +198,11 @@ fn binary_operator_use_fact(
     origin: CheckedValueOrigin,
     spelling: OperatorSpelling,
     receiver_type: TypeReferenceHandle,
+    right_type: Option<TypeReferenceHandle>,
     candidate_facts: &mut Arena<CheckedOperatorCandidateFact>,
 ) -> Option<CheckedOperatorUseFact> {
-    let candidates = resolve_spelling(program, spelling, Some(receiver_type));
+    let candidates =
+        resolve_spelling_for_operands(program, spelling, &[Some(receiver_type), right_type]);
     if candidates.is_empty() {
         return None;
     }
@@ -251,31 +257,77 @@ fn indexed_operator_spelling(program: &TypedTrees, index: ExpressionHandle) -> O
     }
 }
 
+fn indexed_operand_types(
+    program: &TypedTrees,
+    indexed: &TableIndexedExpression,
+    origin: CheckedValueOrigin,
+) -> Vec<Option<TypeReferenceHandle>> {
+    let mut operand_types = vec![expression_type_reference_for_origin(
+        program,
+        indexed.collection,
+        origin,
+    )];
+    match program.expression_table.expression(indexed.index) {
+        ExpressionNode::Range(range) => {
+            operand_types.push(expression_type_reference_for_origin(
+                program,
+                range.start,
+                origin,
+            ));
+            operand_types.push(expression_type_reference_for_origin(
+                program, range.end, origin,
+            ));
+        }
+        _ => operand_types.push(expression_type_reference_for_origin(
+            program,
+            indexed.index,
+            origin,
+        )),
+    }
+    operand_types
+}
+
 /// Records the typed-trees resolution outcome for one use site as checked
-/// evidence: the resolution itself is `omega_typed_trees::operator::resolve_spelling`.
+/// evidence. Every known operand position participates, including both range
+/// bounds for `[..]`.
 fn operator_use_fact(
     program: &TypedTrees,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
     spelling: OperatorSpelling,
-    receiver_type: Option<TypeReferenceHandle>,
+    operand_types: &[Option<TypeReferenceHandle>],
     candidate_facts: &mut Arena<CheckedOperatorCandidateFact>,
 ) -> CheckedOperatorUseFact {
-    let candidates = resolve_spelling(program, spelling, receiver_type);
+    let candidates = resolve_spelling_for_operands(program, spelling, operand_types);
     let candidate_count = candidates.len();
     let candidate_span = candidate_facts.insert_many(
         candidates
             .iter()
             .map(|candidate| checked_candidate(program, candidate)),
     );
-    let selected_operator_symbol = match candidates.as_slice() {
-        [candidate] => candidate.operator.symbol,
-        _ => SymbolHandle::invalid(),
-    };
-    let status = match candidate_count {
-        0 => CheckedOperatorResolutionStatus::Missing,
-        1 => CheckedOperatorResolutionStatus::Resolved,
-        _ => CheckedOperatorResolutionStatus::Ambiguous,
+    let (status, selected_operator_symbol) = if candidates
+        .iter()
+        .any(|candidate| candidate.domain.is_some())
+    {
+        (
+            CheckedOperatorResolutionStatus::DomainPending,
+            SymbolHandle::invalid(),
+        )
+    } else if let [candidate] = candidates.as_slice() {
+        (
+            CheckedOperatorResolutionStatus::Resolved,
+            candidate.operator.symbol,
+        )
+    } else if candidates.is_empty() {
+        (
+            CheckedOperatorResolutionStatus::Missing,
+            SymbolHandle::invalid(),
+        )
+    } else {
+        (
+            CheckedOperatorResolutionStatus::Ambiguous,
+            SymbolHandle::invalid(),
+        )
     };
 
     CheckedOperatorUseFact {
