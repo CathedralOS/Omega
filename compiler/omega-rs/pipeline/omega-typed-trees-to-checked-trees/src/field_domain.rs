@@ -36,18 +36,22 @@ pub(crate) fn assignment_target_type_reference(
         .or_else(|| direct_state_place_type_reference(program, state, target))
 }
 
-/// The domain refinement declared on an assignment destination. This is the
-/// common source for write checking and post-write flow establishment so a
-/// mutable parameter cannot regain a domain fact unless the assigned value was
-/// checked against that same declaration.
-pub(crate) fn assignment_target_domain_symbol(
+/// The predicate-domain refinements declared on an assignment destination.
+/// This is the common source for write checking and post-write flow
+/// establishment so a mutable parameter cannot regain domain facts unless the
+/// assigned value was checked against every predicate declaration in the
+/// conjunction.
+pub(crate) fn assignment_target_domain_symbols(
     program: &omega_typed_trees::TypedTrees,
     machine: &Machine,
     state: &omega_typed_trees::state::State,
     target: omega_typed_trees::expression::ExpressionHandle,
-) -> Option<SymbolHandle> {
-    let type_reference = assignment_target_type_reference(program, machine, state, target)?;
-    domain_constraint_symbol(program, type_reference)
+) -> Vec<SymbolHandle> {
+    let Some(type_reference) = assignment_target_type_reference(program, machine, state, target)
+    else {
+        return Vec::new();
+    };
+    predicate_domain_constraint_symbols(program, type_reference)
 }
 
 /// Resolve a state parameter/local target, including nested data members, to
@@ -266,26 +270,32 @@ pub(crate) fn data_definition_for_field_type<'program>(
         .find(|data| data.name.as_str() == name.as_str())
 }
 
-/// The carrier-aware normalized declaration symbol for the first domain
-/// constraint on a type reference. This never re-resolves a short name
-/// globally.
-pub(crate) fn domain_constraint_symbol(
+/// The carrier-aware normalized declaration symbols for every PREDICATE facet
+/// in a type-reference domain conjunction. Semantic-only facets are binding
+/// qualifications, not proof facts, and are deliberately absent. This never
+/// re-resolves a short name globally.
+pub(crate) fn predicate_domain_constraint_symbols(
     program: &omega_typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Option<SymbolHandle> {
+) -> Vec<SymbolHandle> {
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => domain_constraint_symbol(program, *referee),
+        TypeReferenceNode::Reference { referee, .. } => {
+            predicate_domain_constraint_symbols(program, *referee)
+        }
         TypeReferenceNode::Constrained { constraints, .. } => program
             .type_reference_table
             .constraints(*constraints)
             .iter()
-            .find_map(|constraint| match constraint {
-                TypeConstraintNode::Domain(domain) if domain.symbol.is_valid() => {
+            .filter_map(|constraint| match constraint {
+                TypeConstraintNode::Domain(domain)
+                    if domain.symbol.is_valid() && domain.facets.predicate =>
+                {
                     Some(domain.symbol)
                 }
                 _ => None,
-            }),
-        _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
     }
 }
 

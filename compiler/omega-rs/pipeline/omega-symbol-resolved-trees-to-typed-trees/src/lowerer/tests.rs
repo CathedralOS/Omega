@@ -222,6 +222,45 @@ fn normalizes_domain_constraints_by_short_name_and_carrier() {
 }
 
 #[test]
+fn parameter_domain_conjunction_synthesizes_each_predicate_contract_only() {
+    let source = r#"
+    domain [u8]::Meaning {}
+    domain [u8]::Utf8 { valid_utf8(self); }
+    domain [u8]::NoNul { no_nul(self); }
+
+    machine inspect(bytes: &[u8] in Meaning & Utf8 & NoNul) {
+    }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let machine = typed.machines().first().expect("inspect machine");
+    let names: Vec<_> = typed
+        .machine_contracts(machine)
+        .iter()
+        .map(|contract| {
+            let [omega_typed_trees::domain::ProofFact::Membership(membership)] =
+                typed.proof_facts.span_or_empty(contract.facts)
+            else {
+                panic!("one synthesized membership fact")
+            };
+            typed
+                .domain_definitions()
+                .iter()
+                .find(|domain| domain.symbol == membership.domain_symbol)
+                .expect("normalized predicate domain")
+                .name
+                .as_str()
+                .to_owned()
+        })
+        .collect();
+
+    assert_eq!(names, ["[u8]::Utf8", "[u8]::NoNul"]);
+}
+
+#[test]
 fn preserves_operator_declarations() {
     let source = r#"
     operator Slice::index<T>(items: &[T], index: usize) -> T

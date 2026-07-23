@@ -104,23 +104,25 @@ pub(crate) fn lower_state_signature(
             .append_to_span(&mut typed_signature.type_parameters, parameter);
     }
 
-    // #66: collect parameters whose type carries an encoding-DOMAIN constraint
-    // (`bytes: [u8] in Utf8`). Each desugars below into an implicit
-    // `requires <param> in <domain>` membership contract.
+    // #66/DOM1: collect every predicate facet on constrained parameters. Each
+    // desugars below into its own implicit `requires <param> in <domain>`
+    // membership contract; semantic-only facets do not enter the fact lattice.
     let mut domain_constrained_parameters: Vec<(
         omega_core::symbols::SymbolHandle,
         typed::name::Identifier,
-        typed::name::Identifier,
+        omega_core::symbols::SymbolHandle,
+        String,
     )> = Vec::new();
     for parameter in lowerer.source_trees.state_parameters(signature.parameters) {
         let parameter = lower_state_parameter(lowerer, parameter)?;
-        if let Some(domain_name) =
-            domain_constraint_name(&lowerer.typed_trees, parameter.type_reference)
+        for (domain_symbol, domain_full_name) in
+            predicate_domain_constraints(&lowerer.typed_trees, parameter.type_reference)
         {
             domain_constrained_parameters.push((
                 parameter.symbol,
                 parameter.name.clone(),
-                domain_name,
+                domain_symbol,
+                domain_full_name,
             ));
         }
         lowerer
@@ -159,63 +161,71 @@ pub(crate) fn lower_state_signature(
         );
     }
 
-    // #66 Phase 1: desugar each Domain-constrained parameter into an implicit
-    // `requires <param> in <domain>` membership contract (here on a trait/platform
-    // signature; the regular-machine path is `lower_machine`). The existing
-    // `in Domain` entailment then enforces it at every call site.
-    for (param_symbol, param_name, domain_name) in domain_constrained_parameters {
-        if let Some(contract) = build_domain_membership_contract(
+    // #66/DOM1: desugar each predicate facet into an implicit `requires
+    // <param> in <domain>` membership contract (here on a trait/platform
+    // signature; the regular-machine path is `lower_machine`).
+    for (param_symbol, param_name, domain_symbol, domain_full_name) in domain_constrained_parameters
+    {
+        let contract = build_domain_membership_contract(
             lowerer,
             param_symbol,
             param_name,
-            domain_name.as_str(),
-        ) {
-            lowerer
-                .typed_trees
-                .push_state_signature_contract(&mut typed_signature, contract);
-        }
+            domain_symbol,
+            &domain_full_name,
+        );
+        lowerer
+            .typed_trees
+            .push_state_signature_contract(&mut typed_signature, contract);
     }
 
     Ok(typed_signature)
 }
 
-/// The declared encoding domain (`[u8] in Utf8`) on a parameter type, if any,
-/// looking through a leading reference (`&[u8] in Utf8`).
-pub(crate) fn domain_constraint_name(
+/// Every normalized predicate facet on a parameter type, looking through a
+/// leading reference. Semantic-only qualifications never synthesize proof
+/// contracts.
+pub(crate) fn predicate_domain_constraints(
     typed_trees: &typed::TypedTrees,
     type_reference: typed::types::TypeReferenceHandle,
-) -> Option<typed::name::Identifier> {
+) -> Vec<(omega_core::symbols::SymbolHandle, String)> {
     match typed_trees
         .type_reference_table
         .type_reference(type_reference)
     {
         typed::types::TypeReferenceNode::Reference { referee, .. } => {
-            domain_constraint_name(typed_trees, *referee)
+            predicate_domain_constraints(typed_trees, *referee)
         }
         typed::types::TypeReferenceNode::Constrained { constraints, .. } => typed_trees
             .type_reference_table
             .constraints(*constraints)
             .iter()
-            .find_map(|constraint| match constraint {
-                typed::types::TypeConstraintNode::Domain(domain) => Some(domain.name.clone()),
+            .filter_map(|constraint| match constraint {
+                typed::types::TypeConstraintNode::Domain(domain)
+                    if domain.symbol.is_valid() && domain.facets.predicate =>
+                {
+                    typed_trees
+                        .domain_definitions()
+                        .iter()
+                        .find(|definition| definition.symbol == domain.symbol)
+                        .map(|definition| (domain.symbol, definition.name.as_str().to_owned()))
+                }
                 _ => None,
-            }),
-        _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
     }
 }
 
 /// Build the implicit `requires <param> in <domain>` membership contract for a
-/// Domain-constrained parameter (#66 Phase 1). Returns `None` if the domain name
-/// resolves to no declared `domain` (validation reports that separately). The
-/// caller attaches the contract at the right level (machine vs trait signature).
+/// normalized predicate constraint. The caller attaches the contract at the
+/// right level (machine vs trait signature).
 pub(crate) fn build_domain_membership_contract(
     lowerer: &mut Lowerer,
     param_symbol: omega_core::symbols::SymbolHandle,
     param_name: typed::name::Identifier,
-    domain_name: &str,
-) -> Option<typed::signature::SignatureContract> {
-    let (domain_symbol, domain_full_name) = resolve_domain(lowerer.source_trees, domain_name)?;
-
+    domain_symbol: omega_core::symbols::SymbolHandle,
+    domain_full_name: &str,
+) -> typed::signature::SignatureContract {
     let mut members = omega_core::arena::HandleSpan::empty();
     lowerer
         .typed_trees
@@ -257,32 +267,26 @@ pub(crate) fn build_domain_membership_contract(
         }),
     );
 
-    Some(typed::signature::SignatureContract {
+    typed::signature::SignatureContract {
         kind: typed::signature::SignatureContractKind::Requires,
         facts,
         token_count: 0,
-    })
-}
-
-fn resolve_domain(
-    source: &resolved::SymbolResolvedTrees,
-    wanted: &str,
-) -> Option<(omega_core::symbols::SymbolHandle, String)> {
-    source.domain_definitions.iter().find_map(|domain| {
-        let full = domain.name.as_str();
-        (full.rsplit("::").next().unwrap_or(full) == wanted)
-            .then(|| (domain.symbol, full.to_owned()))
-    })
+    }
 }
 
 fn lower_state_parameter(
     lowerer: &mut Lowerer,
     parameter: &resolved::signature::StateParameter,
 ) -> Result<typed::signature::StateParameter, Diagnostic> {
+    let type_reference = lower_type_reference_into_table(lowerer, &parameter.type_reference)?;
+    crate::domain_constraints::normalize_domain_constraints_for_type(
+        &mut lowerer.typed_trees,
+        type_reference,
+    );
     Ok(typed::signature::StateParameter {
         symbol: parameter.symbol,
         name: crate::name::lower_name(&parameter.name),
-        type_reference: lower_type_reference_into_table(lowerer, &parameter.type_reference)?,
+        type_reference,
         is_const: parameter.is_const,
         is_mutable: parameter.is_mutable,
         is_self: parameter.is_self,

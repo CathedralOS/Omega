@@ -135,28 +135,29 @@ pub(super) fn propagate_statement_transfers(
     if let StatementNode::Assignment(assignment) = statement
         && let Some(machine) = crate::field_domain::machine_by_symbol(program, machine_symbol)
         && let Some(state) = crate::find_state_in_machine(program, machine_symbol, state_symbol)
-        && let Some(domain_symbol) = crate::field_domain::assignment_target_domain_symbol(
+    {
+        for domain_symbol in crate::field_domain::assignment_target_domain_symbols(
             program,
             machine,
             state,
             assignment.target,
-        )
-    {
-        let fact = semantic.append_fact(Fact {
-            place: FactPlace::Place(target_place),
-            point: ProgramPoint::Statement {
-                machine_symbol,
-                state_symbol,
-                statement_index,
-            },
-            origin: FactOrigin::StatementTransfer,
-            payload: FactPayload::DomainMembership {
-                value: ExpressionHandle::invalid(),
-                domain: HandleSpan::empty(),
-                domain_symbol,
-            },
-        });
-        semantic.append_ref(&mut refs, fact);
+        ) {
+            let fact = semantic.append_fact(Fact {
+                place: FactPlace::Place(target_place),
+                point: ProgramPoint::Statement {
+                    machine_symbol,
+                    state_symbol,
+                    statement_index,
+                },
+                origin: FactOrigin::StatementTransfer,
+                payload: FactPayload::DomainMembership {
+                    value: ExpressionHandle::invalid(),
+                    domain: HandleSpan::empty(),
+                    domain_symbol,
+                },
+            });
+            semantic.append_ref(&mut refs, fact);
+        }
     }
 
     if refs.is_empty() {

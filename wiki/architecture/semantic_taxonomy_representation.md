@@ -118,8 +118,8 @@ resolved/typed structural snapshots publish it beside the semantic identity.
 Semantic qualification, commitment collection, introduction-authority lookup,
 and trust publication consume `facets.semantic`, and qualification demands
 proof only when `facets.predicate` is active. Repeated normalized declarations
-compare the pair. Per-axis merge/join composition, authored source policy,
-full facet bodies, and the checked qualification plan remain.
+compare the pair. Authored source policy, full facet bodies, and the checked
+qualification plan remain.
 
 Implementation status (DOM1 generic propagation, 2026-07-23): typed
 `TypeConstraintNode::Domain` is a normalized binding-site record, not a bare
@@ -130,7 +130,17 @@ type-table copy paths preserve the record. Validation checks the record against
 the carrier declaration; checked field/contract facts and byte predicates use
 the stored symbol directly instead of repeating a global short-name lookup.
 Typed snapshots publish the full record. Generic substitution is therefore no
-longer a facet-loss boundary. Per-axis merge/join composition remains.
+longer a facet-loss boundary.
+
+Implementation status (DOM1 per-axis composition, 2026-07-23): a constrained
+type's domain chain is no longer projected to its first member. Predicate
+facets compose conjunctively through implicit parameter requirements, checked
+writes and constructions, entry/read facts, return/parameter implication, and
+post-write re-establishment. Semantic-only members never enter that fact
+lattice; their normalized identities remain on the type for semantic
+qualification consumers. The remaining DOM1 gate is genuinely language
+design: freeze the authored facet declaration/policy surface, then remove the
+factful=hybrid/factless=semantic-only compatibility projection.
 
 ### Carry policy
 

@@ -265,12 +265,9 @@ fn parameter_domain_grants(
     if parameter.is_mutable || parameter.is_self {
         return false;
     }
-    let Some(param_domain) =
-        crate::field_domain::domain_constraint_symbol(program, parameter.type_reference)
-    else {
-        return false;
-    };
-    facts.semantic.domain_implies(param_domain, domain_symbol)
+    crate::field_domain::predicate_domain_constraint_symbols(program, parameter.type_reference)
+        .into_iter()
+        .any(|param_domain| facts.semantic.domain_implies(param_domain, domain_symbol))
 }
 
 fn string_literal_grants_domain(
@@ -332,12 +329,9 @@ fn value_call_return_domain_grants(
     if !target.return_type.is_valid() {
         return false;
     }
-    let Some(return_domain) =
-        crate::field_domain::domain_constraint_symbol(program, target.return_type)
-    else {
-        return false;
-    };
-    semantic.domain_implies(return_domain, domain_symbol)
+    crate::field_domain::predicate_domain_constraint_symbols(program, target.return_type)
+        .into_iter()
+        .any(|return_domain| semantic.domain_implies(return_domain, domain_symbol))
 }
 
 /// Clear "needs fact X here" guidance for a proof-backed operator/contract that

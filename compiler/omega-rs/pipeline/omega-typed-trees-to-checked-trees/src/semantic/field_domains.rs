@@ -30,7 +30,7 @@ use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::DataMember;
 use omega_typed_trees::expression::ExpressionNode;
 use omega_typed_trees::statement::StatementNode;
-use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use omega_typed_trees::types::TypeReferenceHandle;
 
 pub(super) fn append_machine_field_domain_facts(program: &TypedTrees, facts: &mut FactPlan) {
     for machine in program.machines() {
@@ -101,9 +101,11 @@ fn append_data_field_domain_facts(
         // the domain -- a read-with-no-prior-write discharges against it, sound
         // only if the empty/default is in-domain. A domain the empty value
         // violates (e.g. `non_empty`) is withheld; its reads must follow a write.
-        if let Some(domain_symbol) =
-            field_domain_symbol(program, field.type_reference).filter(|symbol| symbol.is_valid())
-            && crate::field_domain::domain_admits_empty_byte_sequence(program, domain_symbol)
+        for domain_symbol in field_domain_symbols(program, field.type_reference)
+            .into_iter()
+            .filter(|symbol| {
+                crate::field_domain::domain_admits_empty_byte_sequence(program, *symbol)
+            })
         {
             // Place `self.<prefix…>.<field>`: root the machine receiver symbol
             // (`self`) + the Field-segment chain, so the canonical label matches
@@ -183,9 +185,7 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                 if parameter.is_self || parameter.is_mutable {
                     continue;
                 }
-                if let Some(domain_symbol) = field_domain_symbol(program, parameter.type_reference)
-                    .filter(|symbol| symbol.is_valid())
-                {
+                for domain_symbol in field_domain_symbols(program, parameter.type_reference) {
                     append_state_parameter_domain_fact(
                         facts,
                         machine.symbol,
@@ -252,9 +252,7 @@ fn append_state_parameter_data_field_domain_facts(
         let DataMember::Field(field) = member else {
             continue;
         };
-        if let Some(domain_symbol) =
-            field_domain_symbol(program, field.type_reference).filter(|symbol| symbol.is_valid())
-        {
+        for domain_symbol in field_domain_symbols(program, field.type_reference) {
             let mut path = prefix.to_vec();
             path.push(field.symbol);
             append_state_parameter_domain_fact(
@@ -382,40 +380,36 @@ pub(super) fn append_local_case_payload_domain_facts(program: &TypedTrees, facts
                 };
 
                 for payload_field in program.data_payload_fields(variant) {
-                    let Some(domain_symbol) =
-                        field_domain_symbol(program, payload_field.type_reference)
-                            .filter(|symbol| symbol.is_valid())
-                    else {
-                        continue;
-                    };
-
-                    // Place `cmd.<payload-field>`: root the local symbol + a Field
-                    // segment for the variant's payload field, matching how a
-                    // destructured payload arg resolves at the call site.
-                    let place = facts.append_symbol_place(local_data.symbol);
-                    facts.push_place_segment(
-                        place,
-                        PlaceSegment::Field {
-                            symbol: payload_field.symbol,
-                        },
-                    );
-                    let fact = facts.append_fact(Fact {
-                        place: FactPlace::Place(place),
-                        point: ProgramPoint::State {
-                            machine_symbol: machine.symbol,
-                            state_symbol: state.symbol,
-                        },
-                        origin: FactOrigin::LocalCasePayloadDomain {
-                            machine_symbol: machine.symbol,
-                            state_symbol: state.symbol,
-                        },
-                        payload: FactPayload::DomainMembership {
-                            value: omega_typed_trees::expression::ExpressionHandle::invalid(),
-                            domain: omega_core::arena::HandleSpan::empty(),
-                            domain_symbol,
-                        },
-                    });
-                    facts.append_ref(&mut refs, fact);
+                    for domain_symbol in field_domain_symbols(program, payload_field.type_reference)
+                    {
+                        // Place `cmd.<payload-field>`: root the local symbol + a Field
+                        // segment for the variant's payload field, matching how a
+                        // destructured payload arg resolves at the call site.
+                        let place = facts.append_symbol_place(local_data.symbol);
+                        facts.push_place_segment(
+                            place,
+                            PlaceSegment::Field {
+                                symbol: payload_field.symbol,
+                            },
+                        );
+                        let fact = facts.append_fact(Fact {
+                            place: FactPlace::Place(place),
+                            point: ProgramPoint::State {
+                                machine_symbol: machine.symbol,
+                                state_symbol: state.symbol,
+                            },
+                            origin: FactOrigin::LocalCasePayloadDomain {
+                                machine_symbol: machine.symbol,
+                                state_symbol: state.symbol,
+                            },
+                            payload: FactPayload::DomainMembership {
+                                value: omega_typed_trees::expression::ExpressionHandle::invalid(),
+                                domain: omega_core::arena::HandleSpan::empty(),
+                                domain_symbol,
+                            },
+                        });
+                        facts.append_ref(&mut refs, fact);
+                    }
                 }
             }
 
@@ -449,32 +443,12 @@ fn machine_self_parameter_symbol(
     })
 }
 
-/// The declared encoding-domain symbol on a field type, looking through a leading
-/// reference (`&[u8] in Utf8`). Resolves the short domain name (`Utf8`) to its
-/// domain definition by the trailing path segment (`[u8]::Utf8`).
-fn field_domain_symbol(
+/// Every normalized predicate-domain symbol on a field type, looking through a
+/// leading reference (`&[u8] in Utf8 & NoNul`). Semantic-only constraints do
+/// not become flow facts.
+fn field_domain_symbols(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Option<SymbolHandle> {
-    domain_constraint_symbol(program, type_reference)
-}
-
-fn domain_constraint_symbol(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> Option<SymbolHandle> {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => domain_constraint_symbol(program, *referee),
-        TypeReferenceNode::Constrained { constraints, .. } => program
-            .type_reference_table
-            .constraints(*constraints)
-            .iter()
-            .find_map(|constraint| match constraint {
-                TypeConstraintNode::Domain(domain) if domain.symbol.is_valid() => {
-                    Some(domain.symbol)
-                }
-                _ => None,
-            }),
-        _ => None,
-    }
+) -> Vec<SymbolHandle> {
+    crate::field_domain::predicate_domain_constraint_symbols(program, type_reference)
 }
