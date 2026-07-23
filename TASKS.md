@@ -23,9 +23,9 @@ chapter 23.
 
 The checked x86 catalog includes structured control-register, MSR, flags,
 fence, and interrupt-mask operations. `iretq`, `sysret`/`sysretq`, and `eret`
-are deriver-only. Do not expose source-level `lidt` before IDT2: the current
-freestanding-root authority bridge cannot record installed inbound roots, so a
-raw catalog entry would create an effect/WCSU audit hole.
+are deriver-only. Do not expose source-level `lidt` before IDT2 is connected to
+provider execution: a raw catalog entry that bypasses the installed-root ledger
+would create an effect/WCSU audit hole.
 
 The first ENT2 slice is implemented in `omega-calling-conventions`: normalized
 register/value-placement vocabularies, deterministic `CallPlan + StatePlan`
@@ -591,11 +591,18 @@ schemas recover the same instance without publishing policy type identity.
    normalized writer programs to generated machine code (OWNER-BLOCKED on the
    provider boundary and atomic-publication contract in `OWNER_QUESTIONS.md`
    section 4).
-5. **IDT2 — installed-root ledger.** Add `lidt` only as an installation path
-   that consumes scoped IDT
-   authority and records every installed entry as an external analysis root
-   with effects, receipts, state plan, stack/IST class, nesting/WCSU, and
-   component/version pins. The stack/IST policy is one fact consumed by both
+5. **IDT2 — installed-root ledger.** The normalized `omega-external-roots`
+   foundation is live. It validates nonzero/aligned WCSU demand against one
+   complete `BoundaryEntryPlan`; admits only an entry present in the exact
+   installed artifact; consumes owner-scoped slot authority; and records
+   provider/effect/trust, stack, nesting, acknowledgement, WCSU, and
+   component-version pins without exposing a numeric code address. Its linear
+   root handle borrows the installed code as a liveness pin. Removal returns
+   the slot only after an exact receipt proves both entry unreachability and
+   execution quiescence, while failed install/remove operations return every
+   consumed authority. Connect this model to provider execution, artifact
+   reporting, and WCSU composition. Add `lidt` only as an installation path
+   through it; the stack/IST policy must remain one fact consumed by both
    layout materialization and WCSU analysis.
 6. **IDT3 — linear interrupt obligations.** Implement saved-mask guards and EOI
    obligations as provider-minted linear values with explicit consuming

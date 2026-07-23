@@ -274,6 +274,14 @@ This ledger is also where WCSU composes same-stack interrupt demand and where a
 dynamic installation is checked against the artifact-wide bound. Per-machine
 validation alone cannot answer those questions.
 
+The provider-neutral ledger foundation is live in `omega-external-roots`.
+Each admitted record retains the complete evaluated plan and exact
+provider/effect/receipt, stack/nesting/acknowledgement, WCSU, artifact, and
+component-version identities. Installation consumes an owner-scoped slot and
+returns a linear handle borrowing the installed-code claim; removal returns the
+slot only after exact unreachability and quiescence evidence. Provider-specific
+installation and artifact-wide WCSU/report integration remain.
+
 ## Compiler-owned pieces
 
 Policies choose from closed placement and machine-state vocabularies. Compiler
