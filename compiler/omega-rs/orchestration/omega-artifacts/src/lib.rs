@@ -784,11 +784,96 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
     } else {
         output.push_str("null");
     }
-    output.push_str(", \"wcsu\": {\"bytes\": ");
-    output.push_str(&record.wcsu_bytes.to_string());
+    output.push_str(", \"resources\": {\"stack\": {\"ceiling_bytes\": ");
+    output.push_str(&record.stack.ceiling_bytes.to_string());
+    output.push_str(", \"domain\": ");
+    push_entry_stack_json(output, record.boundary.state.stack);
+    output.push_str(", \"local_wcsu_bytes\": ");
+    output.push_str(&record.stack.local_wcsu_bytes.to_string());
+    output.push_str(", \"composed_wcsu_bytes\": ");
+    output.push_str(&record.stack.composed_wcsu_bytes.to_string());
     output.push_str(", \"alignment\": ");
-    output.push_str(&record.wcsu_alignment.to_string());
-    output.push_str("}, \"component_pins\": [");
+    output.push_str(&record.stack.wcsu_alignment.to_string());
+    output.push_str(", \"validation_receipt\": ");
+    push_hex_identity(
+        output,
+        record.stack.validation_receipt.normalized_identity(),
+    );
+    output.push_str("}, \"structural_work\": {\"profile\": ");
+    push_hex_identity(output, record.structural_work.profile.normalized_identity());
+    output.push_str(", \"ceiling_units\": ");
+    output.push_str(&record.structural_work.ceiling_units.to_string());
+    output.push_str(", \"composed_units\": ");
+    output.push_str(&record.structural_work.realization.units().to_string());
+    output.push_str(", \"root_summary\": ");
+    push_hex_identity(
+        output,
+        record
+            .structural_work
+            .realization
+            .root()
+            .normalized_identity(),
+    );
+    output.push_str(", \"composition_fingerprint\": ");
+    push_hex_identity(
+        output,
+        record.structural_work.realization.composition_fingerprint(),
+    );
+    output.push_str(", \"provider_summaries\": [");
+    push_identity_set(
+        output,
+        record
+            .structural_work
+            .realization
+            .summaries()
+            .iter()
+            .map(|identity| identity.normalized_identity()),
+    );
+    output.push_str("], \"provider_validation_receipts\": [");
+    push_identity_set(
+        output,
+        record
+            .structural_work
+            .realization
+            .provider_receipts()
+            .iter()
+            .map(|identity| identity.normalized_identity()),
+    );
+    output.push_str("], \"validation_receipt\": ");
+    push_hex_identity(
+        output,
+        record
+            .structural_work
+            .validation_receipt
+            .normalized_identity(),
+    );
+    output.push_str("}, \"machine_state\": {\"ceiling\": {\"interrupted_state_bits\": ");
+    push_hex_u16(output, record.boundary.state.interrupted_state.bits());
+    output.push_str(", \"saved_state_bits\": ");
+    push_hex_u16(output, record.boundary.state.saved_state.bits());
+    output.push_str(", \"restored_state_bits\": ");
+    push_hex_u16(output, record.boundary.state.restored_state.bits());
+    output.push_str(", \"permitted_transitive_use_bits\": ");
+    push_hex_u16(
+        output,
+        record.boundary.state.permitted_transitive_use.bits(),
+    );
+    output.push_str("}, \"realized_bits\": ");
+    push_hex_u16(
+        output,
+        record.machine_state.realization.machine_state().bits(),
+    );
+    output.push_str(", \"realized_registers\": ");
+    push_register_set_json(output, record.machine_state.realization.registers());
+    output.push_str(", \"validation_receipt\": ");
+    push_hex_identity(
+        output,
+        record
+            .machine_state
+            .validation_receipt
+            .normalized_identity(),
+    );
+    output.push_str("}}, \"component_pins\": [");
     for (index, pin) in record.component_pins.iter().enumerate() {
         if index != 0 {
             output.push_str(", ");
@@ -1664,7 +1749,8 @@ mod tests {
     use std::collections::BTreeSet;
 
     use omega_calling_conventions::{
-        CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
+        CallSignature, CallingPolicy, MachineRegister, MachineState, MachineStateSet, RegisterSet,
+        StateFootprintEvidence, ValueShape, evaluate_ordinary_boundary_entry_plan,
     };
     use omega_checked_trees::CheckedTrees;
     use omega_checked_trees::machine::Machine;
@@ -1675,8 +1761,12 @@ mod tests {
     use omega_external_roots::{
         AcknowledgementPolicyId, ComponentArtifactId, ComponentContractId, ComponentProviderId,
         ComponentVersionPin, ComponentVersionPinId, ExternalRootDiagnostic, ExternalRootId,
-        InstalledRootRecord, NestingRelationId, RootAdmissionId, RootEffectId, RootProviderId,
-        RootSlotId, RootSlotOwnerId, TrustReceiptId,
+        FixedWorkCall, FixedWorkProviderSummary, InstalledRootRecord, MachineStateResourceColumn,
+        NestingRelationId, ProviderWorkSummaryId, ProviderWorkValidationReceiptId, RootAdmissionId,
+        RootEffectId, RootProviderId, RootSlotId, RootSlotOwnerId, StackResourceColumn,
+        StackValidationReceiptId, StateValidationReceiptId, StructuralWorkProfileId,
+        StructuralWorkResourceColumn, StructuralWorkValidationReceiptId, TrustReceiptId,
+        compose_fixed_work,
     };
     use omega_layout_plans::EntryStubId;
 
@@ -1738,6 +1828,31 @@ mod tests {
             },
         )
         .expect("boundary plan");
+        let leaf = FixedWorkProviderSummary {
+            identity: root_id(21, ProviderWorkSummaryId::from_normalized_identity),
+            provider: root_id(22, RootProviderId::from_normalized_identity),
+            local_units: 4,
+            calls: BTreeSet::new(),
+            validation_receipt: root_id(
+                23,
+                ProviderWorkValidationReceiptId::from_normalized_identity,
+            ),
+        };
+        let work_root = FixedWorkProviderSummary {
+            identity: root_id(20, ProviderWorkSummaryId::from_normalized_identity),
+            provider: root_id(8, RootProviderId::from_normalized_identity),
+            local_units: 3,
+            calls: BTreeSet::from([FixedWorkCall {
+                callee: leaf.identity,
+                maximum_invocations: 2,
+            }]),
+            validation_receipt: root_id(
+                24,
+                ProviderWorkValidationReceiptId::from_normalized_identity,
+            ),
+        };
+        let composed_work =
+            compose_fixed_work(work_root.identity, [&work_root, &leaf]).expect("fixed work");
         let record = InstalledRootRecord {
             root: root_id(1, ExternalRootId::from_normalized_identity),
             normalized_root_identity: 0x101,
@@ -1757,8 +1872,29 @@ mod tests {
                 12,
                 AcknowledgementPolicyId::from_normalized_identity,
             )),
-            wcsu_bytes: 4096,
-            wcsu_alignment: 16,
+            stack: StackResourceColumn {
+                ceiling_bytes: 8192,
+                local_wcsu_bytes: 2048,
+                composed_wcsu_bytes: 4096,
+                wcsu_alignment: 16,
+                validation_receipt: root_id(25, StackValidationReceiptId::from_normalized_identity),
+            },
+            structural_work: StructuralWorkResourceColumn {
+                profile: root_id(28, StructuralWorkProfileId::from_normalized_identity),
+                ceiling_units: 64,
+                realization: composed_work,
+                validation_receipt: root_id(
+                    26,
+                    StructuralWorkValidationReceiptId::from_normalized_identity,
+                ),
+            },
+            machine_state: MachineStateResourceColumn {
+                realization: StateFootprintEvidence::new(
+                    RegisterSet::new([MachineRegister::X86Rax]),
+                    MachineStateSet::new([MachineState::Flags]),
+                ),
+                validation_receipt: root_id(27, StateValidationReceiptId::from_normalized_identity),
+            },
             component_pins: BTreeSet::from([ComponentVersionPin {
                 contract: root_id(13, ComponentContractId::from_normalized_identity),
                 artifact: root_id(14, ComponentArtifactId::from_normalized_identity),
@@ -1786,7 +1922,26 @@ mod tests {
             parsed["roots"][0]["boundary_plan"]["state"]["stack"],
             "provider_selected"
         );
-        assert_eq!(parsed["roots"][0]["wcsu"]["bytes"], 4096);
+        assert_eq!(
+            parsed["roots"][0]["resources"]["stack"]["composed_wcsu_bytes"],
+            4096
+        );
+        assert_eq!(
+            parsed["roots"][0]["resources"]["structural_work"]["composed_units"],
+            11
+        );
+        assert_eq!(
+            parsed["roots"][0]["resources"]["machine_state"]["realized_registers"][0],
+            "x86_rax"
+        );
+        assert_eq!(
+            parsed["roots"][0]["resources"]["machine_state"]["ceiling"]["permitted_transitive_use_bits"],
+            "0x0007"
+        );
+        assert_eq!(
+            parsed["roots"][0]["resources"]["stack"]["validation_receipt"],
+            "0x0000000000000019"
+        );
         assert_eq!(parsed["roots"][0]["effects"][0], "0x0000000000000009");
         assert_eq!(
             parsed["roots"][0]["component_pins"][0]["version"],
@@ -1794,5 +1949,7 @@ mod tests {
         );
         assert!(!first.contains("entry_address"));
         assert!(!first.contains("code_address"));
+        assert!(!first.contains("ranking"));
+        assert!(!first.contains("codegen"));
     }
 }

@@ -342,16 +342,20 @@ validation alone cannot answer those questions.
 
 The provider-neutral ledger foundation is live in `omega-external-roots`.
 Each admitted record retains the complete evaluated plan and exact
-provider/effect/receipt, stack/nesting/acknowledgement, WCSU, artifact, and
-component-version identities. Installation consumes an owner-scoped slot and
-returns a linear handle borrowing the installed-code claim; removal returns the
-slot only after exact unreachability and quiescence evidence. Provider-specific
-installation and artifact-wide WCSU integration remain. The live ledger's
-deterministic fingerprint and `omega-artifacts` `external_roots.json` projection
-already report the exact normalized root/installation bindings and complete
-boundary plan without leaking numeric entry addresses.
+provider/effect/receipt, stack/nesting/acknowledgement, resource, artifact, and
+component-version identities. Its stack, structural-work, and machine-state
+columns independently retain their ceilings, realized facts, and validation
+receipts. Fixed-work provider summaries compose transitively and fail closed on
+missing summaries, recursion, invalid multiplicity, or arithmetic overflow.
+Installation consumes an owner-scoped slot and returns a linear handle borrowing
+the installed-code claim; removal returns the slot only after exact
+unreachability and quiescence evidence. Provider-specific installation and
+artifact-wide WCSU integration remain. The live ledger's deterministic
+fingerprint and `omega-artifacts` `external_roots.json` projection report these
+facts and the complete boundary plan without leaking numeric entry addresses or
+private ranking/codegen proofs.
 
-The required ledger extension uses one recording discipline across three
+The ledger uses one recording discipline across three
 independent resource columns: stack ceiling/realized WCSU/derivation evidence,
 structural-work ceiling/realized composed demand/control-flow evidence, and
 `StatePlan` ceiling/realized footprint/codegen evidence. Reports retain ceilings,
