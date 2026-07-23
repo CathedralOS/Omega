@@ -27,6 +27,7 @@ pub enum AsmInstructionShape {
     MsrWrite,
     ControlRegisterRead(AsmControlRegister),
     ControlRegisterWrite(AsmControlRegister),
+    DescriptorTableLoad,
     DerivedExit,
 }
 
@@ -121,6 +122,7 @@ pub enum AsmAuthorityRequirement {
     None,
     MachineOwner,
     PortIo,
+    IdtControl,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -392,9 +394,18 @@ const MSR_READ_CLOBBERS: &[&str] = &["rax", "rcx", "rdx", "r10", "r11", "r15"];
 const MSR_WRITE_CLOBBERS: &[&str] = &["rax", "rcx", "rdx", "r10", "r11", "r15"];
 const CONTROL_REGISTER_READ_CLOBBERS: &[&str] = &["r10", "r15"];
 const CONTROL_REGISTER_WRITE_CLOBBERS: &[&str] = &["rax", "r10", "r11", "r15"];
+const IDT_DESCRIPTOR_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read_place(
+    "IDT descriptor",
+    "r10",
+    "IdtDescriptor",
+)];
+const IDT_DESCRIPTOR_CLOBBERS: &[&str] = &["r10"];
 
 pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
-    use AsmAuthorityRequirement::{MachineOwner, None as NoAuthority, PortIo as PortIoAuthority};
+    use AsmAuthorityRequirement::{
+        IdtControl as IdtControlAuthority, MachineOwner, None as NoAuthority,
+        PortIo as PortIoAuthority,
+    };
     use AsmCatalogEntry::{Contract, Refused};
     use AsmFenceKind::{Full, Load, Store};
     use AsmFlagsDataFlow::{
@@ -404,8 +415,8 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
     use AsmInstructionAvailability::{DeriverOnly, UserChecked};
     use AsmInstructionRefusal::{HiddenControlExit, UnmodeledMemoryAccess};
     use AsmInstructionShape::{
-        DerivedExit, FlagsRestore, FlagsSnapshot, Halt, InterruptControl, JumpState, MemoryFence,
-        MsrRead, MsrWrite, PortIn, PortOut,
+        DerivedExit, DescriptorTableLoad, FlagsRestore, FlagsSnapshot, Halt, InterruptControl,
+        JumpState, MemoryFence, MsrRead, MsrWrite, PortIn, PortOut,
     };
     use AsmInterruptControlKind::{Disable, Enable};
     use AsmInterruptFlagEffect::{
@@ -599,6 +610,21 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             clobbers: MSR_WRITE_CLOBBERS,
         }),
 
+        // The installed-IDT provider is the only deriver allowed to lower
+        // this operation. Its operand is the private descriptor for the exact
+        // content/ledger-bound `InstalledIdt` transition, never a source addr.
+        "lidt" => Contract(AsmInstructionContract {
+            availability: DeriverOnly,
+            shape: DescriptorTableLoad,
+            target: X86_64,
+            required_authority: IdtControlAuthority,
+            operands: IDT_DESCRIPTOR_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: IDT_DESCRIPTOR_CLOBBERS,
+        }),
+
         // These are real catalog operations, but only derived entry/exit
         // machinery may discharge their complete state-plan contracts.
         "iretq" | "sysret" | "sysretq" => Contract(AsmInstructionContract {
@@ -667,6 +693,18 @@ mod tests {
             panic!("iretq must be a contracted instruction");
         };
         assert_eq!(iretq.availability, AsmInstructionAvailability::DeriverOnly);
+
+        let AsmCatalogEntry::Contract(lidt) = asm_catalog_entry("lidt").expect("lidt contract")
+        else {
+            panic!("lidt must be a contracted instruction");
+        };
+        assert_eq!(lidt.availability, AsmInstructionAvailability::DeriverOnly);
+        assert_eq!(lidt.shape, AsmInstructionShape::DescriptorTableLoad);
+        assert_eq!(lidt.required_authority, AsmAuthorityRequirement::IdtControl);
+        assert_eq!(lidt.operands.len(), 1);
+        assert!(lidt.operands[0].requires_place());
+        assert_eq!(lidt.operands[0].target_register, "r10");
+        assert_eq!(lidt.clobbers, &["r10"]);
     }
 
     #[test]

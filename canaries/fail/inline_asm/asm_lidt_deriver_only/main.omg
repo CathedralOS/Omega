@@ -1,0 +1,7 @@
+// Loading an IDT is catalogued only so the installed-table deriver can emit
+// its exact contracted operation. User code cannot obtain the private
+// descriptor or bypass record-before-publish root admission.
+data Main {}
+machine Main::main(&mut self) {
+    asm { lidt }
+}

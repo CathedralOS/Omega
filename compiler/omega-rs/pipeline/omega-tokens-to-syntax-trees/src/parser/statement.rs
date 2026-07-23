@@ -820,7 +820,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 input,
             ))
         }
-        AsmInstructionShape::DerivedExit => {
+        AsmInstructionShape::DerivedExit | AsmInstructionShape::DescriptorTableLoad => {
             unreachable!("deriver-only instructions refuse before source lowering")
         }
     }

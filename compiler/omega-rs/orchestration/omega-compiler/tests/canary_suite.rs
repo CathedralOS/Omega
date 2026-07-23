@@ -39191,6 +39191,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "inline_asm/asm_label_loop",
     "inline_asm/asm_structured_ldr_str",
     "inline_asm/asm_deriver_only_exit",
+    "inline_asm/asm_lidt_deriver_only",
     "inline_asm/asm_hidden_return",
     "inline_asm/asm_cli_requires_machine_authority",
     "inline_asm/asm_popfq_requires_machine_authority",

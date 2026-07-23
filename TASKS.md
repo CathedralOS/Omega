@@ -22,10 +22,12 @@ the first timer tick. The design is recorded in
 chapter 23.
 
 The checked x86 catalog includes structured control-register, MSR, flags,
-fence, and interrupt-mask operations. `iretq`, `sysret`/`sysretq`, and `eret`
-are deriver-only. Do not expose source-level `lidt` before IDT2 is connected to
-provider execution: a raw catalog entry that bypasses the installed-root ledger
-would create an effect/WCSU audit hole.
+fence, and interrupt-mask operations. `iretq`, `sysret`/`sysretq`, `eret`, and
+the new `lidt` contract are deriver-only. `lidt` requires distinct `IdtControl`,
+reads the private descriptor through deriver scratch R10, records that exact
+clobber, and has a pinned `41 0f 01 1a` x86 encoding. User spelling rejects
+before operand lowering; only the installed-IDT provider path may consume it,
+so it cannot bypass the root ledger and create an effect/WCSU audit hole.
 
 The first ENT2 slice is implemented in `omega-calling-conventions`: normalized
 register/value-placement vocabularies, deterministic `CallPlan + StatePlan`
@@ -646,7 +648,9 @@ schemas recover the same instance without publishing policy type identity.
    receipt plus the software-fault-free bootstrap verdict. Failure returns the
    still-unpublished destination and all consumed inputs. Implement lowering of
    this normalized writer as a compiler-generated checked Omega machine and the
-   provider's checked `lidt` execution behind the live gate.
+   provider lowering that supplies the private descriptor to the now-contracted
+   deriver-only `lidt` operation behind the live gate. Its exact x86
+   `lidt [r10]` encoding and source-rejection rail are already live.
 5. **IDT2 — installed-root ledger.** The normalized `omega-external-roots`
    foundation is live. It admits only an entry present in the exact
    installed artifact; consumes owner-scoped slot authority; and records
