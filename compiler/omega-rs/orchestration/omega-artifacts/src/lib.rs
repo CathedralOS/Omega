@@ -1784,7 +1784,8 @@ mod tests {
 
     use omega_calling_conventions::{
         CallSignature, CallingPolicy, EntryStack, MachineRegister, MachineState, MachineStateSet,
-        RegisterSet, StateFootprintEvidence, ValueShape, evaluate_ordinary_boundary_entry_plan,
+        ProviderExitRealization, RegisterSet, StateFootprintEvidence, ValueShape,
+        evaluate_ordinary_boundary_entry_plan,
     };
     use omega_checked_trees::CheckedTrees;
     use omega_checked_trees::machine::Machine;
@@ -1796,12 +1797,13 @@ mod tests {
         AcknowledgementPolicyId, ComponentArtifactId, ComponentContractId, ComponentProviderId,
         ComponentVersionPin, ComponentVersionPinId, ExternalRootDiagnostic, ExternalRootId,
         FixedWorkCall, FixedWorkProviderSummary, InstalledRootRecord, MachineStateResourceColumn,
-        NestingRelationId, ProviderExecutionId, ProviderPlanId, ProviderStackSummary,
-        ProviderWorkSummaryId, ProviderWorkValidationReceiptId, RootAdmissionId, RootEffectId,
-        RootProviderId, RootSlotId, RootSlotOwnerId, StackNestingRelation, StackResourceColumn,
-        StackValidationReceiptId, StateValidationReceiptId, StructuralWorkProfileId,
-        StructuralWorkResourceColumn, StructuralWorkValidationReceiptId, TrustReceiptId,
-        compose_artifact_stacks, compose_fixed_work,
+        NestingRelationId, OpaqueProviderExitAssurance, ProviderExecutionId, ProviderPlanId,
+        ProviderStackSummary, ProviderWorkSummaryId, ProviderWorkValidationReceiptId,
+        RootAdmissionId, RootEffectId, RootProviderId, RootSlotId, RootSlotOwnerId,
+        StackNestingRelation, StackResourceColumn, StackValidationReceiptId,
+        StateValidationReceiptId, StructuralWorkProfileId, StructuralWorkResourceColumn,
+        StructuralWorkValidationReceiptId, TrustReceiptId, compose_artifact_stacks,
+        compose_fixed_work,
     };
     use omega_layout_plans::EntryStubId;
 
@@ -1920,6 +1922,14 @@ mod tests {
             admission: root_id(7, RootAdmissionId::from_normalized_identity),
             provider_execution: root_id(30, ProviderExecutionId::from_normalized_identity),
             provider_execution_fingerprint: 0x3030,
+            provider_exit_assurance: OpaqueProviderExitAssurance::AcceptedClaim {
+                realization: ProviderExitRealization {
+                    control: boundary.plan().call.entry_control,
+                    restored_state: boundary.plan().state.restored_state,
+                },
+                validation_receipt: root_id(10, TrustReceiptId::from_normalized_identity),
+            },
+            provider_exit_assurance_fingerprint: 0x3031,
             provider_plan: root_id(31, ProviderPlanId::from_normalized_identity),
             boundary_contract_fingerprint: boundary.contract_fingerprint(),
             boundary: boundary.plan().clone(),

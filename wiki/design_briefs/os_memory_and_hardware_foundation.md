@@ -883,7 +883,14 @@ different: restoring the prior CPU interrupt mask reaches `machine_control`,
 while acknowledging the interrupt source reaches `device_io`. Ordinary
 opacity and linearity reject construction, forgotten settlement, and double
 completion; no interrupt-specific cleanup or implicit drop rule exists.
-Provider minting and the concrete entry path remain.
+The normalized installed-root entry path now supplies provider minting and
+settlement: its receipt binds the exact root/slot/code/provider execution,
+invocation, initial mask state, and acknowledgement policy. Replayed
+invocation or acknowledgement identities reject, nested saved-mask guards
+restore only the newest exact prior state, active entries pin root retirement,
+and deriver-owned exit requires the entry mask state plus the exact completed
+acknowledgement. The concrete Cathedral PIC/LAPIC entry implementation remains
+to execute those admitted transitions.
 
 ### Cathedral's initial x86 interrupt profile
 
