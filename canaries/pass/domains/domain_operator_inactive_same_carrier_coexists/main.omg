@@ -1,0 +1,25 @@
+// Coherence is judged from the domains participating at an operator use, not
+// by globally comparing every declaration in the program. These two semantic
+// domains may therefore provide the same spelling and operand tuple over the
+// same carrier. A binding that selects both is rejected by the matching fail
+// canary `domain_operator_competing_spelling_meanings`.
+
+data Quantity {
+    value: i32;
+}
+
+domain Quantity::Linear {
+    self.value >= 0;
+
+    operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
+}
+
+domain Quantity::Cyclic {
+    self.value >= 0;
+
+    operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

@@ -1064,9 +1064,14 @@ stronger operations it needs instead of citing machine parameters generally.
   builtin fallback. Spelled candidates now match the complete operand tuple:
   binary right operands, index operands, and both range bounds all participate,
   with one shared generic substitution across positions and no privileged
-  receiver discriminator. Remaining: replace the provisional global
-  same-carrier collision fence with the settled
-  participating-domain/dispatch-owner coherence rule.
+  receiver discriminator. The provisional global same-carrier collision fence
+  is retired: inactive theories may coexist, candidate eligibility is anchored
+  to the semantic domains selected by the participating operand bindings, and
+  multiple participating meanings fail at that use site. This completes the
+  closed-family coherence path. **Language-design blocker:** the authored
+  language has no open-operator-family declaration or designated
+  dispatch-owner-position surface; decision 19 explicitly defers general
+  open-family linking, so that extension cannot be lowered yet.
 - **DOM3 — introduction authority.** Implement sealed-by-default domains,
   `introduction open`, and `MintAuthority<D>` with distinct missing-proof and
   missing-authority diagnostics.

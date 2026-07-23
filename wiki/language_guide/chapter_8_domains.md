@@ -540,8 +540,9 @@ This stays strict:
   ordinary exact addition.
 - Resolution reads the complete static operand-domain tuple and must be
   unambiguous; competing meanings are compile errors, never ranked.
-- Adding proof knowledge can move a program from compiling to rejected
-  (a new ambiguity is a loud error), never from meaning-A to meaning-B.
+- Adding a semantic qualification to an operand binding can expose a new
+  ambiguity, which is a loud error; adding flow proof knowledge cannot change
+  operator meaning at all.
 - No hidden runtime tag is introduced for dispatch.
 
 This is especially attractive for semantic abstractions such as encoded byte
@@ -551,13 +552,14 @@ domains the operation can soundly guarantee.
 
 ## Operator Definitions And Domain Contexts
 
-Operator overloading is trait-like in spirit but proof-aware in
-resolution.
+Operator overloading is trait-like in spirit but semantic-binding-aware in
+resolution. Predicate proof state may discharge the selected operator's
+contracts, but it never selects the meaning.
 
 Rust maps a fixed operator spelling such as `+` or `[]` to a trait method such
 as `Add::add` or `Index::index`. Omega has a similar semantic home for
-operators, but with one extra axis: the current proof context may determine
-which operator meaning is available.
+operators, but with one extra axis: the semantic domains selected on operand
+bindings determine which domain-owned meanings participate.
 
 A fixed operator spelling is declared with an optional `spelling` clause on a
 named `operator`. The named operator carries the full signature and proof
@@ -574,8 +576,9 @@ operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
 
 Domain operators declared inside a `domain` block may carry a `spelling`.
 Domain-sensitive resolution then selects among spelled candidates by
-receiver/operand type plus proven domain context. Competing domain meanings for
-the same spelling are a compile error.
+the complete operand-type tuple plus the bindings' selected semantic domains.
+Competing participating meanings for the same use are a compile error; inactive
+same-carrier declarations may coexist.
 
 Decided model:
 

@@ -33647,6 +33647,35 @@ fn domain_operator_selection_records_builtin_fallback_without_binding_selection(
     );
 }
 
+// Same-carrier domain theories coexist until an operand binding actually
+// selects them. An unrelated or inactive declaration cannot inject a meaning
+// into an existing expression.
+#[test]
+fn domain_operator_inactive_same_carrier_meanings_coexist() {
+    let canary = pass_canary("domains/domain_operator_inactive_same_carrier_coexists");
+    omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("inactive same-carrier domain meanings should coexist");
+}
+
+// When one binding statically selects both domains, both meanings participate
+// in this use and the checked resolution must reject the ambiguity.
+#[test]
+fn domain_operator_competing_binding_meanings_fail_at_use_site() {
+    let canary = fail_canary("domains/domain_operator_competing_spelling_meanings");
+    let diagnostics = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .err()
+        .expect("competing selected domain meanings should fail");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("ambiguous operator spelling `+`")
+                && diagnostic.message.contains("static operand-domain tuple")
+        }),
+        "expected use-site operator ambiguity diagnostic, got: {diagnostics:?}"
+    );
+}
+
 /// Pass canaries whose authored bindings exist only on a WINDOWS host (a
 /// `windows_x64` external leaf with no other-target lowering and no
 /// explicit `target` block to cross-compile against). Compiled by
@@ -38124,6 +38153,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/domain_operator_spelling_selected",
     "domains/domain_operator_proven_fact_selects_meaning",
     "domains/domain_operator_unproven_keeps_builtin_meaning",
+    "domains/domain_operator_inactive_same_carrier_coexists",
     "domains/domain_operator_requires_discharged",
     "domains/string_non_empty_fact",
     "domains/executable_domain_membership_expression_exit",
