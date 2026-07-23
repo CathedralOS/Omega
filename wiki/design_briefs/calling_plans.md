@@ -280,7 +280,10 @@ provider/effect/receipt, stack/nesting/acknowledgement, WCSU, artifact, and
 component-version identities. Installation consumes an owner-scoped slot and
 returns a linear handle borrowing the installed-code claim; removal returns the
 slot only after exact unreachability and quiescence evidence. Provider-specific
-installation and artifact-wide WCSU/report integration remain.
+installation and artifact-wide WCSU integration remain. The live ledger's
+deterministic fingerprint and `omega-artifacts` `external_roots.json` projection
+already report the exact normalized root/installation bindings and complete
+boundary plan without leaking numeric entry addresses.
 
 ## Compiler-owned pieces
 

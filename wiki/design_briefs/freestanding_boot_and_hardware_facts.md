@@ -243,6 +243,13 @@ than relying on friendly names:
 - checked assembly footprint and any accepted leaf claims; and
 - all remaining authority and linear obligations at image handoff.
 
+The external-root portion is implemented as a live provider/runtime artifact,
+not a guessed build-time table. `omega-artifacts` writes
+`external_roots.json` from the installed ledger, including its deterministic
+snapshot fingerprint and complete normalized entry plans while omitting numeric
+code addresses. Static builds may emit it at handoff; dynamic providers may
+emit or attest fresh snapshots after later installations.
+
 ## Status and remaining work
 
 The first two Cathedral milestones already validate the typed UEFI entry,

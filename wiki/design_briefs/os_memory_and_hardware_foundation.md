@@ -681,8 +681,16 @@ retirement therefore cannot recover ownership while hardware may still enter
 it. Removal is the opposite-facing gate: the provider's exact receipt must
 establish both that the slot no longer makes the entry reachable and that old
 executions are quiescent before the slot authority is returned. Failure returns
-all consumed values. Provider execution, report emission, artifact-wide WCSU
-composition, and the actual `lidt` consumer remain.
+all consumed values. The live ledger also owns a deterministic report
+fingerprint that binds each normalized root contract to its exact installed
+code, artifact, slot, owner, and admission. `omega-artifacts` writes this live
+state as `external_roots.json`: the complete evaluated `CallPlan + StatePlan`,
+provider/effect/trust identities, WCSU demand, nesting and acknowledgement
+policy, and component pins are machine-readable, while friendly names and
+numeric entry addresses are absent by construction. The report is deliberately
+not a numbered compiler phase because roots may be installed after image build.
+Provider execution, artifact-wide WCSU composition, and the actual `lidt`
+consumer remain.
 
 The IDT is consequently a first serious customer, not a special construct:
 
@@ -850,8 +858,9 @@ concrete interrupt state policy remain. Remaining order:
    contract identity are complete.
 6. Connect the live placement constraints to admitted-artifact validation and
    scoped executable installation.
-7. Connect the normalized external-root ledger to provider execution, artifact
-   reporting, and WCSU composition; then build the IDT/timer vertical slice.
+7. Connect the normalized external-root ledger and its live artifact manifest
+   to provider execution and WCSU composition; then build the IDT/timer vertical
+   slice.
 8. Connect the implemented normalized external-loan proxy to Omega linearity,
    permission contexts, and provider receipts; then build the DMA/hostile-IPC
    vertical slices.

@@ -126,10 +126,15 @@ name = "omega-artifacts"
 version = "0.1.0"
 dependencies = [
  "omega-backend-report-types",
+ "omega-calling-conventions",
  "omega-checked-trees",
  "omega-core",
+ "omega-executable-installation",
+ "omega-external-roots",
  "omega-image",
+ "omega-layout-plans",
  "omega-target",
+ "serde_json",
 ]
 
 [[package]]

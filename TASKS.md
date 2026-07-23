@@ -600,10 +600,15 @@ schemas recover the same instance without publishing policy type identity.
    root handle borrows the installed code as a liveness pin. Removal returns
    the slot only after an exact receipt proves both entry unreachability and
    execution quiescence, while failed install/remove operations return every
-   consumed authority. Connect this model to provider execution, artifact
-   reporting, and WCSU composition. Add `lidt` only as an installation path
-   through it; the stack/IST policy must remain one fact consumed by both
-   layout materialization and WCSU analysis.
+   consumed authority. The live ledger now has a deterministic report
+   fingerprint over exact root/realization/slot/admission bindings, and
+   `omega-artifacts` emits `external_roots.json` directly from that ledger.
+   The manifest includes the complete normalized `CallPlan + StatePlan`,
+   provider/effect/trust identities, WCSU demand, nesting/acknowledgement
+   policy, and component pins while exposing no numeric entry address. Connect
+   this model to provider execution and WCSU composition. Add `lidt` only as an
+   installation path through it; the stack/IST policy must remain one fact
+   consumed by both layout materialization and WCSU analysis.
 6. **IDT3 — linear interrupt obligations.** The source contract is live in
    `omega::language::core::interrupt`: opaque linear `InterruptMaskGuard` and
    `InterruptAcknowledgement` values have explicit consuming `restore` and

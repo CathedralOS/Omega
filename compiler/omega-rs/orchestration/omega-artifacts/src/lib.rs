@@ -1,10 +1,16 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use omega_calling_conventions::{
+    BoundaryEntryPlan, CallingPolicy, EntryControl, EntryStack, IndirectPointerLocation,
+    MachineRegime, MachineRegister, Preemption, RegisterSet, SystemVEightbyteClass, ValueClass,
+    ValueLocation, ValuePlacement, ValueShape,
+};
 use omega_checked_trees::{CheckedTrees, machine::Machine};
 use omega_core::allocations::AllocationDelta;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
+use omega_external_roots::{InstalledRootLedger, InstalledRootRecord};
 use omega_image::{EmittedImageOutput, ImageOutputKind};
 use omega_target::NativeTarget;
 
@@ -682,6 +688,403 @@ impl ArtifactWriter {
 
         self.write_html_report("10_boundary.html", "boundary", &output)
     }
+
+    /// Write the provider/runtime-owned external-root manifest.
+    ///
+    /// This deliberately has no numbered compiler-pipeline stage: roots become
+    /// live when a slot owner installs them, which may happen after the image
+    /// was built. The manifest is nevertheless a normal artifact with complete
+    /// normalized identities and no numeric entry address.
+    pub fn write_external_root_report(
+        &self,
+        ledger: &InstalledRootLedger,
+    ) -> Result<(), Diagnostic> {
+        self.write_text("external_roots.json", &external_root_manifest_json(ledger))
+    }
+}
+
+/// Canonical JSON projection of the live external-root ledger. The ledger's
+/// `BTreeMap` ordering and every normalized set keep this output independent of
+/// insertion order. Friendly source names and numeric code addresses are not
+/// part of the report identity and do not appear here.
+pub fn external_root_manifest_json(ledger: &InstalledRootLedger) -> String {
+    let records = ledger.records().collect::<Vec<_>>();
+    external_root_records_manifest_json(ledger.report_fingerprint(), &records)
+}
+
+fn external_root_records_manifest_json(
+    report_fingerprint: u64,
+    records: &[&InstalledRootRecord],
+) -> String {
+    let mut output = String::new();
+    output.push_str("{\n  \"ledger_fingerprint\": ");
+    push_hex_identity(&mut output, report_fingerprint);
+    output.push_str(",\n  \"root_count\": ");
+    output.push_str(&records.len().to_string());
+    output.push_str(",\n  \"roots\": [");
+    for (index, record) in records.iter().enumerate() {
+        if index != 0 {
+            output.push(',');
+        }
+        output.push_str("\n    ");
+        push_external_root_json(&mut output, record);
+    }
+    if !records.is_empty() {
+        output.push('\n');
+        output.push_str("  ");
+    }
+    output.push_str("]\n}\n");
+    output
+}
+
+fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
+    output.push_str("{\"root\": ");
+    push_hex_identity(output, record.root.normalized_identity());
+    output.push_str(", \"normalized_root_identity\": ");
+    push_hex_identity(output, record.normalized_root_identity);
+    output.push_str(", \"entry\": ");
+    push_hex_identity(output, record.entry.normalized_identity());
+    output.push_str(", \"installed_code\": ");
+    push_hex_identity(output, record.installed_code.normalized_identity());
+    output.push_str(", \"artifact\": ");
+    push_hex_identity(output, record.artifact.normalized_identity());
+    output.push_str(", \"slot\": ");
+    push_hex_identity(output, record.slot.normalized_identity());
+    output.push_str(", \"slot_owner\": ");
+    push_hex_identity(output, record.owner.normalized_identity());
+    output.push_str(", \"admission\": ");
+    push_hex_identity(output, record.admission.normalized_identity());
+    output.push_str(", \"boundary_contract\": ");
+    push_hex_identity(output, record.boundary_contract_fingerprint);
+    output.push_str(", \"boundary_plan\": ");
+    push_boundary_plan_json(output, &record.boundary);
+    output.push_str(", \"provider\": ");
+    push_hex_identity(output, record.provider.normalized_identity());
+    output.push_str(", \"effects\": [");
+    push_identity_set(
+        output,
+        record
+            .effects
+            .iter()
+            .map(|identity| identity.normalized_identity()),
+    );
+    output.push_str("], \"trust_receipts\": [");
+    push_identity_set(
+        output,
+        record
+            .trust_receipts
+            .iter()
+            .map(|identity| identity.normalized_identity()),
+    );
+    output.push_str("], \"nesting_relation\": ");
+    push_hex_identity(output, record.nesting_relation.normalized_identity());
+    output.push_str(", \"acknowledgement_policy\": ");
+    if let Some(identity) = record.acknowledgement_policy {
+        push_hex_identity(output, identity.normalized_identity());
+    } else {
+        output.push_str("null");
+    }
+    output.push_str(", \"wcsu\": {\"bytes\": ");
+    output.push_str(&record.wcsu_bytes.to_string());
+    output.push_str(", \"alignment\": ");
+    output.push_str(&record.wcsu_alignment.to_string());
+    output.push_str("}, \"component_pins\": [");
+    for (index, pin) in record.component_pins.iter().enumerate() {
+        if index != 0 {
+            output.push_str(", ");
+        }
+        output.push_str("{\"contract\": ");
+        push_hex_identity(output, pin.contract.normalized_identity());
+        output.push_str(", \"artifact\": ");
+        push_hex_identity(output, pin.artifact.normalized_identity());
+        output.push_str(", \"provider\": ");
+        push_hex_identity(output, pin.provider.normalized_identity());
+        output.push_str(", \"version\": ");
+        push_hex_identity(output, pin.version.normalized_identity());
+        output.push('}');
+    }
+    output.push_str("]}");
+}
+
+fn push_boundary_plan_json(output: &mut String, plan: &BoundaryEntryPlan) {
+    output.push_str("{\"call\": {\"policy\": \"");
+    output.push_str(calling_policy_name(plan.call.policy));
+    output.push_str("\", \"parameters\": [");
+    for (index, placement) in plan.call.parameters.iter().enumerate() {
+        if index != 0 {
+            output.push_str(", ");
+        }
+        push_value_placement_json(output, placement);
+    }
+    output.push_str("], \"result\": ");
+    if let Some(result) = &plan.call.result {
+        push_value_placement_json(output, result);
+    } else {
+        output.push_str("null");
+    }
+    output.push_str(", \"ordinary_clobbers\": ");
+    push_register_set_json(output, &plan.call.ordinary_clobbers);
+    output.push_str(", \"stack_alignment\": ");
+    output.push_str(&plan.call.stack_alignment.to_string());
+    output.push_str(", \"shadow_bytes\": ");
+    output.push_str(&plan.call.shadow_bytes.to_string());
+    output.push_str(", \"entry_control\": ");
+    push_entry_control_json(output, plan.call.entry_control);
+    output.push_str("}, \"state\": {\"initial_regime\": ");
+    push_machine_regime_json(output, plan.state.initial_regime);
+    output.push_str(", \"interrupted_state_bits\": ");
+    push_hex_u16(output, plan.state.interrupted_state.bits());
+    output.push_str(", \"saved_state_bits\": ");
+    push_hex_u16(output, plan.state.saved_state.bits());
+    output.push_str(", \"restored_state_bits\": ");
+    push_hex_u16(output, plan.state.restored_state.bits());
+    output.push_str(", \"permitted_transitive_use_bits\": ");
+    push_hex_u16(output, plan.state.permitted_transitive_use.bits());
+    output.push_str(", \"stack\": ");
+    push_entry_stack_json(output, plan.state.stack);
+    output.push_str(", \"preemption\": ");
+    push_preemption_json(output, plan.state.preemption);
+    output.push_str("}}");
+}
+
+fn push_value_placement_json(output: &mut String, placement: &ValuePlacement) {
+    output.push_str("{\"shape\": ");
+    push_value_shape_json(output, placement.shape);
+    output.push_str(", \"locations\": [");
+    for (index, location) in placement.locations.iter().enumerate() {
+        if index != 0 {
+            output.push_str(", ");
+        }
+        push_value_location_json(output, *location);
+    }
+    output.push_str("]}");
+}
+
+fn push_value_shape_json(output: &mut String, shape: ValueShape) {
+    output.push_str("{\"class\": ");
+    match shape.class {
+        ValueClass::Integer => output.push_str("\"integer\""),
+        ValueClass::Float => output.push_str("\"float\""),
+        ValueClass::HomogeneousFloatAggregate { members } => {
+            output.push_str("{\"homogeneous_float_aggregate\": ");
+            output.push_str(&members.to_string());
+            output.push('}');
+        }
+        ValueClass::SystemVAggregate { first, second } => {
+            output.push_str("{\"system_v_aggregate\": [\"");
+            output.push_str(system_v_class_name(first));
+            output.push_str("\", \"");
+            output.push_str(system_v_class_name(second));
+            output.push_str("\"]}");
+        }
+    }
+    output.push_str(", \"byte_size\": ");
+    output.push_str(&shape.byte_size.to_string());
+    output.push_str(", \"alignment\": ");
+    output.push_str(&shape.alignment.to_string());
+    output.push('}');
+}
+
+fn push_value_location_json(output: &mut String, location: ValueLocation) {
+    match location {
+        ValueLocation::Register {
+            register,
+            value_byte_offset,
+            byte_size,
+        } => {
+            output.push_str("{\"register\": ");
+            push_register_json(output, register);
+            output.push_str(", \"value_byte_offset\": ");
+            output.push_str(&value_byte_offset.to_string());
+            output.push_str(", \"byte_size\": ");
+            output.push_str(&byte_size.to_string());
+            output.push('}');
+        }
+        ValueLocation::Stack {
+            stack_byte_offset,
+            value_byte_offset,
+            byte_size,
+            alignment,
+        } => {
+            output.push_str("{\"stack_byte_offset\": ");
+            output.push_str(&stack_byte_offset.to_string());
+            output.push_str(", \"value_byte_offset\": ");
+            output.push_str(&value_byte_offset.to_string());
+            output.push_str(", \"byte_size\": ");
+            output.push_str(&byte_size.to_string());
+            output.push_str(", \"alignment\": ");
+            output.push_str(&alignment.to_string());
+            output.push('}');
+        }
+        ValueLocation::Indirect {
+            pointer,
+            copy_stack_byte_offset,
+            byte_size,
+            alignment,
+        } => {
+            output.push_str("{\"indirect\": {\"pointer\": ");
+            push_indirect_pointer_json(output, pointer);
+            output.push_str(", \"copy_stack_byte_offset\": ");
+            if let Some(offset) = copy_stack_byte_offset {
+                output.push_str(&offset.to_string());
+            } else {
+                output.push_str("null");
+            }
+            output.push_str(", \"byte_size\": ");
+            output.push_str(&byte_size.to_string());
+            output.push_str(", \"alignment\": ");
+            output.push_str(&alignment.to_string());
+            output.push_str("}}");
+        }
+    }
+}
+
+fn push_indirect_pointer_json(output: &mut String, pointer: IndirectPointerLocation) {
+    match pointer {
+        IndirectPointerLocation::Register(register) => {
+            output.push_str("{\"register\": ");
+            push_register_json(output, register);
+            output.push('}');
+        }
+        IndirectPointerLocation::Stack {
+            stack_byte_offset,
+            alignment,
+        } => {
+            output.push_str("{\"stack_byte_offset\": ");
+            output.push_str(&stack_byte_offset.to_string());
+            output.push_str(", \"alignment\": ");
+            output.push_str(&alignment.to_string());
+            output.push('}');
+        }
+    }
+}
+
+fn push_register_set_json(output: &mut String, registers: &RegisterSet) {
+    output.push('[');
+    for (index, register) in registers.as_slice().iter().enumerate() {
+        if index != 0 {
+            output.push_str(", ");
+        }
+        push_register_json(output, *register);
+    }
+    output.push(']');
+}
+
+fn push_register_json(output: &mut String, register: MachineRegister) {
+    output.push('"');
+    match register {
+        MachineRegister::X86Rax => output.push_str("x86_rax"),
+        MachineRegister::X86Rcx => output.push_str("x86_rcx"),
+        MachineRegister::X86Rdx => output.push_str("x86_rdx"),
+        MachineRegister::X86Rbx => output.push_str("x86_rbx"),
+        MachineRegister::X86Rsp => output.push_str("x86_rsp"),
+        MachineRegister::X86Rbp => output.push_str("x86_rbp"),
+        MachineRegister::X86Rsi => output.push_str("x86_rsi"),
+        MachineRegister::X86Rdi => output.push_str("x86_rdi"),
+        MachineRegister::X86R8 => output.push_str("x86_r8"),
+        MachineRegister::X86R9 => output.push_str("x86_r9"),
+        MachineRegister::X86R10 => output.push_str("x86_r10"),
+        MachineRegister::X86R11 => output.push_str("x86_r11"),
+        MachineRegister::X86R12 => output.push_str("x86_r12"),
+        MachineRegister::X86R13 => output.push_str("x86_r13"),
+        MachineRegister::X86R14 => output.push_str("x86_r14"),
+        MachineRegister::X86R15 => output.push_str("x86_r15"),
+        MachineRegister::X86Xmm(index) => output.push_str(&format!("x86_xmm{index}")),
+        MachineRegister::Aarch64X(index) => output.push_str(&format!("aarch64_x{index}")),
+        MachineRegister::Aarch64V(index) => output.push_str(&format!("aarch64_v{index}")),
+    }
+    output.push('"');
+}
+
+fn push_entry_control_json(output: &mut String, control: EntryControl) {
+    match control {
+        EntryControl::CallReturn => output.push_str("\"call_return\""),
+        EntryControl::InterruptReturn => output.push_str("\"interrupt_return\""),
+        EntryControl::SupervisorCall {
+            number_register,
+            immediate,
+        } => {
+            output.push_str("{\"supervisor_call\": {\"number_register\": ");
+            push_register_json(output, number_register);
+            output.push_str(", \"immediate\": ");
+            output.push_str(&immediate.to_string());
+            output.push_str("}}");
+        }
+    }
+}
+
+fn push_machine_regime_json(output: &mut String, regime: MachineRegime) {
+    match regime {
+        MachineRegime::X86Long64 => output.push_str("\"x86_long64\""),
+        MachineRegime::Aarch64A64 { exception_level } => {
+            output.push_str("{\"aarch64_a64\": {\"exception_level\": ");
+            output.push_str(&exception_level.to_string());
+            output.push_str("}}");
+        }
+    }
+}
+
+fn push_entry_stack_json(output: &mut String, stack: EntryStack) {
+    match stack {
+        EntryStack::Interrupted => output.push_str("\"interrupted\""),
+        EntryStack::Dedicated { class } => {
+            output.push_str("{\"dedicated\": {\"class\": ");
+            output.push_str(&class.to_string());
+            output.push_str("}}");
+        }
+        EntryStack::ProviderSelected => output.push_str("\"provider_selected\""),
+    }
+}
+
+fn push_preemption_json(output: &mut String, preemption: Preemption) {
+    match preemption {
+        Preemption::NotApplicable => output.push_str("\"not_applicable\""),
+        Preemption::Masked => output.push_str("\"masked\""),
+        Preemption::Nestable { maximum_depth } => {
+            output.push_str("{\"nestable\": {\"maximum_depth\": ");
+            output.push_str(&maximum_depth.to_string());
+            output.push_str("}}");
+        }
+        Preemption::ProviderDefined => output.push_str("\"provider_defined\""),
+    }
+}
+
+const fn calling_policy_name(policy: CallingPolicy) -> &'static str {
+    match policy {
+        CallingPolicy::MicrosoftX64 => "microsoft_x64",
+        CallingPolicy::SystemVAMD64 => "system_v_amd64",
+        CallingPolicy::Aapcs64 => "aapcs64",
+        CallingPolicy::LinuxSyscallX86_64 => "linux_syscall_x86_64",
+        CallingPolicy::LinuxSyscallAarch64 => "linux_syscall_aarch64",
+    }
+}
+
+const fn system_v_class_name(class: SystemVEightbyteClass) -> &'static str {
+    match class {
+        SystemVEightbyteClass::Integer => "integer",
+        SystemVEightbyteClass::Sse => "sse",
+    }
+}
+
+fn push_identity_set(output: &mut String, identities: impl IntoIterator<Item = u64>) {
+    for (index, identity) in identities.into_iter().enumerate() {
+        if index != 0 {
+            output.push_str(", ");
+        }
+        push_hex_identity(output, identity);
+    }
+}
+
+fn push_hex_identity(output: &mut String, identity: u64) {
+    output.push('"');
+    output.push_str(&format!("0x{identity:016x}"));
+    output.push('"');
+}
+
+fn push_hex_u16(output: &mut String, bits: u16) {
+    output.push('"');
+    output.push_str(&format!("0x{bits:04x}"));
+    output.push('"');
 }
 
 fn html_report(title: &str, contents: &str) -> String {
@@ -1258,13 +1661,41 @@ fn mark_executable_if_needed(_path: &Path) -> Result<(), Diagnostic> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
+    use omega_calling_conventions::{
+        CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
+    };
     use omega_checked_trees::CheckedTrees;
     use omega_checked_trees::machine::Machine;
     use omega_checked_trees::name::Identifier;
     use omega_checked_trees::state::State;
     use omega_core::symbols::SymbolHandle;
+    use omega_executable_installation::{ArtifactId, InstallationDiagnostic, InstalledCodeId};
+    use omega_external_roots::{
+        AcknowledgementPolicyId, ComponentArtifactId, ComponentContractId, ComponentProviderId,
+        ComponentVersionPin, ComponentVersionPinId, ExternalRootDiagnostic, ExternalRootId,
+        InstalledRootRecord, NestingRelationId, RootAdmissionId, RootEffectId, RootProviderId,
+        RootSlotId, RootSlotOwnerId, TrustReceiptId,
+    };
+    use omega_layout_plans::EntryStubId;
 
-    use super::build_backend_surface_report;
+    use super::{build_backend_surface_report, external_root_records_manifest_json};
+
+    fn root_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExternalRootDiagnostic>) -> T {
+        constructor(identity).expect("normalized root identity")
+    }
+
+    fn install_id<T>(
+        identity: u64,
+        constructor: fn(u64) -> Result<T, InstallationDiagnostic>,
+    ) -> T {
+        constructor(identity).expect("normalized installation identity")
+    }
+
+    fn entry_id(identity: u64) -> EntryStubId {
+        EntryStubId::from_normalized_identity(identity).expect("normalized entry identity")
+    }
 
     #[test]
     fn collects_entry_machine() {
@@ -1295,5 +1726,73 @@ mod tests {
 
         assert_eq!(report.entry_points.len(), 1);
         assert_eq!(report.machines.len(), 1);
+    }
+
+    #[test]
+    fn external_root_manifest_is_complete_normalized_and_address_free() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8)],
+                result: None,
+            },
+        )
+        .expect("boundary plan");
+        let record = InstalledRootRecord {
+            root: root_id(1, ExternalRootId::from_normalized_identity),
+            normalized_root_identity: 0x101,
+            entry: entry_id(2),
+            installed_code: install_id(3, InstalledCodeId::from_normalized_identity),
+            artifact: install_id(4, ArtifactId::from_normalized_identity),
+            slot: root_id(5, RootSlotId::from_normalized_identity),
+            owner: root_id(6, RootSlotOwnerId::from_normalized_identity),
+            admission: root_id(7, RootAdmissionId::from_normalized_identity),
+            boundary_contract_fingerprint: boundary.contract_fingerprint(),
+            boundary: boundary.plan().clone(),
+            provider: root_id(8, RootProviderId::from_normalized_identity),
+            effects: BTreeSet::from([root_id(9, RootEffectId::from_normalized_identity)]),
+            trust_receipts: BTreeSet::from([root_id(10, TrustReceiptId::from_normalized_identity)]),
+            nesting_relation: root_id(11, NestingRelationId::from_normalized_identity),
+            acknowledgement_policy: Some(root_id(
+                12,
+                AcknowledgementPolicyId::from_normalized_identity,
+            )),
+            wcsu_bytes: 4096,
+            wcsu_alignment: 16,
+            component_pins: BTreeSet::from([ComponentVersionPin {
+                contract: root_id(13, ComponentContractId::from_normalized_identity),
+                artifact: root_id(14, ComponentArtifactId::from_normalized_identity),
+                provider: root_id(15, ComponentProviderId::from_normalized_identity),
+                version: root_id(16, ComponentVersionPinId::from_normalized_identity),
+            }]),
+        };
+
+        let first = external_root_records_manifest_json(0x202, &[&record]);
+        let second = external_root_records_manifest_json(0x202, &[&record]);
+        let parsed: serde_json::Value = serde_json::from_str(&first).expect("valid JSON manifest");
+
+        assert_eq!(first, second);
+        assert_eq!(parsed["root_count"], 1);
+        assert_eq!(
+            parsed["roots"][0]["normalized_root_identity"],
+            "0x0000000000000101"
+        );
+        assert_eq!(parsed["roots"][0]["entry"], "0x0000000000000002");
+        assert_eq!(
+            parsed["roots"][0]["boundary_plan"]["call"]["policy"],
+            "system_v_amd64"
+        );
+        assert_eq!(
+            parsed["roots"][0]["boundary_plan"]["state"]["stack"],
+            "provider_selected"
+        );
+        assert_eq!(parsed["roots"][0]["wcsu"]["bytes"], 4096);
+        assert_eq!(parsed["roots"][0]["effects"][0], "0x0000000000000009");
+        assert_eq!(
+            parsed["roots"][0]["component_pins"][0]["version"],
+            "0x0000000000000010"
+        );
+        assert!(!first.contains("entry_address"));
+        assert!(!first.contains("code_address"));
     }
 }
