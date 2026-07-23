@@ -312,6 +312,8 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
 
                 if input.at_punctuation(PunctuationKind::Comma) {
                     input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+                } else if input.at_punctuation(PunctuationKind::Plus) {
+                    input = input.take_punctuation(PunctuationKind::Plus, "+")?;
                 }
             }
             continue;

@@ -199,7 +199,7 @@ fn validate_state_signature_types<'program>(
 ) {
     for signature in signatures {
         validate_state_parameter_names(signature, owner, diagnostics);
-        validate_state_signature_effects(signature, owner, diagnostics);
+        validate_state_signature_effects(program, signature, owner, diagnostics);
         validate_state_signature_contracts(program, signature, owner, diagnostics);
 
         for parameter in signature.parameters {
@@ -240,12 +240,15 @@ fn validate_state_signature_types<'program>(
 }
 
 fn validate_state_signature_effects(
+    program: &TypedTrees,
     signature: StateSignatureView<'_>,
     owner: StateSignatureOwner<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for effect in signature.effects {
-        if !omega_effects::is_standard_effect_name(effect.as_str()) {
+        if !omega_effects::is_standard_effect_name(effect.as_str())
+            && !is_resolved_service_name(program, effect.as_str())
+        {
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} state `{}` declares unknown effect `{}`",
                 signature.name, effect
@@ -289,13 +292,27 @@ pub(crate) fn validate_machine_effects(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for effect in program.machine_effects(machine) {
-        if !omega_effects::is_standard_effect_name(effect.as_str()) {
+        if !omega_effects::is_standard_effect_name(effect.as_str())
+            && !is_resolved_service_name(program, effect.as_str())
+        {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` declares unknown effect `{}`",
                 machine.name, effect
             )));
         }
     }
+}
+
+fn is_resolved_service_name(program: &TypedTrees, name: &str) -> bool {
+    program
+        .symbols
+        .find_child_by_name_and_kind(
+            program.symbols.root(),
+            name,
+            omega_core::symbols::SymbolKind::Trait,
+        )
+        .and_then(|symbol| program.service_reaches.id_for_symbol(symbol))
+        .is_some()
 }
 
 pub(crate) fn validate_machine_contracts(

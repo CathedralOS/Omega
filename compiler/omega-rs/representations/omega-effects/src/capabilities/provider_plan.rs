@@ -33,6 +33,10 @@ pub struct ServiceMethod {
     pub has_result: bool,
     /// The method's declared effect names (`stdout_io`, `filesystem_io`).
     pub effects: Vec<String>,
+    /// EFX: normalized boundary-service identities rendered from the
+    /// symbol-resolved service table. This includes the containing boundary
+    /// trait and any explicit additional reach (with parent closure).
+    pub service_reach: Vec<String>,
     /// Canonical validated `BoundaryEntryPlan` identity selected by a concrete
     /// `Calling<C>` relationship. Policy type/source identity is excluded.
     pub calling_plan_fingerprint: Option<u64>,
@@ -187,6 +191,7 @@ fn collect_service_methods(
                 .iter()
                 .map(|effect| effect.as_str().to_owned())
                 .collect(),
+            service_reach: service_reach_names(program, trait_definition, signature),
             calling_plan_fingerprint: program.boundary_calling_plan_fingerprint_for_arguments(
                 policy_owner,
                 boundary_arguments,
@@ -194,6 +199,36 @@ fn collect_service_methods(
             ),
         });
     }
+}
+
+fn service_reach_names(
+    program: &omega_typed_trees::TypedTrees,
+    trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
+    signature: &omega_typed_trees::signature::StateSignature,
+) -> Vec<String> {
+    let mut services = program
+        .service_reach_rows
+        .services(signature.service_reach_row)
+        .to_vec();
+    if trait_definition.is_boundary
+        && let Some(service) = program
+            .service_reaches
+            .id_for_symbol(trait_definition.symbol)
+    {
+        program
+            .service_reaches
+            .extend_closure(service, &mut services);
+    }
+    services.sort_by_key(|service| service.0);
+    services.dedup();
+    let mut names = services
+        .into_iter()
+        .filter_map(|service| program.service_reaches.definition(service))
+        .map(|definition| definition.name.clone())
+        .collect::<Vec<_>>();
+    names.sort_unstable();
+    names.dedup();
+    names
 }
 
 impl ProviderPlan {
@@ -216,6 +251,8 @@ impl ProviderPlan {
                 method.has_result,
                 method.effects.join(",")
             ));
+            rendered.push_str("/services:");
+            rendered.push_str(&method.service_reach.join("+"));
             if let Some(fingerprint) = method.calling_plan_fingerprint {
                 rendered.push_str(&format!("/calling:{fingerprint:016x}"));
             }
@@ -325,6 +362,7 @@ mod tests {
                     parameter_count: 1,
                     has_result: false,
                     effects: vec!["stdout_io".to_owned()],
+                    service_reach: vec!["Console".to_owned()],
                     calling_plan_fingerprint: None,
                 },
                 ServiceMethod {
@@ -332,6 +370,7 @@ mod tests {
                     parameter_count: 0,
                     has_result: true,
                     effects: vec!["stdin_io".to_owned()],
+                    service_reach: vec!["Console".to_owned()],
                     calling_plan_fingerprint: None,
                 },
                 ServiceMethod {
@@ -339,6 +378,7 @@ mod tests {
                     parameter_count: 1,
                     has_result: false,
                     effects: Vec::new(),
+                    service_reach: vec!["Console".to_owned()],
                     calling_plan_fingerprint: None,
                 },
             ],

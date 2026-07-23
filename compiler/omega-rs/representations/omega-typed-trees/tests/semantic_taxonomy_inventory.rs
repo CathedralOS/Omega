@@ -82,6 +82,7 @@ fn machine_record_carries_the_termination_plan_beside_the_compat_bools() {
             termination_plan: _,
             // STR4 (2026-07-16): the normalized kinded effect-row identity.
             effect_row: _,
+            service_reach_row: _,
             type_parameters: _,
             contains: _,
             owned_data: _,

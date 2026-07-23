@@ -88,6 +88,7 @@ pub(crate) fn lower_state_signature(
             .transpose()?
             .unwrap_or_else(typed::types::TypeReferenceHandle::invalid),
         effects: Default::default(),
+        service_reach_row: signature.service_reach_row,
         suspends: signature.suspends,
         blocks: signature.blocks,
         contracts: Default::default(),

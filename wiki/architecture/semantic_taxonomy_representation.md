@@ -466,7 +466,7 @@ the entailment engine may gate reachability or legality but never rewrite a
 published ceiling. `MachineTerminationPlan` remains independent and retains
 the positive `terminates` guarantee and private ranking witness.
 
-Implementation status (EFX syntax/checked plans, 2026-07-23): `omega-core` now owns
+Implementation status (EFX symbol-resolved service plans, 2026-07-23): `omega-core` now owns
 distinct `ServiceReachId`/`ServiceReachRowId` identities, deterministic
 service-row set normalization, and independent service, suspension, and
 blocking plans. The operational interfaces distinguish private inference from
@@ -476,11 +476,17 @@ parse independently, survive syntax/resolved/typed trees and snapshots, enter
 checked `MachineContractPlan` values and fingerprints, and drive task
 admission. Operational names are rejected in source `effects` rows, normalized
 service rows filter every operational member, and the migrated task/carry
-fixtures use the split spelling. The legacy flat `EffectSet` remains a private
-fixed-point compatibility engine for carry/provider consumers; its operational
-bits currently seed the checked booleans but never re-enter service-row
-identity. Dedicated may-axis fixed points and remaining consumer retirement are
-the next EFX slice.
+fixtures use the split spelling. Boundary traits now mint canonical identities
+after symbol assignment; machine, requirement, and nested machine-parameter
+rows resolve through the symbol table and include boundary-parent closure. A
+separate recursive service fixed point drives checked ceilings, static-machine
+and checked-provider admission, provider schemas, contract fingerprints,
+snapshots, and manifests. Ordinary policy traits never mint service identity.
+The legacy flat `EffectSet` remains only for capability/authority, flow/graph,
+build-time-purity, assembly, component-report, and lowercase-fixture consumers;
+dedicated may-axis fixed points no longer depend on operational bits. Migrating
+those remaining service consumers and deleting the compatibility engine is the
+next EFX slice.
 
 Authority possession, provider trust receipts, resource bounds, failure
 outcomes, and mutation remain separate fields/analyses. Do not manufacture a

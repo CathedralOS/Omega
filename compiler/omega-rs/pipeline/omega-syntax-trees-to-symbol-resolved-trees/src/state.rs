@@ -154,6 +154,7 @@ pub(crate) fn lower_state_signature_parts(
             parameters,
             return_type,
             effects,
+            service_reach_row: omega_core::semantics::ServiceReachRowId::NULL,
             suspends,
             blocks,
             contracts,

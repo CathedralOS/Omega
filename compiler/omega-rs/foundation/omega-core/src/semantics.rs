@@ -621,6 +621,85 @@ impl ServiceReachRowTable {
     }
 }
 
+/// One normalized boundary-service declaration. `symbol` is the resolved
+/// declaration identity used inside a compilation; `name` is retained for
+/// diagnostics and artifact rendering. Parent closure is normalized once from
+/// resolved boundary-trait composition and never reconstructed from spelling.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServiceReachDefinition {
+    pub symbol: crate::symbols::SymbolHandle,
+    pub name: String,
+    pub parents: Vec<ServiceReachId>,
+}
+
+/// Deterministic registry of boundary-service identities. The resolved-tree
+/// normalizer interns declarations in canonical name order after symbol
+/// assignment, so unrelated source ordering does not perturb row order.
+/// Ordinary traits never enter this table.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ServiceReachTable {
+    definitions: Vec<ServiceReachDefinition>,
+}
+
+impl ServiceReachTable {
+    pub fn intern(&mut self, symbol: crate::symbols::SymbolHandle, name: &str) -> ServiceReachId {
+        if let Some((index, _)) = self
+            .definitions
+            .iter()
+            .enumerate()
+            .find(|(_, definition)| definition.symbol == symbol)
+        {
+            return ServiceReachId(u32::try_from(index + 1).expect("service table fits u32"));
+        }
+        self.definitions.push(ServiceReachDefinition {
+            symbol,
+            name: name.to_owned(),
+            parents: Vec::new(),
+        });
+        ServiceReachId(u32::try_from(self.definitions.len()).expect("service table fits u32"))
+    }
+
+    pub fn id_for_symbol(&self, symbol: crate::symbols::SymbolHandle) -> Option<ServiceReachId> {
+        self.definitions
+            .iter()
+            .position(|definition| definition.symbol == symbol)
+            .map(|index| ServiceReachId(u32::try_from(index + 1).expect("service table fits u32")))
+    }
+
+    pub fn definition(&self, id: ServiceReachId) -> Option<&ServiceReachDefinition> {
+        id.0.checked_sub(1)
+            .and_then(|index| self.definitions.get(index as usize))
+    }
+
+    pub fn definitions(&self) -> &[ServiceReachDefinition] {
+        &self.definitions
+    }
+
+    pub fn set_parents(&mut self, id: ServiceReachId, mut parents: Vec<ServiceReachId>) {
+        parents.sort_by_key(|parent| parent.0);
+        parents.dedup();
+        if let Some(definition) =
+            id.0.checked_sub(1)
+                .and_then(|index| self.definitions.get_mut(index as usize))
+        {
+            definition.parents = parents;
+        }
+    }
+
+    /// Append `service` and its already-normalized parent closure.
+    pub fn extend_closure(&self, service: ServiceReachId, services: &mut Vec<ServiceReachId>) {
+        if services.contains(&service) {
+            return;
+        }
+        services.push(service);
+        if let Some(definition) = self.definition(service) {
+            for parent in &definition.parents {
+                self.extend_closure(*parent, services);
+            }
+        }
+    }
+}
+
 /// PRV4 step 1: the deterministic EXTERNAL-BINDING interner -- normalized
 /// rendered `via` bindings, minted in declaration order. `NULL`/0 stays
 /// "not computed"; ids start at 1.

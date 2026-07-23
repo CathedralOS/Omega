@@ -120,6 +120,7 @@ pub(crate) fn lower_machine_into(
         termination_plan,
         // STR4: the effect row's ONE population site.
         effect_row,
+        service_reach_row: omega_core::semantics::ServiceReachRowId::NULL,
         storage: MachineStorage {
             type_parameters,
             contains: HandleSpan::empty(),

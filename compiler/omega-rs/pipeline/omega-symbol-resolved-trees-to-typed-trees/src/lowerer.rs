@@ -35,6 +35,8 @@ pub fn lower_symbol_resolved_trees(
     // STR4: the effect-row interner copies verbatim so the machines'
     // `effect_row` ids stay valid in the typed trees.
     lowerer.typed_trees.effect_rows = symbol_resolved_trees.effect_rows.clone();
+    lowerer.typed_trees.service_reaches = symbol_resolved_trees.service_reaches.clone();
+    lowerer.typed_trees.service_reach_rows = symbol_resolved_trees.service_reach_rows.clone();
     lowerer.typed_trees.semantic_domains = symbol_resolved_trees.semantic_domains.clone();
 
     for invariant_definition in &symbol_resolved_trees.invariant_definitions {
@@ -131,6 +133,8 @@ impl Lowerer<'_> {
             tables,
             symbols,
             effect_rows,
+            service_reaches,
+            service_reach_rows,
             semantic_domains,
             plan_laid_layouts: _,
             wire_placements: _,
@@ -142,6 +146,8 @@ impl Lowerer<'_> {
         let mut trees = TypedTrees::with_roots(roots, tables, symbols);
         // STR4: the copied interners survive the rebuild.
         trees.effect_rows = effect_rows;
+        trees.service_reaches = service_reaches;
+        trees.service_reach_rows = service_reach_rows;
         trees.semantic_domains = semantic_domains;
         normalize_domain_constraints(&mut trees);
         Ok(trees)

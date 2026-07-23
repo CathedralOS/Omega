@@ -10,8 +10,8 @@
 //! halves enter the fingerprint, never inferred rows or witnesses.
 
 use omega_core::semantics::{
-    BlockingInterface, BlockingPlan, EffectRowId, MachineSupplyMode, SuspensionInterface,
-    SuspensionPlan, TerminationGuarantee,
+    BlockingInterface, BlockingPlan, EffectRowId, MachineSupplyMode, ServiceReachPlan,
+    SuspensionInterface, SuspensionPlan, TerminationGuarantee,
 };
 use omega_core::symbols::SymbolHandle;
 
@@ -55,6 +55,9 @@ pub struct MachineContractPlan {
     /// The authored `effects` clause's normalized row (the published
     /// ceiling; the EMPTY row when no clause).
     pub published_effect_row: EffectRowId,
+    /// EFX: the durable symbol-resolved service contract. The legacy effect
+    /// row above remains only while downstream compatibility consumers move.
+    pub service_reach: ServiceReachPlan,
     /// Independent authored/inferred operational axes. These are never
     /// reconstructed from `published_effect_row`.
     pub suspension: SuspensionPlan,
@@ -87,6 +90,7 @@ pub fn contract_fingerprint(
     supply_mode: MachineSupplyMode,
     published_effect_row: EffectRowId,
     published_effect_members: &[omega_core::semantics::EffectMemberId],
+    published_service_names: &[String],
     suspension_interface: SuspensionInterface,
     blocking_interface: BlockingInterface,
     published_termination: &TerminationGuarantee,
@@ -120,6 +124,18 @@ pub fn contract_fingerprint(
         for byte in member.0.to_le_bytes() {
             fold(byte);
         }
+    }
+    // Boundary-service declaration identity, rendered canonically rather than
+    // folding per-program row or service-table indices.
+    fold(0xfb);
+    let mut canonical_service_names = published_service_names.iter().collect::<Vec<_>>();
+    canonical_service_names.sort_unstable();
+    canonical_service_names.dedup();
+    for name in canonical_service_names {
+        for byte in name.as_bytes() {
+            fold(*byte);
+        }
+        fold(0xfa);
     }
     fold(match suspension_interface {
         SuspensionInterface::InternalInferred => 1,
@@ -166,6 +182,7 @@ mod tests {
                 MachineSupplyMode::Boundary,
                 EffectRowId::NULL,
                 &[],
+                &[],
                 suspension,
                 blocking,
                 &TerminationGuarantee::NoGuarantee,
@@ -187,5 +204,29 @@ mod tests {
         assert_ne!(neither, suspending);
         assert_ne!(neither, blocking);
         assert_ne!(suspending, blocking);
+    }
+
+    #[test]
+    fn symbol_resolved_service_names_participate_in_contract_identity() {
+        let fingerprint = |services: &[String]| {
+            contract_fingerprint(
+                MachineSupplyMode::Boundary,
+                EffectRowId::NULL,
+                &[],
+                services,
+                SuspensionInterface::PublishedMaySuspend(false),
+                BlockingInterface::PublishedMayBlock(false),
+                &TerminationGuarantee::NoGuarantee,
+                &[],
+            )
+        };
+        let empty = fingerprint(&[]);
+        let readable = fingerprint(&["Readable".to_owned()]);
+        let queryable = fingerprint(&["Queryable".to_owned()]);
+        let composite = fingerprint(&["Readable".to_owned(), "Queryable".to_owned()]);
+        let reordered = fingerprint(&["Queryable".to_owned(), "Readable".to_owned()]);
+        assert_ne!(empty, readable);
+        assert_ne!(readable, queryable);
+        assert_eq!(composite, reordered);
     }
 }

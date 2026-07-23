@@ -33,12 +33,22 @@ pub(crate) fn build_check_facts(
     // diagnostics cannot disagree).
     let termination = crate::checks::termination::build_termination_facts(program);
     // STR4 slice 2: kinded effect rows (published ceiling vs inferred).
-    let effect_rows = build_effect_row_facts(program, &effects);
+    let mut effect_rows = build_effect_row_facts(program, &effects);
+    // EFX: the durable service-reach fixed point is built independently from
+    // resolved boundary-trait identities. The legacy effect rows remain only
+    // for consumers not yet migrated.
+    let service_reaches = build_service_reach_facts(program, &effects);
+    effect_rows.service_reaches = service_reaches;
     // STR4 checked plans, slice 2: semantic-domain commitments per machine.
     let qualifications = build_qualification_facts(program);
     // STR4 checked plans: the normalized machine contracts (published
     // halves + fingerprint; prover-independent by construction).
-    let contract_plans = build_contract_plans(program, &effect_rows, &effects);
+    let contract_plans = build_contract_plans(
+        program,
+        &effect_rows,
+        &effect_rows.service_reaches,
+        &effects,
+    );
     // CRY1: materialize the effective structural policy once in the checked
     // fact layer; authored clauses remain minimum promises on typed data.
     let carry = build_carry_facts(program);
@@ -88,6 +98,7 @@ fn build_carry_facts(program: &TypedTrees) -> omega_checked_trees::CarryFacts {
 fn build_contract_plans(
     program: &TypedTrees,
     effect_rows: &omega_checked_trees::EffectRowFacts,
+    service_reaches: &omega_checked_trees::ServiceReachFacts,
     effects: &EffectPlan,
 ) -> omega_checked_trees::MachineContractPlans {
     let mut machines = Vec::new();
@@ -95,6 +106,33 @@ fn build_contract_plans(
     for machine in program.machines() {
         let published_effect_row = machine.effect_row;
         let members = effect_rows.rows.members(published_effect_row).to_vec();
+        let service_fact = service_reaches.for_machine(machine.symbol);
+        let published_service_row = machine.service_reach_row;
+        let published_service_names = service_reaches
+            .rows
+            .services(published_service_row)
+            .iter()
+            .filter_map(|service| service_reaches.services.definition(*service))
+            .map(|definition| definition.name.clone())
+            .collect::<Vec<_>>();
+        let publishes_service_contract = machine.supply_mode
+            != omega_core::semantics::MachineSupplyMode::CheckedBody
+            || !program
+                .service_reach_rows
+                .services(machine.service_reach_row)
+                .is_empty();
+        let service_reach = omega_core::semantics::ServiceReachPlan {
+            interface: if publishes_service_contract {
+                omega_core::semantics::ServiceReachInterface::PublishedCeiling(
+                    published_service_row,
+                )
+            } else {
+                omega_core::semantics::ServiceReachInterface::InternalInferred
+            },
+            checked_inferred: service_fact
+                .map(|fact| fact.inferred_transitive)
+                .unwrap_or(omega_core::semantics::ServiceReachRowTable::EMPTY_ROW),
+        };
         let published_termination = machine
             .termination_plan
             .published
@@ -267,6 +305,7 @@ fn build_contract_plans(
             machine.supply_mode,
             published_effect_row,
             &members,
+            &published_service_names,
             suspension.interface,
             blocking.interface,
             &published_termination,
@@ -288,6 +327,7 @@ fn build_contract_plans(
             machine: machine.symbol,
             supply_mode: machine.supply_mode,
             published_effect_row,
+            service_reach,
             suspension,
             blocking,
             published_termination,
@@ -529,7 +569,40 @@ fn build_effect_row_facts(
             inferred_transitive,
         });
     }
-    omega_checked_trees::EffectRowFacts { rows, machines }
+    omega_checked_trees::EffectRowFacts {
+        rows,
+        machines,
+        service_reaches: Default::default(),
+    }
+}
+
+/// Build the boundary-symbol service fixed point without consulting the
+/// legacy global effect catalog. A direct boundary-signature call contributes
+/// its containing service plus the signature's explicitly reached services.
+/// Checked local callees contribute honest inferred bodies; requirements,
+/// boundaries, external realizations, and authored checked ceilings contribute
+/// their published row.
+fn build_service_reach_facts(
+    program: &TypedTrees,
+    effects: &EffectPlan,
+) -> omega_checked_trees::ServiceReachFacts {
+    let inferred = omega_effects::infer_service_reaches(program, effects);
+    let mut rows = program.service_reach_rows.clone();
+    let machines = inferred
+        .machines
+        .into_iter()
+        .map(|machine| omega_checked_trees::MachineServiceReachRows {
+            machine: machine.machine,
+            published_ceiling: rows.intern(machine.published),
+            inferred_direct: rows.intern(machine.inferred_direct),
+            inferred_transitive: rows.intern(machine.inferred_transitive),
+        })
+        .collect();
+    omega_checked_trees::ServiceReachFacts {
+        services: program.service_reaches.clone(),
+        rows,
+        machines,
+    }
 }
 
 /// A stable, spelling-independent byte encoding of a contract fact
