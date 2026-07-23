@@ -130,6 +130,14 @@ Proof citations are statement-ordered: an earlier checked citation can
 establish a later citation's `requires`, but a later statement can never justify
 an earlier call. No Nat metric law is built into the checker.
 
+Rational triangle is likewise division-free. `rat_gap_triangle_scaled(p,q,r)`
+lifts all three gaps to the shared denominator and proves
+`q.den * gap(p,r) <= r.den * gap(p,q) + p.den * gap(q,r)`. It is an ordinary
+composition of Nat gap homogeneity, commutative-semiring factor rearrangement,
+and `nat_gap_triangle`. Citing it substitutes symbolic member places into the
+consumer's frame (`p.den` becomes the actual argument's `.den`); the names in a
+theorem declaration are never observable at a citation site.
+
 The first sequence-facing atoms are ordinary generic machines too.
 `cauchy_at<Sequence, Modulus>(precision, i, j) == Nat::Zero` states the
 same-generator point obligation after `i` and `j` have reached the static

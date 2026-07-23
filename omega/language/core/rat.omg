@@ -16,6 +16,7 @@
 // layout skip apply exactly as they do for Nat and IntPair.
 
 use omega::language::core::nat;
+use omega::language::core::nat_metric;
 
 data Rat {
     num: Nat;
@@ -133,4 +134,42 @@ ensures
 {
     rat_gap_symmetric(q, p);
     mul_comm(q.den, p.den);
+}
+
+// Triangle inequality after lifting all three cross-product gaps to the
+// shared denominator p.den * q.den * r.den:
+//
+//   q.den * gap(p,r) <= r.den * gap(p,q) + p.den * gap(q,r)
+//
+// The proof is Nat's checked triangle at the common numerators x,y,z. The
+// only Rat-specific work is rearranging factors and applying homogeneity.
+machine rat_gap_triangle_scaled(p: Rat, q: Rat, r: Rat)
+ensures
+    (sub(
+        mul(q.den, rat_gap(p, r)),
+        add(mul(r.den, rat_gap(p, q)), mul(p.den, rat_gap(q, r)))
+    )) == Nat::Zero
+{
+    let pr_left: Nat = mul(p.num, r.den);
+    let pr_right: Nat = mul(r.num, p.den);
+    let pq_left: Nat = mul(p.num, q.den);
+    let pq_right: Nat = mul(q.num, p.den);
+    let qr_left: Nat = mul(q.num, r.den);
+    let qr_right: Nat = mul(r.num, q.den);
+    let x: Nat = mul(pq_left, r.den);
+    let y: Nat = mul(pq_right, r.den);
+    let z: Nat = mul(pr_right, q.den);
+
+    mul_swap_trailing(p.num, r.den, q.den);
+    mul_swap_trailing(q.num, r.den, p.den);
+    mul_swap_trailing(r.num, q.den, p.den);
+
+    nat_gap_mul_right(pr_left, pr_right, q.den);
+    nat_gap_mul_right(pq_left, pq_right, r.den);
+    nat_gap_mul_right(qr_left, qr_right, p.den);
+
+    mul_comm(q.den, rat_gap(p, r));
+    mul_comm(r.den, rat_gap(p, q));
+    mul_comm(p.den, rat_gap(q, r));
+    nat_gap_triangle(x, y, z);
 }

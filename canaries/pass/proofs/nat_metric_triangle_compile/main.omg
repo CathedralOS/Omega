@@ -9,6 +9,13 @@ ensures
     nat_gap_triangle(a, b, c);
 }
 
+machine scaled_gap_available(a: Nat, b: Nat, factor: Nat)
+ensures
+    (nat_gap(mul(a, factor), mul(b, factor))) == (mul(nat_gap(a, b), factor))
+{
+    nat_gap_mul_right(a, b, factor);
+}
+
 data Main {
 }
 

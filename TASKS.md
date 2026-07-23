@@ -1151,9 +1151,13 @@ stronger operations it needs instead of citing machine parameters generally.
   when every incoming binding descends. Citation preconditions consume only
   facts established earlier in statement order, so transitivity and combined
   monotonicity proofs compose without implicit/global lemma application and a
-  later fact cannot justify an earlier citation. Next lift the Nat triangle
-  through multiplication and Rat denominator scaling, establish the
-  precision-splitting convergence/transitivity ladder, build the certified
+  later fact cannot justify an earlier citation. Absolute Nat gaps now scale
+  through a shared multiplier, and `rat_gap_triangle_scaled` lifts the Nat
+  triangle to the three fractions' common denominator. Citation
+  alpha-substitution also carries symbolic member places (`p.den`) into the
+  caller frame, so that Rat theorem is reusable rather than merely checked in
+  isolation. Next establish multiplication order/cancellation and the
+  precision-splitting closeness/convergence ladder, build the certified
   `CauchySeq` carrier, and replace boundary `Real` with
   `CauchySeq % converges_together`; prove operation well-definedness and
   order/completeness, and retire axioms through the normal boundary-upgrade

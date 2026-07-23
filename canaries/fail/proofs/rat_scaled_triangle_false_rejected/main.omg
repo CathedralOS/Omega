@@ -1,0 +1,23 @@
+// FAIL CANARY: citing the checked shared-denominator triangle yields Zero;
+// the same residual cannot simultaneously be a positive Nat. This also pins
+// citation alpha-substitution for symbolic Rat member places.
+use omega::language::core::rat;
+
+machine false_scaled_triangle(left: Rat, middle: Rat, right: Rat)
+ensures
+    (sub(
+        mul(middle.den, rat_gap(left, right)),
+        add(
+            mul(right.den, rat_gap(left, middle)),
+            mul(left.den, rat_gap(middle, right))
+        )
+    )) == (Nat::Succ { prev: Nat::Zero })
+{
+    rat_gap_triangle_scaled(left, middle, right);
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

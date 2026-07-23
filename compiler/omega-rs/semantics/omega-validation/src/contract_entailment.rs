@@ -5035,7 +5035,28 @@ impl<'program> StructuralJudge<'program> {
                     .map(|argument| Self::substitute_term(argument, map))
                     .collect(),
             },
-            StructuralTerm::Opaque(_) => term.clone(),
+            StructuralTerm::Opaque(display) => {
+                // Symbolic record member places currently share the Opaque
+                // vocabulary (`p.den`). Citation instantiation must still
+                // alpha-substitute their exact root parameter; otherwise a
+                // cited Rat law leaks callee names into the caller frame.
+                // Restrict the rewrite to an exact `<parameter>.` prefix and
+                // a place-like replacement, so arbitrary opaque arithmetic
+                // displays never gain string-rewrite semantics.
+                for (parameter, replacement) in map {
+                    let prefix = format!("{parameter}.");
+                    let Some(suffix) = display.strip_prefix(&prefix) else {
+                        continue;
+                    };
+                    return match replacement {
+                        StructuralTerm::Variable(root) | StructuralTerm::Opaque(root) => {
+                            StructuralTerm::Opaque(format!("{root}.{suffix}"))
+                        }
+                        _ => term.clone(),
+                    };
+                }
+                term.clone()
+            }
         }
     }
 
