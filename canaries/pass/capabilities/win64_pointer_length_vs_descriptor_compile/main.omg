@@ -1,0 +1,29 @@
+// ENT2c: identical scalar members do not make these foreign declarations ABI
+// equivalent. Microsoft x64 passes the separate pointer and length in two
+// positional registers, while the 16-byte descriptor is one indirect
+// aggregate argument backed by a caller-owned copy.
+data ByteDescriptor {
+    pointer: addr;
+    length: u64;
+}
+
+boundary trait NativeByteShapes {
+    machine take_separate(pointer: addr, length: u64) -> i32;
+    machine take_descriptor(value: ByteDescriptor) -> i32;
+}
+
+machine take_separate(pointer: addr, length: u64) -> i32 satisfies NativeByteShapes::take_separate via Binding::DllImport("omega_abi_probe.dll", "omega_win64_take_separate");
+machine take_descriptor(value: ByteDescriptor) -> i32 satisfies NativeByteShapes::take_descriptor via Binding::DllImport("omega_abi_probe.dll", "omega_win64_take_descriptor");
+
+data Main {
+    foreign: NativeByteShapes;
+    pointer: addr;
+    length: u64;
+    descriptor: ByteDescriptor;
+    status: i32;
+}
+
+machine Main::main(&mut self) {
+    self.status = self.foreign.take_separate(self.pointer, self.length);
+    self.status = self.foreign.take_descriptor(self.descriptor);
+}

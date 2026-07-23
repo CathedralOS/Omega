@@ -1,0 +1,31 @@
+// ENT2c: text carries an ordinary byte representation plus an erased predicate
+// fact. A checked outbound adapter may freely forget the predicate fact when
+// handing bytes to a raw consumer. Bytes received without that fact must pass
+// through an explicit validator before a checked consumer can require Utf8.
+domain [u8]::Utf8 {
+    valid_utf8(self);
+}
+
+boundary operator Text::validate_utf8(text: &mut [u8]) -> ()
+ensures
+    text in Utf8;
+
+data Main {
+    checked: &[u8] in Utf8;
+    raw: &mut [u8];
+}
+
+machine Main::consume_raw(&self, text: &[u8]) {
+}
+
+machine Main::consume_checked(&self, text: &[u8] in Utf8) {
+}
+
+machine Main::main(&mut self) {
+    // Outbound: erase only the predicate fact; the byte view is unchanged.
+    self.consume_raw(self.checked);
+
+    // Inbound: validation performs work and establishes the predicate fact.
+    Text::validate_utf8(self.raw);
+    self.consume_checked(self.raw);
+}
