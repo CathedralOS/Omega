@@ -1,8 +1,8 @@
-// Positive proof-context operator selection (chapter 8, "Domain-Sensitive
-// Operators"): the caller's `requires` proves `left in Quantity::Additive`, so
-// the domain-owned `+` meaning is admissible at the use site and — being the
-// unique admissible meaning for a `Quantity` operand — is selected for the
-// expression. Without that proven fact this exact program is rejected (see
+// Binding-site operator selection (chapter 8, "Domain-Sensitive Operators"):
+// the signature's `requires` selects `Quantity::Additive` for the `left`
+// binding, so the unique domain-owned `+` meaning is selected. This is a static
+// signature choice, not an inference from the body's flow facts. Without that
+// binding-site selection this exact program is rejected (see
 // fail/domains/domain_operator_meaning_unproven).
 
 data Quantity {

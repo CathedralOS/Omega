@@ -1,39 +1,34 @@
-//! Positive proof-context selection for domain-owned operator meanings
-//! (chapter 8, "Domain-Sensitive Operators"): a domain-owned spelled candidate
-//! is ADMISSIBLE at a use site only when the left operand's membership in the
-//! owning domain is a PROVEN fact in the flow context entering the statement.
-//! The same context the call-`requires` discharge reads supplies the facts, so
-//! caller `requires`, call `ensures`, and interleaved mutation invalidation
-//! all participate for free.
+//! Binding-site selection for domain-owned operator meanings (chapter 8,
+//! "Domain-Sensitive Operators"). A domain-owned candidate participates only
+//! when its semantic facet is selected by an operand declaration, explicit
+//! mint, or signature `requires`. Flow-established predicate membership never
+//! changes operator meaning.
 //!
-//! Selection ruling (recorded in TASKS): exactly one admissible domain meaning
-//! wins the expression — the proven fact deliberately narrowed the context and
-//! exposes a unique meaning, so it takes precedence over the builtin surface.
+//! Exactly one active domain meaning wins the expression and takes precedence
+//! over the builtin surface.
 //! No admissible domain meaning leaves the ordinary operation in place when
 //! one exists (unique root candidate or a primitive operand's builtin), and is
 //! rejected otherwise. Two or more admissible domain meanings are ambiguous.
 
 use omega_checked_trees::{
     CheckedOperatorCandidateFact, CheckedOperatorFacts, CheckedOperatorResolutionStatus,
-    CheckedOperatorUseFact, CheckedValueOrigin, FlowFacts, FlowStateFact,
+    CheckedOperatorUseFact, CheckedValueOrigin,
 };
 use omega_core::symbols::SymbolHandle;
-use omega_facts::FactPlan;
 use omega_typed_trees::TypedTrees;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use omega_typed_trees::domain::ProofFact;
+use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
+use omega_typed_trees::signature::SignatureContractKind;
 use omega_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 use super::receiver::expression_type_reference_for_origin;
-use crate::semantic_places::canonical_place_to_fact_place_in_state;
 
-/// Rewrites every `DomainPending` operator use into its final resolution
-/// status using the proof contexts that now exist. Runs after flow facts are
-/// built and before the checks; no `DomainPending` use survives this pass.
+/// Rewrites every `DomainPending` use from static binding-site selections. No
+/// proof/fact environment is accepted here, making the activation law hard to
+/// violate accidentally.
 pub(crate) fn select_pending_domain_operator_meanings(
     program: &TypedTrees,
     operators: &mut CheckedOperatorFacts,
-    semantic: &mut FactPlan,
-    flow: &FlowFacts,
 ) {
     let pending: Vec<_> = operators
         .uses
@@ -48,7 +43,7 @@ pub(crate) fn select_pending_domain_operator_meanings(
         let candidates: Vec<CheckedOperatorCandidateFact> =
             operators.candidates(&operator_use).to_vec();
         let (status, selected_operator_symbol) =
-            finalize_pending_use(program, semantic, flow, &operator_use, &candidates);
+            finalize_pending_use(program, &operator_use, &candidates);
         let operator_use = operators.uses.get_mut(handle);
         operator_use.status = status;
         operator_use.selected_operator_symbol = selected_operator_symbol;
@@ -57,23 +52,13 @@ pub(crate) fn select_pending_domain_operator_meanings(
 
 fn finalize_pending_use(
     program: &TypedTrees,
-    semantic: &mut FactPlan,
-    flow: &FlowFacts,
     operator_use: &CheckedOperatorUseFact,
     candidates: &[CheckedOperatorCandidateFact],
 ) -> (CheckedOperatorResolutionStatus, SymbolHandle) {
     let admissible: Vec<&CheckedOperatorCandidateFact> = candidates
         .iter()
         .filter(|candidate| candidate.is_domain_owned())
-        .filter(|candidate| {
-            domain_membership_proven_at_use(
-                program,
-                semantic,
-                flow,
-                operator_use,
-                candidate.domain_symbol,
-            )
-        })
+        .filter(|candidate| domain_is_active_at_use(program, operator_use, candidate.domain_symbol))
         .collect();
 
     match admissible.as_slice() {
@@ -82,8 +67,7 @@ fn finalize_pending_use(
             winner.operator_symbol,
         ),
         [] => inadmissible_domain_fallback(program, operator_use, candidates),
-        // Competing PROVEN domain meanings for one expression: chapter 8 makes
-        // this a compile error rather than picking silently.
+        // Competing active domain meanings for one expression are never ranked.
         _ => (
             CheckedOperatorResolutionStatus::Ambiguous,
             SymbolHandle::invalid(),
@@ -126,83 +110,223 @@ fn inadmissible_domain_fallback(
     }
 }
 
-/// Whether the left operand's membership in `domain_symbol` is proven by any
-/// semantic context entering the use's statement. Statement entry constraints
-/// are already invalidation-adjusted, so a fact killed by an interleaved
-/// mutation de-admits the candidate here.
-fn domain_membership_proven_at_use(
+/// Whether any operand binding statically selects `domain_symbol`'s semantic
+/// facet. This intentionally has no route to flow facts.
+fn domain_is_active_at_use(
     program: &TypedTrees,
-    semantic: &mut FactPlan,
-    flow: &FlowFacts,
     operator_use: &CheckedOperatorUseFact,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    let CheckedValueOrigin::StateStatement {
-        machine_symbol,
-        state_symbol,
-        statement_index,
-        ..
-    } = operator_use.origin
-    else {
-        // Non-statement origins (contract expressions, decreases, data
-        // initializers) carry no flow context, so no domain fact is proven.
-        return false;
-    };
-    let Some(left_operand) = binary_left_operand(program, operator_use.expression) else {
-        return false;
-    };
-    let Some(state_flow) = find_state_flow(flow, machine_symbol, state_symbol) else {
-        return false;
-    };
-    let Some(place) = canonical_place_to_fact_place_in_state(
-        program,
-        semantic,
-        state_symbol,
-        statement_index,
-        left_operand,
-    ) else {
-        return false;
-    };
-
-    let entry_constraints = flow
-        .state_statement(state_flow, statement_index)
-        .map(|statement| statement.entry_constraints)
-        .unwrap_or(state_flow.entry_constraints);
-    flow.semantic_constraint_contexts(entry_constraints)
-        .any(|context| {
-            let context = semantic.contexts.get(context);
-            semantic
-                .context_view(context)
-                .proves_place_domain_membership_in_program(program, place, domain_symbol)
-        })
+    binary_operands(program, operator_use.expression)
+        .into_iter()
+        .any(|operand| operand_selects_domain(program, operator_use.origin, operand, domain_symbol))
 }
 
-fn binary_left_operand(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-) -> Option<ExpressionHandle> {
+fn binary_operands(program: &TypedTrees, expression: ExpressionHandle) -> Vec<ExpressionHandle> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Binary(binary) => Some(binary.left),
-        _ => None,
+        ExpressionNode::Binary(binary) => vec![binary.left, binary.right],
+        _ => Vec::new(),
     }
 }
 
-fn find_state_flow<'flow>(
-    flow: &'flow FlowFacts,
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-) -> Option<&'flow FlowStateFact> {
-    flow.control
-        .states
+fn operand_selects_domain(
+    program: &TypedTrees,
+    origin: CheckedValueOrigin,
+    operand: ExpressionHandle,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    expression_type_reference_for_origin(program, operand, origin).is_some_and(|type_reference| {
+        type_selects_semantic_domain(program, type_reference, domain_symbol)
+    }) || expression_mint_selects_domain(program, origin, operand, domain_symbol)
+        || signature_selects_domain(program, origin, operand, domain_symbol)
+}
+
+fn type_selects_semantic_domain(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            type_selects_semantic_domain(program, *referee, domain_symbol)
+        }
+        TypeReferenceNode::Constrained { constraints, .. } => program
+            .type_reference_table
+            .constraints(*constraints)
+            .iter()
+            .any(|constraint| match constraint {
+                omega_typed_trees::types::TypeConstraintNode::Domain(domain) => {
+                    domain.symbol == domain_symbol && domain.facets.semantic.is_some()
+                }
+                _ => false,
+            }),
+        _ => false,
+    }
+}
+
+fn expression_mint_selects_domain(
+    program: &TypedTrees,
+    origin: CheckedValueOrigin,
+    expression: ExpressionHandle,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => {
+            expression_mint_selects_domain(program, origin, atomic.value, domain_symbol)
+        }
+        ExpressionNode::Mutable(inner) => {
+            expression_mint_selects_domain(program, origin, *inner, domain_symbol)
+        }
+        ExpressionNode::Cast(cast) => cast_selects_domain(program, cast, domain_symbol),
+        ExpressionNode::Name(path) => local_initializer_selects_domain(
+            program,
+            origin,
+            path.symbol,
+            &program.expression_table.display_name(expression),
+            domain_symbol,
+        ),
+        _ => false,
+    }
+}
+
+fn cast_selects_domain(
+    program: &TypedTrees,
+    cast: &TableCastExpression,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    if cast.semantic_domain.is_empty() {
+        return false;
+    }
+    let Some(domain) = program
+        .domain_definitions()
         .iter()
-        .map(|(_, state)| state)
-        .find(|state| state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
+        .find(|domain| domain.symbol == domain_symbol && domain.facets.semantic.is_some())
+    else {
+        return false;
+    };
+    let authored = program
+        .expression_table
+        .name_path_members(cast.semantic_domain)
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    domain.name.as_str() == authored
+        || domain
+            .name
+            .as_str()
+            .rsplit("::")
+            .next()
+            .is_some_and(|short| short == authored)
+}
+
+fn local_initializer_selects_domain(
+    program: &TypedTrees,
+    origin: CheckedValueOrigin,
+    symbol: SymbolHandle,
+    binding_name: &str,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    let CheckedValueOrigin::StateStatement {
+        state_symbol,
+        statement_index,
+        ..
+    } = origin
+    else {
+        return false;
+    };
+    let Some(state) = crate::semantic_calls::find_state(program, state_symbol) else {
+        return false;
+    };
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(statement_index)
+        .find_map(|statement| match statement {
+            omega_typed_trees::statement::StatementNode::LocalData(local)
+                if (symbol.is_valid() && local.symbol == symbol)
+                    || local.name.as_str() == binding_name =>
+            {
+                Some(local.initial_value)
+            }
+            _ => None,
+        })
+        .is_some_and(|initializer| {
+            expression_mint_selects_domain(program, origin, initializer, domain_symbol)
+        })
+}
+
+fn signature_selects_domain(
+    program: &TypedTrees,
+    origin: CheckedValueOrigin,
+    expression: ExpressionHandle,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    let CheckedValueOrigin::StateStatement { state_symbol, .. } = origin else {
+        return false;
+    };
+    let Some(binding_symbol) = direct_binding_symbol(program, expression) else {
+        return false;
+    };
+    let binding_name = program.expression_table.display_name(expression);
+    let machine = program.machines().iter().find(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .any(|state| state.symbol == state_symbol)
+    });
+    let state = crate::semantic_calls::find_state(program, state_symbol);
+    machine
+        .into_iter()
+        .flat_map(|machine| program.machine_contracts(machine))
+        .chain(
+            state
+                .into_iter()
+                .flat_map(|state| program.state_contracts(state)),
+        )
+        .filter(|contract| contract.kind == SignatureContractKind::Requires)
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .any(|fact| match fact {
+            ProofFact::Membership(membership) => {
+                membership.domain_symbol == domain_symbol
+                    && (direct_binding_symbol(program, membership.value) == Some(binding_symbol)
+                        || (!binding_name.is_empty()
+                            && program.expression_table.display_name(membership.value)
+                                == binding_name))
+                    && program
+                        .domain_definitions()
+                        .iter()
+                        .find(|domain| domain.symbol == domain_symbol)
+                        .is_some_and(|domain| domain.facets.semantic.is_some())
+            }
+            ProofFact::Expression(_) => false,
+        })
+}
+
+fn direct_binding_symbol(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => direct_binding_symbol(program, atomic.value),
+        ExpressionNode::Mutable(inner) => direct_binding_symbol(program, *inner),
+        ExpressionNode::Name(path) => path
+            .symbol
+            .is_valid()
+            .then_some(path.symbol)
+            .or_else(|| path.head_symbol.is_valid().then_some(path.head_symbol)),
+        _ => None,
+    }
 }
 
 /// Whether the left operand type carries the ordinary builtin operation: a
 /// primitive scalar does, a user data type does not.
 fn builtin_meaning_exists(program: &TypedTrees, operator_use: &CheckedOperatorUseFact) -> bool {
-    let Some(left_operand) = binary_left_operand(program, operator_use.expression) else {
+    let Some(left_operand) = binary_operands(program, operator_use.expression)
+        .first()
+        .copied()
+    else {
         return false;
     };
     expression_type_reference_for_origin(program, left_operand, operator_use.origin)

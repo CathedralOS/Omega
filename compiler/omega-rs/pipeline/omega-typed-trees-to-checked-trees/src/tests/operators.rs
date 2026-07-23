@@ -5,6 +5,169 @@ use omega_typed_trees::operator::OperatorDefinition;
 use omega_typed_trees::types::TypeReferenceHandle;
 
 #[test]
+fn signature_requires_selects_domain_operator_without_flow_lookup() {
+    let source = r#"
+        data Quantity { value: i32; }
+
+        domain Quantity::Additive {
+            self.value >= 0;
+            operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
+        }
+
+        data Main {}
+
+        machine Main::combine(&self, left: Quantity, right: Quantity)
+        requires
+            left in Quantity::Additive
+        {
+            let sum: Quantity = left + right;
+        }
+
+        machine Main::main(&mut self) {}
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let combine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::combine")
+        .expect("combine machine");
+    let combine_state = typed
+        .machine_states(combine)
+        .first()
+        .expect("combine state");
+    assert!(
+        typed
+            .machine_contracts(combine)
+            .iter()
+            .chain(typed.state_contracts(combine_state))
+            .any(|contract| {
+                typed
+                    .proof_facts
+                    .span_or_empty(contract.facts)
+                    .iter()
+                    .any(|fact| match fact {
+                        omega_typed_trees::domain::ProofFact::Membership(membership) => {
+                            typed.expression_table.display_name(membership.value) == "left"
+                        }
+                        _ => false,
+                    })
+            })
+    );
+    let checked = lower_typed_trees(typed).expect("signature selection should resolve +");
+
+    assert!(checked.facts.operators.resolved_uses().any(|operator_use| {
+        operator_use.spelling == OperatorSpelling::Add
+            && checked
+                .facts
+                .operators
+                .selected_candidate(operator_use)
+                .is_some_and(|candidate| candidate.is_domain_owned())
+    }));
+}
+
+#[test]
+fn semantic_only_declared_type_selects_domain_operator() {
+    let source = r#"
+        domain i32::Degrees {
+            operator add(left: i32, right: i32) -> i32 spelling +;
+        }
+
+        data Main {}
+
+        machine Main::rotate(
+            &self,
+            value: i32 in Degrees & Wrapping,
+            delta: i32 in Wrapping
+        ) {
+            let sum: i32 in Wrapping = value + delta;
+        }
+
+        machine Main::main(&mut self) {}
+    "#;
+
+    let checked = checked_program_from_source(source);
+    assert!(has_selected_domain_add(&checked));
+}
+
+#[test]
+fn explicit_mint_initializer_selects_domain_operator() {
+    let source = r#"
+        domain i32::Degrees {
+            operator add(left: i32, right: i32) -> i32 spelling +;
+        }
+
+        data Main {}
+
+        machine Main::rotate(&self) {
+            let value: i32 in Wrapping = 1 as i32 in Degrees;
+            let sum: i32 in Wrapping = value + 1;
+        }
+
+        machine Main::main(&mut self) {}
+    "#;
+
+    let checked = checked_program_from_source(source);
+    assert!(has_selected_domain_add(&checked));
+}
+
+#[test]
+fn flow_established_membership_does_not_select_domain_operator() {
+    let source = r#"
+        domain i32::Degrees {
+            self >= 0;
+            operator add(left: i32, right: i32) -> i32 spelling +;
+        }
+
+        data Main { value: i32 in Wrapping; }
+
+        machine Main::mark(&mut self)
+        ensures
+            self.value in i32::Degrees
+        {
+            self.value = 0;
+        }
+
+        machine Main::main(&mut self) {
+            self.mark();
+            let sum: i32 in Wrapping = self.value + 1;
+        }
+    "#;
+
+    let checked = checked_program_from_source(source);
+    assert!(!has_selected_domain_add(&checked));
+    assert!(
+        checked
+            .facts
+            .operators
+            .uses_with_status(omega_checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback)
+            .any(|operator_use| operator_use.spelling == OperatorSpelling::Add)
+    );
+}
+
+fn checked_program_from_source(source: &str) -> omega_checked_trees::CheckedTrees {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    lower_typed_trees(typed).expect("checked lowering")
+}
+
+fn has_selected_domain_add(checked: &omega_checked_trees::CheckedTrees) -> bool {
+    checked.facts.operators.resolved_uses().any(|operator_use| {
+        operator_use.spelling == OperatorSpelling::Add
+            && checked
+                .facts
+                .operators
+                .selected_candidate(operator_use)
+                .is_some_and(|candidate| candidate.is_domain_owned())
+    })
+}
+
+#[test]
 fn records_indexed_expression_operator_spelling_resolution() {
     let index_operator_symbol = SymbolHandle::from_arena_index(80);
     let range_operator_symbol = SymbolHandle::from_arena_index(81);

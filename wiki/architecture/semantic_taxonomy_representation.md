@@ -143,6 +143,14 @@ qualification consumers. The remaining DOM1 gate is genuinely language
 design: freeze the authored facet declaration/policy surface, then remove the
 factful=hybrid/factless=semantic-only compatibility projection.
 
+Implementation status (DOM2 binding activation, 2026-07-23): checked operator
+selection reads only static binding sources: normalized declared constraints,
+explicit mints, and signature `requires`. The selector has no flow/fact-plan
+input, so guards, call guarantees, or later prover improvements cannot change
+operator meaning. Operator `requires` clauses remain ordinary flow-sensitive
+proof obligations after selection. Normalized all-operand tuple resolution and
+dispatch-owner coherence remain.
+
 ### Carry policy
 
 Retire the provisional `send: bool` projection. Carry is a normalized

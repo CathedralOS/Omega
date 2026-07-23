@@ -1056,7 +1056,14 @@ stronger operations it needs instead of citing machine parameters generally.
   retiring the factful=hybrid/factless=semantic-only compatibility projection.
 - **DOM2 — binding-site operators.** Resolve operator theory from declarations,
   mints, and `requires`; never from flow facts. Resolve tuples deterministically
-  and reject collisions.
+  and reject collisions. The checked selector now accepts no fact/flow plan and
+  activates domain-owned meanings from normalized declared type constraints,
+  direct/local explicit mints, and signature `requires`; call `ensures`, guards,
+  and mutation-driven fact invalidation cannot reinterpret an operation.
+  Checked evidence and diagnostics distinguish a selected domain meaning from
+  builtin fallback. Remaining: complete normalized all-operand tuple matching
+  and replace the provisional global same-carrier collision fence with the
+  settled participating-domain/dispatch-owner coherence rule.
 - **DOM3 — introduction authority.** Implement sealed-by-default domains,
   `introduction open`, and `MintAuthority<D>` with distinct missing-proof and
   missing-authority diagnostics.

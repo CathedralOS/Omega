@@ -1,8 +1,7 @@
-// Positive proof-context operator selection (chapter 8): only PROVEN domains
-// participate in operator resolution. No fact places `left` in
-// `Quantity::Additive`, so the domain-owned `+` meaning is inadmissible — and
-// `Quantity` is not a primitive, so no builtin meaning exists to fall back to.
-// The use has no admissible meaning and is rejected. Adding
+// Binding-site operator selection (chapter 8): only declarations, mints, and
+// signature `requires` select semantic operator meaning. Nothing selects
+// `Quantity::Additive` for `left`, and `Quantity` has no builtin `+`, so the use
+// is rejected. Adding
 // `requires left in Quantity::Additive` makes this exact program compile (see
 // pass/domains/domain_operator_proven_fact_selects_meaning).
 
