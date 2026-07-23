@@ -279,6 +279,8 @@ mod tests {
     #[test]
     fn generated_idt_writer_emits_exact_x86_bytes_and_refuses_aarch64() {
         let source_kind = SelectedInstructionKind::GeneratedIdtWriter {
+            context: omega_external_roots::IdtWriterContextId::from_normalized_identity(9)
+                .expect("writer context identity"),
             preparation: omega_external_roots::IdtWriterPreparationId::from_normalized_identity(1)
                 .expect("writer preparation identity"),
             installed_code: omega_external_roots::InstalledCodeId::from_normalized_identity(2)
@@ -294,6 +296,7 @@ mod tests {
             byte_len: 16,
             little_endian: true,
             context_abi: omega_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
+            context_fingerprint: 10,
             source_slot_count: 1,
             steps: vec![omega_target_operations::GeneratedIdtWriterStep {
                 container_byte_offset: 0,

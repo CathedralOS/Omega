@@ -669,11 +669,17 @@ schemas recover the same instance without publishing policy type identity.
    packed destination pointer followed by dense u64 source slots. Exact x86
    emission and width are live with the derived RAX/RCX/RDX/R11 plus Flags
    footprint; AArch64, unknown ABI versions, sparse/out-of-range slots, and
-   unrepresentable fragment geometry reject before emission. **Next:** populate
-   that packed context privately from the exact installed resolver, materialize
-   its address into R10, and insert/execute the emitted writer in the concrete
-   provider; then materialize the private descriptor address into R10 and
-   insert/execute the checked publication operation.
+   unrepresentable fragment geometry reject before emission. Context population
+   is live too: a non-clonable opaque `PopulatedIdtWriter` consumes the
+   preparation, resolves each distinct source once through the exact installed
+   realization, binds the packed destination/source words by identity and
+   fingerprint, and omits them from diagnostics and public accessors. Lowering
+   and materialization now require that populated seal; plan/code/site/context
+   drift rejects before mutation, and semantic completion uses those exact
+   sealed values without re-resolution. **Next:** materialize the private
+   context address into R10 and insert/execute the emitted writer in the
+   concrete provider; then materialize the private descriptor address into R10
+   and insert/execute the checked publication operation.
 5. **IDT2 — installed-root ledger.** The normalized `omega-external-roots`
    foundation is live. It admits only an entry present in the exact
    installed artifact; consumes owner-scoped slot authority; and records
@@ -722,10 +728,10 @@ schemas recover the same instance without publishing policy type identity.
    prevent a swapped plan/destination/resolver from reaching code generation.
    **Next:**
    drive the selected-plan/root binding from concrete Cathedral PIC/LAPIC
-   candidate construction, populate the pinned private writer context from the
-   exact installed resolver, and connect R10 context/descriptor-address
+   candidate construction and connect R10 context/descriptor-address
    materialization plus execution of both generated operations in the concrete
-   provider.
+   provider. The writer context is already populated opaquely from the exact
+   installed resolver before lowering.
    The stack/IST policy must remain one fact consumed by both layout
    materialization and WCSU analysis.
 6. **IDT3 — linear interrupt obligations.** The source contract is live in
@@ -1342,9 +1348,11 @@ stronger operations it needs instead of citing machine parameters generally.
   root fingerprints and private source-slot indices. Its packed private
   `IDTWRIT1` context ABI, exact x86 encoding/width, and RAX/RCX/RDX/R11 plus
   Flags footprint are pinned; unsupported architecture, ABI, slot, and geometry
-  combinations reject before emission. Populate that context privately from
-  the exact installed resolver and execute the emitted instructions in the
-  concrete provider. The settled writer
+  combinations reject before emission. A non-clonable populated seal now owns
+  the exact once-resolved private destination/source words, and only that seal
+  can lower or materialize; its values never enter diagnostics or public
+  accessors. Materialize its address into R10 and execute the emitted
+  instructions in the concrete provider. The settled writer
   consumes one exclusive unpublished
   mapped/pinned/writable placement plus a sealed exact-artifact resolver and
   writes the destination directly. A partial or failed fill remains

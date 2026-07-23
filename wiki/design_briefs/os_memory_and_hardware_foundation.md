@@ -517,8 +517,10 @@ The normalized writer program is now derived from the same actions: it
 validates the concrete placement, resolves each sealed target once through the
 provider, derives every fragment, writes only the unpublished destination, and
 publishes only after the complete result validates. Its sealed preparation and
-address-free generated target/machine carrier are live; the private context
-ABI, exact footprint, and target-machine emission remain engineering work.
+address-free generated target/machine carrier are live. The packed private
+context ABI, exact footprint, x86 emission, and opaque once-resolved population
+gate are also live; R10 address materialization and concrete provider execution
+remain engineering work.
 Placement plans may constrain range, alignment, phase, machine regime, and
 scoped artifact-installation authority. The normalized materialization
 foundation now carries those five facts: policy alignment is joined with the
@@ -811,11 +813,14 @@ identities. Root candidates now carry the selected plan identity before
 validation, normalized root identity covers it, and `ProviderExecution`
 inherits it from that root;
 the compiler's boundary-slot bridge consumes only the retained selection and
-rejects missing or ambiguous matches. Concrete Cathedral PIC/LAPIC candidate
-construction, provider-private population of the writer context from the exact
-installed resolver, and provider lowering that materializes R10 and executes
-the writer before supplying the private descriptor to the contracted `lidt`
-consumer remain.
+rejects missing or ambiguous matches. Provider-private population of the
+writer context from the exact installed resolver is now live: a non-clonable
+opaque seal binds the exact
+destination/source words and their fingerprint, is required by lowering and
+materialization, and never exposes those words through diagnostics or public
+accessors. Provider lowering that materializes R10 and executes the writer
+before supplying the private descriptor to the contracted `lidt` consumer
+remains, as does concrete Cathedral PIC/LAPIC candidate construction.
 The deriver-only catalog contract, exact x86 encoding, and source-rejection
 rail are live.
 Provider-neutral acceptance canaries instantiate the timer as one root plus
@@ -1056,8 +1061,9 @@ settled concrete interrupt policy's implementation remain. Remaining order:
    foreign entries and data symbols reject before publication, without a
    source-visible numeric-address operation. The packed `IDTWRIT1` context ABI,
    exact x86 writer bytes/width, and RAX/RCX/RDX/R11 plus Flags footprint are
-   pinned and emitted; provider-private context population, R10 materialization,
-   and concrete writer execution remain.
+   pinned and emitted. Opaque context population from the exact installed
+   resolver is live and required before lowering/materialization; R10
+   materialization and concrete writer execution remain.
 3. Connect the implemented normalized `Extent` conservation/mapping model to
    the Omega linear carrier and sealed facts, then implement provider execution
    and source APIs. Root admission, split/merge/attenuation, borrow polarity,

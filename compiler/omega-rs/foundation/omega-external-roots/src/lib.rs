@@ -13,8 +13,8 @@ use omega_calling_conventions::{
     BoundaryEntryPlan, EntryStack, MachineRegister, StateFootprintEvidence,
     ValidatedBoundaryEntryPlan, validate_state_footprint,
 };
-use omega_executable_installation::InstalledCode;
 pub use omega_executable_installation::{ArtifactId, InstalledCodeId};
+use omega_executable_installation::{InstalledCode, ResolvedPostHandoffEntryWriterContext};
 use omega_layout_plans::{
     ByteOrder, EntryStubId, PlacementPhase, PlacementSite, PostHandoffWriterPlan,
     PostHandoffWriterSource, RelocationTarget,
@@ -77,6 +77,7 @@ normalized_id!(StateValidationReceiptId, "machine-state validation receipt");
 normalized_id!(MaterializedIdtId, "materialized IDT");
 normalized_id!(IdtDestinationId, "IDT destination");
 normalized_id!(IdtWriterPreparationId, "IDT writer preparation");
+normalized_id!(IdtWriterContextId, "IDT writer context");
 normalized_id!(IdtMaterializationReceiptId, "IDT materialization receipt");
 normalized_id!(IdtControlId, "IDT control authority");
 normalized_id!(IdtInstallationReceiptId, "IDT installation receipt");
@@ -1531,6 +1532,58 @@ impl PreparedIdtWriter {
     }
 }
 
+/// Owning seal for one prepared writer whose dense private ABI words have been
+/// populated exactly once by the bound installed-code resolver. Numeric words
+/// remain inside the opaque executable-installation carrier and are omitted
+/// from `Debug` and all public accessors.
+#[derive(PartialEq, Eq)]
+pub struct PopulatedIdtWriter {
+    identity: IdtWriterContextId,
+    prepared: PreparedIdtWriter,
+    context: ResolvedPostHandoffEntryWriterContext,
+}
+
+impl std::fmt::Debug for PopulatedIdtWriter {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("PopulatedIdtWriter")
+            .field("identity", &self.identity)
+            .field("preparation", &self.prepared.identity)
+            .field("installed_code", &self.prepared.installed_code)
+            .field("artifact", &self.prepared.artifact)
+            .field("destination", &self.prepared.destination.identity)
+            .field(
+                "context_fingerprint",
+                &format_args!("{:016x}", self.context.fingerprint()),
+            )
+            .field("packed_byte_len", &self.context.packed_byte_len())
+            .field("source_slot_count", &self.context.source_slot_count())
+            .finish()
+    }
+}
+
+impl PopulatedIdtWriter {
+    pub const fn identity(&self) -> IdtWriterContextId {
+        self.identity
+    }
+
+    pub const fn prepared(&self) -> &PreparedIdtWriter {
+        &self.prepared
+    }
+
+    pub const fn context_fingerprint(&self) -> u64 {
+        self.context.fingerprint()
+    }
+
+    pub const fn packed_context_byte_len(&self) -> usize {
+        self.context.packed_byte_len()
+    }
+
+    pub const fn source_slot_count(&self) -> usize {
+        self.context.source_slot_count()
+    }
+}
+
 #[derive(Debug)]
 pub struct IdtWriterPreparationError {
     destination: UnpublishedIdtDestination,
@@ -1631,6 +1684,78 @@ pub fn prepare_idt_writer(
     })
 }
 
+#[derive(Debug)]
+pub struct IdtWriterContextError {
+    prepared: PreparedIdtWriter,
+    diagnostic: ExternalRootDiagnostic,
+}
+
+impl IdtWriterContextError {
+    pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_prepared(self) -> PreparedIdtWriter {
+        self.prepared
+    }
+}
+
+/// Resolve and seal the packed provider-private words for one exact prepared
+/// writer. Failure returns the still-owning preparation unchanged.
+pub fn populate_idt_writer_context(
+    installed_code: &InstalledCode,
+    prepared: PreparedIdtWriter,
+) -> Result<PopulatedIdtWriter, Box<IdtWriterContextError>> {
+    let reject = |diagnostic, prepared| {
+        Err(Box::new(IdtWriterContextError {
+            prepared,
+            diagnostic,
+        }))
+    };
+    if prepared.installed_code != installed_code.identity()
+        || prepared.artifact != installed_code.artifact()
+    {
+        return reject(
+            ExternalRootDiagnostic(
+                "IDT writer context population requires the exact prepared installed code and artifact"
+                    .into(),
+            ),
+            prepared,
+        );
+    }
+    let context = match installed_code.populate_post_handoff_entry_writer_context(
+        &prepared.writer,
+        prepared.destination.bytes.len(),
+        prepared.destination.site,
+    ) {
+        Ok(context) => context,
+        Err(error) => {
+            return reject(
+                ExternalRootDiagnostic(format!("IDT writer context population failed: {error}")),
+                prepared,
+            );
+        }
+    };
+    if context.source_slot_count() != prepared.source_slot_count()
+        || context.packed_byte_len()
+            != (prepared.source_slot_count() + 1) * std::mem::size_of::<u64>()
+    {
+        return reject(
+            ExternalRootDiagnostic(
+                "IDT writer context population did not produce the exact dense destination-plus-source word set"
+                    .into(),
+            ),
+            prepared,
+        );
+    }
+    let identity = fingerprint_idt_writer_context(prepared.identity, context.fingerprint());
+    Ok(PopulatedIdtWriter {
+        identity: IdtWriterContextId(identity),
+        prepared,
+        context,
+    })
+}
+
 /// Provider certificate over the completed direct-destination writer and its
 /// software-fault-free bootstrap checks.
 #[derive(Debug, PartialEq, Eq)]
@@ -1708,7 +1833,7 @@ impl MaterializedIdt {
 
 #[derive(Debug)]
 pub struct IdtMaterializationError {
-    prepared: PreparedIdtWriter,
+    populated: PopulatedIdtWriter,
     receipt: IdtMaterializationReceipt,
     diagnostic: ExternalRootDiagnostic,
 }
@@ -1718,38 +1843,38 @@ impl IdtMaterializationError {
         &self.diagnostic
     }
 
-    pub fn into_parts(self) -> (PreparedIdtWriter, IdtMaterializationReceipt) {
-        (self.prepared, self.receipt)
+    pub fn into_parts(self) -> (PopulatedIdtWriter, IdtMaterializationReceipt) {
+        (self.populated, self.receipt)
     }
 }
 
 pub fn materialize_idt(
     identity: MaterializedIdtId,
     installed_code: &InstalledCode,
-    mut prepared: PreparedIdtWriter,
+    mut populated: PopulatedIdtWriter,
     receipt: IdtMaterializationReceipt,
 ) -> Result<MaterializedIdt, Box<IdtMaterializationError>> {
-    let reject = |diagnostic, prepared, receipt| {
+    let reject = |diagnostic, populated, receipt| {
         Err(Box::new(IdtMaterializationError {
-            prepared,
+            populated,
             receipt,
             diagnostic,
         }))
     };
-    if prepared.installed_code != installed_code.identity()
-        || prepared.artifact != installed_code.artifact()
+    if populated.prepared.installed_code != installed_code.identity()
+        || populated.prepared.artifact != installed_code.artifact()
     {
         return reject(
             ExternalRootDiagnostic(
-                "prepared IDT writer does not bind the exact installed code and artifact".into(),
+                "populated IDT writer does not bind the exact installed code and artifact".into(),
             ),
-            prepared,
+            populated,
             receipt,
         );
     }
     if receipt.installed_code != installed_code.identity()
         || receipt.artifact != installed_code.artifact()
-        || receipt.destination != prepared.destination.identity
+        || receipt.destination != populated.prepared.destination.identity
         || !receipt.software_fault_free
         || !receipt.remains_unpublished
     {
@@ -1758,33 +1883,36 @@ pub fn materialize_idt(
                 "IDT materialization receipt does not bind the exact code/destination and software-fault-free unpublished result"
                     .into(),
             ),
-            prepared,
+            populated,
             receipt,
         );
     }
-    let destination_site = prepared.destination.site;
-    if let Err(error) = installed_code.execute_post_handoff_entry_writer(
-        &prepared.writer,
-        &mut prepared.destination.bytes,
+    let destination_site = populated.prepared.destination.site;
+    if let Err(error) = installed_code.execute_populated_post_handoff_entry_writer(
+        &populated.context,
+        &populated.prepared.writer,
+        &mut populated.prepared.destination.bytes,
         destination_site,
     ) {
         return reject(
             ExternalRootDiagnostic(format!("IDT writer execution failed: {error}")),
-            prepared,
+            populated,
             receipt,
         );
     }
-    let content_fingerprint =
-        fingerprint_bytes(&prepared.destination.bytes[..prepared.writer.byte_len]);
+    let content_fingerprint = fingerprint_bytes(
+        &populated.prepared.destination.bytes[..populated.prepared.writer.byte_len],
+    );
     if content_fingerprint == 0 || receipt.content_fingerprint != content_fingerprint {
         return reject(
             ExternalRootDiagnostic(
                 "IDT materialization receipt does not bind the exact completed bytes".into(),
             ),
-            prepared,
+            populated,
             receipt,
         );
     }
+    let PopulatedIdtWriter { prepared, .. } = populated;
     let PreparedIdtWriter {
         destination,
         writer,
@@ -1937,6 +2065,16 @@ fn fingerprint_idt_writer_preparation(
     hash.u64(root_binding_fingerprint);
     hash.u64(byte_len as u64);
     hash.u64(step_count as u64);
+    nonzero_fingerprint(hash.finish())
+}
+
+fn fingerprint_idt_writer_context(
+    preparation: IdtWriterPreparationId,
+    context_fingerprint: u64,
+) -> u64 {
+    let mut hash = Fnv1a::new();
+    hash.u64(preparation.normalized_identity());
+    hash.u64(context_fingerprint);
     nonzero_fingerprint(hash.finish())
 }
 
@@ -3028,16 +3166,28 @@ mod tests {
                 source_slot: 0,
             }]
         );
+        let foreign_code = installed_code(2, entry);
+        let context_error = populate_idt_writer_context(&foreign_code, prepared)
+            .expect_err("another installed realization cannot populate the private context");
+        assert!(context_error.diagnostic().0.contains("exact prepared"));
+        let prepared = context_error.into_prepared();
+        let populated = populate_idt_writer_context(&code, prepared)
+            .expect("exact installed realization populates private context");
+        assert_ne!(populated.identity().normalized_identity(), 0);
+        assert_ne!(populated.context_fingerprint(), 0);
+        assert_eq!(populated.source_slot_count(), 1);
+        assert_eq!(populated.packed_context_byte_len(), 16);
+        assert!(!format!("{populated:?}").contains("packed_words"));
         let error = materialize_idt(
             root_id(200, MaterializedIdtId::from_normalized_identity),
             &code,
-            prepared,
+            populated,
             bad_materialization_receipt,
         )
         .expect_err("receipt for different final bytes cannot mint MaterializedIdt");
         assert!(error.diagnostic().0.contains("exact completed bytes"));
-        let (retry_prepared, _) = error.into_parts();
-        assert_eq!(retry_prepared.destination.bytes, expected);
+        let (retry_populated, _) = error.into_parts();
+        assert_eq!(retry_populated.prepared.destination.bytes, expected);
         let materialization_receipt = IdtMaterializationReceipt::from_provider(
             root_id(210, IdtMaterializationReceiptId::from_normalized_identity),
             code.identity(),
@@ -3050,7 +3200,7 @@ mod tests {
         let materialized = materialize_idt(
             root_id(200, MaterializedIdtId::from_normalized_identity),
             &code,
-            retry_prepared,
+            retry_populated,
             materialization_receipt,
         )
         .expect("materialized IDT");

@@ -43,6 +43,6 @@ pub use omega_layout_plans::{
     SymbolicFieldValue, SymbolicMaterializationPlan, derive_symbolic_materialization,
 };
 pub use provider_plans::{
-    GeneratedIdtLoadLowering, GeneratedIdtWriterLowering, lower_prepared_idt_load,
-    lower_prepared_idt_writer, selected_external_root_provider_plan_id,
+    GeneratedIdtLoadLowering, GeneratedIdtWriterLowering, lower_populated_idt_writer,
+    lower_prepared_idt_load, selected_external_root_provider_plan_id,
 };
