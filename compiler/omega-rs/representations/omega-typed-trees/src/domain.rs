@@ -15,6 +15,9 @@ pub struct DomainDefinition {
     /// the program's SemanticDomainTable (populated ONCE at
     /// syntax->resolved, copied downstream; NULL only pre-lowering).
     pub semantic_id: omega_core::semantics::SemanticDomainId,
+    /// DOM1/STR2: the normalized predicate/semantic role pair copied from the
+    /// resolved declaration without re-derivation.
+    pub facets: omega_core::semantics::DomainFacets,
 }
 
 impl Default for DomainDefinition {
@@ -27,6 +30,7 @@ impl Default for DomainDefinition {
             operators: HandleSpan::empty(),
             body_token_count: 0,
             semantic_id: omega_core::semantics::SemanticDomainId::NULL,
+            facets: omega_core::semantics::DomainFacets::default(),
         }
     }
 }

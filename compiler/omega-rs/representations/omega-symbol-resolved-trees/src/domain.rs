@@ -15,6 +15,10 @@ pub struct DomainDefinition {
     /// the program's SemanticDomainTable (populated ONCE at
     /// syntax->resolved, copied downstream; NULL only pre-lowering).
     pub semantic_id: omega_core::semantics::SemanticDomainId,
+    /// DOM1/STR2: the normalized predicate/semantic role pair. Populated once
+    /// at syntax->resolved and copied downstream; consumers must not infer a
+    /// role from the presence of facts or operators.
+    pub facets: omega_core::semantics::DomainFacets,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

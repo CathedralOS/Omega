@@ -13,17 +13,14 @@ use omega_typed_trees::data::DataProperties;
 use omega_typed_trees::domain::DomainDefinition;
 use omega_typed_trees::machine::Machine;
 
-/// LOSS 1 (record §Domains): every domain is one undifferentiated
-/// `DomainDefinition` -- no predicate-vs-semantic facet split, no
-/// introduction policy / mint authority, no denotation schema, no
-/// normalized `SemanticDomainId`. STR2 lands the facet pair
-/// (`predicate: Option<PredicateFacet>` + `semantic: Option<SemanticFacet>`,
-/// optional PAIR not an enum -- hybrids are first-class); this destructure
-/// then gains fields and the update must carry the invariant: "no
-/// checked-stage query infers predicate-vs-semantic behavior by testing
-/// whether a domain happens to have facts or operators".
+/// LOSS 1 -- PARTIALLY RE-PINNED (DOM1/STR2, 2026-07-23): every domain now
+/// carries the normalized predicate/semantic facet pair. Introduction policy,
+/// mint authority, denotation schema, and full facet bodies remain absent.
+/// The pair is not an enum: hybrids are first-class. No checked-stage query
+/// may infer a facet role by testing whether facts or operators happen to be
+/// present.
 #[test]
-fn domain_definition_is_still_the_undifferentiated_shape() {
+fn domain_definition_carries_normalized_facet_roles() {
     fn witness(definition: DomainDefinition) {
         let DomainDefinition {
             symbol: _,
@@ -31,8 +28,10 @@ fn domain_definition_is_still_the_undifferentiated_shape() {
             target_type: _,
             // STR4 checked plans (2026-07-19): the normalized SemanticDomainId
             // landed -- LOSS 1's "no normalized SemanticDomainId" clause is
-            // PARTIALLY re-pinned (facet split + mint authority still absent).
+            // re-pinned. It remains a compatibility identity beside the
+            // normalized facet pair until downstream migration completes.
             semantic_id: _,
+            facets: _,
             facts: _,
             operators: _,
             body_token_count: _,

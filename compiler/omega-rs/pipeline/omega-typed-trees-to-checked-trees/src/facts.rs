@@ -351,7 +351,9 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                                 .ends_with(&format!("::{}", name.as_str()))
                     })
                 {
-                    committed.push(domain.semantic_id);
+                    if let Some(semantic_id) = domain.facets.semantic {
+                        committed.push(semantic_id);
+                    }
                 }
                 collect_casts(program, cast.value, committed);
             }
