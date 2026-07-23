@@ -993,6 +993,9 @@ dependencies = [
 [[package]]
 name = "omega-task-plans"
 version = "0.1.0"
+dependencies = [
+ "omega-core",
+]
 
 [[package]]
 name = "omega-tokens"

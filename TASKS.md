@@ -973,14 +973,21 @@ stronger operations it needs instead of citing machine parameters generally.
   closed against the activation plan; unknown runtimes are pessimistic. The
   nominal opaque `TaskRuntime` source surface is live. Activation demands now
   carry a normalized identity over every checked input, admission receipts
-  derive their identity from the full demand plus runtime behavior contract,
-  and the activation artifact records `pending_provider` until a real provider
-  identity/provenance is available. Core lifecycle conservation is now pinned
+  derive their identity from the full demand plus runtime behavior contract.
+  Runtime behavior is no longer self-authenticating normalized data: the
+  freely constructible claim becomes admissible only through the shared
+  grant/receipt spine, whose provider-plan statement hash covers the base plan
+  identity plus every behavior promise. A changed pinning, capacity,
+  preemption, cancellation, or storage claim therefore drifts the receipt;
+  receipt provenance remains evidence and stays outside the normalizer-owned
+  runtime identity. The activation artifact records `pending_provider` until a
+  real selected provider supplies that exact receipt. Core lifecycle
+  conservation is now pinned
   end to end: receiver types retain `&self` versus consuming `self`,
   `request_cancel` leaves the linear claim live, and `finish` transfers it into
-  the conditional terminal outcome. Add provider-plan integration and
-  executable dispatch, and ensure a rejected transactional start returns every
-  moved argument and lease.
+  the conditional terminal outcome. Add compiler provider-plan selection/
+  receipt integration and executable dispatch, and ensure a rejected
+  transactional start returns every moved argument and lease.
 - **TR5 — custody and storage leases.** Track provider provenance and dependent
   child storage so close/reclaim rejects while claims remain live.
 - **TR6 — continuations and first provider.** Lower continuations; admit inline
