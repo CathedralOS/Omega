@@ -428,6 +428,36 @@ pub struct PostHandoffWriterPlan {
 }
 
 impl PostHandoffWriterPlan {
+    /// Validate the complete direct-destination program without resolving a
+    /// symbolic address or mutating the destination. Provider preparation
+    /// uses this pass to bind one exact checked writer before any numeric
+    /// entry address exists outside the sealed resolver.
+    pub fn validate(
+        &self,
+        destination_len: usize,
+        site: PlacementSite,
+    ) -> Result<(), MaterializationDiagnostic> {
+        self.placement.validate_site(self.byte_len, site)?;
+        if destination_len < self.byte_len {
+            return Err(MaterializationDiagnostic(format!(
+                "post-handoff writer needs {} bytes, destination has {}",
+                self.byte_len, destination_len
+            )));
+        }
+        for step in &self.steps {
+            if let PostHandoffWriterSource::Resolve(target) = step.source
+                && target != step.write.target
+            {
+                return Err(MaterializationDiagnostic(format!(
+                    "post-handoff writer source {target:?} does not match write target {:?}",
+                    step.write.target
+                )));
+            }
+            validate_write(self.byte_len, &step.write)?;
+        }
+        Ok(())
+    }
+
     /// Validates the concrete placement and every write, resolves every target,
     /// then writes directly into the unpublished destination. Repeated
     /// fragments of one target resolve once so a provider cannot observe
@@ -440,26 +470,11 @@ impl PostHandoffWriterPlan {
         site: PlacementSite,
         mut resolve: impl FnMut(RelocationTarget) -> Option<u64>,
     ) -> Result<(), MaterializationDiagnostic> {
-        self.placement.validate_site(self.byte_len, site)?;
-        if destination.len() < self.byte_len {
-            return Err(MaterializationDiagnostic(format!(
-                "post-handoff writer needs {} bytes, destination has {}",
-                self.byte_len,
-                destination.len()
-            )));
-        }
+        self.validate(destination.len(), site)?;
 
         let mut resolved_targets = std::collections::BTreeMap::new();
         let mut values = Vec::with_capacity(self.steps.len());
         for step in &self.steps {
-            if let PostHandoffWriterSource::Resolve(target) = step.source
-                && target != step.write.target
-            {
-                return Err(MaterializationDiagnostic(format!(
-                    "post-handoff writer source {target:?} does not match write target {:?}",
-                    step.write.target
-                )));
-            }
             let value = match step.source {
                 PostHandoffWriterSource::Resolved(value) => value,
                 PostHandoffWriterSource::Resolve(target) => {
@@ -477,7 +492,6 @@ impl PostHandoffWriterPlan {
                 }
             };
             values.push(value);
-            validate_write(self.byte_len, &step.write)?;
         }
 
         for (step, value) in self.steps.iter().zip(values) {

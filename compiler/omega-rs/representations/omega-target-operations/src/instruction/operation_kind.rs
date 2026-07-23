@@ -526,6 +526,25 @@ pub enum TargetOperationKind {
         root_ledger_fingerprint: u64,
         control: omega_external_roots::IdtControlId,
     },
+    /// Compiler-generated, address-free direct-destination IDT writer. The
+    /// sealed preparation owns the actual destination and resolver inputs;
+    /// this carrier retains only exact identities/fingerprints plus fragment
+    /// geometry and private context-slot indices. No abstract/source
+    /// operation converts to this variant.
+    GeneratedIdtWriter {
+        preparation: omega_external_roots::IdtWriterPreparationId,
+        installed_code: omega_external_roots::InstalledCodeId,
+        artifact: omega_external_roots::ArtifactId,
+        destination: omega_external_roots::IdtDestinationId,
+        writer_fingerprint: u64,
+        placement_fingerprint: u64,
+        initial_content_fingerprint: u64,
+        root_binding_fingerprint: u64,
+        byte_len: usize,
+        little_endian: bool,
+        source_slot_count: usize,
+        steps: std::sync::Arc<[omega_external_roots::PreparedIdtWriterStep]>,
+    },
     /// Compiler-balanced `pushfq` snapshot into explicit runtime storage.
     FlagsSnapshot {
         dest_region: RuntimeStorageRegion,

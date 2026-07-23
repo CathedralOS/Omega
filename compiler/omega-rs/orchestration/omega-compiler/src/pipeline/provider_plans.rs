@@ -18,6 +18,80 @@ pub struct GeneratedIdtLoadLowering {
     footprint: omega_calling_conventions::StateFootprintEvidence,
 }
 
+/// Closed compiler carrier for one prepared direct-destination IDT writer.
+/// It retains address-free fragment geometry and exact preparation facts. ISA
+/// emission deliberately remains unavailable until the provider-private
+/// context ABI is pinned.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GeneratedIdtWriterLowering {
+    operation: omega_target_operations::TargetOperationKind,
+}
+
+impl GeneratedIdtWriterLowering {
+    pub const fn operation(&self) -> &omega_target_operations::TargetOperationKind {
+        &self.operation
+    }
+
+    pub fn into_operation(self) -> omega_target_operations::TargetOperationKind {
+        self.operation
+    }
+}
+
+/// Lower only the sealed writer preparation produced by the exact installed
+/// artifact/destination/root gate. Numeric resolved addresses are absent from
+/// the operation; generated code sees provider-private source-slot indices.
+pub fn lower_prepared_idt_writer(
+    prepared: &omega_external_roots::PreparedIdtWriter,
+) -> GeneratedIdtWriterLowering {
+    lower_prepared_idt_writer_facts(
+        prepared.identity(),
+        prepared.installed_code(),
+        prepared.artifact(),
+        prepared.destination(),
+        prepared.writer_fingerprint(),
+        prepared.placement_fingerprint(),
+        prepared.initial_content_fingerprint(),
+        prepared.root_binding_fingerprint(),
+        prepared.byte_len(),
+        prepared.little_endian(),
+        prepared.source_slot_count(),
+        prepared.lowering_steps(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_prepared_idt_writer_facts(
+    preparation: omega_external_roots::IdtWriterPreparationId,
+    installed_code: omega_external_roots::InstalledCodeId,
+    artifact: omega_external_roots::ArtifactId,
+    destination: omega_external_roots::IdtDestinationId,
+    writer_fingerprint: u64,
+    placement_fingerprint: u64,
+    initial_content_fingerprint: u64,
+    root_binding_fingerprint: u64,
+    byte_len: usize,
+    little_endian: bool,
+    source_slot_count: usize,
+    steps: Vec<omega_external_roots::PreparedIdtWriterStep>,
+) -> GeneratedIdtWriterLowering {
+    GeneratedIdtWriterLowering {
+        operation: omega_target_operations::TargetOperationKind::GeneratedIdtWriter {
+            preparation,
+            installed_code,
+            artifact,
+            destination,
+            writer_fingerprint,
+            placement_fingerprint,
+            initial_content_fingerprint,
+            root_binding_fingerprint,
+            byte_len,
+            little_endian,
+            source_slot_count,
+            steps: steps.into(),
+        },
+    }
+}
+
 impl GeneratedIdtLoadLowering {
     pub const fn operation(&self) -> &omega_target_operations::TargetOperationKind {
         &self.operation
@@ -576,6 +650,58 @@ pub(crate) fn select_provider_plan_names(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn prepared_writer_facts_lower_without_numeric_addresses() {
+        let preparation =
+            omega_external_roots::IdtWriterPreparationId::from_normalized_identity(10)
+                .expect("writer preparation identity");
+        let installed_code = omega_external_roots::InstalledCodeId::from_normalized_identity(11)
+            .expect("installed code identity");
+        let artifact = omega_external_roots::ArtifactId::from_normalized_identity(12)
+            .expect("artifact identity");
+        let destination = omega_external_roots::IdtDestinationId::from_normalized_identity(13)
+            .expect("destination identity");
+        let steps = vec![omega_external_roots::PreparedIdtWriterStep {
+            container_byte_offset: 8,
+            container_width_bits: 64,
+            destination_lsb: 16,
+            source_lsb: 32,
+            width: 16,
+            source_slot: 0,
+        }];
+        let lowering = lower_prepared_idt_writer_facts(
+            preparation,
+            installed_code,
+            artifact,
+            destination,
+            0x1111,
+            0x2222,
+            0x3333,
+            0x4444,
+            4096,
+            true,
+            1,
+            steps.clone(),
+        );
+        assert_eq!(
+            lowering.operation(),
+            &omega_target_operations::TargetOperationKind::GeneratedIdtWriter {
+                preparation,
+                installed_code,
+                artifact,
+                destination,
+                writer_fingerprint: 0x1111,
+                placement_fingerprint: 0x2222,
+                initial_content_fingerprint: 0x3333,
+                root_binding_fingerprint: 0x4444,
+                byte_len: 4096,
+                little_endian: true,
+                source_slot_count: 1,
+                steps: steps.into(),
+            }
+        );
+    }
 
     #[test]
     fn prepared_idt_facts_lower_to_one_exact_generated_operation() {

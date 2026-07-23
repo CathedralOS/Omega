@@ -123,6 +123,9 @@ pub(super) fn lower_machine_instruction_kind(
         SelectedInstructionKind::GeneratedIdtLoad { .. } => {
             MachineInstructionKind::GeneratedIdtLoad
         }
+        SelectedInstructionKind::GeneratedIdtWriter { .. } => {
+            MachineInstructionKind::GeneratedIdtWriter
+        }
         SelectedInstructionKind::FlagsSnapshot { .. } => MachineInstructionKind::FlagsSnapshot,
         SelectedInstructionKind::FlagsRestore { .. } => MachineInstructionKind::FlagsRestore,
         SelectedInstructionKind::MsrRead { .. } => MachineInstructionKind::MsrRead,

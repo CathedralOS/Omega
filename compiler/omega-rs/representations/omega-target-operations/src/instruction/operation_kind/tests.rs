@@ -87,3 +87,39 @@ fn operation_kinds_expose_control_domains() {
     assert!(!idt_load.crosses_host_boundary());
     assert!(!idt_load.touches_runtime_storage());
 }
+
+#[test]
+fn generated_idt_writer_is_an_address_free_runtime_write() {
+    let writer = TargetOperationKind::GeneratedIdtWriter {
+        preparation: omega_external_roots::IdtWriterPreparationId::from_normalized_identity(1)
+            .expect("writer preparation identity"),
+        installed_code: omega_external_roots::InstalledCodeId::from_normalized_identity(2)
+            .expect("installed code identity"),
+        artifact: omega_external_roots::ArtifactId::from_normalized_identity(3)
+            .expect("artifact identity"),
+        destination: omega_external_roots::IdtDestinationId::from_normalized_identity(4)
+            .expect("destination identity"),
+        writer_fingerprint: 5,
+        placement_fingerprint: 6,
+        initial_content_fingerprint: 7,
+        root_binding_fingerprint: 8,
+        byte_len: 16,
+        little_endian: true,
+        source_slot_count: 1,
+        steps: vec![omega_external_roots::PreparedIdtWriterStep {
+            container_byte_offset: 0,
+            container_width_bits: 64,
+            destination_lsb: 0,
+            source_lsb: 0,
+            width: 64,
+            source_slot: 0,
+        }]
+        .into(),
+    };
+    assert_eq!(
+        writer.semantic_domain(),
+        TargetOperationDomain::RuntimeWrite
+    );
+    assert!(!writer.crosses_host_boundary());
+    assert!(writer.touches_runtime_storage());
+}

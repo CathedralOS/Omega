@@ -655,10 +655,21 @@ schemas recover the same instance without publishing policy type identity.
    compiler lowering. The generated target/machine operation retains those
    facts, carries the exact R10 + control-state footprint, emits only pinned
    x86 `lidt [r10]`, and rejects on AArch64; source spelling still rejects
-   before operand lowering. **Next:** lower the normalized writer as a
-   compiler-generated checked Omega machine, materialize its private descriptor
-   address into R10, and insert/execute this checked operation in the concrete
-   provider sequence.
+   before operand lowering. Writer preparation and checked lowering are now
+   live too: one sealed `PreparedIdtWriter` owns the exact unpublished
+   destination, normalized plan, and root set after validating placement,
+   writability/pinning/mapping, fragment geometry, and every source against the
+   exact installed artifact. Its deterministic identity binds code, artifact,
+   destination and its initial content, placement, plan, and roots. Compiler
+   lowering retains those facts plus address-free fragment geometry and
+   provider-private source-slot indices in generated-only target/machine
+   carriers; foreign entries,
+   phase/destination drift, root drift, and source construction all reject.
+   Emission currently refuses that carrier rather than inventing an ABI.
+   **Next:** pin the provider-private writer-context ABI, derive its exact
+   footprint and target encodings, execute the emitted writer in the concrete
+   provider, materialize the private descriptor address into R10, and insert/
+   execute the checked publication operation.
 5. **IDT2 — installed-root ledger.** The normalized `omega-external-roots`
    foundation is live. It admits only an entry present in the exact
    installed artifact; consumes owner-scoped slot authority; and records
@@ -702,11 +713,14 @@ schemas recover the same instance without publishing policy type identity.
    The normalized IDT publication transition also enforces record-before-`lidt`
    ordering and retains every installed-root handle. A sealed prepared-load
    carrier now prevents the generated checked `lidt` operation from being
-   constructed until that exact root/ledger/control gate succeeds. **Next:**
+   constructed until that exact root/ledger/control gate succeeds. The sealed
+   writer preparation and address-free generated machine carrier now likewise
+   prevent a swapped plan/destination/resolver from reaching code generation.
+   **Next:**
    drive the selected-plan/root binding from concrete Cathedral PIC/LAPIC
-   candidate construction, lower the normalized direct-destination writer into
-   checked Omega, and connect descriptor-address materialization plus execution
-   of the generated load in the concrete provider.
+   candidate construction, pin and emit the private writer-context ABI, and
+   connect descriptor-address materialization plus execution of both generated
+   operations in the concrete provider.
    The stack/IST policy must remain one fact consumed by both layout
    materialization and WCSU analysis.
 6. **IDT3 — linear interrupt obligations.** The source contract is live in
@@ -1316,9 +1330,14 @@ stronger operations it needs instead of citing machine parameters generally.
   and materialization without permitting constraint substitution. Entry-source
   integration now reaches canonical executable entry-set decoding and
   admission-bound sealed entry targets. Exact installed code now resolves those
-  targets privately while executing the atomic writer. Lower the normalized
-  provider-resolved post-handoff writer programs as compiler-generated checked
-  Omega machines. The settled writer consumes one exclusive unpublished
+  targets privately while executing the atomic writer. A sealed preparation
+  now consumes the exact destination/plan/root set, validates every entry
+  against that installed realization, and lowers to an address-free generated
+  target/machine carrier with deterministic plan/placement/initial-content/
+  root fingerprints and private source-slot indices. Pin its private context
+  ABI and emit the
+  target instructions; emission currently fails closed. The settled writer
+  consumes one exclusive unpublished
   mapped/pinned/writable placement plus a sealed exact-artifact resolver and
   writes the destination directly. A partial or failed fill remains
   unpublished and cannot produce the established result; no public address
