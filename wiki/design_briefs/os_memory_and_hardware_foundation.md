@@ -762,12 +762,17 @@ all consumed values. The live ledger also owns a deterministic report
 fingerprint that binds each normalized root contract to its exact installed
 code, artifact, slot, owner, and admission. `omega-artifacts` writes this live
 state as `external_roots.json`: the complete evaluated `CallPlan + StatePlan`,
-provider/effect/trust identities, WCSU demand, nesting and acknowledgement
-policy, and component pins are machine-readable, while friendly names and
-numeric entry addresses are absent by construction. The report is deliberately
-not a numbered compiler phase because roots may be installed after image build.
-Provider execution, artifact-wide WCSU composition, and the actual `lidt`
-consumer remain.
+provider/effect/trust identities, the three resource columns, nesting and
+acknowledgement policy, and component pins are machine-readable, while friendly
+names, numeric entry addresses, and private proof internals are absent by
+construction. Stack admission checks the composed WCSU against its ceiling;
+machine-state admission checks the final footprint against the `StatePlan`;
+and canonical fixed-work provider summaries compose transitively while
+rejecting missing callees, cycles, zero invocation bounds, overflow, and excess
+demand. The report is deliberately not a numbered compiler phase because roots
+may be installed after image build. Provider execution, artifact-wide WCSU
+composition, the concrete timer leaf profile, and the actual `lidt` consumer
+remain.
 
 ### Installed-root resource contract
 
@@ -1016,11 +1021,9 @@ settled concrete interrupt policy's implementation remain. Remaining order:
    contract identity are complete.
 6. Connect the live placement constraints to admitted-artifact validation and
    scoped executable installation.
-7. Extend the normalized external-root ledger and manifest with the three
-   resource columns: retain stack/work/state ceilings, realized
-   demands/footprints, and validation receipts while excluding private
-   evidence. Compose provider structural-work summaries and add the acyclic
-   fixed-work timer profile.
+7. Instantiate the first timer's acyclic fixed-work acknowledgement,
+   clock-capture, wake, and return leaf summaries in the implemented
+   structural-work composition model.
 8. Connect the ledger to provider execution and WCSU composition. Materialize
    the complete exception IDT, provision the dedicated fault and shared
    maskable-IRQ IST stack classes, connect checked `lidt`, and validate the

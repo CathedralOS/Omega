@@ -623,10 +623,9 @@ schemas recover the same instance without publishing policy type identity.
    distinct installation receipt. Implement writer lowering, both receipts,
    and the record-then-publish transition.
 5. **IDT2 — installed-root ledger.** The normalized `omega-external-roots`
-   foundation is live. It validates nonzero/aligned WCSU demand against one
-   complete `BoundaryEntryPlan`; admits only an entry present in the exact
+   foundation is live. It admits only an entry present in the exact
    installed artifact; consumes owner-scoped slot authority; and records
-   provider/effect/trust, stack, nesting, acknowledgement, WCSU, and
+   provider/effect/trust, nesting, acknowledgement, resources, and
    component-version pins without exposing a numeric code address. Its linear
    root handle borrows the installed code as a liveness pin. Removal returns
    the slot only after an exact receipt proves both entry unreachability and
@@ -634,19 +633,18 @@ schemas recover the same instance without publishing policy type identity.
    consumed authority. The live ledger now has a deterministic report
    fingerprint over exact root/realization/slot/admission bindings, and
    `omega-artifacts` emits `external_roots.json` directly from that ledger.
-   The manifest includes the complete normalized `CallPlan + StatePlan`,
-   provider/effect/trust identities, WCSU demand, nesting/acknowledgement
-   policy, and component pins while exposing no numeric entry address.
-   **Next:** extend the record/report with three independent resource columns:
-   stack ceiling plus realized WCSU, structural-work ceiling plus realized
-   composed demand, and `StatePlan` ceiling plus realized final footprint.
-   Retain validation receipts but never private rankings/codegen proofs. Add
-   fixed-work provider summaries and compose them transitively; the first timer
-   accepts only an acyclic final path with fixed-work acknowledgement, clock,
-   wake, and return leaves. This proves finite structural work, not WCET.
-   Connect the result to provider execution and WCSU composition. Add `lidt`
-   only as an installation path through it; the stack/IST policy must remain one
-   fact consumed by both layout materialization and WCSU analysis.
+   The record/report now has three independently validated columns: stack
+   ceiling plus local/composed WCSU, structural-work ceiling plus canonical
+   transitive fixed-work demand, and `StatePlan` ceiling plus realized final
+   footprint. Each retains normalized validation receipts while excluding
+   private ranking and codegen proofs. Fixed-work summaries fail closed on
+   missing providers, cycles, zero multiplicities, arithmetic overflow, and a
+   final demand above the root ceiling; they prove finite structural work, not
+   WCET. **Next:** instantiate the first timer's acyclic acknowledgement,
+   clock, wake, and return leaf summaries, then connect the admitted result to
+   provider execution and WCSU composition. Add `lidt` only as an installation
+   path through it; the stack/IST policy must remain one fact consumed by both
+   layout materialization and WCSU analysis.
 6. **IDT3 — linear interrupt obligations.** The source contract is live in
    `omega::language::core::interrupt`: opaque linear `InterruptMaskGuard` and
    `InterruptAcknowledgement` values have explicit consuming `restore` and
