@@ -1632,8 +1632,12 @@ stronger operations it needs instead of citing machine parameters generally.
      `StatePlan` restore set; opaque execution requires either that exact
      claim under a root-reported trust receipt or root-reported adequate
      hardware isolation, and missing, unreported, or drifted evidence rejects;
-  3. a DMA/external-loan agent cannot reach task/control storage outside its
-     exact lent Extent; and
+  3. **Live:** external-loan start requires per-transfer borrower-reach
+     evidence bound to the exact loan, borrower, direction, address space,
+     provenance/era, and lent range; missing, stale, or overbroad admitted
+     borrower-contract/hardware-isolation evidence rejects before the agent
+     receives the loan, so unrelated task/control storage remains unreachable;
+     and
   4. ordinary Omega cannot project, recast, address, or mutate another
      activation's parked continuation.
   Keep forward-edge indirect targeting on sealed entry references and the

@@ -280,6 +280,14 @@ attenuate, borrow, and merge only by conservation. Split consumes its parent.
 Merge requires contiguous compatible descendants of the same private authority
 origin; numeric adjacency never manufactures a combined grant.
 
+An external borrower such as a DMA agent receives only a loan of that carrier,
+never ambient numeric-address authority. Transfer start requires provider
+evidence that an admitted borrower contract or hardware boundary confines the
+exact loan ID, borrower and direction to the lent base/length under the same
+space, provenance, and mapping era. A missing, stale, or parent-wide receipt
+for a smaller subrange rejects before transfer, keeping unrelated task and
+compiler-owned control storage outside the agent's reachable authority.
+
 Mapping also requires authority on both sides. Fixed placement consumes an
 owned virtual-range extent; a bare `addr` is at most a hint. The physical source
 may be owned or borrowed, and the mapped extent preserves that relationship.
