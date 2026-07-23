@@ -1,12 +1,13 @@
 # Design Brief: Calling And Machine-State Plans
 
-Current as of 2026-07-22. Boundary conventions are normalized policy artifacts;
+Current as of 2026-07-23. Boundary conventions are normalized policy artifacts;
 Omega's internal calling convention remains compiler-sovereign. This brief now
 includes inbound machine-state preservation, which ordinary calls do not expose.
 Engineering is incomplete. The normalized compiler model, initial built-in
-policy evaluators, direct source-policy evaluation, concrete and generic
-`Calling<C>` discovery, publication of the evaluated identity, and
-relationship-span diagnostics are implemented. Authoritative lowering remains.
+policy evaluators, recursive public fixed-array/record signature graphs, direct
+source-policy evaluation, concrete and generic `Calling<C>` discovery,
+publication of the evaluated identity, and relationship-span diagnostics are
+implemented. Authoritative lowering remains.
 
 ## One boundary entry plan, two independent facets
 
@@ -173,6 +174,14 @@ aggregate rules. A `[f32; 4]` may therefore become an HFA under AAPCS64, use an
 SSE aggregate class under SysV AMD64, or be indirect under a policy that requires
 that result. Classification is recursive and semantic; equal byte size alone
 does not imply equal ABI class.
+
+`BoundarySignature` presents that structure as a bounded flat graph rather than
+as recursively embedded values: parameter and result roots index `ValueShape`
+nodes; fixed-array nodes name their element root and count; record nodes name a
+contiguous `ValueField` range whose entries carry child roots and exact byte
+offsets. The policy returns a separate `AbiValueShape` for each placement. The
+compiler checks that classification against the semantic graph and selected
+convention before accepting and fingerprinting the plan.
 
 Omega never performs C source-level array decay. A native function that receives
 a fixed aggregate by value is declared with `[T; N]`. A C declaration such as

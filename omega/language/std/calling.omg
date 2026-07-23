@@ -2,10 +2,11 @@
 // author a policy machine, but the values it receives and returns come from
 // this compiler-owned, closed vocabulary. Array tails beyond each explicit
 // count are ignored and exist only because Omega arrays have fixed length.
-// ValueClass is the current bootstrap input. The settled endpoint supplies
-// enough normalized recursive public shape for authored policies to classify
-// fixed arrays/records themselves. Private slice/text carriers never enter this
-// vocabulary as public ABI unless an explicit policy publishes that shape.
+// BoundarySignature carries a bounded flat graph. ValueShape cases refer to
+// child-shape or field-table indices, so fixed arrays and records retain their
+// recursive public structure without requiring an infinitely sized recursive
+// data declaration. ValuePlacement uses the separate classified ABI shape the
+// policy chooses after inspecting that graph.
 
 domain [u8; 256]::Utf8 {
     valid_utf8(self);
@@ -19,11 +20,9 @@ data SystemVEightbyteClass {
 data ValueClass {
     case Integer;
     case Float;
-    case HomogeneousFloatAggregate(members: i64);
-    case SystemVAggregate(
-        first: SystemVEightbyteClass,
-        second: SystemVEightbyteClass
-    );
+    case Reference;
+    case FixedArray(element: i64, length: i64);
+    case Record(first_field: i64, field_count: i64);
 }
 
 data ValueShape {
@@ -32,11 +31,36 @@ data ValueShape {
     alignment: i64;
 }
 
+data ValueField {
+    shape: i64;
+    byte_offset: i64;
+}
+
+data AbiValueClass {
+    case Integer;
+    case Float;
+    case HomogeneousFloatAggregate(members: i64);
+    case SystemVAggregate(
+        first: SystemVEightbyteClass,
+        second: SystemVEightbyteClass
+    );
+}
+
+data AbiValueShape {
+    class: AbiValueClass;
+    byte_size: i64;
+    alignment: i64;
+}
+
 data BoundarySignature {
-    parameters: [ValueShape; 32];
+    shapes: [ValueShape; 256];
+    shape_count: i64 [0..=256];
+    fields: [ValueField; 256];
+    field_count: i64 [0..=256];
+    parameters: [i64; 32];
     parameter_count: i64 [0..=32];
     has_result: bool;
-    result: ValueShape;
+    result: i64;
 }
 
 data MachineRegister {
@@ -88,7 +112,7 @@ data ValueLocation {
 }
 
 data ValuePlacement {
-    shape: ValueShape;
+    shape: AbiValueShape;
     locations: [ValueLocation; 16];
     location_count: i64 [0..=16];
 }
