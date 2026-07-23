@@ -149,9 +149,9 @@ pub(crate) fn validate_machine_contract_entailment(
     // proven ensures to this proof, instantiated at the call's argument
     // terms -- fact injection, the explicit default. Nothing is global:
     // the call IS the use declaration.
-    // Citations discharge their callee's requires against the judge's
-    // HYPOTHESIS BASE (the requires just intaken) -- v1 site discharge; a
-    // citation cannot lean on another citation's fact.
+    // Citations discharge their callee's requires against facts available at
+    // that exact statement. Earlier citations feed later ones, preserving the
+    // authored proof order without making any lemma global or implicit.
     let citation_equations = {
         let judge_for_discharge = &structural;
         collect_citation_equations(
@@ -286,53 +286,35 @@ pub(crate) fn validate_machine_contract_entailment(
         let mut verdict = StructuralJudgment::Proven;
         for arm in arms {
             let mut bound = structural.clone();
-            if let Some((subject_term, constructor)) = &arm.case_equation {
-                // Computed-subject arm: the hypothesis is an equation.
+            for (subject_term, constructor) in &arm.case_equations {
+                // Computed-subject refinements are equations.
                 bound.intake_equation(subject_term.clone(), constructor.clone(), 0);
-                if machine_has_requires {
-                    if requires.iter().any(|fact| {
-                        matches!(bound.judge(program, *fact), StructuralJudgment::Refuted)
-                    }) {
-                        continue;
-                    }
-                    for fact in &requires {
-                        bound.intake(program, *fact);
-                    }
-                    if bound.hypotheses_contradictory {
-                        continue;
-                    }
-                }
             }
-            if let Some((subject, constructor)) = &arm.case_hypothesis {
+            for (subject, constructor) in &arm.case_hypotheses {
                 bound
                     .substitutions
                     .insert(0, (subject.clone(), constructor.clone()));
-                // REQUIRES-BEARING INDUCTION: re-intake the requires under
-                // the case hypothesis -- `add(c, a) == add(c, b)` under
-                // c := Succ(prev) unfolds to Succ-wrapped sides whose
-                // INJECTIVITY decomposition yields the prev-level equation
-                // the inductive hypothesis's premise needs. The machine-level
-                // intake saw the un-refined spelling; this sees the arm's.
-                if machine_has_requires {
-                    // VACUOUS ARM (constructor-clash vacuity, N4 order
-                    // rung): a requires premise that judges REFUTED under
-                    // the bare case hypothesis -- e.g. `sub(Succ r, a) ==
-                    // Zero` with a := Zero unfolding to `Succ r == Zero`
-                    // -- can never hold on this arm, so the implication is
-                    // trivially true and the arm closes. Judged BEFORE the
-                    // intake: intaking first installs the premise's own
-                    // rewrite, which would mask the clash.
-                    if requires.iter().any(|fact| {
-                        matches!(bound.judge(program, *fact), StructuralJudgment::Refuted)
-                    }) {
-                        continue;
-                    }
-                    for fact in &requires {
-                        bound.intake(program, *fact);
-                    }
-                    if bound.hypotheses_contradictory {
-                        continue;
-                    }
+            }
+            if machine_has_requires
+                && (!arm.case_equations.is_empty() || !arm.case_hypotheses.is_empty())
+            {
+                // REQUIRES-BEARING INDUCTION: re-intake the requires after
+                // every refinement on the path. Nested case splits may expose
+                // the payload-level premise only at the final leaf.
+                //
+                // VACUOUS LEAF: judge refutation before intake, because
+                // intaking the premise itself could mask a constructor clash.
+                if requires
+                    .iter()
+                    .any(|fact| matches!(bound.judge(program, *fact), StructuralJudgment::Refuted))
+                {
+                    continue;
+                }
+                for fact in &requires {
+                    bound.intake(program, *fact);
+                }
+                if bound.hypotheses_contradictory {
+                    continue;
                 }
             }
             // Per-arm citations (N3 rung 2): the arm's sub-state facts,
@@ -2288,6 +2270,7 @@ fn collect_citation_equations(
     judge: Option<&StructuralJudge>,
 ) -> Vec<(StructuralTerm, StructuralTerm)> {
     let mut equations = Vec::new();
+    let mut site_judge = judge.cloned();
     // Machine level reads the ENTRY state only: sub-state citations
     // reference sub-state parameters, which have no machine-level frame --
     // they intake PER ARM in `recognize_structural_case_arms`, converted
@@ -2310,7 +2293,7 @@ fn collect_citation_equations(
         .collect();
     for statement in program.statement_table.statements(entry.statement_nodes) {
         if let StatementNode::LocalData(local) = statement {
-            if let Some(judge) = judge
+            if let Some(judge) = site_judge.as_ref()
                 && let Some(term) = judge.callee_term(local.initial_value, &environment, 0)
             {
                 environment.push((local.name.as_str().to_owned(), term));
@@ -2324,7 +2307,8 @@ fn collect_citation_equations(
         let mut argument_terms: Vec<StructuralTerm> = Vec::with_capacity(argument_handles.len());
         let mut arguments_termify = true;
         for argument in &argument_handles {
-            let term = judge
+            let term = site_judge
+                .as_ref()
                 .and_then(|judge| judge.callee_term(*argument, &environment, 0))
                 .or_else(|| structural_term(program, *argument));
             let Some(term) = term else {
@@ -2336,6 +2320,7 @@ fn collect_citation_equations(
         if !arguments_termify {
             continue;
         }
+        let before = equations.len();
         instantiate_citation(
             program,
             classification,
@@ -2344,8 +2329,13 @@ fn collect_citation_equations(
             &argument_terms,
             diagnostics,
             &mut equations,
-            judge,
+            site_judge.as_ref(),
         );
+        if let Some(judge) = &mut site_judge {
+            for (left, right) in &equations[before..] {
+                judge.intake_equation(left.clone(), right.clone(), 0);
+            }
+        }
     }
     if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
         eprintln!("CITE machine={} equations={equations:?}", machine.name);
@@ -3606,10 +3596,10 @@ fn instantiate_citation(
     }
     // SITE DISCHARGE (math roster N3): a theorem applies only at operands
     // satisfying its REQUIRES, so each requires conjunct instantiates under
-    // the citation's argument map and must judge PROVEN against the citing
-    // machine's own hypotheses (its requires; not other citations -- v1
-    // discharges against the hypothesis base only). Sites without a judge
-    // (per-arm citations) keep the blanket refusal.
+    // the citation's argument map and must judge PROVEN against the facts
+    // established before this statement (machine requires, case refinements,
+    // an available IH, and earlier citations). Sites without a judge keep the
+    // blanket refusal.
     if requires_out_of_language || (!requires_facts.is_empty() && judge.is_none()) {
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` cites `{}`, whose requires contract is not \
@@ -3877,14 +3867,14 @@ struct StructuralCaseArm {
     machine_name: String,
     /// Entry parameter names, positionally matching self-call arguments.
     parameter_names: Vec<String>,
-    /// `Some((subject, constructor))` for a case arm: the subject parameter
-    /// equals a constructor over FRESH payload variables. `None` for an
-    /// Always arm.
-    case_hypothesis: Option<(String, StructuralTerm)>,
-    /// COMPUTED-SUBJECT arm (N4 slice a3): the subject is an expression
-    /// (`sub(b, a)`), so the hypothesis is an EQUATION to intake rather
-    /// than a substitution -- `Some((subject_term, constructor))`.
-    case_equation: Option<(StructuralTerm, StructuralTerm)>,
+    /// Case refinements accumulated along the path to this leaf. A variable
+    /// subject becomes a substitution to its constructor over FRESH payload
+    /// variables. Nested case states contribute one refinement apiece.
+    case_hypotheses: Vec<(String, StructuralTerm)>,
+    /// COMPUTED-SUBJECT refinements accumulated along the path. A subject
+    /// such as `sub(b, a)` cannot be a substitution, so it is retained as an
+    /// equation to intake instead.
+    case_equations: Vec<(StructuralTerm, StructuralTerm)>,
     /// PER-ARM CITATIONS (N3 rung 2): equations injected by citation
     /// statements in the arm's SUB-STATE, instantiated under the arm
     /// environment -- the only route to cite a lemma AT A CASE PAYLOAD
@@ -3980,8 +3970,8 @@ fn recognize_guarded_structural_value_arms(
             Some(StructuralCaseArm {
                 machine_name: machine_name.clone(),
                 parameter_names: parameter_names.clone(),
-                case_hypothesis: None,
-                case_equation: None,
+                case_hypotheses: Vec::new(),
+                case_equations: Vec::new(),
                 citations: Vec::new(),
                 value: judge.callee_term(*value, &environment, 0)?,
             })
@@ -4021,11 +4011,12 @@ fn guard_expressions_equal(
     }
 }
 
-/// Recognize a single-state proof machine whose statements are case arms
-/// over its parameters (`transition a { Nat::Zero -> .. Nat::Succ { prev }
-/// -> .. }` desugars to per-arm transitions guarded by `a == Nat::Case`).
-/// Returns `None` for anything out of shape -- judging then proceeds
-/// without result binding, which only weakens toward Unknown.
+type PendingStructuralCitation = (omega_typed_trees::name::Identifier, Vec<StructuralTerm>);
+
+/// Recognize a proof machine as a tree of structural case states. Each named
+/// state can either terminate in a value or refine another subject and hand
+/// the branch to a further named state. Unsupported statement order, an
+/// unresolved target, or a state cycle fails the whole recognition closed.
 fn recognize_structural_case_arms(
     program: &TypedTrees,
     machine: &Machine,
@@ -4033,9 +4024,6 @@ fn recognize_structural_case_arms(
     classification: &omega_typed_trees::proof_only::ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<Vec<StructuralCaseArm>> {
-    // The entry state carries the case dispatch; further states are per-arm
-    // SUB-PROOFS (N3 rung 2) reached by Named arm targets, each holding its
-    // own citations plus one Always value terminal.
     let states = program.machine_states(machine);
     let root = states.first()?;
     let machine_name = machine
@@ -4050,33 +4038,122 @@ fn recognize_structural_case_arms(
         .iter()
         .map(|parameter| parameter.name.as_str().to_owned())
         .collect();
-    let statements = program.statement_table.statements(root.statement_nodes);
-    if statements.is_empty() {
+    let environment: Vec<(String, StructuralTerm)> = parameter_names
+        .iter()
+        .map(|name| (name.clone(), StructuralTerm::Variable(name.clone())))
+        .collect();
+    let mut path = Vec::new();
+    let mut fresh = 0usize;
+    let arms = recognize_structural_state_leaves(
+        program,
+        machine,
+        judge,
+        classification,
+        diagnostics,
+        states,
+        root,
+        &machine_name,
+        &parameter_names,
+        environment,
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        false,
+        &mut path,
+        &mut fresh,
+    )?;
+    (!arms.is_empty()).then_some(arms)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn recognize_structural_state_leaves(
+    program: &TypedTrees,
+    machine: &Machine,
+    judge: &StructuralJudge<'_>,
+    classification: &omega_typed_trees::proof_only::ProofOnlyClassification,
+    diagnostics: &mut Vec<Diagnostic>,
+    states: &[omega_typed_trees::state::State],
+    state: &omega_typed_trees::state::State,
+    machine_name: &str,
+    parameter_names: &[String],
+    mut environment: Vec<(String, StructuralTerm)>,
+    case_hypotheses: Vec<(String, StructuralTerm)>,
+    case_equations: Vec<(StructuralTerm, StructuralTerm)>,
+    mut pending_citations: Vec<PendingStructuralCitation>,
+    collect_citations: bool,
+    path: &mut Vec<SymbolHandle>,
+    fresh: &mut usize,
+) -> Option<Vec<StructuralCaseArm>> {
+    if !state.symbol.is_valid() || path.iter().any(|symbol| *symbol == state.symbol) {
         return None;
     }
-    let mut arms = Vec::new();
-    for statement in statements {
-        if is_arm_pattern_marker(statement) {
-            continue; // exhaustiveness carrier, not shape
-        }
-        // Citation statements carry facts, not shape (their equations are
-        // already in the judge's hypotheses); step over them.
-        if let StatementNode::Call(call) = statement {
-            if is_citation_statement(program, classification, machine, call) {
+    path.push(state.symbol);
+
+    let result = (|| {
+        let mut transitions = Vec::new();
+        let mut saw_transition = false;
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            if is_arm_pattern_marker(statement) {
                 continue;
             }
+            match statement {
+                StatementNode::LocalData(local) if !saw_transition => {
+                    let term = judge.callee_term(local.initial_value, &environment, 0)?;
+                    if collect_citations
+                        && let Some((target, argument_handles)) =
+                            citation_call_in_statement(program, statement)
+                    {
+                        let argument_terms = argument_handles
+                            .iter()
+                            .map(|argument| judge.callee_term(*argument, &environment, 0))
+                            .collect::<Option<Vec<_>>>()?;
+                        pending_citations.push((target.clone(), argument_terms));
+                    }
+                    environment.push((local.name.as_str().to_owned(), term));
+                }
+                StatementNode::Call(_) if !saw_transition && collect_citations => {
+                    let Some((target, argument_handles)) =
+                        citation_call_in_statement(program, statement)
+                    else {
+                        return None;
+                    };
+                    let argument_terms = argument_handles
+                        .iter()
+                        .map(|argument| judge.callee_term(*argument, &environment, 0))
+                        .collect::<Option<Vec<_>>>()?;
+                    pending_citations.push((target.clone(), argument_terms));
+                }
+                StatementNode::Call(call)
+                    if !saw_transition
+                        && is_citation_statement(program, classification, machine, call) =>
+                {
+                    // Entry citations were already intaken machine-wide.
+                }
+                StatementNode::Transition(transition) => {
+                    saw_transition = true;
+                    if transition.continuation.is_valid() || !transition.target.is_valid() {
+                        return None;
+                    }
+                    transitions.push(transition);
+                }
+                _ => return None,
+            }
+        }
+        if transitions.is_empty()
+            || (transitions.len() > 1
+                && transitions
+                    .iter()
+                    .any(|transition| matches!(transition.guard, TransitionGuardNode::Always)))
+        {
             return None;
         }
-        let StatementNode::Transition(transition) = statement else {
-            return None;
-        };
-        if transition.continuation.is_valid() {
-            return None;
-        }
-        let mut case_equation: Option<(StructuralTerm, StructuralTerm)> = None;
-        let case_hypothesis = match transition.guard {
-            TransitionGuardNode::Always => None,
-            TransitionGuardNode::When(guard) => {
+
+        let mut leaves = Vec::new();
+        for transition in transitions {
+            let mut branch_environment = environment.clone();
+            let mut branch_hypotheses = case_hypotheses.clone();
+            let mut branch_equations = case_equations.clone();
+            if let TransitionGuardNode::When(guard) = transition.guard {
                 let ExpressionNode::Binary(comparison) = program.expression_table.expression(guard)
                 else {
                     return None;
@@ -4084,20 +4161,8 @@ fn recognize_structural_case_arms(
                 if comparison.operator != BinaryOperator::Equal {
                     return None;
                 }
-                let subject_term = structural_term(program, comparison.left)?;
-                let subject_name = match &subject_term {
-                    StructuralTerm::Variable(subject)
-                        if parameter_names.iter().any(|name| name == subject) =>
-                    {
-                        Some(subject.clone())
-                    }
-                    // COMPUTED SUBJECT (N4 slice a3): `transition
-                    // (sub(b, a)) { .. }` -- the hypothesis becomes an
-                    // EQUATION over the subject term instead of a
-                    // parameter substitution.
-                    StructuralTerm::Application { .. } => None,
-                    _ => return None,
-                };
+                let raw_subject = structural_term(program, comparison.left)?;
+                let subject = judge.callee_term(comparison.left, &branch_environment, 0)?;
                 let Some(StructuralTerm::Constructor { data, case, fields }) =
                     structural_term(program, comparison.right)
                 else {
@@ -4106,7 +4171,6 @@ fn recognize_structural_case_arms(
                 if !fields.is_empty() {
                     return None;
                 }
-                // Fresh payload variables from the case's declared fields.
                 let definition = program
                     .data_definitions()
                     .iter()
@@ -4128,289 +4192,208 @@ fn recognize_structural_case_arms(
                         }
                         _ => None,
                     })?;
-                let fresh_prefix = subject_name
-                    .clone()
-                    .unwrap_or_else(|| "computed".to_owned());
-                let mut fresh: Vec<(String, StructuralTerm)> = variant_fields
+                let branch_id = *fresh;
+                *fresh += 1;
+                let mut fields: Vec<(String, StructuralTerm)> = variant_fields
                     .into_iter()
                     .map(|field| {
-                        let variable = format!("__ih_{fresh_prefix}_{field}");
+                        let variable =
+                            format!("__ih_{}_{}_{}", state.name.as_str(), branch_id, field);
                         (field, StructuralTerm::Variable(variable))
                     })
                     .collect();
-                fresh.sort_by(|(left, _), (right, _)| left.cmp(right));
-                let constructor = StructuralTerm::Constructor {
-                    data,
-                    case,
-                    fields: fresh,
-                };
-                match subject_name {
-                    Some(subject) => Some((subject, constructor)),
-                    None => {
-                        case_equation = Some((subject_term, constructor));
-                        None
+                fields.sort_by(|(left, _), (right, _)| left.cmp(right));
+                let constructor = StructuralTerm::Constructor { data, case, fields };
+
+                match subject {
+                    StructuralTerm::Variable(subject) => {
+                        branch_hypotheses.push((subject, constructor.clone()));
                     }
+                    StructuralTerm::Application { .. } => {
+                        branch_equations.push((subject, constructor.clone()));
+                    }
+                    _ => return None,
                 }
-            }
-        };
-        // The arm environment: the subject maps to its constructor (so
-        // payload member reads index the fresh variables); every other
-        // parameter maps to itself.
-        let environment: Vec<(String, StructuralTerm)> = parameter_names
-            .iter()
-            .map(|name| {
-                if let Some((subject, constructor)) = &case_hypothesis
-                    && subject == name
-                {
-                    (name.clone(), constructor.clone())
+                if let StructuralTerm::Variable(raw_name) = raw_subject {
+                    let (_, binding) = branch_environment
+                        .iter_mut()
+                        .find(|(name, _)| name == &raw_name)?;
+                    *binding = constructor;
+                } else if matches!(raw_subject, StructuralTerm::Application { .. }) {
+                    // A computed subject has no environment binding to refine.
                 } else {
-                    (name.clone(), StructuralTerm::Variable(name.clone()))
+                    return None;
                 }
-            })
-            .collect();
-        let (value, citations) = match program.statement_table.transition_target(transition.target)
-        {
-            TransitionTargetNode::Value(value) => {
-                (judge.callee_term(*value, &environment, 0)?, Vec::new())
             }
-            // A NAMED target hands the arm to a sub-state: its
-            // parameters bind to the transition's argument terms
-            // (converted under THIS arm's environment, so payload
-            // bindings become the fresh variables), its citation
-            // statements instantiate under that sub-environment, and
-            // its sole Always value terminal is the arm's value.
-            TransitionTargetNode::Named { path, arguments } => {
-                let [state_name] = program.statement_table.name_path_members(path.members) else {
-                    return None;
-                };
-                let sub_state = states[1..]
-                    .iter()
-                    .find(|state| state.name.as_str() == state_name.as_str())?;
-                let sub_parameters = program.state_parameters(sub_state);
-                let argument_handles = program.statement_table.expression_handles(*arguments);
-                if sub_parameters.len() != argument_handles.len() {
-                    return None;
+
+            match program.statement_table.transition_target(transition.target) {
+                TransitionTargetNode::Value(value) => {
+                    let value = judge.callee_term(*value, &branch_environment, 0)?;
+                    leaves.push(finalize_structural_case_arm(
+                        program,
+                        machine,
+                        judge,
+                        classification,
+                        diagnostics,
+                        machine_name,
+                        parameter_names,
+                        branch_hypotheses,
+                        branch_equations,
+                        pending_citations.clone(),
+                        value,
+                    ));
                 }
-                let mut sub_environment: Vec<(String, StructuralTerm)> =
-                    Vec::with_capacity(sub_parameters.len());
-                for (parameter, argument) in sub_parameters.iter().zip(argument_handles) {
-                    let term = judge.callee_term(*argument, &environment, 0)?;
-                    sub_environment.push((parameter.name.as_str().to_owned(), term));
-                }
-                let mut sub_environment = sub_environment;
-                // ARM-REFINED CITATION JUDGE (N4 order rung): a
-                // citation's requires must discharge under THIS arm's
-                // case hypothesis (the machine-wide base saw the
-                // requires unrefined -- `sub(x, a) == Zero` -- while
-                // the arm knows x := Succ(prev), which is exactly what
-                // the callee's instantiated premise needs). Vacuous
-                // arms (premise refuted under the hypothesis) skip
-                // citation instantiation entirely; the per-arm proving
-                // loop skips such arms the same way.
-                let mut arm_judge = judge.clone();
-                let mut arm_vacuous = false;
-                if let Some((subject_term, constructor)) = &case_equation {
-                    arm_judge.intake_equation(subject_term.clone(), constructor.clone(), 0);
-                }
-                if case_equation.is_some() || case_hypothesis.is_some() {
-                    if let Some((subject, constructor)) = &case_hypothesis {
-                        arm_judge
-                            .substitutions
-                            .insert(0, (subject.clone(), constructor.clone()));
-                    }
-                    let mut requires_facts: Vec<ExpressionHandle> = Vec::new();
-                    for contract in program.machine_contracts(machine) {
-                        if !matches!(
-                            contract.kind,
-                            omega_typed_trees::signature::SignatureContractKind::Requires
-                        ) {
-                            continue;
-                        }
-                        for fact in program.proof_facts.span_or_empty(contract.facts) {
-                            if let ProofFact::Expression(expression) = fact {
-                                requires_facts.push(*expression);
-                            }
-                        }
-                    }
-                    arm_vacuous = requires_facts.iter().any(|fact| {
-                        matches!(arm_judge.judge(program, *fact), StructuralJudgment::Refuted)
-                    });
-                    for fact in &requires_facts {
-                        arm_judge.intake(program, *fact);
-                    }
-                    arm_vacuous = arm_vacuous || arm_judge.hypotheses_contradictory;
-                }
-                let mut citations = Vec::new();
-                // Citations collect as (target, argument terms) in PASS
-                // ONE and instantiate in PASS TWO, after the terminal is
-                // known: a citation's requires may need the INDUCTIVE
-                // HYPOTHESIS (the machine's own ensures at the terminal's
-                // self-application, e.g. sub_le citing pred_le_left at
-                // exactly the IH fact), which only exists once the
-                // terminal term is in hand.
-                let mut pending_citations: Vec<(
-                    omega_typed_trees::name::Identifier,
-                    Vec<StructuralTerm>,
-                )> = Vec::new();
-                let mut terminal: Option<StructuralTerm> = None;
-                for statement in program
-                    .statement_table
-                    .statements(sub_state.statement_nodes)
-                {
-                    if terminal.is_some() {
-                        return None; // statements after the terminal: out of shape
-                    }
-                    if is_arm_pattern_marker(statement) {
-                        continue; // exhaustiveness carrier, not shape
-                    }
-                    // A `let` in the sub-proof (spelled, or the lowering's
-                    // own __hoist_N of a call-valued terminal) BINDS: its
-                    // initializer termifies under the environment built so
-                    // far and the local joins it, so a later terminal or
-                    // citation referencing the name resolves. This is what
-                    // lets a step arm's value be a CALL wrapping the
-                    // inductive self-application (reverse_append's shape).
-                    if let StatementNode::LocalData(local) = statement {
-                        let term = judge.callee_term(local.initial_value, &sub_environment, 0)?;
-                        sub_environment.push((local.name.as_str().to_owned(), term));
-                        continue;
-                    }
-                    if let Some((target, argument_handles)) =
-                        citation_call_in_statement(program, statement)
-                    {
-                        let mut argument_terms = Vec::with_capacity(argument_handles.len());
-                        let mut arguments_termify = true;
-                        for argument in &argument_handles {
-                            let Some(term) = judge.callee_term(*argument, &sub_environment, 0)
-                            else {
-                                arguments_termify = false;
-                                break;
-                            };
-                            argument_terms.push(term);
-                        }
-                        if arguments_termify && !arm_vacuous {
-                            pending_citations.push((target.clone(), argument_terms));
-                        }
-                        continue;
-                    }
-                    let StatementNode::Transition(sub_transition) = statement else {
-                        return None;
-                    };
-                    if !matches!(sub_transition.guard, TransitionGuardNode::Always)
-                        || sub_transition.continuation.is_valid()
-                    {
-                        return None;
-                    }
-                    let TransitionTargetNode::Value(value) = program
-                        .statement_table
-                        .transition_target(sub_transition.target)
+                TransitionTargetNode::Named {
+                    path: target,
+                    arguments,
+                } => {
+                    let [state_name] = program.statement_table.name_path_members(target.members)
                     else {
                         return None;
                     };
-                    let term = judge.callee_term(*value, &sub_environment, 0);
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-                        eprintln!(
-                            "STRUCT arm-terminal machine={} sub={} termified={} expr={}",
-                            machine.name,
-                            sub_state.name.as_str(),
-                            term.is_some(),
-                            program.expression_table.display_name(*value),
-                        );
-                    }
-                    terminal = Some(term?);
-                }
-                let terminal = terminal?;
-                // PASS TWO: enrich the arm judge with the inductive
-                // hypothesis -- the machine's own ensures instantiated at
-                // each self-application in the terminal (unconditional
-                // only when the machine has no requires; a
-                // requires-bearing IH is the arm loop's conditional
-                // business and is NOT injected here) -- then instantiate
-                // the collected citations so their requires can discharge
-                // against it.
-                if machine_requires_facts(program, machine).is_empty() {
-                    let mut applications = Vec::new();
-                    StructuralJudge::self_applications(&terminal, &machine_name, &mut applications);
-                    let own_ensures: Vec<ExpressionHandle> = program
-                        .machine_contracts(machine)
+                    let target_state = states[1..]
                         .iter()
-                        .filter(|contract| {
-                            matches!(
-                                contract.kind,
-                                omega_typed_trees::signature::SignatureContractKind::Ensures
-                            )
-                        })
-                        .flat_map(|contract| {
-                            program.proof_facts.span_or_empty(contract.facts).iter()
-                        })
-                        .filter_map(|fact| match fact {
-                            ProofFact::Expression(expression) => Some(*expression),
-                            ProofFact::Membership(_) => None,
-                        })
-                        .collect();
-                    for application in applications {
-                        let StructuralTerm::Application { arguments, .. } = &application else {
-                            continue;
-                        };
-                        let map: Vec<(String, StructuralTerm)> = parameter_names
-                            .iter()
-                            .cloned()
-                            .zip(arguments.iter().cloned())
-                            .collect();
-                        for fact in &own_ensures {
-                            let ExpressionNode::Binary(binary) =
-                                program.expression_table.expression(*fact)
-                            else {
-                                continue;
-                            };
-                            if binary.operator != BinaryOperator::Equal {
-                                continue;
-                            }
-                            let (Some(left), Some(right)) = (
-                                structural_term(program, binary.left),
-                                structural_term(program, binary.right),
-                            ) else {
-                                continue;
-                            };
-                            arm_judge.intake_equation(
-                                StructuralJudge::substitute_term(&left, &map),
-                                StructuralJudge::substitute_term(&right, &map),
-                                0,
-                            );
-                        }
+                        .find(|candidate| candidate.name.as_str() == state_name.as_str())?;
+                    let target_parameters = program.state_parameters(target_state);
+                    let argument_handles = program.statement_table.expression_handles(*arguments);
+                    if target_parameters.len() != argument_handles.len() {
+                        return None;
                     }
-                }
-                for (target, argument_terms) in pending_citations {
-                    instantiate_citation(
+                    let target_environment = target_parameters
+                        .iter()
+                        .zip(argument_handles)
+                        .map(|(parameter, argument)| {
+                            Some((
+                                parameter.name.as_str().to_owned(),
+                                judge.callee_term(*argument, &branch_environment, 0)?,
+                            ))
+                        })
+                        .collect::<Option<Vec<_>>>()?;
+                    leaves.extend(recognize_structural_state_leaves(
                         program,
-                        classification,
                         machine,
-                        &target,
-                        &argument_terms,
+                        judge,
+                        classification,
                         diagnostics,
-                        &mut citations,
-                        Some(&arm_judge),
-                    );
+                        states,
+                        target_state,
+                        machine_name,
+                        parameter_names,
+                        target_environment,
+                        branch_hypotheses,
+                        branch_equations,
+                        pending_citations.clone(),
+                        true,
+                        path,
+                        fresh,
+                    )?);
                 }
-                (terminal, citations)
+                _ => return None,
             }
-            _ => return None,
-        };
-        arms.push(StructuralCaseArm {
-            machine_name: machine_name.clone(),
-            parameter_names: parameter_names.clone(),
-            case_hypothesis,
-            case_equation,
-            citations,
-            value,
-        });
+        }
+        Some(leaves)
+    })();
+
+    path.pop();
+    result
+}
+
+#[allow(clippy::too_many_arguments)]
+fn finalize_structural_case_arm(
+    program: &TypedTrees,
+    machine: &Machine,
+    judge: &StructuralJudge<'_>,
+    classification: &omega_typed_trees::proof_only::ProofOnlyClassification,
+    diagnostics: &mut Vec<Diagnostic>,
+    machine_name: &str,
+    parameter_names: &[String],
+    case_hypotheses: Vec<(String, StructuralTerm)>,
+    case_equations: Vec<(StructuralTerm, StructuralTerm)>,
+    pending_citations: Vec<PendingStructuralCitation>,
+    value: StructuralTerm,
+) -> StructuralCaseArm {
+    let mut arm_judge = judge.clone();
+    for (subject, constructor) in &case_equations {
+        arm_judge.intake_equation(subject.clone(), constructor.clone(), 0);
     }
-    // A body of citations alone yields no arms -- returning Some([]) would
-    // judge every fact vacuously Proven. No arms, no shape.
-    if arms.is_empty() {
-        return None;
+    for (subject, constructor) in &case_hypotheses {
+        arm_judge
+            .substitutions
+            .insert(0, (subject.clone(), constructor.clone()));
     }
-    Some(arms)
+    let requires = machine_requires_facts(program, machine);
+    let mut vacuous = requires
+        .iter()
+        .any(|fact| matches!(arm_judge.judge(program, *fact), StructuralJudgment::Refuted));
+    for fact in &requires {
+        arm_judge.intake(program, *fact);
+    }
+    vacuous = vacuous || arm_judge.hypotheses_contradictory;
+
+    // A requires-free recursive theorem contributes its IH before authored
+    // citations are checked. Requires-bearing IHs remain conditional and are
+    // added later by the leaf proving loop.
+    if requires.is_empty() {
+        let mut applications = Vec::new();
+        StructuralJudge::self_applications(&value, machine_name, &mut applications);
+        let ensures: Vec<ExpressionHandle> = program
+            .machine_contracts(machine)
+            .iter()
+            .filter(|contract| matches!(contract.kind, SignatureContractKind::Ensures))
+            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts).iter())
+            .filter_map(|fact| match fact {
+                ProofFact::Expression(expression) => Some(*expression),
+                ProofFact::Membership(_) => None,
+            })
+            .collect();
+        for application in applications {
+            let StructuralTerm::Application { arguments, .. } = &application else {
+                continue;
+            };
+            let mut map: Vec<(String, StructuralTerm)> = parameter_names
+                .iter()
+                .cloned()
+                .zip(arguments.iter().cloned())
+                .collect();
+            map.push((RESULT_BINDER.to_owned(), application.clone()));
+            for fact in &ensures {
+                let mut equations = Vec::new();
+                collect_instantiated_conjuncts(program, *fact, &map, &mut equations);
+                for (left, right) in equations {
+                    arm_judge.intake_equation(left, right, 0);
+                }
+            }
+        }
+    }
+
+    let mut citations = Vec::new();
+    if !vacuous {
+        for (target, arguments) in pending_citations {
+            let before = citations.len();
+            instantiate_citation(
+                program,
+                classification,
+                machine,
+                &target,
+                &arguments,
+                diagnostics,
+                &mut citations,
+                Some(&arm_judge),
+            );
+            for (left, right) in &citations[before..] {
+                arm_judge.intake_equation(left.clone(), right.clone(), 0);
+            }
+        }
+    }
+
+    StructuralCaseArm {
+        machine_name: machine_name.to_owned(),
+        parameter_names: parameter_names.to_vec(),
+        case_hypotheses,
+        case_equations,
+        citations,
+        value,
+    }
 }
 
 enum StructuralJudgment {

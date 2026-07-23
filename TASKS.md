@@ -1142,8 +1142,18 @@ stronger operations it needs instead of citing machine parameters generally.
   before concrete specialization mutates its first template; all non-entailment
   checks still run on the specialized graph. Consequently the generic
   `cauchy_at` reflexivity and heterogeneous `converges_together_at` symmetry
-  laws are checked and remain citable after concrete selection. Next establish
-  the precision-splitting triangle/transitivity ladder, build the certified
+  laws are checked and remain citable after concrete selection. Core now also
+  ships the Nat metric substrate used to prove the next rung: `nat_gap` plus
+  checked reflexivity, symmetry, endpoint, successor, order-monotonicity, and
+  triangle lemmas. Structural proof recognition follows nested named case
+  states to every value leaf and refuses state cycles; recursive-measure
+  provenance survives arbitrary forwarding through those proof states only
+  when every incoming binding descends. Citation preconditions consume only
+  facts established earlier in statement order, so transitivity and combined
+  monotonicity proofs compose without implicit/global lemma application and a
+  later fact cannot justify an earlier citation. Next lift the Nat triangle
+  through multiplication and Rat denominator scaling, establish the
+  precision-splitting convergence/transitivity ladder, build the certified
   `CauchySeq` carrier, and replace boundary `Real` with
   `CauchySeq % converges_together`; prove operation well-definedness and
   order/completeness, and retire axioms through the normal boundary-upgrade

@@ -1,0 +1,16 @@
+// FAIL CANARY: Nat distance between distinct adjacent points is not zero.
+// Importing nat_metric also checks the full triangle theorem substrate; this
+// local false twin pins the structural engine veto at a ground counterexample.
+use omega::language::core::nat_metric;
+
+machine false_gap_zero()
+ensures
+    (nat_gap(Nat::Zero, Nat::Succ { prev: Nat::Zero })) == Nat::Zero
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

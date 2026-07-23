@@ -119,6 +119,17 @@ denominator in Nat's monus order. Its reflexive and symmetric laws are ordinary
 checked machines; they are the metric substrate for the constructed `Real`
 corpus, not compiler-known arithmetic.
 
+The supporting natural metric is ordinary core code as well. `nat_gap(a, b)`
+computes symmetric absolute difference from the two monus directions, and
+`nat_gap_triangle(a, b, c)` proves
+`nat_gap(a, c) <= nat_gap(a, b) + nat_gap(b, c)` in the settled
+`sub(left, right) == Nat::Zero` order spelling. Its proof uses nested structural
+case states; every value leaf is checked, and recursion remains admissible only
+when strict-subterm provenance survives every state-parameter forwarding edge.
+Proof citations are statement-ordered: an earlier checked citation can
+establish a later citation's `requires`, but a later statement can never justify
+an earlier call. No Nat metric law is built into the checker.
+
 The first sequence-facing atoms are ordinary generic machines too.
 `cauchy_at<Sequence, Modulus>(precision, i, j) == Nat::Zero` states the
 same-generator point obligation after `i` and `j` have reached the static

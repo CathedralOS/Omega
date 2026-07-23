@@ -3029,9 +3029,12 @@ fn collect_self_entry_call_arguments(
 /// b)` bound it at the entry arm from the measure's case payload, so inside
 /// `step_case` the recursion argument is the bare name `prev`). The
 /// parameter counts as strictly descending iff EVERY Named transition into
-/// its state passes a strict-subterm Member read of the measure at that
-/// position -- provenance over ALL binding sites, so a single
-/// non-descending entry poisons the parameter.
+/// its state passes either a strict-subterm Member read of the measure or a
+/// previously proven descending sub-state parameter. The latter closure is
+/// what preserves provenance through proof choreography (`prev` forwarded
+/// through two case-analysis states before the recursive call). Provenance is
+/// still over ALL binding sites, so a single non-descending entry poisons the
+/// parameter and cycles without a direct strict-subterm seed prove nothing.
 ///
 /// Matching is symbol-first (precise); the name fallback additionally
 /// refuses when any local or assignment anywhere in the machine shares the
@@ -3091,43 +3094,95 @@ fn substate_parameter_descends(
             }
         }
     }
-    // Every candidate parameter must descend at EVERY Named transition into
-    // its state.
-    candidates.iter().all(|(sub_state, position)| {
-        let mut binding_sites = 0usize;
-        for source in states {
-            for statement in program.statement_table.statements(source.statement_nodes) {
-                let StatementNode::Transition(transition) = statement else {
-                    continue;
-                };
-                for target_handle in [transition.target, transition.continuation] {
-                    if !target_handle.is_valid() {
-                        continue;
-                    }
-                    let TransitionTargetNode::Named { path, arguments } =
-                        program.statement_table.transition_target(target_handle)
-                    else {
+    let parameters: Vec<(
+        &omega_typed_trees::state::State,
+        usize,
+        omega_core::symbols::SymbolHandle,
+    )> = states[1..]
+        .iter()
+        .flat_map(|state| {
+            program
+                .state_parameters(state)
+                .iter()
+                .enumerate()
+                .map(move |(position, parameter)| (state, position, parameter.symbol))
+        })
+        .collect();
+    let mut descending: Vec<omega_core::symbols::SymbolHandle> = Vec::new();
+    loop {
+        let mut gained = Vec::new();
+        for (sub_state, position, parameter_symbol) in &parameters {
+            if !parameter_symbol.is_valid()
+                || descending.iter().any(|known| known == parameter_symbol)
+            {
+                continue;
+            }
+            let mut binding_sites = 0usize;
+            let mut all_descend = true;
+            for source in states {
+                for statement in program.statement_table.statements(source.statement_nodes) {
+                    let StatementNode::Transition(transition) = statement else {
                         continue;
                     };
-                    let [target_name] = program.statement_table.name_path_members(path.members)
-                    else {
-                        return false;
-                    };
-                    if target_name.as_str() != sub_state.name.as_str() {
-                        continue;
-                    }
-                    binding_sites += 1;
-                    let handles = program.statement_table.expression_handles(*arguments);
-                    let Some(bound) = handles.get(*position) else {
-                        return false;
-                    };
-                    if !strict_subterm_of_measure(program, *bound, measure_symbol, measure_name) {
-                        return false;
+                    for target_handle in [transition.target, transition.continuation] {
+                        if !target_handle.is_valid() {
+                            continue;
+                        }
+                        let TransitionTargetNode::Named { path, arguments } =
+                            program.statement_table.transition_target(target_handle)
+                        else {
+                            continue;
+                        };
+                        let [target_name] = program.statement_table.name_path_members(path.members)
+                        else {
+                            all_descend = false;
+                            continue;
+                        };
+                        if target_name.as_str() != sub_state.name.as_str() {
+                            continue;
+                        }
+                        binding_sites += 1;
+                        let handles = program.statement_table.expression_handles(*arguments);
+                        let Some(bound) = handles.get(*position) else {
+                            all_descend = false;
+                            continue;
+                        };
+                        let forwarded = match program.expression_table.expression(*bound) {
+                            ExpressionNode::Name(path) if path.symbol.is_valid() => {
+                                descending.iter().any(|known| *known == path.symbol)
+                            }
+                            _ => false,
+                        };
+                        if !forwarded
+                            && !strict_subterm_of_measure(
+                                program,
+                                *bound,
+                                measure_symbol,
+                                measure_name,
+                            )
+                        {
+                            all_descend = false;
+                        }
                     }
                 }
             }
+            if binding_sites > 0 && all_descend {
+                gained.push(*parameter_symbol);
+            }
         }
-        binding_sites > 0
+        if gained.is_empty() {
+            break;
+        }
+        descending.extend(gained);
+    }
+    candidates.iter().all(|(state, position)| {
+        program
+            .state_parameters(state)
+            .get(*position)
+            .is_some_and(|parameter| {
+                parameter.symbol.is_valid()
+                    && descending.iter().any(|known| *known == parameter.symbol)
+            })
     })
 }
 
