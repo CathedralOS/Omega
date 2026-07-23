@@ -1623,12 +1623,15 @@ stronger operations it needs instead of citing machine parameters generally.
 - **Control-state negative rails.** Backward-edge return integrity is derived
   from existing semantics and is not owner-blocked. Add four explicit
   acceptance families:
-  1. a user-authored checked-assembly sequence that mutates stack/control state
-     receives the catalog's exact effects and rejects in an incompatible
-     context; unsupported or entry/exit-only transfers remain deriver-only;
-  2. a provider whose realized exit violates its admitted
-     `CallPlan + StatePlan` rejects, and an opaque provider with neither an
-     accepted exit claim nor adequate hardware isolation fails closed;
+  1. **Live:** the freestanding `pushfq; cli; popfq` canary pins the catalog's
+     exact balanced-stack/RFLAGS flow and emitted bytes, the same sequence
+     rejects without machine-owner discharge in a hosted context, and
+     `iretq`/`lidt` canaries keep entry/exit-only transfers deriver-only;
+  2. **Live:** provider-exit realization is checked separately from body
+     footprint evidence against the admitted `CallPlan` control and
+     `StatePlan` restore set; opaque execution requires either that exact
+     claim under a root-reported trust receipt or root-reported adequate
+     hardware isolation, and missing, unreported, or drifted evidence rejects;
   3. a DMA/external-loan agent cannot reach task/control storage outside its
      exact lent Extent; and
   4. ordinary Omega cannot project, recast, address, or mutate another

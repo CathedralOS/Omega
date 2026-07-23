@@ -310,6 +310,14 @@ Checked Omega leaves produce derived footprint evidence. Raw/admitted leaves
 carry accepted footprint claims under receipt. The trust report must distinguish
 the two.
 
+Exit realization is a second implementation-evidence axis. The external-root
+admission path now checks the realized return-control mechanism against
+`CallPlan::entry_control` and the exact restored-state set against `StatePlan`.
+An opaque provider must carry that accepted claim under a root-reported trust
+receipt or a root-reported adequate-hardware-isolation receipt; absence,
+unreported evidence, and either plan mismatch all fail before a provider
+execution can be formed.
+
 Independently derived fragment evidence composes by normalized set union before
 state validation. Fragment order and duplicate evidence therefore cannot alter
 the checked transitive footprint or its implementation-only fingerprint. This
