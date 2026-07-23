@@ -442,7 +442,7 @@ suspension and blocking in independent plans:
 ServiceReachId  = normalized boundary-trait identity
 ServiceReachRow = normalized set of ServiceReachId + parent closure
 
-MachineServiceReachPlan {
+ServiceReachPlan {
   interface: InternalInferred | PublishedCeiling(ServiceReachRowId),
   checked_inferred: ServiceReachRowId,
 }
@@ -465,6 +465,14 @@ deterministic normalizer owns service-row and operational contract identity;
 the entailment engine may gate reachability or legality but never rewrite a
 published ceiling. `MachineTerminationPlan` remains independent and retains
 the positive `terminates` guarantee and private ranking witness.
+
+Implementation status (EFX core plans, 2026-07-23): `omega-core` now owns
+distinct `ServiceReachId`/`ServiceReachRowId` identities, deterministic
+service-row set normalization, and independent service, suspension, and
+blocking plans. The operational interfaces distinguish private inference from
+published `false`, preserving omission as a negative public guarantee instead
+of treating it as “not computed.” The legacy flat `EffectSet` remains the live
+pipeline compatibility carrier until syntax and downstream consumers migrate.
 
 Authority possession, provider trust receipts, resource bounds, failure
 outcomes, and mutation remain separate fields/analyses. Do not manufacture a
