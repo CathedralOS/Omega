@@ -273,12 +273,16 @@ schemas recover the same instance without publishing policy type identity.
    uses the separate closed `AbiValueShape` vocabulary, and compiler validation
    checks its MS-x64, SysV AMD64, or AAPCS64 classification against the public
    graph before accepting the plan. Complete the remaining classifier slice:
-   - keep checked adapters explicit and ensure borrowed-out pointer derivation
-     cannot reach a retaining/asynchronous foreign contract without a pinned
-     loan, transfer, or registration protocol; and
-   - extend the canaries through separate pointer/length parameters versus an
-     actual descriptor record under Microsoft x64, text domain forget/validate
-     transitions, and the process-entry requirement's scalar exit status.
+   keep checked adapters explicit and ensure borrowed-out pointer derivation
+   cannot reach a retaining/asynchronous foreign contract without a pinned
+   loan, transfer, or registration protocol. Canary evidence now pins the
+   settled surrounding distinctions: under Microsoft x64, separate pointer and
+   length scalars consume two argument positions while a 16-byte descriptor is
+   one indirect argument backed by a caller copy; predicate-only `Utf8` may be
+   forgotten at a raw-byte adapter and must be re-established by explicit
+   validation on inbound bytes; and an ordinary process entry returns its
+   selected requirement's scalar exit status (`runtime_entry_return_field_exit`
+   executes as status 200 without `exit_process`).
    Byte size and the compiler's private slice carrier must never silently define
    public ABI.
    Direct scalar binary, numeric-cast, `min`/`max`/`sqrt`, runtime-indexed

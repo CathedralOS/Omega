@@ -16379,6 +16379,7 @@ fn boundary_operator_domain_ensures_flow_to_mutable_operand() {
     for name in [
         "text/utf8_boundary_established",
         "text/no_nul_boundary_established",
+        "text/domain_forget_validate_transitions",
     ] {
         let main_path = pass_canary(name).join("main.omg");
         compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
@@ -30179,6 +30180,68 @@ fn native_fixed_arrays_classify_by_value_without_pointer_decay() {
 }
 
 #[test]
+fn cross_win64_distinguishes_separate_pointer_length_from_descriptor_record() {
+    let canary = pass_canary("capabilities/win64_pointer_length_vs_descriptor_compile");
+    let scratch = unique_no_output_build_dir();
+    let src_dir = scratch.join("src");
+    let build_dir = scratch.join("out");
+    fs::create_dir_all(&src_dir).expect("pointer/length scratch source directory");
+    fs::copy(canary.join("main.omg"), src_dir.join("main.omg"))
+        .expect("copy pointer/length canary");
+    fs::write(src_dir.join("build.omg"), "target windows_x64 {\n}\n")
+        .expect("write windows_x64 target manifest");
+
+    compile(CompileOptions {
+        root_path: src_dir.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("windows_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("pointer/length shape canary should compile for windows_x64");
+
+    let report = fs::read_to_string(build_dir.join("backend_report.txt"))
+        .expect("pointer/length compile should publish its backend report");
+    assert!(
+        report.contains("call host operation NativeByteShapes.take_separate(scalar i32 omega_machine_Main::main_storage@32, scalar i64 omega_machine_Main::main_storage@0, scalar i64 omega_machine_Main::main_storage@8)"),
+        "the separate declaration must remain two scalar Win64 arguments:\n{report}"
+    );
+    assert!(
+        report.contains("call host operation NativeByteShapes.take_descriptor(scalar i32 omega_machine_Main::main_storage@32, aggregate 16/8 omega_machine_Main::main_storage@16)"),
+        "the descriptor declaration must remain one 16-byte aggregate argument:\n{report}"
+    );
+
+    let image = fs::read(build_dir.join("omega-program.exe"))
+        .expect("read emitted pointer/length Win64 PE");
+    assert!(
+        image
+            .windows(4)
+            .any(|window| window == [0x48, 0x83, 0xec, 40]),
+        "the separate scalar call must need only ordinary Win64 shadow space"
+    );
+    assert!(
+        image
+            .windows(4)
+            .any(|window| window == [0x48, 0x83, 0xec, 56]),
+        "the descriptor call must reserve shadow space plus its aligned caller copy"
+    );
+    for copy_offset in [32u32, 40] {
+        let mut store = vec![0x48, 0x89, 0x84, 0x24];
+        store.extend(copy_offset.to_le_bytes());
+        assert!(
+            image.windows(store.len()).any(|window| window == store),
+            "expected descriptor fragment at outgoing stack offset {copy_offset}"
+        );
+    }
+    assert!(
+        image
+            .windows(8)
+            .any(|window| window == [0x48, 0x8d, 0x8c, 0x24, 32, 0, 0, 0]),
+        "the descriptor must occupy one argument slot as an RCX pointer to the caller copy"
+    );
+    let _ = fs::remove_dir_all(scratch);
+}
+
+#[test]
 fn cross_aarch64_hfa_import_compiles_with_fragmented_plan() {
     let canary = pass_canary("capabilities/aarch64_hfa_import_compile");
     let scratch =
@@ -37785,6 +37848,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/stores_capability",
     "capabilities/external_leaf_binding_forms",
     "capabilities/native_fixed_array_import_compile",
+    "capabilities/win64_pointer_length_vs_descriptor_compile",
     "targets/target_machine_gating_exit",
     "targets/single_target_internal_machine_skipped",
     "traits/ring_requirement_satisfies_exit",
