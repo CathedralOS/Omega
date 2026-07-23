@@ -1,6 +1,85 @@
 use super::*;
 
 #[test]
+fn constrained_type_composes_predicate_facets_without_flow_minting_semantic_facets() {
+    let source = r#"
+        domain [u8]::Meaning {}
+        domain [u8]::Utf8 { valid_utf8(self); }
+        domain [u8]::NoNul { no_nul(self); }
+
+        data Packet {
+            bytes: &[u8] in Meaning & Utf8 & NoNul;
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let packet = typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Packet")
+        .expect("packet data");
+    let field_type = typed
+        .data_members(packet)
+        .iter()
+        .find_map(|member| match member {
+            omega_typed_trees::data::DataMember::Field(field) if field.name.as_str() == "bytes" => {
+                Some(field.type_reference)
+            }
+            _ => None,
+        })
+        .expect("bytes field");
+
+    let names: Vec<_> =
+        crate::field_domain::predicate_domain_constraint_symbols(&typed, field_type)
+            .into_iter()
+            .map(|symbol| {
+                typed
+                    .domain_definitions()
+                    .iter()
+                    .find(|domain| domain.symbol == symbol)
+                    .expect("normalized domain symbol")
+                    .name
+                    .as_str()
+                    .to_owned()
+            })
+            .collect();
+
+    assert_eq!(names, ["[u8]::Utf8", "[u8]::NoNul"]);
+}
+
+#[test]
+fn domain_conjunction_write_checks_every_predicate_facet() {
+    let source = r#"
+        domain [u8]::Utf8 { valid_utf8(self); }
+        domain [u8]::AsciiOnly { ascii_only(self); }
+
+        data Main {
+            text: &[u8] in Utf8 & AsciiOnly;
+        }
+
+        machine Main::main(&mut self) {
+            self.text = "é";
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("a UTF-8 but non-ASCII literal must fail the second predicate facet");
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.message.contains("domain `[u8]::AsciiOnly`") })
+    );
+}
+
+#[test]
 fn semantic_domain_ids_mint_and_propagate() {
     // STR4 checked plans, slice 1: every declared domain carries a VALID
     // normalized identity minted ONCE at syntax->resolved (declaration

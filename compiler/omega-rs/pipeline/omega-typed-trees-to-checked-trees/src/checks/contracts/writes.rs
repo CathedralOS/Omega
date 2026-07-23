@@ -50,32 +50,33 @@ pub(super) fn check_domain_field_writes(
         .enumerate()
     {
         // (1) Assignment into a domain-refined field, parameter, or local.
-        if let StatementNode::Assignment(assignment) = statement
-            && let Some(domain_symbol) = crate::field_domain::assignment_target_domain_symbol(
+        if let StatementNode::Assignment(assignment) = statement {
+            for domain_symbol in crate::field_domain::assignment_target_domain_symbols(
                 program,
                 machine,
                 state,
                 assignment.target,
-            )
-            && !value_proves_domain(
-                program,
-                facts,
-                state_flow,
-                statement_index,
-                assignment.value,
-                domain_symbol,
-            )
-        {
-            let target_label = program.expression_table.display_name(assignment.target);
-            diagnostics.push(Diagnostic::error(format!(
-                "cannot prove the value assigned to `{target_label}` in {} is in domain `{}`; \
-                 a place declared `in {}` requires every write to be established in that domain \
-                 (pass a value already proven in the domain, or a literal its byte-predicate \
-                 fact accepts)",
-                machine_name(program, state_flow.machine_symbol),
-                symbol_name(program, domain_symbol),
-                symbol_name(program, domain_symbol),
-            )));
+            ) {
+                if !value_proves_domain(
+                    program,
+                    facts,
+                    state_flow,
+                    statement_index,
+                    assignment.value,
+                    domain_symbol,
+                ) {
+                    let target_label = program.expression_table.display_name(assignment.target);
+                    diagnostics.push(Diagnostic::error(format!(
+                        "cannot prove the value assigned to `{target_label}` in {} is in domain `{}`; \
+                         a place declared `in {}` requires every write to be established in that domain \
+                         (pass a value already proven in the domain, or a literal its byte-predicate \
+                         fact accepts)",
+                        machine_name(program, state_flow.machine_symbol),
+                        symbol_name(program, domain_symbol),
+                        symbol_name(program, domain_symbol),
+                    )));
+                }
+            }
         }
 
         // (1b) Length-fits for a write into an OWNED bounded text carrier
@@ -90,13 +91,13 @@ pub(super) fn check_domain_field_writes(
         // A value whose maximum length cannot be bounded (an unbounded view
         // source, a runtime call result) is conservatively rejected.
         if let StatementNode::Assignment(assignment) = statement
-            && crate::field_domain::assignment_target_domain_symbol(
+            && !crate::field_domain::assignment_target_domain_symbols(
                 program,
                 machine,
                 state,
                 assignment.target,
             )
-            .is_some()
+            .is_empty()
             && let Some(field_type) = crate::field_domain::assignment_target_type_reference(
                 program,
                 machine,
@@ -453,7 +454,7 @@ fn scan_construction_field_domains(
             let type_name = literal.type_name.clone();
             let case_name = literal.case_name.clone();
             for field in program.expression_table.struct_fields(literal.fields) {
-                if let Some(domain_symbol) = construction_field_domain_symbol(
+                for domain_symbol in construction_field_domain_symbols(
                     program,
                     type_name.as_str(),
                     case_name.as_ref().map(|name| name.as_str()),
@@ -671,27 +672,33 @@ fn scan_construction_field_domains(
     }
 }
 
-/// The declared encoding-domain symbol of a constructed field: a case literal's
+/// The declared predicate-domain symbols of a constructed field: a case literal's
 /// PAYLOAD field (for the named variant) or a record/common struct field whose
-/// declared type carries a `TypeConstraintNode::Domain`. `None` otherwise.
+/// declared type carries one or more predicate-faceted domain constraints.
 /// Mirrors omega-validation `struct_literals::construction_field_type` + domain
 /// extraction.
-fn construction_field_domain_symbol(
+fn construction_field_domain_symbols(
     program: &omega_typed_trees::TypedTrees,
     type_name: &str,
     case_name: Option<&str>,
     field_name: &str,
-) -> Option<SymbolHandle> {
-    let data_definition = program
+) -> Vec<SymbolHandle> {
+    let Some(data_definition) = program
         .data_definitions()
         .iter()
-        .find(|definition| definition.name.as_str() == type_name)?;
+        .find(|definition| definition.name.as_str() == type_name)
+    else {
+        return Vec::new();
+    };
     if data_definition.type_parameters.count() > 0 {
-        return None;
+        return Vec::new();
     }
 
-    let field_type = construction_field_type(program, data_definition, case_name, field_name)?;
-    crate::field_domain::domain_constraint_symbol(program, field_type)
+    let Some(field_type) = construction_field_type(program, data_definition, case_name, field_name)
+    else {
+        return Vec::new();
+    };
+    crate::field_domain::predicate_domain_constraint_symbols(program, field_type)
 }
 
 /// The declared type of a constructed field (a case PAYLOAD field for the named
@@ -699,7 +706,7 @@ fn construction_field_domain_symbol(
 /// The declared type of a constructed field, resolved from the type NAME (looks
 /// the definition up, then delegates to [`construction_field_type`]). Used by the
 /// construction-position capacity check, mirroring how
-/// `construction_field_domain_symbol` resolves the field's domain.
+/// `construction_field_domain_symbols` resolves the field's domains.
 fn construction_field_type_by_name(
     program: &omega_typed_trees::TypedTrees,
     type_name: &str,
@@ -917,14 +924,12 @@ fn declared_value_domain_implies(
     else {
         return false;
     };
-    let Some(value_domain) = crate::field_domain::domain_constraint_symbol(program, value_type)
-    else {
-        return false;
-    };
-    if !crate::field_domain::domain_admits_empty_byte_sequence(program, value_domain) {
-        return false;
-    }
-    program_domain_implies(program, value_domain, domain_symbol)
+    crate::field_domain::predicate_domain_constraint_symbols(program, value_type)
+        .into_iter()
+        .filter(|value_domain| {
+            crate::field_domain::domain_admits_empty_byte_sequence(program, *value_domain)
+        })
+        .any(|value_domain| program_domain_implies(program, value_domain, domain_symbol))
 }
 
 /// Whether `value` is a value-position call whose resolved target state declares
@@ -943,12 +948,9 @@ fn value_call_return_domain_implies(
     if !target.return_type.is_valid() {
         return false;
     }
-    let Some(return_domain) =
-        crate::field_domain::domain_constraint_symbol(program, target.return_type)
-    else {
-        return false;
-    };
-    program_domain_implies(program, return_domain, domain_symbol)
+    crate::field_domain::predicate_domain_constraint_symbols(program, target.return_type)
+        .into_iter()
+        .any(|return_domain| program_domain_implies(program, return_domain, domain_symbol))
 }
 
 /// Whether `source_domain` is or imports `target_domain` (a declared
