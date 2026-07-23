@@ -117,14 +117,25 @@ fn domain_is_active_at_use(
     operator_use: &CheckedOperatorUseFact,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    binary_operands(program, operator_use.expression)
+    operator_operands(program, operator_use.expression)
         .into_iter()
         .any(|operand| operand_selects_domain(program, operator_use.origin, operand, domain_symbol))
 }
 
-fn binary_operands(program: &TypedTrees, expression: ExpressionHandle) -> Vec<ExpressionHandle> {
+fn operator_operands(program: &TypedTrees, expression: ExpressionHandle) -> Vec<ExpressionHandle> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => vec![binary.left, binary.right],
+        ExpressionNode::Indexed(indexed) => {
+            let mut operands = vec![indexed.collection];
+            match program.expression_table.expression(indexed.index) {
+                ExpressionNode::Range(range) => {
+                    operands.push(range.start);
+                    operands.push(range.end);
+                }
+                _ => operands.push(indexed.index),
+            }
+            operands
+        }
         _ => Vec::new(),
     }
 }
@@ -320,10 +331,11 @@ fn direct_binding_symbol(
     }
 }
 
-/// Whether the left operand type carries the ordinary builtin operation: a
-/// primitive scalar does, a user data type does not.
+/// Whether the first operand type carries an ordinary builtin operation: a
+/// primitive scalar does, a user data type does not. Indexed core surfaces
+/// normally retain their root candidate and therefore do not need this path.
 fn builtin_meaning_exists(program: &TypedTrees, operator_use: &CheckedOperatorUseFact) -> bool {
-    let Some(left_operand) = binary_operands(program, operator_use.expression)
+    let Some(left_operand) = operator_operands(program, operator_use.expression)
         .first()
         .copied()
     else {

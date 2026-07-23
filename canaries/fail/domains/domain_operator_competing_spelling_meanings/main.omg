@@ -1,27 +1,33 @@
-// Chapter 8: competing domain meanings for one spelling are a compile error.
-// Both `Quantity::Additive` and `Quantity::Saturating` classify the same target
-// type `Quantity` and bind the `+` spelling to an `add` meaning over the same
-// `(Quantity, Quantity)` operand types. No provable fact can select between the
-// two domain meanings, so the spelling is ambiguous and rejected.
+// Chapter 8: competing *participating* domain meanings for one use are a
+// compile error. Both semantic facets are selected on the `left` binding, and
+// both bind `+` over the same `(Quantity, Quantity)` operand tuple, so this use
+// is ambiguous. Merely declaring both domains is legal; see the matching pass
+// canary `domain_operator_inactive_same_carrier_coexists`.
 
 data Quantity {
     value: i32;
 }
 
-domain Quantity::Additive {
+domain Quantity::Linear {
     self.value >= 0;
 
     operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
 }
 
-domain Quantity::Saturating {
+domain Quantity::Cyclic {
     self.value >= 0;
 
     operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
 }
 
-data Main {
+data Main {}
+
+machine Main::combine(
+    &self,
+    left: Quantity in Linear & Cyclic,
+    right: Quantity
+) {
+    let sum: Quantity = left + right;
 }
 
-machine Main::main(&mut self) {
-}
+machine Main::main(&mut self) {}

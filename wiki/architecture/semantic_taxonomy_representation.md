@@ -151,7 +151,13 @@ operator meaning. Operator `requires` clauses remain ordinary flow-sensitive
 proof obligations after selection. Candidate matching now consumes the complete
 operand tuple for binary, index, and range spellings, sharing one generic
 substitution across every known position; return types remain irrelevant.
-Dispatch-owner coherence remains.
+The old declaration-global same-carrier collision fence is gone: inactive
+domain theories coexist, while the checked selector admits only meanings owned
+by semantic domains selected on participating operand bindings and rejects
+multiple admitted meanings at that use. This realizes closed-family coherence
+without permitting unrelated imports to inject an eligible meaning. The
+language currently has no authored open-family/dispatch-owner-position surface;
+decision 19 defers general open-family linking.
 
 ### Carry policy
 

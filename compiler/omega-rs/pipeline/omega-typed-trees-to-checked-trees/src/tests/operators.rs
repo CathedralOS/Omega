@@ -152,6 +152,39 @@ fn flow_established_membership_does_not_select_domain_operator() {
 }
 
 #[test]
+fn declared_binding_selects_domain_index_operator() {
+    let source = r#"
+        data Buffer { value: i32; }
+
+        domain Buffer::Indexed {
+            operator index(items: Buffer, index: u64) -> i32 spelling [];
+        }
+
+        data Main {}
+
+        machine Main::read(
+            &self,
+            items: Buffer in Indexed,
+            index: u64
+        ) {
+            let value: i32 = items[index];
+        }
+
+        machine Main::main(&mut self) {}
+    "#;
+
+    let checked = checked_program_from_source(source);
+    assert!(checked.facts.operators.resolved_uses().any(|operator_use| {
+        operator_use.spelling == OperatorSpelling::Index
+            && checked
+                .facts
+                .operators
+                .selected_candidate(operator_use)
+                .is_some_and(|candidate| candidate.is_domain_owned())
+    }));
+}
+
+#[test]
 fn binary_resolution_matches_the_complete_operand_tuple() {
     let i32_i32_symbol = SymbolHandle::from_arena_index(140);
     let i32_u64_symbol = SymbolHandle::from_arena_index(141);
