@@ -1122,10 +1122,14 @@ stronger operations it needs instead of citing machine parameters generally.
   Entry-state lemma citations now preserve preceding `let` meanings, which the
   gap proof needs for `sub_self(cross)` rather than injecting a fact about an
   unbound local name. `mk_rat` now declares denominator positivity explicitly.
-  General equality-style `requires` discharge on ordinary value-position calls
-  is still an implementation dependency (citation sites already discharge it),
-  so do not claim the constructor obligation is globally enforced yet; this is
-  engineering work, not a language-design blocker. Next build the quantified
+  Resolved ordinary value-position calls now instantiate machine/state
+  equality-style `requires` at their operands and reject facts the structural
+  judge proves false: a zero-denominator `mk_rat` call and a false `!=` call
+  reject, while valid construction compiles. This is deliberately the first
+  engineering rung, not full discharge: obligations that are unknown or outside
+  the structural language remain permissive until call-site flow facts are
+  complete enough for fail-closed validation (citation sites already fail closed
+  inside that language). Next build the quantified
   Cauchy modulus/convergence predicates over this metric, then replace the
   boundary `Real` with `CauchySeq % converges_together`, prove operation
   well-definedness and order/completeness, and retire axioms through the normal

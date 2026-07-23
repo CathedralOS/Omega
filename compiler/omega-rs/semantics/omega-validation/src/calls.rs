@@ -1900,6 +1900,7 @@ fn validate_value_call_argument_classes(
     current_state: &State,
     value_env: &ValueEnv,
     arguments: &[ExpressionHandle],
+    callee_machine: &Machine,
     callee_state: &State,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -1910,6 +1911,7 @@ fn validate_value_call_argument_classes(
         value_env,
         None,
         arguments,
+        callee_machine,
         callee_state,
         diagnostics,
     );
@@ -1923,6 +1925,7 @@ fn validate_value_call_argument_classes_with_receiver(
     value_env: &ValueEnv,
     receiver_type: Option<TypeReferenceHandle>,
     arguments: &[ExpressionHandle],
+    callee_machine: &Machine,
     callee_state: &State,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -1944,6 +1947,16 @@ fn validate_value_call_argument_classes_with_receiver(
     ) {
         return;
     }
+
+    crate::contract_entailment::reject_refuted_value_call_requires(
+        program,
+        current_machine,
+        current_state,
+        callee_machine,
+        callee_state,
+        arguments,
+        diagnostics,
+    );
 
     let argument_types = arguments
         .iter()
@@ -4118,6 +4131,7 @@ fn validate_expression_call_bounds(
                 current_state,
                 value_env,
                 arguments,
+                callee_machine,
                 callee_state,
                 diagnostics,
             );
@@ -4151,6 +4165,7 @@ fn validate_expression_call_bounds(
                 current_state,
                 value_env,
                 arguments,
+                current_machine,
                 callee_state,
                 diagnostics,
             );
@@ -4206,6 +4221,7 @@ fn validate_expression_call_bounds(
                 current_state,
                 value_env,
                 arguments,
+                callee_machine,
                 callee_state,
                 diagnostics,
             );
@@ -4249,6 +4265,7 @@ fn validate_expression_call_bounds(
                 current_state,
                 value_env,
                 arguments,
+                callee_machine,
                 callee_state,
                 diagnostics,
             );
@@ -4346,6 +4363,7 @@ fn validate_expression_call_bounds(
             value_env,
             Some(receiver_type_reference),
             arguments,
+            callee_machine,
             callee_state,
             diagnostics,
         );
@@ -4395,6 +4413,7 @@ fn validate_expression_call_bounds(
                 current_state,
                 value_env,
                 arguments,
+                callee_machine,
                 callee_state,
                 diagnostics,
             );
@@ -4450,6 +4469,7 @@ fn validate_expression_call_bounds(
             current_state,
             value_env,
             arguments,
+            callee_machine,
             callee_state,
             diagnostics,
         );
