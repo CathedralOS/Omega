@@ -209,6 +209,10 @@ impl RootAdmission {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledRootRecord {
     pub root: ExternalRootId,
+    /// Normalizer-owned identity of the complete root candidate plus its
+    /// validated boundary contract. This is distinct from the friendly/root
+    /// slot identity and remains stable across installation placement.
+    pub normalized_root_identity: u64,
     pub entry: EntryStubId,
     pub installed_code: InstalledCodeId,
     pub artifact: ArtifactId,
@@ -265,6 +269,26 @@ impl InstalledRootLedger {
 
     pub fn record(&self, root: ExternalRootId) -> Option<&InstalledRootRecord> {
         self.roots.get(&root)
+    }
+
+    /// Deterministic identity of the currently installed root set.
+    ///
+    /// Candidate policy is already covered by each root's normalized identity;
+    /// this layer binds it to the exact installed realization and owner-scoped
+    /// destination. Presentation order cannot affect the result because the
+    /// ledger is keyed by the normalized `ExternalRootId`.
+    pub fn report_fingerprint(&self) -> u64 {
+        let mut hash = Fnv1a::new();
+        hash.u64(self.roots.len() as u64);
+        for record in self.roots.values() {
+            hash.u64(record.normalized_root_identity);
+            hash.u64(record.installed_code.normalized_identity());
+            hash.u64(record.artifact.normalized_identity());
+            hash.u64(record.slot.normalized_identity());
+            hash.u64(record.owner.normalized_identity());
+            hash.u64(record.admission.normalized_identity());
+        }
+        hash.finish()
     }
 
     pub fn install<'code>(
@@ -335,6 +359,7 @@ impl InstalledRootLedger {
 
         let record = InstalledRootRecord {
             root: root.candidate.identity,
+            normalized_root_identity: root.normalized_identity,
             entry: root.candidate.entry,
             installed_code: installed_code.identity(),
             artifact: installed_code.artifact(),
@@ -749,6 +774,7 @@ mod tests {
         let entry = entry_id(1001);
         let code = installed_code(1, entry);
         let validated = validate_external_root(candidate(entry), &boundary()).expect("root plan");
+        let validated_identity = validated.normalized_identity();
         let authority = slot();
         let admission = RootAdmission::from_admitted_provider(
             root_id(22, RootAdmissionId::from_normalized_identity),
@@ -764,6 +790,7 @@ mod tests {
 
         let record = ledger.record(installed.root()).expect("root record");
         assert_eq!(record.entry, entry);
+        assert_eq!(record.normalized_root_identity, validated_identity);
         assert_eq!(record.installed_code, code.identity());
         assert_eq!(record.effects.len(), 1);
         assert_eq!(record.trust_receipts.len(), 1);
@@ -773,6 +800,8 @@ mod tests {
             record.boundary_contract_fingerprint,
             boundary().contract_fingerprint()
         );
+        let installed_report_fingerprint = ledger.report_fingerprint();
+        assert_ne!(installed_report_fingerprint, 0);
 
         let root_identity = installed.root();
         let root_slot = installed.slot();
@@ -787,6 +816,7 @@ mod tests {
         let returned = ledger.remove(installed, receipt).expect("root removal");
         assert_eq!(returned.slot(), root_slot);
         assert!(ledger.record(root_identity).is_none());
+        assert_ne!(ledger.report_fingerprint(), installed_report_fingerprint);
     }
 
     #[test]
