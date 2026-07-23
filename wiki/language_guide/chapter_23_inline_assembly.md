@@ -177,9 +177,23 @@ Return-from-interrupt and similar operations are deriver-only because allowing a
 handler to spell them would create an unmodeled exit around its entry contract.
 Direct branches remain final-artifact-validated targets. Indirect calls and tail
 calls must consume sealed, requirement-compatible entry references rather than
-numeric addresses. Protected returns and the complete final-artifact CFI
-certificate remain the separate owner question; admitted-artifact installation
-does not discharge them.
+numeric addresses.
+
+Backward-edge return integrity needs no separate source property. In checked
+Omega, return and continuation state is compiler-owned, not addressable as
+ordinary data, and protected by memory safety; WCSU provisioning additionally
+proves the physical stack bound is not exhausted. The instruction catalog must
+therefore describe every stack/control mutation exactly. An instruction or
+sequence that cannot preserve a modeled exit is deriver-only or rejected; an
+author cannot override or omit the catalog's effects.
+
+Forward-edge integrity remains distinct: runtime indirect calls require sealed
+entry references or descriptors retaining requirement/satisfier identity.
+Opaque providers must supply an admitted `CallPlan + StatePlan` including their
+permitted exits or remain behind adequate hardware isolation; missing evidence
+fails closed. An independent final-byte transfer certificate and CET, PAC, or
+shadow-stack hardening are deferred PCC/TCB-reduction work, not v1 language
+semantics.
 
 ## Machine-state regimes
 

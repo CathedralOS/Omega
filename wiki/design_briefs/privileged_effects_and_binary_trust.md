@@ -1,9 +1,9 @@
 # Design Brief: Privileged Instructions And Binary Trust
 
-Current as of 2026-07-18. The instruction-contract and admitted-executable
-installation rules are settled. Concrete manifest encoding, authority-token
-implementation, protected-return CFI, and trusting-trust/PCC engineering
-remain open.
+Current as of 2026-07-22. The instruction-contract, admitted-executable
+installation, and checked-Omega return-integrity rules are settled. Concrete
+manifest encoding, authority-token implementation, and trusting-trust/PCC
+engineering remain open.
 
 ## Core rule
 
@@ -71,8 +71,19 @@ The sound baseline is source-distributed, host-compiled code:
 This remains conditional on trusting the compiler or independently checking
 the admitted proof/certificate. Diverse compilation, bootstrap verification,
 and proof-carrying code are separate upgrades to that TCB story. Installation
-prevents injection; protected returns and final-artifact CFI remain a separate
-gate over all code, including the boot-admitted installer.
+prevents injection. Backward-edge return integrity in checked Omega follows
+from memory safety plus non-addressable compiler-owned live and parked control
+state; WCSU proves sufficient stack capacity. Forward-edge indirect targeting
+instead depends on sealed entry references and descriptors retaining
+requirement/satisfier identity.
+
+The boundary of that derivation is explicit. Checked assembly cannot omit the
+instruction catalog's stack/control effects. An opaque provider must supply an
+admitted `CallPlan + StatePlan` covering its exits or remain hardware-isolated;
+unknown evidence fails closed. DMA receives only lent extents and therefore
+cannot address task/control storage it was not granted. An independent
+final-byte transfer certificate and CET, PAC, or shadow-stack hardening are
+future PCC/TCB-reduction layers, not prerequisites for v1 semantics.
 
 ## Cathedral M3 slice
 
@@ -112,7 +123,8 @@ facts must discharge those transitions.
 
 - concrete executable/component manifest encoding;
 - the first-class owns-the-machine authority type and attenuation rules;
-- protected returns and the final-artifact CFI certificate;
 - admission policy for prebuilt third-party binaries without checkable PCC;
+- optional independent final-byte control-transfer certificates and
+  target-hardware CFI hardening;
 - diverse compilation/trusting-trust defenses; and
 - proof-carrying code for checking an untrusted binary without rebuilding it.

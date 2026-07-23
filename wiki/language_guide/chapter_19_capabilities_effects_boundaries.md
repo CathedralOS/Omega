@@ -743,10 +743,20 @@ before entry, while replacement of possibly running code separately requires
 quiescence before retirement.
 
 Installation prevents code injection. It does not prove that transfers within
-installed code are legal. Sealed entry references cover much of the forward
-edge; protected returns and the final control-flow-integrity certificate remain
-the independent owner question in
+installed code are legal. The two control-flow directions have different
+answers. Backward-edge return integrity in checked Omega derives from memory
+safety and compiler-owned, non-addressable live or parked continuation state;
+WCSU is supporting provisioning evidence, not a separate CFI mechanism.
+Forward-edge indirect targeting instead requires sealed entry references or
+descriptors retaining requirement/satisfier identity. That remaining runtime
+descriptor design is tracked in
 [`OWNER_QUESTIONS.md`](../../OWNER_QUESTIONS.md).
+
+An opaque provider must present an admitted `CallPlan + StatePlan` whose exits
+preserve the boundary contract or remain behind adequate hardware isolation.
+Supplying neither rejects admission. Independent final-byte transfer checking
+and CET, PAC, or shadow-stack realizations are deferred PCC/TCB assurance, not
+mandatory source semantics.
 
 ### Build policy and privileged reach
 

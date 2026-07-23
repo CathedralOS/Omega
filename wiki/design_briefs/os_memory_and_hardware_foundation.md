@@ -676,9 +676,20 @@ installation reports `HardwareEnforced` or `ConventionOnly` W^X; an
 `Unsupported` provider rejects installation.
 
 Installation prevents code injection. It does not by itself establish
-control-flow integrity over already-admitted code. Sealed entry references and
-final indirect-branch/return validation are a separate gate recorded in
+legal forward-edge indirect targets over already-admitted code. Backward-edge
+return integrity in checked Omega derives from memory safety, sufficient WCSU
+provisioning, and compiler-owned live or parked control state that ordinary
+code cannot address. Forward-edge indirect calls instead require sealed
+requirement-compatible entry references or descriptors retaining
+satisfier/contract identity; the runtime descriptor contract remains in
 `OWNER_QUESTIONS.md`.
+
+Checked assembly cannot omit catalog-derived stack/control effects. Opaque
+providers must supply admitted `CallPlan + StatePlan` exits or remain
+hardware-isolated; missing evidence rejects. DMA can touch only explicitly lent
+extents and cannot reach control storage by numeric coincidence. Independent
+final-byte transfer validation and CET, PAC, or shadow-stack hardening remain
+deferred PCC/TCB assurance, not timer or language-semantics blockers.
 
 The component container is a minimal canonical Omega-native artifact, decoded
 through checked schema/layout machinery: bounded length-delimited tables,
@@ -701,7 +712,7 @@ content-identity computation, and closed relocation validation remain.
 The boot base case preserves the same discipline:
 
 ```text
-build validates PCC/CFI and signs an admitted artifact identity
+trusted build validates the artifact and signs an admitted artifact identity
     -> secure boot authenticates and gates entry
     -> measured boot records the entered identity
     -> the boot-admitted installer loads later admitted artifacts
@@ -1054,10 +1065,11 @@ These are the remaining design questions, not permission to invent local
 syntax while implementing:
 
 - the final artifact-footprint certificate format and validation boundary for
-  static and dynamically loaded admitted artifacts;
-- the protected-return/final CFI contract tracked in `OWNER_QUESTIONS.md`.
+  static and dynamically loaded admitted artifacts.
 
 Dynamic source-visible entry references, movable continuations, asynchronous
 revocation, live patching policy, general quantitative resource/WCET algebra,
-and recoverable faults inside hard interrupt roots remain deliberately deferred
-until their owning customers are implemented.
+recoverable faults inside hard interrupt roots, independent final-byte
+control-transfer certificates, and CET/PAC/shadow-stack hardening remain
+deliberately deferred until their owning assurance profile or customer is
+implemented.

@@ -168,15 +168,20 @@ inventing semantics for an unreachable compatibility form.
 
 Executable provenance and control-flow integrity must also remain separate.
 `Artifact::AdmittedExecutable` plus linear placement states prove which bytes
-may be installed. A normalized CFI plan/certificate proves which transfers are
-legal within every artifact, including the initial installer. Its forward edge
-contains fixed direct targets and requirement-compatible sealed entry IDs;
-dynamic descriptors retain satisfier/contract identity. Its backward-edge
-return policy and target realization are deliberately open in
-`OWNER_QUESTIONS.md`. After relocation, relaxation, veneers, thunks, and
-generated stubs, final validation checks the placed artifact against the CFI
-evidence. Installation consumes the linear validated placement; a content-bound
-CFI certificate may remain reusable and reportable.
+may be installed. Backward-edge return integrity in checked Omega is derived,
+not a second authored contract: memory safety and non-addressable compiler-owned
+control state prevent ordinary code from forging or overwriting a live or
+parked continuation, while WCSU proves provisioned stack capacity is
+sufficient. Optional final-byte return validation and CET/PAC/shadow-stack
+realizations reduce trust in the compiler or harden the target; they do not
+define language semantics.
+
+Forward-edge integrity remains a real representation property. Fixed direct
+targets come from lowering; indirect calls and tail calls consume sealed,
+requirement-compatible entry IDs; dynamic descriptors retain satisfier/contract
+identity. Opaque executable providers either supply an admitted
+`CallPlan + StatePlan` covering their exits or remain hardware-isolated.
+Runtime descriptor/object-safety design remains in `OWNER_QUESTIONS.md`.
 
 ### Machine semantic contract
 
