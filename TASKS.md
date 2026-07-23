@@ -680,12 +680,16 @@ schemas recover the same instance without publishing policy type identity.
    normalized provider-plan identity, exact entry/boundary/effect set, and all
    three independent realizations into root admission; replay after entry or
    resource drift rejects, and the execution/plan identities enter the ledger
-   fingerprint and manifest. Cathedral's acceptance canaries pin both the
-   five-node fixed timer work graph and the shared-IRQ bound of maximum
+   fingerprint and manifest. The compiler now retains the exact validated
+   selected `ProviderPlan` set through `CheckedTrees`, in canonical order with
+   both per-plan and whole-selection identities. Cathedral's acceptance
+   canaries pin both the five-node fixed timer work graph and the shared-IRQ
+   bound of maximum
    maskable-root demand plus the permitted current-stack fatal-fault term.
    The normalized IDT publication transition also enforces record-before-`lidt`
-   ordering and retains every installed-root handle. **Next:** drive these
-   bindings from compiler-selected provider plans and the concrete Cathedral
+   ordering and retains every installed-root handle. **Next:** consume the
+   retained compiler-selected plan fact when constructing each root's sealed
+   `ProviderExecution`, then drive it from the concrete Cathedral
    PIC/LAPIC execution, lower the normalized direct-destination writer into
    checked Omega, and execute checked `lidt` behind the live publication gate.
    The stack/IST policy must remain one fact consumed by both layout
@@ -776,7 +780,13 @@ slot owner may override by type. The migration order remains load-bearing.
    and file-authority canaries are in the authoritative rosters. Coverage,
    signature conformance, transitive
    effect refinement, normalized identity, and selected-target-only ambiguity
-   are already enforced.
+   are already enforced. The exact selected full plans now cross typed-to-
+   checked lowering as one canonical `SelectedProviderPlanFacts` set. The
+   carrier rejects missing, duplicate, partial, or identity-colliding
+   selections, retains immutable normalized rows for later provider execution,
+   and has a deterministic whole-selection identity; backend and generated-
+   machine work no longer has to rediscover selection from authored
+   `satisfies` declarations.
 3. **PRV4e — foreign format facts.** Move foreign offsets and bit constants
    from `Binding::Value` into programmable layout/format declarations and
    migrate filesystem leaves. Open-option flags have moved: portable code now
