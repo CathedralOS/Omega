@@ -93,7 +93,10 @@ must resolve exactly once, and duplicate or identity-colliding selections
 reject. Later backend, generated-machine, and provider-execution work consumes
 that immutable normalized carrier rather than scanning `satisfies`
 declarations again. The carrier publishes both each plan's normalized identity
-and a deterministic identity for the complete selected set.
+and a deterministic identity for the complete selected set. External-root
+construction resolves its boundary slot against this carrier and copies the
+resulting plan identity into the root candidate before validation; an absent or
+ambiguous retained selection rejects.
 
 The static build-root spelling is
 `b.select_provider<BoundaryTrait, ProviderType>();`. Both arguments are types,

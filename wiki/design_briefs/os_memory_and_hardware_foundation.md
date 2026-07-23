@@ -794,12 +794,15 @@ the resulting content identity, and checks an exact code/artifact/destination/
 final-byte receipt plus the software-fault-free verdict. It returns every
 linear input on failure and never exposes the resolved entry address. The
 compiler now retains the exact validated selected provider-plan set through
-checked lowering, with canonical per-plan and whole-selection identities.
-Consuming that carrier to construct each sealed root execution, checked-Omega
-writer lowering, concrete Cathedral PIC/LAPIC execution, and provider lowering
+checked lowering, with canonical per-plan and whole-selection identities. Root
+candidates now carry the selected plan identity before validation, normalized
+root identity covers it, and `ProviderExecution` inherits it from that root;
+the compiler's boundary-slot bridge consumes only the retained selection and
+rejects missing or ambiguous matches. Concrete Cathedral PIC/LAPIC candidate
+construction, checked-Omega writer lowering, and provider lowering
 that supplies the private descriptor to the contracted `lidt` consumer remain.
-The deriver-only catalog
-contract, exact x86 encoding, and source-rejection rail are live.
+The deriver-only catalog contract, exact x86 encoding, and source-rejection
+rail are live.
 Provider-neutral acceptance canaries instantiate the timer as one root plus
 fixed one-shot acknowledgement, clock-capture, coalescing-wake, and return
 leaves and derive Cathedral's shared-IRQ stack peak as the maximum maskable root

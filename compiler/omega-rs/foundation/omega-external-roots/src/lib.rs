@@ -719,6 +719,10 @@ pub struct ExternalRootCandidate {
     pub identity: ExternalRootId,
     pub entry: EntryStubId,
     pub provider: RootProviderId,
+    /// Exact normalized compiler-selected provider plan that supplies this
+    /// root. Validation binds it into the root identity before execution or
+    /// slot admission can be constructed.
+    pub provider_plan: ProviderPlanId,
     pub effects: BTreeSet<RootEffectId>,
     pub trust_receipts: BTreeSet<TrustReceiptId>,
     /// Identity of the artifact-wide relation that names which other roots may
@@ -786,13 +790,12 @@ impl ProviderExecution {
     /// exact provider plan that will execute the validated root.
     pub fn from_admitted_provider(
         identity: ProviderExecutionId,
-        provider_plan: ProviderPlanId,
         root: &ValidatedExternalRoot,
     ) -> Self {
         let candidate = root.candidate();
         let mut hash = Fnv1a::new();
         hash.u64(identity.normalized_identity());
-        hash.u64(provider_plan.normalized_identity());
+        hash.u64(candidate.provider_plan.normalized_identity());
         hash.u64(candidate.identity.normalized_identity());
         hash.u64(root.normalized_identity());
         hash.u64(candidate.provider.normalized_identity());
@@ -822,7 +825,7 @@ impl ProviderExecution {
         }
         Self {
             identity,
-            provider_plan,
+            provider_plan: candidate.provider_plan,
             root: candidate.identity,
             normalized_root_identity: root.normalized_identity(),
             provider: candidate.provider,
@@ -859,6 +862,7 @@ impl ProviderExecution {
         let candidate = root.candidate();
         self.root == candidate.identity
             && self.normalized_root_identity == root.normalized_identity()
+            && self.provider_plan == candidate.provider_plan
             && self.provider == candidate.provider
             && self.entry == candidate.entry
             && self.boundary_contract_fingerprint == root.boundary_contract_fingerprint()
@@ -1814,6 +1818,7 @@ fn fingerprint_root(candidate: &ExternalRootCandidate, boundary: u64) -> u64 {
     hash.u64(candidate.identity.normalized_identity());
     hash.u64(candidate.entry.normalized_identity());
     hash.u64(candidate.provider.normalized_identity());
+    hash.u64(candidate.provider_plan.normalized_identity());
     hash.u64(boundary);
     hash.u64(candidate.nesting_relation.normalized_identity());
     hash.u64(
@@ -2222,6 +2227,7 @@ mod tests {
             identity: root,
             entry,
             provider,
+            provider_plan: root_id(55, ProviderPlanId::from_normalized_identity),
             effects: [root_id(3, RootEffectId::from_normalized_identity)]
                 .into_iter()
                 .collect(),
@@ -2281,7 +2287,6 @@ mod tests {
     fn provider_execution(root: &ValidatedExternalRoot) -> ProviderExecution {
         ProviderExecution::from_admitted_provider(
             root_id(54, ProviderExecutionId::from_normalized_identity),
-            root_id(55, ProviderPlanId::from_normalized_identity),
             root,
         )
     }
@@ -2405,6 +2410,33 @@ mod tests {
             second.candidate().trust_receipts.iter().copied(),
         )
         .expect_err("provider execution cannot be replayed for changed entry/resources");
+
+        assert!(error.0.contains("exact validated root realization"));
+    }
+
+    #[test]
+    fn root_admission_rejects_execution_after_selected_plan_drift() {
+        let entry = entry_id(1001);
+        let first = validate_external_root(candidate(entry), &boundary())
+            .expect("first selected provider plan");
+        let execution = provider_execution(&first);
+        let mut drifted = candidate(entry);
+        drifted.provider_plan = root_id(56, ProviderPlanId::from_normalized_identity);
+        let second =
+            validate_external_root(drifted, &boundary()).expect("second selected provider plan");
+        assert_ne!(first.normalized_identity(), second.normalized_identity());
+
+        let code = installed_code(2, entry);
+        let authority = slot();
+        let error = RootAdmission::from_admitted_provider(
+            root_id(22, RootAdmissionId::from_normalized_identity),
+            &second,
+            &execution,
+            &code,
+            &authority,
+            second.candidate().trust_receipts.iter().copied(),
+        )
+        .expect_err("provider execution cannot cross selected-plan drift");
 
         assert!(error.0.contains("exact validated root realization"));
     }

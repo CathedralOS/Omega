@@ -320,6 +320,7 @@ dependencies = [
  "omega-core",
  "omega-effects",
  "omega-emission-planning",
+ "omega-external-roots",
  "omega-image",
  "omega-image-emission",
  "omega-interpreter",
