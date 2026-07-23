@@ -241,9 +241,17 @@ pub struct DataPayloadFieldSnapshot {
 pub struct DomainDefinitionSnapshot {
     pub name: String,
     pub target_type: TypeReferenceSnapshot,
+    pub semantic_id: u32,
+    pub facets: DomainFacetsSnapshot,
     pub facts: Vec<ProofFactSnapshot>,
     pub operators: Vec<OperatorDefinitionSnapshot>,
     pub body_token_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DomainFacetsSnapshot {
+    pub predicate: bool,
+    pub semantic: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -582,6 +590,11 @@ fn domain_definition_snapshot(
     DomainDefinitionSnapshot {
         name: domain.name.to_string(),
         target_type: type_reference_snapshot(program, domain.target_type),
+        semantic_id: domain.semantic_id.0,
+        facets: DomainFacetsSnapshot {
+            predicate: domain.facets.predicate,
+            semantic: domain.facets.semantic.map(|semantic| semantic.0),
+        },
         facts: domain_fact_snapshots(program, domain),
         operators: program
             .domain_operators(domain)

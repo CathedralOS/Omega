@@ -1,5 +1,6 @@
 use super::SymbolResolvedTreesSnapshot;
 use crate::SymbolResolvedTrees;
+use crate::domain::DomainDefinition;
 use crate::expression::ExpressionNode;
 use crate::machine::{Machine, MachineStorage};
 use crate::name::DiagnosticName;
@@ -71,13 +72,32 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
             states,
         },
     });
+    program.domain_definitions.push(DomainDefinition {
+        name: DiagnosticName::generated("i64::Km"),
+        target_type: TypeReference::Unit,
+        semantic_id: omega_core::semantics::SemanticDomainId(17),
+        facets: omega_core::semantics::DomainFacets {
+            predicate: true,
+            semantic: Some(omega_core::semantics::SemanticDomainId(17)),
+        },
+        ..Default::default()
+    });
     program.rebuild_tables();
 
     let snapshot = SymbolResolvedTreesSnapshot::from_symbol_resolved_trees(&program);
     assert_eq!(snapshot.roots.machines.len(), 1);
     assert_eq!(snapshot.roots.machines[0].states.len(), 1);
+    assert_eq!(snapshot.roots.domain_definitions[0].semantic_id, 17);
+    assert!(snapshot.roots.domain_definitions[0].facets.predicate);
+    assert_eq!(
+        snapshot.roots.domain_definitions[0].facets.semantic,
+        Some(17)
+    );
     assert_eq!(snapshot.tables.statement_count, 1);
     assert_eq!(snapshot.tables.expression_count, 1);
-    assert_eq!(snapshot.tables.type_reference_count, 1);
+    assert_eq!(
+        snapshot.tables.type_reference_count, 2,
+        "the state return and domain carrier are both rebuilt into the type table"
+    );
     assert!(snapshot.to_json_pretty().is_ok());
 }

@@ -113,12 +113,14 @@ carrier ABI.
 
 Implementation status (DOM1/STR2, 2026-07-23): core, symbol-resolved, and typed
 layers carry the normalized facet pair. Syntax lowering is the sole legacy
-shape projection; downstream tree propagation copies it verbatim. Semantic
-qualification, commitment collection, introduction-authority lookup, and trust
-publication consume `facets.semantic`, and qualification demands proof only
-when `facets.predicate` is active. Repeated normalized declarations compare the
-pair. Per-axis merge/join/generic-substitution composition, authored source
-policy, full facet bodies, and the checked qualification plan remain.
+shape projection; downstream tree propagation copies it verbatim and both
+resolved/typed structural snapshots publish it beside the semantic identity.
+Semantic qualification, commitment collection, introduction-authority lookup,
+and trust publication consume `facets.semantic`, and qualification demands
+proof only when `facets.predicate` is active. Repeated normalized declarations
+compare the pair. Per-axis merge/join/generic-substitution composition,
+authored source policy, full facet bodies, and the checked qualification plan
+remain.
 
 ### Carry policy
 
