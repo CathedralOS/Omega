@@ -138,6 +138,21 @@ and `nat_gap_triangle`. Citing it substitutes symbolic member places into the
 consumer's frame (`p.den` becomes the actual argument's `.den`); the names in a
 theorem declaration are never observable at a citation site.
 
+The order layer used above is checked core code as well.
+`mul_le_mul_right(a,b,k)` transports `a <= b` through a common multiplier;
+`mul_le_cancel_right(a,b,k)` reflects the order when `k` is positive. The
+first proof is requires-bearing induction: its induction hypothesis is visible
+to an authored per-arm citation only when every premise instantiated at the
+smaller self-call is already established at that statement boundary. Earlier
+citations may make the conditional hypothesis available to later citations;
+an unproved or membership-shaped premise contributes no hypothesis.
+
+`rat_close_triangle_split(p,q,r,e)` is the reciprocal-precision triangle:
+closeness of `p,q` and `q,r` at `e+e`, plus positivity of `q.den`, proves
+closeness of `p,r` at `e`. It scales the denominator-shared gap triangle,
+combines both premise bounds, cancels `q.den`, and then cancels the concrete
+factor two. No division or hidden ordered-ring tactic enters the proof.
+
 The first sequence-facing atoms are ordinary generic machines too.
 `cauchy_at<Sequence, Modulus>(precision, i, j) == Nat::Zero` states the
 same-generator point obligation after `i` and `j` have reached the static
@@ -148,6 +163,24 @@ ordinary `requires`. There is no hidden quantifier, runtime callable, or
 compiler-known notion of convergence in this surface. Their same-generator
 reflexivity and heterogeneous symmetry facts are checked generic theorem
 machines and remain citable at concrete generator/modulus selections.
+
+`converges_together_at_triangle_split<Left,Middle,Right,Modulus>` lifts the
+doubled-precision Rat theorem to one shared middle index. Both precision levels,
+all modulus thresholds used by the premises and conclusion, and the actual
+`Middle(index).den` positivity fact remain explicit requirements. Static-machine
+application member places preserve the selected generator during citation
+substitution; a positivity fact about another generator does not alias it.
+
+The pointwise corpus does not yet make the quotient below constructible. A
+Cauchy representative needs an existential modulus carrying universally
+quantified point obligations, and convergence-together needs the analogous
+heterogeneous proposition. Machine parameters make theorem inputs universal at
+a declaration, but the language has no settled way to package that quantified
+certificate as the checked binary proposition a quotient consumes. This is the
+owner question "quantified convergence as a quotient relation." Until it is
+settled, an always-true relation would collapse every sequence into one value,
+and a boundary relation would merely restore the axiom this construction is
+meant to retire; neither is an admissible placeholder.
 
 A quotient coarsens a type: sort its values into buckets of things a
 proven equivalence calls interchangeable, and the buckets become the

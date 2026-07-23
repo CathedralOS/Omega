@@ -4,7 +4,7 @@ Only unresolved owner-level language or architecture decisions belong here.
 Settled decisions live in the language guide and design briefs; implementation
 and deliberately deferred research live in `TASKS.md`.
 
-Last pruned: 2026-07-22.
+Last pruned: 2026-07-23.
 
 ## 1. What is the runtime and object-safety contract for `dyn Trait`?
 
@@ -110,3 +110,44 @@ the selected subtree and leave siblings live, and whole-value consumers must
 account for every live frontier entry. Give each establishment an event-local
 origin identity rather than using source location alone. Defer dynamic-index
 owned extraction until the index/disjointness proof can name a unique element.
+
+## 4. How is quantified convergence packaged as a quotient relation?
+
+The checked construction corpus now proves rational closeness transitivity and
+its pointwise sequence form for arbitrary precision and indices. That is not
+yet the proposition required by `data Real = CauchySeq %
+converges_together`. A Cauchy certificate has the logical shape "there exists a
+modulus such that, for every positive precision and every pair of later
+indices, the samples are close"; heterogeneous convergence has the same
+existential/universal shape. Current machine parameters quantify only across a
+theorem declaration. They cannot package an existential static-machine witness
+and its universal proof as a value or as the checked pure binary `bool`
+relation the quotient validator requires.
+
+Decide:
+
+- whether the general source surface is a proof-only proposition/certificate
+  type, explicit quantifiers, or an existential package of static machine
+  witnesses plus checked theorem schemas;
+- whether a sequence's modulus and Cauchy proof participate in
+  `CauchySeq<...>` family identity, remain erased evidence attached to one
+  representative, or use a separate normalized proposition identity;
+- how `converges_together<A, B>(a, b)` binds or receives its joint modulus and
+  proof while remaining the binary relation shape required by quotient
+  formation;
+- how reflexivity, symmetry, and transitivity compose existential witnesses
+  without a compiler-known Cauchy rule, and how their certificates are exposed
+  to the existing quotient equivalence checker; and
+- which termination, universe, coherence, and separate-compilation rules keep
+  quantified certificates ordinary checked Omega declarations rather than a
+  hidden trusted logic.
+
+Recommendation: add one general proof-only quantified-certificate mechanism,
+not Real-specific syntax. It should existentially package erased static-machine
+witnesses with checked universal theorem schemas, give the resulting
+proposition a normalized identity, and let quotient relations consume that
+proposition plus ordinary equivalence witnesses. Keep all moduli and proof
+machines out of runtime layout. Do not admit an always-true executable relation,
+an implicit compiler quantifier, or a boundary axiom as a temporary Real
+implementation: each would change or assume the semantics the construction is
+supposed to prove.

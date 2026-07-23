@@ -4330,41 +4330,20 @@ fn finalize_structural_case_arm(
     }
     vacuous = vacuous || arm_judge.hypotheses_contradictory;
 
-    // A requires-free recursive theorem contributes its IH before authored
-    // citations are checked. Requires-bearing IHs remain conditional and are
-    // added later by the leaf proving loop.
-    if requires.is_empty() {
-        let mut applications = Vec::new();
-        StructuralJudge::self_applications(&value, machine_name, &mut applications);
-        let ensures: Vec<ExpressionHandle> = program
-            .machine_contracts(machine)
-            .iter()
-            .filter(|contract| matches!(contract.kind, SignatureContractKind::Ensures))
-            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts).iter())
-            .filter_map(|fact| match fact {
-                ProofFact::Expression(expression) => Some(*expression),
-                ProofFact::Membership(_) => None,
-            })
-            .collect();
-        for application in applications {
-            let StructuralTerm::Application { arguments, .. } = &application else {
-                continue;
-            };
-            let mut map: Vec<(String, StructuralTerm)> = parameter_names
-                .iter()
-                .cloned()
-                .zip(arguments.iter().cloned())
-                .collect();
-            map.push((RESULT_BINDER.to_owned(), application.clone()));
-            for fact in &ensures {
-                let mut equations = Vec::new();
-                collect_instantiated_conjuncts(program, *fact, &map, &mut equations);
-                for (left, right) in equations {
-                    arm_judge.intake_equation(left, right, 0);
-                }
-            }
-        }
-    }
+    // The induction hypothesis is available before an authored citation only
+    // when the recursive application's own preconditions are already proven
+    // at that point.  This is the conditional theorem rule: a requires-bearing
+    // self-call never contributes its ensures merely because it descends.
+    // Membership premises remain outside the structural language and suppress
+    // the IH entirely.
+    intake_available_self_induction_hypotheses(
+        program,
+        machine,
+        machine_name,
+        parameter_names,
+        &value,
+        &mut arm_judge,
+    );
 
     let mut citations = Vec::new();
     if !vacuous {
@@ -4383,6 +4362,17 @@ fn finalize_structural_case_arm(
             for (left, right) in &citations[before..] {
                 arm_judge.intake_equation(left.clone(), right.clone(), 0);
             }
+            // An earlier citation may establish a recursive application's
+            // requires, making its conditional IH available to later
+            // citations in the same authored statement order.
+            intake_available_self_induction_hypotheses(
+                program,
+                machine,
+                machine_name,
+                parameter_names,
+                &value,
+                &mut arm_judge,
+            );
         }
     }
 
@@ -4393,6 +4383,69 @@ fn finalize_structural_case_arm(
         case_equations,
         citations,
         value,
+    }
+}
+
+/// Intake every structurally descending self-application's ensures whose
+/// requires are proven in `judge` at the current statement boundary.  The
+/// recursion validator separately licenses descent; this helper only governs
+/// the conditional contract attached to that already-licensed application.
+fn intake_available_self_induction_hypotheses(
+    program: &TypedTrees,
+    machine: &Machine,
+    machine_name: &str,
+    parameter_names: &[String],
+    value: &StructuralTerm,
+    judge: &mut StructuralJudge<'_>,
+) {
+    let mut requires = Vec::new();
+    let mut requires_out_of_language = false;
+    let mut ensures = Vec::new();
+    for contract in program.machine_contracts(machine) {
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            match (contract.kind, fact) {
+                (SignatureContractKind::Requires, ProofFact::Expression(expression)) => {
+                    requires.push(*expression);
+                }
+                (SignatureContractKind::Requires, ProofFact::Membership(_)) => {
+                    requires_out_of_language = true;
+                }
+                (SignatureContractKind::Ensures, ProofFact::Expression(expression)) => {
+                    ensures.push(*expression);
+                }
+                _ => {}
+            }
+        }
+    }
+    if requires_out_of_language {
+        return;
+    }
+
+    let mut applications = Vec::new();
+    StructuralJudge::self_applications(value, machine_name, &mut applications);
+    for application in applications {
+        let StructuralTerm::Application { arguments, .. } = &application else {
+            continue;
+        };
+        let mut map: Vec<(String, StructuralTerm)> = parameter_names
+            .iter()
+            .cloned()
+            .zip(arguments.iter().cloned())
+            .collect();
+        let requirements_established = requires
+            .iter()
+            .all(|fact| instantiated_fact_established(program, judge, *fact, &map));
+        if !requirements_established {
+            continue;
+        }
+        map.push((RESULT_BINDER.to_owned(), application.clone()));
+        for fact in &ensures {
+            let mut equations = Vec::new();
+            collect_instantiated_conjuncts(program, *fact, &map, &mut equations);
+            for (left, right) in equations {
+                judge.intake_equation(left, right, 0);
+            }
+        }
     }
 }
 
@@ -5040,9 +5093,12 @@ impl<'program> StructuralJudge<'program> {
                 // vocabulary (`p.den`). Citation instantiation must still
                 // alpha-substitute their exact root parameter; otherwise a
                 // cited Rat law leaks callee names into the caller frame.
-                // Restrict the rewrite to an exact `<parameter>.` prefix and
-                // a place-like replacement, so arbitrary opaque arithmetic
-                // displays never gain string-rewrite semantics.
+                // Restrict the rewrite to an exact `<parameter>.` prefix.
+                // A symbolic static-machine application is also a legitimate
+                // place root (`Middle(index).den`); retain that projection in
+                // the Opaque place vocabulary.  A concrete constructor can be
+                // projected structurally.  Arbitrary opaque arithmetic never
+                // gains substring-rewrite semantics.
                 for (parameter, replacement) in map {
                     let prefix = format!("{parameter}.");
                     let Some(suffix) = display.strip_prefix(&prefix) else {
@@ -5052,7 +5108,15 @@ impl<'program> StructuralJudge<'program> {
                         StructuralTerm::Variable(root) | StructuralTerm::Opaque(root) => {
                             StructuralTerm::Opaque(format!("{root}.{suffix}"))
                         }
-                        _ => term.clone(),
+                        StructuralTerm::Application { .. } => StructuralTerm::Opaque(format!(
+                            "{}.{suffix}",
+                            display_structural_term(replacement)
+                        )),
+                        StructuralTerm::Constructor { fields, .. } => fields
+                            .iter()
+                            .find(|(name, _)| name == suffix)
+                            .map(|(_, value)| value.clone())
+                            .unwrap_or_else(|| term.clone()),
                     };
                 }
                 term.clone()

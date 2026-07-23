@@ -1,0 +1,67 @@
+// FAIL CANARY: positivity for a different static generator's sample cannot
+// discharge pointwise transitivity's actual middle-sample denominator.  The
+// application-root member place must retain its machine selection identity.
+use omega::language::core::cauchy;
+
+machine wrong_middle_denominator<
+    machine Left,
+    machine Middle,
+    machine WrongMiddle,
+    machine Right,
+    machine Modulus
+>(
+    precision: Nat,
+    left_index: Nat,
+    middle_index: Nat,
+    right_index: Nat
+)
+where machine Left(index: Nat) -> Rat;
+where machine Middle(index: Nat) -> Rat;
+where machine WrongMiddle(index: Nat) -> Rat;
+where machine Right(index: Nat) -> Rat;
+where machine Modulus(precision: Nat) -> Nat;
+requires
+    (sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
+    (sub(
+        Nat::Succ { prev: Nat::Zero },
+        add(precision, precision)
+    )) == Nat::Zero;
+    (sub(Modulus(precision), left_index)) == Nat::Zero;
+    (sub(Modulus(precision), right_index)) == Nat::Zero;
+    (sub(Modulus(add(precision, precision)), left_index)) == Nat::Zero;
+    (sub(Modulus(add(precision, precision)), middle_index)) == Nat::Zero;
+    (sub(Modulus(add(precision, precision)), right_index)) == Nat::Zero;
+    (sub(
+        Nat::Succ { prev: Nat::Zero },
+        (WrongMiddle(middle_index)).den
+    )) == Nat::Zero;
+    (converges_together_at<Left, Middle, Modulus>(
+        add(precision, precision),
+        left_index,
+        middle_index
+    )) == Nat::Zero;
+    (converges_together_at<Middle, Right, Modulus>(
+        add(precision, precision),
+        middle_index,
+        right_index
+    )) == Nat::Zero
+ensures
+    (converges_together_at<Left, Right, Modulus>(
+        precision,
+        left_index,
+        right_index
+    )) == Nat::Zero
+{
+    converges_together_at_triangle_split<Left, Middle, Right, Modulus>(
+        precision,
+        left_index,
+        middle_index,
+        right_index
+    );
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

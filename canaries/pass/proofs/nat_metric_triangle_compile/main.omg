@@ -16,6 +16,25 @@ ensures
     nat_gap_mul_right(a, b, factor);
 }
 
+machine multiplication_preserves_order(a: Nat, b: Nat, factor: Nat)
+requires
+    (sub(a, b)) == Nat::Zero
+ensures
+    (sub(mul(a, factor), mul(b, factor))) == Nat::Zero
+{
+    mul_le_mul_right(a, b, factor);
+}
+
+machine positive_multiplication_reflects_order(a: Nat, b: Nat, factor: Nat)
+requires
+    (sub(Nat::Succ { prev: Nat::Zero }, factor)) == Nat::Zero;
+    (sub(mul(a, factor), mul(b, factor))) == Nat::Zero
+ensures
+    (sub(a, b)) == Nat::Zero
+{
+    mul_le_cancel_right(a, b, factor);
+}
+
 data Main {
 }
 

@@ -1104,8 +1104,12 @@ stronger operations it needs instead of citing machine parameters generally.
   operation attached to runtime data remains runtime and cannot hide
   proof-only parameters.
   Missing certificates reject, and boundary axioms cannot masquerade as
-  equivalence or respect proofs. Next build the ordinary-core `data Real =
-  CauchySeq % converges_together` surface from the honest N8 convergence corpus.
+  equivalence or respect proofs. The constructive replacement is
+  OWNER-BLOCKED on `OWNER_QUESTIONS.md` under "quantified convergence as a
+  quotient relation": the quotient needs one checked binary proposition, while
+  Cauchy convergence needs an existential modulus packaging universally
+  quantified point obligations. Do not substitute an always-true relation or a
+  boundary axiom.
 - **N7 — nested schemas (complete).** Proof-only data may declare `<machine S>`
   with its mandatory `where machine S(...)` contract. Recursive occurrences
   forward the family parameter, concrete arguments are checked through the full
@@ -1156,12 +1160,24 @@ stronger operations it needs instead of citing machine parameters generally.
   triangle to the three fractions' common denominator. Citation
   alpha-substitution also carries symbolic member places (`p.den`) into the
   caller frame, so that Rat theorem is reusable rather than merely checked in
-  isolation. Next establish multiplication order/cancellation and the
-  precision-splitting closeness/convergence ladder, build the certified
-  `CauchySeq` carrier, and replace boundary `Real` with
-  `CauchySeq % converges_together`; prove operation well-definedness and
-  order/completeness, and retire axioms through the normal boundary-upgrade
-  path.
+  isolation. Nat multiplication now preserves monus order, and a positive
+  common right factor reflects it. Requires-bearing induction hypotheses are
+  available to per-arm citations only after every instantiated premise proves
+  at that statement boundary; earlier citations may establish a conditional IH
+  for later citations, while a swapped/unproved premise rejects. The checked
+  `rat_close_triangle_split` theorem combines two doubled-precision bounds,
+  scales the rational gap triangle, and cancels the positive middle denominator
+  plus the concrete factor two. Its sequence-facing twin,
+  `converges_together_at_triangle_split`, establishes pointwise heterogeneous
+  transitivity with every precision, modulus threshold, and actual middle
+  sample denominator explicit. Citation alpha-substitution now preserves
+  member places rooted at selected static-machine applications, and a wrong
+  middle generator cannot discharge that premise. Building the certified
+  `CauchySeq` carrier and replacing boundary `Real` with
+  `CauchySeq % converges_together` is OWNER-BLOCKED on the quantified
+  proposition/certificate decision recorded in `OWNER_QUESTIONS.md`; after it
+  is settled, prove operation well-definedness and order/completeness and retire
+  axioms through the normal boundary-upgrade path.
 - **F6 — total float order.** Add named `TotalOrder` satisfiers for f32/f64
   using sign-magnitude integer comparison once satisfier dispatch serves.
 - **F7 — float format providers.** `FloatFormat::BINARY32` and
