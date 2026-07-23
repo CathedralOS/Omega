@@ -408,6 +408,14 @@ transitive no-SIMD/x87 check; and a protocol-neutral linear acknowledgement. The
 timer hard root is acyclic fixed work and hands off through a preallocated
 coalescing wake to an ordinary timer-service task.
 
+The source-to-checked acceptance path now pins that control-state half directly.
+An authored `Calling<C>` policy publishes `InterruptReturn`, a dedicated stack
+class, masked preemption, and the exact saved/restored state set; its canonical
+fingerprint is retained unchanged by the boundary service schema, selected
+timer-provider plan, and external-root bridge. The remaining work is concrete
+PIC/LAPIC execution and generated-stub emission, not recovery of the plan from
+backend defaults.
+
 ## Compiler-owned pieces
 
 Policies choose from closed placement and machine-state vocabularies. Compiler
