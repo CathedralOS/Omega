@@ -256,7 +256,8 @@ schemas recover the same instance without publishing policy type identity.
    callee's native result register through entry termination; the former
    compile-only free-standing `add_i32(3, 4)` canary now executes and pins exit 7.
    Fixed-array and text/slice descriptor entry results now wait on the explicit
-   native-boundary policy decision in `OWNER_QUESTIONS.md` section 4; byte size
+   native-boundary policy decision under "native boundary ABI for fixed arrays
+   and text descriptors" in `OWNER_QUESTIONS.md`; byte size
    alone must not silently define their public ABI.
    Direct scalar binary, numeric-cast, `min`/`max`/`sqrt`, runtime-indexed
    slice-element, and fixed-array indexed expressions in host-call argument
@@ -453,9 +454,13 @@ schemas recover the same instance without publishing policy type identity.
    x86-64 and AArch64. The dispatch-only table stays outside the signature;
    a source-selected SysV plan can govern indirect calls in a PE image, while
    AArch64 preserves exact non-receiver register and outgoing-stack placements.
-   The concrete x86 interrupt
-   `StatePlan`, stack/IST, nesting, and acknowledgement policy used by Cathedral
-   is OWNER-BLOCKED on `OWNER_QUESTIONS.md` section 2.
+   Cathedral's first x86 policy is settled: dedicated ISTs for double fault,
+   NMI, and machine check; one shared per-CPU IST stack class for mutually
+   non-nesting maskable external roots; interrupt gates keep IF clear until
+   deriver-owned exit; all GPRs are saved initially; final code is transitively
+   SIMD/x87-free; and acknowledgement stays protocol-neutral over PIC/LAPIC
+   providers. Implement that policy through the normalized plan rather than a
+   source-level interrupt special case.
 3. **ENT3 — constrained entry codegen.** Derive entry stubs, specialize/codegen
    under the state ceiling, emit a checkable final footprint certificate, and
    validate after relaxation, veneers, thunks, and generated stubs. The shared
@@ -589,8 +594,7 @@ schemas recover the same instance without publishing policy type identity.
    set against the installed placement, rejects foreign/data targets before
    publication, and never exposes the numeric address API. Lower these
    normalized writer programs to generated machine code (OWNER-BLOCKED on the
-   provider boundary and atomic-publication contract in `OWNER_QUESTIONS.md`
-   section 4).
+   "generated post-handoff writer boundary" in `OWNER_QUESTIONS.md`).
 5. **IDT2 — installed-root ledger.** The normalized `omega-external-roots`
    foundation is live. It validates nonzero/aligned WCSU demand against one
    complete `BoundaryEntryPlan`; admits only an entry present in the exact
@@ -605,10 +609,17 @@ schemas recover the same instance without publishing policy type identity.
    `omega-artifacts` emits `external_roots.json` directly from that ledger.
    The manifest includes the complete normalized `CallPlan + StatePlan`,
    provider/effect/trust identities, WCSU demand, nesting/acknowledgement
-   policy, and component pins while exposing no numeric entry address. Connect
-   this model to provider execution and WCSU composition. Add `lidt` only as an
-   installation path through it; the stack/IST policy must remain one fact
-   consumed by both layout materialization and WCSU analysis.
+   policy, and component pins while exposing no numeric entry address.
+   **Next:** extend the record/report with three independent resource columns:
+   stack ceiling plus realized WCSU, structural-work ceiling plus realized
+   composed demand, and `StatePlan` ceiling plus realized final footprint.
+   Retain validation receipts but never private rankings/codegen proofs. Add
+   fixed-work provider summaries and compose them transitively; the first timer
+   accepts only an acyclic final path with fixed-work acknowledgement, clock,
+   wake, and return leaves. This proves finite structural work, not WCET.
+   Connect the result to provider execution and WCSU composition. Add `lidt`
+   only as an installation path through it; the stack/IST policy must remain one
+   fact consumed by both layout materialization and WCSU analysis.
 6. **IDT3 — linear interrupt obligations.** The source contract is live in
    `omega::language::core::interrupt`: opaque linear `InterruptMaskGuard` and
    `InterruptAcknowledgement` values have explicit consuming `restore` and
@@ -618,11 +629,27 @@ schemas recover the same instance without publishing policy type identity.
    settlement, and double completion reject through ordinary opacity/effects/
    linearity rules. Connect these contracts to provider minting and the IDT
    entry path. Do not use drop cleanup or interrupt-specific linearity rules.
-7. **Cathedral timer acceptance.** Program PIT or LAPIC, install the IDT, post
-    a bounded tick event, report ticks over the owned serial line, and `hlt`
-    between ticks under QEMU. Negative rails: direct assembly cannot launder
-    reach; user `iretq` rejects; incomplete fragment tiling rejects; forbidden
-    final-artifact clobbers reject; omitted or double EOI rejects.
+7. **Cathedral exception-IDT and timer acceptance.**
+   - Materialize a diagnostic/fatal entry for every architecturally defined
+     exception before enabling the timer. Provision distinct per-CPU ISTs for
+     double fault, NMI, and machine check.
+   - Provision one shared per-CPU IST stack class for all maskable external
+     roots. Use interrupt gates, keep IF clear until deriver-owned exit, and
+     include the maximum current-stack fatal-fault term in its WCSU.
+   - Generate save-all-GPR entry stubs and reject SIMD/x87 anywhere in the final
+     transitive handler footprint. Footprint-minimal GPR saves are a later
+     optimization.
+   - Program PIT plus remapped 8259 PIC as the first QEMU/PC provider. The hard
+     root acknowledges exactly once, captures time, sets one preallocated
+     coalescing wake state, and returns. An ordinary timer-service task drains
+     due registrations and rearms the next deadline.
+   - Add LAPIC one-shot timing as the production multicore/tickless provider
+     without changing the root requirement.
+   - Report ticks over the owned serial line and `hlt` between ticks under QEMU.
+     Negative rails: direct assembly cannot launder reach; user `iretq` rejects;
+     incomplete fragment tiling rejects; forbidden final-artifact clobbers
+     reject; omitted or double EOI rejects; a dynamic/recursive or unbounded
+     provider leaf rejects the hard-root work profile.
 
 ### Provider plans and retirement of `provides`
 
@@ -944,9 +971,11 @@ stronger operations it needs instead of citing machine parameters generally.
   proof from a later consume or from zero storage. Nontrivial automatic
   state-exit cleanup
   is OWNER-BLOCKED on the graph-edge timing, partial-value order, and
-  proof/effect contract in `OWNER_QUESTIONS.md` section 6. Composite per-field
+  proof/effect contract under "automatic cleanup's graph-edge and partial-value
+  contract" in `OWNER_QUESTIONS.md`. Composite per-field
   debt is separately OWNER-BLOCKED on the nominal-versus-contained resource
-  frontier and component-origin identity in section 7. Continue with remaining
+  frontier and component-origin identity under "composite linear value's
+  resource frontier." Continue with remaining
   whole-value ownership forms. A state-call result that carries one
   unambiguous locally-created obligation now joins the caller's receiving
   establishment to the callee origin instead of minting a second claim.
@@ -1120,7 +1149,8 @@ stronger operations it needs instead of citing machine parameters generally.
   admission-bound sealed entry targets. Exact installed code now resolves those
   targets privately while executing the atomic writer. Lower the normalized
   provider-resolved post-handoff writer programs to generated machine code
-  (OWNER-BLOCKED: `OWNER_QUESTIONS.md` section 3).
+  (OWNER-BLOCKED: `OWNER_QUESTIONS.md` under "generated post-handoff writer
+  boundary").
   Writer programs already validate their
   concrete site, resolve each sealed target once, stage all writes, and publish
   atomically. Native whole-pointer actions already lower into section-qualified
@@ -1214,7 +1244,8 @@ stronger operations it needs instead of citing machine parameters generally.
   header parents before substitution into the synthesized signature and body.
   Reflection-driven trait generators remain under build-time evaluation below.
   Do not restore a `default` keyword.
-- **Dynamic traits (OWNER-BLOCKED: `OWNER_QUESTIONS.md` section 5).**
+- **Dynamic traits (OWNER-BLOCKED: `OWNER_QUESTIONS.md` under "runtime and
+  object-safety contract for `dyn Trait`").**
   Closed-world parameter calls currently specialize per concrete call site.
   Runtime-varying construction/storage, descriptors carrying satisfier
   identity, vtable emission, true indirect dispatch, and object-safety await

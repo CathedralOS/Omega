@@ -658,12 +658,16 @@ The root ledger is a normalized artifact, not user-authored prose. Each entry
 records package-qualified requirement/provider identities, evaluated boundary
 plan, artifact and receipt identities, authority and scope actually granted,
 effects, stack domain, preemption/nesting relationships, and version/liveness
-pins. Friendly names are presentation only.
+pins. It also records the public ceilings, realized demands or footprints, and
+validation receipts for the root's stack, structural work, and machine-state
+resource columns. Friendly names are presentation only.
 
 The ledger closes three whole-program holes:
 
 - effects and trust reachable only from hardware callbacks remain visible;
 - WCSU composes across interrupt nesting and same-stack roots; and
+- hard-root structural work and final machine-state use refine their admitted
+  ceilings instead of disappearing behind the absence of an Omega caller; and
 - dynamic install, replacement, and removal are checked against version pins
   and quiescence.
 
@@ -692,6 +696,34 @@ not a numbered compiler phase because roots may be installed after image build.
 Provider execution, artifact-wide WCSU composition, and the actual `lidt`
 consumer remain.
 
+### Installed-root resource contract
+
+Every installed root carries three independent ceiling/realization/evidence
+triples:
+
+| column | public/admission ceiling | realized artifact fact | private evidence |
+| --- | --- | --- | --- |
+| stack | permitted stack demand and stack domain | WCSU bytes/alignment plus composed nesting demand | frame/place liveness and WCSU derivation |
+| structural work | permitted hard-root work profile | composed fixed-work demand | acyclic CFG, ranking bounds, callee summaries, and codegen certificate |
+| machine state | `StatePlan` permitted state and save/restore commitment | emitted transitive footprint and clobbers | instruction selection, allocation, and footprint derivation |
+
+The ledger and its report retain each ceiling, realized fact, and validation
+receipt. They never retain private ranking witnesses or codegen proof internals.
+Sharing this record shape does not fuse the three algebras or their identity
+rules: the evaluated `StatePlan` is published boundary identity, while stack and
+work figures are provisioning/admission facts. A legal evidence swap revalidates
+one realization only. A changed realized demand changes the artifact/report; it
+does not change the requirement while it still refines the same ceiling.
+
+Structural work is not WCET. V1 proves that a hard root has no
+workload-dependent unbounded path under its admitted provider summaries. Exact
+cycles, deadlines, cache behavior, and MMIO latency require target/provider
+timing models and remain in the quantitative resource/WCET work. The first
+timer uses the trivial evidence tier: acyclic final control flow, no dynamic or
+recursive path, and fixed-work acknowledgement, clock-capture, wake, and return
+leaves. Provider work summaries compose transitively just as reach summaries do;
+an acyclic caller cannot launder an unbounded leaf.
+
 The IDT is consequently a first serious customer, not a special construct:
 
 1. ordinary `data` describes the logical gate;
@@ -713,6 +745,49 @@ while acknowledging the interrupt source reaches `device_io`. Ordinary
 opacity and linearity reject construction, forgotten settlement, and double
 completion; no interrupt-specific cleanup or implicit drop rule exists.
 Provider minting and the concrete entry path remain.
+
+### Cathedral's initial x86 interrupt profile
+
+Cathedral owns the concrete policy; Omega represents and validates it without an
+interrupt machine species.
+
+- Before enabling the timer, every architecturally defined exception vector has
+  at least a generated diagnostic/fatal entry. Double fault, NMI, and machine
+  check use distinct per-CPU IST stacks. This turns early handler bugs into
+  attributable failures instead of an unhandled double fault and triple-fault
+  reset.
+- One additional per-CPU IST stack class is shared by all maskable external
+  roots. The timer is its first customer. Every such root uses an interrupt
+  gate, keeps IF clear for the complete handler, forbids body-authored `sti`,
+  and returns only through the deriver-owned exit. Maskable roots therefore do
+  not nest on the shared stack.
+- Synchronous faults remain possible with IF clear. In v1, a fault raised while
+  a hard external root is live is fatal; ordinary current-stack fault handlers
+  contribute their bounded frame demand to the external-IRQ stack peak.
+  Double fault, NMI, and machine check switch stacks and are accounted in their
+  own domains. The ledger records the actual architecture nesting relation
+  rather than relying on a simplified exception cartoon.
+- The first stub saves all ordinary GPRs. Final placed code for the handler and
+  every transitive callee must be SIMD/x87-free; the coarse forbidden-state
+  check is correctness-bearing, while footprint-minimal GPR saves are a later
+  optimization.
+- The handler receives a protocol-neutral linear acknowledgement. PIC, LAPIC,
+  and x2APIC providers may realize `complete` differently without changing the
+  handler requirement.
+- The hard timer root performs only fixed work: acknowledge, capture time, set
+  one preallocated per-CPU coalescing wake state, and return. It never drains
+  application timer registrations. An ordinary suspend-allowed timer-service
+  task reads the clock, drains due deadlines in batches, wakes their endpoints,
+  and reprograms the next one-shot deadline.
+- PIT plus remapped 8259 PIC is the first QEMU/PC bring-up provider. LAPIC
+  one-shot timing is the production multicore/tickless provider. That migration
+  changes provider realization, not the root contract.
+
+The shared external-IRQ stack is backed by statically reserved storage, which
+may itself be provisioned from an Arena at boot. Its bound is the maximum
+maskable-root WCSU plus the maximum permitted current-stack fatal-fault term,
+not the number of interrupts received. Sequential interrupts reuse the same
+bytes.
 
 Static IDT construction does not require a source-visible first-class entry
 reference. The selected plan can retain the entry identity privately. Reified
@@ -817,7 +892,7 @@ are discovered, their policy machines are evaluated through the build-time
 interpreter, accepted results are validated and canonicalized, and the
 complete plan is retained through checked lowering. Authoritative stub
 derivation, state-ceiling-aware codegen, final footprint validation, and the
-concrete interrupt state policy remain. Remaining order:
+settled concrete interrupt policy's implementation remain. Remaining order:
 
 1. Complete the checked-assembly instruction-contract catalog needed by the
    entry provider. No raw-byte shortcut.
@@ -858,13 +933,22 @@ concrete interrupt state policy remain. Remaining order:
    contract identity are complete.
 6. Connect the live placement constraints to admitted-artifact validation and
    scoped executable installation.
-7. Connect the normalized external-root ledger and its live artifact manifest
-   to provider execution and WCSU composition; then build the IDT/timer vertical
-   slice.
-8. Connect the implemented normalized external-loan proxy to Omega linearity,
+7. Extend the normalized external-root ledger and manifest with the three
+   resource columns: retain stack/work/state ceilings, realized
+   demands/footprints, and validation receipts while excluding private
+   evidence. Compose provider structural-work summaries and add the acyclic
+   fixed-work timer profile.
+8. Connect the ledger to provider execution and WCSU composition. Materialize
+   the complete exception IDT, provision the dedicated fault and shared
+   maskable-IRQ IST stack classes, connect checked `lidt`, and validate the
+   final no-SIMD/save-all-GPR entry stubs.
+9. Build the PIT/PIC timer top half and its coalescing handoff to an ordinary
+   timer-service task; then add the LAPIC one-shot provider without changing the
+   root requirement.
+10. Connect the implemented normalized external-loan proxy to Omega linearity,
    permission contexts, and provider receipts; then build the DMA/hostile-IPC
    vertical slices.
-9. Add carry/runtime admission and the Arena-backed Cathedral task profile.
+11. Add carry/runtime admission and the Arena-backed Cathedral task profile.
 
 ## Gauntlet
 
@@ -894,10 +978,9 @@ syntax while implementing:
 
 - the final artifact-footprint certificate format and validation boundary for
   static and dynamically loaded admitted artifacts;
-- the protected-return/final CFI contract tracked in `OWNER_QUESTIONS.md`; and
-- the concrete x86 interrupt requirement, stack/preemption classes, and IDT
-  materialization records used by the timer slice.
+- the protected-return/final CFI contract tracked in `OWNER_QUESTIONS.md`.
 
 Dynamic source-visible entry references, movable continuations, asynchronous
-revocation, live patching policy, and rich resource algebra remain deliberately
-deferred until their owning customers are implemented.
+revocation, live patching policy, general quantitative resource/WCET algebra,
+and recoverable faults inside hard interrupt roots remain deliberately deferred
+until their owning customers are implemented.

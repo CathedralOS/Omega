@@ -164,9 +164,11 @@ Normalized platform-entry parameter writes now realize program StateEntry
 events directly; missing inbound code fails closed, and later consumes cannot
 launder zero storage into establishment. Nontrivial state-exit cleanup is
 owner-blocked on the graph-edge timing, partial-value order, and proof/effect
-contract in `OWNER_QUESTIONS.md` section 6. Composite field extraction is
+contract under "automatic cleanup's graph-edge and partial-value contract" in
+`OWNER_QUESTIONS.md`. Composite field extraction is
 separately owner-blocked on whether nominal and contained claims form one
-path-indexed resource frontier, and on component origin identity, in section 7.
+path-indexed resource frontier, and on component origin identity, under the
+"composite linear value's resource frontier" question.
 The broader resource algebra remains open.
 
 Consuming calls are classified from result flow: if a by-value `self` call
