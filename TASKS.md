@@ -1134,14 +1134,18 @@ stronger operations it needs instead of citing machine parameters generally.
   `converges_together_at<Left, Right, Modulus>` take arbitrary symbolic
   precision/indices, enforce positive precision plus both modulus thresholds,
   and compute the `rat_close` residual without runtime callables. Valid concrete
-  points compile and zero precision rejects. Their generic wrapper laws remain
-  engineering work: structural entailment cannot yet unfold a static-machine
-  selection such as `Sequence(index)` inside a contract, so accepting those
-  laws now would be vacuous. Add that unfolding/extraction rung, then build the
-  certified `CauchySeq` carrier and replace boundary `Real` with
-  `CauchySeq % converges_together`; prove operation well-definedness and
-  order/completeness, and retire axioms through the normal boundary-upgrade
-  path.
+  points compile and zero precision rejects. Structural application identity
+  now retains static-machine selections (`f<A>` no longer aliases `f<B>`),
+  generic body unfolding alpha-substitutes those selections, and a false
+  cross-selection equality rejects. Generic wrapper laws remain engineering
+  work because the first concrete specialization consumes the generic template
+  in place before proof validation, leaving universal contract selections and
+  the mutated body in different environments. Preserve a pristine logical
+  template (or validate it before concrete specialization), then add the
+  wrapper extraction laws, build the certified `CauchySeq` carrier, and replace
+  boundary `Real` with `CauchySeq % converges_together`; prove operation
+  well-definedness and order/completeness, and retire axioms through the normal
+  boundary-upgrade path.
 - **F6 — total float order.** Add named `TotalOrder` satisfiers for f32/f64
   using sign-magnitude integer comparison once satisfier dispatch serves.
 - **F7 — float format providers.** `FloatFormat::BINARY32` and

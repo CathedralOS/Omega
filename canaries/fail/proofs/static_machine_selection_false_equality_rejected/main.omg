@@ -1,0 +1,31 @@
+// Static machine arguments are part of structural proof-term identity.
+// Erasing them would collapse selected<zero_source>(index) and
+// selected<one_source>(index), falsely accepting this claim by reflexivity.
+use omega::language::core::nat;
+
+machine zero_source(index: Nat) -> Nat {
+    transition { _ -> Nat::Zero }
+}
+
+machine one_source(index: Nat) -> Nat {
+    transition { _ -> Nat::Succ { prev: Nat::Zero } }
+}
+
+machine selected<machine Source>(index: Nat) -> Nat
+where machine Source(index: Nat) -> Nat;
+{
+    let value: Nat = Source(index);
+    transition { _ -> (value) }
+}
+
+machine false_selection_equality(index: Nat)
+ensures
+    (selected<zero_source>(index)) == (selected<one_source>(index))
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
