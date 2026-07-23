@@ -3,7 +3,8 @@
 Omega is a systems programming language with zero-cost abstractions and no unsafe code, while still achieving C and Rust-like speeds. All code is modeled by data-oriented state machines, borrow-checked memory access, proof-carrying behavior, and capability-aware boundaries.
 
 In other words:
-- No deadlocks.
+- No deadlocks within the selected checked concurrency model; opaque external
+  waits remain explicit assumptions or rejected boundaries.
 - Termination is verified where promised — iteration is explicit state transitions; call cycles must prove termination; a `terminates` claim is enforced transitively.
 - No stack overflows.
 - No out-of-bounds indexing.
