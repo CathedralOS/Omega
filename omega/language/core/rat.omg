@@ -173,3 +173,131 @@ ensures
     mul_comm(p.den, rat_gap(q, r));
     nat_gap_triangle(x, y, z);
 }
+
+// Pure semiring factorization for the reciprocal-bound triangle.  Equation
+// orientation is deliberate: the first rewrite expands the scaled triangle's
+// upper bound before order transport, while the remaining rewrites map the
+// common-factor forms used by cancellation back to the established bounds.
+machine rat_close_triangle_factorization(
+    p: Rat,
+    q: Rat,
+    r: Rat,
+    precision: Nat
+)
+ensures
+    (mul(
+        add(
+            mul(r.den, rat_gap(p, q)),
+            mul(p.den, rat_gap(q, r))
+        ),
+        add(precision, precision)
+    )) == (add(
+        mul(mul(add(precision, precision), rat_gap(p, q)), r.den),
+        mul(mul(add(precision, precision), rat_gap(q, r)), p.den)
+    ));
+    (mul(
+        mul(add(precision, precision), rat_gap(p, r)),
+        q.den
+    )) == (mul(
+        mul(q.den, rat_gap(p, r)),
+        add(precision, precision)
+    ));
+    (mul(
+        add(
+            mul(p.den, r.den),
+            mul(p.den, r.den)
+        ),
+        q.den
+    )) == (add(
+        mul(mul(p.den, q.den), r.den),
+        mul(mul(q.den, r.den), p.den)
+    ));
+    (add(
+        mul(precision, rat_gap(p, r)),
+        mul(precision, rat_gap(p, r))
+    )) == (mul(add(precision, precision), rat_gap(p, r)))
+{
+}
+
+// If p and q, and q and r, are close at twice the requested precision, then
+// p and r are close at that precision.  The middle denominator is the common
+// positive factor: scale the gap triangle, add the two doubled-precision
+// bounds, cancel q.den, then cancel the concrete factor two.
+machine rat_close_triangle_split(
+    p: Rat,
+    q: Rat,
+    r: Rat,
+    precision: Nat
+)
+requires
+    (sub(Nat::Succ { prev: Nat::Zero }, q.den)) == Nat::Zero;
+    (rat_close(p, q, add(precision, precision))) == Nat::Zero;
+    (rat_close(q, r, add(precision, precision))) == Nat::Zero
+ensures
+    (rat_close(p, r, precision)) == Nat::Zero
+{
+    let double_precision: Nat = add(precision, precision);
+    let pq_gap: Nat = rat_gap(p, q);
+    let qr_gap: Nat = rat_gap(q, r);
+    let pr_gap: Nat = rat_gap(p, r);
+    let triangle_lower: Nat = mul(q.den, pr_gap);
+    let pq_triangle_upper: Nat = mul(r.den, pq_gap);
+    let qr_triangle_upper: Nat = mul(p.den, qr_gap);
+    let triangle_upper: Nat = add(pq_triangle_upper, qr_triangle_upper);
+    let scaled_triangle_lower: Nat = mul(triangle_lower, double_precision);
+    let pq_close_lower: Nat = mul(double_precision, pq_gap);
+    let qr_close_lower: Nat = mul(double_precision, qr_gap);
+    let pq_scaled_lower: Nat = mul(pq_close_lower, r.den);
+    let qr_scaled_lower: Nat = mul(qr_close_lower, p.den);
+    let summed_lower: Nat = add(pq_scaled_lower, qr_scaled_lower);
+    let pq_close_upper: Nat = mul(p.den, q.den);
+    let qr_close_upper: Nat = mul(q.den, r.den);
+    let pq_scaled_upper: Nat = mul(pq_close_upper, r.den);
+    let qr_scaled_upper: Nat = mul(qr_close_upper, p.den);
+    let summed_upper: Nat = add(pq_scaled_upper, qr_scaled_upper);
+    let pr_denominator: Nat = mul(p.den, r.den);
+    let doubled_pr_denominator: Nat = add(pr_denominator, pr_denominator);
+    let doubled_pr_gap: Nat = mul(double_precision, pr_gap);
+    let precision_pr_gap: Nat = mul(precision, pr_gap);
+    let two: Nat = Nat::Succ { prev: (Nat::Succ { prev: Nat::Zero }) };
+
+    rat_close_triangle_factorization(p, q, r, precision);
+    rat_gap_triangle_scaled(p, q, r);
+    mul_le_mul_right(triangle_lower, triangle_upper, double_precision);
+    mul_le_mul_right(
+        pq_close_lower,
+        pq_close_upper,
+        r.den
+    );
+    mul_le_mul_right(
+        qr_close_lower,
+        qr_close_upper,
+        p.den
+    );
+    add_le_add(
+        pq_scaled_lower,
+        pq_scaled_upper,
+        qr_scaled_lower,
+        qr_scaled_upper
+    );
+    le_trans(
+        scaled_triangle_lower,
+        summed_lower,
+        summed_upper
+    );
+    mul_le_cancel_right(
+        doubled_pr_gap,
+        doubled_pr_denominator,
+        q.den
+    );
+    mul_one_right(precision_pr_gap);
+    mul_succ_right(precision_pr_gap, Nat::Succ { prev: Nat::Zero });
+    mul_one_right(pr_denominator);
+    mul_succ_right(pr_denominator, Nat::Succ { prev: Nat::Zero });
+    le_one_succ(Nat::Succ { prev: Nat::Zero });
+    mul_le_cancel_right(
+        precision_pr_gap,
+        pr_denominator,
+        two
+    );
+}

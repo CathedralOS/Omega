@@ -135,6 +135,82 @@ ensures
     le_trans(add(a, c), add(b, c), add(b, d));
 }
 
+// Multiplication preserves monus order on the right.  The successor step
+// combines the standing a <= b premise with the conditional induction
+// hypothesis at the smaller multiplier, then transports both through add.
+machine mul_le_mul_right(a: Nat, b: Nat, factor: Nat) -> Nat
+terminates by factor;
+requires
+    (sub(a, b)) == Nat::Zero
+ensures
+    (sub(mul(a, factor), mul(b, factor))) == Nat::Zero
+{
+    transition factor {
+        Nat::Zero -> mlmr_zero(a, b)
+        Nat::Succ { prev } -> mlmr_step(a, b, prev)
+    }
+
+    state mlmr_zero(a: Nat, b: Nat) -> Nat {
+        mul_zero_right(a);
+        mul_zero_right(b);
+        sub_self(Nat::Zero);
+        transition { _ -> Nat::Zero }
+    }
+
+    state mlmr_step(a: Nat, b: Nat, prev: Nat) -> Nat {
+        mul_succ_right(a, prev);
+        mul_succ_right(b, prev);
+        add_le_add(a, b, mul(a, prev), mul(b, prev));
+        transition { _ -> (mul_le_mul_right(a, b, prev)) }
+    }
+}
+
+// A positive common right factor reflects monus order.  The double-successor
+// branch cancels the common additive prefix exposed by mul's recursion and
+// applies the conditional induction hypothesis to the predecessor pair.
+machine mul_le_cancel_right(a: Nat, b: Nat, factor: Nat) -> Nat
+terminates by a;
+requires
+    (sub(Nat::Succ { prev: Nat::Zero }, factor)) == Nat::Zero;
+    (sub(mul(a, factor), mul(b, factor))) == Nat::Zero
+ensures
+    (sub(a, b)) == Nat::Zero
+{
+    transition a {
+        Nat::Zero -> mlcr_a_zero(b, factor)
+        Nat::Succ { prev as pa } -> mlcr_a_succ(pa, b, factor)
+    }
+
+    state mlcr_a_zero(b: Nat, factor: Nat) -> Nat {
+        sub_zero_left(b);
+        transition { _ -> Nat::Zero }
+    }
+
+    state mlcr_a_succ(pa: Nat, b: Nat, factor: Nat) -> Nat {
+        transition b {
+            Nat::Zero -> mlcr_b_zero(pa, factor)
+            Nat::Succ { prev as pb } -> mlcr_step(pa, pb, factor)
+        }
+    }
+
+    state mlcr_b_zero(pa: Nat, factor: Nat) -> Nat {
+        transition factor {
+            Nat::Zero -> mlcr_vacuous()
+            Nat::Succ { prev } -> mlcr_vacuous()
+        }
+    }
+
+    state mlcr_step(pa: Nat, pb: Nat, factor: Nat) -> Nat {
+        sub_add_cancel_left(factor, mul(pa, factor), mul(pb, factor));
+        succ_sub_succ(pa, pb);
+        transition { _ -> (mul_le_cancel_right(pa, pb, factor)) }
+    }
+
+    state mlcr_vacuous() -> Nat {
+        transition { _ -> Nat::Zero }
+    }
+}
+
 // Every b lies below a plus their absolute gap.
 machine le_add_gap(a: Nat, b: Nat) -> Nat
 terminates by a;

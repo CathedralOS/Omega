@@ -1,0 +1,58 @@
+// FAIL CANARY: the recursive application swaps the witness pair, so its
+// second requires fact is not established.  Its ensures must not become an
+// induction hypothesis capable of discharging add_le_add's second premise.
+use omega::language::core::nat_metric;
+
+machine conditional_ih_requires_all(
+    a: Nat,
+    b: Nat,
+    witness_left: Nat,
+    witness_right: Nat,
+    factor: Nat
+) -> Nat
+terminates by factor;
+requires
+    (sub(a, b)) == Nat::Zero;
+    (sub(witness_left, witness_right)) == Nat::Zero
+ensures
+    (sub(mul(a, factor), mul(b, factor))) == Nat::Zero
+{
+    transition factor {
+        Nat::Zero -> cihr_zero(a, b)
+        Nat::Succ { prev } -> cihr_step(a, b, witness_left, witness_right, prev)
+    }
+
+    state cihr_zero(a: Nat, b: Nat) -> Nat {
+        mul_zero_right(a);
+        mul_zero_right(b);
+        sub_self(Nat::Zero);
+        transition { _ -> Nat::Zero }
+    }
+
+    state cihr_step(
+        a: Nat,
+        b: Nat,
+        witness_left: Nat,
+        witness_right: Nat,
+        prev: Nat
+    ) -> Nat {
+        mul_succ_right(a, prev);
+        mul_succ_right(b, prev);
+        add_le_add(a, b, mul(a, prev), mul(b, prev));
+        transition {
+            _ -> (conditional_ih_requires_all(
+                a,
+                b,
+                witness_right,
+                witness_left,
+                prev
+            ))
+        }
+    }
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

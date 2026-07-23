@@ -92,3 +92,61 @@ ensures
     let right: Rat = Right(right_index);
     rat_close_symmetric(left, right, precision);
 }
+
+// Pointwise transitivity consumes the doubled-precision Left~Middle and
+// Middle~Right obligations at one shared middle index.  All quantifier-side
+// admissibility remains explicit: both precision levels, every modulus
+// threshold used by either premise or conclusion, and positivity of the
+// actual middle sample's denominator are ordinary requires facts.
+machine converges_together_at_triangle_split<
+    machine Left,
+    machine Middle,
+    machine Right,
+    machine Modulus
+>(
+    precision: Nat,
+    left_index: Nat,
+    middle_index: Nat,
+    right_index: Nat
+)
+where machine Left(index: Nat) -> Rat;
+where machine Middle(index: Nat) -> Rat;
+where machine Right(index: Nat) -> Rat;
+where machine Modulus(precision: Nat) -> Nat;
+requires
+    (sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
+    (sub(
+        Nat::Succ { prev: Nat::Zero },
+        add(precision, precision)
+    )) == Nat::Zero;
+    (sub(Modulus(precision), left_index)) == Nat::Zero;
+    (sub(Modulus(precision), right_index)) == Nat::Zero;
+    (sub(Modulus(add(precision, precision)), left_index)) == Nat::Zero;
+    (sub(Modulus(add(precision, precision)), middle_index)) == Nat::Zero;
+    (sub(Modulus(add(precision, precision)), right_index)) == Nat::Zero;
+    (sub(
+        Nat::Succ { prev: Nat::Zero },
+        (Middle(middle_index)).den
+    )) == Nat::Zero;
+    (converges_together_at<Left, Middle, Modulus>(
+        add(precision, precision),
+        left_index,
+        middle_index
+    )) == Nat::Zero;
+    (converges_together_at<Middle, Right, Modulus>(
+        add(precision, precision),
+        middle_index,
+        right_index
+    )) == Nat::Zero
+ensures
+    (converges_together_at<Left, Right, Modulus>(
+        precision,
+        left_index,
+        right_index
+    )) == Nat::Zero
+{
+    let left: Rat = Left(left_index);
+    let middle: Rat = Middle(middle_index);
+    let right: Rat = Right(right_index);
+    rat_close_triangle_split(left, middle, right, precision);
+}

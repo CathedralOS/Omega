@@ -65,7 +65,9 @@ its output is checked rather than trusted.
 
 - The certificate bridge: making the entailment engine emit kernel-checkable
   witnesses so it stops being self-trusting.
-- Quantifiers and the logic surface (parse errors today) — the long pole.
+- Quantifiers and the logic surface (parse errors today) — now the concrete
+  blocker for packaging Cauchy sequences' existential moduli and universal
+  point obligations into the binary proposition consumed by the Real quotient.
 - `Real`/continuous-math semantics.
 - Sequencing the kernel relative to self-hosting (the kernel is the trust
   milestone; self-hosting is not — pin this ordering).

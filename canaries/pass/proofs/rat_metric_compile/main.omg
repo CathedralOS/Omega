@@ -36,6 +36,22 @@ ensures
     rat_gap_triangle_scaled(left, middle, right);
 }
 
+machine doubled_precision_triangle_is_available(
+    left: Rat,
+    middle: Rat,
+    right: Rat,
+    precision: Nat
+)
+requires
+    (sub(Nat::Succ { prev: Nat::Zero }, middle.den)) == Nat::Zero;
+    (rat_close(left, middle, add(precision, precision))) == Nat::Zero;
+    (rat_close(middle, right, add(precision, precision))) == Nat::Zero
+ensures
+    (rat_close(left, right, precision)) == Nat::Zero
+{
+    rat_close_triangle_split(left, middle, right, precision);
+}
+
 data Main {
 }
 
