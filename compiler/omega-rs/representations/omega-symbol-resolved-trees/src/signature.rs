@@ -18,6 +18,8 @@ pub struct StateSignatureStorage {
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: Option<TypeReference>,
     pub effects: HandleSpan<DiagnosticName>,
+    pub suspends: bool,
+    pub blocks: bool,
     pub contracts: HandleSpan<SignatureContract>,
     /// TPR4 (decision 23): the bodyless requirement's authored PUBLIC
     /// guarantee (bare `terminates;`); implementations inherit it at

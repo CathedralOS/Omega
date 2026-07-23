@@ -466,13 +466,21 @@ the entailment engine may gate reachability or legality but never rewrite a
 published ceiling. `MachineTerminationPlan` remains independent and retains
 the positive `terminates` guarantee and private ranking witness.
 
-Implementation status (EFX core plans, 2026-07-23): `omega-core` now owns
+Implementation status (EFX syntax/checked plans, 2026-07-23): `omega-core` now owns
 distinct `ServiceReachId`/`ServiceReachRowId` identities, deterministic
 service-row set normalization, and independent service, suspension, and
 blocking plans. The operational interfaces distinguish private inference from
 published `false`, preserving omission as a negative public guarantee instead
-of treating it as “not computed.” The legacy flat `EffectSet` remains the live
-pipeline compatibility carrier until syntax and downstream consumers migrate.
+of treating it as “not computed.” Authored `suspends;` / `blocks;` clauses now
+parse independently, survive syntax/resolved/typed trees and snapshots, enter
+checked `MachineContractPlan` values and fingerprints, and drive task
+admission. Operational names are rejected in source `effects` rows, normalized
+service rows filter every operational member, and the migrated task/carry
+fixtures use the split spelling. The legacy flat `EffectSet` remains a private
+fixed-point compatibility engine for carry/provider consumers; its operational
+bits currently seed the checked booleans but never re-enter service-row
+identity. Dedicated may-axis fixed points and remaining consumer retirement are
+the next EFX slice.
 
 Authority possession, provider trust receipts, resource bounds, failure
 outcomes, and mutation remain separate fields/analyses. Do not manufacture a

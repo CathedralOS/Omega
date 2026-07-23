@@ -44,6 +44,8 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -97,6 +99,8 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -243,6 +247,8 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
             parameters: Default::default(),
             return_type: Default::default(),
             effects: Default::default(),
+            suspends: false,
+            blocks: false,
             contracts: Default::default(),
             terminates_guarantee: false,
         },
@@ -267,6 +273,8 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -323,6 +331,8 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };

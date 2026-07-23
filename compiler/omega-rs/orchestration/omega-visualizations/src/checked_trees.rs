@@ -1530,6 +1530,8 @@ mod tests {
                 machine: symbol,
                 supply_mode: MachineSupplyMode::CheckedBody,
                 published_effect_row: EffectRowId::NULL,
+                suspension: Default::default(),
+                blocking: Default::default(),
                 published_termination: TerminationGuarantee::NoGuarantee,
                 inferred_write_frames: Vec::new(),
                 fingerprint: 0x1234,

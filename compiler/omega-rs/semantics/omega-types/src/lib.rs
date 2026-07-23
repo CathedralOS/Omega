@@ -226,6 +226,8 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                             parameters: signature.parameters,
                             return_type: signature.return_type,
                             effects: signature.effects,
+                            suspends: signature.suspends,
+                            blocks: signature.blocks,
                             contracts: signature.contracts,
                             default_body: signature.default_body,
                             terminates_guarantee: signature.terminates_guarantee,
@@ -702,6 +704,8 @@ mod tests {
             decrease_view_arguments: HandleSpan::empty(),
             decrease_range: omega_syntax_trees::expression::ExpressionHandle::invalid(),
             effects: HandleSpan::empty(),
+            suspends: false,
+            blocks: false,
             contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(state, 1),
         }));

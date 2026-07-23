@@ -7,7 +7,7 @@ data Message {
 }
 
 boundary trait Scheduler {
-    machine park(message: Message) effects Suspend;
+    machine park(message: Message) suspends;
 }
 
 data Main {

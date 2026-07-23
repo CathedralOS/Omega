@@ -22,13 +22,14 @@ pub fn validate_effect_plan(
             continue;
         };
 
-        let declared_effects = declared_machine_effect_set(program, machine);
+        let declared_effects = service_reach_effects(declared_machine_effect_set(program, machine));
         if declared_effects.is_empty() {
             continue;
         }
 
-        if !declared_effects.contains_all(machine_effects.transitive) {
-            let missing = machine_effects.transitive.difference(declared_effects);
+        let reached_effects = service_reach_effects(machine_effects.transitive);
+        if !declared_effects.contains_all(reached_effects) {
+            let missing = reached_effects.difference(declared_effects);
             let mut message = format!(
                 "machine `{}` declares effects `{}` but reaches undeclared effects `{}`",
                 machine.name,
@@ -47,6 +48,18 @@ pub fn validate_effect_plan(
     }
 
     crate::finish_diagnostics(diagnostics)
+}
+
+fn service_reach_effects(effects: omega_effects::EffectSet) -> omega_effects::EffectSet {
+    let mut services = omega_effects::EffectSet::empty();
+    for name in effects.names() {
+        if omega_core::semantics::effect_member_kind(name)
+            == Some(omega_core::semantics::EffectMemberKind::ServiceReach)
+        {
+            services.insert_name(name);
+        }
+    }
+    services
 }
 
 /// The v0 `machine_control`/port-I/O DISCHARGE gate

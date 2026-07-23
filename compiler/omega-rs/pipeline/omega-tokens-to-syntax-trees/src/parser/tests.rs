@@ -359,6 +359,85 @@ fn parses_plain_and_boundary_traits() {
 }
 
 #[test]
+fn parses_independent_operational_clauses_on_machines_and_requirements() {
+    let source = r#"
+        machine run() effects Console suspends; blocks; {
+        }
+
+        trait Worker {
+            machine wait() effects Clock suspends; blocks; ensures true;
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("operational clauses should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine item");
+    assert!(machine.suspends);
+    assert!(machine.blocks);
+    let effects = parsed.items.identifier_path_members(machine.effects);
+    assert_eq!(effects.len(), 1);
+    assert_eq!(effects[0].as_str(), "Console");
+
+    let trait_definition = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Trait(definition) => Some(definition),
+            _ => None,
+        })
+        .expect("trait item");
+    let signature_handle = parsed.items.state_signatures(trait_definition.machines)[0];
+    let signature = parsed.items.state_signature(signature_handle);
+    assert!(signature.suspends);
+    assert!(signature.blocks);
+    let effects = parsed.items.identifier_path_members(signature.effects);
+    assert_eq!(effects.len(), 1);
+    assert_eq!(effects[0].as_str(), "Clock");
+}
+
+#[test]
+fn rejects_duplicate_operational_clauses() {
+    let source = "machine run() suspends; suspends; {}";
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("duplicate clause must fail");
+    assert!(
+        error.message.contains("duplicate `suspends;`"),
+        "got: {}",
+        error.message
+    );
+}
+
+#[test]
+fn rejects_operational_members_in_service_effect_rows() {
+    for (retired, replacement) in [
+        ("Suspend", "suspends;"),
+        ("Block", "blocks;"),
+        ("thread_block", "blocks;"),
+    ] {
+        let source = format!("machine run() effects Console, {retired} {{}}");
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens).expect_err("retired effect member must fail");
+        assert!(error.message.contains("boundary-service reach only"));
+        assert!(
+            error.message.contains(replacement),
+            "got: {}",
+            error.message
+        );
+    }
+}
+
+#[test]
 fn parses_machine_contract_clauses() {
     let source = r#"
         machine distinct_indices(i: usize, j: usize)

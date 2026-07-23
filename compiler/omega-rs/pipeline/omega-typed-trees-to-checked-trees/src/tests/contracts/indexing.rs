@@ -29,6 +29,8 @@ fn carries_machine_contract_facts_into_checked_proof_facts() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -90,6 +92,8 @@ fn centralizes_contract_facts_in_semantic_fact_plan() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -171,6 +175,8 @@ fn carries_trait_signature_contract_facts_into_checked_proof_facts() {
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         terminates_guarantee: false,
     };
@@ -240,6 +246,8 @@ fn indexes_call_contract_facts_by_target_machine() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -282,6 +290,8 @@ fn indexes_call_contract_facts_by_target_machine() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -371,6 +381,8 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         terminates_guarantee: false,
     };
@@ -403,6 +415,8 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -447,6 +461,8 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -544,6 +560,8 @@ fn indexes_terminal_state_contract_ensures() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };

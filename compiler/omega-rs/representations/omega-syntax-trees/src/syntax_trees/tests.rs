@@ -58,6 +58,8 @@ fn syntax_trees_collect_state_expression_and_type_payloads() {
         decrease_view_arguments: HandleSpan::empty(),
         decrease_range: crate::expression::ExpressionHandle::invalid(),
         effects: HandleSpan::empty(),
+        suspends: false,
+        blocks: false,
         contracts: HandleSpan::empty(),
         states: HandleSpan::from_parts(state_handle, 1),
     }));
@@ -99,6 +101,8 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
         decrease_view_arguments: HandleSpan::empty(),
         decrease_range: crate::expression::ExpressionHandle::invalid(),
         effects: HandleSpan::empty(),
+        suspends: false,
+        blocks: false,
         contracts: HandleSpan::empty(),
         states: HandleSpan::from_parts(state, 1),
     }));
@@ -165,6 +169,8 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
         decrease_view_arguments: HandleSpan::empty(),
         decrease_range: crate::expression::ExpressionHandle::invalid(),
         effects: HandleSpan::empty(),
+        suspends: false,
+        blocks: false,
         contracts: HandleSpan::empty(),
         states: HandleSpan::from_parts(state, 1),
     }));
@@ -280,6 +286,8 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
         decrease_view_arguments: HandleSpan::empty(),
         decrease_range: crate::expression::ExpressionHandle::invalid(),
         effects: HandleSpan::empty(),
+        suspends: false,
+        blocks: false,
         contracts: HandleSpan::empty(),
         states: HandleSpan::from_parts(state, 1),
     }));

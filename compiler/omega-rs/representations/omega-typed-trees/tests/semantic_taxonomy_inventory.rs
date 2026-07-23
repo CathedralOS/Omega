@@ -92,6 +92,8 @@ fn machine_record_carries_the_termination_plan_beside_the_compat_bools() {
             decrease_view_arguments: _, // TPR3: argumented-view arguments
             decrease_range: _,          // TPR3: the rank-range constraint
             effects: _,                 // STILL decision 22's kinded rows, as a flat name span
+            suspends: _,                // EFX: independent authored suspension ceiling
+            blocks: _,                  // EFX: independent authored blocking ceiling
             contracts: _,
             states: _,
         } = machine;

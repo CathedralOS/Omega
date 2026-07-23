@@ -8,7 +8,7 @@ data Message {
 
 data Sleeper { }
 
-machine Sleeper::park(&mut self) effects Suspend { }
+machine Sleeper::park(&mut self) suspends; { }
 
 data Main {
     sleeper: Sleeper;

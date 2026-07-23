@@ -126,24 +126,7 @@ pub(super) fn elaborate_task_activation_plans(
             CallingPlanId::from_normalized_identity,
         )?;
 
-        let effect_rows = program
-            .facts
-            .effect_rows
-            .for_machine(target_machine.symbol)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "task activation target `{}` has no checked effect-row summary",
-                    target_machine.name
-                ))]
-            })?;
-        let suspend = omega_core::semantics::effect_member_id("Suspend")
-            .expect("Suspend is a canonical operational effect");
-        let reaches_suspend = program
-            .facts
-            .effect_rows
-            .rows
-            .members(effect_rows.inferred_transitive)
-            .contains(&suspend);
+        let reaches_suspend = contract.suspension.checked_may_suspend;
         let crossings = program
             .facts
             .carry
@@ -476,20 +459,20 @@ mod tests {
                 &self,
                 arguments: Arguments
             ) -> Task<T>
-            where machine Target(arguments: Arguments) -> T effects Suspend, Block;
+            where machine Target(arguments: Arguments) -> T suspends; blocks;
             ensures true;
             boundary machine TaskRuntime::try_start<T, Arguments, machine Target>(
                 &self,
                 arguments: Arguments
             ) -> StartOutcome<T, Arguments>
-            where machine Target(arguments: Arguments) -> T effects Suspend, Block;
+            where machine Target(arguments: Arguments) -> T suspends; blocks;
             ensures true;
 
             boundary data Sleeper;
-            boundary machine Sleeper::park(token: i32) effects Suspend;
+            boundary machine Sleeper::park(token: i32) suspends;
             data Job { value: i32; }
             data Worker {}
-            machine Worker::run(job: Job) -> i32 effects Suspend {
+            machine Worker::run(job: Job) -> i32 suspends; {
                 let value: i32 = job.value;
                 Sleeper::park(value);
                 value

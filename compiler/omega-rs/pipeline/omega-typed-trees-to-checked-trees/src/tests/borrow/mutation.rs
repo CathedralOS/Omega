@@ -47,6 +47,8 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -159,6 +161,8 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };

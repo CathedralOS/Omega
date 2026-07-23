@@ -51,6 +51,8 @@ pub(super) fn parse_machine<'tokens, 'source>(
             decrease_view_arguments,
             decrease_range,
             effects,
+            suspends,
+            blocks,
             contracts,
             clauses_return_type,
         ),
@@ -110,6 +112,8 @@ pub(super) fn parse_machine<'tokens, 'source>(
                 decrease_view_arguments,
                 decrease_range,
                 effects,
+                suspends,
+                blocks,
                 contracts,
                 states: HandleSpan::from_parts(state_start, state_count),
             },
@@ -219,6 +223,8 @@ pub(super) fn parse_machine<'tokens, 'source>(
             decrease_view_arguments,
             decrease_range,
             effects,
+            suspends,
+            blocks,
             contracts,
             states,
         },
@@ -313,10 +319,11 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             after_return,
             false,
         )?;
-        let ((effects, contracts, terminates_guarantee), mut rest) =
+        let ((effects, suspends, blocks, contracts, terminates_guarantee), mut rest) =
             crate::parser::trait_definition::parse_signature_clauses(
                 syntax_trees,
                 after_nested_contracts,
+                false,
             )?;
         // Permit a separator after the requirement. The semicolon belongs to
         // this `where machine` signature, never to the generic machine body.
@@ -331,6 +338,8 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             parameters,
             return_type,
             effects,
+            suspends,
+            blocks,
             contracts,
             default_body: HandleSpan::empty(),
             terminates_guarantee,

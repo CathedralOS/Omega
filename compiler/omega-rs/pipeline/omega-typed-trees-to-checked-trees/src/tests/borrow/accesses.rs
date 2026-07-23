@@ -47,6 +47,8 @@ fn collects_mutable_attached_data_argument_access_roots() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -171,6 +173,8 @@ fn collects_disjoint_member_access_segments() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -336,6 +340,8 @@ fn collects_unresolved_local_argument_access_roots() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };

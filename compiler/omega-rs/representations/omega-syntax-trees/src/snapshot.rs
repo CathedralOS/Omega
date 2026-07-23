@@ -122,6 +122,8 @@ pub enum ItemSnapshot {
         decreases: Vec<ExpressionSnapshot>,
         decrease_order: Vec<IdentifierSnapshot>,
         effects: Vec<IdentifierSnapshot>,
+        suspends: bool,
+        blocks: bool,
         contracts: Vec<CapabilityContractSnapshot>,
         states: Vec<StateSnapshot>,
     },
@@ -326,6 +328,8 @@ pub struct StateSignatureSnapshot {
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: TypeReferenceSnapshot,
     pub effects: Vec<IdentifierSnapshot>,
+    pub suspends: bool,
+    pub blocks: bool,
     pub contracts: Vec<CapabilityContractSnapshot>,
     pub default_body: Vec<StatementSnapshot>,
 }
@@ -716,6 +720,8 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
             effects: snapshot_identifier_slice(
                 syntax_trees.items.identifier_path_members(value.effects),
             ),
+            suspends: value.suspends,
+            blocks: value.blocks,
             contracts: snapshot_capability_contracts(syntax_trees, value.contracts),
             states: syntax_trees
                 .items
@@ -1099,6 +1105,8 @@ fn snapshot_state_signature(
                 .items
                 .identifier_path_members(signature.effects),
         ),
+        suspends: signature.suspends,
+        blocks: signature.blocks,
         contracts: snapshot_capability_contracts(syntax_trees, signature.contracts),
         default_body: syntax_trees
             .items
@@ -1138,6 +1146,8 @@ fn snapshot_state_signature_node(
                 .items
                 .identifier_path_members(signature.effects),
         ),
+        suspends: signature.suspends,
+        blocks: signature.blocks,
         contracts: snapshot_capability_contracts(syntax_trees, signature.contracts),
         default_body: syntax_trees
             .items

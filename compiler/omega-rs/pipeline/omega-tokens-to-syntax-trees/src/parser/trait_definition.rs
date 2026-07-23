@@ -71,12 +71,14 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         }
         input = input.take_keyword(KeywordKind::Machine, "machine")?;
         let (mut signature, rest) = parse_trait_machine_signature(syntax_trees, input)?;
-        let ((effects, contracts, terminates_guarantee), rest) =
-            parse_signature_clauses(syntax_trees, rest)?;
+        let ((effects, suspends, blocks, contracts, terminates_guarantee), rest) =
+            parse_signature_clauses(syntax_trees, rest, true)?;
         // Body presence = the default marker.
         let is_default = rest.at_punctuation(PunctuationKind::LeftBrace);
         signature.is_default = is_default;
         signature.effects = effects;
+        signature.suspends = suspends;
+        signature.blocks = blocks;
         signature.contracts = contracts;
         signature.terminates_guarantee = terminates_guarantee;
         let (default_body, next) = if is_default {
@@ -167,6 +169,8 @@ fn parse_trait_machine_signature<'tokens, 'source>(
             parameters,
             return_type,
             effects: HandleSpan::empty(),
+            suspends: false,
+            blocks: false,
             contracts: HandleSpan::empty(),
             default_body: HandleSpan::empty(),
             terminates_guarantee: false,
@@ -248,10 +252,13 @@ fn parse_trait_requirement<'tokens, 'source>(
 pub(super) fn parse_signature_clauses<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
+    allow_clauses_after_operational_separator: bool,
 ) -> Result<
     (
         (
             HandleSpan<omega_syntax_trees::identifier::Identifier>,
+            bool,
+            bool,
             HandleSpan<CapabilityContract>,
             // TPR4 (decision 23): authored bare `terminates` -- the bodyless
             // requirement's PUBLIC guarantee.
@@ -263,6 +270,8 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
 > {
     let mut effect_start = Handle::invalid();
     let mut effect_count = 0u32;
+    let mut suspends = false;
+    let mut blocks = false;
     let mut contract_start = Handle::invalid();
     let mut contract_count = 0u32;
     let mut terminates_guarantee = false;
@@ -286,9 +295,12 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
                 && !input.at_punctuation(PunctuationKind::LeftBrace)
                 && !input.at_contextual("requires")
                 && !input.at_contextual("ensures")
+                && !input.at_contextual("suspends")
+                && !input.at_contextual("blocks")
                 && !input.at_contextual("where")
             {
                 let (effect, rest) = input.take_identifier()?;
+                reject_retired_operational_effect(&effect, rest)?;
                 let handle = syntax_trees.items.append_identifier_path_member(effect);
                 if effect_count == 0 {
                     effect_start = handle;
@@ -302,6 +314,32 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
                     input = input.take_punctuation(PunctuationKind::Comma, ",")?;
                 }
             }
+            continue;
+        }
+
+        if input.at_contextual("suspends") {
+            if suspends {
+                return Err(input.error_here("duplicate `suspends;` operational clause"));
+            }
+            suspends = true;
+            input = take_operational_signature_clause(
+                input,
+                "suspends",
+                allow_clauses_after_operational_separator,
+            )?;
+            continue;
+        }
+
+        if input.at_contextual("blocks") {
+            if blocks {
+                return Err(input.error_here("duplicate `blocks;` operational clause"));
+            }
+            blocks = true;
+            input = take_operational_signature_clause(
+                input,
+                "blocks",
+                allow_clauses_after_operational_separator,
+            )?;
             continue;
         }
 
@@ -320,6 +358,8 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
                         || input.at_contextual("requires")
                         || input.at_contextual("ensures")
                         || input.at_contextual("effects")
+                        || input.at_contextual("suspends")
+                        || input.at_contextual("blocks")
                         || input.at_contextual("where")
                         || input.tokens.is_empty()
                 })?;
@@ -372,7 +412,59 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
     } else {
         HandleSpan::from_parts(contract_start, contract_count)
     };
-    Ok(((effects, contracts, terminates_guarantee), input))
+    Ok((
+        (effects, suspends, blocks, contracts, terminates_guarantee),
+        input,
+    ))
+}
+
+fn reject_retired_operational_effect(
+    effect: &Identifier,
+    input: Input<'_, '_>,
+) -> Result<(), crate::parse_error::ParseError> {
+    let replacement = match effect.as_str() {
+        "Suspend" => "suspends;",
+        "Block" => "blocks;",
+        "thread_block" => "blocks;",
+        "sync_wait" => "the appropriate independent `suspends;` and/or `blocks;` clause",
+        _ => {
+            if omega_core::semantics::effect_member_kind(effect.as_str())
+                != Some(omega_core::semantics::EffectMemberKind::OperationalMay)
+            {
+                return Ok(());
+            }
+            "an independent operational clause"
+        }
+    };
+    Err(input.error_here(format!(
+        "`effects {}` is retired: `effects` contains boundary-service reach only; write `{replacement}` as an independent operational clause",
+        effect.as_str()
+    )))
+}
+
+fn take_operational_signature_clause<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+    name: &str,
+    allow_following_contract_clauses: bool,
+) -> Result<Input<'tokens, 'source>, crate::parse_error::ParseError> {
+    let after_name = input.take_contextual(name)?;
+    let after_semicolon = after_name.take_punctuation(PunctuationKind::Semicolon, ";")?;
+    if after_semicolon.at_punctuation(PunctuationKind::LeftBrace)
+        || after_semicolon.at_contextual("effects")
+        || after_semicolon.at_contextual("suspends")
+        || after_semicolon.at_contextual("blocks")
+        || after_semicolon.at_contextual("terminates")
+        || (allow_following_contract_clauses
+            && (after_semicolon.at_contextual("requires")
+                || after_semicolon.at_contextual("ensures")
+                || after_semicolon.at_contextual("where")))
+    {
+        Ok(after_semicolon)
+    } else {
+        // A bodyless requirement shares its final clause semicolon with the
+        // signature terminator; leave it for the owning parser.
+        Ok(after_name)
+    }
 }
 
 fn extend_contiguous_span<T>(target: &mut HandleSpan<T>, source: HandleSpan<T>) {
