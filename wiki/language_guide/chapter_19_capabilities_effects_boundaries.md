@@ -887,6 +887,28 @@ This sketch needs more design work, but the direction is important:
   signatures and contracts; their implementations may be bound to explicitly
   boundary compiler/runtime primitives below the public core surface.
 
+Private carriers do not define native boundary ABI. A calling policy may
+structurally classify a value only when its public normalized semantic/layout
+contract determines the ABI-relevant facts. Fixed arrays and fixed records meet
+that test and are classified or rejected under the selected platform policy.
+Byte size alone is never sufficient, and Omega never applies C source-level
+array decay.
+
+Safe slices, text views, vectors, and bounded text carriers deliberately leave
+foreign choices unstated. Their private `{pointer, length}` or
+`{pointer, length, capacity}` lowering is therefore not a stable boundary
+descriptor. A native leaf declares the counterparty's actual shape: separate
+pointer and length parameters, a null-terminated pointer, or a declared record
+only when the foreign API genuinely takes that record. A checked adapter scopes
+a borrowed-out pointer for a synchronous call; a retaining API requires an
+explicit loan, transfer, or registration contract. Text crosses as bytes, with
+`Utf8` forgotten outbound or validated and established inbound.
+
+The rule is one test: when the semantic type determines the ABI, the policy may
+classify it; when ABI facts remain choices, the leaf must declare them. A custom
+`Calling<C>` policy may explicitly publish a canonical descriptor ABI, but the
+compiler never infers one from a private carrier.
+
 Short forms such as `&[T]` and `&mut [T]` mean the same slice views with no
 extra invariant parameters.
 

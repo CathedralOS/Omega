@@ -1,6 +1,6 @@
 # Design Brief: Calling And Machine-State Plans
 
-Current as of 2026-07-20. Boundary conventions are normalized policy artifacts;
+Current as of 2026-07-22. Boundary conventions are normalized policy artifacts;
 Omega's internal calling convention remains compiler-sovereign. This brief now
 includes inbound machine-state preservation, which ordinary calls do not expose.
 Engineering is incomplete. The normalized compiler model, initial built-in
@@ -158,6 +158,72 @@ Boundary-trait parents and policy parents have different established meanings:
 boundary service parents contribute service reach; ordinary core policy parents
 contribute contract identity and no reach.
 
+## Boundary shapes: determine or declare
+
+A calling policy may classify a semantic type directly only when that type's
+public normalized structure determines every ABI fact the policy needs. If
+ABI-relevant facts remain choices, the native leaf must declare the concrete
+foreign shape that supplies them. A private compiler lowering never establishes
+a public ABI merely because code generation knows its byte shape.
+
+Fixed arrays and fixed records are structurally determined aggregates. Their
+element/member types, count, size, alignment, and public layout are available to
+the policy, which may classify or reject them under the target's actual
+aggregate rules. A `[f32; 4]` may therefore become an HFA under AAPCS64, use an
+SSE aggregate class under SysV AMD64, or be indirect under a policy that requires
+that result. Classification is recursive and semantic; equal byte size alone
+does not imply equal ABI class.
+
+Omega never performs C source-level array decay. A native function that receives
+a fixed aggregate by value is declared with `[T; N]`. A C declaration such as
+`f(uint8_t bytes[16])` has a pointer parameter at the ABI boundary, so its Omega
+native leaf declares the corresponding pointer/reference contract instead.
+Changing `[T; N]` to `&[T; N]` changes the boundary signature; the compiler does
+not guess between them.
+
+Safe slices, text views, vectors, and bounded text carriers do not determine one
+native ABI. `&[u8]` intentionally omits choices such as the foreign length type,
+nullability, retention, ownership, and whether the counterparty expects separate
+parameters, a terminator, or a descriptor record. Their private pointer/length
+or pointer/length/capacity carriers are not stable public ABI. The default native
+policies therefore reject a bare slice, text view, vector, or bounded-text
+carrier at a leaf.
+
+The binding declares the foreign API's actual shape instead:
+
+```omega
+boundary machine NativeConsole::write(
+    bytes: Ptr<u8>,
+    length: u64,
+) -> i32;
+```
+
+An API that takes a null-terminated pointer uses that contract. An API that
+really takes a descriptor record declares that record. Two parameters must not
+be replaced with a superficially equivalent `{pointer, length}` record: policies
+such as Microsoft x64 can pass those shapes differently.
+
+A checked adapter presents the safe Omega surface and lowers it to the native
+leaf. For a synchronous non-retaining call, it scopes the foreign
+`borrowed-out` contract on `Ptr<u8>` to the call duration. A foreign operation
+that retains storage is a different contract and requires an explicit pinned
+loan, ownership transfer, or registration protocol; it cannot reuse the
+borrowed-out adapter.
+
+Text has no special ABI. Outbound conversion forgets the `Utf8` domain fact and
+passes bytes through the declared foreign shape. Inbound conversion validates
+the returned bytes before establishing `Utf8`. The foreign side never receives
+Omega's proof object.
+
+A custom calling policy may deliberately define a canonical slice or text ABI.
+That is an explicit policy contract, not a default inferred from the compiler's
+current private carrier.
+
+Process entry is pinned by the selected process-entry requirement and returns
+the platform exit-status scalar. This rule is attached to that requirement, not
+to the friendly source name `main`. Firmware entries and other callable boundary
+requirements may admit aggregate results when their selected policy does.
+
 The exported machine remains ordinary and keeps `boundary` bare:
 
 ```omega
@@ -307,6 +373,23 @@ derivers own instruction emission, entry/exit stubs, contextual specialization,
 footprint production, and final-artifact validation. Omega's internal convention
 is not expressible and may change between releases.
 
+The steady-state authorship split is:
+
+- `std::calling` defines the closed normalized signature, placement,
+  machine-state, acceptance, and rejection vocabulary;
+- target and platform packages author ordinary compile-time policy machines for
+  SysV AMD64, Microsoft x64, AAPCS64, firmware, syscalls, interrupts, and other
+  public boundaries;
+- the compiler purity-gates and evaluates the selected policy, validates and
+  canonicalizes its result, fingerprints the accepted promise, and derives
+  target instructions from that plan; and
+- the compiler alone may extend primitive register, placement, control, or
+  machine-state vocabulary.
+
+Policy code cannot emit instructions, inject relocation bytes, or bypass the
+validator. It constructs checked policy data. The compiler remains the
+mechanism validator and generic emitter.
+
 ## Engineering order
 
 Generic trait-parent composition used by `Calling<C>` is implemented. Header
@@ -322,6 +405,15 @@ regimes, unsaved permitted state, and footprints above the state ceiling.
 Register use derives its machine-state class, so evidence cannot hide SIMD use
 by omitting a self-reported class. Contract and evidence fingerprints are
 separate by type.
+
+Source-authored policy discovery and build-time evaluation are live, but the
+bundled standard policy evaluators remain substantially compiler-built Rust
+bootstraps. The current `BoundarySignature` also supplies a preclassified
+`ValueClass` rather than enough normalized recursive structure for policy code
+to classify every fixed array and record itself. Migration must enrich that
+input, move the standard target rules into readable Omega policy packages, and
+differential-check them against the bootstrap until retirement. This does not
+move validation or instruction emission out of the compiler.
 
 Existing compatibility bindings select this normalized policy as an independent
 oracle. The process-entry prologue now evaluates the target's normalized native

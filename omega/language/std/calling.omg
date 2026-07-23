@@ -2,6 +2,10 @@
 // author a policy machine, but the values it receives and returns come from
 // this compiler-owned, closed vocabulary. Array tails beyond each explicit
 // count are ignored and exist only because Omega arrays have fixed length.
+// ValueClass is the current bootstrap input. The settled endpoint supplies
+// enough normalized recursive public shape for authored policies to classify
+// fixed arrays/records themselves. Private slice/text carriers never enter this
+// vocabulary as public ABI unless an explicit policy publishes that shape.
 
 domain [u8; 256]::Utf8 {
     valid_utf8(self);

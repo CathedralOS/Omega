@@ -228,6 +228,28 @@ realization evidence checked against that promise; changing legal evidence
 revalidates the provider artifact without changing caller identity. A calling
 plan is auditable policy data, never an unchecked ABI string.
 
+Policy classification follows one boundary-shape rule. When a type's public
+normalized structure determines all ABI facts, the selected policy may
+structurally classify or reject it. Fixed arrays and fixed records fall in this
+category; their element/member structure, not byte size alone, drives aggregate
+classification. Omega does not reproduce C source-level array decay.
+
+When ABI facts remain choices, the native leaf must declare them. Safe slices,
+text views, vectors, and bounded text carriers do not choose a foreign length
+type, nullability, retention contract, terminator, or descriptor-versus-
+separate-parameters shape, so default native policies reject them directly. A
+checked adapter lowers the safe value to the foreign API's actual declared
+pointer and length parameters, null-terminated pointer, or real descriptor
+record. The compiler's private slice carrier is not public ABI. Retaining
+foreign calls need an explicit pinned loan, ownership transfer, or registration
+protocol rather than the synchronous borrowed-out contract.
+
+The closed plan vocabulary and validator remain compiler-owned. Target/platform
+packages author deterministic compile-time policy machines over that vocabulary;
+the compiler evaluates, canonicalizes, fingerprints, and emits from the accepted
+plan. Current built-in Rust evaluators are migration bootstraps, not the
+steady-state authorship boundary.
+
 The firewall is observational: a counterparty must agree on register/stack
 placement and preserved machine state, so those normalized promises are contract
 identity. The particular allocation, stub shape, and footprint certificate used

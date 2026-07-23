@@ -178,6 +178,21 @@ Foreign pointers fit four contract shapes:
 Raw address arithmetic is not a fifth user-facing escape hatch. Pointer access
 must remain attributable to one of these ownership/provenance contracts.
 
+Borrowed-out is specifically the synchronous, non-retaining case. A checked
+adapter may derive the foreign pointer and length from a safe slice, but the
+borrow ends with that native call. A foreign API that retains the pointer,
+completes asynchronously, or stores it for later callbacks requires an explicit
+pinned loan, ownership transfer, or registration protocol.
+
+The native leaf declares the foreign signature's actual parameter structure.
+Separate pointer and length parameters are not interchangeable with a record
+containing the same fields: the selected calling policy may place them
+differently. Safe slice/text carriers remain private Omega representations and
+are rejected as bare native leaves unless an explicit custom `Calling<C>`
+policy publishes their ABI. Fixed arrays and records, by contrast, may be
+structurally classified because their public normalized shape determines the
+aggregate facts the policy consumes. Omega never performs C array decay.
+
 Every installed callback/interrupt entry is also an external artifact root.
 Because no Omega call edge reaches it, the root ledger must include its effects,
 authority/trust receipts, state footprint, stack domain, nesting relation, and
