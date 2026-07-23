@@ -31,6 +31,7 @@ data Rat {
 // the constructor honest until that theory lands.
 machine mk_rat(n: Nat, d: Nat, g: Nat) -> Rat
 requires
+    (sub(Nat::Succ { prev: Nat::Zero }, d)) == Nat::Zero;
     (gcd(n, d)) == (g);
     (sub(Nat::Succ { prev: Nat::Zero }, g)) == Nat::Zero
 {
@@ -59,4 +60,77 @@ machine rat_eq(p: Rat, q: Rat) -> Nat
             Nat::Succ { prev as w } -> Nat::Succ { prev: Nat::Zero }
         }
     }
+}
+
+// N8 metric kernel. Cross-multiplication puts two non-negative rationals over
+// the common denominator p.den * q.den. The sum of the two directed monus
+// differences is their absolute numerator gap without introducing signed
+// runtime arithmetic or division:
+//
+//   |p.num * q.den - q.num * p.den|
+//
+// This is deliberately unreduced. Cauchy bounds compare it against the common
+// denominator, so normalization does not change the proposition.
+machine rat_gap(p: Rat, q: Rat) -> Nat
+{
+    let left: Nat = mul(p.num, q.den);
+    let right: Nat = mul(q.num, p.den);
+    let forward: Nat = sub(left, right);
+    let backward: Nat = sub(right, left);
+    let gap: Nat = add(forward, backward);
+    transition { _ -> (gap) }
+}
+
+machine rat_gap_reflexive(p: Rat) -> Nat
+ensures
+    result == Nat::Zero;
+    (rat_gap(p, p)) == Nat::Zero
+{
+    let cross: Nat = mul(p.num, p.den);
+    sub_self(cross);
+    transition { _ -> (rat_gap(p, p)) }
+}
+
+machine rat_gap_symmetric(p: Rat, q: Rat) -> Nat
+ensures
+    (rat_gap(p, q)) == (rat_gap(q, p))
+{
+    add_comm(
+        sub(mul(p.num, q.den), mul(q.num, p.den)),
+        sub(mul(q.num, p.den), mul(p.num, q.den))
+    );
+    transition { _ -> (rat_gap(p, q)) }
+}
+
+// `rat_close(p, q, precision) == Zero` means |p-q| <= 1/precision, written
+// without division as precision * gap <= p.den * q.den. Nat's settled monus
+// spelling encodes `a <= b` as sub(a, b) == Zero. Precision zero is harmless
+// (the bound is vacuous); Cauchy consumers use positive precisions.
+machine rat_close(p: Rat, q: Rat, precision: Nat) -> Nat
+{
+    let gap: Nat = rat_gap(p, q);
+    let scaled_gap: Nat = mul(precision, gap);
+    let common_denominator: Nat = mul(p.den, q.den);
+    let residual: Nat = sub(scaled_gap, common_denominator);
+    transition { _ -> (residual) }
+}
+
+machine rat_close_reflexive(p: Rat, precision: Nat)
+ensures
+    (rat_close(p, p, precision)) == Nat::Zero
+{
+    rat_gap_reflexive(p);
+    mul_zero_right(precision);
+    let common_denominator: Nat = mul(p.den, p.den);
+    sub_zero_left(common_denominator);
+}
+
+machine rat_close_symmetric(p: Rat, q: Rat, precision: Nat)
+requires
+    (rat_close(p, q, precision)) == Nat::Zero
+ensures
+    (rat_close(q, p, precision)) == Nat::Zero
+{
+    rat_gap_symmetric(q, p);
+    mul_comm(q.den, p.den);
 }

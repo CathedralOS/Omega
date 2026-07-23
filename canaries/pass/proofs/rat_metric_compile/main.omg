@@ -1,0 +1,22 @@
+// N8's first construction rung: core Rat exposes an honest division-free
+// closeness predicate, and its reflexive/symmetric laws are checked machines.
+use omega::language::core::rat;
+
+machine close_is_reflexive(value: Rat, precision: Nat)
+ensures (rat_close(value, value, precision)) == Nat::Zero
+{
+    rat_close_reflexive(value, precision);
+}
+
+machine close_is_symmetric(left: Rat, right: Rat, precision: Nat)
+requires (rat_close(left, right, precision)) == Nat::Zero
+ensures (rat_close(right, left, precision)) == Nat::Zero
+{
+    rat_close_symmetric(left, right, precision);
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

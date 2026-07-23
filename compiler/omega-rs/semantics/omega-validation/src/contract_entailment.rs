@@ -2295,7 +2295,28 @@ fn collect_citation_equations(
     let Some(entry) = program.machine_states(machine).first() else {
         return equations;
     };
+    // Entry-state citations may follow authored or lowering-generated `let`
+    // bindings. Termify their operands under the same incremental local
+    // environment used by sub-state proof arms. Treating a local as a fresh
+    // variable loses the cited equation exactly when a proof names an
+    // intermediate term (`let cross = mul(..); sub_self(cross);`).
+    let mut environment: Vec<(String, StructuralTerm)> = program
+        .state_parameters(entry)
+        .iter()
+        .map(|parameter| {
+            let name = parameter.name.as_str().to_owned();
+            (name.clone(), StructuralTerm::Variable(name))
+        })
+        .collect();
     for statement in program.statement_table.statements(entry.statement_nodes) {
+        if let StatementNode::LocalData(local) = statement {
+            if let Some(judge) = judge
+                && let Some(term) = judge.callee_term(local.initial_value, &environment, 0)
+            {
+                environment.push((local.name.as_str().to_owned(), term));
+            }
+            continue;
+        }
         let Some((target, argument_handles)) = citation_call_in_statement(program, statement)
         else {
             continue;
@@ -2303,7 +2324,10 @@ fn collect_citation_equations(
         let mut argument_terms: Vec<StructuralTerm> = Vec::with_capacity(argument_handles.len());
         let mut arguments_termify = true;
         for argument in &argument_handles {
-            let Some(term) = structural_term(program, *argument) else {
+            let term = judge
+                .and_then(|judge| judge.callee_term(*argument, &environment, 0))
+                .or_else(|| structural_term(program, *argument));
+            let Some(term) = term else {
                 arguments_termify = false;
                 break;
             };
