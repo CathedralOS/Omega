@@ -111,6 +111,14 @@ subtraction-closed reasoning wants it, with one rule stated at introduction:
 `Int`'s order has no floor, so ranking views over it must produce a
 well-founded `Nat` rank or carry a proven floor.
 
+Core's Cauchy-facing rational metric avoids division. `rat_gap(p, q)` is the
+absolute cross-product numerator gap, and
+`rat_close(p, q, precision) == Nat::Zero` states
+`|p-q| <= 1/precision` by comparing `precision * gap` with the common
+denominator in Nat's monus order. Its reflexive and symmetric laws are ordinary
+checked machines; they are the metric substrate for the constructed `Real`
+corpus, not compiler-known arithmetic.
+
 A quotient coarsens a type: sort its values into buckets of things a
 proven equivalence calls interchangeable, and the buckets become the
 values — read `%` as it already reads everywhere else, modulo. Wrapping

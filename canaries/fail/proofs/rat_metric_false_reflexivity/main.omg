@@ -1,0 +1,16 @@
+// The checked metric laws must not turn into a blanket axiom: citing the
+// reflexive zero-gap theorem refutes a claim that the same gap is positive.
+use omega::language::core::rat;
+
+machine false_reflexivity(value: Rat)
+ensures
+    (rat_gap(value, value)) == (Nat::Succ { prev: Nat::Zero })
+{
+    rat_gap_reflexive(value);
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

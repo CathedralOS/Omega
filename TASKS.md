@@ -1115,8 +1115,21 @@ stronger operations it needs instead of citing machine parameters generally.
   in recursive lexical scopes, refinement is binder-positional across the full
   callable contract, distinct schema parameters forward through proof-data
   families and calls, and fixed-point specialization removes both layers.
-- **N8 — construction corpus.** Build Cauchy Real, order, completeness, and
-  well-definedness, retiring axioms through the normal boundary-upgrade path.
+- **N8 — construction corpus.** The first honest metric rung is live in core
+  `Rat`: `rat_gap` computes the division-free absolute cross-product gap and
+  `rat_close(p, q, precision) == Zero` states the reciprocal-precision bound;
+  checked reflexivity and symmetry lemmas ship with a false-twin rejection.
+  Entry-state lemma citations now preserve preceding `let` meanings, which the
+  gap proof needs for `sub_self(cross)` rather than injecting a fact about an
+  unbound local name. `mk_rat` now declares denominator positivity explicitly.
+  General equality-style `requires` discharge on ordinary value-position calls
+  is still an implementation dependency (citation sites already discharge it),
+  so do not claim the constructor obligation is globally enforced yet; this is
+  engineering work, not a language-design blocker. Next build the quantified
+  Cauchy modulus/convergence predicates over this metric, then replace the
+  boundary `Real` with `CauchySeq % converges_together`, prove operation
+  well-definedness and order/completeness, and retire axioms through the normal
+  boundary-upgrade path.
 - **F6 — total float order.** Add named `TotalOrder` satisfiers for f32/f64
   using sign-magnitude integer comparison once satisfier dispatch serves.
 - **F7 — float format providers.** `FloatFormat::BINARY32` and
