@@ -272,16 +272,22 @@ schemas recover the same instance without publishing policy type identity.
    `ValueField` ranges carrying child roots and exact byte offsets. Policy output
    uses the separate closed `AbiValueShape` vocabulary, and compiler validation
    checks its MS-x64, SysV AMD64, or AAPCS64 classification against the public
-   graph before accepting the plan. Complete the remaining classifier slice:
-   keep checked adapters explicit and ensure borrowed-out pointer derivation
-   cannot reach a retaining/asynchronous foreign contract without a pinned
-   loan, transfer, or registration protocol. Canary evidence now pins the
-   settled surrounding distinctions: under Microsoft x64, separate pointer and
-   length scalars consume two argument positions while a 16-byte descriptor is
-   one indirect argument backed by a caller copy; predicate-only `Utf8` may be
-   forgotten at a raw-byte adapter and must be re-established by explicit
-   validation on inbound bytes; and an ordinary process entry returns its
-   selected requirement's scalar exit status (`runtime_entry_return_field_exit`
+   graph before accepting the plan. The remaining retention check is
+   **design-blocked**: checked adapters must not let a call-scoped borrowed-out
+   pointer reach a retaining/asynchronous foreign contract without a pinned
+   loan, ownership transfer, or registration protocol, but the governing
+   extern-boundary brief still explicitly leaves callback registration,
+   revocation, and long-lived foreign borrows open. Checked IR therefore has no
+   normalized contract axis that distinguishes call-scoped borrowing from
+   retention or identifies which protocol discharges it. Resume this check only
+   after that foreign-lifetime contract is settled; do not infer retention from
+   `Suspend`, `Block`, ABI shape, or an `addr` value. Canary evidence already
+   pins the settled surrounding distinctions: under Microsoft x64, separate
+   pointer and length scalars consume two argument positions while a 16-byte
+   descriptor is one indirect argument backed by a caller copy; predicate-only
+   `Utf8` may be forgotten at a raw-byte adapter and must be re-established by
+   explicit validation on inbound bytes; and an ordinary process entry returns
+   its selected requirement's scalar exit status (`runtime_entry_return_field_exit`
    executes as status 200 without `exit_process`).
    Byte size and the compiler's private slice carrier must never silently define
    public ABI.
