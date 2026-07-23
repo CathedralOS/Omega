@@ -5,7 +5,7 @@ belongs in the relevant chapter or frozen design brief, not here. Immediate
 owner decisions belong in the repository-root `OWNER_QUESTIONS.md`;
 engineering work belongs in `TASKS.md`.
 
-Last pruned: 2026-07-18.
+Last pruned: 2026-07-22.
 
 ## Effects, resources, and progress
 
@@ -45,10 +45,6 @@ Last pruned: 2026-07-18.
   artifact qualification, linear extent-backed placement, freeze, final
   validation, synchronous visibility, and installed-code claim. There is no
   arbitrary byte-to-code conversion or runtime-generated host code.
-- Settle protected returns and final-artifact CFI validation across ordinary
-  calls, suspension/continuations, exceptions, interrupt stubs, veneers/thunks,
-  and admitted foreign providers. Installation provenance prevents injection;
-  it does not replace this separate control-transfer gate.
 - Finish constraint-bearing placement and fragmented symbolic materialization;
   implement the settled Cathedral x86 exception/IRQ stack policy and extend the
   root ledger with stack/work/state ceiling-realization-receipt columns.

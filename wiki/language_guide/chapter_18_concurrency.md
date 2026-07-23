@@ -190,6 +190,15 @@ Task execution has three deliberately separate owners:
 normally a small provider/activation identity plus lifecycle authority. Moving
 the handle does not move a parked continuation.
 
+A parked continuation remains compiler/provider-owned control storage. Ordinary
+Omega code cannot project it from `Task<T>`, recast it as bytes or an address,
+borrow another activation's frames, or mutate its saved return chain. Parking
+does not turn compiler-owned live control state into ordinary addressable data.
+The provider may move, retain, or resume that storage only under the admitted
+activation/runtime contract. This preserves the same return-integrity argument
+across suspension, cancellation, and component replacement that applies while
+the activation is running.
+
 Measured, tail-only runtime recursion leaves a bounded lowered call graph. If
 ordinary calls may suspend, a parked continuation can retain a bounded chain
 of compiler-planned frames; bounded does not mean single-frame or free. The

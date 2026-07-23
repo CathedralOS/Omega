@@ -5,7 +5,7 @@
 
 # Tasks
 
-Last pruned: 2026-07-20.
+Last pruned: 2026-07-22.
 
 Omega's first real consumer is Cathedral (`../Cathedral`). General language
 work takes priority, with Cathedral vertical slices used as acceptance tests.
@@ -1429,15 +1429,21 @@ stronger operations it needs instead of citing machine parameters generally.
 - **OS gauntlet.** Validate the foundation against UART/MMIO, page tables,
   DMA, shared-page IPC, IDT/timer entry, and SMP AP bringup. A customer that
   needs a new keyword or customer-shaped primitive returns to design review.
-
-## Owner-blocked
-
-- **CFI3–CFI5 — protected returns and final CFI.** The forward edge can proceed
-  with sealed entry references and descriptor identity. Protected returns,
-  continuation/exception/interrupt preservation, final indirect-site
-  certificates, and foreign-provider isolation/receipts wait on
-  `OWNER_QUESTIONS.md`. Executable installation prevents injection; it does not
-  prove legal control transfer.
+- **Control-state negative rails.** Backward-edge return integrity is derived
+  from existing semantics and is not owner-blocked. Add four explicit
+  acceptance families:
+  1. a user-authored checked-assembly sequence that mutates stack/control state
+     receives the catalog's exact effects and rejects in an incompatible
+     context; unsupported or entry/exit-only transfers remain deriver-only;
+  2. a provider whose realized exit violates its admitted
+     `CallPlan + StatePlan` rejects, and an opaque provider with neither an
+     accepted exit claim nor adequate hardware isolation fails closed;
+  3. a DMA/external-loan agent cannot reach task/control storage outside its
+     exact lent Extent; and
+  4. ordinary Omega cannot project, recast, address, or mutate another
+     activation's parked continuation.
+  Keep forward-edge indirect targeting on sealed entry references and the
+  runtime descriptor/object-safety work; do not mark all CFI as derived.
 
 ## Platform-gated verification
 
@@ -1464,6 +1470,9 @@ stronger operations it needs instead of citing machine parameters generally.
 - Non-blocking executable-visibility tokens.
 - Runtime-generated host code/JIT and arbitrary self-modifying code remain
   intentionally unsupported, not backlog items.
+- Independent final-byte control-transfer certificates and CET, PAC, or
+  shadow-stack hardening are PCC/TCB-reduction assurance work. They do not
+  block checked-Omega returns, the IDT, or the Cathedral timer.
 - Universe levels wait for a full-mathlib replay goal.
 - A serious SSA/register-allocation/SIMD backend is post-1.0; correctness of
   current native output remains the active bar.

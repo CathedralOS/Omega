@@ -256,8 +256,10 @@ Every executable page-table mapping and relevant checked-assembly operation
 requires admitted-artifact provenance. There is no `ExecutableMemory`
 capability, JIT path, self-modifying code, or alternate raw-byte route.
 Component-slot binding is a later logical dispatch/versioning operation, not
-part of code placement. Installation prevents injection; sealed entries and
-protected-return/final CFI validation remain a separate control-transfer gate.
+part of code placement. Installation prevents injection. Backward-edge returns
+in checked Omega remain compiler-owned, non-addressable control state across
+both execution and parking. Forward-edge indirect calls separately require
+sealed requirement-compatible entry references or descriptors.
 
 The normalized Omega-native container validator is live over checked-layout
 decode output. It enforces configured bounds, checked non-overlapping ranges,
@@ -267,11 +269,13 @@ produces an immutable admission candidate, never executable eligibility. The
 schema-driven byte decoder, content normalization, and relocation validation
 remain to connect.
 
-The initial image uses the same trust discipline at an earlier phase: the build
-checks PCC/CFI and signs the admitted artifact identity, secure boot
-authenticates that identity and gates entry, and measured boot records what
-entered. The boot-admitted installer then loads later admitted artifacts.
-Measurement is evidence, never the admission gate.
+The initial image uses the same trust discipline at an earlier phase: the
+current trusted build validates the artifact and signs its admitted identity,
+secure boot authenticates that identity and gates entry, and measured boot
+records what entered. The boot-admitted installer then loads later admitted
+artifacts. Future independent PCC/final-byte validation reduces reliance on the
+compiler; it is not a prerequisite for the v1 boot semantics. Measurement is
+evidence, never the admission gate.
 
 AP bringup is a mandatory foundation test: low-memory placement, alignment,
 real/protected/long-mode code regions, checked regime-changing instructions,

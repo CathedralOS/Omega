@@ -6,41 +6,7 @@ and deliberately deferred research live in `TASKS.md`.
 
 Last pruned: 2026-07-22.
 
-## 1. Control-flow integrity and protected returns
-
-Executable installation is settled separately and prevents code injection.
-Control-flow integrity is an independent gate over every executable artifact,
-including the boot-admitted installer itself.
-
-The forward edge is substantially shaped: direct branches are fixed and
-final-artifact validated; indirect calls and tail calls use sealed,
-requirement-compatible entry references rather than numeric addresses; dynamic
-descriptors retain satisfier/contract identity; checked assembly cannot add an
-unmodeled control exit; interrupt/exception exits are deriver-owned under
-`CallPlan + StatePlan`.
-
-The remaining owner decision is the backward edge and enforcement contract:
-
-- What normalized fact proves a return corresponds to its legitimate call or
-  continuation state?
-- Which guarantees come from software proof, protected control storage,
-  shadow stacks/CET, PAC, or another target mechanism?
-- How do suspension, cancellation, exceptions, interrupts, tail calls, and
-  component/provider crossings preserve the return discipline?
-- What final-artifact certificate lets an independent validator check every
-  indirect call, return, entry stub, veneer, and thunk after placement?
-- Must admitted foreign providers supply accepted CFI claims, run behind
-  hardware isolation, or both according to policy?
-
-Recommendation: one normalized CFI plan/certificate consumed by the final
-validator, with checked Omega producing evidence and opaque leaves either
-receipt-gated or isolated. Keep target mechanisms as realizations of the plan,
-not source attributes or a new `unsafe` escape.
-
-Detailed surrounding context and engineering residue are in
-[`wiki/design_briefs/os_memory_and_hardware_foundation.md`](wiki/design_briefs/os_memory_and_hardware_foundation.md).
-
-## 2. What is the native boundary ABI for fixed arrays and text descriptors?
+## 1. What is the native boundary ABI for fixed arrays and text descriptors?
 
 Primitive scalars and declared `data` records/cases now have normalized entry
 result shapes across Microsoft x64, SysV AMD64, and AAPCS64. Fixed arrays and
@@ -70,7 +36,7 @@ and classify admitted fixed arrays structurally (including HFA/SSE rules) while
 requiring text to use an explicit public descriptor record after String
 retirement. Do not infer either ABI from byte size alone.
 
-## 3. What is the runtime and object-safety contract for `dyn Trait`?
+## 2. What is the runtime and object-safety contract for `dyn Trait`?
 
 Closed-world call-site specialization currently makes `&dyn Trait` parameters
 execute correctly when every concrete receiver is known at its call site. It
@@ -102,7 +68,7 @@ parameters/results do not mention `Self`; require declared effect/capability
 ceilings at every dynamic slot. This keeps the public model independent of raw
 table addresses and leaves room for loader-controlled table replacement.
 
-## 4. What is automatic cleanup's graph-edge and partial-value contract?
+## 3. What is automatic cleanup's graph-edge and partial-value contract?
 
 Omega already records affine StateExit events and rejects non-empty `drop`
 bodies so cleanup cannot silently disappear. Executing those bodies is not just
@@ -139,7 +105,7 @@ cycles, and any partially moved shape the plan cannot enumerate. Treat this as
 one ownership subsystem rather than special-casing calls in instruction
 selection.
 
-## 5. What is a composite linear value's resource frontier?
+## 4. What is a composite linear value's resource frontier?
 
 Omega requires structural linearity: a record, live sum payload, array, or
 generic container cannot erase a contained linear obligation. The current
