@@ -784,9 +784,14 @@ into the ledger/report and cannot be replayed after entry or realization drift.
 The normalized IDT publication gate is live as well: a materialized table's
 symbolic writer targets must exactly match its root bindings; publication
 requires those live handles and exact ledger records plus a content- and
-ledger-bound success receipt; and the installed table retains the handles.
-Compiler-selected-plan construction, concrete Cathedral PIC/LAPIC execution,
-writer lowering, and the actual checked `lidt` consumer remain.
+ledger-bound success receipt; and the installed table retains the handles. Its
+materialization path now validates and resolves every symbolic write before
+writing the mapped/pinned/writable unpublished destination directly, computes
+the resulting content identity, and checks an exact code/artifact/destination/
+final-byte receipt plus the software-fault-free verdict. It returns every
+linear input on failure and never exposes the resolved entry address.
+Compiler-selected-plan construction, checked-Omega writer lowering, concrete
+Cathedral PIC/LAPIC execution, and the actual checked `lidt` consumer remain.
 Provider-neutral acceptance canaries instantiate the timer as one root plus
 fixed one-shot acknowledgement, clock-capture, coalescing-wake, and return
 leaves and derive Cathedral's shared-IRQ stack peak as the maximum maskable root
@@ -1048,9 +1053,9 @@ settled concrete interrupt policy's implementation remain. Remaining order:
    and Cathedral's concrete providers. Materialize the complete exception IDT,
    provision the dedicated fault and shared maskable-IRQ IST stack classes,
    connect checked `lidt`, and validate the final no-SIMD/save-all-GPR entry
-   stubs. The normalized execution binding, record-before-publish IDT gate,
-   artifact-wide WCSU composition, and first Cathedral IRQ/fatal-fault
-   acceptance rail are already live.
+   stubs. The normalized execution binding, direct-destination materialization
+   receipt, record-before-publish IDT gate, artifact-wide WCSU composition, and
+   first Cathedral IRQ/fatal-fault acceptance rail are already live.
 9. Build the PIT/PIC timer top half and its coalescing handoff to an ordinary
    timer-service task; then add the LAPIC one-shot provider without changing the
    root requirement.
