@@ -376,6 +376,16 @@ semantic_id!(
     EffectRowId
 );
 semantic_id!(
+    /// Normalized identity of one boundary-service trait. Ordinary traits and
+    /// operational may-clauses never receive this identity.
+    ServiceReachId
+);
+semantic_id!(
+    /// Normalized service-reach row identity (service set + parent closure).
+    /// Suspension and blocking are deliberately absent from this identity.
+    ServiceReachRowId
+);
+semantic_id!(
     /// A sealed boundary progress profile (grant/receipt identity);
     /// participates in provider admission, outside the ordinary proof-fact
     /// catalog in v1.
@@ -393,6 +403,56 @@ semantic_id!(
     /// it explicitly, defaults elaborate at once.
     RankingViewId
 );
+
+/// Whether a machine's service reach is inferred privately or published as a
+/// stable caller/provider ceiling. Published omission is represented by an
+/// explicit empty row, never by `InternalInferred`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ServiceReachInterface {
+    #[default]
+    InternalInferred,
+    PublishedCeiling(ServiceReachRowId),
+}
+
+/// The service-reach contract and checked body summary. The checked summary
+/// may refine a published ceiling but may never widen it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ServiceReachPlan {
+    pub interface: ServiceReachInterface,
+    pub checked_inferred: ServiceReachRowId,
+}
+
+/// Whether suspension is inferred privately or published as an independent
+/// may-ceiling. `PublishedMaySuspend(false)` is the public negative guarantee
+/// produced by omitting `suspends;` on an export or requirement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SuspensionInterface {
+    #[default]
+    InternalInferred,
+    PublishedMaySuspend(bool),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SuspensionPlan {
+    pub interface: SuspensionInterface,
+    pub checked_may_suspend: bool,
+}
+
+/// Whether worker blocking is inferred privately or published as an
+/// independent may-ceiling. `PublishedMayBlock(false)` is the public negative
+/// guarantee produced by omitting `blocks;` on an export or requirement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BlockingInterface {
+    #[default]
+    InternalInferred,
+    PublishedMayBlock(bool),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct BlockingPlan {
+    pub interface: BlockingInterface,
+    pub checked_may_block: bool,
+}
 
 /// The BUILTIN canonical ranking-view catalog (decision 23, TPR2). The ids
 /// are FIXED (deterministic across programs — they may enter proof-cache
@@ -523,6 +583,39 @@ impl EffectRowTable {
 
     /// The members of an interned row (empty for `NULL`/unknown ids).
     pub fn members(&self, row: EffectRowId) -> &[EffectMemberId] {
+        row.0
+            .checked_sub(1)
+            .and_then(|index| self.rows.get(index as usize))
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+}
+
+/// Deterministic normalizer for service-only rows. Boundary-trait identity is
+/// minted before rows are interned; this table owns set normalization and
+/// preserves the empty published ceiling as the fixed row id 1.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ServiceReachRowTable {
+    rows: Vec<Vec<ServiceReachId>>,
+}
+
+impl ServiceReachRowTable {
+    pub const EMPTY_ROW: ServiceReachRowId = ServiceReachRowId(1);
+
+    pub fn intern(&mut self, mut services: Vec<ServiceReachId>) -> ServiceReachRowId {
+        services.sort_by_key(|service| service.0);
+        services.dedup();
+        if self.rows.is_empty() {
+            self.rows.push(Vec::new());
+        }
+        if let Some(position) = self.rows.iter().position(|row| *row == services) {
+            return ServiceReachRowId(u32::try_from(position + 1).expect("row table fits u32"));
+        }
+        self.rows.push(services);
+        ServiceReachRowId(u32::try_from(self.rows.len()).expect("row table fits u32"))
+    }
+
+    pub fn services(&self, row: ServiceReachRowId) -> &[ServiceReachId] {
         row.0
             .checked_sub(1)
             .and_then(|index| self.rows.get(index as usize))
@@ -700,6 +793,8 @@ mod tests {
     #[test]
     fn semantic_ids_are_zii_inert() {
         assert!(!SemanticDomainId::default().is_valid());
+        assert!(!ServiceReachId::default().is_valid());
+        assert!(!ServiceReachRowId::default().is_valid());
         assert!(EffectRowId(1).is_valid());
     }
 
@@ -725,6 +820,51 @@ mod tests {
             effect_member_kind("thread_block"),
             Some(EffectMemberKind::OperationalMay)
         );
+    }
+
+    #[test]
+    fn service_rows_exclude_operational_axes_and_normalize_as_sets() {
+        let readable = ServiceReachId(2);
+        let queryable = ServiceReachId(3);
+        let mut rows = ServiceReachRowTable::default();
+        assert_eq!(rows.intern(Vec::new()), ServiceReachRowTable::EMPTY_ROW);
+        let combined = rows.intern(vec![queryable, readable]);
+        assert_eq!(rows.intern(vec![readable, queryable, readable]), combined);
+        assert_eq!(rows.services(combined), &[readable, queryable]);
+        assert_eq!(
+            rows.services(ServiceReachRowId::NULL),
+            &[] as &[ServiceReachId]
+        );
+    }
+
+    #[test]
+    fn operational_plans_distinguish_private_inference_from_public_omission() {
+        assert_eq!(
+            SuspensionPlan::default().interface,
+            SuspensionInterface::InternalInferred
+        );
+        assert_eq!(
+            BlockingPlan::default().interface,
+            BlockingInterface::InternalInferred
+        );
+
+        let public_non_suspending = SuspensionPlan {
+            interface: SuspensionInterface::PublishedMaySuspend(false),
+            checked_may_suspend: false,
+        };
+        let public_non_blocking = BlockingPlan {
+            interface: BlockingInterface::PublishedMayBlock(false),
+            checked_may_block: false,
+        };
+        assert_ne!(public_non_suspending, SuspensionPlan::default());
+        assert_ne!(public_non_blocking, BlockingPlan::default());
+
+        let independently_suspending = SuspensionPlan {
+            interface: SuspensionInterface::PublishedMaySuspend(true),
+            checked_may_suspend: true,
+        };
+        assert!(independently_suspending.checked_may_suspend);
+        assert!(!public_non_blocking.checked_may_block);
     }
 
     #[test]

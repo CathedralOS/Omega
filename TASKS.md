@@ -1074,11 +1074,16 @@ stronger operations it needs instead of citing machine parameters generally.
   open-family linking, so that extension cannot be lowered yet.
 - **DOM3 — introduction authority.** Implement sealed-by-default domains,
   `introduction open`, and `MintAuthority<D>` with distinct missing-proof and
-  missing-authority diagnostics.
+  missing-authority diagnostics. **Language-design blocker:** decision 19
+  explicitly defers the introduction-policy grammar and authority-passing cast
+  spelling; the internal grant carrier exists, but authored policy cannot be
+  lowered without that surface decision.
 - **DOM4 — normalized identity.** Finish the deterministic domain-expression
   normalizer and make it own type/monomorphization identity.
 - **DOM5 — weakening.** Add `weakens_to` certificates and sealed-theory hashes
-  that detect stale operator theories.
+  that detect stale operator theories. **Language-design blocker:** decision
+  19 explicitly defers the `weakens_to` certificate-block syntax; theory
+  hashing can continue once there is an authored certificate object to bind.
 - **STR — semantic carrier cleanup.** Finish termination-plan integration,
   validation/resolution from normalized domain/machine/permission plans,
   lowering only from checked selections, and deletion of compatibility bools.
@@ -1096,7 +1101,12 @@ stronger operations it needs instead of citing machine parameters generally.
   slots. Reject retired `effects Suspend`, `effects Block`, and mixed service/
   operational rows with migration diagnostics. Migrate core, std, samples,
   canaries, and compiler/lattice fixtures atomically, then retire operational
-  members from the legacy `EffectSet` semantic path. The direct-call
+  members from the legacy `EffectSet` semantic path. The durable core target is
+  now established: `ServiceReachId`/`ServiceReachRowId` and its deterministic
+  set normalizer are separate from `SuspensionPlan` and `BlockingPlan`; each
+  plan distinguishes private inference from an explicit published `false`
+  ceiling, so public omission cannot collapse into internal inference. Syntax,
+  propagation, admission, and compatibility retirement remain. The direct-call
   acknowledgement keyword is a separate owner decision and must consume the
   normalized suspension/blocking plans rather than source-token presence.
 - **TPR4/TPR6 — publication and progress profiles.** Serialize public
