@@ -12,6 +12,8 @@ pub struct StateSignature {
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: TypeReferenceHandle,
     pub effects: HandleSpan<Identifier>,
+    /// EFX: normalized symbol-resolved boundary-service row.
+    pub service_reach_row: omega_core::semantics::ServiceReachRowId,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<SignatureContract>,
@@ -32,6 +34,7 @@ impl Default for StateSignature {
             parameters: HandleSpan::empty(),
             return_type: TypeReferenceHandle::invalid(),
             effects: HandleSpan::empty(),
+            service_reach_row: omega_core::semantics::ServiceReachRowId::NULL,
             suspends: false,
             blocks: false,
             contracts: HandleSpan::empty(),

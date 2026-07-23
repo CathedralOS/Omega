@@ -36,6 +36,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
         supply_mode: Default::default(),
         termination_plan: Default::default(),
         effect_row: Default::default(),
+        service_reach_row: Default::default(),
         type_parameters: Default::default(),
         contains: Default::default(),
         owned_data: Default::default(),

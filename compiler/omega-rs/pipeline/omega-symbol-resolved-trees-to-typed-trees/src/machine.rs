@@ -27,6 +27,7 @@ pub(crate) fn lower_machine(
         // STR4: copied, never re-derived (the row table copies verbatim at
         // the tree level, so ids stay valid).
         effect_row: machine.effect_row,
+        service_reach_row: machine.service_reach_row,
         type_parameters: omega_core::arena::HandleSpan::empty(),
         contains: omega_core::arena::HandleSpan::empty(),
         owned_data: omega_core::arena::HandleSpan::empty(),

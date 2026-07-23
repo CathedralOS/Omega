@@ -1762,6 +1762,120 @@ fn effect_row_facts_split_ceiling_from_inferred_summaries() {
 }
 
 #[test]
+fn symbol_resolved_service_reach_propagates_boundary_identity_and_parent_closure() {
+    let source = r#"
+    boundary trait Readable {
+        machine read() -> u64;
+    }
+
+    boundary trait Filesystem: Readable {
+    }
+
+    data Worker { reader: Readable; }
+    machine Worker::run(&mut self) -> u64 effects Filesystem {
+        self.reader.read()
+    }
+
+    data Main { worker: Worker; }
+    machine Main::main(&mut self) -> u64 {
+        self.worker.run()
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let worker = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Worker::run")
+        .expect("worker")
+        .symbol;
+    let main = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("main")
+        .symbol;
+    let checked = lower_typed_trees(typed).expect("service ceiling should admit the body");
+
+    let worker_reach = checked
+        .facts
+        .effect_rows
+        .service_reaches
+        .for_machine(worker)
+        .expect("worker service facts");
+    let published = checked
+        .facts
+        .effect_rows
+        .service_reaches
+        .rows
+        .services(worker_reach.published_ceiling);
+    let published_names = published
+        .iter()
+        .filter_map(|service| {
+            checked
+                .facts
+                .effect_rows
+                .service_reaches
+                .services
+                .definition(*service)
+        })
+        .map(|definition| definition.name.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(published_names, ["Filesystem", "Readable"]);
+
+    let main_reach = checked
+        .facts
+        .effect_rows
+        .service_reaches
+        .for_machine(main)
+        .expect("main service facts");
+    assert_eq!(
+        checked
+            .facts
+            .effect_rows
+            .service_reaches
+            .rows
+            .services(main_reach.inferred_transitive),
+        published,
+        "an internal caller consumes the callee's published service ceiling",
+    );
+}
+
+#[test]
+fn symbol_resolved_service_ceiling_rejects_undeclared_boundary_reach() {
+    let source = r#"
+    boundary trait Readable { machine read() -> u64; }
+    boundary trait Queryable { }
+
+    data Main { reader: Readable; }
+    machine Main::run(&mut self) -> u64 effects Queryable {
+        self.reader.read()
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics = lower_typed_trees(typed).expect_err("service ceiling must reject widening");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("reaches undeclared service `Readable`")
+        }),
+        "expected symbol-resolved service ceiling diagnostic, got {diagnostics:#?}",
+    );
+}
+
+#[test]
 fn operational_plans_are_independent_from_service_reach_rows() {
     use omega_core::semantics::{BlockingInterface, SuspensionInterface, effect_member_id};
 

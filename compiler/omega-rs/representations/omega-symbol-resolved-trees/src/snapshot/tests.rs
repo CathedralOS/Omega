@@ -57,6 +57,7 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
         supply_mode: Default::default(),
         termination_plan: Default::default(),
         effect_row: Default::default(),
+        service_reach_row: Default::default(),
         storage: MachineStorage {
             type_parameters: HandleSpan::empty(),
             contains: HandleSpan::empty(),

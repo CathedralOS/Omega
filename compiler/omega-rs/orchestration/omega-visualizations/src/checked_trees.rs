@@ -107,6 +107,13 @@ pub fn capability_manifest_json(program: &CheckedTrees) -> String {
         }
         push_json_string(&mut json, effect);
     }
+    json.push_str("],\n  \"service_reach\": [");
+    for (index, service) in manifest.service_reach.iter().enumerate() {
+        if index > 0 {
+            json.push_str(", ");
+        }
+        push_json_string(&mut json, service);
+    }
     json.push_str("],\n  \"capability_flows\": {");
     for (index, (kind, count)) in manifest.capability_flow_counts.iter().enumerate() {
         if index > 0 {
@@ -489,6 +496,8 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
             push_json_string(&mut json, supply_mode_name(contract.supply_mode));
             json.push_str(",\n        \"published_effect_row\": ");
             json.push_str(&contract.published_effect_row.0.to_string());
+            json.push_str(",\n        \"service_reach\": ");
+            push_service_reach_plan_json(&mut json, program, contract.service_reach);
             json.push_str(",\n        \"suspension\": ");
             push_suspension_plan_json(&mut json, contract.suspension);
             json.push_str(",\n        \"blocking\": ");
@@ -515,6 +524,8 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
             } else {
                 "false"
             });
+            json.push_str(",\n        \"checked_service_reach\": ");
+            push_service_row_json(&mut json, program, contract.service_reach.checked_inferred);
             json.push_str(",\n        \"inferred_write_frames\": [");
             for (frame_index, state_frame) in contract.inferred_write_frames.iter().enumerate() {
                 if frame_index > 0 {
@@ -663,6 +674,45 @@ fn push_suspension_plan_json(json: &mut String, plan: omega_core::semantics::Sus
             json.push('}');
         }
     }
+}
+
+fn push_service_reach_plan_json(
+    json: &mut String,
+    program: &CheckedTrees,
+    plan: omega_core::semantics::ServiceReachPlan,
+) {
+    use omega_core::semantics::ServiceReachInterface;
+    match plan.interface {
+        ServiceReachInterface::InternalInferred => {
+            json.push_str("{\"interface\": \"internal_inferred\"}");
+        }
+        ServiceReachInterface::PublishedCeiling(row) => {
+            json.push_str("{\"interface\": \"published_ceiling\", \"services\": ");
+            push_service_row_json(json, program, row);
+            json.push('}');
+        }
+    }
+}
+
+fn push_service_row_json(
+    json: &mut String,
+    program: &CheckedTrees,
+    row: omega_core::semantics::ServiceReachRowId,
+) {
+    let reaches = &program.facts.effect_rows.service_reaches;
+    json.push('[');
+    for (index, service) in reaches.rows.services(row).iter().enumerate() {
+        if index > 0 {
+            json.push_str(", ");
+        }
+        let name = reaches
+            .services
+            .definition(*service)
+            .map(|definition| definition.name.as_str())
+            .unwrap_or("<unknown-service>");
+        push_json_string(json, name);
+    }
+    json.push(']');
 }
 
 fn push_blocking_plan_json(json: &mut String, plan: omega_core::semantics::BlockingPlan) {
@@ -1283,6 +1333,13 @@ fn capability_manifest_text(program: &CheckedTrees) -> String {
     report.push_str("effects:       ");
     report.push_str(&format_effect_set(manifest.effects));
     report.push('\n');
+    report.push_str("service reach: ");
+    if manifest.service_reach.is_empty() {
+        report.push_str("<none>");
+    } else {
+        report.push_str(&manifest.service_reach.join(" + "));
+    }
+    report.push('\n');
     report.push_str("\nCapability Flow Counts\n");
     report.push_str("----------------------\n");
     for (kind, count) in manifest.capability_flow_counts {
@@ -1300,6 +1357,7 @@ struct EntryCapabilityManifest {
     entry_machine: String,
     entry_state: String,
     effects: EffectSet,
+    service_reach: Vec<String>,
     capability_flow_counts: [(CapabilityFlowKind, usize); 5],
 }
 
@@ -1309,6 +1367,7 @@ fn entry_capability_manifest(program: &CheckedTrees) -> EntryCapabilityManifest 
             entry_machine: "<missing>".to_owned(),
             entry_state: "<missing>".to_owned(),
             effects: EffectSet::empty(),
+            service_reach: Vec::new(),
             capability_flow_counts: capability_flow_counts(program),
         };
     };
@@ -1321,11 +1380,29 @@ fn entry_capability_manifest(program: &CheckedTrees) -> EntryCapabilityManifest 
         .find(|effects| effects.symbol == machine_symbol)
         .map(|effects| effects.transitive)
         .unwrap_or_else(EffectSet::empty);
+    let service_reach = program
+        .facts
+        .effect_rows
+        .service_reaches
+        .for_machine(machine_symbol)
+        .map(|fact| fact.inferred_transitive)
+        .map(|row| {
+            let reaches = &program.facts.effect_rows.service_reaches;
+            reaches
+                .rows
+                .services(row)
+                .iter()
+                .filter_map(|service| reaches.services.definition(*service))
+                .map(|definition| definition.name.clone())
+                .collect()
+        })
+        .unwrap_or_default();
 
     EntryCapabilityManifest {
         entry_machine: machine_name,
         entry_state: state_name,
         effects,
+        service_reach,
         capability_flow_counts: capability_flow_counts(program),
     }
 }
@@ -1547,8 +1624,21 @@ mod tests {
 
     #[test]
     fn machine_contract_manifest_keeps_interface_and_witness_separate() {
-        let symbol = SymbolHandle::default();
+        let symbol = SymbolHandle::from_arena_index(2);
+        let service_symbol = SymbolHandle::from_arena_index(1);
         let mut program = CheckedTrees::default();
+        let service = program
+            .facts
+            .effect_rows
+            .service_reaches
+            .services
+            .intern(service_symbol, "Readable");
+        let service_row = program
+            .facts
+            .effect_rows
+            .service_reaches
+            .rows
+            .intern(vec![service]);
         program.typed.push_machine(Machine {
             symbol,
             name: Identifier::generated("Worker::run"),
@@ -1572,6 +1662,12 @@ mod tests {
                 machine: symbol,
                 supply_mode: MachineSupplyMode::CheckedBody,
                 published_effect_row: EffectRowId::NULL,
+                service_reach: omega_core::semantics::ServiceReachPlan {
+                    interface: omega_core::semantics::ServiceReachInterface::PublishedCeiling(
+                        service_row,
+                    ),
+                    checked_inferred: service_row,
+                },
                 suspension: SuspensionPlan {
                     interface: SuspensionInterface::PublishedMaySuspend(false),
                     checked_may_suspend: false,
@@ -1605,6 +1701,9 @@ mod tests {
 
         assert!(contract.contains("\"fingerprint\": \"0x0000000000001234\""));
         assert!(contract.contains(
+            "\"service_reach\": {\"interface\": \"published_ceiling\", \"services\": [\"Readable\"]}"
+        ));
+        assert!(contract.contains(
             "\"suspension\": {\"interface\": \"published_ceiling\", \"may_suspend\": false}"
         ));
         assert!(
@@ -1618,6 +1717,7 @@ mod tests {
         assert!(json[implementation_start..].contains("\"inferred_write_frames\": []"));
         assert!(json[implementation_start..].contains("\"checked_may_suspend\": false"));
         assert!(json[implementation_start..].contains("\"checked_may_block\": true"));
+        assert!(json[implementation_start..].contains("\"checked_service_reach\": [\"Readable\"]"));
         assert!(json[implementation_start..].contains("\"kind\": \"eventual_terminal\""));
         assert!(json[implementation_start..].contains("\"subjects\": [\"remaining\"]"));
         assert!(json[implementation_start..].contains("\"view\": \"Nat::Descending\""));

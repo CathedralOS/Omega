@@ -36,6 +36,9 @@ pub struct Machine {
     /// from the flat `effects` span (the compatibility carrier until STR7),
     /// copied downstream.
     pub effect_row: omega_core::semantics::EffectRowId,
+    /// EFX: normalized boundary-service row, populated after symbol
+    /// assignment. Every member is a resolved boundary trait identity.
+    pub service_reach_row: omega_core::semantics::ServiceReachRowId,
     pub storage: MachineStorage,
 }
 

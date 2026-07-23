@@ -274,6 +274,28 @@ fn static_machine_argument_refines_authored_generic_contract() {
 }
 
 #[test]
+fn static_machine_argument_need_not_republish_a_tautological_postcondition() {
+    let typed = typed_program_from_source(
+        r#"
+        data Token {}
+
+        machine selected(value: &Token) {}
+
+        machine invoke<machine F>(value: &Token)
+        where machine F(value: &Token) ensures true;
+        {}
+
+        machine caller(value: &Token) {
+            invoke<selected>(value);
+        }
+        "#,
+    );
+
+    super::validate_static_machine_selections(&typed)
+        .expect("`ensures true` is the postcondition identity");
+}
+
+#[test]
 fn static_machine_argument_rejects_inferred_suspension_above_slot_ceiling() {
     let typed = typed_program_from_source(
         r#"
@@ -384,6 +406,71 @@ fn static_machine_argument_admits_provider_within_both_operational_ceilings() {
 
     super::validate_static_machine_selections(&typed)
         .expect("a provider within both pinned axes should validate");
+}
+
+#[test]
+fn static_machine_argument_rejects_symbol_resolved_service_widening() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary trait Readable {
+            machine read();
+        }
+
+        boundary trait Queryable {
+            machine query();
+        }
+
+        machine work(service: &mut Queryable) {
+            service.query();
+        }
+
+        machine invoke<machine F>(service: &mut Queryable)
+        where machine F(service: &mut Queryable) effects Readable;
+        {}
+
+        machine caller(service: &mut Queryable) {
+            invoke<work>(service);
+        }
+        "#,
+    );
+
+    let diagnostics = super::validate_static_machine_selections(&typed)
+        .expect_err("a provider must not widen a symbol-resolved service ceiling");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("service reach `Queryable` exceeds its authored ceiling")
+    }));
+}
+
+#[test]
+fn static_machine_argument_admits_service_reach_within_parent_closure() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary trait Readable {
+            machine read();
+        }
+
+        boundary trait Filesystem: Readable {
+            machine inspect();
+        }
+
+        machine work(service: &mut Filesystem) {
+            service.read();
+        }
+
+        machine invoke<machine F>(service: &mut Filesystem)
+        where machine F(service: &mut Filesystem) effects Filesystem;
+        {}
+
+        machine caller(service: &mut Filesystem) {
+            invoke<work>(service);
+        }
+        "#,
+    );
+
+    super::validate_static_machine_selections(&typed)
+        .expect("a child service ceiling includes its boundary-service parents");
 }
 
 #[test]
@@ -3087,7 +3174,9 @@ mod provider_plan {
         assert_eq!(schema.methods[0].parameter_count, 1);
         assert!(!schema.methods[0].has_result);
         assert_eq!(schema.methods[0].effects, vec!["stdout_io".to_owned()]);
+        assert_eq!(schema.methods[0].service_reach, vec!["Console".to_owned()]);
         assert_eq!(schema.methods[1].name, "exit_process");
+        assert_eq!(schema.methods[1].service_reach, vec!["Console".to_owned()]);
     }
 
     #[test]
@@ -3136,6 +3225,19 @@ mod provider_plan {
                 .collect::<Vec<_>>(),
             ["read", "policy_probe", "tick"]
         );
+        let method = |name: &str| {
+            schema
+                .methods
+                .iter()
+                .find(|method| method.name == name)
+                .expect("schema method")
+        };
+        assert_eq!(method("read").service_reach, ["Device"]);
+        assert!(
+            method("policy_probe").service_reach.is_empty(),
+            "ordinary policy parents must not mint service identities",
+        );
+        assert_eq!(method("tick").service_reach, ["Device", "Timer"]);
 
         let registry = build_host_authority_registry(&program);
         let timer_provider = registry.provider(timer.symbol).expect("Timer provider");

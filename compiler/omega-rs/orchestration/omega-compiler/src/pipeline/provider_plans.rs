@@ -531,6 +531,7 @@ pub(crate) fn validate_provider_plan_candidates(
 ) -> Vec<omega_core::diagnostics::Diagnostic> {
     let mut diagnostics = Vec::new();
     let effect_plan = omega_effects::infer_effects(typed);
+    let service_reach_plan = omega_effects::infer_service_reaches(typed, &effect_plan);
     for plan in plans {
         diagnostics.extend(
             plan.validate_candidate_against_schema()
@@ -591,6 +592,36 @@ pub(crate) fn validate_provider_plan_candidates(
                     row.method,
                     hidden.join(", "),
                     ceiling.join(", "),
+                )));
+            }
+
+            let service_ceiling = plan
+                .schema
+                .methods
+                .iter()
+                .find(|method| method.name == row.method)
+                .map(|method| method.service_reach.as_slice())
+                .unwrap_or_default();
+            let hidden_services = service_reach_plan
+                .for_machine(adapter.symbol)
+                .into_iter()
+                .flat_map(|summary| summary.effective.iter())
+                .filter_map(|service| typed.service_reaches.definition(*service))
+                .map(|definition| definition.name.as_str())
+                .filter(|name| {
+                    !service_ceiling
+                        .iter()
+                        .any(|allowed| allowed.as_str() == *name)
+                })
+                .collect::<Vec<_>>();
+            if !hidden_services.is_empty() {
+                diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                    "adapter `{}` does not refine `{}::{}`: its body reaches boundary service(s) [{}] outside the requirement's declared service ceiling [{}] -- the satisfied requirement is the public contract; widen it or drop the service reach",
+                    machine,
+                    plan.schema.trait_name,
+                    row.method,
+                    hidden_services.join(", "),
+                    service_ceiling.join(", "),
                 )));
             }
         }
@@ -1034,6 +1065,7 @@ mod tests {
                         parameter_count: 0,
                         has_result: false,
                         effects: Vec::new(),
+                        service_reach: vec!["Pair".to_owned()],
                         calling_plan_fingerprint: None,
                     })
                     .collect(),
@@ -1238,5 +1270,47 @@ mod tests {
                 .message
                 .contains("without an attached provider data type")
         );
+    }
+
+    #[test]
+    fn checked_adapter_rejects_symbol_resolved_service_widening() {
+        let source = r#"
+            boundary trait Queryable {
+                machine query();
+            }
+
+            boundary trait Readable {
+                machine read(queryable: &mut Queryable);
+            }
+
+            data Provider {}
+
+            machine Provider::read(queryable: &mut Queryable)
+            satisfies Readable::read {
+                queryable.query();
+            }
+        "#;
+        let tokens = omega_source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokenize");
+        let syntax =
+            omega_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse provider");
+        let resolved = omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+            .expect("resolve provider");
+        let typed =
+            omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .expect("type provider");
+        let plans = derive_satisfies_plans(&syntax, &typed, None);
+
+        let diagnostics = validate_provider_plan_candidates(&typed, &plans);
+
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("boundary service(s) [Queryable]")
+                && diagnostic
+                    .message
+                    .contains("declared service ceiling [Readable]")
+        }));
     }
 }

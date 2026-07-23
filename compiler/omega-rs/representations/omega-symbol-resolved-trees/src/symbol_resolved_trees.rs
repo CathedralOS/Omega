@@ -16,6 +16,11 @@ pub struct SymbolResolvedTrees {
     /// machines carry `effect_row` ids into THIS table. Populated at the
     /// syntax->resolved lowering, copied verbatim downstream.
     pub effect_rows: omega_core::semantics::EffectRowTable,
+    /// EFX: boundary-trait symbols normalized into service identities after
+    /// symbol assignment. This is the source of truth for service reach; the
+    /// legacy effect table remains only as a migration projection.
+    pub service_reaches: omega_core::semantics::ServiceReachTable,
+    pub service_reach_rows: omega_core::semantics::ServiceReachRowTable,
     /// STR4 checked plans, slice 1: the deterministic semantic-domain
     /// interner (declared-name identity, declaration order).
     pub semantic_domains: omega_core::semantics::SemanticDomainTable,
@@ -114,6 +119,8 @@ impl SymbolResolvedTrees {
             tables,
             symbols,
             effect_rows: omega_core::semantics::EffectRowTable::default(),
+            service_reaches: omega_core::semantics::ServiceReachTable::default(),
+            service_reach_rows: omega_core::semantics::ServiceReachRowTable::default(),
             semantic_domains: omega_core::semantics::SemanticDomainTable::default(),
             external_bindings: omega_core::semantics::ExternalBindingTable::default(),
         }

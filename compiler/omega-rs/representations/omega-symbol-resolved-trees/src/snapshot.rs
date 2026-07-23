@@ -292,6 +292,7 @@ pub struct MachineSnapshot {
     pub decreases: Vec<ExpressionSnapshot>,
     pub decrease_order: Vec<String>,
     pub effects: Vec<String>,
+    pub service_reach: Vec<String>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: Vec<SignatureContractSnapshot>,
@@ -341,6 +342,7 @@ pub struct StateSignatureSnapshot {
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: Option<TypeReferenceSnapshot>,
     pub effects: Vec<String>,
+    pub service_reach: Vec<String>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: Vec<SignatureContractSnapshot>,
@@ -675,6 +677,7 @@ fn machine_snapshot(program: &SymbolResolvedTrees, machine: &Machine) -> Machine
             .iter()
             .map(ToString::to_string)
             .collect(),
+        service_reach: service_reach_names(program, machine.service_reach_row),
         suspends: machine.suspends,
         blocks: machine.blocks,
         contracts: program
@@ -808,6 +811,7 @@ fn state_signature_snapshot(
             .iter()
             .map(ToString::to_string)
             .collect(),
+        service_reach: service_reach_names(program, signature.service_reach_row),
         suspends: signature.suspends,
         blocks: signature.blocks,
         contracts: program
@@ -816,6 +820,19 @@ fn state_signature_snapshot(
             .map(|contract| signature_contract_snapshot(program, contract))
             .collect(),
     }
+}
+
+fn service_reach_names(
+    program: &SymbolResolvedTrees,
+    row: omega_core::semantics::ServiceReachRowId,
+) -> Vec<String> {
+    program
+        .service_reach_rows
+        .services(row)
+        .iter()
+        .filter_map(|service| program.service_reaches.definition(*service))
+        .map(|definition| definition.name.clone())
+        .collect()
 }
 
 fn signature_contract_snapshot(

@@ -16,6 +16,9 @@ pub struct EffectRowFacts {
     pub rows: EffectRowTable,
     /// One entry per machine in the effect plan, in plan order.
     pub machines: Vec<MachineEffectRows>,
+    /// EFX: symbol-resolved boundary-service rows. The surrounding legacy
+    /// effect facts are retained only as a migration projection.
+    pub service_reaches: super::ServiceReachFacts,
 }
 
 impl EffectRowFacts {

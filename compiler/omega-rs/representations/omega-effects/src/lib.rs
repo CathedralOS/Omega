@@ -1,4 +1,5 @@
 mod capabilities;
+mod service_reach;
 
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
@@ -20,6 +21,9 @@ pub use capabilities::providers::{
     BoundaryProvider, BoundaryProviderRegistry, build_provider_registry, validate_provider_bindings,
 };
 pub use capabilities::{CapabilityFlowFact, CapabilityFlowKind, CapabilityFlowPlan};
+pub use service_reach::{
+    MachineServiceReachInference, ServiceReachInferencePlan, infer_service_reaches,
+};
 
 pub type EffectBits = u64;
 

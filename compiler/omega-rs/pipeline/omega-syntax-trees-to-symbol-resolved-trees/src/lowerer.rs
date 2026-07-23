@@ -132,12 +132,15 @@ impl Lowerer {
 
     pub(crate) fn finish(mut self) -> Result<SymbolResolvedTrees, Diagnostic> {
         crate::symbols::assign_symbols(&mut self.symbol_resolved_trees, self.sources);
+        crate::service_reaches::normalize_service_reaches(&mut self.symbol_resolved_trees);
         self.symbol_resolved_trees.rebuild_tables();
         let SymbolResolvedTrees {
             roots,
             tables,
             symbols,
             effect_rows,
+            service_reaches,
+            service_reach_rows,
             semantic_domains,
             external_bindings,
         } = self.symbol_resolved_trees;
@@ -146,6 +149,8 @@ impl Lowerer {
         // STR4: the interned rows/domains built during lowering survive the
         // rebuild.
         trees.effect_rows = effect_rows;
+        trees.service_reaches = service_reaches;
+        trees.service_reach_rows = service_reach_rows;
         trees.semantic_domains = semantic_domains;
         trees.external_bindings = external_bindings;
         Ok(trees)

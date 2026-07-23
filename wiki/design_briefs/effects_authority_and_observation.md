@@ -261,10 +261,15 @@ deferred until their algebras have real customers.
 The current compiler's lowercase names and `u64 EffectSet` are a compatibility
 implementation, not the semantic model. That table is now service-only;
 suspension and blocking use dedicated recursive boolean summaries, checked
-plans, admission checks, and manifest fields. The remaining migration replaces
-service-name lookup with symbol-resolved rows and then deletes the table.
-Unknown service identifiers resolve normally; there is no global hard-coded
-service table in the end state.
+plans, admission checks, and manifest fields. Boundary-trait declarations now
+mint canonical symbol-keyed identities after resolution, and normalized rows
+with parent closure drive recursive inference, checked ceilings, static-machine
+and checked-provider admission, contract/provider identity, snapshots, and
+manifests. The remaining migration moves legacy capability/authority,
+flow/graph, build-time-purity, assembly, and component consumers onto those
+rows, derives any temporary lowercase projection from them, migrates old
+fixtures, and deletes the table. Unknown service identifiers resolve normally;
+there is no global hard-coded service table in the end state.
 
 ## Acceptance register
 

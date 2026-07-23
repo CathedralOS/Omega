@@ -46,6 +46,89 @@ fn lowers_dungeon_style_machine_program() {
 }
 
 #[test]
+fn normalizes_service_rows_from_resolved_boundary_trait_symbols() {
+    let source = r#"
+    boundary trait Readable {
+    }
+
+    boundary trait Filesystem: Readable {
+        machine inspect() effects Readable;
+    }
+
+    trait Policy {
+    }
+
+    machine backup() effects Filesystem + Policy {
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+
+    let readable = program
+        .traits
+        .iter()
+        .find(|definition| definition.name.as_str() == "Readable")
+        .expect("Readable boundary trait");
+    let filesystem = program
+        .traits
+        .iter()
+        .find(|definition| definition.name.as_str() == "Filesystem")
+        .expect("Filesystem boundary trait");
+    let readable_id = program
+        .service_reaches
+        .id_for_symbol(readable.symbol)
+        .expect("Readable service id");
+    let filesystem_id = program
+        .service_reaches
+        .id_for_symbol(filesystem.symbol)
+        .expect("Filesystem service id");
+    assert!(
+        program
+            .service_reaches
+            .id_for_symbol(
+                program
+                    .traits
+                    .iter()
+                    .find(|definition| definition.name.as_str() == "Policy")
+                    .expect("ordinary policy trait")
+                    .symbol,
+            )
+            .is_none(),
+        "ordinary traits must not mint service identities",
+    );
+
+    let backup = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "backup")
+        .expect("backup machine");
+    let mut backup_services = vec![readable_id, filesystem_id];
+    backup_services.sort_by_key(|service| service.0);
+    assert_eq!(
+        program
+            .service_reach_rows
+            .services(backup.service_reach_row),
+        backup_services,
+        "authored service rows include normalized boundary-parent closure",
+    );
+
+    let inspect = program
+        .trait_machine_signatures(filesystem.machines)
+        .first()
+        .expect("Filesystem::inspect signature");
+    assert_eq!(
+        program
+            .service_reach_rows
+            .services(inspect.service_reach_row),
+        &[readable_id],
+    );
+}
+
+#[test]
 fn keeps_attached_machines_as_distinct_callables() {
     let source = r#"
     machine Game::new {

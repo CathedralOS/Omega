@@ -4,6 +4,7 @@ mod domains;
 mod effect_rows;
 mod invariants;
 mod qualifications;
+mod service_reaches;
 mod termination;
 
 pub use carry::*;
@@ -12,4 +13,5 @@ pub use domains::*;
 pub use effect_rows::*;
 pub use invariants::*;
 pub use qualifications::*;
+pub use service_reaches::*;
 pub use termination::*;

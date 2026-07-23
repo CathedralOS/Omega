@@ -1116,10 +1116,20 @@ stronger operations it needs instead of citing machine parameters generally.
   static-provider widening reject independently on both axes. Specialization
   identity, machine-contract/task manifests, and task-plan identity carry both
   axes, and operational spellings no longer have legacy `EffectSet` bits or
-  capability-audit projections. Remaining work is to replace the global
-  service-name/u64 compatibility engine with boundary-symbol-resolved
-  `ServiceReachPlan` construction throughout provider/component artifacts and
-  then delete that compatibility engine entirely. The direct-call
+  capability-audit projections. Boundary-trait declarations now mint
+  canonical symbol-keyed service identities after name resolution; authored
+  machine, requirement, and nested machine-parameter rows normalize through
+  resolved trait symbols with boundary-parent closure. An independent
+  recursive service fixed point feeds checked `ServiceReachPlan` values,
+  published-ceiling diagnostics, static-machine and checked-provider
+  admission, provider schema identity, contract fingerprints, tree snapshots,
+  and machine/capability manifests. Ordinary policy traits cannot enter these
+  rows, and artifact identity renders canonical service names rather than
+  program-local row or numeric-bit IDs. Remaining work is to migrate the
+  legacy capability/authority, flow/graph, build-time purity, inline-assembly,
+  and component-report consumers to these normalized rows, migrate remaining
+  lowercase fixtures, derive any required compatibility projection from the
+  rows, and then delete the global service-name/u64 engine entirely. The direct-call
   acknowledgement keyword is a separate owner decision and must consume the
   normalized suspension/blocking plans rather than source-token presence.
 - **TPR4/TPR6 — publication and progress profiles.** Serialize public

@@ -144,6 +144,7 @@ mod tests {
                     parameter_count: 0,
                     has_result: false,
                     effects: Vec::new(),
+                    service_reach: vec![format!("{name}Service")],
                     calling_plan_fingerprint: None,
                 }],
             },

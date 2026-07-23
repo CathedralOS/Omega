@@ -159,6 +159,13 @@ The remainder of this section documents the currently implemented lowercase
 samples while the decision-22 migration lands. These names are not new
 language canon and must not be extended as the effects architecture.
 
+The durable compiler path already resolves boundary-trait identities into
+canonical service rows, computes their recursive fixed point independently,
+and uses those rows for checked ceilings, machine/provider admission, contract
+identity, snapshots, and manifests. The catalog below remains only for
+unmigrated compatibility consumers; it is not a second source of service
+semantics.
+
 The legacy design treated effects as stable language-level names for externally
 visible behavior rather than host-specific syscall names. Decision 22 replaces
 those fixed names with symbol-resolved service traits and kinded operational

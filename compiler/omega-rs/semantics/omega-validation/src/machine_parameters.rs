@@ -22,11 +22,13 @@ pub(crate) fn validate_static_machine_arguments(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let effects = omega_effects::infer_effects(program);
+    let service_reaches = omega_effects::infer_service_reaches(program, &effects);
     for (_, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
             validate_call_selection(
                 program,
                 &effects,
+                &service_reaches,
                 call.target_symbol,
                 call.target.as_str(),
                 &call.machine_arguments,
@@ -42,6 +44,7 @@ pub(crate) fn validate_static_machine_arguments(
                     validate_call_selection(
                         program,
                         &effects,
+                        &service_reaches,
                         call.target_symbol,
                         call.target.as_str(),
                         &call.machine_arguments,
@@ -68,6 +71,7 @@ pub fn validate_static_machine_selections(program: &TypedTrees) -> Result<(), Ve
 fn validate_call_selection(
     program: &TypedTrees,
     effects: &omega_effects::EffectPlan,
+    service_reaches: &omega_effects::ServiceReachInferencePlan,
     target_symbol: SymbolHandle,
     target_name: &str,
     arguments: &[StaticMachineArgument],
@@ -153,6 +157,7 @@ fn validate_call_selection(
         validate_selected_callable_shape(
             program,
             effects,
+            service_reaches,
             target_name,
             parameter,
             requirement,
@@ -169,6 +174,7 @@ fn validate_call_selection(
 fn validate_selected_callable_shape(
     program: &TypedTrees,
     effects: &omega_effects::EffectPlan,
+    service_reaches: &omega_effects::ServiceReachInferencePlan,
     generic_call: &str,
     parameter: &TypeParameter,
     requirement: &omega_typed_trees::signature::StateSignature,
@@ -182,6 +188,7 @@ fn validate_selected_callable_shape(
         validate_callable_shape(
             program,
             effects,
+            service_reaches,
             generic_call,
             parameter,
             requirement,
@@ -210,6 +217,9 @@ fn validate_selected_callable_shape(
             program.state_signature_parameters(actual_signature),
             actual_signature.return_type,
             signature_effect_set(program, actual_signature),
+            program
+                .service_reach_rows
+                .services(actual_signature.service_reach_row),
             actual_signature.suspends,
             actual_signature.blocks,
             actual_signature.terminates_guarantee,
@@ -231,6 +241,7 @@ fn validate_selected_callable_shape(
 fn validate_callable_shape(
     program: &TypedTrees,
     effects: &omega_effects::EffectPlan,
+    service_reaches: &omega_effects::ServiceReachInferencePlan,
     generic_call: &str,
     parameter: &TypeParameter,
     requirement: &omega_typed_trees::signature::StateSignature,
@@ -251,6 +262,14 @@ fn validate_callable_shape(
     let actual_effects = inferred
         .map(|summary| summary.transitive)
         .unwrap_or_else(|| machine_effect_set(program, actual_machine));
+    let actual_services = service_reaches
+        .for_machine(actual_machine.symbol)
+        .map(|summary| summary.effective.as_slice())
+        .unwrap_or_else(|| {
+            program
+                .service_reach_rows
+                .services(actual_machine.service_reach_row)
+        });
     let actual_may_suspend = inferred
         .map(|summary| summary.transitive_may_suspend)
         .unwrap_or(actual_machine.suspends);
@@ -266,6 +285,7 @@ fn validate_callable_shape(
         program.state_parameters(actual_state),
         actual_state.return_type,
         actual_effects,
+        actual_services,
         actual_may_suspend,
         actual_may_block,
         actual_machine.terminates,
@@ -287,6 +307,7 @@ fn validate_callable_parts(
     actual_parameters: &[StateParameter],
     actual_return_type: TypeReferenceHandle,
     actual_effects: omega_effects::EffectSet,
+    actual_services: &[omega_core::semantics::ServiceReachId],
     actual_may_suspend: bool,
     actual_may_block: bool,
     actual_terminates: bool,
@@ -378,6 +399,24 @@ fn validate_callable_parts(
                 parameter.name
             )));
         }
+    }
+
+    let allowed_services = program
+        .service_reach_rows
+        .services(requirement.service_reach_row);
+    for service in actual_services {
+        if allowed_services.contains(service) {
+            continue;
+        }
+        let name = program
+            .service_reaches
+            .definition(*service)
+            .map(|definition| definition.name.as_str())
+            .unwrap_or("<unknown boundary service>");
+        diagnostics.push(Diagnostic::error(format!(
+            "{label} does not refine `{}`: service reach `{name}` exceeds its authored ceiling",
+            parameter.name
+        )));
     }
 
     if actual_may_suspend && !requirement.suspends {
@@ -502,6 +541,9 @@ fn validate_callable_type_parameters(
                     program.state_signature_parameters(actual_contract),
                     actual_contract.return_type,
                     signature_effect_set(program, actual_contract),
+                    program
+                        .service_reach_rows
+                        .services(actual_contract.service_reach_row),
                     actual_contract.suspends,
                     actual_contract.blocks,
                     actual_contract.terminates_guarantee,
@@ -535,9 +577,11 @@ pub(crate) fn validate_data_machine_selection(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let effects = omega_effects::infer_effects(program);
+    let service_reaches = omega_effects::infer_service_reaches(program, &effects);
     validate_selected_callable_shape(
         program,
         &effects,
+        &service_reaches,
         family_name,
         parameter,
         requirement,
@@ -822,6 +866,19 @@ fn normalized_facts(
     let mut facts = Vec::new();
     for contract in contracts.iter().filter(|contract| contract.kind == kind) {
         for fact in program.tables.proof_facts.span_or_empty(contract.facts) {
+            if matches!(
+                fact,
+                ProofFact::Expression(expression)
+                    if matches!(
+                        program.expression_table.expression(*expression),
+                        ExpressionNode::Boolean(true)
+                    )
+            ) {
+                // `true` contributes no precondition or postcondition. Treat
+                // it as the identity element so an implementation need not
+                // redundantly republish a tautology to refine a slot.
+                continue;
+            }
             let raw = match fact {
                 ProofFact::Expression(expression) => {
                     program.expression_table.display_name(*expression)

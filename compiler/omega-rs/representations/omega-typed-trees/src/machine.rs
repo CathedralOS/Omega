@@ -28,6 +28,8 @@ pub struct Machine {
     /// STR4 (decision 22): the normalized effect-row identity (copied,
     /// never re-derived; indexes the tree's `effect_rows` table).
     pub effect_row: omega_core::semantics::EffectRowId,
+    /// EFX: normalized symbol-resolved boundary-service row.
+    pub service_reach_row: omega_core::semantics::ServiceReachRowId,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub contains: HandleSpan<ContainedObject>,
     pub owned_data: HandleSpan<OwnedData>,
@@ -57,6 +59,7 @@ impl Default for Machine {
             supply_mode: omega_core::semantics::MachineSupplyMode::CheckedBody,
             termination_plan: omega_core::semantics::MachineTerminationPlan::default(),
             effect_row: omega_core::semantics::EffectRowId::NULL,
+            service_reach_row: omega_core::semantics::ServiceReachRowId::NULL,
             type_parameters: HandleSpan::empty(),
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
