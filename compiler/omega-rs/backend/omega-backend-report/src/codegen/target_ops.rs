@@ -851,10 +851,11 @@ fn selected_instruction_name(
             root_binding_fingerprint,
             byte_len,
             little_endian,
+            context_abi,
             source_slot_count,
             steps,
         } => format!(
-            "generated checked IDT writer preparation={preparation:?} code={installed_code:?} artifact={artifact:?} destination={destination:?} writer={writer_fingerprint:016x} placement={placement_fingerprint:016x} initial={initial_content_fingerprint:016x} roots={root_binding_fingerprint:016x} bytes={byte_len} endian={} private_sources={source_slot_count} fragments={}",
+            "generated checked IDT writer preparation={preparation:?} code={installed_code:?} artifact={artifact:?} destination={destination:?} writer={writer_fingerprint:016x} placement={placement_fingerprint:016x} initial={initial_content_fingerprint:016x} roots={root_binding_fingerprint:016x} bytes={byte_len} endian={} context_abi={context_abi:016x} private_sources={source_slot_count} fragments={}",
             if *little_endian { "little" } else { "big" },
             steps.len(),
         ),

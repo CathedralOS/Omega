@@ -1260,6 +1260,28 @@ pub fn encode_generated_idt_load_bytes(architecture: Architecture) -> Option<Vec
     }
 }
 
+pub fn encode_generated_idt_writer_bytes(
+    architecture: Architecture,
+    byte_len: usize,
+    little_endian: bool,
+    context_abi: u64,
+    source_slot_count: usize,
+    steps: &[omega_target_operations::GeneratedIdtWriterStep],
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "generated IDT writer is x86_64-only; no AArch64 lowering exists",
+        )),
+        Architecture::X86_64 => omega_isa_x86_64::encode_generated_idt_writer_bytes(
+            byte_len,
+            little_endian,
+            context_abi,
+            source_slot_count,
+            steps,
+        ),
+    }
+}
+
 pub fn encode_runtime_storage_copy_to_return_register_bytes(
     architecture: Architecture,
     register: omega_calling_conventions::MachineRegister,

@@ -678,11 +678,21 @@ pub(super) fn encode_machine_instruction_bytes(
                     )
                 })
         }
-        SelectedInstructionKind::GeneratedIdtWriter { .. } => {
-            Err(omega_core::diagnostics::Diagnostic::error(
-                "generated IDT writer has no pinned private-context ISA encoding yet",
-            ))
-        }
+        SelectedInstructionKind::GeneratedIdtWriter {
+            byte_len,
+            little_endian,
+            context_abi,
+            source_slot_count,
+            steps,
+            ..
+        } => omega_instruction_selection::encode_generated_idt_writer_bytes(
+            input.target.architecture,
+            *byte_len,
+            *little_endian,
+            *context_abi,
+            *source_slot_count,
+            steps,
+        ),
         SelectedInstructionKind::FlagsSnapshot {
             dest_byte_offset, ..
         } => {

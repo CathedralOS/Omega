@@ -171,6 +171,215 @@ pub fn lidt_from_r10_clobbers() -> omega_calling_conventions::RegisterSet {
     ])
 }
 
+/// Packed provider-private input consumed by the generated writer while R10
+/// points at byte zero. The destination pointer is followed by a dense array
+/// of u64 source values which the concrete provider must populate from the
+/// sealed writer preparation.
+pub const GENERATED_IDT_WRITER_DESTINATION_OFFSET: usize =
+    omega_target_operations::GENERATED_IDT_WRITER_DESTINATION_OFFSET;
+pub const GENERATED_IDT_WRITER_SOURCE_SLOTS_OFFSET: usize =
+    omega_target_operations::GENERATED_IDT_WRITER_SOURCE_SLOTS_OFFSET;
+pub const GENERATED_IDT_WRITER_SOURCE_SLOT_WIDTH: usize =
+    omega_target_operations::GENERATED_IDT_WRITER_SOURCE_SLOT_WIDTH;
+
+pub fn generated_idt_writer_context_width(source_slot_count: usize) -> Option<usize> {
+    omega_target_operations::generated_idt_writer_context_byte_len(source_slot_count)
+}
+
+/// Exact registers written by the checked x86 IDT fragment writer. R10 is a
+/// read-only context pointer; R11 holds the destination, RAX the source
+/// fragment, RCX the destination container, and RDX the masks.
+pub fn generated_idt_writer_clobbers() -> RegisterSet {
+    RegisterSet::new([
+        MachineRegister::X86Rax,
+        MachineRegister::X86Rcx,
+        MachineRegister::X86Rdx,
+        MachineRegister::X86R11,
+    ])
+}
+
+pub fn generated_idt_writer_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags])
+}
+
+pub fn generated_idt_writer_width(
+    byte_len: usize,
+    little_endian: bool,
+    context_abi: u64,
+    source_slot_count: usize,
+    steps: &[omega_target_operations::GeneratedIdtWriterStep],
+) -> Result<usize, Diagnostic> {
+    Ok(encode_generated_idt_writer_bytes(
+        byte_len,
+        little_endian,
+        context_abi,
+        source_slot_count,
+        steps,
+    )?
+    .len())
+}
+
+/// Emit the complete direct-destination writer. R10 must point at the packed
+/// private context above. Every access uses a pinned disp32 encoding, and the
+/// generated sequence revalidates all geometry before producing any bytes.
+pub fn encode_generated_idt_writer_bytes(
+    byte_len: usize,
+    little_endian: bool,
+    context_abi: u64,
+    source_slot_count: usize,
+    steps: &[omega_target_operations::GeneratedIdtWriterStep],
+) -> Result<Vec<u8>, Diagnostic> {
+    validate_generated_idt_writer(
+        byte_len,
+        little_endian,
+        context_abi,
+        source_slot_count,
+        steps,
+    )?;
+
+    let mut bytes = Vec::new();
+    bytes.extend([0x4d, 0x8b, 0x1a]); // mov r11, [r10]
+    for step in steps {
+        let source_offset = GENERATED_IDT_WRITER_SOURCE_SLOTS_OFFSET
+            + step.source_slot * GENERATED_IDT_WRITER_SOURCE_SLOT_WIDTH;
+        let source_displacement = i32::try_from(source_offset)
+            .expect("generated writer validation bounds private source displacement");
+        let destination_displacement = i32::try_from(step.container_byte_offset)
+            .expect("generated writer validation bounds destination displacement");
+
+        bytes.extend([0x49, 0x8b, 0x82]); // mov rax, [r10+disp32]
+        bytes.extend(source_displacement.to_le_bytes());
+        if step.source_lsb != 0 {
+            bytes.extend([0x48, 0xc1, 0xe8, step.source_lsb as u8]); // shr rax, imm8
+        }
+        let fragment_mask = generated_idt_writer_low_mask(step.width);
+        bytes.extend([0x48, 0xba]); // mov rdx, imm64
+        bytes.extend(fragment_mask.to_le_bytes());
+        bytes.extend([0x48, 0x21, 0xd0]); // and rax, rdx
+        if step.destination_lsb != 0 {
+            bytes.extend([0x48, 0xc1, 0xe0, step.destination_lsb as u8]); // shl rax, imm8
+        }
+
+        match step.container_width_bits {
+            8 => bytes.extend([0x41, 0x0f, 0xb6, 0x8b]), // movzx ecx, byte [r11+disp32]
+            16 => bytes.extend([0x41, 0x0f, 0xb7, 0x8b]), // movzx ecx, word [r11+disp32]
+            32 => bytes.extend([0x41, 0x8b, 0x8b]),      // mov ecx, [r11+disp32]
+            64 => bytes.extend([0x49, 0x8b, 0x8b]),      // mov rcx, [r11+disp32]
+            _ => unreachable!("generated writer container width was validated"),
+        }
+        bytes.extend(destination_displacement.to_le_bytes());
+
+        let destination_mask = fragment_mask << step.destination_lsb;
+        bytes.extend([0x48, 0xba]); // mov rdx, imm64
+        bytes.extend((!destination_mask).to_le_bytes());
+        bytes.extend([0x48, 0x21, 0xd1]); // and rcx, rdx
+        bytes.extend([0x48, 0x09, 0xc1]); // or rcx, rax
+
+        match step.container_width_bits {
+            8 => bytes.extend([0x41, 0x88, 0x8b]), // mov byte [r11+disp32], cl
+            16 => bytes.extend([0x66, 0x41, 0x89, 0x8b]), // mov word [r11+disp32], cx
+            32 => bytes.extend([0x41, 0x89, 0x8b]), // mov dword [r11+disp32], ecx
+            64 => bytes.extend([0x49, 0x89, 0x8b]), // mov qword [r11+disp32], rcx
+            _ => unreachable!("generated writer container width was validated"),
+        }
+        bytes.extend(destination_displacement.to_le_bytes());
+    }
+    Ok(bytes)
+}
+
+fn validate_generated_idt_writer(
+    byte_len: usize,
+    little_endian: bool,
+    context_abi: u64,
+    source_slot_count: usize,
+    steps: &[omega_target_operations::GeneratedIdtWriterStep],
+) -> Result<(), Diagnostic> {
+    if context_abi != omega_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1 {
+        return Err(Diagnostic::error(format!(
+            "generated IDT writer context ABI {context_abi:016x} is not the pinned IDTWRIT1 contract"
+        )));
+    }
+    if !little_endian {
+        return Err(Diagnostic::error(
+            "generated x86 IDT writer requires little-endian containers",
+        ));
+    }
+    if steps.is_empty() || source_slot_count == 0 {
+        return Err(Diagnostic::error(
+            "generated IDT writer requires at least one fragment and private source slot",
+        ));
+    }
+    let context_width = generated_idt_writer_context_width(source_slot_count)
+        .ok_or_else(|| Diagnostic::error("generated IDT writer private context size overflows"))?;
+    if context_width > i32::MAX as usize {
+        return Err(Diagnostic::error(
+            "generated IDT writer private context exceeds disp32 addressing",
+        ));
+    }
+
+    let mut used_slots = vec![false; source_slot_count];
+    for step in steps {
+        let Some(used) = used_slots.get_mut(step.source_slot) else {
+            return Err(Diagnostic::error(format!(
+                "generated IDT writer fragment names private source slot {}, but the context has {source_slot_count}",
+                step.source_slot
+            )));
+        };
+        *used = true;
+        if !matches!(step.container_width_bits, 8 | 16 | 32 | 64) {
+            return Err(Diagnostic::error(format!(
+                "generated IDT writer has invalid {}-bit container",
+                step.container_width_bits
+            )));
+        }
+        if step.width == 0
+            || step.width > 64
+            || step
+                .source_lsb
+                .checked_add(step.width)
+                .is_none_or(|end| end > 64)
+            || step
+                .destination_lsb
+                .checked_add(step.width)
+                .is_none_or(|end| end > step.container_width_bits)
+        {
+            return Err(Diagnostic::error(
+                "generated IDT writer has an invalid source or destination bit range",
+            ));
+        }
+        let container_bytes = u64::from(step.container_width_bits / 8);
+        if step
+            .container_byte_offset
+            .checked_add(container_bytes)
+            .is_none_or(|end| end > byte_len as u64)
+        {
+            return Err(Diagnostic::error(format!(
+                "generated IDT writer fragment at byte {} lies outside its {byte_len}-byte destination",
+                step.container_byte_offset
+            )));
+        }
+        if step.container_byte_offset > i32::MAX as u64 {
+            return Err(Diagnostic::error(
+                "generated IDT writer destination offset exceeds disp32 addressing",
+            ));
+        }
+    }
+    if used_slots.iter().any(|used| !used) {
+        return Err(Diagnostic::error(
+            "generated IDT writer private source slots are not a dense exact set",
+        ));
+    }
+    Ok(())
+}
+
+const fn generated_idt_writer_low_mask(width: u16) -> u64 {
+    if width == 64 {
+        u64::MAX
+    } else {
+        (1_u64 << width) - 1
+    }
+}
+
 // --- RFLAGS snapshot/restore -------------------------------------------------
 
 /// Byte offset of the destination-region `mov r15, imm64` inside a flags
@@ -15911,6 +16120,191 @@ mod machine_control_tests {
     fn deriver_only_lidt_reads_the_private_descriptor_through_r10() {
         assert_eq!(encode_lidt_from_r10_bytes(), [0x41, 0x0f, 0x01, 0x1a]);
         assert_eq!(encode_lidt_from_r10_bytes().len(), lidt_from_r10_width());
+    }
+
+    #[test]
+    fn generated_idt_writer_has_exact_packed_context_and_full_width_encoding() {
+        let steps = [omega_target_operations::GeneratedIdtWriterStep {
+            container_byte_offset: 0,
+            container_width_bits: 64,
+            destination_lsb: 0,
+            source_lsb: 0,
+            width: 64,
+            source_slot: 0,
+        }];
+        let bytes = encode_generated_idt_writer_bytes(
+            8,
+            true,
+            omega_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
+            1,
+            &steps,
+        )
+        .expect("valid full-width generated writer");
+        let mut expected = vec![
+            0x4d, 0x8b, 0x1a, // mov r11, [r10]
+            0x49, 0x8b, 0x82, 0x08, 0x00, 0x00, 0x00, // mov rax, [r10+8]
+            0x48, 0xba, // mov rdx, u64::MAX
+        ];
+        expected.extend(u64::MAX.to_le_bytes());
+        expected.extend([
+            0x48, 0x21, 0xd0, // and rax, rdx
+            0x49, 0x8b, 0x8b, 0x00, 0x00, 0x00, 0x00, // mov rcx, [r11]
+            0x48, 0xba, // mov rdx, 0
+        ]);
+        expected.extend(0_u64.to_le_bytes());
+        expected.extend([
+            0x48, 0x21, 0xd1, // and rcx, rdx
+            0x48, 0x09, 0xc1, // or rcx, rax
+            0x49, 0x89, 0x8b, 0x00, 0x00, 0x00, 0x00, // mov [r11], rcx
+        ]);
+
+        assert_eq!(bytes, expected);
+        assert_eq!(bytes.len(), 53);
+        assert_eq!(
+            generated_idt_writer_width(
+                8,
+                true,
+                omega_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
+                1,
+                &steps,
+            )
+            .expect("writer width"),
+            bytes.len()
+        );
+        assert_eq!(generated_idt_writer_context_width(1), Some(16));
+        assert_eq!(GENERATED_IDT_WRITER_DESTINATION_OFFSET, 0);
+        assert_eq!(GENERATED_IDT_WRITER_SOURCE_SLOTS_OFFSET, 8);
+        assert_eq!(GENERATED_IDT_WRITER_SOURCE_SLOT_WIDTH, 8);
+        assert_eq!(
+            generated_idt_writer_clobbers().as_slice(),
+            &[
+                MachineRegister::X86Rax,
+                MachineRegister::X86Rcx,
+                MachineRegister::X86Rdx,
+                MachineRegister::X86R11,
+            ]
+        );
+        assert!(
+            generated_idt_writer_additional_machine_state()
+                .contains_all(MachineStateSet::new([MachineState::Flags]))
+        );
+    }
+
+    #[test]
+    fn generated_idt_writer_emits_exact_fragment_shifts_masks_and_word_access() {
+        let steps = [omega_target_operations::GeneratedIdtWriterStep {
+            container_byte_offset: 4,
+            container_width_bits: 16,
+            destination_lsb: 4,
+            source_lsb: 12,
+            width: 8,
+            source_slot: 0,
+        }];
+        let bytes = encode_generated_idt_writer_bytes(
+            8,
+            true,
+            omega_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
+            1,
+            &steps,
+        )
+        .expect("valid fragmented generated writer");
+        let mut expected = vec![
+            0x4d, 0x8b, 0x1a, // mov r11, [r10]
+            0x49, 0x8b, 0x82, 0x08, 0x00, 0x00, 0x00, // mov rax, [r10+8]
+            0x48, 0xc1, 0xe8, 0x0c, // shr rax, 12
+            0x48, 0xba, // mov rdx, 0xff
+        ];
+        expected.extend(0xff_u64.to_le_bytes());
+        expected.extend([
+            0x48, 0x21, 0xd0, // and rax, rdx
+            0x48, 0xc1, 0xe0, 0x04, // shl rax, 4
+            0x41, 0x0f, 0xb7, 0x8b, 0x04, 0x00, 0x00, 0x00, // movzx ecx, word [r11+4]
+            0x48, 0xba, // mov rdx, !0xff0
+        ]);
+        expected.extend((!0xff0_u64).to_le_bytes());
+        expected.extend([
+            0x48, 0x21, 0xd1, // and rcx, rdx
+            0x48, 0x09, 0xc1, // or rcx, rax
+            0x66, 0x41, 0x89, 0x8b, 0x04, 0x00, 0x00, 0x00, // mov [r11+4], cx
+        ]);
+
+        assert_eq!(bytes, expected);
+        assert_eq!(bytes.len(), 63);
+    }
+
+    #[test]
+    fn generated_idt_writer_rejects_unrepresentable_geometry_before_emission() {
+        let step = omega_target_operations::GeneratedIdtWriterStep {
+            container_byte_offset: 0,
+            container_width_bits: 64,
+            destination_lsb: 0,
+            source_lsb: 0,
+            width: 64,
+            source_slot: 0,
+        };
+        assert!(
+            encode_generated_idt_writer_bytes(
+                8,
+                false,
+                omega_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
+                1,
+                &[step],
+            )
+            .expect_err("x86 writer must be little-endian")
+            .message
+            .contains("little-endian")
+        );
+        assert!(
+            encode_generated_idt_writer_bytes(
+                8,
+                true,
+                omega_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
+                1,
+                &[omega_target_operations::GeneratedIdtWriterStep {
+                    source_slot: 1,
+                    ..step
+                }],
+            )
+            .expect_err("source slot outside context must reject")
+            .message
+            .contains("context has 1")
+        );
+        assert!(
+            encode_generated_idt_writer_bytes(
+                8,
+                true,
+                omega_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
+                1,
+                &[omega_target_operations::GeneratedIdtWriterStep {
+                    container_byte_offset: 8,
+                    ..step
+                }],
+            )
+            .expect_err("destination fragment outside table must reject")
+            .message
+            .contains("outside")
+        );
+        assert!(
+            encode_generated_idt_writer_bytes(
+                8,
+                true,
+                omega_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
+                2,
+                &[omega_target_operations::GeneratedIdtWriterStep {
+                    source_slot: 1,
+                    ..step
+                }],
+            )
+            .expect_err("private source slots must be dense")
+            .message
+            .contains("dense exact set")
+        );
+        assert!(
+            encode_generated_idt_writer_bytes(8, true, 0xdead, 1, &[step])
+                .expect_err("unknown private context ABI must reject")
+                .message
+                .contains("IDTWRIT1")
+        );
     }
 
     #[test]

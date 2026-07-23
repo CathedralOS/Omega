@@ -105,8 +105,9 @@ fn generated_idt_writer_is_an_address_free_runtime_write() {
         root_binding_fingerprint: 8,
         byte_len: 16,
         little_endian: true,
+        context_abi: crate::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
         source_slot_count: 1,
-        steps: vec![omega_external_roots::PreparedIdtWriterStep {
+        steps: vec![crate::GeneratedIdtWriterStep {
             container_byte_offset: 0,
             container_width_bits: 64,
             destination_lsb: 0,

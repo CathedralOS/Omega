@@ -801,16 +801,21 @@ authority, and fragment geometry. Its identity binds code, artifact,
 destination and initial content, plan, placement, and roots. Compiler lowering
 preserves those facts and address-free fragment geometry in a generated-only
 target/machine carrier whose source operands are private context-slot indices;
-final emission currently rejects until that private context ABI is pinned. The
-compiler now retains the exact validated selected provider-plan set through
-checked lowering, with canonical per-plan and whole-selection identities. Root
-candidates now carry the selected plan identity before validation, normalized
-root identity covers it, and `ProviderExecution` inherits it from that root;
+the packed private `IDTWRIT1` ABI is now pinned as an R10-addressed destination
+pointer followed by dense u64 source slots. Exact x86 encoding and width are
+live with the derived RAX/RCX/RDX/R11 plus Flags footprint, while AArch64,
+unknown ABI versions, invalid slots, and unrepresentable geometry reject before
+emission. The compiler now retains the exact validated selected provider-plan
+set through checked lowering, with canonical per-plan and whole-selection
+identities. Root candidates now carry the selected plan identity before
+validation, normalized root identity covers it, and `ProviderExecution`
+inherits it from that root;
 the compiler's boundary-slot bridge consumes only the retained selection and
 rejects missing or ambiguous matches. Concrete Cathedral PIC/LAPIC candidate
-construction, the writer's private context ABI/ISA emission, and provider
-lowering that executes the writer and supplies the private descriptor to the
-contracted `lidt` consumer remain.
+construction, provider-private population of the writer context from the exact
+installed resolver, and provider lowering that materializes R10 and executes
+the writer before supplying the private descriptor to the contracted `lidt`
+consumer remain.
 The deriver-only catalog contract, exact x86 encoding, and source-rejection
 rail are live.
 Provider-neutral acceptance canaries instantiate the timer as one root plus
@@ -1049,8 +1054,10 @@ settled concrete interrupt policy's implementation remain. Remaining order:
    placement/initial-content/root fingerprints and fragment geometry survive
    lowering, while resolved values remain provider-private source slots;
    foreign entries and data symbols reject before publication, without a
-   source-visible numeric-address operation. Pinning the private context ABI,
-   its exact footprint, and target-machine writer emission remains.
+   source-visible numeric-address operation. The packed `IDTWRIT1` context ABI,
+   exact x86 writer bytes/width, and RAX/RCX/RDX/R11 plus Flags footprint are
+   pinned and emitted; provider-private context population, R10 materialization,
+   and concrete writer execution remain.
 3. Connect the implemented normalized `Extent` conservation/mapping model to
    the Omega linear carrier and sealed facts, then implement provider execution
    and source APIs. Root admission, split/merge/attenuation, borrow polarity,
