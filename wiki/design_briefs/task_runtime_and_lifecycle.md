@@ -278,9 +278,18 @@ continuation address stability. Its pessimistic opaque-runtime contract admits
 nothing accidentally. Each validated demand has a normalized identity over all
 of those checked inputs; a successful admission derives its receipt identity
 from the complete demand and complete runtime behavior contract instead of
-accepting a caller-invented label. The activation artifact reports
-`pending_provider` until runtime identity/provenance is actually available.
-`TaskRuntime` boundary/provider-plan wiring and transactional start remain.
+accepting a caller-invented label. Provider-side qualification also uses the
+shared trust spine rather than accepting behavior data as evidence: a freely
+constructed `TaskRuntimeContract` becomes admissible only when an exact
+`ProviderPlan` receipt binds the base plan identity and every behavior promise.
+Any change to capacity, preemption, affinity, continuation movement,
+cancellation, or inline completion changes that statement fingerprint and
+requires re-admission. Receipt provenance is evidence, not runtime identity,
+so switching from own-package development authority to a root grant does not
+change the normalized runtime contract. The activation artifact reports
+`pending_provider` until compiler provider selection supplies that exact
+receipt. `TaskRuntime` provider-plan selection/wiring, dispatch, and
+transactional start remain.
 
 ## Acceptance register
 
@@ -323,10 +332,12 @@ accepting a caller-invented label. The activation artifact reports
    asynchronous preemption. Incomplete type coverage remains absent and fails
    asynchronous admission closed. Every plan requires the cancellation
    support promised by the Task lifecycle.
-4. The opaque core `TaskRuntime` boundary surface and normalized
-   demand/admission identities are live; unresolved artifacts fail visibly as
-   `pending_provider`. Add provider identity/provenance, admission/dispatch,
-   and transactional `start`/`try_start` ownership.
+4. The opaque core `TaskRuntime` boundary surface, normalized demand/admission
+   identities, and receipt-qualified runtime behavior are live. The shared
+   provider-plan receipt binds the complete behavior statement and provenance
+   stays outside identity. Unresolved artifacts fail visibly as
+   `pending_provider`. Add compiler provider selection/receipt wiring,
+   executable dispatch, and transactional `start`/`try_start` ownership.
 5. Implement provider provenance/child-lease accounting and prevent premature
    close/reclaim.
 6. Implement continuation/frame lowering and a first provider; an inline

@@ -165,7 +165,12 @@ Runtime behavior is born pessimistic. Checked providers derive and prove their
 claims; opaque providers require an admission receipt before the checker may
 rely on narrower behavior such as CPU pinning. A missing receipt therefore
 fails closed. The receipt authorizes reliance on a claim; it does not change
-the provider's behavior. No new type property or declaration clause is added.
+the provider's behavior. Its admitted statement covers the selected provider
+plan identity and every runtime-behavior promise, so reusing an old receipt
+after strengthening a pinning, capacity, preemption, cancellation, or storage
+claim fails as plan drift. Receipt provenance is evidence and does not enter
+normalized runtime identity. No new type property or declaration clause is
+added.
 
 The future temporal/model checker will consume the same policies, provenance
 anchors, operation contracts, effects, and provider hypotheses; carry is an

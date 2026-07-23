@@ -4,6 +4,8 @@
 //! affinity, and address stability are demand/behavior joins selected by the
 //! runtime's preemption granularity.
 
+use omega_core::trust::{TrustCommitment, TrustReceipt};
+
 macro_rules! normalized_id {
     ($name:ident, $label:literal) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -166,11 +168,13 @@ pub enum InlineCompletionBehavior {
     MayCompleteInline,
 }
 
-/// Behavior promised by an admitted provider. Opaque/host claims enter only
-/// through provider admission; missing evidence must use `pessimistic`.
+/// Freely constructible behavior claim for one provider plan. This value is
+/// not admission: activation planning may consume it only after an exact
+/// shared-spine `TrustReceipt` qualifies it as `AdmittedTaskRuntimeContract`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TaskRuntimeContract {
-    pub runtime: TaskRuntimeId,
+    pub provider_plan: String,
+    pub provider_plan_fingerprint: u64,
     pub max_continuation_bytes: u64,
     pub max_continuation_alignment: u64,
     pub preemption: PreemptionGranularity,
@@ -182,9 +186,10 @@ pub struct TaskRuntimeContract {
 }
 
 impl TaskRuntimeContract {
-    pub const fn pessimistic(runtime: TaskRuntimeId) -> Self {
+    pub fn pessimistic(provider_plan: impl Into<String>, provider_plan_fingerprint: u64) -> Self {
         Self {
-            runtime,
+            provider_plan: provider_plan.into(),
+            provider_plan_fingerprint,
             max_continuation_bytes: 0,
             max_continuation_alignment: 1,
             preemption: PreemptionGranularity::Asynchronous,
@@ -195,6 +200,78 @@ impl TaskRuntimeContract {
             inline_completion: InlineCompletionBehavior::MayCompleteInline,
         }
     }
+
+    /// Canonical statement admitted by the provider-plan receipt. The base
+    /// plan identity and every behavior promise participate; presentation
+    /// name and receipt provenance do not.
+    pub fn statement_fingerprint(&self) -> u64 {
+        fingerprint_runtime_contract(self)
+    }
+}
+
+/// Provider behavior accepted through the common grant/receipt spine. The
+/// runtime identity is normalizer-owned: it hashes the provider-plan identity
+/// and complete behavior promise, never the receipt's provenance.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdmittedTaskRuntimeContract {
+    runtime: TaskRuntimeId,
+    contract: TaskRuntimeContract,
+    receipt: TrustReceipt,
+}
+
+impl AdmittedTaskRuntimeContract {
+    pub const fn runtime(&self) -> TaskRuntimeId {
+        self.runtime
+    }
+
+    pub const fn contract(&self) -> &TaskRuntimeContract {
+        &self.contract
+    }
+
+    pub const fn receipt(&self) -> &TrustReceipt {
+        &self.receipt
+    }
+}
+
+/// Qualify a freely authored behavior claim with the exact provider-plan
+/// receipt produced by the shared admission pipeline. A package cannot make a
+/// narrower runtime promise trusted merely by constructing plan data.
+pub fn admit_task_runtime(
+    contract: TaskRuntimeContract,
+    receipt: TrustReceipt,
+) -> Result<AdmittedTaskRuntimeContract, TaskPlanDiagnostic> {
+    if contract.provider_plan.is_empty() {
+        return Err(TaskPlanDiagnostic(
+            "task runtime provider-plan name cannot be empty".into(),
+        ));
+    }
+    if contract.provider_plan_fingerprint == 0 {
+        return Err(TaskPlanDiagnostic(
+            "task runtime provider-plan fingerprint cannot be zero".into(),
+        ));
+    }
+    let statement_fingerprint = contract.statement_fingerprint();
+    if receipt.commitment != TrustCommitment::ProviderPlan(contract.provider_plan.clone())
+        || receipt.statement_hash != statement_fingerprint
+    {
+        return Err(TaskPlanDiagnostic(
+            "task runtime receipt does not bind the exact normalized provider plan".into(),
+        ));
+    }
+    if contract.max_continuation_alignment == 0
+        || !contract.max_continuation_alignment.is_power_of_two()
+    {
+        return Err(TaskPlanDiagnostic(format!(
+            "task runtime continuation alignment {} is not a nonzero power of two",
+            contract.max_continuation_alignment
+        )));
+    }
+    let runtime = TaskRuntimeId(statement_fingerprint);
+    Ok(AdmittedTaskRuntimeContract {
+        runtime,
+        contract,
+        receipt,
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -221,32 +298,32 @@ impl TaskRuntimeAdmission {
 
 pub fn admit_activation(
     plan: &ValidatedActivationPlan,
-    runtime: &TaskRuntimeContract,
+    runtime: &AdmittedTaskRuntimeContract,
 ) -> Result<TaskRuntimeAdmission, TaskPlanDiagnostic> {
     let candidate = plan.candidate();
-    if candidate.continuation_bytes > runtime.max_continuation_bytes {
+    let contract = runtime.contract();
+    if candidate.continuation_bytes > contract.max_continuation_bytes {
         return Err(TaskPlanDiagnostic(format!(
             "activation needs {} continuation bytes but runtime admits {}",
-            candidate.continuation_bytes, runtime.max_continuation_bytes
+            candidate.continuation_bytes, contract.max_continuation_bytes
         )));
     }
-    if runtime.max_continuation_alignment == 0
-        || candidate.continuation_alignment > runtime.max_continuation_alignment
-        || !runtime
+    if candidate.continuation_alignment > contract.max_continuation_alignment
+        || !contract
             .max_continuation_alignment
             .is_multiple_of(candidate.continuation_alignment)
     {
         return Err(TaskPlanDiagnostic(format!(
             "activation alignment {} is incompatible with runtime alignment {}",
-            candidate.continuation_alignment, runtime.max_continuation_alignment
+            candidate.continuation_alignment, contract.max_continuation_alignment
         )));
     }
-    if candidate.cancellation_required && !runtime.cancellation {
+    if candidate.cancellation_required && !contract.cancellation {
         return Err(TaskPlanDiagnostic(
             "activation requires cancellation but runtime does not provide it".into(),
         ));
     }
-    if runtime.inline_completion == InlineCompletionBehavior::MayCompleteInline
+    if contract.inline_completion == InlineCompletionBehavior::MayCompleteInline
         && candidate.activation == DistinctActivationRequirement::Required
     {
         return Err(TaskPlanDiagnostic(
@@ -255,7 +332,7 @@ pub fn admit_activation(
         ));
     }
 
-    let demand = match runtime.preemption {
+    let demand = match contract.preemption {
         PreemptionGranularity::SafePoints => candidate.safe_point_migration,
         PreemptionGranularity::Asynchronous => {
             candidate.asynchronous_migration.ok_or_else(|| {
@@ -265,20 +342,20 @@ pub fn admit_activation(
             })?
         }
     };
-    if demand.cpu == SameCpuDemand::Same && runtime.cpu_migration != CpuMigrationBehavior::Pinned {
+    if demand.cpu == SameCpuDemand::Same && contract.cpu_migration != CpuMigrationBehavior::Pinned {
         return Err(TaskPlanDiagnostic(
             "activation requires same-CPU execution but runtime may migrate it".into(),
         ));
     }
     if demand.thread == SameThreadDemand::Same
-        && runtime.thread_migration != ThreadMigrationBehavior::Pinned
+        && contract.thread_migration != ThreadMigrationBehavior::Pinned
     {
         return Err(TaskPlanDiagnostic(
             "activation requires same-host-thread execution but runtime may migrate it".into(),
         ));
     }
     if demand.address == AddressStabilityDemand::Stable
-        && runtime.continuation_storage != ContinuationStorageBehavior::Stable
+        && contract.continuation_storage != ContinuationStorageBehavior::Stable
     {
         return Err(TaskPlanDiagnostic(
             "activation requires stable addresses but runtime may move continuation storage".into(),
@@ -320,10 +397,9 @@ fn fingerprint_activation_plan(plan: &ActivationPlanCandidate) -> u64 {
     fingerprint.finish()
 }
 
-fn fingerprint_admission(plan: &ValidatedActivationPlan, runtime: &TaskRuntimeContract) -> u64 {
+fn fingerprint_runtime_contract(runtime: &TaskRuntimeContract) -> u64 {
     let mut fingerprint = Fingerprint::new();
-    fingerprint.word(plan.normalized_identity().normalized_identity());
-    fingerprint.word(runtime.runtime.normalized_identity());
+    fingerprint.word(runtime.provider_plan_fingerprint);
     fingerprint.word(runtime.max_continuation_bytes);
     fingerprint.word(runtime.max_continuation_alignment);
     fingerprint.byte(match runtime.preemption {
@@ -347,6 +423,16 @@ fn fingerprint_admission(plan: &ValidatedActivationPlan, runtime: &TaskRuntimeCo
         InlineCompletionBehavior::Never => 1,
         InlineCompletionBehavior::MayCompleteInline => 2,
     });
+    fingerprint.finish()
+}
+
+fn fingerprint_admission(
+    plan: &ValidatedActivationPlan,
+    runtime: &AdmittedTaskRuntimeContract,
+) -> u64 {
+    let mut fingerprint = Fingerprint::new();
+    fingerprint.word(plan.normalized_identity().normalized_identity());
+    fingerprint.word(runtime.runtime.normalized_identity());
     fingerprint.finish()
 }
 
@@ -412,6 +498,10 @@ impl std::error::Error for TaskPlanDiagnostic {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omega_core::trust::TrustProvenance;
+
+    const PROVIDER_PLAN: &str = "test::TaskRuntimeProvider";
+    const PROVIDER_PLAN_FINGERPRINT: u64 = 0x7a5c_1138_9b2d_4401;
 
     fn id<T>(identity: u64, constructor: fn(u64) -> Result<T, TaskPlanDiagnostic>) -> T {
         constructor(identity).expect("normalized identity")
@@ -439,9 +529,10 @@ mod tests {
         }
     }
 
-    fn runtime() -> TaskRuntimeContract {
+    fn runtime_claim() -> TaskRuntimeContract {
         TaskRuntimeContract {
-            runtime: id(10, TaskRuntimeId::from_normalized_identity),
+            provider_plan: PROVIDER_PLAN.into(),
+            provider_plan_fingerprint: PROVIDER_PLAN_FINGERPRINT,
             max_continuation_bytes: 8192,
             max_continuation_alignment: 64,
             preemption: PreemptionGranularity::SafePoints,
@@ -453,11 +544,28 @@ mod tests {
         }
     }
 
+    fn runtime_receipt(claim: &TaskRuntimeContract, provenance: TrustProvenance) -> TrustReceipt {
+        TrustReceipt {
+            commitment: TrustCommitment::ProviderPlan(PROVIDER_PLAN.into()),
+            statement_hash: claim.statement_fingerprint(),
+            provenance,
+        }
+    }
+
+    fn admitted_runtime(claim: TaskRuntimeContract) -> AdmittedTaskRuntimeContract {
+        let receipt = runtime_receipt(&claim, TrustProvenance::RootGrant);
+        admit_task_runtime(claim, receipt).expect("task runtime provider admission")
+    }
+
+    fn runtime() -> AdmittedTaskRuntimeContract {
+        admitted_runtime(runtime_claim())
+    }
+
     #[test]
     fn safe_point_runtime_admits_matching_storage_and_carry_demands() {
         let plan = validate_activation_plan(candidate()).expect("activation plan");
         let admission = admit_activation(&plan, &runtime()).expect("runtime admission");
-        assert_eq!(admission.runtime().normalized_identity(), 10);
+        assert_ne!(admission.runtime().normalized_identity(), 0);
         assert_eq!(
             admission.selected_migration_demand().cpu,
             SameCpuDemand::Same
@@ -475,8 +583,9 @@ mod tests {
     #[test]
     fn asynchronous_runtime_requires_its_own_liveness_envelope() {
         let plan = validate_activation_plan(candidate()).expect("activation plan");
-        let mut asynchronous = runtime();
+        let mut asynchronous = runtime_claim();
         asynchronous.preemption = PreemptionGranularity::Asynchronous;
+        let asynchronous = admitted_runtime(asynchronous);
         let error = admit_activation(&plan, &asynchronous)
             .expect_err("safe-point analysis cannot justify async preemption");
         assert!(error.0.contains("all-instruction"));
@@ -491,8 +600,9 @@ mod tests {
             address: AddressStabilityDemand::Stable,
         });
         let plan = validate_activation_plan(asynchronous_candidate).expect("activation plan");
-        let mut asynchronous = runtime();
+        let mut asynchronous = runtime_claim();
         asynchronous.preemption = PreemptionGranularity::Asynchronous;
+        let asynchronous = admitted_runtime(asynchronous);
 
         let admission =
             admit_activation(&plan, &asynchronous).expect("asynchronous runtime admission");
@@ -509,18 +619,21 @@ mod tests {
     #[test]
     fn migration_storage_and_inline_behavior_fail_closed() {
         let plan = validate_activation_plan(candidate()).expect("activation plan");
-        let mut migrating = runtime();
+        let mut migrating = runtime_claim();
         migrating.cpu_migration = CpuMigrationBehavior::MayMigrate;
+        let migrating = admitted_runtime(migrating);
         let error = admit_activation(&plan, &migrating).expect_err("same CPU demand");
         assert!(error.0.contains("same-CPU"));
 
-        let mut movable = runtime();
+        let mut movable = runtime_claim();
         movable.continuation_storage = ContinuationStorageBehavior::Movable;
+        let movable = admitted_runtime(movable);
         let error = admit_activation(&plan, &movable).expect_err("stable address demand");
         assert!(error.0.contains("stable addresses"));
 
-        let mut inline = runtime();
+        let mut inline = runtime_claim();
         inline.inline_completion = InlineCompletionBehavior::MayCompleteInline;
+        let inline = admitted_runtime(inline);
         let error = admit_activation(&plan, &inline).expect_err("distinct activation required");
         assert!(error.0.contains("inline"));
     }
@@ -528,9 +641,47 @@ mod tests {
     #[test]
     fn pessimistic_runtime_cannot_accidentally_admit_work() {
         let plan = validate_activation_plan(candidate()).expect("activation plan");
-        let runtime =
-            TaskRuntimeContract::pessimistic(id(11, TaskRuntimeId::from_normalized_identity));
+        let runtime = admitted_runtime(TaskRuntimeContract::pessimistic(
+            PROVIDER_PLAN,
+            PROVIDER_PLAN_FINGERPRINT,
+        ));
         assert!(admit_activation(&plan, &runtime).is_err());
+    }
+
+    #[test]
+    fn runtime_behavior_requires_the_exact_shared_provider_receipt() {
+        let wrong_plan = TrustReceipt {
+            commitment: TrustCommitment::ProviderPlan("other::provider".into()),
+            statement_hash: runtime_claim().statement_fingerprint(),
+            provenance: TrustProvenance::RootGrant,
+        };
+        let error = admit_task_runtime(runtime_claim(), wrong_plan).expect_err("wrong plan");
+        assert!(error.0.contains("exact normalized provider plan"));
+
+        let mut drifted = runtime_receipt(&runtime_claim(), TrustProvenance::RootGrant);
+        drifted.statement_hash ^= 1;
+        let error = admit_task_runtime(runtime_claim(), drifted).expect_err("drifted plan");
+        assert!(error.0.contains("exact normalized provider plan"));
+
+        let approved = runtime_claim();
+        let receipt = runtime_receipt(&approved, TrustProvenance::RootGrant);
+        let mut stronger_claim = approved;
+        stronger_claim.thread_migration = ThreadMigrationBehavior::Pinned;
+        let error =
+            admit_task_runtime(stronger_claim, receipt).expect_err("unapproved behavior change");
+        assert!(error.0.contains("exact normalized provider plan"));
+    }
+
+    #[test]
+    fn receipt_provenance_is_evidence_not_runtime_identity() {
+        let dev = admit_task_runtime(
+            runtime_claim(),
+            runtime_receipt(&runtime_claim(), TrustProvenance::OwnPackageDev),
+        )
+        .expect("dev admission");
+        let root = runtime();
+        assert_eq!(dev.runtime(), root.runtime());
+        assert_ne!(dev.receipt().provenance, root.receipt().provenance);
     }
 
     #[test]
@@ -545,8 +696,9 @@ mod tests {
             validate_activation_plan(changed_candidate).expect("changed activation plan");
         assert_ne!(plan_identity, changed_plan.normalized_identity());
 
-        let mut changed_runtime = runtime();
+        let mut changed_runtime = runtime_claim();
         changed_runtime.max_continuation_bytes += 1;
+        let changed_runtime = admitted_runtime(changed_runtime);
         let changed_admission =
             admit_activation(&plan, &changed_runtime).expect("changed runtime admission");
         assert_ne!(admission.identity(), changed_admission.identity());
