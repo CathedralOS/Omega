@@ -523,6 +523,79 @@ impl ExternalCompletionFactId {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ExternalReachReceiptId(u64);
+
+impl ExternalReachReceiptId {
+    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
+        nonzero_identity(identity, "external-reach receipt")?;
+        Ok(Self(identity))
+    }
+
+    pub const fn normalized_identity(self) -> u64 {
+        self.0
+    }
+}
+
+/// Why the provider may assert that the invisible borrower can reach only the
+/// exact range named by one external loan.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExternalReachMechanism {
+    /// Admission trusts the borrower's checked/validated descriptor contract.
+    AdmittedBorrowerContract,
+    /// An IOMMU or equivalent hardware boundary enforces the exact range.
+    HardwareIsolation,
+}
+
+/// Provider-authored, per-transfer evidence of external-agent confinement.
+/// Numeric geometry alone is insufficient: provenance and mapping era bind an
+/// identical address range to the exact authority that was lent.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ExternalReachReceipt {
+    identity: ExternalReachReceiptId,
+    loan: ExternalLoanId,
+    borrower: ExternalBorrowerId,
+    direction: ExternalLoanDirection,
+    address_space: AddressSpaceId,
+    provenance: ExtentProvenanceId,
+    era: MappingEraId,
+    base: u64,
+    length: u64,
+    mechanism: ExternalReachMechanism,
+    confined_to_range: bool,
+}
+
+impl ExternalReachReceipt {
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_admitted_provider(
+        identity: ExternalReachReceiptId,
+        loan: ExternalLoanId,
+        borrower: ExternalBorrowerId,
+        direction: ExternalLoanDirection,
+        address_space: AddressSpaceId,
+        provenance: ExtentProvenanceId,
+        era: MappingEraId,
+        base: u64,
+        length: u64,
+        mechanism: ExternalReachMechanism,
+        confined_to_range: bool,
+    ) -> Self {
+        Self {
+            identity,
+            loan,
+            borrower,
+            direction,
+            address_space,
+            provenance,
+            era,
+            base,
+            length,
+            mechanism,
+            confined_to_range,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CompletionObligations(BTreeSet<ExternalCompletionFactId>);
 
@@ -580,6 +653,8 @@ pub struct ExternalLoan<'extent> {
     borrower: ExternalBorrowerId,
     direction: ExternalLoanDirection,
     completion: CompletionObligations,
+    reach_receipt: ExternalReachReceiptId,
+    reach_mechanism: ExternalReachMechanism,
     loan: ExtentLoan<'extent>,
 }
 
@@ -594,6 +669,14 @@ impl<'extent> ExternalLoan<'extent> {
 
     pub const fn direction(&self) -> ExternalLoanDirection {
         self.direction
+    }
+
+    pub const fn reach_receipt(&self) -> ExternalReachReceiptId {
+        self.reach_receipt
+    }
+
+    pub const fn reach_mechanism(&self) -> ExternalReachMechanism {
+        self.reach_mechanism
     }
 
     pub const fn base(&self) -> u64 {
@@ -631,6 +714,7 @@ impl<'extent> ExternalLoan<'extent> {
         Ok(ExternalLoanCompletion {
             loan: self.identity,
             borrower: self.borrower,
+            reach_receipt: self.reach_receipt,
             base: self.loan.base(),
             length: self.loan.length(),
         })
@@ -641,6 +725,7 @@ pub fn begin_external_loan<'extent>(
     loan: ExtentLoan<'extent>,
     identity: ExternalLoanId,
     grant: &ExternalLoanGrant,
+    reach_receipt: Option<ExternalReachReceipt>,
 ) -> Result<ExternalLoan<'extent>, Box<ExternalLoanStartError<'extent>>> {
     let mismatch = if loan.address_space() != grant.address_space {
         Some("extent address space does not match external-loan grant")
@@ -663,15 +748,55 @@ pub fn begin_external_loan<'extent>(
     if let Some(message) = mismatch {
         return Err(Box::new(ExternalLoanStartError {
             loan,
+            reach_receipt,
             diagnostic: ExtentDiagnostic(message.into()),
         }));
     }
+
+    let reach_mismatch = match reach_receipt.as_ref() {
+        None => Some("external borrower requires exact-range reach evidence or hardware isolation"),
+        Some(receipt) if receipt.loan != identity => {
+            Some("external-reach receipt names a different external loan")
+        }
+        Some(receipt) if receipt.borrower != grant.borrower => {
+            Some("external-reach receipt names a different borrower")
+        }
+        Some(receipt) if receipt.direction != grant.direction => {
+            Some("external-reach receipt names a different transfer direction")
+        }
+        Some(receipt) if receipt.address_space != loan.address_space() => {
+            Some("external-reach receipt names a different address space")
+        }
+        Some(receipt) if receipt.provenance != loan.provenance() => {
+            Some("external-reach receipt names different extent provenance")
+        }
+        Some(receipt) if receipt.era != loan.era() => {
+            Some("external-reach receipt names a stale mapping era")
+        }
+        Some(receipt) if receipt.base != loan.base() || receipt.length != loan.length() => {
+            Some("external borrower reach is not the exact lent extent range")
+        }
+        Some(receipt) if !receipt.confined_to_range => {
+            Some("external-reach receipt does not establish range confinement")
+        }
+        Some(_) => None,
+    };
+    if let Some(message) = reach_mismatch {
+        return Err(Box::new(ExternalLoanStartError {
+            loan,
+            reach_receipt,
+            diagnostic: ExtentDiagnostic(message.into()),
+        }));
+    }
+    let reach_receipt = reach_receipt.expect("validated external-reach receipt");
 
     Ok(ExternalLoan {
         identity,
         borrower: grant.borrower,
         direction: grant.direction,
         completion: grant.completion.clone(),
+        reach_receipt: reach_receipt.identity,
+        reach_mechanism: reach_receipt.mechanism,
         loan,
     })
 }
@@ -706,6 +831,7 @@ impl ExternalCompletionReceipt {
 pub struct ExternalLoanCompletion {
     pub loan: ExternalLoanId,
     pub borrower: ExternalBorrowerId,
+    pub reach_receipt: ExternalReachReceiptId,
     pub base: u64,
     pub length: u64,
 }
@@ -713,6 +839,7 @@ pub struct ExternalLoanCompletion {
 #[derive(Debug)]
 pub struct ExternalLoanStartError<'extent> {
     loan: ExtentLoan<'extent>,
+    reach_receipt: Option<ExternalReachReceipt>,
     diagnostic: ExtentDiagnostic,
 }
 
@@ -723,6 +850,10 @@ impl<'extent> ExternalLoanStartError<'extent> {
 
     pub fn into_loan(self) -> ExtentLoan<'extent> {
         self.loan
+    }
+
+    pub fn into_parts(self) -> (ExtentLoan<'extent>, Option<ExternalReachReceipt>) {
+        (self.loan, self.reach_receipt)
     }
 }
 
@@ -999,6 +1130,28 @@ mod tests {
         id(identity, ExternalCompletionFactId::from_normalized_identity)
     }
 
+    fn reach_receipt(
+        loan: ExternalLoanId,
+        direction: ExternalLoanDirection,
+        base: u64,
+        length: u64,
+        mechanism: ExternalReachMechanism,
+    ) -> ExternalReachReceipt {
+        ExternalReachReceipt::from_admitted_provider(
+            id(800, ExternalReachReceiptId::from_normalized_identity),
+            loan,
+            id(500, ExternalBorrowerId::from_normalized_identity),
+            direction,
+            id(10, AddressSpaceId::from_normalized_identity),
+            id(20, ExtentProvenanceId::from_normalized_identity),
+            id(30, MappingEraId::from_normalized_identity),
+            base,
+            length,
+            mechanism,
+            true,
+        )
+    }
+
     #[test]
     fn external_read_loan_requires_completion_facts_before_releasing_borrow() {
         let extent = grant(1, 0x1000, 64);
@@ -1013,6 +1166,13 @@ mod tests {
                     completion_fact(701),
                 ]),
             ),
+            Some(reach_receipt(
+                loan_id(600),
+                ExternalLoanDirection::DeviceReads,
+                0x1000,
+                32,
+                ExternalReachMechanism::AdmittedBorrowerContract,
+            )),
         )
         .expect("admitted external read");
         assert_eq!(transfer.direction(), ExternalLoanDirection::DeviceReads);
@@ -1050,6 +1210,13 @@ mod tests {
                 ExternalLoanDirection::DeviceWrites,
                 CompletionObligations::default(),
             ),
+            Some(reach_receipt(
+                loan_id(601),
+                ExternalLoanDirection::DeviceWrites,
+                0x2000,
+                16,
+                ExternalReachMechanism::HardwareIsolation,
+            )),
         )
         .expect_err("device mutation needs exclusive custody");
         assert!(error.diagnostic().0.contains("exclusive"));
@@ -1063,6 +1230,13 @@ mod tests {
                 ExternalLoanDirection::DeviceWrites,
                 CompletionObligations::default(),
             ),
+            Some(reach_receipt(
+                loan_id(602),
+                ExternalLoanDirection::DeviceWrites,
+                0x2000,
+                16,
+                ExternalReachMechanism::HardwareIsolation,
+            )),
         )
         .expect("admitted external write");
         let completion = transfer
@@ -1074,5 +1248,65 @@ mod tests {
             ))
             .expect("completed DMA write");
         assert_eq!(completion.borrower.normalized_identity(), 500);
+        assert_eq!(completion.reach_receipt.normalized_identity(), 800);
+    }
+
+    #[test]
+    fn external_agent_reach_must_equal_the_lent_extent_and_fail_closed() {
+        let extent = grant(1, 0x3000, 128);
+        let loan = extent.loan(32, 32).expect("DMA subrange");
+        let missing = begin_external_loan(
+            loan,
+            loan_id(603),
+            &external_grant(
+                ExternalLoanDirection::DeviceReads,
+                CompletionObligations::default(),
+            ),
+            None,
+        )
+        .expect_err("an invisible borrower without reach evidence must reject");
+        assert!(missing.diagnostic().0.contains("reach evidence"));
+        let loan = (*missing).into_loan();
+
+        let overbroad = begin_external_loan(
+            loan,
+            loan_id(603),
+            &external_grant(
+                ExternalLoanDirection::DeviceReads,
+                CompletionObligations::default(),
+            ),
+            Some(reach_receipt(
+                loan_id(603),
+                ExternalLoanDirection::DeviceReads,
+                0x3000,
+                128,
+                ExternalReachMechanism::HardwareIsolation,
+            )),
+        )
+        .expect_err("whole-parent reach exceeds the exact lent subrange");
+        assert!(overbroad.diagnostic().0.contains("exact lent extent range"));
+        let loan = (*overbroad).into_loan();
+
+        let transfer = begin_external_loan(
+            loan,
+            loan_id(603),
+            &external_grant(
+                ExternalLoanDirection::DeviceReads,
+                CompletionObligations::default(),
+            ),
+            Some(reach_receipt(
+                loan_id(603),
+                ExternalLoanDirection::DeviceReads,
+                0x3020,
+                32,
+                ExternalReachMechanism::HardwareIsolation,
+            )),
+        )
+        .expect("exact subrange isolation");
+        assert_eq!((transfer.base(), transfer.length()), (0x3020, 32));
+        assert_eq!(
+            transfer.reach_mechanism(),
+            ExternalReachMechanism::HardwareIsolation
+        );
     }
 }

@@ -299,9 +299,13 @@ This conservation model is live in `omega-extents`. A reusable admitted grant
 pins the borrower, direction, space, provenance, required open-set rights, and
 an open set of completion facts (including target fence/cache facts where
 needed). Starting a transfer accepts an actual Extent loan and
-derives CPU exclusion from its polarity. The non-clonable proxy holds that
-borrow until a matching provider receipt establishes completion and every
-required ordering/coherence fact; failed starts and completions return their
+derives CPU exclusion from its polarity. It also requires a per-transfer reach
+receipt proving either an admitted borrower contract or hardware isolation
+confines that exact loan ID and borrower/direction to the lent range in the
+same address space, provenance, and mapping era. Missing, stale, or overbroad
+reach fails before transfer. The non-clonable proxy holds that borrow until a
+matching provider receipt establishes completion and every required
+ordering/coherence fact; failed starts and completions return their
 borrow-carrying inputs. Omega `[linear]` integration, permission-context events,
 provider execution, and the DMA vertical slice remain.
 
@@ -1098,9 +1102,10 @@ settled concrete interrupt policy's implementation remain. Remaining order:
 9. Build the PIT/PIC timer top half and its coalescing handoff to an ordinary
    timer-service task; then add the LAPIC one-shot provider without changing the
    root requirement.
-10. Connect the implemented normalized external-loan proxy to Omega linearity,
-   permission contexts, and provider receipts; then build the DMA/hostile-IPC
-   vertical slices.
+10. Connect the implemented normalized external-loan proxy to Omega linearity
+   and permission-context events, then build the DMA/hostile-IPC vertical
+   slices. Exact per-transfer borrower reach and completion/provider receipts
+   are already enforced by the foundation carrier.
 11. Add carry/runtime admission and the Arena-backed Cathedral task profile.
 
 ## Gauntlet
