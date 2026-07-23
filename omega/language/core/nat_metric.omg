@@ -238,3 +238,73 @@ ensures
         transition { _ -> (nat_gap_triangle(pa, pb, pc)) }
     }
 }
+
+// Adding the same prefix to both operands does not change monus. This is the
+// cancellation step needed to scale absolute differences by multiplication.
+machine sub_add_cancel_left(prefix: Nat, a: Nat, b: Nat) -> Nat
+terminates by prefix;
+ensures
+    (sub(add(prefix, a), add(prefix, b))) == (sub(a, b))
+{
+    transition prefix {
+        Nat::Zero -> sacl_zero(a, b)
+        Nat::Succ { prev } -> sacl_step(prev, a, b)
+    }
+
+    state sacl_zero(a: Nat, b: Nat) -> Nat {
+        transition { _ -> Nat::Zero }
+    }
+
+    state sacl_step(prev: Nat, a: Nat, b: Nat) -> Nat {
+        succ_sub_succ(add(prev, a), add(prev, b));
+        transition { _ -> (sub_add_cancel_left(prev, a, b)) }
+    }
+}
+
+// Absolute difference is homogeneous under a shared Nat factor.
+machine nat_gap_mul_right(a: Nat, b: Nat, factor: Nat) -> Nat
+terminates by a;
+ensures
+    (nat_gap(mul(a, factor), mul(b, factor))) == (mul(nat_gap(a, b), factor))
+{
+    transition a {
+        Nat::Zero -> ngmr_a_zero(b, factor)
+        Nat::Succ { prev as pa } -> ngmr_a_succ(pa, b, factor)
+    }
+
+    state ngmr_a_zero(b: Nat, factor: Nat) -> Nat {
+        mul_zero_left(factor);
+        nat_gap_zero_left(mul(b, factor));
+        nat_gap_zero_left(b);
+        transition { _ -> Nat::Zero }
+    }
+
+    state ngmr_a_succ(pa: Nat, b: Nat, factor: Nat) -> Nat {
+        transition b {
+            Nat::Zero -> ngmr_b_zero(pa, factor)
+            Nat::Succ { prev as pb } -> ngmr_step(pa, pb, factor)
+        }
+    }
+
+    state ngmr_b_zero(pa: Nat, factor: Nat) -> Nat {
+        mul_zero_left(factor);
+        nat_gap_zero_right(mul(Nat::Succ { prev: pa }, factor));
+        nat_gap_zero_right(Nat::Succ { prev: pa });
+        transition { _ -> Nat::Zero }
+    }
+
+    state ngmr_step(pa: Nat, pb: Nat, factor: Nat) -> Nat {
+        sub_add_cancel_left(factor, mul(pa, factor), mul(pb, factor));
+        sub_add_cancel_left(factor, mul(pb, factor), mul(pa, factor));
+        nat_gap_succ(pa, pb);
+        transition { _ -> (nat_gap_mul_right(pa, pb, factor)) }
+    }
+}
+
+// A three-factor commutative-semiring rearrangement used to align rational
+// cross-products at one common denominator.
+machine mul_swap_trailing(a: Nat, b: Nat, c: Nat)
+ensures
+    (mul(mul(a, b), c)) == (mul(mul(a, c), b))
+{
+}

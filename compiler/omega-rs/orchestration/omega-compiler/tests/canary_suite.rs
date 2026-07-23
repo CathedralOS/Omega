@@ -38826,6 +38826,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/nat_metric_false_gap_zero",
     "proofs/nested_structural_case_false_rejected",
     "proofs/rat_metric_false_reflexivity",
+    "proofs/rat_scaled_triangle_false_rejected",
     "proofs/rat_zero_denominator_rejected",
     "proofs/static_machine_selection_false_equality_rejected",
     "proofs/value_call_refuted_inequality_rejected",

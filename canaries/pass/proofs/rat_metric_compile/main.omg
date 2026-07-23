@@ -23,6 +23,19 @@ ensures (rat_close(right, left, precision)) == Nat::Zero
     rat_close_symmetric(left, right, precision);
 }
 
+machine scaled_triangle_is_available(left: Rat, middle: Rat, right: Rat)
+ensures
+    (sub(
+        mul(middle.den, rat_gap(left, right)),
+        add(
+            mul(right.den, rat_gap(left, middle)),
+            mul(left.den, rat_gap(middle, right))
+        )
+    )) == Nat::Zero
+{
+    rat_gap_triangle_scaled(left, middle, right);
+}
+
 data Main {
 }
 
