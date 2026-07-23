@@ -24,11 +24,9 @@ pub(crate) fn build_check_facts(
     let mut semantic = build_semantic_facts(program, &proof);
     let domains = build_domain_facts(program, &semantic);
     let flow = build_flow_facts(program, &borrow, &proof, &mut semantic, &domains, &effects);
-    // Domain-owned spelled candidates can only be admitted by PROVEN domain
-    // facts (chapter 8), and proof contexts exist only now that flow facts are
-    // built: finalize every pending spelled binary use before the checks read
-    // the operator evidence.
-    select_pending_domain_operator_meanings(program, &mut operators, &mut semantic, &flow);
+    // Domain-owned meanings are selected only from declarations, mints, and
+    // signature `requires`; the selector accepts no flow/fact environment.
+    select_pending_domain_operator_meanings(program, &mut operators);
     let capabilities = build_capability_facts(program, &effects, &flow);
     // TPR3 slice 4: the checker-established termination summaries (built
     // from the same pure functions the termination CHECK uses -- facts and

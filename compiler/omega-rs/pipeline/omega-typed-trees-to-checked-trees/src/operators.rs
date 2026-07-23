@@ -185,10 +185,9 @@ fn binary_operator_spelling(operator: BinaryOperator) -> Option<OperatorSpelling
 /// Records a spelled binary use when spelled candidates match the left
 /// operand type. Root-only candidate sets resolve immediately (root spelled
 /// operators are the declared surface of the builtin operation). Any
-/// domain-owned candidate defers to the post-flow selection pass
-/// (`select_pending_domain_operator_meanings`): chapter 8 admits a domain
-/// meaning only when the operand's domain membership is PROVEN in the current
-/// proof context, and proof contexts do not exist yet at this stage.
+/// domain-owned candidate defers to the binding-site selection pass
+/// (`select_pending_domain_operator_meanings`), which reads declarations,
+/// mints, and signature `requires` but never flow facts.
 fn binary_operator_use_fact(
     program: &TypedTrees,
     expression: ExpressionHandle,

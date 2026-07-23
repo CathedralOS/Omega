@@ -1,8 +1,7 @@
-// The other half of the chapter 8 selection ruling: declaring a domain
-// operator does NOT replace the ordinary integer `+`. No fact proves
-// `value in i32::Degrees` here, so the domain-owned meaning is inadmissible
-// and the builtin scalar addition stays selected (evidence records the use as
-// a builtin fallback). The program compiles; runtime behavior is unchanged.
+// Declaring a domain operator does NOT replace ordinary integer `+`. No
+// declaration, mint, or signature `requires` selects `i32::Degrees` for
+// `value`, so the builtin scalar addition stays selected (evidence records a
+// builtin fallback). Flow proof state is irrelevant to this choice.
 
 domain i32::Degrees {
     self >= 0;

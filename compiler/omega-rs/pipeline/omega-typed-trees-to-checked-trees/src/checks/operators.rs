@@ -33,11 +33,10 @@ pub(crate) fn check_operator_resolution(
     }
 }
 
-/// The positive proof-context rule (chapter 8): a domain-owned operator
-/// meaning participates only when the operand's domain membership is PROVEN in
-/// the current context. This use has domain candidates, none proven, and no
-/// builtin or root meaning to fall back to — name exactly which fact would
-/// admit each candidate.
+/// The binding-site rule (chapter 8): a domain-owned meaning participates only
+/// when an operand declaration, mint, or signature `requires` selects its
+/// semantic facet. This use has domain candidates, none selected, and no
+/// builtin/root fallback.
 fn inadmissible_operator_diagnostic(
     program: &omega_typed_trees::TypedTrees,
     issue: CheckedOperatorResolutionIssue<'_>,
@@ -51,7 +50,7 @@ fn inadmissible_operator_diagnostic(
         .filter(|candidate| candidate.is_domain_owned())
         .map(|candidate| {
             format!(
-                "a proven fact placing the left operand in {}",
+                "a binding declared, minted, or signature-qualified in {}",
                 symbol_name(program, candidate.domain_symbol)
             )
         })
@@ -59,7 +58,7 @@ fn inadmissible_operator_diagnostic(
         .join(" or ");
     Diagnostic::error(format!(
         "operator spelling `{}` in `{operand}` has no admissible meaning: \
-         the domain operator meaning needs {required_facts} in the current context, \
+         the domain operator meaning needs {required_facts}, \
          and no builtin meaning exists for the operand type",
         issue.spelling().symbol(),
     ))
@@ -86,9 +85,9 @@ fn ambiguous_operator_diagnostic(
         .collect::<Vec<_>>()
         .join(", ");
     Diagnostic::error(format!(
-        "ambiguous operator spelling `{}` has {} viable candidates: {candidates}. The proof \
-         context does not uniquely select one -- narrow the domain context (prove membership \
-         in a single domain) or choose a clearer operation.",
+        "ambiguous operator spelling `{}` has {} viable candidates: {candidates}. The static \
+         operand-domain tuple does not uniquely select one -- narrow the binding's semantic \
+         qualification or choose a clearer operation.",
         issue.spelling().symbol(),
         issue.candidate_count(),
     ))

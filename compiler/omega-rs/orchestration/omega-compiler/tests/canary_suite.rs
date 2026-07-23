@@ -248,7 +248,6 @@ fn windows_pe_ships_base_relocations_and_dynamicbase() {
     );
 
     let _ = fs::remove_dir_all(&build_dir);
-
 }
 
 // The `subsystem` word in a target block reaches the PE optional header:
@@ -336,8 +335,7 @@ fn build_static_machine_selection_reaches_pe_subsystem() {
     .expect("static machine selection in build.omg should compile to PE");
 
     let bytes = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
-    let lfanew =
-        u32::from_le_bytes([bytes[0x3c], bytes[0x3d], bytes[0x3e], bytes[0x3f]]) as usize;
+    let lfanew = u32::from_le_bytes([bytes[0x3c], bytes[0x3d], bytes[0x3e], bytes[0x3f]]) as usize;
     let subsystem_at = lfanew + 4 + 20 + 68;
     assert_eq!(
         u16::from_le_bytes([bytes[subsystem_at], bytes[subsystem_at + 1]]),
@@ -670,7 +668,6 @@ fn linux_x64_cli_mvp_emits_elf_with_syscalls() {
     );
 
     let _ = fs::remove_dir_all(&build_dir);
-
 }
 
 #[test]
@@ -30154,7 +30151,9 @@ fn native_fixed_arrays_classify_by_value_without_pointer_decay() {
         if let Err(diagnostics) = compile_result {
             let only_unbound_elf_imports = target == "linux_x64"
                 && diagnostics.iter().all(|diagnostic| {
-                    diagnostic.message.contains("relocation references unknown symbol")
+                    diagnostic
+                        .message
+                        .contains("relocation references unknown symbol")
                 });
             assert!(
                 only_unbound_elf_imports,
@@ -33589,14 +33588,14 @@ fn native_dungeon_direct_movement_dispatch_runs() {
     let _ = fs::remove_dir_all(&package_dir);
 }
 
-// Positive proof-context operator selection (chapter 8): the proven caller
-// `requires` fact admits the domain-owned `+` meaning, and the checked
-// evidence must record THAT meaning as the selected one — not merely compile.
+// Binding-site operator selection (chapter 8): the signature `requires`
+// statically selects the domain-owned `+` meaning, and checked evidence records
+// that choice without consulting flow facts.
 #[test]
-fn domain_operator_selection_records_proven_domain_meaning_as_evidence() {
+fn domain_operator_selection_records_signature_domain_meaning_as_evidence() {
     let canary = pass_canary("domains/domain_operator_proven_fact_selects_meaning");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
-        .expect("proven domain fact canary should compile to checked trees");
+        .expect("signature-selected domain canary should compile to checked trees");
 
     let selected_domain_uses = checked
         .facts
@@ -33610,20 +33609,20 @@ fn domain_operator_selection_records_proven_domain_meaning_as_evidence() {
         .count();
     assert!(
         selected_domain_uses > 0,
-        "expected the proven `Quantity::Additive` fact to select the domain-owned `+` meaning \
+        "expected the signature's `Quantity::Additive` selection to choose the domain-owned `+` meaning \
          and record it in the operator evidence"
     );
 }
 
-// The other half of the selection ruling: without a proven fact the domain
-// meaning is inadmissible and the ordinary builtin operation stays selected.
+// Without a declaration, mint, or signature selection, the domain meaning is
+// inactive and the ordinary builtin operation stays selected.
 // The evidence must say so explicitly (builtin fallback), not pretend the
 // domain meaning won.
 #[test]
-fn domain_operator_selection_records_builtin_fallback_when_fact_unproven() {
+fn domain_operator_selection_records_builtin_fallback_without_binding_selection() {
     let canary = pass_canary("domains/domain_operator_unproven_keeps_builtin_meaning");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
-        .expect("unproven builtin fallback canary should compile to checked trees");
+        .expect("unselected builtin fallback canary should compile to checked trees");
 
     let fallback_uses = checked
         .facts
@@ -33632,7 +33631,7 @@ fn domain_operator_selection_records_builtin_fallback_when_fact_unproven() {
         .count();
     assert!(
         fallback_uses > 0,
-        "expected the unproven `i32::Degrees` membership to de-admit the domain `+` meaning \
+        "expected the unselected `i32::Degrees` meaning to leave builtin `+` active \
          and record the use as a builtin fallback"
     );
     assert_eq!(
@@ -33644,7 +33643,7 @@ fn domain_operator_selection_records_builtin_fallback_when_fact_unproven() {
             .filter(|candidate| candidate.is_domain_owned())
             .count(),
         0,
-        "no domain-owned meaning may be selected without a proven domain fact"
+        "no domain-owned meaning may be selected without a declaration, mint, or signature selection"
     );
 }
 

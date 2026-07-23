@@ -40,7 +40,18 @@ fn expression_type_reference_in_state(
             expression_type_reference_in_state(program, state_symbol, statement_index, *inner)
         }
         ExpressionNode::Name(path) => {
-            symbol_type_reference_in_state(program, state_symbol, statement_index, path.symbol)
+            let name = program
+                .expression_table
+                .name_path_members(path.members)
+                .first()
+                .map(|name| name.as_str());
+            symbol_type_reference_in_state(
+                program,
+                state_symbol,
+                statement_index,
+                path.symbol,
+                name,
+            )
         }
         ExpressionNode::Member(member) => expression_type_reference_in_state(
             program,
@@ -76,8 +87,9 @@ fn symbol_type_reference_in_state(
     state_symbol: SymbolHandle,
     statement_index: usize,
     symbol: SymbolHandle,
+    name: Option<&str>,
 ) -> Option<TypeReferenceHandle> {
-    if !symbol.is_valid() {
+    if !symbol.is_valid() && name.is_none() {
         return None;
     }
 
@@ -85,9 +97,14 @@ fn symbol_type_reference_in_state(
     program
         .state_parameters(state)
         .iter()
-        .find(|parameter| parameter.symbol == symbol)
+        .find(|parameter| {
+            (symbol.is_valid() && parameter.symbol == symbol)
+                || name.is_some_and(|name| parameter.name.as_str() == name)
+        })
         .map(|parameter| parameter.type_reference)
-        .or_else(|| local_type_reference_before_statement(program, state, statement_index, symbol))
+        .or_else(|| {
+            local_type_reference_before_statement(program, state, statement_index, symbol, name)
+        })
 }
 
 fn local_type_reference_before_statement(
@@ -95,6 +112,7 @@ fn local_type_reference_before_statement(
     state: &omega_typed_trees::state::State,
     statement_index: usize,
     symbol: SymbolHandle,
+    name: Option<&str>,
 ) -> Option<TypeReferenceHandle> {
     program
         .statement_table
@@ -105,7 +123,9 @@ fn local_type_reference_before_statement(
             let omega_typed_trees::statement::StatementNode::LocalData(local) = statement else {
                 return None;
             };
-            (local.symbol == symbol).then_some(local.type_reference)
+            ((symbol.is_valid() && local.symbol == symbol)
+                || name.is_some_and(|name| local.name.as_str() == name))
+            .then_some(local.type_reference)
         })
 }
 

@@ -1,10 +1,8 @@
-// Mutation invalidation de-admits a domain operator meaning (chapter 8 +
-// the call-requires invalidation model): `mark_additive` proves
-// `self.total in Quantity::Additive` via its ensures, but the interleaved
-// `scramble` call mutates `self.total` and kills the fact before the `+` use.
-// With the membership no longer proven, the domain-owned meaning is
-// inadmissible and `Quantity` has no builtin meaning, so the use is rejected.
-// Removing the `scramble` call makes this program compile.
+// Flow-established membership never activates operator meaning. The call to
+// `mark_additive` proves a predicate fact about `self.total`, but no declaration,
+// mint, or signature `requires` selects the semantic `Quantity::Additive`
+// theory for that binding. The later mutation is deliberately irrelevant to
+// resolution: this use would remain rejected even without `scramble`.
 
 data Quantity {
     value: i32;

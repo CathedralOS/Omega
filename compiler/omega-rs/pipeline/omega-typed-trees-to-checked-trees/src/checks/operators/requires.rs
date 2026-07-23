@@ -9,8 +9,9 @@
 //! the call-`requires` instantiation precedent in
 //! checks/contracts/labels/calls.rs) and proven against the semantic contexts
 //! entering the use's statement — the same invalidation-adjusted contexts the
-//! selection pass reads, so caller `requires`, call `ensures`, and
-//! interleaved-mutation invalidation all participate.
+//! call-`requires` discharge reads. This proof-state query checks the already
+//! selected operator's precondition; it never participates in selecting the
+//! operator meaning itself.
 //!
 //! An unproven obligation reports the operator-contract attribution shape the
 //! indexed seam established: name the instantiated clause, the operator that
@@ -163,9 +164,8 @@ fn binary_operands(program: &TypedTrees, expression: ExpressionHandle) -> Vec<Ex
     }
 }
 
-/// The semantic contexts entering the use's statement — the same
-/// invalidation-adjusted contexts the selection pass and the call-`requires`
-/// discharge read. `None` when the use has no statement flow context.
+/// The invalidation-adjusted semantic contexts entering the use's statement.
+/// These discharge the selected meaning's ordinary proof contract only.
 fn statement_entry_contexts(
     facts: &CheckFacts,
     origin: CheckedValueOrigin,
