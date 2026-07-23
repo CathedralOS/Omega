@@ -2,6 +2,14 @@
 // closeness predicate, and its reflexive/symmetric laws are checked machines.
 use omega::language::core::rat;
 
+machine valid_unit_rat() -> Rat {
+    mk_rat(
+        Nat::Succ { prev: Nat::Zero },
+        Nat::Succ { prev: Nat::Zero },
+        Nat::Succ { prev: Nat::Zero }
+    )
+}
+
 machine close_is_reflexive(value: Rat, precision: Nat)
 ensures (rat_close(value, value, precision)) == Nat::Zero
 {

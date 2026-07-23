@@ -1,0 +1,19 @@
+// Equality-style value-call precondition validation also rejects an
+// instantiated inequality when the operands are structurally equal.
+use omega::language::core::nat;
+
+machine nonzero_identity(value: Nat) -> Nat
+requires value != Nat::Zero
+{
+    value
+}
+
+machine invalid_nonzero_identity() -> Nat {
+    nonzero_identity(Nat::Zero)
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

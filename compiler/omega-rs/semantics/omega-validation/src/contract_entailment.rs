@@ -3685,6 +3685,149 @@ fn instantiated_fact_established(
     }
 }
 
+/// Reject a value-position call when one of the callee's equality-style
+/// `requires` facts is structurally FALSE at the concrete operands. This is
+/// the fail-safe first rung of general value-call precondition discharge: a
+/// proven contradiction is an error, while an unproved/unknown fact remains for
+/// the later fail-closed obligation rung instead of becoming a false positive.
+pub(crate) fn reject_refuted_value_call_requires(
+    program: &TypedTrees,
+    caller_machine: &Machine,
+    caller_state: &omega_typed_trees::state::State,
+    callee_machine: &Machine,
+    callee_state: &omega_typed_trees::state::State,
+    arguments: &[ExpressionHandle],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let parameters = program
+        .state_parameters(callee_state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    if parameters.len() != arguments.len() {
+        return;
+    }
+
+    let mut map = Vec::with_capacity(parameters.len());
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        let Some(term) = structural_term(program, *argument) else {
+            return;
+        };
+        map.push((parameter.name.as_str().to_owned(), term));
+    }
+
+    let mut caller_requires = Vec::new();
+    for contract in program.machine_contracts(caller_machine) {
+        if contract.kind == SignatureContractKind::Requires {
+            caller_requires.extend(
+                program
+                    .proof_facts
+                    .span_or_empty(contract.facts)
+                    .iter()
+                    .filter_map(|fact| match fact {
+                        ProofFact::Expression(expression) => Some(*expression),
+                        ProofFact::Membership(_) => None,
+                    }),
+            );
+        }
+    }
+    for contract in program.state_contracts(caller_state) {
+        if contract.kind == SignatureContractKind::Requires {
+            caller_requires.extend(
+                program
+                    .proof_facts
+                    .span_or_empty(contract.facts)
+                    .iter()
+                    .filter_map(|fact| match fact {
+                        ProofFact::Expression(expression) => Some(*expression),
+                        ProofFact::Membership(_) => None,
+                    }),
+            );
+        }
+    }
+    let judge = StructuralJudge::from_requires(program, caller_machine, &caller_requires);
+    if judge.hypotheses_contradictory {
+        return;
+    }
+
+    for contract in program
+        .machine_contracts(callee_machine)
+        .iter()
+        .chain(program.state_contracts(callee_state))
+    {
+        if contract.kind != SignatureContractKind::Requires {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let ProofFact::Expression(expression) = fact else {
+                continue;
+            };
+            if matches!(
+                instantiated_fact_judgment(program, &judge, *expression, &map),
+                StructuralJudgment::Refuted
+            ) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` state `{}` value call to `{}` violates required fact `{}`: the instantiated fact is structurally false",
+                    caller_machine.name,
+                    caller_state.name,
+                    callee_machine.name,
+                    program.expression_table.display_name(*expression),
+                )));
+            }
+        }
+    }
+}
+
+fn instantiated_fact_judgment(
+    program: &TypedTrees,
+    judge: &StructuralJudge,
+    fact: ExpressionHandle,
+    map: &[(String, StructuralTerm)],
+) -> StructuralJudgment {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
+        return StructuralJudgment::Unknown;
+    };
+    match binary.operator {
+        BinaryOperator::And => {
+            match (
+                instantiated_fact_judgment(program, judge, binary.left, map),
+                instantiated_fact_judgment(program, judge, binary.right, map),
+            ) {
+                (StructuralJudgment::Refuted, _) | (_, StructuralJudgment::Refuted) => {
+                    StructuralJudgment::Refuted
+                }
+                (StructuralJudgment::Proven, StructuralJudgment::Proven) => {
+                    StructuralJudgment::Proven
+                }
+                _ => StructuralJudgment::Unknown,
+            }
+        }
+        BinaryOperator::Equal | BinaryOperator::NotEqual => {
+            let (Some(left), Some(right)) = (
+                structural_term(program, binary.left),
+                structural_term(program, binary.right),
+            ) else {
+                return StructuralJudgment::Unknown;
+            };
+            let equality = judge.judge_equation(
+                judge.resolve(StructuralJudge::substitute_term(&left, map)),
+                judge.resolve(StructuralJudge::substitute_term(&right, map)),
+                0,
+            );
+            if binary.operator == BinaryOperator::Equal {
+                equality
+            } else {
+                match equality {
+                    StructuralJudgment::Proven => StructuralJudgment::Refuted,
+                    StructuralJudgment::Refuted => StructuralJudgment::Proven,
+                    StructuralJudgment::Unknown => StructuralJudgment::Unknown,
+                }
+            }
+        }
+        _ => StructuralJudgment::Unknown,
+    }
+}
+
 /// Walk an ensures fact's `&&`-conjuncts; each `==` conjunct whose sides
 /// term-ify yields one instantiated equation under the citation's
 /// parameter map.
