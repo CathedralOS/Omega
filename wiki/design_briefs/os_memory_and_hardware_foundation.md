@@ -512,8 +512,9 @@ before the first Omega instruction must fit the object format's native
 relocation vocabulary. Post-handoff structures may use the generated writer.
 The normalized writer program is now derived from the same actions: it
 validates the concrete placement, resolves each sealed target once through the
-provider, stages every fragment, and publishes only after the entire write can
-succeed. Target-machine emission of that program remains engineering work.
+provider, derives every fragment, writes only the unpublished destination, and
+publishes only after the complete result validates. Target-machine emission of
+that program remains engineering work.
 Placement plans may constrain range, alignment, phase, machine regime, and
 scoped artifact-installation authority. The normalized materialization
 foundation now carries those five facts: policy alignment is joined with the
@@ -521,6 +522,67 @@ layout's alignment, compiler-issued identities cite regime and installation
 scope, and a concrete-site validator checks the complete occupied range before
 linker/loader/provider consumption. Propagation through the final artifact
 pipeline remains engineering work.
+
+### Generated hardware-table materialization
+
+A post-handoff hardware-table writer is a compiler-generated checked Omega
+machine, not a public escape hatch and not an admitted opaque callback. It
+receives exactly:
+
+- one exclusive unpublished placement proven mapped, pinned, writable, and
+  large/aligned enough for the normalized table plan; and
+- one sealed resolver restricted to symbolic targets in the exact admitted
+  artifact/root set.
+
+It writes directly into the unpublished destination. Atomicity here means
+atomic *publication*, not transactional restoration of the destination bytes:
+if resolution, writing, or validation fails, no established materialization
+claim is minted and the partially filled placement can never be published.
+Consequently the design requires neither a full-table staging allocation nor a
+public numeric-address operation.
+
+The completed bytes are validated against the normalized layout and
+hardware-table policy before the writer produces a content-bound linear
+materialization claim such as `MaterializedIdt`. Structural layout validity is
+not hardware-table admissibility. An openly authored layout may describe odd
+bytes in storage the author already controls; only the target validator can
+establish that an IDT has the exact admitted roots, selectors, gate kinds,
+privilege levels, IST assignments, reserved bits, and canonical base/limit
+required by the selected platform policy.
+
+The first post-firmware writer also carries a software-fault-free bootstrap
+certificate. That certificate is a conjunction of existing obligations:
+mapped/pinned/writable destination and stack facts, WCSU provisioning,
+validated offsets and fragment tiling, admitted CPU-profile support, bounded
+work, and no suspension, blocking, allocation, dynamic dispatch, or unsupported
+instruction path. It excludes deterministic software faults under those
+facts; NMI, machine check, and physical failure remain explicit boot-envelope
+assumptions rather than falsely proved guarantees.
+
+Materialization and installation deliberately remain separate authorities and
+produce separate receipts:
+
+```text
+exclusive unpublished mapped placement + sealed exact-artifact resolver
+    -- generated writer + final table validation -->
+MaterializedIdt + materialization receipt
+
+MaterializedIdt + IdtControl
+    -- prepare root records + visibility + checked lidt -->
+InstalledIdt + installation receipt
+```
+
+The materializer reaches only the destination write and sealed resolver. It
+cannot execute `lidt`. The installer cannot manufacture table contents; it
+accepts only an established materialization claim. Root records are prepared
+and committed to the report before `lidt` makes their entries hardware-
+reachable, then finalized as installed with the publication receipt. There is
+never a reachable-but-unreported root.
+
+`MaterializedIdt` and executable `ValidatedPlacement` reuse establishment,
+content binding, and linear consumption as shared infrastructure, but they are
+not one generic type or one algebra. One qualifies a hardware-consumed data
+table; the other qualifies executable code placement.
 
 There is no general `ExecutableMemory` capability, arbitrary byte-to-code
 conversion, JIT facility, or self-modifying-code path. Executable eligibility
@@ -732,8 +794,11 @@ The IDT is consequently a first serious customer, not a special construct:
    class, acknowledgement protocol, and effect ceiling;
 4. build/provider selection chooses a satisfying handler;
 5. the materializer resolves its sealed entry-stub identity into gate bits;
-6. checked `lidt` installation requires IDT authority and records roots; and
-7. a linear acknowledgement token forces exactly-once completion.
+6. a generated checked writer validates the unpublished table and produces a
+   content-bound `MaterializedIdt`;
+7. a separate checked `lidt` installer requires `IdtControl`, records roots
+   before hardware reachability, and produces `InstalledIdt`; and
+8. a linear acknowledgement token forces exactly-once completion.
 
 The source obligation contract is live in
 `omega::language::core::interrupt`. `InterruptMaskControl::save_and_mask`
@@ -898,7 +963,13 @@ settled concrete interrupt policy's implementation remain. Remaining order:
    entry provider. No raw-byte shortcut.
 2. Derive sealed data/entry identities from selected compiler artifacts,
    propagate normalized placement constraints through artifact construction,
-   and lower the derived post-handoff writer program to target code. Name-keyed
+   and lower the derived post-handoff writer program as a compiler-generated
+   checked Omega machine. Give it only an exclusive unpublished mapped/pinned/
+   writable placement and the sealed exact-artifact resolver; write the
+   destination directly and mint no result after partial failure. Validate the
+   final table and software-fault-free bootstrap conjunction before producing
+   the materialization claim. Keep the `IdtControl` installer and its receipt
+   separate, with root-record-before-`lidt` publication. Name-keyed
    fragment placement, exact tiling, phase-aware action derivation,
    fixed-address resolution, early-consumption rejection, section-qualified
    absolute data relocation/rebasing, concrete-site validation, and the atomic
@@ -912,7 +983,8 @@ settled concrete interrupt policy's implementation remain. Remaining order:
    validated entry-set section, binds that set's identity into admission, and
    lets only an admitted artifact select sealed `EntryStubId` targets present
    in the set. The exact installed-code state now privately resolves those
-   entries against its placement while executing an atomic post-handoff writer;
+   entries against its placement while executing an atomic-publication
+   post-handoff writer;
    foreign entries and data symbols reject before publication, without a
    source-visible numeric-address operation. Target-machine writer emission
    remains.
@@ -970,6 +1042,11 @@ veneer/thunk that introduces a register class forbidden by the root's
 `StatePlan` despite all earlier per-function checks passing. Extent/access tests
 must also reject merging numerically adjacent ranges from different authority
 origins and reject ordinary non-atomic writes through two shared projections.
+IDT tests must show that an open-authored `Layout` or `Calling<C>` policy can
+produce only a candidate plan: it cannot mint the sealed resolver,
+`MaterializedIdt`, or `IdtControl`; cannot publish a structurally valid but
+semantically inadmissible table; and cannot hide installer reach behind a
+wrapper or direct checked assembly.
 
 ## Open decisions
 

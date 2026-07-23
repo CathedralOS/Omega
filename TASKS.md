@@ -592,9 +592,17 @@ schemas recover the same instance without publishing policy type identity.
    set. The exact installed-code state now supplies the private resolver for
    atomic post-handoff entry writers: it resolves only entries in that admitted
    set against the installed placement, rejects foreign/data targets before
-   publication, and never exposes the numeric address API. Lower these
-   normalized writer programs to generated machine code (OWNER-BLOCKED on the
-   "generated post-handoff writer boundary" in `OWNER_QUESTIONS.md`).
+   publication, and never exposes the numeric address API. The writer boundary
+   is settled: lower each normalized program as a compiler-generated checked
+   Omega machine over one exclusive unpublished mapped/pinned/writable
+   placement and a sealed exact-artifact resolver. It writes directly into
+   that unpublished destination; failure leaves it unpublishable rather than
+   requiring a transactional staging buffer. Validate the completed bytes and
+   the software-fault-free bootstrap obligations before minting
+   `MaterializedIdt`. The separate installer holds `IdtControl`, records
+   prepared roots before checked `lidt` makes them reachable, and emits a
+   distinct installation receipt. Implement writer lowering, both receipts,
+   and the record-then-publish transition.
 5. **IDT2 — installed-root ledger.** The normalized `omega-external-roots`
    foundation is live. It validates nonzero/aligned WCSU demand against one
    complete `BoundaryEntryPlan`; admits only an entry present in the exact
@@ -649,7 +657,12 @@ schemas recover the same instance without publishing policy type identity.
      Negative rails: direct assembly cannot launder reach; user `iretq` rejects;
      incomplete fragment tiling rejects; forbidden final-artifact clobbers
      reject; omitted or double EOI rejects; a dynamic/recursive or unbounded
-     provider leaf rejects the hard-root work profile.
+     provider leaf rejects the hard-root work profile; an open-authored
+     `Layout` or `Calling<C>` policy cannot mint resolver/installation
+     authority or publish a structurally valid but semantically inadmissible
+     table; and a package that reaches the installer through either an
+     abstraction or direct checked assembly retains the same normalized
+     privileged reach in the artifact report.
 
 ### Provider plans and retirement of `provides`
 
@@ -1148,12 +1161,17 @@ stronger operations it needs instead of citing machine parameters generally.
   integration now reaches canonical executable entry-set decoding and
   admission-bound sealed entry targets. Exact installed code now resolves those
   targets privately while executing the atomic writer. Lower the normalized
-  provider-resolved post-handoff writer programs to generated machine code
-  (OWNER-BLOCKED: `OWNER_QUESTIONS.md` under "generated post-handoff writer
-  boundary").
-  Writer programs already validate their
-  concrete site, resolve each sealed target once, stage all writes, and publish
-  atomically. Native whole-pointer actions already lower into section-qualified
+  provider-resolved post-handoff writer programs as compiler-generated checked
+  Omega machines. The settled writer consumes one exclusive unpublished
+  mapped/pinned/writable placement plus a sealed exact-artifact resolver and
+  writes the destination directly. A partial or failed fill remains
+  unpublished and cannot produce the established result; no public address
+  resolver, arbitrary-offset write, callback ABI, or staging allocator is
+  introduced. Validate the complete bytes and bootstrap fault-freedom
+  conjunction before minting the content-bound linear materialization claim.
+  Installation remains a separate provider operation holding the
+  hardware-table capability, with its own receipt and record-before-publish
+  ordering. Native whole-pointer actions already lower into section-qualified
   object relocations with materialization provenance.
 - **External loans.** The normalized `omega-extents` model is live: a token
   borrow-carries the real Extent loan; device-read requires shared polarity;

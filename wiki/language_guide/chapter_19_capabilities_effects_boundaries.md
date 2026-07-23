@@ -748,6 +748,40 @@ edge; protected returns and the final control-flow-integrity certificate remain
 the independent owner question in
 [`OWNER_QUESTIONS.md`](../../OWNER_QUESTIONS.md).
 
+### Build policy and privileged reach
+
+Package policy is an outer admission gate over compiler-derived reach, not the
+only protection around privileged operations. A normal hosted/application
+profile should reject roots whose transitive reach includes platform services
+such as interrupt-table control, page-table installation, raw device control,
+or admitted-artifact installation. Kernel and firmware profiles may grant a
+small audited provider set instead.
+
+The service identities are normalized package-qualified requirements, not
+friendly type names and not a compiler-hard-coded list of "dangerous"
+keywords. Registry/build policy classifies those identities. Direct checked
+assembly contributes the same reach as the abstract operation it realizes, and
+installed inbound entries are additional effect roots, so neither wrappers nor
+hardware callbacks can launder reach out of the report.
+
+Policy approval still does not manufacture authority. Admission must supply the
+actual scoped capability, and the operation additionally requires its sealed
+qualified input. For example, an IDT installer needs both CPU-scoped
+`IdtControl` and a content-bound `MaterializedIdt`; the former cannot create
+table bytes and the latter cannot execute `lidt`. The complete defense is:
+
+```text
+compiler-derived reach
+    -> registry/build-policy decision
+    -> explicit provider capability grant
+    -> sealed operation-specific input
+    -> checked operation and receipt
+```
+
+There is no general `ExecutableMemory` grant to classify. Executable
+installation accepts only an already-admitted immutable artifact and an exact
+authorized destination.
+
 ## Invariant Parameters
 
 Imported signatures should lean on invariant-parameterized types rather than
