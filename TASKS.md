@@ -1033,8 +1033,9 @@ stronger operations it needs instead of citing machine parameters generally.
 ### Domain facets, effects, termination, and trust
 
 - **DOM1 — facet kinds.** Resolved and typed domain declarations now carry the
-  normalized predicate/semantic facet pair populated once at syntax lowering
-  and copied downstream. Qualification casts, semantic commitment collection,
+  normalized predicate/semantic facet pair populated once at syntax lowering,
+  copied downstream, and published in resolved/typed snapshots. Qualification
+  casts, semantic commitment collection,
   introduction-authority checks, trust reports, and trust-lockfile grant
   matching consume the semantic facet; semantic-only domains no longer invent
   a predicate-proof obligation. Until authored facet syntax/policy lands, the
