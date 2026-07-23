@@ -1,6 +1,6 @@
 use super::lowering::{
-    expression_platform_receiver_type, find_platform_call_lowering_by_target,
-    lower_host_call_argument,
+    call_parameter_expects_reference, expression_platform_receiver_type,
+    find_platform_call_lowering_by_target, lower_host_call_argument,
 };
 use crate::host_calls::lowering::{
     find_platform_call_lowering, host_operation, lower_host_call_arguments, platform_call_name,
@@ -179,10 +179,17 @@ fn collect_assignment_result_host_lowering(
                 static_values,
                 &mut plan.expressions,
             ),
+            is_borrowed: false,
+            expects_reference: false,
         },
     );
     // The call's REAL arguments follow the result (e.g. key_state(vk)).
-    for argument in program.expression_table.expression_handles(call.arguments) {
+    for (index, argument) in program
+        .expression_table
+        .expression_handles(call.arguments)
+        .iter()
+        .enumerate()
+    {
         plan.arguments.append_to_span(
             &mut argument_span,
             crate::HostCallArgument {
@@ -191,6 +198,16 @@ fn collect_assignment_result_host_lowering(
                     *argument,
                     static_values,
                     &mut plan.expressions,
+                ),
+                is_borrowed: matches!(
+                    program.expression_table.expression(*argument),
+                    omega_checked_trees::expression::ExpressionNode::Mutable(_)
+                ),
+                expects_reference: call_parameter_expects_reference(
+                    program,
+                    call.target_symbol,
+                    call.target.as_str(),
+                    index,
                 ),
             },
         );
@@ -299,9 +316,16 @@ fn collect_local_result_host_lowering(
         &mut argument_span,
         crate::HostCallArgument {
             kind: crate::HostCallArgumentKind::Expression(result_place),
+            is_borrowed: false,
+            expects_reference: false,
         },
     );
-    for argument in program.expression_table.expression_handles(call.arguments) {
+    for (index, argument) in program
+        .expression_table
+        .expression_handles(call.arguments)
+        .iter()
+        .enumerate()
+    {
         plan.arguments.append_to_span(
             &mut argument_span,
             crate::HostCallArgument {
@@ -310,6 +334,16 @@ fn collect_local_result_host_lowering(
                     *argument,
                     static_values,
                     &mut plan.expressions,
+                ),
+                is_borrowed: matches!(
+                    program.expression_table.expression(*argument),
+                    omega_checked_trees::expression::ExpressionNode::Mutable(_)
+                ),
+                expects_reference: call_parameter_expects_reference(
+                    program,
+                    call.target_symbol,
+                    call.target.as_str(),
+                    index,
                 ),
             },
         );

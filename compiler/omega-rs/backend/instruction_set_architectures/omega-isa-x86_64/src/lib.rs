@@ -4057,9 +4057,9 @@ fn sysv_operand_shape<T: InstructionOperandLike>(operand: &T) -> Result<ValueSha
             .map_err(|_| Diagnostic::error("SysV AMD64 aggregate width exceeds u16"))?;
         let alignment = u16::try_from(alignment)
             .map_err(|_| Diagnostic::error("SysV AMD64 aggregate alignment exceeds u16"))?;
-        if byte_count < 9 {
+        if byte_count == 0 {
             return Err(Diagnostic::error(
-                "SysV AMD64 aggregate calls require at least nine bytes",
+                "SysV AMD64 aggregate calls require a nonzero value width",
             ));
         }
         return Ok(ValueShape::integer(byte_count, alignment));

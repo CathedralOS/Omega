@@ -52,7 +52,8 @@ use crate::state_signatures::{
 use crate::symbols::MachineSymbols;
 pub use crate::symbols::TopLevelSymbols;
 use crate::traits::{
-    validate_data_conformances, validate_machine_trait_conformances, validate_trait_requirements,
+    validate_data_conformances, validate_external_leaf_native_shapes,
+    validate_machine_trait_conformances, validate_trait_requirements,
 };
 use crate::transitions::validate_transition_target_node;
 use crate::type_references::{TypeReferenceOwner, validate_type_reference_handle};
@@ -242,6 +243,9 @@ fn validate_program_internal(
                      remove the leaf's `effects` clause",
                     machine.name,
                 )));
+            }
+            if via_count == 1 && is_external {
+                validate_external_leaf_native_shapes(program, machine, &mut diagnostics);
             }
         }
 

@@ -196,6 +196,8 @@ fn copy_host_call_arguments(
                         )
                     }
                 },
+                is_borrowed: argument.is_borrowed,
+                expects_reference: argument.expects_reference,
             }
         }))
 }

@@ -117,12 +117,22 @@ impl Default for LoweredHostOperation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostCallArgument {
     pub kind: HostCallArgumentKind,
+    /// The checked source argument retained an explicit mutable-borrow wrapper.
+    /// Lowering strips that wrapper to resolve the pointee place, so native
+    /// selection carries this bit to preserve its address semantics.
+    pub is_borrowed: bool,
+    /// The resolved boundary requirement expects a reference at this position.
+    /// Immutable `&place` syntax is erased during parsing, so this formal-type
+    /// fact is required to recover borrowed-place passing honestly.
+    pub expects_reference: bool,
 }
 
 impl Default for HostCallArgument {
     fn default() -> Self {
         Self {
             kind: HostCallArgumentKind::Expression(ExpressionHandle::invalid()),
+            is_borrowed: false,
+            expects_reference: false,
         }
     }
 }

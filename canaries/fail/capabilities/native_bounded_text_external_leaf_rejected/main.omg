@@ -1,0 +1,12 @@
+domain [u8; 16]::Utf8 {
+    valid_utf8(self);
+}
+
+boundary trait NativeText {
+    machine send(value: [u8; 16] in Utf8);
+}
+
+machine send(value: [u8; 16] in Utf8) satisfies NativeText::send via Binding::DllImport("foreign", "send");
+
+data Main { }
+machine Main::main(&mut self) { }

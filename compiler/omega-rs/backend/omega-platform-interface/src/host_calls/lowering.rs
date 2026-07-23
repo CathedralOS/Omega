@@ -225,16 +225,71 @@ pub(crate) fn lower_host_call_arguments(
 ) -> HandleSpan<HostCallArgument> {
     let mut argument_span = HandleSpan::empty();
 
-    for argument in program.statement_table.expression_handles(call.arguments) {
+    for (index, argument) in program
+        .statement_table
+        .expression_handles(call.arguments)
+        .iter()
+        .enumerate()
+    {
         arguments.append_to_span(
             &mut argument_span,
             HostCallArgument {
                 kind: lower_host_call_argument(program, *argument, static_values, expressions),
+                is_borrowed: matches!(
+                    program.expression_table.expression(*argument),
+                    ExpressionNode::Mutable(_)
+                ),
+                expects_reference: call_parameter_expects_reference(
+                    program,
+                    call.target_symbol,
+                    call.target.as_str(),
+                    index,
+                ),
             },
         );
     }
 
     argument_span
+}
+
+pub(crate) fn call_parameter_expects_reference(
+    program: &CheckedTrees,
+    target_symbol: SymbolHandle,
+    target_name: &str,
+    index: usize,
+) -> bool {
+    let signature = program.traits().iter().find_map(|definition| {
+        program
+            .trait_machine_signatures(definition)
+            .iter()
+            .find(|signature| {
+                (target_symbol.is_valid() && signature.symbol == target_symbol)
+                    || (!target_symbol.is_valid() && signature.name.as_str() == target_name)
+            })
+    });
+    let Some(parameter) = signature.and_then(|signature| {
+        program
+            .state_signature_parameters(signature)
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .nth(index)
+    }) else {
+        return false;
+    };
+    type_reference_is_reference(program, parameter.type_reference)
+}
+
+fn type_reference_is_reference(
+    program: &CheckedTrees,
+    type_reference: omega_checked_trees::types::TypeReferenceHandle,
+) -> bool {
+    match program.type_reference_table.type_reference(type_reference) {
+        omega_checked_trees::types::TypeReferenceNode::Reference { .. } => true,
+        omega_checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_is_reference(program, *base_type)
+        }
+        _ => false,
+    }
 }
 
 pub(crate) fn platform_call_name(program: &CheckedTrees, call: &TableCall) -> String {
