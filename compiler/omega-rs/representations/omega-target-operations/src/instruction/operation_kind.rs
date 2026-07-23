@@ -543,22 +543,26 @@ pub enum TargetOperationKind {
     MemoryFence(omega_core::inline_assembly::AsmFenceKind),
     /// x86 CLI/STI interrupt-flag control.
     InterruptControl(omega_core::inline_assembly::AsmInterruptControlKind),
-    /// Compiler-generated, deriver-only x86 `lidt [r10]`. R10 names the
-    /// provider-private descriptor selected by the checked IDT publication
-    /// lowering. No abstract/source operation converts to this variant.
+    /// Compiler-generated, deriver-only x86 `lidt [r10]`. A validated
+    /// one-private-pointer invocation plan selects the input register copied
+    /// into R10; the numeric descriptor address remains absent. No
+    /// abstract/source operation converts to this variant.
     GeneratedIdtLoad {
+        pointer_register: omega_calling_conventions::MachineRegister,
         materialized: omega_external_roots::MaterializedIdtId,
         descriptor: omega_external_roots::IdtDestinationId,
+        descriptor_fingerprint: u64,
         content_fingerprint: u64,
         root_ledger_fingerprint: u64,
         control: omega_external_roots::IdtControlId,
     },
     /// Compiler-generated, address-free direct-destination IDT writer. The
     /// populated seal owns the actual destination and opaque resolved context;
-    /// this carrier retains only exact identities/fingerprints plus fragment
-    /// geometry and private context-slot indices. No abstract/source operation
-    /// converts to this variant.
+    /// this carrier retains only the plan-selected pointer register, exact
+    /// identities/fingerprints, fragment geometry, and private context-slot
+    /// indices. No abstract/source operation converts to this variant.
     GeneratedIdtWriter {
+        pointer_register: omega_calling_conventions::MachineRegister,
         context: omega_external_roots::IdtWriterContextId,
         preparation: omega_external_roots::IdtWriterPreparationId,
         installed_code: omega_external_roots::InstalledCodeId,

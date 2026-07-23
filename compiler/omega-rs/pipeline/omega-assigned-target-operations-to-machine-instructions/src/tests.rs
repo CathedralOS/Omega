@@ -13,10 +13,12 @@ use omega_core::symbols::SymbolHandle;
 fn generated_idt_load_retains_prepared_facts_in_machine_lowering() {
     let mut assigned_operations = AssignedTargetOperationPlan::default();
     let source_kind = SelectedInstructionKind::GeneratedIdtLoad {
+        pointer_register: omega_calling_conventions::MachineRegister::X86Rcx,
         materialized: omega_external_roots::MaterializedIdtId::from_normalized_identity(1)
             .expect("materialized IDT identity"),
         descriptor: omega_external_roots::IdtDestinationId::from_normalized_identity(2)
             .expect("IDT destination identity"),
+        descriptor_fingerprint: 6,
         content_fingerprint: 3,
         root_ledger_fingerprint: 4,
         control: omega_external_roots::IdtControlId::from_normalized_identity(5)
@@ -58,6 +60,7 @@ fn generated_idt_load_retains_prepared_facts_in_machine_lowering() {
 fn generated_idt_writer_retains_populated_context_in_machine_lowering() {
     let mut assigned_operations = AssignedTargetOperationPlan::default();
     let source_kind = SelectedInstructionKind::GeneratedIdtWriter {
+        pointer_register: omega_calling_conventions::MachineRegister::X86Rdi,
         context: omega_external_roots::IdtWriterContextId::from_normalized_identity(9)
             .expect("writer context identity"),
         preparation: omega_external_roots::IdtWriterPreparationId::from_normalized_identity(1)

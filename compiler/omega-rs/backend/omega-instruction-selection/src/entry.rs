@@ -24,9 +24,9 @@ pub fn derive_generated_idt_load_footprint(
 }
 
 /// Exact implementation footprint of the generated direct-destination IDT
-/// writer. R10 is a read-only private-context input; the encoder writes four
-/// scratch registers and arithmetic flags while preserving control state and
-/// the stack.
+/// writer. The encoder first moves the plan-selected private-context pointer
+/// into R10, then writes four additional scratch registers and arithmetic
+/// flags while preserving control state and the stack.
 pub fn derive_generated_idt_writer_footprint(
     architecture: omega_target::Architecture,
 ) -> Option<StateFootprintEvidence> {

@@ -896,14 +896,13 @@ fn machine_instruction_width(
                 ))
             });
         }
-        SelectedInstructionKind::GeneratedIdtLoad { .. } => {
-            return generated_idt_load_width(input.target.architecture).ok_or_else(|| {
-                Diagnostic::error(
-                    "generated IDT load is x86_64-only; no AArch64 lowering exists",
-                )
-            });
+        SelectedInstructionKind::GeneratedIdtLoad {
+            pointer_register, ..
+        } => {
+            return generated_idt_load_width(input.target.architecture, *pointer_register);
         }
         SelectedInstructionKind::GeneratedIdtWriter {
+            pointer_register,
             byte_len,
             little_endian,
             context_abi,
@@ -913,6 +912,7 @@ fn machine_instruction_width(
         } => {
             return generated_idt_writer_width(
                 input.target.architecture,
+                *pointer_register,
                 *byte_len,
                 *little_endian,
                 *context_abi,

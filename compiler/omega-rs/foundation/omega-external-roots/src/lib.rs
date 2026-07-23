@@ -2800,6 +2800,18 @@ fn fingerprint_idt_writer_context(
     nonzero_fingerprint(hash.finish())
 }
 
+fn fingerprint_idt_descriptor(
+    destination: IdtDestinationId,
+    content_fingerprint: u64,
+    packed: &[u8; 10],
+) -> u64 {
+    let mut hash = Fnv1a::new();
+    hash.u64(destination.normalized_identity());
+    hash.u64(content_fingerprint);
+    hash.u64(fingerprint_bytes(packed));
+    nonzero_fingerprint(hash.finish())
+}
+
 fn fingerprint_relocation_target(hash: &mut Fnv1a, target: RelocationTarget) {
     match target {
         RelocationTarget::Data(identity) => {
@@ -2856,14 +2868,41 @@ impl IdtControl {
 /// the supplied ledger and that the provider holds the architectural IDT
 /// authority. Compiler-generated provider lowering requires this proof before
 /// it may introduce the deriver-only `lidt [r10]` operation.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub struct PreparedIdtLoad {
     materialized: MaterializedIdtId,
     destination: IdtDestinationId,
+    descriptor: PreparedX86IdtDescriptor,
     content_fingerprint: u64,
     root_ledger_fingerprint: u64,
     roots: BTreeSet<ExternalRootId>,
     control: IdtControlId,
+}
+
+/// Provider-private packed x86-64 IDTR operand. The base and bytes have no
+/// public accessor; generated invocation may borrow this seal, while reports
+/// and target operations retain only its deterministic fingerprint.
+#[derive(PartialEq, Eq)]
+struct PreparedX86IdtDescriptor {
+    packed: [u8; 10],
+    fingerprint: u64,
+}
+
+impl std::fmt::Debug for PreparedIdtLoad {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("PreparedIdtLoad")
+            .field("materialized", &self.materialized)
+            .field("destination", &self.destination)
+            .field(
+                "descriptor_fingerprint",
+                &format_args!("{:016x}", self.descriptor.fingerprint),
+            )
+            .field("content_fingerprint", &self.content_fingerprint)
+            .field("root_ledger_fingerprint", &self.root_ledger_fingerprint)
+            .field("control", &self.control)
+            .finish()
+    }
 }
 
 impl PreparedIdtLoad {
@@ -2873,6 +2912,14 @@ impl PreparedIdtLoad {
 
     pub const fn destination(&self) -> IdtDestinationId {
         self.destination
+    }
+
+    pub const fn descriptor_fingerprint(&self) -> u64 {
+        self.descriptor.fingerprint
+    }
+
+    pub const fn descriptor_byte_len(&self) -> usize {
+        self.descriptor.packed.len()
     }
 
     pub const fn content_fingerprint(&self) -> u64 {
@@ -2899,9 +2946,31 @@ pub fn prepare_idt_load(
     control: &IdtControl,
 ) -> Result<PreparedIdtLoad, ExternalRootDiagnostic> {
     let expected_roots = validate_idt_publication_roots(ledger, materialized, roots)?;
+    let table_byte_len = materialized.writer.byte_len;
+    let limit = table_byte_len
+        .checked_sub(1)
+        .and_then(|limit| u16::try_from(limit).ok())
+        .ok_or_else(|| {
+            ExternalRootDiagnostic(
+                "x86 IDT descriptor requires a non-empty table no larger than 65536 bytes".into(),
+            )
+        })?;
+    let base = materialized.destination.site.base_address;
+    let mut packed = [0_u8; 10];
+    packed[..2].copy_from_slice(&limit.to_le_bytes());
+    packed[2..].copy_from_slice(&base.to_le_bytes());
+    let descriptor_fingerprint = fingerprint_idt_descriptor(
+        materialized.destination.identity,
+        materialized.content_fingerprint,
+        &packed,
+    );
     Ok(PreparedIdtLoad {
         materialized: materialized.identity,
         destination: materialized.destination.identity,
+        descriptor: PreparedX86IdtDescriptor {
+            packed,
+            fingerprint: descriptor_fingerprint,
+        },
         content_fingerprint: materialized.content_fingerprint,
         root_ledger_fingerprint: ledger.report_fingerprint(),
         roots: expected_roots,
@@ -4457,6 +4526,14 @@ mod tests {
         assert_eq!(prepared.destination(), destination_id);
         assert_eq!(prepared.content_fingerprint(), fingerprint_bytes(&expected));
         assert_eq!(prepared.control(), control.identity());
+        assert_eq!(prepared.descriptor_byte_len(), 10);
+        let mut expected_descriptor = [0_u8; 10];
+        expected_descriptor[..2]
+            .copy_from_slice(&u16::try_from(expected.len() - 1).unwrap().to_le_bytes());
+        expected_descriptor[2..].copy_from_slice(&site.base_address.to_le_bytes());
+        assert_eq!(prepared.descriptor.packed, expected_descriptor);
+        assert_ne!(prepared.descriptor_fingerprint(), 0);
+        assert!(!format!("{prepared:?}").contains("packed"));
         let stale = IdtInstallationReceipt::from_provider(
             root_id(203, IdtInstallationReceiptId::from_normalized_identity),
             root_id(204, InstalledIdtId::from_normalized_identity),

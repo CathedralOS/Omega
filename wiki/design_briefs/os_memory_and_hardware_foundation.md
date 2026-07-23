@@ -523,8 +523,9 @@ provider, derives every fragment, writes only the unpublished destination, and
 publishes only after the complete result validates. Its sealed preparation and
 address-free generated target/machine carrier are live. The packed private
 context ABI, exact footprint, x86 emission, and opaque once-resolved population
-gate are also live; R10 address materialization and concrete provider execution
-remain engineering work.
+gate are also live. A validated one-private-pointer invocation plan now selects
+the exact GPR copied into R10; concrete provider insertion/execution remains
+engineering work.
 Placement plans may constrain range, alignment, phase, machine regime, and
 scoped artifact-installation authority. The normalized materialization
 foundation now carries those five facts: policy alignment is joined with the
@@ -809,7 +810,7 @@ preserves those facts and address-free fragment geometry in a generated-only
 target/machine carrier whose source operands are private context-slot indices;
 the packed private `IDTWRIT1` ABI is now pinned as an R10-addressed destination
 pointer followed by dense u64 source slots. Exact x86 encoding and width are
-live with the derived RAX/RCX/RDX/R11 plus Flags footprint, while AArch64,
+live with the derived RAX/RCX/RDX/R10/R11 plus Flags footprint, while AArch64,
 unknown ABI versions, invalid slots, and unrepresentable geometry reject before
 emission. The compiler now retains the exact validated selected provider-plan
 set through checked lowering, with canonical per-plan and whole-selection
@@ -822,9 +823,14 @@ writer context from the exact installed resolver is now live: a non-clonable
 opaque seal binds the exact
 destination/source words and their fingerprint, is required by lowering and
 materialization, and never exposes those words through diagnostics or public
-accessors. Provider lowering that materializes R10 and executes the writer
-before supplying the private descriptor to the contracted `lidt` consumer
-remains, as does concrete Cathedral PIC/LAPIC candidate construction.
+accessors. Generated helper lowering now accepts only a validated concrete
+one-private-pointer call/return plan, retains its exact register placement, and
+emits the register-to-R10 move before either the writer or `lidt [r10]` body.
+The complete derived register/state footprint must fit that same plan, so IDTR
+control-state mutation requires an explicitly privileged ceiling.
+The load preparation owns the exact private packed ten-byte x86 descriptor and
+publishes only its content-bound fingerprint. Inserting and executing those
+helpers remains, as does concrete Cathedral PIC/LAPIC candidate construction.
 The deriver-only catalog contract, exact x86 encoding, and source-rejection
 rail are live.
 Provider-neutral acceptance canaries instantiate the timer as one root plus
@@ -1071,10 +1077,11 @@ settled concrete interrupt policy's implementation remain. Remaining order:
    lowering, while resolved values remain provider-private source slots;
    foreign entries and data symbols reject before publication, without a
    source-visible numeric-address operation. The packed `IDTWRIT1` context ABI,
-   exact x86 writer bytes/width, and RAX/RCX/RDX/R11 plus Flags footprint are
+   exact x86 writer bytes/width, and RAX/RCX/RDX/R10/R11 plus Flags footprint are
    pinned and emitted. Opaque context population from the exact installed
-   resolver is live and required before lowering/materialization; R10
-   materialization and concrete writer execution remain.
+   resolver is live and required before lowering/materialization; normalized
+   private-pointer placement now materializes R10 for both helpers, while
+   concrete insertion/execution remains.
 3. Connect the implemented normalized `Extent` conservation/mapping model to
    the Omega linear carrier and sealed facts, then implement provider execution
    and source APIs. Root admission, split/merge/attenuation, borrow polarity,

@@ -331,9 +331,10 @@ remaining implementation order is:
 
 1. complete the checked-assembly catalog required by the entry provider;
 2. finish IDT1 after the implemented symbolic, phase-aware direct-destination
-   materializer and checked `lidt` carrier: lower the normalized writer into a
-   generated checked Omega machine and connect private-descriptor address
-   materialization plus execution in the provider;
+   materializer and checked `lidt` carrier: insert and execute the generated
+   checked Omega writer/load helpers through their plan-selected opaque
+   pointers in the provider (R10 materialization and the private packed IDTR
+   descriptor are already emitted/sealed);
 3. `CallPlan + StatePlan` entry-stub derivation, state-ceiling-aware codegen,
    footprint evidence, and final-artifact validation;
 4. external-root ledger and IDT/timer slice; and
