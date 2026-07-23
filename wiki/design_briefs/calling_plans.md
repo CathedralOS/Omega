@@ -366,11 +366,14 @@ endpoints, unknown nested provider-selected stacks, overflow, and active
 dedicated-class re-entry reject. A sealed provider-execution binding joins the
 normalized selected provider plan, exact entry/boundary/effects, and all three
 resource realizations into admission; it cannot be replayed after realization
-drift, and its identity is reportable. Compiler-selected-plan construction and
-provider-specific installation remain. The live ledger's deterministic
-fingerprint and `omega-artifacts` `external_roots.json` projection report these
-facts and the complete boundary plan without leaking numeric entry addresses or
-private ranking/codegen proofs.
+drift, and its identity is reportable. The IDT publication gate additionally
+requires every symbolic writer entry target to have an exact ledger record and
+live handle before a content/ledger-bound successful publication receipt can
+produce `InstalledIdt`; that value retains the handles. Compiler-selected-plan
+construction, writer lowering, and provider-specific checked `lidt` execution
+remain. The live ledger's deterministic fingerprint and `omega-artifacts`
+`external_roots.json` projection report these facts and the complete boundary
+plan without leaking numeric entry addresses or private ranking/codegen proofs.
 
 The ledger uses one recording discipline across three
 independent resource columns: stack ceiling/realized WCSU/derivation evidence,
