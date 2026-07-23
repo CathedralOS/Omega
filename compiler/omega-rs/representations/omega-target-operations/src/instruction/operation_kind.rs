@@ -554,11 +554,12 @@ pub enum TargetOperationKind {
         control: omega_external_roots::IdtControlId,
     },
     /// Compiler-generated, address-free direct-destination IDT writer. The
-    /// sealed preparation owns the actual destination and resolver inputs;
+    /// populated seal owns the actual destination and opaque resolved context;
     /// this carrier retains only exact identities/fingerprints plus fragment
-    /// geometry and private context-slot indices. No abstract/source
-    /// operation converts to this variant.
+    /// geometry and private context-slot indices. No abstract/source operation
+    /// converts to this variant.
     GeneratedIdtWriter {
+        context: omega_external_roots::IdtWriterContextId,
         preparation: omega_external_roots::IdtWriterPreparationId,
         installed_code: omega_external_roots::InstalledCodeId,
         artifact: omega_external_roots::ArtifactId,
@@ -570,6 +571,7 @@ pub enum TargetOperationKind {
         byte_len: usize,
         little_endian: bool,
         context_abi: u64,
+        context_fingerprint: u64,
         source_slot_count: usize,
         steps: std::sync::Arc<[GeneratedIdtWriterStep]>,
     },

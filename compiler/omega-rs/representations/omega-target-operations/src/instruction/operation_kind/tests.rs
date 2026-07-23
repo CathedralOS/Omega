@@ -91,6 +91,8 @@ fn operation_kinds_expose_control_domains() {
 #[test]
 fn generated_idt_writer_is_an_address_free_runtime_write() {
     let writer = TargetOperationKind::GeneratedIdtWriter {
+        context: omega_external_roots::IdtWriterContextId::from_normalized_identity(9)
+            .expect("writer context identity"),
         preparation: omega_external_roots::IdtWriterPreparationId::from_normalized_identity(1)
             .expect("writer preparation identity"),
         installed_code: omega_external_roots::InstalledCodeId::from_normalized_identity(2)
@@ -106,6 +108,7 @@ fn generated_idt_writer_is_an_address_free_runtime_write() {
         byte_len: 16,
         little_endian: true,
         context_abi: crate::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
+        context_fingerprint: 10,
         source_slot_count: 1,
         steps: vec![crate::GeneratedIdtWriterStep {
             container_byte_offset: 0,

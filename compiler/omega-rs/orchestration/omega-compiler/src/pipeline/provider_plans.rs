@@ -18,9 +18,9 @@ pub struct GeneratedIdtLoadLowering {
     footprint: omega_calling_conventions::StateFootprintEvidence,
 }
 
-/// Closed compiler carrier for one prepared direct-destination IDT writer.
-/// It retains address-free fragment geometry and exact preparation facts plus
-/// the pinned provider-private `IDTWRIT1` context ABI and encoder footprint.
+/// Closed compiler carrier for one populated direct-destination IDT writer.
+/// It retains address-free fragment geometry, exact preparation/context facts,
+/// the pinned provider-private `IDTWRIT1` ABI, and the encoder footprint.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GeneratedIdtWriterLowering {
     operation: omega_target_operations::TargetOperationKind,
@@ -46,14 +46,17 @@ impl GeneratedIdtWriterLowering {
     }
 }
 
-/// Lower only the sealed writer preparation produced by the exact installed
-/// artifact/destination/root gate. Numeric resolved addresses are absent from
-/// the operation; generated code sees provider-private source-slot indices.
-pub fn lower_prepared_idt_writer(
-    prepared: &omega_external_roots::PreparedIdtWriter,
+/// Lower only a sealed writer whose private context was populated by the exact
+/// installed artifact/destination/root gate. Numeric resolved addresses are
+/// absent from the operation; generated code sees the context identity and
+/// provider-private source-slot indices.
+pub fn lower_populated_idt_writer(
+    populated: &omega_external_roots::PopulatedIdtWriter,
     architecture: omega_target::Architecture,
 ) -> Result<GeneratedIdtWriterLowering, omega_external_roots::ExternalRootDiagnostic> {
-    lower_prepared_idt_writer_facts(
+    let prepared = populated.prepared();
+    lower_populated_idt_writer_facts(
+        populated.identity(),
         prepared.identity(),
         prepared.installed_code(),
         prepared.artifact(),
@@ -64,6 +67,7 @@ pub fn lower_prepared_idt_writer(
         prepared.root_binding_fingerprint(),
         prepared.byte_len(),
         prepared.little_endian(),
+        populated.context_fingerprint(),
         prepared.source_slot_count(),
         prepared
             .lowering_steps()
@@ -82,7 +86,8 @@ pub fn lower_prepared_idt_writer(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn lower_prepared_idt_writer_facts(
+fn lower_populated_idt_writer_facts(
+    context: omega_external_roots::IdtWriterContextId,
     preparation: omega_external_roots::IdtWriterPreparationId,
     installed_code: omega_external_roots::InstalledCodeId,
     artifact: omega_external_roots::ArtifactId,
@@ -93,6 +98,7 @@ fn lower_prepared_idt_writer_facts(
     root_binding_fingerprint: u64,
     byte_len: usize,
     little_endian: bool,
+    context_fingerprint: u64,
     source_slot_count: usize,
     steps: Vec<omega_target_operations::GeneratedIdtWriterStep>,
     architecture: omega_target::Architecture,
@@ -106,6 +112,7 @@ fn lower_prepared_idt_writer_facts(
     };
     Ok(GeneratedIdtWriterLowering {
         operation: omega_target_operations::TargetOperationKind::GeneratedIdtWriter {
+            context,
             preparation,
             installed_code,
             artifact,
@@ -117,6 +124,7 @@ fn lower_prepared_idt_writer_facts(
             byte_len,
             little_endian,
             context_abi: omega_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
+            context_fingerprint,
             source_slot_count,
             steps: steps.into(),
         },
@@ -684,7 +692,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn prepared_writer_facts_lower_without_numeric_addresses() {
+    fn populated_writer_facts_lower_without_numeric_addresses() {
+        let context = omega_external_roots::IdtWriterContextId::from_normalized_identity(9)
+            .expect("writer context identity");
         let preparation =
             omega_external_roots::IdtWriterPreparationId::from_normalized_identity(10)
                 .expect("writer preparation identity");
@@ -702,7 +712,8 @@ mod tests {
             width: 16,
             source_slot: 0,
         }];
-        let lowering = lower_prepared_idt_writer_facts(
+        let lowering = lower_populated_idt_writer_facts(
+            context,
             preparation,
             installed_code,
             artifact,
@@ -713,6 +724,7 @@ mod tests {
             0x4444,
             4096,
             true,
+            0x5555,
             1,
             steps.clone(),
             omega_target::Architecture::X86_64,
@@ -721,6 +733,7 @@ mod tests {
         assert_eq!(
             lowering.operation(),
             &omega_target_operations::TargetOperationKind::GeneratedIdtWriter {
+                context,
                 preparation,
                 installed_code,
                 artifact,
@@ -732,6 +745,7 @@ mod tests {
                 byte_len: 4096,
                 little_endian: true,
                 context_abi: omega_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
+                context_fingerprint: 0x5555,
                 source_slot_count: 1,
                 steps: steps.into(),
             }
@@ -746,7 +760,8 @@ mod tests {
             ]
         );
         assert!(
-            lower_prepared_idt_writer_facts(
+            lower_populated_idt_writer_facts(
+                context,
                 preparation,
                 installed_code,
                 artifact,
@@ -757,6 +772,7 @@ mod tests {
                 0x4444,
                 4096,
                 true,
+                0x5555,
                 1,
                 vec![omega_target_operations::GeneratedIdtWriterStep {
                     container_byte_offset: 8,

@@ -55,9 +55,11 @@ fn generated_idt_load_retains_prepared_facts_in_machine_lowering() {
 }
 
 #[test]
-fn generated_idt_writer_retains_address_free_preparation_in_machine_lowering() {
+fn generated_idt_writer_retains_populated_context_in_machine_lowering() {
     let mut assigned_operations = AssignedTargetOperationPlan::default();
     let source_kind = SelectedInstructionKind::GeneratedIdtWriter {
+        context: omega_external_roots::IdtWriterContextId::from_normalized_identity(9)
+            .expect("writer context identity"),
         preparation: omega_external_roots::IdtWriterPreparationId::from_normalized_identity(1)
             .expect("writer preparation identity"),
         installed_code: omega_external_roots::InstalledCodeId::from_normalized_identity(2)
@@ -73,6 +75,7 @@ fn generated_idt_writer_retains_address_free_preparation_in_machine_lowering() {
         byte_len: 4096,
         little_endian: true,
         context_abi: omega_assigned_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
+        context_fingerprint: 10,
         source_slot_count: 1,
         steps: vec![omega_assigned_target_operations::GeneratedIdtWriterStep {
             container_byte_offset: 8,

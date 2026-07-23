@@ -749,6 +749,57 @@ pub struct InstalledCode {
     wx: WxEnforcement,
 }
 
+/// Opaque provider-private words for one checked post-handoff entry writer.
+/// Word zero is the exact destination base and the remaining words are the
+/// dense, first-occurrence-ordered source slots. The numeric words have no
+/// public accessor and this carrier is deliberately non-clonable.
+#[derive(PartialEq, Eq)]
+pub struct ResolvedPostHandoffEntryWriterContext {
+    installed_code: InstalledCodeId,
+    artifact: ArtifactId,
+    destination_site: PlacementSite,
+    destination_len: usize,
+    writer: PostHandoffWriterPlan,
+    sources: Vec<PostHandoffWriterSource>,
+    packed_words: Vec<u64>,
+    fingerprint: u64,
+}
+
+impl std::fmt::Debug for ResolvedPostHandoffEntryWriterContext {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ResolvedPostHandoffEntryWriterContext")
+            .field("installed_code", &self.installed_code)
+            .field("artifact", &self.artifact)
+            .field("destination_len", &self.destination_len)
+            .field("source_slot_count", &self.sources.len())
+            .field("fingerprint", &format_args!("{:016x}", self.fingerprint))
+            .finish()
+    }
+}
+
+impl ResolvedPostHandoffEntryWriterContext {
+    pub const fn installed_code(&self) -> InstalledCodeId {
+        self.installed_code
+    }
+
+    pub const fn artifact(&self) -> ArtifactId {
+        self.artifact
+    }
+
+    pub const fn source_slot_count(&self) -> usize {
+        self.sources.len()
+    }
+
+    pub const fn packed_byte_len(&self) -> usize {
+        self.packed_words.len() * std::mem::size_of::<u64>()
+    }
+
+    pub const fn fingerprint(&self) -> u64 {
+        self.fingerprint
+    }
+}
+
 impl InstalledCode {
     pub const fn identity(&self) -> InstalledCodeId {
         self.identity
@@ -795,7 +846,7 @@ impl InstalledCode {
         for step in &plan.steps {
             match step.source {
                 PostHandoffWriterSource::Resolve(target) => {
-                    if self.resolve_entry_target(target).is_none() {
+                    if !self.contains_entry_target(target) {
                         return Err(MaterializationDiagnostic(format!(
                             "post-handoff writer target {target:?} is not an admitted entry in the exact installed artifact"
                         )));
@@ -822,6 +873,91 @@ impl InstalledCode {
         Ok(())
     }
 
+    /// Resolve every distinct source exactly once into an opaque packed
+    /// provider context. No numeric code or destination address is returned to
+    /// the caller; only the sealed carrier may be passed to checked execution.
+    pub fn populate_post_handoff_entry_writer_context(
+        &self,
+        plan: &PostHandoffWriterPlan,
+        destination_len: usize,
+        destination_site: PlacementSite,
+    ) -> Result<ResolvedPostHandoffEntryWriterContext, MaterializationDiagnostic> {
+        self.validate_post_handoff_entry_writer(plan, destination_len, destination_site)?;
+
+        let mut sources = Vec::new();
+        for step in &plan.steps {
+            if !sources.contains(&step.source) {
+                sources.push(step.source);
+            }
+        }
+        let mut packed_words = Vec::with_capacity(sources.len() + 1);
+        packed_words.push(destination_site.base_address);
+        for source in &sources {
+            packed_words.push(match source {
+                PostHandoffWriterSource::Resolved(value) => *value,
+                PostHandoffWriterSource::Resolve(target) => {
+                    self.resolve_entry_target(*target).ok_or_else(|| {
+                        MaterializationDiagnostic(format!(
+                            "post-handoff writer could not populate symbolic target {target:?}"
+                        ))
+                    })?
+                }
+            });
+        }
+        let fingerprint = fingerprint_post_handoff_entry_writer_context(
+            self.identity,
+            self.artifact(),
+            destination_site,
+            destination_len,
+            &sources,
+            &packed_words,
+        );
+        Ok(ResolvedPostHandoffEntryWriterContext {
+            installed_code: self.identity,
+            artifact: self.artifact(),
+            destination_site,
+            destination_len,
+            writer: plan.clone(),
+            sources,
+            packed_words,
+            fingerprint,
+        })
+    }
+
+    /// Execute with the exact once-resolved values sealed into `context`.
+    /// Context/plan/site drift rejects before destination mutation.
+    pub fn execute_populated_post_handoff_entry_writer(
+        &self,
+        context: &ResolvedPostHandoffEntryWriterContext,
+        plan: &PostHandoffWriterPlan,
+        destination: &mut [u8],
+        destination_site: PlacementSite,
+    ) -> Result<(), MaterializationDiagnostic> {
+        if context.installed_code != self.identity
+            || context.artifact != self.artifact()
+            || context.destination_site != destination_site
+            || context.destination_len != destination.len()
+            || context.writer != *plan
+            || context.packed_words.first().copied() != Some(destination_site.base_address)
+            || context.packed_words.len() != context.sources.len() + 1
+        {
+            return Err(MaterializationDiagnostic(
+                "populated post-handoff writer context does not bind the exact installed code, plan, destination, and packed geometry"
+                    .into(),
+            ));
+        }
+        self.validate_post_handoff_entry_writer(plan, destination.len(), destination_site)?;
+        plan.execute(destination, destination_site, |target| {
+            context
+                .sources
+                .iter()
+                .zip(&context.packed_words[1..])
+                .find_map(|(source, value)| {
+                    (*source == PostHandoffWriterSource::Resolve(target)).then_some(*value)
+                })
+        })
+    }
+
     /// Executes an atomic post-handoff writer using this installed code as the
     /// resolver authority for entry targets. Data symbols and entries from any
     /// other artifact fail before the destination is published.
@@ -846,6 +982,55 @@ impl InstalledCode {
                 .and_then(|entry| self.placement.extent.base().checked_add(entry.code_offset)),
             RelocationTarget::Data(_) => None,
         }
+    }
+
+    fn contains_entry_target(&self, target: RelocationTarget) -> bool {
+        match target {
+            RelocationTarget::Entry(identity) => self.artifact.artifact.entry(identity).is_some(),
+            RelocationTarget::Data(_) => false,
+        }
+    }
+}
+
+fn fingerprint_post_handoff_entry_writer_context(
+    installed_code: InstalledCodeId,
+    artifact: ArtifactId,
+    destination_site: PlacementSite,
+    destination_len: usize,
+    sources: &[PostHandoffWriterSource],
+    packed_words: &[u64],
+) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    let mut mix = |value: u64| {
+        hash ^= value;
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    };
+    mix(installed_code.normalized_identity());
+    mix(artifact.normalized_identity());
+    mix(destination_site.base_address);
+    mix(destination_len as u64);
+    mix(sources.len() as u64);
+    for source in sources {
+        match source {
+            PostHandoffWriterSource::Resolved(_) => mix(1),
+            PostHandoffWriterSource::Resolve(RelocationTarget::Entry(entry)) => {
+                mix(2);
+                mix(entry.normalized_identity());
+            }
+            PostHandoffWriterSource::Resolve(RelocationTarget::Data(data)) => {
+                mix(3);
+                mix(data.normalized_identity());
+            }
+        }
+    }
+    mix(packed_words.len() as u64);
+    for word in packed_words {
+        mix(*word);
+    }
+    if hash == 0 {
+        0xcbf2_9ce4_8422_2325
+    } else {
+        hash
     }
 }
 
@@ -1355,6 +1540,53 @@ mod tests {
             .execute_post_handoff_entry_writer(&writer(target), &mut destination, destination_site)
             .expect("installed entry writer");
         assert_eq!(u64::from_le_bytes(destination), 0x8010);
+
+        let mut checked_writer = writer(target);
+        let mut low_half = checked_writer.steps[0].clone();
+        low_half.write.width = 32;
+        let mut high_half = low_half.clone();
+        high_half.write.destination_lsb = 32;
+        high_half.write.source_lsb = 32;
+        checked_writer.steps = vec![low_half, high_half];
+        let context = installed
+            .populate_post_handoff_entry_writer_context(
+                &checked_writer,
+                destination.len(),
+                destination_site,
+            )
+            .expect("installed resolver populates opaque writer context");
+        assert_eq!(context.installed_code(), installed.identity());
+        assert_eq!(context.artifact(), installed.artifact());
+        assert_eq!(context.source_slot_count(), 1);
+        assert_eq!(context.packed_byte_len(), 16);
+        assert_ne!(context.fingerprint(), 0);
+        let context_debug = format!("{context:?}");
+        assert!(!context_debug.contains("packed_words"));
+        assert!(!context_debug.contains("destination_site"));
+        let mut populated_destination = [0u8; 8];
+        installed
+            .execute_populated_post_handoff_entry_writer(
+                &context,
+                &checked_writer,
+                &mut populated_destination,
+                destination_site,
+            )
+            .expect("populated context executes without public address resolution");
+        assert_eq!(u64::from_le_bytes(populated_destination), 0x8010);
+        let mut unchanged_context_destination = [0xa5; 8];
+        let error = installed
+            .execute_populated_post_handoff_entry_writer(
+                &context,
+                &checked_writer,
+                &mut unchanged_context_destination,
+                PlacementSite {
+                    base_address: destination_site.base_address + 8,
+                    ..destination_site
+                },
+            )
+            .expect_err("destination-site drift must reject the populated context");
+        assert!(error.0.contains("exact installed code, plan, destination"));
+        assert_eq!(unchanged_context_destination, [0xa5; 8]);
 
         let foreign = RelocationTarget::Entry(entry_id(1002));
         let mut unchanged = [0xa5u8; 8];
