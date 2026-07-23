@@ -11,7 +11,7 @@ pub(crate) struct ValidatedTypedProgram<'program> {
 pub(crate) fn validate_typed_program(
     program: &TypedTrees,
 ) -> Result<ValidatedTypedProgram<'_>, Vec<Diagnostic>> {
-    omega_validation::validate_program(program)?;
+    omega_validation::validate_program_after_generic_contract_entailment(program)?;
 
     let proof_plan = omega_proof::obligations::build_proof_plan(program);
     omega_proof::checker::check_proof_plan(&proof_plan)?;

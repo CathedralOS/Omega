@@ -29,6 +29,7 @@ pub fn specialize_static_machine_calls(
     program: &mut omega_typed_trees::TypedTrees,
 ) -> Result<(), Vec<omega_core::diagnostics::Diagnostic>> {
     omega_validation::validate_static_machine_selections(program)?;
+    omega_validation::validate_generic_machine_contract_entailment(program)?;
     monomorphization::monomorphize_generic_machine_value_calls(program)
 }
 
