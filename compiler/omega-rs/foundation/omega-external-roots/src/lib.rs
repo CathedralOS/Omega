@@ -1376,4 +1376,102 @@ mod tests {
             .expect_err("cyclic work graph");
         assert!(error.0.contains("cycle"));
     }
+
+    #[test]
+    fn cathedral_first_timer_profile_is_five_fixed_one_shot_nodes() {
+        // Cathedral's first hard timer root does exactly four provider-facing
+        // operations before its deriver-owned return: acknowledge the source,
+        // capture the clock, set one preallocated coalescing wake state, and
+        // return. Every edge is one-shot; application timer draining remains
+        // outside this hard-root graph.
+        let root_identity = root_id(100, ProviderWorkSummaryId::from_normalized_identity);
+        let acknowledge_identity = root_id(101, ProviderWorkSummaryId::from_normalized_identity);
+        let clock_identity = root_id(102, ProviderWorkSummaryId::from_normalized_identity);
+        let wake_identity = root_id(103, ProviderWorkSummaryId::from_normalized_identity);
+        let return_identity = root_id(104, ProviderWorkSummaryId::from_normalized_identity);
+
+        let leaf = |identity, provider_identity, receipt_identity| FixedWorkProviderSummary {
+            identity,
+            provider: root_id(provider_identity, RootProviderId::from_normalized_identity),
+            local_units: 1,
+            calls: BTreeSet::new(),
+            validation_receipt: root_id(
+                receipt_identity,
+                ProviderWorkValidationReceiptId::from_normalized_identity,
+            ),
+        };
+        let acknowledge = leaf(acknowledge_identity, 201, 301);
+        let clock = leaf(clock_identity, 202, 302);
+        let wake = leaf(wake_identity, 203, 303);
+        let return_path = leaf(return_identity, 204, 304);
+        let timer = FixedWorkProviderSummary {
+            identity: root_identity,
+            provider: root_id(200, RootProviderId::from_normalized_identity),
+            local_units: 1,
+            calls: BTreeSet::from([
+                FixedWorkCall {
+                    callee: acknowledge_identity,
+                    maximum_invocations: 1,
+                },
+                FixedWorkCall {
+                    callee: clock_identity,
+                    maximum_invocations: 1,
+                },
+                FixedWorkCall {
+                    callee: wake_identity,
+                    maximum_invocations: 1,
+                },
+                FixedWorkCall {
+                    callee: return_identity,
+                    maximum_invocations: 1,
+                },
+            ]),
+            validation_receipt: root_id(
+                300,
+                ProviderWorkValidationReceiptId::from_normalized_identity,
+            ),
+        };
+
+        let forward = compose_fixed_work(
+            root_identity,
+            [&timer, &acknowledge, &clock, &wake, &return_path],
+        )
+        .expect("the first Cathedral timer profile is finite fixed work");
+        let reverse = compose_fixed_work(
+            root_identity,
+            [&return_path, &wake, &clock, &acknowledge, &timer],
+        )
+        .expect("presentation order cannot change the timer profile");
+        assert_eq!(forward, reverse);
+        assert_eq!(forward.units(), 5);
+        assert_eq!(
+            forward.summaries(),
+            &BTreeSet::from([
+                root_identity,
+                acknowledge_identity,
+                clock_identity,
+                wake_identity,
+                return_identity,
+            ])
+        );
+        assert_eq!(forward.provider_receipts().len(), 5);
+
+        let recursive_acknowledge = FixedWorkProviderSummary {
+            calls: BTreeSet::from([FixedWorkCall {
+                callee: root_identity,
+                maximum_invocations: 1,
+            }]),
+            ..acknowledge.clone()
+        };
+        let error = compose_fixed_work(
+            root_identity,
+            [&timer, &recursive_acknowledge, &clock, &wake, &return_path],
+        )
+        .expect_err("a recursive acknowledgement provider cannot hide behind the timer root");
+        assert!(error.0.contains("cycle"));
+
+        let error = compose_fixed_work(root_identity, [&timer, &acknowledge, &clock, &return_path])
+            .expect_err("a timer provider cannot omit its wake summary");
+        assert!(error.0.contains("missing"));
+    }
 }

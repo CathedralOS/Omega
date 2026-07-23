@@ -771,8 +771,11 @@ and canonical fixed-work provider summaries compose transitively while
 rejecting missing callees, cycles, zero invocation bounds, overflow, and excess
 demand. The report is deliberately not a numbered compiler phase because roots
 may be installed after image build. Provider execution, artifact-wide WCSU
-composition, the concrete timer leaf profile, and the actual `lidt` consumer
-remain.
+composition, the concrete provider bindings behind the timer leaf profile, and
+the actual `lidt` consumer remain. The provider-neutral acceptance canary
+already instantiates the timer as one root plus fixed one-shot acknowledgement,
+clock-capture, coalescing-wake, and return leaves; missing leaves and recursive
+laundering fail closed.
 
 ### Installed-root resource contract
 
@@ -1021,9 +1024,11 @@ settled concrete interrupt policy's implementation remain. Remaining order:
    contract identity are complete.
 6. Connect the live placement constraints to admitted-artifact validation and
    scoped executable installation.
-7. Instantiate the first timer's acyclic fixed-work acknowledgement,
-   clock-capture, wake, and return leaf summaries in the implemented
-   structural-work composition model.
+7. The first timer's acyclic fixed-work acknowledgement, clock-capture,
+   coalescing-wake, and return summaries are instantiated in the implemented
+   structural-work composition model. The acceptance canary pins five
+   normalized nodes, one-shot edges, order-independent composition, and
+   missing/recursive-provider rejection.
 8. Connect the ledger to provider execution and WCSU composition. Materialize
    the complete exception IDT, provision the dedicated fault and shared
    maskable-IRQ IST stack classes, connect checked `lidt`, and validate the
