@@ -1822,8 +1822,11 @@ fn operational_plans_are_independent_from_service_reach_rows() {
         run_plan.blocking.interface,
         BlockingInterface::InternalInferred
     );
-    assert!(run_plan.suspension.checked_may_suspend);
-    assert!(run_plan.blocking.checked_may_block);
+    // Local calls to checked bodies consume the honest checked summary, not
+    // the callee's authored ceiling. `wait` is quiet, so the private caller
+    // remains quiet even though `wait` publishes room to suspend and block.
+    assert!(!run_plan.suspension.checked_may_suspend);
+    assert!(!run_plan.blocking.checked_may_block);
 
     let run_rows = checked
         .facts

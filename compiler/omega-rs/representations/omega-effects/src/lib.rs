@@ -39,8 +39,6 @@ pub const STANDARD_EFFECT_NAMES: &[&str] = &[
     "clock_read",
     "random_read",
     "thread_spawn",
-    "thread_block",
-    "sync_wait",
     "sync_wake",
     "device_io",
     "memory_map",
@@ -58,12 +56,6 @@ pub const STANDARD_EFFECT_NAMES: &[&str] = &[
     // drivers); machine_control is ring-0-only and never grant-mediated
     // (privileged_effects_and_binary_trust brief, LOCKED point 1).
     "machine_control",
-    // Core operational possibilities (decision 22). These remain distinct
-    // from the legacy host-oriented `thread_block` / `sync_wait` entries:
-    // `Suspend` means the activation may park, while `Block` means it may
-    // occupy its worker while waiting.
-    "Suspend",
-    "Block",
 ];
 
 pub fn is_standard_effect_name(name: &str) -> bool {
@@ -83,24 +75,23 @@ pub fn effect_name(index: u8) -> Option<&'static str> {
 
 #[cfg(test)]
 mod catalog_consistency {
-    use super::STANDARD_EFFECT_NAMES;
+    use super::{EffectSet, STANDARD_EFFECT_NAMES};
 
-    /// STR4 (decision 22): the CANONICAL kinded catalog in omega-core and
-    /// this legacy bit table must stay name-for-name consistent -- row
-    /// identity never reads the legacy bits, but the two vocabularies must
-    /// describe the same members.
+    /// EFX: the legacy bit table is now a service-only compatibility cache.
+    /// Every entry must be a canonical service member; operational catalog
+    /// members must be absent because their fixed points are independent.
     #[test]
-    fn legacy_bit_table_matches_the_canonical_catalog() {
-        let catalog = omega_core::semantics::EFFECT_MEMBER_CATALOG;
-        assert_eq!(catalog.len(), STANDARD_EFFECT_NAMES.len());
-        for (position, name) in STANDARD_EFFECT_NAMES.iter().enumerate() {
-            assert_eq!(catalog[position].0, *name, "catalog order drifted");
+    fn legacy_bit_table_contains_only_canonical_services() {
+        for name in STANDARD_EFFECT_NAMES {
             assert_eq!(
-                omega_core::semantics::effect_member_id(name),
-                Some(omega_core::semantics::EffectMemberId(
-                    u32::try_from(position + 1).expect("fits")
-                ))
+                omega_core::semantics::effect_member_kind(name),
+                Some(omega_core::semantics::EffectMemberKind::ServiceReach),
+                "{name} is not a service-reach member"
             );
+            assert!(omega_core::semantics::effect_member_id(name).is_some());
+        }
+        for retired in ["Suspend", "Block", "thread_block", "sync_wait"] {
+            assert!(EffectSet::from_name(retired).is_none());
         }
     }
 }
@@ -329,6 +320,17 @@ pub struct MachineEffects {
     /// contribute through the call's direct set, which carries the CALLEE's
     /// declaration -- only the machine's OWN clause is excluded).
     pub body_transitive: EffectSet,
+    /// Authored operational ceilings. For a checked body these are admission
+    /// ceilings only; for a requirement/boundary they are the pinned summary.
+    pub published_may_suspend: bool,
+    pub published_may_block: bool,
+    /// Effective summary used by callers: inferred for checked bodies, pinned
+    /// for requirements/boundaries.
+    pub transitive_may_suspend: bool,
+    pub transitive_may_block: bool,
+    /// Declaration-free body fixed points used to validate published ceilings.
+    pub body_may_suspend: bool,
+    pub body_may_block: bool,
     pub states: HandleSpan<StateEffects>,
 }
 
@@ -340,6 +342,12 @@ impl Default for MachineEffects {
             transitive: EffectSet::empty(),
             body_observed: EffectSet::empty(),
             body_transitive: EffectSet::empty(),
+            published_may_suspend: false,
+            published_may_block: false,
+            transitive_may_suspend: false,
+            transitive_may_block: false,
+            body_may_suspend: false,
+            body_may_block: false,
             states: HandleSpan::empty(),
         }
     }
@@ -350,6 +358,10 @@ pub struct StateEffects {
     pub symbol: SymbolHandle,
     pub direct: EffectSet,
     pub transitive: EffectSet,
+    pub direct_may_suspend: bool,
+    pub direct_may_block: bool,
+    pub transitive_may_suspend: bool,
+    pub transitive_may_block: bool,
     pub calls: HandleSpan<CallEffects>,
 }
 
@@ -359,6 +371,10 @@ impl Default for StateEffects {
             symbol: SymbolHandle::invalid(),
             direct: EffectSet::empty(),
             transitive: EffectSet::empty(),
+            direct_may_suspend: false,
+            direct_may_block: false,
+            transitive_may_suspend: false,
+            transitive_may_block: false,
             calls: HandleSpan::empty(),
         }
     }
@@ -372,6 +388,10 @@ pub struct CallEffects {
     pub target_machine_symbol: SymbolHandle,
     pub direct: EffectSet,
     pub transitive: EffectSet,
+    pub direct_may_suspend: bool,
+    pub direct_may_block: bool,
+    pub transitive_may_suspend: bool,
+    pub transitive_may_block: bool,
 }
 
 impl Default for CallEffects {
@@ -383,6 +403,10 @@ impl Default for CallEffects {
             target_machine_symbol: SymbolHandle::invalid(),
             direct: EffectSet::empty(),
             transitive: EffectSet::empty(),
+            direct_may_suspend: false,
+            direct_may_block: false,
+            transitive_may_suspend: false,
+            transitive_may_block: false,
         }
     }
 }
@@ -393,6 +417,13 @@ struct MachineWork {
     direct: EffectSet,
     transitive: EffectSet,
     body_transitive: EffectSet,
+    uses_published_operational_contract: bool,
+    published_may_suspend: bool,
+    published_may_block: bool,
+    transitive_may_suspend: bool,
+    transitive_may_block: bool,
+    body_may_suspend: bool,
+    body_may_block: bool,
     states: Vec<StateWork>,
 }
 
@@ -401,6 +432,10 @@ struct StateWork {
     symbol: SymbolHandle,
     direct: EffectSet,
     transitive: EffectSet,
+    direct_may_suspend: bool,
+    direct_may_block: bool,
+    transitive_may_suspend: bool,
+    transitive_may_block: bool,
     calls: Vec<CallWork>,
 }
 
@@ -412,6 +447,17 @@ struct CallWork {
     target_machine_symbol: SymbolHandle,
     direct: EffectSet,
     transitive: EffectSet,
+    direct_may_suspend: bool,
+    direct_may_block: bool,
+    transitive_may_suspend: bool,
+    transitive_may_block: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct DirectCallContract {
+    services: EffectSet,
+    may_suspend: bool,
+    may_block: bool,
 }
 
 pub fn infer_effects(program: &TypedTrees) -> EffectPlan {
@@ -425,6 +471,8 @@ fn build_machine_work(program: &TypedTrees) -> Vec<MachineWork> {
 
     for machine in program.machines() {
         let direct = declared_machine_effects(program, machine);
+        let uses_published_operational_contract =
+            machine.supply_mode != omega_core::semantics::MachineSupplyMode::CheckedBody;
         let mut states = Vec::with_capacity(program.machine_states(machine).len());
 
         for state in program.machine_states(machine) {
@@ -432,6 +480,10 @@ fn build_machine_work(program: &TypedTrees) -> Vec<MachineWork> {
                 symbol: state.symbol,
                 direct: EffectSet::empty(),
                 transitive: EffectSet::empty(),
+                direct_may_suspend: false,
+                direct_may_block: false,
+                transitive_may_suspend: false,
+                transitive_may_block: false,
                 calls: collect_state_calls(program, state),
             });
         }
@@ -441,6 +493,13 @@ fn build_machine_work(program: &TypedTrees) -> Vec<MachineWork> {
             direct,
             transitive: direct,
             body_transitive: EffectSet::empty(),
+            uses_published_operational_contract,
+            published_may_suspend: machine.suspends,
+            published_may_block: machine.blocks,
+            transitive_may_suspend: uses_published_operational_contract && machine.suspends,
+            transitive_may_block: uses_published_operational_contract && machine.blocks,
+            body_may_suspend: false,
+            body_may_block: false,
             states,
         });
     }
@@ -452,15 +511,6 @@ fn declared_machine_effects(program: &TypedTrees, machine: &Machine) -> EffectSe
     let mut effects = EffectSet::empty();
     for effect in program.machine_effects(machine) {
         effects.insert_name(effect.as_str());
-    }
-    // EFX migration bridge: legacy flow/carry consumers still use EffectSet
-    // fixed points. Feed the independent authored axes into that internal
-    // engine without putting their retired names back in the source row.
-    if machine.suspends {
-        effects.insert_name("Suspend");
-    }
-    if machine.blocks {
-        effects.insert_name("Block");
     }
     effects
 }
@@ -553,15 +603,24 @@ fn push_statement_call(
 ) {
     let target_state_symbol = call.target_symbol;
     let target_machine_symbol = machine_symbol_for_state(program, target_state_symbol);
-    let direct = asm_intrinsic_effects(call.target.as_str())
-        .unwrap_or_else(|| direct_effects_for_signature_symbol(program, target_state_symbol));
+    let direct = asm_intrinsic_effects(call.target.as_str()).map_or_else(
+        || direct_contract_for_signature_symbol(program, target_state_symbol),
+        |services| DirectCallContract {
+            services,
+            ..Default::default()
+        },
+    );
     calls.push(CallWork {
         statement_index,
         call_ordinal: *call_ordinal,
         target_state_symbol,
         target_machine_symbol,
-        direct,
+        direct: direct.services,
         transitive: EffectSet::empty(),
+        direct_may_suspend: direct.may_suspend,
+        direct_may_block: direct.may_block,
+        transitive_may_suspend: false,
+        transitive_may_block: false,
     });
     *call_ordinal = call_ordinal.checked_add(1).expect("call ordinal overflow");
 
@@ -664,15 +723,24 @@ fn push_expression_call(
 ) {
     let target_state_symbol = call.target_symbol;
     let target_machine_symbol = machine_symbol_for_state(program, target_state_symbol);
-    let direct = asm_intrinsic_effects(call.target.as_str())
-        .unwrap_or_else(|| direct_effects_for_signature_symbol(program, target_state_symbol));
+    let direct = asm_intrinsic_effects(call.target.as_str()).map_or_else(
+        || direct_contract_for_signature_symbol(program, target_state_symbol),
+        |services| DirectCallContract {
+            services,
+            ..Default::default()
+        },
+    );
     calls.push(CallWork {
         statement_index,
         call_ordinal: *call_ordinal,
         target_state_symbol,
         target_machine_symbol,
-        direct,
+        direct: direct.services,
         transitive: EffectSet::empty(),
+        direct_may_suspend: direct.may_suspend,
+        direct_may_block: direct.may_block,
+        transitive_may_suspend: false,
+        transitive_may_block: false,
     });
     *call_ordinal = call_ordinal.checked_add(1).expect("call ordinal overflow");
 }
@@ -709,59 +777,69 @@ fn machine_symbol_for_state(program: &TypedTrees, state_symbol: SymbolHandle) ->
     SymbolHandle::invalid()
 }
 
-fn direct_effects_for_signature_symbol(program: &TypedTrees, symbol: SymbolHandle) -> EffectSet {
+fn direct_contract_for_signature_symbol(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+) -> DirectCallContract {
     if !symbol.is_valid() {
-        return EffectSet::empty();
+        return DirectCallContract::default();
     }
 
     if let Some((_, signature)) = program.machine_parameter_signature(symbol) {
         // A machine-parameter requirement's authored row is its complete
         // modular ceiling. The concrete callee does not exist in this body;
         // MP2b separately proves every eventual selection stays within it.
-        return signature_effects(program, signature);
+        return signature_contract(program, signature);
     }
 
     for trait_definition in program.traits() {
         for signature in program.trait_machine_signatures(trait_definition) {
             if signature.symbol == symbol {
-                let mut effects = signature_effects(program, signature);
+                let mut contract = signature_contract(program, signature);
                 // A BOUNDARY trait is the foreign surface: its methods reach
                 // the host by construction, so an undeclared-effect boundary
                 // signature carries the implicit `host_boundary` effect. (A
                 // declared row, when signatures grow them, replaces this.)
-                if trait_definition.is_boundary && effects.is_empty() {
-                    effects.insert_name("host_boundary");
+                if trait_definition.is_boundary && contract.services.is_empty() {
+                    contract.services.insert_name("host_boundary");
                 }
-                return effects;
+                return contract;
             }
         }
     }
 
-    EffectSet::empty()
+    DirectCallContract::default()
 }
 
-fn signature_effects(
+fn signature_contract(
     program: &TypedTrees,
     signature: &omega_typed_trees::signature::StateSignature,
-) -> EffectSet {
+) -> DirectCallContract {
     let mut effects = EffectSet::empty();
     for effect in program.state_signature_effects(signature) {
         effects.insert_name(effect.as_str());
     }
-    if signature.suspends {
-        effects.insert_name("Suspend");
+    DirectCallContract {
+        services: effects,
+        may_suspend: signature.suspends,
+        may_block: signature.blocks,
     }
-    if signature.blocks {
-        effects.insert_name("Block");
-    }
-    effects
 }
 
 fn propagate_machine_effects(machines: &mut [MachineWork]) {
     loop {
         let previous = machines
             .iter()
-            .map(|machine| (machine.transitive.bits(), machine.body_transitive.bits()))
+            .map(|machine| {
+                (
+                    machine.transitive.bits(),
+                    machine.body_transitive.bits(),
+                    machine.transitive_may_suspend,
+                    machine.transitive_may_block,
+                    machine.body_may_suspend,
+                    machine.body_may_block,
+                )
+            })
             .collect::<Vec<_>>();
 
         for machine_index in 0..machines.len() {
@@ -772,12 +850,18 @@ fn propagate_machine_effects(machines: &mut [MachineWork]) {
             // body, and the callee may change within it without recompiling
             // the caller -- the modular bound), else its own honest reach.
             let mut body_transitive = EffectSet::empty();
+            let mut body_may_suspend = false;
+            let mut body_may_block = false;
             for state in &machines[machine_index].states {
                 transitive.insert_all(state.direct);
                 body_transitive.insert_all(state.direct);
+                body_may_suspend |= state.direct_may_suspend;
+                body_may_block |= state.direct_may_block;
                 for call in &state.calls {
                     transitive.insert_all(call.direct);
                     body_transitive.insert_all(call.direct);
+                    body_may_suspend |= call.direct_may_suspend;
+                    body_may_block |= call.direct_may_block;
                     if let Some(target_index) = machines
                         .iter()
                         .position(|machine| machine.symbol == call.target_machine_symbol)
@@ -788,16 +872,43 @@ fn propagate_machine_effects(machines: &mut [MachineWork]) {
                         } else {
                             body_transitive.insert_all(machines[target_index].body_transitive);
                         }
+                        if machines[target_index].uses_published_operational_contract {
+                            body_may_suspend |= machines[target_index].published_may_suspend;
+                            body_may_block |= machines[target_index].published_may_block;
+                        } else {
+                            body_may_suspend |= machines[target_index].body_may_suspend;
+                            body_may_block |= machines[target_index].body_may_block;
+                        }
                     }
                 }
             }
             machines[machine_index].transitive = transitive;
             machines[machine_index].body_transitive = body_transitive;
+            machines[machine_index].body_may_suspend = body_may_suspend;
+            machines[machine_index].body_may_block = body_may_block;
+            if machines[machine_index].uses_published_operational_contract {
+                machines[machine_index].transitive_may_suspend =
+                    machines[machine_index].published_may_suspend;
+                machines[machine_index].transitive_may_block =
+                    machines[machine_index].published_may_block;
+            } else {
+                machines[machine_index].transitive_may_suspend = body_may_suspend;
+                machines[machine_index].transitive_may_block = body_may_block;
+            }
         }
 
         if machines
             .iter()
-            .map(|machine| (machine.transitive.bits(), machine.body_transitive.bits()))
+            .map(|machine| {
+                (
+                    machine.transitive.bits(),
+                    machine.body_transitive.bits(),
+                    machine.transitive_may_suspend,
+                    machine.transitive_may_block,
+                    machine.body_may_suspend,
+                    machine.body_may_block,
+                )
+            })
             .eq(previous.into_iter())
         {
             break;
@@ -806,24 +917,40 @@ fn propagate_machine_effects(machines: &mut [MachineWork]) {
 
     let machine_effects = machines
         .iter()
-        .map(|machine| (machine.symbol, machine.transitive))
+        .map(|machine| {
+            (
+                machine.symbol,
+                machine.transitive,
+                machine.transitive_may_suspend,
+                machine.transitive_may_block,
+            )
+        })
         .collect::<Vec<_>>();
 
     for machine in machines {
         for state in &mut machine.states {
             let mut transitive = state.direct;
+            let mut transitive_may_suspend = state.direct_may_suspend;
+            let mut transitive_may_block = state.direct_may_block;
             for call in &mut state.calls {
                 call.transitive = call.direct;
+                call.transitive_may_suspend = call.direct_may_suspend;
+                call.transitive_may_block = call.direct_may_block;
                 if let Some(target_effects) = machine_effects
                     .iter()
-                    .find(|(symbol, _)| *symbol == call.target_machine_symbol)
-                    .map(|(_, effects)| *effects)
+                    .find(|(symbol, _, _, _)| *symbol == call.target_machine_symbol)
                 {
-                    call.transitive.insert_all(target_effects);
+                    call.transitive.insert_all(target_effects.1);
+                    call.transitive_may_suspend |= target_effects.2;
+                    call.transitive_may_block |= target_effects.3;
                 }
                 transitive.insert_all(call.transitive);
+                transitive_may_suspend |= call.transitive_may_suspend;
+                transitive_may_block |= call.transitive_may_block;
             }
             state.transitive = transitive;
+            state.transitive_may_suspend = transitive_may_suspend;
+            state.transitive_may_block = transitive_may_block;
         }
     }
 }
@@ -834,10 +961,16 @@ fn build_effect_plan(machines: Vec<MachineWork>) -> EffectPlan {
     for machine in machines {
         // STR4 slice 3: the body's own observations, declaration-free.
         let mut body_observed = EffectSet::empty();
+        let mut body_observed_may_suspend = false;
+        let mut body_observed_may_block = false;
         for state in &machine.states {
             body_observed.insert_all(state.direct);
+            body_observed_may_suspend |= state.direct_may_suspend;
+            body_observed_may_block |= state.direct_may_block;
             for call in &state.calls {
                 body_observed.insert_all(call.direct);
+                body_observed_may_suspend |= call.direct_may_suspend;
+                body_observed_may_block |= call.direct_may_block;
             }
         }
         let mut states = HandleSpan::empty();
@@ -853,6 +986,10 @@ fn build_effect_plan(machines: Vec<MachineWork>) -> EffectPlan {
                         target_machine_symbol: call.target_machine_symbol,
                         direct: call.direct,
                         transitive: call.transitive,
+                        direct_may_suspend: call.direct_may_suspend,
+                        direct_may_block: call.direct_may_block,
+                        transitive_may_suspend: call.transitive_may_suspend,
+                        transitive_may_block: call.transitive_may_block,
                     },
                 );
             }
@@ -863,6 +1000,10 @@ fn build_effect_plan(machines: Vec<MachineWork>) -> EffectPlan {
                     symbol: state.symbol,
                     direct: state.direct,
                     transitive: state.transitive,
+                    direct_may_suspend: state.direct_may_suspend,
+                    direct_may_block: state.direct_may_block,
+                    transitive_may_suspend: state.transitive_may_suspend,
+                    transitive_may_block: state.transitive_may_block,
                     calls,
                 },
             );
@@ -876,6 +1017,12 @@ fn build_effect_plan(machines: Vec<MachineWork>) -> EffectPlan {
                 transitive: machine.transitive,
                 body_observed,
                 body_transitive: machine.body_transitive,
+                published_may_suspend: machine.published_may_suspend,
+                published_may_block: machine.published_may_block,
+                transitive_may_suspend: machine.transitive_may_suspend,
+                transitive_may_block: machine.transitive_may_block,
+                body_may_suspend: machine.body_may_suspend || body_observed_may_suspend,
+                body_may_block: machine.body_may_block || body_observed_may_block,
                 states,
             },
         );

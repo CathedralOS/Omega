@@ -154,7 +154,7 @@ fn rejects_suspension_while_borrow_carrying_local_remains_live() {
 
     assert!(
         diagnostics.iter().any(|diagnostic| {
-            diagnostic.message.contains("may reach `Suspend`")
+            diagnostic.message.contains("may suspend")
                 && diagnostic.message.contains("`message` remains live")
                 && diagnostic.message.contains("suspension: forbidden")
         }),
@@ -189,13 +189,12 @@ fn accepts_suspension_after_restrictive_locals_last_use() {
 fn checked_crossing_records_canonical_site_and_joined_policy() {
     let checked = lower(
         r#"
-        data Sleeper {}
-        machine Sleeper::park(&mut self) suspends; {}
-        data Main { sleeper: Sleeper; }
+        boundary trait Scheduler { machine park() suspends; }
+        data Main { scheduler: Scheduler; }
         machine Main::keep(&self, value: &i32) {}
         machine Main::run(&mut self) {
             let value: i32 = 7;
-            self.sleeper.park();
+            self.scheduler.park();
             self.keep(&value);
         }
         "#,
@@ -252,7 +251,7 @@ fn rejects_transitive_suspension_reach_with_live_restrictive_value() {
 
     assert!(
         diagnostics.iter().any(|diagnostic| {
-            diagnostic.message.contains("may reach `Suspend`")
+            diagnostic.message.contains("may suspend")
                 && diagnostic.message.contains("`message` remains live")
         }),
         "expected transitive carry diagnostic, got {diagnostics:#?}"
@@ -265,14 +264,13 @@ fn rejects_suspension_while_restrictive_self_field_remains_live() {
         r#"
         data Cell { value: i32; }
         data Message { body: &Cell; }
-        data Sleeper { }
-        machine Sleeper::park(&mut self) suspends; { }
-        data Main { sleeper: Sleeper; cell: Cell; message: Message; }
+        boundary trait Scheduler { machine park() suspends; }
+        data Main { scheduler: Scheduler; cell: Cell; message: Message; }
         machine Main::read(&mut self, cell: &Cell) -> i32 {
             transition { _ -> cell.value }
         }
         machine Main::run(&mut self) {
-            self.sleeper.park();
+            self.scheduler.park();
             let value: i32 = self.read(self.message.body);
         }
         "#,
@@ -281,7 +279,7 @@ fn rejects_suspension_while_restrictive_self_field_remains_live() {
 
     assert!(
         diagnostics.iter().any(|diagnostic| {
-            diagnostic.message.contains("may reach `Suspend`")
+            diagnostic.message.contains("may suspend")
                 && diagnostic.message.contains("`self.message` remains live")
         }),
         "expected self-field carry diagnostic, got {diagnostics:#?}"
@@ -294,15 +292,14 @@ fn accepts_suspension_after_restrictive_self_field_last_use() {
         r#"
         data Cell { value: i32; }
         data Message { body: &Cell; }
-        data Sleeper { }
-        machine Sleeper::park(&mut self) suspends; { }
-        data Main { sleeper: Sleeper; cell: Cell; message: Message; }
+        boundary trait Scheduler { machine park() suspends; }
+        data Main { scheduler: Scheduler; cell: Cell; message: Message; }
         machine Main::read(&mut self, cell: &Cell) -> i32 {
             transition { _ -> cell.value }
         }
         machine Main::run(&mut self) {
             let value: i32 = self.read(self.message.body);
-            self.sleeper.park();
+            self.scheduler.park();
         }
         "#,
     )
@@ -315,14 +312,13 @@ fn rejects_suspension_when_self_field_is_used_in_reachable_state() {
         r#"
         data Cell { value: i32; }
         data Message { body: &Cell; }
-        data Sleeper { }
-        machine Sleeper::park(&mut self) suspends; { }
-        data Main { sleeper: Sleeper; cell: Cell; message: Message; }
+        boundary trait Scheduler { machine park() suspends; }
+        data Main { scheduler: Scheduler; cell: Cell; message: Message; }
         machine Main::read(&mut self, cell: &Cell) -> i32 {
             transition { _ -> cell.value }
         }
         machine Main::run(&mut self) {
-            self.sleeper.park();
+            self.scheduler.park();
             transition { _ -> resumed() }
             state resumed(&mut self) {
                 let value: i32 = self.read(self.message.body);
@@ -334,7 +330,7 @@ fn rejects_suspension_when_self_field_is_used_in_reachable_state() {
 
     assert!(
         diagnostics.iter().any(|diagnostic| {
-            diagnostic.message.contains("may reach `Suspend`")
+            diagnostic.message.contains("may suspend")
                 && diagnostic.message.contains("`self.message` remains live")
         }),
         "expected cross-state self-field carry diagnostic, got {diagnostics:#?}"
@@ -361,7 +357,7 @@ fn rejects_restrictive_argument_carried_by_suspending_call() {
 
     assert!(
         diagnostics.iter().any(|diagnostic| {
-            diagnostic.message.contains("may reach `Suspend`")
+            diagnostic.message.contains("may suspend")
                 && diagnostic.message.contains("`message` remains live")
                 && diagnostic.message.contains("suspension: forbidden")
         }),
@@ -392,7 +388,7 @@ fn rejects_restrictive_use_after_nested_suspending_call_in_same_statement() {
 
     assert!(
         diagnostics.iter().any(|diagnostic| {
-            diagnostic.message.contains("may reach `Suspend`")
+            diagnostic.message.contains("may suspend")
                 && diagnostic.message.contains("`message` remains live")
         }),
         "expected intra-statement carry diagnostic, got {diagnostics:#?}"

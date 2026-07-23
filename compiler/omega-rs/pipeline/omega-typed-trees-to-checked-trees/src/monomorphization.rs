@@ -2004,6 +2004,8 @@ fn template_contract_fingerprint(program: &TypedTrees, machine_index: usize) -> 
         bytes.extend(effect.as_bytes());
         bytes.push(0);
     }
+    bytes.push(u8::from(machine.suspends));
+    bytes.push(u8::from(machine.blocks));
     let mut contract_binders = binders.clone();
     if let Some(state) = program.machine_states(machine).first() {
         contract_binders.extend(
@@ -2221,6 +2223,8 @@ fn encode_state_signature(
         output.extend(effect.as_bytes());
         output.push(0);
     }
+    output.push(u8::from(signature.suspends));
+    output.push(u8::from(signature.blocks));
     let mut contract_binders = binders.to_vec();
     contract_binders.extend(
         program

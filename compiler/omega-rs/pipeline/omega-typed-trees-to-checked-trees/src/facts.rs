@@ -237,27 +237,16 @@ fn build_contract_plans(
             }
         }
         canonical_facts.sort();
-        let legacy_summary = effects
+        let operational_summary = effects
             .machines()
             .iter()
             .find(|summary| summary.symbol == machine.symbol);
-        let suspend = omega_effects::EffectSet::from_name("Suspend")
-            .expect("Suspend is a canonical operational effect");
-        let block = omega_effects::EffectSet::from_name("Block")
-            .expect("Block is a canonical operational effect");
         let publishes_operational_contract =
             machine.supply_mode != omega_core::semantics::MachineSupplyMode::CheckedBody;
-        let checked_operational_summary = legacy_summary.map(|summary| {
-            if publishes_operational_contract {
-                summary.transitive
-            } else {
-                summary.body_transitive
-            }
-        });
         let checked_may_suspend =
-            checked_operational_summary.is_some_and(|summary| summary.intersects(suspend));
+            operational_summary.is_some_and(|summary| summary.transitive_may_suspend);
         let checked_may_block =
-            checked_operational_summary.is_some_and(|summary| summary.intersects(block));
+            operational_summary.is_some_and(|summary| summary.transitive_may_block);
         let suspension = omega_core::semantics::SuspensionPlan {
             interface: if publishes_operational_contract || machine.suspends {
                 omega_core::semantics::SuspensionInterface::PublishedMaySuspend(machine.suspends)

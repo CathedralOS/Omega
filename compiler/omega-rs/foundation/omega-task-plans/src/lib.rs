@@ -88,7 +88,8 @@ pub struct ActivationPlanCandidate {
     pub calling_plan: CallingPlanId,
     pub continuation_bytes: u64,
     pub continuation_alignment: u64,
-    pub reaches_suspend: bool,
+    pub may_suspend: bool,
+    pub may_block: bool,
     /// Result of local canonical-liveness × carry checking at possible parks.
     pub suspension_crossings_safe: bool,
     pub safe_point_migration: MigrationDemand,
@@ -130,9 +131,9 @@ pub fn validate_activation_plan(
             candidate.continuation_alignment
         )));
     }
-    if candidate.reaches_suspend && !candidate.suspension_crossings_safe {
+    if candidate.may_suspend && !candidate.suspension_crossings_safe {
         return Err(TaskPlanDiagnostic(
-            "a possible Suspend crossing carries a value that forbids suspension".into(),
+            "a possible suspension crossing carries a value that forbids suspension".into(),
         ));
     }
     Ok(ValidatedActivationPlan(candidate))
@@ -379,7 +380,8 @@ fn fingerprint_activation_plan(plan: &ActivationPlanCandidate) -> u64 {
     fingerprint.word(plan.calling_plan.normalized_identity());
     fingerprint.word(plan.continuation_bytes);
     fingerprint.word(plan.continuation_alignment);
-    fingerprint.flag(plan.reaches_suspend);
+    fingerprint.flag(plan.may_suspend);
+    fingerprint.flag(plan.may_block);
     fingerprint.flag(plan.suspension_crossings_safe);
     fingerprint.migration(plan.safe_point_migration);
     match plan.asynchronous_migration {
@@ -516,7 +518,8 @@ mod tests {
             calling_plan: id(5, CallingPlanId::from_normalized_identity),
             continuation_bytes: 4096,
             continuation_alignment: 16,
-            reaches_suspend: true,
+            may_suspend: true,
+            may_block: false,
             suspension_crossings_safe: true,
             safe_point_migration: MigrationDemand {
                 cpu: SameCpuDemand::Same,
@@ -577,7 +580,7 @@ mod tests {
         let mut unsafe_plan = candidate();
         unsafe_plan.suspension_crossings_safe = false;
         let error = validate_activation_plan(unsafe_plan).expect_err("unsafe park");
-        assert!(error.0.contains("Suspend crossing"));
+        assert!(error.0.contains("suspension crossing"));
     }
 
     #[test]

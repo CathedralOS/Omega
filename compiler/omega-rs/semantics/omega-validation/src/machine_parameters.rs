@@ -21,10 +21,12 @@ pub(crate) fn validate_static_machine_arguments(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let effects = omega_effects::infer_effects(program);
     for (_, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
             validate_call_selection(
                 program,
+                &effects,
                 call.target_symbol,
                 call.target.as_str(),
                 &call.machine_arguments,
@@ -39,6 +41,7 @@ pub(crate) fn validate_static_machine_arguments(
                 if let StatementNode::Call(call) = statement {
                     validate_call_selection(
                         program,
+                        &effects,
                         call.target_symbol,
                         call.target.as_str(),
                         &call.machine_arguments,
@@ -64,6 +67,7 @@ pub fn validate_static_machine_selections(program: &TypedTrees) -> Result<(), Ve
 
 fn validate_call_selection(
     program: &TypedTrees,
+    effects: &omega_effects::EffectPlan,
     target_symbol: SymbolHandle,
     target_name: &str,
     arguments: &[StaticMachineArgument],
@@ -148,6 +152,7 @@ fn validate_call_selection(
         }
         validate_selected_callable_shape(
             program,
+            effects,
             target_name,
             parameter,
             requirement,
@@ -163,6 +168,7 @@ fn validate_call_selection(
 #[allow(clippy::too_many_arguments)]
 fn validate_selected_callable_shape(
     program: &TypedTrees,
+    effects: &omega_effects::EffectPlan,
     generic_call: &str,
     parameter: &TypeParameter,
     requirement: &omega_typed_trees::signature::StateSignature,
@@ -175,6 +181,7 @@ fn validate_selected_callable_shape(
     if let Some((actual_machine, actual_state)) = machine_and_state(program, selected_symbol) {
         validate_callable_shape(
             program,
+            effects,
             generic_call,
             parameter,
             requirement,
@@ -202,7 +209,9 @@ fn validate_selected_callable_shape(
             program.state_signature_type_parameters(actual_signature),
             program.state_signature_parameters(actual_signature),
             actual_signature.return_type,
-            program.state_signature_effects(actual_signature),
+            signature_effect_set(program, actual_signature),
+            actual_signature.suspends,
+            actual_signature.blocks,
             actual_signature.terminates_guarantee,
             program.state_signature_contracts(actual_signature),
             generic_types,
@@ -221,6 +230,7 @@ fn validate_selected_callable_shape(
 #[allow(clippy::too_many_arguments)]
 fn validate_callable_shape(
     program: &TypedTrees,
+    effects: &omega_effects::EffectPlan,
     generic_call: &str,
     parameter: &TypeParameter,
     requirement: &omega_typed_trees::signature::StateSignature,
@@ -234,6 +244,19 @@ fn validate_callable_shape(
         "machine argument `{}` for `{generic_call}`",
         actual_machine.name
     );
+    let inferred = effects
+        .machines()
+        .iter()
+        .find(|summary| summary.symbol == actual_machine.symbol);
+    let actual_effects = inferred
+        .map(|summary| summary.transitive)
+        .unwrap_or_else(|| machine_effect_set(program, actual_machine));
+    let actual_may_suspend = inferred
+        .map(|summary| summary.transitive_may_suspend)
+        .unwrap_or(actual_machine.suspends);
+    let actual_may_block = inferred
+        .map(|summary| summary.transitive_may_block)
+        .unwrap_or(actual_machine.blocks);
     validate_callable_parts(
         program,
         &label,
@@ -242,7 +265,9 @@ fn validate_callable_shape(
         program.machine_type_parameters(actual_machine),
         program.state_parameters(actual_state),
         actual_state.return_type,
-        program.machine_effects(actual_machine),
+        actual_effects,
+        actual_may_suspend,
+        actual_may_block,
         actual_machine.terminates,
         program.machine_contracts(actual_machine),
         generic_types,
@@ -261,7 +286,9 @@ fn validate_callable_parts(
     actual_type_parameters: &[TypeParameter],
     actual_parameters: &[StateParameter],
     actual_return_type: TypeReferenceHandle,
-    actual_effects: &[omega_typed_trees::name::Identifier],
+    actual_effects: omega_effects::EffectSet,
+    actual_may_suspend: bool,
+    actual_may_block: bool,
     actual_terminates: bool,
     actual_contracts: &[SignatureContract],
     generic_types: &[&TypeParameter],
@@ -341,14 +368,29 @@ fn validate_callable_parts(
         )));
     }
 
-    let allowed_effects = program.state_signature_effects(requirement);
-    for effect in actual_effects {
-        if !allowed_effects.iter().any(|allowed| allowed == effect) {
+    let allowed_effects = signature_effect_set(program, requirement);
+    for effect in actual_effects.names() {
+        let effect_set = omega_effects::EffectSet::from_name(effect)
+            .expect("an inferred service effect is part of the legacy service catalog");
+        if !allowed_effects.contains_all(effect_set) {
             diagnostics.push(Diagnostic::error(format!(
                 "{label} does not refine `{}`: effect `{effect}` exceeds its authored ceiling",
                 parameter.name
             )));
         }
+    }
+
+    if actual_may_suspend && !requirement.suspends {
+        diagnostics.push(Diagnostic::error(format!(
+            "{label} does not refine `{}`: it may suspend, but the requirement omits `suspends;`",
+            parameter.name
+        )));
+    }
+    if actual_may_block && !requirement.blocks {
+        diagnostics.push(Diagnostic::error(format!(
+            "{label} does not refine `{}`: it may block, but the requirement omits `blocks;`",
+            parameter.name
+        )));
     }
 
     if requirement.terminates_guarantee && !actual_terminates {
@@ -459,7 +501,9 @@ fn validate_callable_type_parameters(
                     program.state_signature_type_parameters(actual_contract),
                     program.state_signature_parameters(actual_contract),
                     actual_contract.return_type,
-                    program.state_signature_effects(actual_contract),
+                    signature_effect_set(program, actual_contract),
+                    actual_contract.suspends,
+                    actual_contract.blocks,
                     actual_contract.terminates_guarantee,
                     program.state_signature_contracts(actual_contract),
                     generic_types,
@@ -490,8 +534,10 @@ pub(crate) fn validate_data_machine_selection(
     generic_types: &[&TypeParameter],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let effects = omega_effects::infer_effects(program);
     validate_selected_callable_shape(
         program,
+        &effects,
         family_name,
         parameter,
         requirement,
@@ -501,6 +547,25 @@ pub(crate) fn validate_data_machine_selection(
         &mut Vec::new(),
         diagnostics,
     );
+}
+
+fn machine_effect_set(program: &TypedTrees, machine: &Machine) -> omega_effects::EffectSet {
+    let mut effects = omega_effects::EffectSet::empty();
+    for effect in program.machine_effects(machine) {
+        effects.insert_name(effect.as_str());
+    }
+    effects
+}
+
+fn signature_effect_set(
+    program: &TypedTrees,
+    signature: &omega_typed_trees::signature::StateSignature,
+) -> omega_effects::EffectSet {
+    let mut effects = omega_effects::EffectSet::empty();
+    for effect in program.state_signature_effects(signature) {
+        effects.insert_name(effect.as_str());
+    }
+    effects
 }
 
 #[derive(Clone, Copy)]

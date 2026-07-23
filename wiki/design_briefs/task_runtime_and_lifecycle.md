@@ -96,7 +96,8 @@ demand envelopes for safe-point versus asynchronous crossings. The validator
 rejects unsafe possible suspension locally before any runtime is considered.
 Compiler elaboration is now live for concrete `TaskRuntime::start<M>` and
 `try_start<M>` specializations. It retains the concrete specialization symbol,
-derives `reaches_suspend` from the target's checked transitive suspension plan,
+derives independent `may_suspend` and `may_block` bits from the target's checked
+transitive suspension and blocking plans,
 sizes the continuation from target layout plus canonical crossing live values,
 joins safe-point carry demands, and emits `05_task_activations.json`. Missing
 crossing evidence fails closed. Because every `Task<T>` claim exposes

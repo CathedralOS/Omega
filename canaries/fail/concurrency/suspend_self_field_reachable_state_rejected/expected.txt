@@ -1,1 +1,1 @@
-may reach `Suspend` while `self.message` remains live
+may suspend while `self.message` remains live
