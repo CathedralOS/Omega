@@ -741,8 +741,17 @@ schemas recover the same instance without publishing policy type identity.
    capability is the only source of a saved-mask guard. Their operations pin
    `machine_control` versus `device_io` reach; construction, forgotten
    settlement, and double completion reject through ordinary opacity/effects/
-   linearity rules. Connect these contracts to provider minting and the IDT
-   entry path. Do not use drop cleanup or interrupt-specific linearity rules.
+   linearity rules. The normalized installed-root entry path now mints those
+   opaque obligations only from an exact provider receipt bound to the root,
+   slot, installed code, selected provider execution, invocation, and
+   acknowledgement policy. Invocation and acknowledgement identities cannot be
+   replayed. Nested mask guards retain exact prior-state identities and restore
+   only in LIFO order; the deriver-owned exit rejects until the mask returns to
+   its entry state and the exact acknowledgement receipt is present. Failed
+   transitions return every consumed token/receipt, and a root with an active
+   interrupt cannot retire. Connect the concrete Cathedral PIC/LAPIC entry
+   implementation to these normalized transitions. Do not use drop cleanup or
+   interrupt-specific linearity rules.
 7. **Cathedral exception-IDT and timer acceptance.**
    - Materialize a diagnostic/fatal entry for every architecturally defined
      exception before enabling the timer. Provision distinct per-CPU ISTs for

@@ -139,8 +139,13 @@ vertical slice composes the common pieces:
 The provider-neutral obligation spelling is live in
 `omega::language::core::interrupt`: the mask guard and acknowledgement are
 distinct opaque linear values with consuming `restore` and `complete`
-operations. The concrete interrupt provider still owes their minting and entry
-integration.
+operations. Their normalized provider mint and entry settlement are live in
+the installed-root ledger: an exact entry receipt binds the installed root,
+selected provider execution, invocation, and acknowledgement policy before the
+opaque values exist; replay rejects; nested mask guards restore exact prior
+states in LIFO order; and exit requires both the entry mask state and the exact
+completed acknowledgement. The concrete PIC/LAPIC provider still owes execution
+of those transitions in its generated entry path.
 
 The selected provider plan may keep entry identity private for static tables;
 the program does not need a source-visible function pointer or numeric code
