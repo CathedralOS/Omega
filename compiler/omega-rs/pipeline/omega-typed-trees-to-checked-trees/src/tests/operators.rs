@@ -1,7 +1,10 @@
 use super::*;
 use omega_core::operator_spelling::OperatorSpelling;
-use omega_typed_trees::expression::{ExpressionNode, TableIndexedExpression, TableRangeExpression};
-use omega_typed_trees::operator::OperatorDefinition;
+use omega_typed_trees::expression::{
+    BinaryOperator, ExpressionNode, TableBinaryExpression, TableIndexedExpression,
+    TableRangeExpression,
+};
+use omega_typed_trees::operator::{OperatorDefinition, resolve_spelling_for_operands};
 use omega_typed_trees::types::TypeReferenceHandle;
 
 #[test]
@@ -148,6 +151,185 @@ fn flow_established_membership_does_not_select_domain_operator() {
     );
 }
 
+#[test]
+fn binary_resolution_matches_the_complete_operand_tuple() {
+    let i32_i32_symbol = SymbolHandle::from_arena_index(140);
+    let i32_u64_symbol = SymbolHandle::from_arena_index(141);
+    let machine_symbol = SymbolHandle::from_arena_index(142);
+    let state_symbol = SymbolHandle::from_arena_index(143);
+    let left_symbol = SymbolHandle::from_arena_index(144);
+    let right_symbol = SymbolHandle::from_arena_index(145);
+
+    let mut program = omega_typed_trees::TypedTrees::default();
+    let i32_type = named_type(&mut program, "i32");
+    let u64_type = named_type(&mut program, "u64");
+    for (operator_symbol, right_type) in [(i32_i32_symbol, i32_type), (i32_u64_symbol, u64_type)] {
+        let mut operator = operator_with_spelling(operator_symbol, OperatorSpelling::Add);
+        for (symbol, name, type_reference) in [
+            (left_symbol, "left", i32_type),
+            (right_symbol, "right", right_type),
+        ] {
+            program.push_operator_parameter(
+                &mut operator,
+                StateParameter {
+                    symbol,
+                    name: Identifier::generated(name),
+                    type_reference,
+                    is_const: false,
+                    is_mutable: false,
+                    is_self: false,
+                },
+            );
+        }
+        program.push_operator(operator);
+    }
+
+    let mut machine = Machine {
+        symbol: machine_symbol,
+        name: Identifier::generated("Main"),
+        ..Default::default()
+    };
+    let mut state = State {
+        symbol: state_symbol,
+        name: Identifier::generated("entry"),
+        ..Default::default()
+    };
+    for (symbol, name, type_reference) in [
+        (left_symbol, "left", i32_type),
+        (right_symbol, "right", u64_type),
+    ] {
+        program.push_state_parameter(
+            &mut state,
+            StateParameter {
+                symbol,
+                name: Identifier::generated(name),
+                type_reference,
+                is_const: false,
+                is_mutable: false,
+                is_self: false,
+            },
+        );
+    }
+    program.push_machine_state(&mut machine, state);
+    program.push_machine(machine);
+
+    let left = program
+        .expression_table
+        .insert_tree(&Expression::Name(NamePath::resolved(
+            vec![Identifier::generated("left")],
+            left_symbol,
+            left_symbol,
+        )));
+    let right = program
+        .expression_table
+        .insert_tree(&Expression::Name(NamePath::resolved(
+            vec![Identifier::generated("right")],
+            right_symbol,
+            right_symbol,
+        )));
+    let binary = program
+        .expression_table
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            left,
+            operator: BinaryOperator::Add,
+            right,
+        }));
+    let origin = omega_checked_trees::CheckedValueOrigin::StateStatement {
+        machine_symbol,
+        state_symbol,
+        statement_index: 0,
+        role: omega_checked_trees::CheckedValueStatementRole::Expression,
+    };
+    let mut value_roots = omega_core::arena::Arena::default();
+    value_roots.append(omega_checked_trees::CheckedValueFact {
+        expression: binary,
+        origin,
+    });
+
+    let facts = build_operator_facts(
+        &program,
+        &omega_checked_trees::CheckedValueFacts::with_roots(value_roots),
+    );
+    let operator_use = facts
+        .expression_use_in_origin(binary, origin)
+        .expect("binary operator use");
+    assert_eq!(operator_use.candidate_count, 1);
+    assert_eq!(operator_use.selected_operator_symbol, i32_u64_symbol);
+}
+
+#[test]
+fn complete_operand_matching_shares_generic_bindings_across_positions() {
+    let generic_operator_symbol = SymbolHandle::from_arena_index(146);
+    let heterogeneous_operator_symbol = SymbolHandle::from_arena_index(147);
+    let type_parameter_symbol = SymbolHandle::from_arena_index(148);
+    let left_symbol = SymbolHandle::from_arena_index(149);
+    let right_symbol = SymbolHandle::from_arena_index(150);
+
+    let mut program = omega_typed_trees::TypedTrees::default();
+    let i32_type = named_type(&mut program, "i32");
+    let u64_type = named_type(&mut program, "u64");
+    let type_parameter = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: type_parameter_symbol,
+            name: Identifier::generated("T"),
+        });
+
+    let mut generic_operator =
+        operator_with_spelling(generic_operator_symbol, OperatorSpelling::Add);
+    program.push_operator_type_parameter(
+        &mut generic_operator,
+        omega_typed_trees::data::TypeParameter {
+            symbol: type_parameter_symbol,
+            name: Identifier::generated("T"),
+            kind: omega_typed_trees::data::TypeParameterKind::Type,
+            bounds: omega_typed_trees::data::DataProperties::default(),
+        },
+    );
+    for (symbol, name) in [(left_symbol, "left"), (right_symbol, "right")] {
+        program.push_operator_parameter(
+            &mut generic_operator,
+            StateParameter {
+                symbol,
+                name: Identifier::generated(name),
+                type_reference: type_parameter,
+                is_const: false,
+                is_mutable: false,
+                is_self: false,
+            },
+        );
+    }
+    program.push_operator(generic_operator);
+
+    let mut heterogeneous_operator =
+        operator_with_spelling(heterogeneous_operator_symbol, OperatorSpelling::Add);
+    for (symbol, name, type_reference) in [
+        (left_symbol, "left", i32_type),
+        (right_symbol, "right", u64_type),
+    ] {
+        program.push_operator_parameter(
+            &mut heterogeneous_operator,
+            StateParameter {
+                symbol,
+                name: Identifier::generated(name),
+                type_reference,
+                is_const: false,
+                is_mutable: false,
+                is_self: false,
+            },
+        );
+    }
+    program.push_operator(heterogeneous_operator);
+
+    let candidates = resolve_spelling_for_operands(
+        &program,
+        OperatorSpelling::Add,
+        &[Some(i32_type), Some(u64_type)],
+    );
+    assert_eq!(candidates.len(), 1);
+    assert_eq!(candidates[0].operator.symbol, heterogeneous_operator_symbol);
+}
+
 fn checked_program_from_source(source: &str) -> omega_checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
@@ -173,14 +355,18 @@ fn records_indexed_expression_operator_spelling_resolution() {
     let range_operator_symbol = SymbolHandle::from_arena_index(81);
 
     let mut program = omega_typed_trees::TypedTrees::default();
-    program.push_operator(operator_with_spelling(
+    let index_operator = operator_with_placeholder_operands(
+        &mut program,
         index_operator_symbol,
         OperatorSpelling::Index,
-    ));
-    program.push_operator(operator_with_spelling(
+    );
+    program.push_operator(index_operator);
+    let range_operator = operator_with_placeholder_operands(
+        &mut program,
         range_operator_symbol,
         OperatorSpelling::Range,
-    ));
+    );
+    program.push_operator(range_operator);
 
     let collection = program.expression_table.insert(ExpressionNode::Integer(
         omega_core::literals::IntegerLiteral::from_value(0),
@@ -251,14 +437,12 @@ fn records_ambiguous_operator_spelling_status() {
     let second_candidate = SymbolHandle::from_arena_index(91);
 
     let mut program = omega_typed_trees::TypedTrees::default();
-    program.push_operator(operator_with_spelling(
-        first_candidate,
-        OperatorSpelling::Index,
-    ));
-    program.push_operator(operator_with_spelling(
-        second_candidate,
-        OperatorSpelling::Index,
-    ));
+    let first_operator =
+        operator_with_placeholder_operands(&mut program, first_candidate, OperatorSpelling::Index);
+    program.push_operator(first_operator);
+    let second_operator =
+        operator_with_placeholder_operands(&mut program, second_candidate, OperatorSpelling::Index);
+    program.push_operator(second_operator);
 
     let collection = program.expression_table.insert(ExpressionNode::Integer(
         omega_core::literals::IntegerLiteral::from_value(0),
@@ -301,10 +485,12 @@ fn records_domain_owned_operator_candidates() {
         symbol: domain_symbol,
         ..Default::default()
     };
-    program.push_domain_operator(
-        &mut domain,
-        operator_with_spelling(domain_operator_symbol, OperatorSpelling::Index),
+    let domain_operator = operator_with_placeholder_operands(
+        &mut program,
+        domain_operator_symbol,
+        OperatorSpelling::Index,
     );
+    program.push_domain_operator(&mut domain, domain_operator);
     program.push_domain_definition(domain);
 
     let collection = program.expression_table.insert(ExpressionNode::Integer(
@@ -326,7 +512,11 @@ fn records_domain_owned_operator_candidates() {
     let indexed_use = facts.expression_use(indexed).expect("indexed use");
     let candidates = facts.candidates(indexed_use);
 
-    assert_eq!(indexed_use.selected_operator_symbol, domain_operator_symbol);
+    assert_eq!(
+        indexed_use.status,
+        omega_checked_trees::CheckedOperatorResolutionStatus::DomainPending
+    );
+    assert!(!indexed_use.selected_operator_symbol.is_valid());
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].operator_symbol, domain_operator_symbol);
     assert_eq!(candidates[0].domain_symbol, domain_symbol);
@@ -338,7 +528,8 @@ fn records_operator_contract_span_for_proof_bridge() {
     let operator_symbol = SymbolHandle::from_arena_index(105);
 
     let mut program = omega_typed_trees::TypedTrees::default();
-    let mut operator = operator_with_spelling(operator_symbol, OperatorSpelling::Index);
+    let mut operator =
+        operator_with_placeholder_operands(&mut program, operator_symbol, OperatorSpelling::Index);
     program.push_operator_contract(
         &mut operator,
         SignatureContract {
@@ -385,10 +576,9 @@ fn records_operator_uses_per_semantic_origin() {
     let second_state = SymbolHandle::from_arena_index(112);
 
     let mut program = omega_typed_trees::TypedTrees::default();
-    program.push_operator(operator_with_spelling(
-        operator_symbol,
-        OperatorSpelling::Index,
-    ));
+    let operator =
+        operator_with_placeholder_operands(&mut program, operator_symbol, OperatorSpelling::Index);
+    program.push_operator(operator);
 
     let collection = program.expression_table.insert(ExpressionNode::Integer(
         omega_core::literals::IntegerLiteral::from_value(0),
@@ -622,17 +812,20 @@ fn narrows_index_operator_candidates_by_receiver_type() {
 }
 
 #[test]
-fn narrows_index_operator_candidates_by_local_receiver_type() {
+fn narrows_index_operator_candidates_by_complete_operand_tuple() {
     let matching_operator_symbol = SymbolHandle::from_arena_index(130);
     let mismatched_operator_symbol = SymbolHandle::from_arena_index(131);
+    let wrong_index_operator_symbol = SymbolHandle::from_arena_index(137);
     let machine_symbol = SymbolHandle::from_arena_index(132);
     let state_symbol = SymbolHandle::from_arena_index(133);
     let local_symbol = SymbolHandle::from_arena_index(134);
+    let index_symbol = SymbolHandle::from_arena_index(138);
     let matching_parameter_symbol = SymbolHandle::from_arena_index(135);
     let mismatched_parameter_symbol = SymbolHandle::from_arena_index(136);
 
     let mut program = omega_typed_trees::TypedTrees::default();
     let i32_type = named_type(&mut program, "i32");
+    let usize_type = named_type(&mut program, "u64");
     let slice_of_i32 = program
         .type_reference_table
         .insert(TypeReferenceNode::Slice {
@@ -660,6 +853,17 @@ fn narrows_index_operator_candidates_by_local_receiver_type() {
             is_self: false,
         },
     );
+    program.push_operator_parameter(
+        &mut matching_operator,
+        StateParameter {
+            symbol: SymbolHandle::invalid(),
+            name: Identifier::generated("index"),
+            type_reference: usize_type,
+            is_const: false,
+            is_mutable: false,
+            is_self: false,
+        },
+    );
     program.push_operator(matching_operator);
 
     let mut mismatched_operator =
@@ -675,7 +879,35 @@ fn narrows_index_operator_candidates_by_local_receiver_type() {
             is_self: false,
         },
     );
+    program.push_operator_parameter(
+        &mut mismatched_operator,
+        StateParameter {
+            symbol: SymbolHandle::invalid(),
+            name: Identifier::generated("index"),
+            type_reference: usize_type,
+            is_const: false,
+            is_mutable: false,
+            is_self: false,
+        },
+    );
     program.push_operator(mismatched_operator);
+
+    let mut wrong_index_operator =
+        operator_with_spelling(wrong_index_operator_symbol, OperatorSpelling::Index);
+    for (name, type_reference) in [("items", reference_to_slice_of_i32), ("index", i32_type)] {
+        program.push_operator_parameter(
+            &mut wrong_index_operator,
+            StateParameter {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated(name),
+                type_reference,
+                is_const: false,
+                is_mutable: false,
+                is_self: false,
+            },
+        );
+    }
+    program.push_operator(wrong_index_operator);
 
     let collection = program
         .expression_table
@@ -684,9 +916,13 @@ fn narrows_index_operator_candidates_by_local_receiver_type() {
             local_symbol,
             local_symbol,
         )));
-    let index = program.expression_table.insert(ExpressionNode::Integer(
-        omega_core::literals::IntegerLiteral::from_value(0),
-    ));
+    let index = program
+        .expression_table
+        .insert_tree(&Expression::Name(NamePath::resolved(
+            vec![Identifier::generated("index")],
+            index_symbol,
+            index_symbol,
+        )));
     let indexed =
         program
             .expression_table
@@ -717,6 +953,16 @@ fn narrows_index_operator_candidates_by_local_receiver_type() {
     );
     program.statement_table.push_statement(
         &mut state.statement_nodes,
+        StatementNode::LocalData(omega_typed_trees::statement::TableLocalData {
+            symbol: index_symbol,
+            name: Identifier::generated("index"),
+            type_reference: usize_type,
+            initial_value: omega_typed_trees::expression::ExpressionHandle::invalid(),
+            is_mutable: false,
+        }),
+    );
+    program.statement_table.push_statement(
+        &mut state.statement_nodes,
         StatementNode::Expression(indexed),
     );
     program.push_machine_state(&mut machine, state);
@@ -725,7 +971,7 @@ fn narrows_index_operator_candidates_by_local_receiver_type() {
     let origin = omega_checked_trees::CheckedValueOrigin::StateStatement {
         machine_symbol,
         state_symbol,
-        statement_index: 1,
+        statement_index: 2,
         role: omega_checked_trees::CheckedValueStatementRole::Expression,
     };
     let mut value_roots = omega_core::arena::Arena::default();
@@ -750,7 +996,7 @@ fn narrows_index_operator_candidates_by_local_receiver_type() {
     );
     let candidate = facts.candidates(indexed_use)[0];
     assert_eq!(candidate.receiver_type, reference_to_slice_of_i32);
-    assert_eq!(candidate.parameter_count, 1);
+    assert_eq!(candidate.parameter_count, 2);
     assert_eq!(
         facts.candidate_symbols(indexed_use).collect::<Vec<_>>(),
         vec![matching_operator_symbol]
@@ -791,4 +1037,31 @@ fn operator_with_spelling(symbol: SymbolHandle, spelling: OperatorSpelling) -> O
         spelling: Some(spelling),
         token_count: 0,
     }
+}
+
+fn operator_with_placeholder_operands(
+    program: &mut omega_typed_trees::TypedTrees,
+    symbol: SymbolHandle,
+    spelling: OperatorSpelling,
+) -> OperatorDefinition {
+    let mut operator = operator_with_spelling(symbol, spelling);
+    let operand_count = if spelling == OperatorSpelling::Range {
+        3
+    } else {
+        2
+    };
+    for index in 0..operand_count {
+        program.push_operator_parameter(
+            &mut operator,
+            StateParameter {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated(format!("operand_{index}")),
+                type_reference: TypeReferenceHandle::invalid(),
+                is_const: false,
+                is_mutable: false,
+                is_self: false,
+            },
+        );
+    }
+    operator
 }

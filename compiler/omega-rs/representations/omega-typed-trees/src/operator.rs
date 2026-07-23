@@ -29,16 +29,10 @@ pub struct SpelledOperator<'program> {
     pub domain: Option<&'program DomainDefinition>,
 }
 
-/// Resolve an operator `spelling` at a use site. Per Wave 0 decision #3 the
-/// spelling is the first-level discriminator; the receiver type (the first
-/// operand) then narrows the candidate set when the site knows it. Return
-/// types never distinguish. The surviving candidates decide the dispatch:
-/// exactly one selects the meaning, none is a missing operator, two or more
-/// are ambiguous.
-///
-/// This is the single use-site resolution authority. The checked stage records
-/// its outcome as durable evidence (`CheckedOperatorFacts`) for diagnostics and
-/// proof lowering rather than re-resolving.
+/// Enumerate an operator `spelling`, optionally narrowed by the first operand.
+/// This receiver-only query remains useful to validation that merely asks
+/// whether a spelling exists for a carrier. Complete use-site resolution goes
+/// through [`resolve_spelling_for_operands`]. Return types never distinguish.
 pub fn resolve_spelling<'program>(
     program: &'program TypedTrees,
     spelling: OperatorSpelling,
@@ -72,6 +66,51 @@ pub fn resolve_spelling<'program>(
             None => true,
         })
         .collect()
+}
+
+/// Resolve a spelling against the complete operand tuple. `None` retains a
+/// candidate for an operand whose type is not recoverable at this stage;
+/// every known position must match, and generic parameter bindings are shared
+/// across the tuple. This is the single use-site resolution authority. The
+/// checked stage records its outcome as durable evidence
+/// (`CheckedOperatorFacts`) for diagnostics and proof lowering rather than
+/// re-resolving.
+pub fn resolve_spelling_for_operands<'program>(
+    program: &'program TypedTrees,
+    spelling: OperatorSpelling,
+    operand_types: &[Option<TypeReferenceHandle>],
+) -> Vec<SpelledOperator<'program>> {
+    resolve_spelling(program, spelling, None)
+        .into_iter()
+        .filter(|candidate| operator_matches_operands(program, candidate.operator, operand_types))
+        .collect()
+}
+
+fn operator_matches_operands(
+    program: &TypedTrees,
+    operator: &OperatorDefinition,
+    operand_types: &[Option<TypeReferenceHandle>],
+) -> bool {
+    let parameters = program.operator_parameters(operator);
+    if parameters.len() != operand_types.len() {
+        return false;
+    }
+    let type_parameters = program.operator_type_parameters(operator);
+    let mut bindings = Vec::new();
+    operand_types
+        .iter()
+        .zip(parameters)
+        .all(|(actual, expected)| {
+            actual.is_none_or(|actual| {
+                type_reference_matches(
+                    program,
+                    actual,
+                    expected.type_reference,
+                    type_parameters,
+                    &mut bindings,
+                )
+            })
+        })
 }
 
 /// Whether the operator's first parameter (its receiver) accepts a value of

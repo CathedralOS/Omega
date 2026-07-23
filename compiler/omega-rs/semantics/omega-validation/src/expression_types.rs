@@ -1452,7 +1452,8 @@ fn binary_operator_spelling(
 /// a concrete-data receiver means the operator is undeclared. Scalars (intrinsic
 /// builtins) and arrays are not concrete-data receivers, so they are untouched;
 /// when candidates DO exist, admissibility (the proof context) is enforced
-/// downstream, so a valid domain op (`Quantity + Quantity`) is never rejected.
+/// downstream from static binding selections, so a valid domain op
+/// (`Quantity + Quantity`) is never rejected.
 fn report_undeclared_struct_operator(
     program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,

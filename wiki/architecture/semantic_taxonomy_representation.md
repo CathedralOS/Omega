@@ -148,8 +148,10 @@ selection reads only static binding sources: normalized declared constraints,
 explicit mints, and signature `requires`. The selector has no flow/fact-plan
 input, so guards, call guarantees, or later prover improvements cannot change
 operator meaning. Operator `requires` clauses remain ordinary flow-sensitive
-proof obligations after selection. Normalized all-operand tuple resolution and
-dispatch-owner coherence remain.
+proof obligations after selection. Candidate matching now consumes the complete
+operand tuple for binary, index, and range spellings, sharing one generic
+substitution across every known position; return types remain irrelevant.
+Dispatch-owner coherence remains.
 
 ### Carry policy
 

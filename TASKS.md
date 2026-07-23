@@ -1061,9 +1061,12 @@ stronger operations it needs instead of citing machine parameters generally.
   direct/local explicit mints, and signature `requires`; call `ensures`, guards,
   and mutation-driven fact invalidation cannot reinterpret an operation.
   Checked evidence and diagnostics distinguish a selected domain meaning from
-  builtin fallback. Remaining: complete normalized all-operand tuple matching
-  and replace the provisional global same-carrier collision fence with the
-  settled participating-domain/dispatch-owner coherence rule.
+  builtin fallback. Spelled candidates now match the complete operand tuple:
+  binary right operands, index operands, and both range bounds all participate,
+  with one shared generic substitution across positions and no privileged
+  receiver discriminator. Remaining: replace the provisional global
+  same-carrier collision fence with the settled
+  participating-domain/dispatch-owner coherence rule.
 - **DOM3 — introduction authority.** Implement sealed-by-default domains,
   `introduction open`, and `MintAuthority<D>` with distinct missing-proof and
   missing-authority diagnostics.
