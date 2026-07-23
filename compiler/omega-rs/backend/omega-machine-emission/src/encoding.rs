@@ -670,6 +670,14 @@ pub(super) fn encode_machine_instruction_bytes(
                 ))
             })
         }
+        SelectedInstructionKind::GeneratedIdtLoad { .. } => {
+            omega_instruction_selection::encode_generated_idt_load_bytes(input.target.architecture)
+                .ok_or_else(|| {
+                    omega_core::diagnostics::Diagnostic::error(
+                        "generated IDT load is x86_64-only; no AArch64 lowering exists",
+                    )
+                })
+        }
         SelectedInstructionKind::FlagsSnapshot {
             dest_byte_offset, ..
         } => {

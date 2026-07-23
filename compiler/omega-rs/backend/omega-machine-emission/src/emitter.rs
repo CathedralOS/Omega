@@ -171,4 +171,108 @@ mod tests {
         assert!(encoded.code.byte_count > 0);
         assert_ne!(instructions, HandleSpan::empty());
     }
+
+    #[test]
+    fn generated_idt_load_emits_only_the_pinned_x86_instruction() {
+        let target = NativeTarget::linux_x64();
+        let assigned_target_operations =
+            AssignedTargetOperationPlan::with_capacity(target, 0, 0, 0, 0, 0);
+        let host_abi = build_host_abi_plan(target);
+        let data = omega_target_operations::TargetDataPlan::default();
+        let mut machine_instructions = MachineInstructionPlan::with_capacity(target, 1, 1);
+        let source_kind = SelectedInstructionKind::GeneratedIdtLoad {
+            materialized: omega_external_roots::MaterializedIdtId::from_normalized_identity(1)
+                .expect("materialized IDT identity"),
+            descriptor: omega_external_roots::IdtDestinationId::from_normalized_identity(2)
+                .expect("IDT destination identity"),
+            content_fingerprint: 3,
+            root_ledger_fingerprint: 4,
+            control: omega_external_roots::IdtControlId::from_normalized_identity(5)
+                .expect("IDT control identity"),
+        };
+        let instructions =
+            machine_instructions
+                .code
+                .instructions
+                .insert_many([MachineInstruction {
+                    selected_instruction_index: 0,
+                    source_kind,
+                    kind: MachineInstructionKind::GeneratedIdtLoad,
+                }]);
+        machine_instructions
+            .code
+            .functions
+            .insert(MachineInstructionFunction {
+                source_key: Default::default(),
+                instructions,
+            });
+
+        let encoded = emit_machine_bytes(MachineEmissionInput {
+            target,
+            assigned_target_operations: &assigned_target_operations,
+            machine_instructions: &machine_instructions,
+            host_abi: &host_abi,
+            data: &data,
+            terminal_dispatch_index: 0,
+        })
+        .expect("generated x86 IDT load should emit");
+
+        assert_eq!(
+            encoded.code.bytes.storage_slice(),
+            omega_isa_x86_64::encode_lidt_from_r10_bytes()
+        );
+        assert_eq!(
+            encoded.code.byte_count,
+            omega_isa_x86_64::lidt_from_r10_width()
+        );
+    }
+
+    #[test]
+    fn generated_idt_load_refuses_aarch64_before_emission() {
+        let target = NativeTarget::linux_arm64();
+        let assigned_target_operations =
+            AssignedTargetOperationPlan::with_capacity(target, 0, 0, 0, 0, 0);
+        let host_abi = build_host_abi_plan(target);
+        let data = omega_target_operations::TargetDataPlan::default();
+        let mut machine_instructions = MachineInstructionPlan::with_capacity(target, 1, 1);
+        let instructions =
+            machine_instructions
+                .code
+                .instructions
+                .insert_many([MachineInstruction {
+                    selected_instruction_index: 0,
+                    source_kind: SelectedInstructionKind::GeneratedIdtLoad {
+                        materialized:
+                            omega_external_roots::MaterializedIdtId::from_normalized_identity(1)
+                                .expect("materialized IDT identity"),
+                        descriptor:
+                            omega_external_roots::IdtDestinationId::from_normalized_identity(2)
+                                .expect("IDT destination identity"),
+                        content_fingerprint: 3,
+                        root_ledger_fingerprint: 4,
+                        control: omega_external_roots::IdtControlId::from_normalized_identity(5)
+                            .expect("IDT control identity"),
+                    },
+                    kind: MachineInstructionKind::GeneratedIdtLoad,
+                }]);
+        machine_instructions
+            .code
+            .functions
+            .insert(MachineInstructionFunction {
+                source_key: Default::default(),
+                instructions,
+            });
+
+        let error = emit_machine_bytes(MachineEmissionInput {
+            target,
+            assigned_target_operations: &assigned_target_operations,
+            machine_instructions: &machine_instructions,
+            host_abi: &host_abi,
+            data: &data,
+            terminal_dispatch_index: 0,
+        })
+        .expect_err("AArch64 must not silently lower x86 IDT load");
+
+        assert!(error.message.contains("x86_64-only"));
+    }
 }

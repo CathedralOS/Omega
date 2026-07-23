@@ -516,6 +516,16 @@ pub enum TargetOperationKind {
     MemoryFence(omega_core::inline_assembly::AsmFenceKind),
     /// x86 CLI/STI interrupt-flag control.
     InterruptControl(omega_core::inline_assembly::AsmInterruptControlKind),
+    /// Compiler-generated, deriver-only x86 `lidt [r10]`. R10 names the
+    /// provider-private descriptor selected by the checked IDT publication
+    /// lowering. No abstract/source operation converts to this variant.
+    GeneratedIdtLoad {
+        materialized: omega_external_roots::MaterializedIdtId,
+        descriptor: omega_external_roots::IdtDestinationId,
+        content_fingerprint: u64,
+        root_ledger_fingerprint: u64,
+        control: omega_external_roots::IdtControlId,
+    },
     /// Compiler-balanced `pushfq` snapshot into explicit runtime storage.
     FlagsSnapshot {
         dest_region: RuntimeStorageRegion,

@@ -175,10 +175,14 @@ the exact admitted roots. Only then may the writer produce `MaterializedIdt`.
 The writer does not hold `IdtControl` and cannot publish. A separate installer
 prepares the external-root records, completes required visibility, executes
 checked `lidt`, and returns `InstalledIdt` plus its installation receipt. Root
-records precede hardware reachability. The materialization receipt binds the
-writer, plan, artifact, entries, destination, and final content; the installation
-receipt separately binds the granted CPU/table scope, prepared roots, visibility,
-and `lidt` operation.
+records precede hardware reachability. The live preparation carrier is sealed:
+it is minted only for the exact materialized content/destination, live root
+handles, ledger fingerprint, and `IdtControl`. Compiler lowering from that
+carrier produces the generated-only target/machine `lidt [r10]` operation with
+its retained identities and exact R10 + control-state footprint. The
+materialization receipt binds the writer, plan, artifact, entries, destination,
+and final content; the installation receipt separately binds the granted
+CPU/table scope, prepared roots, visibility, and `lidt` operation.
 
 The earliest writer's software-fault-free claim is an admitted conjunction, not
 an absolute promise that hardware cannot fail. Its destination and stack are
@@ -321,8 +325,10 @@ evaluated-plan fingerprint, and retains the complete plan for lowering. The
 remaining implementation order is:
 
 1. complete the checked-assembly catalog required by the entry provider;
-2. finish IDT1 after the implemented name-keyed fragmented-layout validator:
-   add symbolic relocation sources and phase-aware materialization;
+2. finish IDT1 after the implemented symbolic, phase-aware direct-destination
+   materializer and checked `lidt` carrier: lower the normalized writer into a
+   generated checked Omega machine and connect private-descriptor address
+   materialization plus execution in the provider;
 3. `CallPlan + StatePlan` entry-stub derivation, state-ceiling-aware codegen,
    footprint evidence, and final-artifact validation;
 4. external-root ledger and IDT/timer slice; and

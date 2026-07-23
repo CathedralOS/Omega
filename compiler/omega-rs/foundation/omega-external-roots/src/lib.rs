@@ -1629,6 +1629,63 @@ impl IdtControl {
     }
 }
 
+/// Closed proof that the exact materialized table's roots are already live in
+/// the supplied ledger and that the provider holds the architectural IDT
+/// authority. Compiler-generated provider lowering requires this proof before
+/// it may introduce the deriver-only `lidt [r10]` operation.
+#[derive(Debug, PartialEq, Eq)]
+pub struct PreparedIdtLoad {
+    materialized: MaterializedIdtId,
+    destination: IdtDestinationId,
+    content_fingerprint: u64,
+    root_ledger_fingerprint: u64,
+    roots: BTreeSet<ExternalRootId>,
+    control: IdtControlId,
+}
+
+impl PreparedIdtLoad {
+    pub const fn materialized(&self) -> MaterializedIdtId {
+        self.materialized
+    }
+
+    pub const fn destination(&self) -> IdtDestinationId {
+        self.destination
+    }
+
+    pub const fn content_fingerprint(&self) -> u64 {
+        self.content_fingerprint
+    }
+
+    pub const fn root_ledger_fingerprint(&self) -> u64 {
+        self.root_ledger_fingerprint
+    }
+
+    pub const fn control(&self) -> IdtControlId {
+        self.control
+    }
+}
+
+/// Establish the record-before-reachability precondition for one checked IDT
+/// load. The returned carrier has no public constructor: a generated provider
+/// cannot acquire it from an unrecorded table, the wrong live-root set, or
+/// different `IdtControl` authority.
+pub fn prepare_idt_load(
+    ledger: &InstalledRootLedger,
+    materialized: &MaterializedIdt,
+    roots: &[InstalledExternalRoot<'_>],
+    control: &IdtControl,
+) -> Result<PreparedIdtLoad, ExternalRootDiagnostic> {
+    let expected_roots = validate_idt_publication_roots(ledger, materialized, roots)?;
+    Ok(PreparedIdtLoad {
+        materialized: materialized.identity,
+        destination: materialized.destination.identity,
+        content_fingerprint: materialized.content_fingerprint,
+        root_ledger_fingerprint: ledger.report_fingerprint(),
+        roots: expected_roots,
+        control: control.identity,
+    })
+}
+
 /// Provider receipt for the exact record-before-`lidt` publication attempt.
 #[derive(Debug, PartialEq, Eq)]
 pub struct IdtInstallationReceipt {
@@ -1638,6 +1695,7 @@ pub struct IdtInstallationReceipt {
     content_fingerprint: u64,
     root_ledger_fingerprint: u64,
     roots: BTreeSet<ExternalRootId>,
+    control: IdtControlId,
     published: bool,
 }
 
@@ -1645,21 +1703,17 @@ impl IdtInstallationReceipt {
     pub fn from_provider(
         identity: IdtInstallationReceiptId,
         installed: InstalledIdtId,
-        materialized: &MaterializedIdt,
-        ledger: &InstalledRootLedger,
+        prepared: &PreparedIdtLoad,
         published: bool,
     ) -> Self {
         Self {
             identity,
             installed,
-            materialized: materialized.identity,
-            content_fingerprint: materialized.content_fingerprint,
-            root_ledger_fingerprint: ledger.report_fingerprint(),
-            roots: materialized
-                .roots
-                .values()
-                .map(|binding| binding.root)
-                .collect(),
+            materialized: prepared.materialized,
+            content_fingerprint: prepared.content_fingerprint,
+            root_ledger_fingerprint: prepared.root_ledger_fingerprint,
+            roots: prepared.roots.clone(),
+            control: prepared.control,
             published,
         }
     }
@@ -1744,42 +1798,17 @@ pub fn install_materialized_idt<'code>(
             diagnostic,
         }))
     };
-    let handle_roots: BTreeSet<_> = roots.iter().map(InstalledExternalRoot::root).collect();
-    if handle_roots.len() != roots.len() {
-        return reject(
-            ExternalRootDiagnostic("IDT installation repeats an installed-root handle".into()),
-            materialized,
-            roots,
-            control,
-            receipt,
-        );
-    }
-    let expected_roots: BTreeSet<_> = materialized
-        .roots
-        .values()
-        .map(|binding| binding.root)
-        .collect();
-    let recorded = materialized.roots.values().all(|binding| {
-        ledger
-            .record(binding.root)
-            .is_some_and(|record| record.entry == binding.entry)
-    });
-    if handle_roots != expected_roots || !recorded {
-        return reject(
-            ExternalRootDiagnostic(
-                "IDT publication requires exact installed handles and ledger records for every entry target"
-                    .into(),
-            ),
-            materialized,
-            roots,
-            control,
-            receipt,
-        );
-    }
+    let expected_roots = match validate_idt_publication_roots(ledger, &materialized, &roots) {
+        Ok(expected_roots) => expected_roots,
+        Err(diagnostic) => {
+            return reject(diagnostic, materialized, roots, control, receipt);
+        }
+    };
     if receipt.materialized != materialized.identity
         || receipt.content_fingerprint != materialized.content_fingerprint
         || receipt.root_ledger_fingerprint != ledger.report_fingerprint()
         || receipt.roots != expected_roots
+        || receipt.control != control.identity
         || !receipt.published
     {
         return reject(
@@ -1800,6 +1829,36 @@ pub fn install_materialized_idt<'code>(
         control,
         installation_receipt: receipt.identity,
     })
+}
+
+fn validate_idt_publication_roots(
+    ledger: &InstalledRootLedger,
+    materialized: &MaterializedIdt,
+    roots: &[InstalledExternalRoot<'_>],
+) -> Result<BTreeSet<ExternalRootId>, ExternalRootDiagnostic> {
+    let handle_roots: BTreeSet<_> = roots.iter().map(InstalledExternalRoot::root).collect();
+    if handle_roots.len() != roots.len() {
+        return Err(ExternalRootDiagnostic(
+            "IDT installation repeats an installed-root handle".into(),
+        ));
+    }
+    let expected_roots: BTreeSet<_> = materialized
+        .roots
+        .values()
+        .map(|binding| binding.root)
+        .collect();
+    let recorded = materialized.roots.values().all(|binding| {
+        ledger
+            .record(binding.root)
+            .is_some_and(|record| record.entry == binding.entry)
+    });
+    if handle_roots != expected_roots || !recorded {
+        return Err(ExternalRootDiagnostic(
+            "IDT publication requires exact installed handles and ledger records for every entry target"
+                .into(),
+        ));
+    }
+    Ok(expected_roots)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2545,31 +2604,66 @@ mod tests {
             materialized.content_fingerprint(),
             fingerprint_bytes(&expected)
         );
+        let roots = vec![installed_root];
+        let control = IdtControl::from_admitted_provider(root_id(
+            202,
+            IdtControlId::from_normalized_identity,
+        ));
+        let preparation_error = prepare_idt_load(
+            &InstalledRootLedger::default(),
+            &materialized,
+            &roots,
+            &control,
+        )
+        .expect_err("unrecorded roots cannot produce an IDT-load carrier");
+        assert!(
+            preparation_error
+                .0
+                .contains("exact installed handles and ledger records")
+        );
+        let prepared = prepare_idt_load(&ledger, &materialized, &roots, &control)
+            .expect("recorded roots permit checked IDT-load preparation");
+        assert_eq!(prepared.destination(), destination_id);
+        assert_eq!(prepared.content_fingerprint(), fingerprint_bytes(&expected));
+        assert_eq!(prepared.control(), control.identity());
         let stale = IdtInstallationReceipt::from_provider(
             root_id(203, IdtInstallationReceiptId::from_normalized_identity),
             root_id(204, InstalledIdtId::from_normalized_identity),
-            &materialized,
-            &ledger,
+            &prepared,
             false,
         );
+        let error = install_materialized_idt(&ledger, materialized, roots, control, stale)
+            .expect_err("unpublished receipt cannot install IDT");
+        assert!(error.diagnostic().0.contains("record-before-publish"));
+        let (materialized, roots, control, _) = error.into_parts();
+        let prepared = prepare_idt_load(&ledger, &materialized, &roots, &control)
+            .expect("recovered inputs permit checked IDT-load preparation");
+        let wrong_control_receipt = IdtInstallationReceipt::from_provider(
+            root_id(211, IdtInstallationReceiptId::from_normalized_identity),
+            root_id(212, InstalledIdtId::from_normalized_identity),
+            &prepared,
+            true,
+        );
+        let wrong_control = IdtControl::from_admitted_provider(root_id(
+            213,
+            IdtControlId::from_normalized_identity,
+        ));
         let error = install_materialized_idt(
             &ledger,
             materialized,
-            vec![installed_root],
-            IdtControl::from_admitted_provider(root_id(
-                202,
-                IdtControlId::from_normalized_identity,
-            )),
-            stale,
+            roots,
+            wrong_control,
+            wrong_control_receipt,
         )
-        .expect_err("unpublished receipt cannot install IDT");
+        .expect_err("prepared receipt cannot publish through different IDT authority");
         assert!(error.diagnostic().0.contains("record-before-publish"));
-        let (materialized, roots, control, _) = error.into_parts();
+        let (materialized, roots, _, _) = error.into_parts();
+        let prepared = prepare_idt_load(&ledger, &materialized, &roots, &control)
+            .expect("original IDT authority remains the checked publication authority");
         let receipt = IdtInstallationReceipt::from_provider(
             root_id(205, IdtInstallationReceiptId::from_normalized_identity),
             root_id(206, InstalledIdtId::from_normalized_identity),
-            &materialized,
-            &ledger,
+            &prepared,
             true,
         );
         let installed = install_materialized_idt(&ledger, materialized, roots, control, receipt)

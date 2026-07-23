@@ -154,6 +154,7 @@ dependencies = [
  "omega-abstract-operations",
  "omega-assigned-target-operations",
  "omega-core",
+ "omega-external-roots",
  "omega-machine-instructions",
 ]
 
@@ -323,6 +324,7 @@ dependencies = [
  "omega-external-roots",
  "omega-image",
  "omega-image-emission",
+ "omega-instruction-selection",
  "omega-interpreter",
  "omega-layout",
  "omega-layout-plans",
@@ -627,6 +629,7 @@ dependencies = [
  "omega-calling-conventions",
  "omega-control-flow",
  "omega-core",
+ "omega-external-roots",
  "omega-instruction-selection",
  "omega-isa-x86_64",
  "omega-machine-bytes",
@@ -969,6 +972,7 @@ dependencies = [
  "omega-calling-conventions",
  "omega-control-flow",
  "omega-core",
+ "omega-external-roots",
  "omega-target",
 ]
 

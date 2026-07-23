@@ -82,6 +82,7 @@ impl OperationSemanticQuery for TargetOperationKind {
             Self::MachineHalt
             | Self::MemoryFence(_)
             | Self::InterruptControl(_)
+            | Self::GeneratedIdtLoad { .. }
             | Self::FlagsSnapshot { .. }
             | Self::FlagsRestore { .. }
             | Self::MsrRead { .. }

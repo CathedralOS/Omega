@@ -13,4 +13,5 @@ omega-abstract-operations = { path = "../omega-abstract-operations" }
 omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-control-flow = { path = "../omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }
+omega-external-roots = { path = "../../foundation/omega-external-roots" }
 omega-target = { path = "../../foundation/omega-target" }

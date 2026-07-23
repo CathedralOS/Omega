@@ -120,6 +120,9 @@ pub(super) fn lower_machine_instruction_kind(
         SelectedInstructionKind::InterruptControl(kind) => {
             MachineInstructionKind::InterruptControl(*kind)
         }
+        SelectedInstructionKind::GeneratedIdtLoad { .. } => {
+            MachineInstructionKind::GeneratedIdtLoad
+        }
         SelectedInstructionKind::FlagsSnapshot { .. } => MachineInstructionKind::FlagsSnapshot,
         SelectedInstructionKind::FlagsRestore { .. } => MachineInstructionKind::FlagsRestore,
         SelectedInstructionKind::MsrRead { .. } => MachineInstructionKind::MsrRead,

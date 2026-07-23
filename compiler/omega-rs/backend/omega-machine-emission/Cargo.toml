@@ -19,3 +19,6 @@ omega-machine-bytes = { path = "../../representations/omega-machine-bytes" }
 omega-machine-instructions = { path = "../../representations/omega-machine-instructions" }
 omega-target = { path = "../../foundation/omega-target" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
+
+[dev-dependencies]
+omega-external-roots = { path = "../../foundation/omega-external-roots" }

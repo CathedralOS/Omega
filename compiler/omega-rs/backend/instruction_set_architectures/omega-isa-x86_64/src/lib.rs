@@ -163,6 +163,14 @@ pub const fn encode_lidt_from_r10_bytes() -> [u8; 4] {
     [0x41, 0x0f, 0x01, 0x1a]
 }
 
+/// Exact scratch footprint of the generated descriptor-address
+/// materialization plus `lidt [r10]` sequence.
+pub fn lidt_from_r10_clobbers() -> omega_calling_conventions::RegisterSet {
+    omega_calling_conventions::RegisterSet::new([
+        omega_calling_conventions::MachineRegister::X86R10,
+    ])
+}
+
 // --- RFLAGS snapshot/restore -------------------------------------------------
 
 /// Byte offset of the destination-region `mov r15, imm64` inside a flags

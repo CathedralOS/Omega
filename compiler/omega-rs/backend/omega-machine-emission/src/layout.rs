@@ -12,21 +12,22 @@ use omega_instruction_selection::{
     dispatch_loop_enter_width, dispatch_state_write_width, entry_argument_register_write_width,
     entry_arguments_slice_descriptor_write_width, entry_indirect_argument_write_width,
     entry_stack_argument_write_width, flags_restore_width, flags_snapshot_width,
-    function_enter_width, host_call_sequence_width, interrupt_control_width, machine_halt_width,
-    memory_fence_width, msr_read_width, msr_write_width, port_read_width, port_write_width,
-    return_register_integer_write_width, return_width, runtime_atomic_compare_exchange_width,
-    runtime_atomic_fetch_add_width, runtime_atomic_fetch_and_width, runtime_atomic_fetch_or_width,
-    runtime_atomic_fetch_sub_width, runtime_atomic_fetch_xor_width,
-    runtime_atomic_load_to_storage_width, runtime_atomic_store_from_operand_width,
-    runtime_atomic_swap_width, runtime_byte_read_width, runtime_byte_write_width,
-    runtime_storage_convert_width, runtime_storage_copy_to_return_register_width,
-    runtime_text_buffer_materialize_width, runtime_text_line_read_width,
-    runtime_text_literal_append_width, runtime_text_literal_compare_width,
-    runtime_text_literal_segment_write_width, runtime_text_literal_write_width,
-    runtime_text_storage_compare_width, runtime_text_stored_place_append_width,
-    runtime_text_stored_suffix_append_width, runtime_value_compare_width,
-    syscall_sequence_width_with_plan, table_function_call_sequence_width_with_plan,
-    vtable_call_sequence_width_at_offset_with_plan, vtable_call_sequence_width_with_plan,
+    function_enter_width, generated_idt_load_width, host_call_sequence_width,
+    interrupt_control_width, machine_halt_width, memory_fence_width, msr_read_width,
+    msr_write_width, port_read_width, port_write_width, return_register_integer_write_width,
+    return_width, runtime_atomic_compare_exchange_width, runtime_atomic_fetch_add_width,
+    runtime_atomic_fetch_and_width, runtime_atomic_fetch_or_width, runtime_atomic_fetch_sub_width,
+    runtime_atomic_fetch_xor_width, runtime_atomic_load_to_storage_width,
+    runtime_atomic_store_from_operand_width, runtime_atomic_swap_width, runtime_byte_read_width,
+    runtime_byte_write_width, runtime_storage_convert_width,
+    runtime_storage_copy_to_return_register_width, runtime_text_buffer_materialize_width,
+    runtime_text_line_read_width, runtime_text_literal_append_width,
+    runtime_text_literal_compare_width, runtime_text_literal_segment_write_width,
+    runtime_text_literal_write_width, runtime_text_storage_compare_width,
+    runtime_text_stored_place_append_width, runtime_text_stored_suffix_append_width,
+    runtime_value_compare_width, syscall_sequence_width_with_plan,
+    table_function_call_sequence_width_with_plan, vtable_call_sequence_width_at_offset_with_plan,
+    vtable_call_sequence_width_with_plan,
 };
 use omega_machine_instructions::{MachineInstruction, MachineInstructionKind};
 
@@ -893,6 +894,13 @@ fn machine_instruction_width(
                     "asm instruction `{}` is x86_64-only",
                     kind.mnemonic(),
                 ))
+            });
+        }
+        SelectedInstructionKind::GeneratedIdtLoad { .. } => {
+            return generated_idt_load_width(input.target.architecture).ok_or_else(|| {
+                Diagnostic::error(
+                    "generated IDT load is x86_64-only; no AArch64 lowering exists",
+                )
             });
         }
         SelectedInstructionKind::FlagsSnapshot { .. } => {
