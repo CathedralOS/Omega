@@ -371,7 +371,10 @@ requires every symbolic writer entry target to have an exact ledger record and
 live handle before a content/ledger-bound successful publication receipt can
 produce `InstalledIdt`; that value retains the handles. Exact validated
 compiler-selected plans now survive checked lowering in one canonical fact
-set. Binding those retained facts into root-execution construction,
+set. External-root candidates now bind the exact retained plan identity before
+validation; normalized root identity covers it, execution inherits it rather
+than accepting a second plan input, and the compiler's slot bridge rejects a
+missing or ambiguous retained selection. Concrete Cathedral construction,
 checked-Omega writer lowering, and provider-specific checked
 `lidt` execution remain. The normalized materializer already writes only an
 exclusive mapped/pinned/writable unpublished destination through the exact

@@ -38,6 +38,7 @@ impl SelectedProviderPlanFacts {
 
         let mut plans = Vec::with_capacity(names.len());
         let mut identities = BTreeSet::new();
+        let mut boundary_slots = BTreeSet::new();
         for name in names {
             let matches = candidates
                 .iter()
@@ -69,6 +70,12 @@ impl SelectedProviderPlanFacts {
             if !identities.insert(identity) {
                 return Err(format!(
                     "selected provider plan `{name}` collides with another selected plan at identity {identity:#018x}"
+                ));
+            }
+            if !boundary_slots.insert(plan.schema.trait_name.as_str()) {
+                return Err(format!(
+                    "boundary slot `{}` has more than one selected provider plan",
+                    plan.schema.trait_name
                 ));
             }
             plans.push((*plan).clone());
@@ -211,6 +218,18 @@ mod tests {
             SelectedProviderPlanFacts::from_selection(&[partial], &["Partial".into()])
                 .expect_err("partial selected plan must reject")
                 .contains("not fully covering")
+        );
+
+        let first = candidate("First", "run");
+        let mut second = candidate("Second", "run");
+        second.schema.trait_name = first.schema.trait_name.clone();
+        assert!(
+            SelectedProviderPlanFacts::from_selection(
+                &[first, second],
+                &["First".into(), "Second".into()]
+            )
+            .expect_err("one boundary slot cannot retain two selected plans")
+            .contains("more than one selected provider plan")
         );
     }
 }

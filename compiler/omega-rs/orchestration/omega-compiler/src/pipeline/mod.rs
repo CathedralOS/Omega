@@ -42,3 +42,4 @@ pub use omega_layout_plans::{
     MaterializationContext, MaterializationDiagnostic, MaterializationWrite, RelocationTarget,
     SymbolicFieldValue, SymbolicMaterializationPlan, derive_symbolic_materialization,
 };
+pub use provider_plans::selected_external_root_provider_plan_id;

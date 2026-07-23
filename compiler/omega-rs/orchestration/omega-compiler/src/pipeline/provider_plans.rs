@@ -23,6 +23,35 @@ pub(crate) fn retain_selected_provider_plan_facts(
     Ok(())
 }
 
+/// Resolve one external-root boundary slot only from the immutable provider
+/// selection retained on the checked program. The returned ID is the exact
+/// normalized `ProviderPlan` fingerprint consumed by root validation; source
+/// declarations and unselected candidates are no longer in scope here.
+pub fn selected_external_root_provider_plan_id(
+    checked: &omega_checked_trees::CheckedTrees,
+    boundary_trait: &str,
+) -> Result<omega_external_roots::ProviderPlanId, omega_external_roots::ExternalRootDiagnostic> {
+    let matches = checked
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .filter(|plan| same_semantic_name(&plan.schema.trait_name, boundary_trait))
+        .collect::<Vec<_>>();
+    let [plan] = matches.as_slice() else {
+        return Err(omega_external_roots::ExternalRootDiagnostic(
+            match matches.len() {
+                0 => format!(
+                    "external-root boundary slot `{boundary_trait}` has no retained selected provider plan"
+                ),
+                count => format!(
+                    "external-root boundary slot `{boundary_trait}` matches {count} retained selected provider plans"
+                ),
+            },
+        ));
+    };
+    omega_external_roots::ProviderPlanId::from_normalized_identity(plan.identity_fingerprint())
+}
+
 /// PRV4 order step (2): derive plans from explicit SATISFIES edges -- one
 /// plan per (provider type, boundary trait, target), assembled only from
 /// that provider's conformance closure. External leaves and checked adapters
@@ -533,6 +562,34 @@ mod tests {
             select_provider_plan_names(&plans, omega_target::NativeTarget::host(), &[], &[])
                 .expect("one covering candidate selects"),
             vec!["CompleteProvider".to_owned()]
+        );
+    }
+
+    #[test]
+    fn external_root_bridge_requires_one_exact_retained_boundary_slot() {
+        let mut first = selection_plan("FirstProvider", &["run"], &["run"]);
+        first.schema.trait_name = "first::Pair".into();
+        let mut second = selection_plan("SecondProvider", &["run"], &["run"]);
+        second.schema.trait_name = "second::Pair".into();
+        let facts = omega_checked_trees::SelectedProviderPlanFacts::from_selection(
+            &[first.clone(), second],
+            &["FirstProvider".into(), "SecondProvider".into()],
+        )
+        .expect("distinct qualified boundary slots may both be selected");
+        let mut checked = omega_checked_trees::CheckedTrees::default();
+        checked.retain_selected_provider_plans(facts);
+
+        assert_eq!(
+            selected_external_root_provider_plan_id(&checked, "first::Pair")
+                .expect("qualified slot resolves")
+                .normalized_identity(),
+            first.identity_fingerprint()
+        );
+        assert!(
+            selected_external_root_provider_plan_id(&checked, "Pair")
+                .expect_err("an ambiguous leaf slot must reject")
+                .0
+                .contains("matches 2 retained selected provider plans")
         );
     }
 

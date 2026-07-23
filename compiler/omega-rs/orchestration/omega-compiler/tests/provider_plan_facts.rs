@@ -1,4 +1,4 @@
-use omega_compiler::compile_to_checked;
+use omega_compiler::{compile_to_checked, selected_external_root_provider_plan_id};
 
 #[test]
 fn checked_program_retains_the_exact_selected_provider_plan() {
@@ -40,6 +40,15 @@ machine Main::main(&mut self) { }
             .plan_by_identity(plan.identity_fingerprint())
             .map(|selected| selected.name.as_str()),
         Some("satisfies::Pair")
+    );
+    let root_plan = selected_external_root_provider_plan_id(&checked, "Pair")
+        .expect("external-root bridge must consume the retained Pair selection");
+    assert_eq!(root_plan.normalized_identity(), plan.identity_fingerprint());
+    assert!(
+        selected_external_root_provider_plan_id(&checked, "Missing")
+            .expect_err("an unselected root slot must fail closed")
+            .0
+            .contains("no retained selected provider plan")
     );
 
     let _ = std::fs::remove_dir_all(&project);

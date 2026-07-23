@@ -682,15 +682,19 @@ schemas recover the same instance without publishing policy type identity.
    resource drift rejects, and the execution/plan identities enter the ledger
    fingerprint and manifest. The compiler now retains the exact validated
    selected `ProviderPlan` set through `CheckedTrees`, in canonical order with
-   both per-plan and whole-selection identities. Cathedral's acceptance
+   both per-plan and whole-selection identities. An external-root candidate now
+   carries that exact plan identity before validation; it enters the normalized
+   root fingerprint, `ProviderExecution` derives it from the validated root
+   instead of accepting a late independent ID, and the compiler resolves the
+   boundary slot only from its retained selected-plan set. Missing or ambiguous
+   retained slots reject. Cathedral's acceptance
    canaries pin both the five-node fixed timer work graph and the shared-IRQ
-   bound of maximum
-   maskable-root demand plus the permitted current-stack fatal-fault term.
+   bound of maximum maskable-root demand plus the permitted current-stack
+   fatal-fault term.
    The normalized IDT publication transition also enforces record-before-`lidt`
-   ordering and retains every installed-root handle. **Next:** consume the
-   retained compiler-selected plan fact when constructing each root's sealed
-   `ProviderExecution`, then drive it from the concrete Cathedral
-   PIC/LAPIC execution, lower the normalized direct-destination writer into
+   ordering and retains every installed-root handle. **Next:** drive the
+   selected-plan/root binding from concrete Cathedral PIC/LAPIC candidate
+   construction, lower the normalized direct-destination writer into
    checked Omega, and execute checked `lidt` behind the live publication gate.
    The stack/IST policy must remain one fact consumed by both layout
    materialization and WCSU analysis.
@@ -786,7 +790,9 @@ slot owner may override by type. The migration order remains load-bearing.
    selections, retains immutable normalized rows for later provider execution,
    and has a deterministic whole-selection identity; backend and generated-
    machine work no longer has to rediscover selection from authored
-   `satisfies` declarations.
+   `satisfies` declarations. External-root construction can resolve a boundary
+   slot's `ProviderPlanId` only from that retained set and rejects absent or
+   ambiguous matches.
 3. **PRV4e — foreign format facts.** Move foreign offsets and bit constants
    from `Binding::Value` into programmable layout/format declarations and
    migrate filesystem leaves. Open-option flags have moved: portable code now
