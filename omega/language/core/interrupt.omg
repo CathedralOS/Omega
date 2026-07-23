@@ -1,0 +1,30 @@
+// Core interrupt obligations (IDT3).
+//
+// Masking and acknowledgement are distinct authority/debt relationships.
+// A mask guard remembers the provider's exact prior mask state; restoring it
+// consumes the guard, so nested save/restore composes without an unsafe
+// unconditional `enable` operation. An acknowledgement is minted by an inbound
+// interrupt provider and must be completed exactly once.
+//
+// Both carriers are opaque and linear. Ordinary code can receive, move, and
+// consume them, but zero-fill or record construction cannot mint either fact.
+
+boundary data InterruptMaskGuard [linear];
+
+// The capability that may change the current activation's interrupt mask.
+// Saving returns the only authority that can restore that exact prior state.
+boundary data InterruptMaskControl;
+
+boundary machine InterruptMaskControl::save_and_mask(&mut self) -> InterruptMaskGuard
+effects machine_control
+ensures true;
+
+boundary machine InterruptMaskGuard::restore(self)
+effects machine_control
+ensures true;
+
+boundary data InterruptAcknowledgement [linear];
+
+boundary machine InterruptAcknowledgement::complete(self)
+effects device_io
+ensures true;

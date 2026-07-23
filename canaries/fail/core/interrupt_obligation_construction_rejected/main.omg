@@ -1,0 +1,8 @@
+use omega::language::core::interrupt;
+
+data Main {}
+
+machine Main::main(&mut self) {
+    // Only the admitted interrupt provider may mint an acknowledgement.
+    let forged: InterruptAcknowledgement = InterruptAcknowledgement {};
+}

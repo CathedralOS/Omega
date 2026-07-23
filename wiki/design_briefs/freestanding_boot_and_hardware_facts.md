@@ -133,6 +133,12 @@ vertical slice composes the common pieces:
 7. checked `lidt` installation under IDT authority; and
 8. a linear acknowledgement token for exactly-once EOI.
 
+The provider-neutral obligation spelling is live in
+`omega::language::core::interrupt`: the mask guard and acknowledgement are
+distinct opaque linear values with consuming `restore` and `complete`
+operations. The concrete interrupt provider still owes their minting and entry
+integration.
+
 The selected provider plan may keep entry identity private for static tables;
 the program does not need a source-visible function pointer or numeric code
 address. Installation records the handler as an external root. The root ledger

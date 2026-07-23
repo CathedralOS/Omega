@@ -120,25 +120,22 @@ ordinary operations. An instruction with an unsatisfied contract rejects. A
 package cannot silence the obligation by moving the instruction into a helper.
 
 ```omega
-machine Interrupts::save_and_mask(
-    authority: &mut InterruptControl,
-) -> InterruptMask
+machine critical(control: &mut InterruptMaskControl)
+effects machine_control
 {
-    let mut saved: u64 = 0;
-    asm {
-        pushfq saved;
-        cli
-    }
-    transition { _ -> InterruptMask::from_saved(saved, authority) }
+    let guard: InterruptMaskGuard = control.save_and_mask();
+    // Checked work while the prior mask state is held.
+    guard.restore();
 }
 ```
 
-This sketch does not make `cli` safe by spelling it. Its contract requires the
-appropriate authority, contributes the normalized interrupt-control reach,
-records flag/state changes, and participates in construction of the linear
-restore token. The provider-minted `InterruptMask` constructor/consumer is
-the IDT3 obligation; copying or directly restoring its private saved value is
-not the public protocol.
+The public contract above does not make `cli` safe by hiding it. The selected
+provider's checked implementation still uses `pushfq`/`cli`; those instruction
+contracts require the appropriate authority, contribute the normalized
+interrupt-control reach, and record flag/state changes. The live opaque
+`InterruptMaskGuard` surface keeps its saved representation private and forces
+the caller to consume `restore`; copying or directly restoring the saved value
+is not a public protocol.
 
 ## No quiet spelling
 
