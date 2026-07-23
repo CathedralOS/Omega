@@ -119,6 +119,15 @@ denominator in Nat's monus order. Its reflexive and symmetric laws are ordinary
 checked machines; they are the metric substrate for the constructed `Real`
 corpus, not compiler-known arithmetic.
 
+The first sequence-facing atoms are ordinary generic machines too.
+`cauchy_at<Sequence, Modulus>(precision, i, j) == Nat::Zero` states the
+same-generator point obligation after `i` and `j` have reached the static
+modulus. `converges_together_at<Left, Right, Modulus>` states its
+heterogeneous two-generator twin. Their arbitrary precision and index inputs
+are the universal variables; positive precision and both modulus bounds are
+ordinary `requires`. There is no hidden quantifier, runtime callable, or
+compiler-known notion of convergence in this surface.
+
 A quotient coarsens a type: sort its values into buckets of things a
 proven equivalence calls interchangeable, and the buckets become the
 values — read `%` as it already reads everywhere else, modulo. Wrapping

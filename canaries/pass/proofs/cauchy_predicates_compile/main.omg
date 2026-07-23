@@ -1,0 +1,40 @@
+// N8 Cauchy predicates quantify through ordinary symbolic machine inputs and
+// take their generator/modulus identities as static machine parameters.
+use omega::language::core::cauchy;
+
+machine unit_sample(index: Nat) -> Rat {
+    Rat {
+        num: Nat::Succ { prev: Nat::Zero },
+        den: Nat::Succ { prev: Nat::Zero }
+    }
+}
+
+machine immediate_modulus(precision: Nat) -> Nat {
+    Nat::Zero
+}
+
+machine valid_cauchy_point() -> Nat {
+    cauchy_at<unit_sample, immediate_modulus>(
+        Nat::Succ { prev: Nat::Zero },
+        Nat::Zero,
+        Nat::Zero
+    )
+}
+
+machine valid_convergence_point() -> Nat {
+    converges_together_at<
+        unit_sample,
+        unit_sample,
+        immediate_modulus
+    >(
+        Nat::Succ { prev: Nat::Zero },
+        Nat::Zero,
+        Nat::Zero
+    )
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

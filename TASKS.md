@@ -1129,11 +1129,19 @@ stronger operations it needs instead of citing machine parameters generally.
   engineering rung, not full discharge: obligations that are unknown or outside
   the structural language remain permissive until call-site flow facts are
   complete enough for fail-closed validation (citation sites already fail closed
-  inside that language). Next build the quantified
-  Cauchy modulus/convergence predicates over this metric, then replace the
-  boundary `Real` with `CauchySeq % converges_together`, prove operation
-  well-definedness and order/completeness, and retire axioms through the normal
-  boundary-upgrade path.
+  inside that language). The first quantified sequence-facing atoms now ship in
+  core: `cauchy_at<Sequence, Modulus>` and heterogeneous
+  `converges_together_at<Left, Right, Modulus>` take arbitrary symbolic
+  precision/indices, enforce positive precision plus both modulus thresholds,
+  and compute the `rat_close` residual without runtime callables. Valid concrete
+  points compile and zero precision rejects. Their generic wrapper laws remain
+  engineering work: structural entailment cannot yet unfold a static-machine
+  selection such as `Sequence(index)` inside a contract, so accepting those
+  laws now would be vacuous. Add that unfolding/extraction rung, then build the
+  certified `CauchySeq` carrier and replace boundary `Real` with
+  `CauchySeq % converges_together`; prove operation well-definedness and
+  order/completeness, and retire axioms through the normal boundary-upgrade
+  path.
 - **F6 — total float order.** Add named `TotalOrder` satisfiers for f32/f64
   using sign-magnitude integer comparison once satisfier dispatch serves.
 - **F7 — float format providers.** `FloatFormat::BINARY32` and

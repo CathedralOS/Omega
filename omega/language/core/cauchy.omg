@@ -1,0 +1,45 @@
+// Constructive Cauchy obligations over core Rat's division-free metric.
+//
+// Quantification uses Omega's ordinary theorem-machine rule: `precision`,
+// `left_index`, and `right_index` are arbitrary symbolic inputs. A modulus is
+// a static machine, so no callable value or proof object exists at runtime.
+// `cauchy_at == Zero` is the point obligation after both indices have reached
+// that modulus. `converges_together_at == Zero` is the heterogeneous twin for
+// two generators and is the atom from which the Real quotient relation will
+// be built.
+use omega::language::core::rat;
+
+machine cauchy_at<machine Sequence, machine Modulus>(
+    precision: Nat,
+    left_index: Nat,
+    right_index: Nat
+) -> Nat
+where machine Sequence(index: Nat) -> Rat;
+where machine Modulus(precision: Nat) -> Nat;
+requires
+    (sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
+    (sub(Modulus(precision), left_index)) == Nat::Zero;
+    (sub(Modulus(precision), right_index)) == Nat::Zero
+{
+    let left: Rat = Sequence(left_index);
+    let right: Rat = Sequence(right_index);
+    rat_close(left, right, precision)
+}
+
+machine converges_together_at<machine Left, machine Right, machine Modulus>(
+    precision: Nat,
+    left_index: Nat,
+    right_index: Nat
+) -> Nat
+where machine Left(index: Nat) -> Rat;
+where machine Right(index: Nat) -> Rat;
+where machine Modulus(precision: Nat) -> Nat;
+requires
+    (sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
+    (sub(Modulus(precision), left_index)) == Nat::Zero;
+    (sub(Modulus(precision), right_index)) == Nat::Zero
+{
+    let left: Rat = Left(left_index);
+    let right: Rat = Right(right_index);
+    rat_close(left, right, precision)
+}
