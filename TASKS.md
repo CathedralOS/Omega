@@ -255,10 +255,29 @@ schemas recover the same instance without publishing policy type identity.
    Authored scalar helper calls in entry-terminal position already preserve the
    callee's native result register through entry termination; the former
    compile-only free-standing `add_i32(3, 4)` canary now executes and pins exit 7.
-   Fixed-array and text/slice descriptor entry results now wait on the explicit
-   native-boundary policy decision under "native boundary ABI for fixed arrays
-   and text descriptors" in `OWNER_QUESTIONS.md`; byte size
-   alone must not silently define their public ABI.
+   Native aggregate/slice admission is settled: a policy classifies a public
+   semantic shape only when that shape determines every ABI fact; otherwise the
+   native leaf declares the foreign API's actual pointer/length/terminator/record
+   structure. Implement the remaining classifier slice:
+   - enrich `BoundarySignature`/`ValueShape` with normalized recursive
+     fixed-array and record structure instead of making policy authors depend on
+     a compiler-preclassified aggregate case;
+   - teach the bundled Microsoft x64, SysV AMD64, and AAPCS64 policies to
+     classify or reject direct fixed arrays under their real aggregate rules,
+     including HFA/SSE cases, without C-style array decay;
+   - reject bare safe slices, text views, vectors, and bounded-text carriers in
+     default native leaves; permit them only when a custom policy explicitly
+     publishes a canonical representation;
+   - keep checked adapters explicit and ensure borrowed-out pointer derivation
+     cannot reach a retaining/asynchronous foreign contract without a pinned
+     loan, transfer, or registration protocol; and
+   - pin canaries for `[u8; 16]` versus `&[u8; 16]`, `[f32; 4]` target
+     classification, C array-parameter decay requiring the pointer form,
+     separate pointer/length parameters versus an actual descriptor record
+     under Microsoft x64, text domain forget/validate transitions, and the
+     process-entry requirement's scalar exit status.
+   Byte size and the compiler's private slice carrier must never silently define
+   public ABI.
    Direct scalar binary, numeric-cast, `min`/`max`/`sqrt`, runtime-indexed
    slice-element, and fixed-array indexed expressions in host-call argument
    position now materialize into bounded per-argument frame scratch before
