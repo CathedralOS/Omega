@@ -404,15 +404,21 @@ pub fn interrupt_control_width(architecture: Architecture) -> Option<usize> {
     }
 }
 
-pub fn generated_idt_load_width(architecture: Architecture) -> Option<usize> {
+pub fn generated_idt_load_width(
+    architecture: Architecture,
+    pointer_register: omega_calling_conventions::MachineRegister,
+) -> Result<usize, omega_core::diagnostics::Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => None,
-        Architecture::X86_64 => Some(x86_64::lidt_from_r10_width()),
+        Architecture::Aarch64 => Err(omega_core::diagnostics::Diagnostic::error(
+            "generated IDT load is x86_64-only; no AArch64 lowering exists",
+        )),
+        Architecture::X86_64 => x86_64::generated_idt_load_width(pointer_register),
     }
 }
 
 pub fn generated_idt_writer_width(
     architecture: Architecture,
+    pointer_register: omega_calling_conventions::MachineRegister,
     byte_len: usize,
     little_endian: bool,
     context_abi: u64,
@@ -424,6 +430,7 @@ pub fn generated_idt_writer_width(
             "generated IDT writer is x86_64-only; no AArch64 lowering exists",
         )),
         Architecture::X86_64 => omega_isa_x86_64::generated_idt_writer_width(
+            pointer_register,
             byte_len,
             little_endian,
             context_abi,

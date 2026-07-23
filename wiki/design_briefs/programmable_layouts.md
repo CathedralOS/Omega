@@ -262,12 +262,13 @@ Foreign entries,
 placement/root drift, and invalid destination authority reject before lowering;
 numeric entry addresses never become a public API. The packed private
 `IDTWRIT1` context ABI is pinned as an R10-addressed destination pointer plus
-dense u64 source slots; exact x86 emission/width and the RAX/RCX/RDX/R11 plus
+dense u64 source slots; exact x86 emission/width and the RAX/RCX/RDX/R10/R11 plus
 Flags footprint are live, with unsupported ABI/architecture/slot/geometry
 combinations rejected before emission. A non-clonable opaque populated seal now
 binds the exact destination word and once-resolved dense source words, exposes
 only identity/fingerprint/geometry, and is required by lowering and
-materialization. R10 materialization and concrete provider execution remain.
+materialization. A validated private-pointer invocation plan now supplies the
+exact register copied into R10; concrete provider insertion/execution remains.
 
 ## Still open
 

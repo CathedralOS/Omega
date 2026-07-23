@@ -670,15 +670,14 @@ pub(super) fn encode_machine_instruction_bytes(
                 ))
             })
         }
-        SelectedInstructionKind::GeneratedIdtLoad { .. } => {
-            omega_instruction_selection::encode_generated_idt_load_bytes(input.target.architecture)
-                .ok_or_else(|| {
-                    omega_core::diagnostics::Diagnostic::error(
-                        "generated IDT load is x86_64-only; no AArch64 lowering exists",
-                    )
-                })
-        }
+        SelectedInstructionKind::GeneratedIdtLoad {
+            pointer_register, ..
+        } => omega_instruction_selection::encode_generated_idt_load_bytes(
+            input.target.architecture,
+            *pointer_register,
+        ),
         SelectedInstructionKind::GeneratedIdtWriter {
+            pointer_register,
             byte_len,
             little_endian,
             context_abi,
@@ -687,6 +686,7 @@ pub(super) fn encode_machine_instruction_bytes(
             ..
         } => omega_instruction_selection::encode_generated_idt_writer_bytes(
             input.target.architecture,
+            *pointer_register,
             *byte_len,
             *little_endian,
             *context_abi,

@@ -181,10 +181,12 @@ mod tests {
         let data = omega_target_operations::TargetDataPlan::default();
         let mut machine_instructions = MachineInstructionPlan::with_capacity(target, 1, 1);
         let source_kind = SelectedInstructionKind::GeneratedIdtLoad {
+            pointer_register: omega_calling_conventions::MachineRegister::X86Rcx,
             materialized: omega_external_roots::MaterializedIdtId::from_normalized_identity(1)
                 .expect("materialized IDT identity"),
             descriptor: omega_external_roots::IdtDestinationId::from_normalized_identity(2)
                 .expect("IDT destination identity"),
+            descriptor_fingerprint: 6,
             content_fingerprint: 3,
             root_ledger_fingerprint: 4,
             control: omega_external_roots::IdtControlId::from_normalized_identity(5)
@@ -219,11 +221,17 @@ mod tests {
 
         assert_eq!(
             encoded.code.bytes.storage_slice(),
-            omega_isa_x86_64::encode_lidt_from_r10_bytes()
+            omega_isa_x86_64::encode_generated_idt_load_bytes(
+                omega_calling_conventions::MachineRegister::X86Rcx,
+            )
+            .expect("plan-selected descriptor pointer materialization")
         );
         assert_eq!(
             encoded.code.byte_count,
-            omega_isa_x86_64::lidt_from_r10_width()
+            omega_isa_x86_64::generated_idt_load_width(
+                omega_calling_conventions::MachineRegister::X86Rcx,
+            )
+            .expect("generated load width")
         );
     }
 
@@ -242,12 +250,14 @@ mod tests {
                 .insert_many([MachineInstruction {
                     selected_instruction_index: 0,
                     source_kind: SelectedInstructionKind::GeneratedIdtLoad {
+                        pointer_register: omega_calling_conventions::MachineRegister::X86Rcx,
                         materialized:
                             omega_external_roots::MaterializedIdtId::from_normalized_identity(1)
                                 .expect("materialized IDT identity"),
                         descriptor:
                             omega_external_roots::IdtDestinationId::from_normalized_identity(2)
                                 .expect("IDT destination identity"),
+                        descriptor_fingerprint: 6,
                         content_fingerprint: 3,
                         root_ledger_fingerprint: 4,
                         control: omega_external_roots::IdtControlId::from_normalized_identity(5)
@@ -279,6 +289,7 @@ mod tests {
     #[test]
     fn generated_idt_writer_emits_exact_x86_bytes_and_refuses_aarch64() {
         let source_kind = SelectedInstructionKind::GeneratedIdtWriter {
+            pointer_register: omega_calling_conventions::MachineRegister::X86Rdi,
             context: omega_external_roots::IdtWriterContextId::from_normalized_identity(9)
                 .expect("writer context identity"),
             preparation: omega_external_roots::IdtWriterPreparationId::from_normalized_identity(1)
@@ -342,6 +353,7 @@ mod tests {
 
         let encoded = emit(NativeTarget::linux_x64()).expect("generated x86 writer emits");
         let SelectedInstructionKind::GeneratedIdtWriter {
+            pointer_register,
             byte_len,
             little_endian,
             context_abi,
@@ -355,6 +367,7 @@ mod tests {
         assert_eq!(
             encoded.code.bytes.storage_slice(),
             omega_isa_x86_64::encode_generated_idt_writer_bytes(
+                *pointer_register,
                 *byte_len,
                 *little_endian,
                 *context_abi,

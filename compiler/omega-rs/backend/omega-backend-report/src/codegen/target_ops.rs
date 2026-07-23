@@ -832,15 +832,18 @@ fn selected_instruction_name(
             format!("interrupt control ({})", kind.mnemonic())
         }
         SelectedInstructionKind::GeneratedIdtLoad {
+            pointer_register,
             materialized,
             descriptor,
+            descriptor_fingerprint,
             content_fingerprint,
             root_ledger_fingerprint,
             control,
         } => format!(
-            "generated IDT publication load (lidt [r10]) materialized={materialized:?} descriptor={descriptor:?} content={content_fingerprint:016x} ledger={root_ledger_fingerprint:016x} control={control:?}"
+            "generated IDT publication load ({pointer_register:?} -> r10; lidt [r10]) materialized={materialized:?} descriptor={descriptor:?}/{descriptor_fingerprint:016x} content={content_fingerprint:016x} ledger={root_ledger_fingerprint:016x} control={control:?}"
         ),
         SelectedInstructionKind::GeneratedIdtWriter {
+            pointer_register,
             context,
             preparation,
             installed_code,
@@ -857,7 +860,7 @@ fn selected_instruction_name(
             source_slot_count,
             steps,
         } => format!(
-            "generated checked IDT writer context={context:?} preparation={preparation:?} code={installed_code:?} artifact={artifact:?} destination={destination:?} writer={writer_fingerprint:016x} placement={placement_fingerprint:016x} initial={initial_content_fingerprint:016x} roots={root_binding_fingerprint:016x} bytes={byte_len} endian={} context_abi={context_abi:016x} context_fingerprint={context_fingerprint:016x} private_sources={source_slot_count} fragments={}",
+            "generated checked IDT writer pointer={pointer_register:?}->r10 context={context:?} preparation={preparation:?} code={installed_code:?} artifact={artifact:?} destination={destination:?} writer={writer_fingerprint:016x} placement={placement_fingerprint:016x} initial={initial_content_fingerprint:016x} roots={root_binding_fingerprint:016x} bytes={byte_len} endian={} context_abi={context_abi:016x} context_fingerprint={context_fingerprint:016x} private_sources={source_slot_count} fragments={}",
             if *little_endian { "little" } else { "big" },
             steps.len(),
         ),

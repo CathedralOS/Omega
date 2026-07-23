@@ -15,4 +15,5 @@ omega-machine-instructions = { path = "../../representations/omega-machine-instr
 
 [dev-dependencies]
 omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-external-roots = { path = "../../foundation/omega-external-roots" }

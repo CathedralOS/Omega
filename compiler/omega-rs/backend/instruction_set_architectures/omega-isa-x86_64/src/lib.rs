@@ -163,6 +163,59 @@ pub const fn encode_lidt_from_r10_bytes() -> [u8; 4] {
     [0x41, 0x0f, 0x01, 0x1a]
 }
 
+/// Materialize one plan-selected private pointer in R10. The pointer arrives
+/// through a normalized boundary placement; it is never embedded as an
+/// immediate or retained in source-visible operation data.
+pub fn encode_private_pointer_to_r10_bytes(
+    source: omega_calling_conventions::MachineRegister,
+) -> Result<[u8; 3], Diagnostic> {
+    use omega_calling_conventions::MachineRegister;
+
+    let code = match source {
+        MachineRegister::X86Rax => 0,
+        MachineRegister::X86Rcx => 1,
+        MachineRegister::X86Rdx => 2,
+        MachineRegister::X86Rbx => 3,
+        MachineRegister::X86Rsp => 4,
+        MachineRegister::X86Rbp => 5,
+        MachineRegister::X86Rsi => 6,
+        MachineRegister::X86Rdi => 7,
+        MachineRegister::X86R8 => 8,
+        MachineRegister::X86R9 => 9,
+        MachineRegister::X86R10 => 10,
+        MachineRegister::X86R11 => 11,
+        MachineRegister::X86R12 => 12,
+        MachineRegister::X86R13 => 13,
+        MachineRegister::X86R14 => 14,
+        MachineRegister::X86R15 => 15,
+        MachineRegister::X86Xmm(_)
+        | MachineRegister::Aarch64X(_)
+        | MachineRegister::Aarch64V(_) => {
+            return Err(Diagnostic::error(format!(
+                "generated x86 private pointer cannot arrive in {source:?}"
+            )));
+        }
+    };
+    // REX.W + R (r10 destination), plus B for a high source register;
+    // `8b /r` reads the source r/m64 into r10.
+    Ok([0x4c | u8::from(code >= 8), 0x8b, 0xd0 | (code & 7)])
+}
+
+pub fn generated_idt_load_width(
+    pointer_register: omega_calling_conventions::MachineRegister,
+) -> Result<usize, Diagnostic> {
+    encode_private_pointer_to_r10_bytes(pointer_register)?;
+    Ok(3 + lidt_from_r10_width())
+}
+
+pub fn encode_generated_idt_load_bytes(
+    pointer_register: omega_calling_conventions::MachineRegister,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = encode_private_pointer_to_r10_bytes(pointer_register)?.to_vec();
+    bytes.extend(encode_lidt_from_r10_bytes());
+    Ok(bytes)
+}
+
 /// Exact scratch footprint of the generated descriptor-address
 /// materialization plus `lidt [r10]` sequence.
 pub fn lidt_from_r10_clobbers() -> omega_calling_conventions::RegisterSet {
@@ -186,14 +239,16 @@ pub fn generated_idt_writer_context_width(source_slot_count: usize) -> Option<us
     omega_target_operations::generated_idt_writer_context_byte_len(source_slot_count)
 }
 
-/// Exact registers written by the checked x86 IDT fragment writer. R10 is a
-/// read-only context pointer; R11 holds the destination, RAX the source
-/// fragment, RCX the destination container, and RDX the masks.
+/// Exact registers written by the checked x86 IDT fragment writer. The
+/// plan-selected private pointer is first copied into R10; R11 then holds the
+/// destination, RAX the source fragment, RCX the destination container, and
+/// RDX the masks.
 pub fn generated_idt_writer_clobbers() -> RegisterSet {
     RegisterSet::new([
         MachineRegister::X86Rax,
         MachineRegister::X86Rcx,
         MachineRegister::X86Rdx,
+        MachineRegister::X86R10,
         MachineRegister::X86R11,
     ])
 }
@@ -203,6 +258,7 @@ pub fn generated_idt_writer_additional_machine_state() -> MachineStateSet {
 }
 
 pub fn generated_idt_writer_width(
+    pointer_register: omega_calling_conventions::MachineRegister,
     byte_len: usize,
     little_endian: bool,
     context_abi: u64,
@@ -210,6 +266,7 @@ pub fn generated_idt_writer_width(
     steps: &[omega_target_operations::GeneratedIdtWriterStep],
 ) -> Result<usize, Diagnostic> {
     Ok(encode_generated_idt_writer_bytes(
+        pointer_register,
         byte_len,
         little_endian,
         context_abi,
@@ -219,10 +276,12 @@ pub fn generated_idt_writer_width(
     .len())
 }
 
-/// Emit the complete direct-destination writer. R10 must point at the packed
-/// private context above. Every access uses a pinned disp32 encoding, and the
-/// generated sequence revalidates all geometry before producing any bytes.
+/// Emit the complete direct-destination writer. The selected boundary register
+/// supplies the packed private context and is copied into R10 before any
+/// access. Every access uses a pinned disp32 encoding, and the generated
+/// sequence revalidates all geometry before producing any bytes.
 pub fn encode_generated_idt_writer_bytes(
+    pointer_register: omega_calling_conventions::MachineRegister,
     byte_len: usize,
     little_endian: bool,
     context_abi: u64,
@@ -237,7 +296,7 @@ pub fn encode_generated_idt_writer_bytes(
         steps,
     )?;
 
-    let mut bytes = Vec::new();
+    let mut bytes = encode_private_pointer_to_r10_bytes(pointer_register)?.to_vec();
     bytes.extend([0x4d, 0x8b, 0x1a]); // mov r11, [r10]
     for step in steps {
         let source_offset = GENERATED_IDT_WRITER_SOURCE_SLOTS_OFFSET
@@ -16120,6 +16179,17 @@ mod machine_control_tests {
     fn deriver_only_lidt_reads_the_private_descriptor_through_r10() {
         assert_eq!(encode_lidt_from_r10_bytes(), [0x41, 0x0f, 0x01, 0x1a]);
         assert_eq!(encode_lidt_from_r10_bytes().len(), lidt_from_r10_width());
+        assert_eq!(
+            encode_generated_idt_load_bytes(MachineRegister::X86Rcx)
+                .expect("Microsoft private pointer materialization"),
+            [0x4c, 0x8b, 0xd1, 0x41, 0x0f, 0x01, 0x1a]
+        );
+        assert!(
+            encode_generated_idt_load_bytes(MachineRegister::X86Xmm(0))
+                .expect_err("vector pointer placement must reject")
+                .message
+                .contains("cannot arrive")
+        );
     }
 
     #[test]
@@ -16133,6 +16203,7 @@ mod machine_control_tests {
             source_slot: 0,
         }];
         let bytes = encode_generated_idt_writer_bytes(
+            MachineRegister::X86Rdi,
             8,
             true,
             omega_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
@@ -16141,6 +16212,7 @@ mod machine_control_tests {
         )
         .expect("valid full-width generated writer");
         let mut expected = vec![
+            0x4c, 0x8b, 0xd7, // mov r10, rdi (plan-selected private pointer)
             0x4d, 0x8b, 0x1a, // mov r11, [r10]
             0x49, 0x8b, 0x82, 0x08, 0x00, 0x00, 0x00, // mov rax, [r10+8]
             0x48, 0xba, // mov rdx, u64::MAX
@@ -16159,9 +16231,10 @@ mod machine_control_tests {
         ]);
 
         assert_eq!(bytes, expected);
-        assert_eq!(bytes.len(), 53);
+        assert_eq!(bytes.len(), 56);
         assert_eq!(
             generated_idt_writer_width(
+                MachineRegister::X86Rdi,
                 8,
                 true,
                 omega_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
@@ -16181,6 +16254,7 @@ mod machine_control_tests {
                 MachineRegister::X86Rax,
                 MachineRegister::X86Rcx,
                 MachineRegister::X86Rdx,
+                MachineRegister::X86R10,
                 MachineRegister::X86R11,
             ]
         );
@@ -16201,6 +16275,7 @@ mod machine_control_tests {
             source_slot: 0,
         }];
         let bytes = encode_generated_idt_writer_bytes(
+            MachineRegister::X86Rdi,
             8,
             true,
             omega_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
@@ -16209,6 +16284,7 @@ mod machine_control_tests {
         )
         .expect("valid fragmented generated writer");
         let mut expected = vec![
+            0x4c, 0x8b, 0xd7, // mov r10, rdi (plan-selected private pointer)
             0x4d, 0x8b, 0x1a, // mov r11, [r10]
             0x49, 0x8b, 0x82, 0x08, 0x00, 0x00, 0x00, // mov rax, [r10+8]
             0x48, 0xc1, 0xe8, 0x0c, // shr rax, 12
@@ -16229,7 +16305,7 @@ mod machine_control_tests {
         ]);
 
         assert_eq!(bytes, expected);
-        assert_eq!(bytes.len(), 63);
+        assert_eq!(bytes.len(), 66);
     }
 
     #[test]
@@ -16244,6 +16320,7 @@ mod machine_control_tests {
         };
         assert!(
             encode_generated_idt_writer_bytes(
+                MachineRegister::X86Rdi,
                 8,
                 false,
                 omega_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
@@ -16256,6 +16333,7 @@ mod machine_control_tests {
         );
         assert!(
             encode_generated_idt_writer_bytes(
+                MachineRegister::X86Rdi,
                 8,
                 true,
                 omega_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
@@ -16271,6 +16349,7 @@ mod machine_control_tests {
         );
         assert!(
             encode_generated_idt_writer_bytes(
+                MachineRegister::X86Rdi,
                 8,
                 true,
                 omega_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
@@ -16286,6 +16365,7 @@ mod machine_control_tests {
         );
         assert!(
             encode_generated_idt_writer_bytes(
+                MachineRegister::X86Rdi,
                 8,
                 true,
                 omega_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
@@ -16300,7 +16380,14 @@ mod machine_control_tests {
             .contains("dense exact set")
         );
         assert!(
-            encode_generated_idt_writer_bytes(8, true, 0xdead, 1, &[step])
+            encode_generated_idt_writer_bytes(
+                MachineRegister::X86Rdi,
+                8,
+                true,
+                0xdead,
+                1,
+                &[step],
+            )
                 .expect_err("unknown private context ABI must reject")
                 .message
                 .contains("IDTWRIT1")

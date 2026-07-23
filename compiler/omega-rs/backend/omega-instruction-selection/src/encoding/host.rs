@@ -1253,15 +1253,21 @@ pub fn encode_interrupt_control_bytes(
     }
 }
 
-pub fn encode_generated_idt_load_bytes(architecture: Architecture) -> Option<Vec<u8>> {
+pub fn encode_generated_idt_load_bytes(
+    architecture: Architecture,
+    pointer_register: omega_calling_conventions::MachineRegister,
+) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => None,
-        Architecture::X86_64 => Some(x86_64::encode_lidt_from_r10_bytes().to_vec()),
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "generated IDT load is x86_64-only; no AArch64 lowering exists",
+        )),
+        Architecture::X86_64 => x86_64::encode_generated_idt_load_bytes(pointer_register),
     }
 }
 
 pub fn encode_generated_idt_writer_bytes(
     architecture: Architecture,
+    pointer_register: omega_calling_conventions::MachineRegister,
     byte_len: usize,
     little_endian: bool,
     context_abi: u64,
@@ -1273,6 +1279,7 @@ pub fn encode_generated_idt_writer_bytes(
             "generated IDT writer is x86_64-only; no AArch64 lowering exists",
         )),
         Architecture::X86_64 => omega_isa_x86_64::encode_generated_idt_writer_bytes(
+            pointer_register,
             byte_len,
             little_endian,
             context_abi,

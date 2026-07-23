@@ -676,10 +676,17 @@ schemas recover the same instance without publishing policy type identity.
    fingerprint, and omits them from diagnostics and public accessors. Lowering
    and materialization now require that populated seal; plan/code/site/context
    drift rejects before mutation, and semantic completion uses those exact
-   sealed values without re-resolution. **Next:** materialize the private
-   context address into R10 and insert/execute the emitted writer in the
-   concrete provider; then materialize the private descriptor address into R10
-   and insert/execute the checked publication operation.
+   sealed values without re-resolution. Both generated helpers now consume a
+   validated concrete one-private-pointer call/return plan, retain its exact
+   GPR placement, and emit that register-to-R10 materialization before the
+   writer or `lidt [r10]`; Microsoft x64 selects RCX and SysV AMD64 selects RDI,
+   while extra parameters, stack/fragmented pointers, results, wrong control,
+   architecture drift, and a footprint beyond the plan's state ceiling reject.
+   `PreparedIdtLoad` also owns the exact private
+   packed 10-byte x86 descriptor (table-byte limit plus placed base) and exposes
+   only its content-bound fingerprint. **Next:** insert and execute both emitted
+   helpers through those opaque provider inputs in the concrete Cathedral
+   provider, then finalize their materialization/installation receipts.
 5. **IDT2 — installed-root ledger.** The normalized `omega-external-roots`
    foundation is live. It admits only an entry present in the exact
    installed artifact; consumes owner-scoped slot authority; and records
@@ -732,10 +739,11 @@ schemas recover the same instance without publishing policy type identity.
    prevent a swapped plan/destination/resolver from reaching code generation.
    **Next:**
    drive the selected-plan/root binding from concrete Cathedral PIC/LAPIC
-   candidate construction and connect R10 context/descriptor-address
-   materialization plus execution of both generated operations in the concrete
-   provider. The writer context is already populated opaquely from the exact
-   installed resolver before lowering.
+   candidate construction and insert/execute both plan-driven generated
+   operations in the concrete provider. R10 materialization is emitted from the
+   exact normalized private-pointer placement, the writer context is populated
+   opaquely from the installed resolver, and the load preparation owns the
+   exact private packed descriptor before lowering.
    The stack/IST policy must remain one fact consumed by both layout
    materialization and WCSU analysis.
 6. **IDT3 — linear interrupt obligations.** The source contract is live in

@@ -52,10 +52,14 @@ impl GeneratedIdtWriterLowering {
 /// provider-private source-slot indices.
 pub fn lower_populated_idt_writer(
     populated: &omega_external_roots::PopulatedIdtWriter,
+    invocation_plan: &omega_calling_conventions::ValidatedBoundaryEntryPlan,
     architecture: omega_target::Architecture,
 ) -> Result<GeneratedIdtWriterLowering, omega_external_roots::ExternalRootDiagnostic> {
     let prepared = populated.prepared();
-    lower_populated_idt_writer_facts(
+    let pointer_register =
+        generated_private_pointer_register(invocation_plan, architecture, "IDT writer")?;
+    let lowering = lower_populated_idt_writer_facts(
+        pointer_register,
         populated.identity(),
         prepared.identity(),
         prepared.installed_code(),
@@ -82,11 +86,14 @@ pub fn lower_populated_idt_writer(
             })
             .collect(),
         architecture,
-    )
+    )?;
+    validate_generated_helper_footprint(invocation_plan, lowering.footprint(), "IDT writer")?;
+    Ok(lowering)
 }
 
 #[allow(clippy::too_many_arguments)]
 fn lower_populated_idt_writer_facts(
+    pointer_register: omega_calling_conventions::MachineRegister,
     context: omega_external_roots::IdtWriterContextId,
     preparation: omega_external_roots::IdtWriterPreparationId,
     installed_code: omega_external_roots::InstalledCodeId,
@@ -112,6 +119,7 @@ fn lower_populated_idt_writer_facts(
     };
     Ok(GeneratedIdtWriterLowering {
         operation: omega_target_operations::TargetOperationKind::GeneratedIdtWriter {
+            pointer_register,
             context,
             preparation,
             installed_code,
@@ -156,21 +164,30 @@ impl GeneratedIdtLoadLowering {
 /// abstract/source counterpart, and non-x86 targets fail closed.
 pub fn lower_prepared_idt_load(
     prepared: &omega_external_roots::PreparedIdtLoad,
+    invocation_plan: &omega_calling_conventions::ValidatedBoundaryEntryPlan,
     architecture: omega_target::Architecture,
 ) -> Result<GeneratedIdtLoadLowering, omega_external_roots::ExternalRootDiagnostic> {
-    lower_prepared_idt_load_facts(
+    let pointer_register =
+        generated_private_pointer_register(invocation_plan, architecture, "IDT load")?;
+    let lowering = lower_prepared_idt_load_facts(
+        pointer_register,
         prepared.materialized(),
         prepared.destination(),
+        prepared.descriptor_fingerprint(),
         prepared.content_fingerprint(),
         prepared.root_ledger_fingerprint(),
         prepared.control(),
         architecture,
-    )
+    )?;
+    validate_generated_helper_footprint(invocation_plan, lowering.footprint(), "IDT load")?;
+    Ok(lowering)
 }
 
 fn lower_prepared_idt_load_facts(
+    pointer_register: omega_calling_conventions::MachineRegister,
     materialized: omega_external_roots::MaterializedIdtId,
     descriptor: omega_external_roots::IdtDestinationId,
+    descriptor_fingerprint: u64,
     content_fingerprint: u64,
     root_ledger_fingerprint: u64,
     control: omega_external_roots::IdtControlId,
@@ -185,14 +202,76 @@ fn lower_prepared_idt_load_facts(
     };
     Ok(GeneratedIdtLoadLowering {
         operation: omega_target_operations::TargetOperationKind::GeneratedIdtLoad {
+            pointer_register,
             materialized,
             descriptor,
+            descriptor_fingerprint,
             content_fingerprint,
             root_ledger_fingerprint,
             control,
         },
         footprint,
     })
+}
+
+/// Recover the one opaque provider pointer only from a validated concrete
+/// boundary plan. Generated IDT helpers accept no source-visible address: the
+/// provider passes its sealed context/descriptor as one pointer-shaped scalar,
+/// and the backend moves the plan-selected register into R10 immediately
+/// before the generated body.
+fn generated_private_pointer_register(
+    invocation_plan: &omega_calling_conventions::ValidatedBoundaryEntryPlan,
+    architecture: omega_target::Architecture,
+    operation: &str,
+) -> Result<omega_calling_conventions::MachineRegister, omega_external_roots::ExternalRootDiagnostic>
+{
+    use omega_calling_conventions::{EntryControl, ValueClass, ValueLocation};
+
+    let call = &invocation_plan.plan().call;
+    let [parameter] = call.parameters.as_slice() else {
+        return Err(omega_external_roots::ExternalRootDiagnostic(format!(
+            "generated {operation} invocation plan must carry exactly one private pointer parameter"
+        )));
+    };
+    let [
+        ValueLocation::Register {
+            register,
+            value_byte_offset: 0,
+            byte_size: 8,
+        },
+    ] = parameter.locations.as_slice()
+    else {
+        return Err(omega_external_roots::ExternalRootDiagnostic(format!(
+            "generated {operation} private pointer must occupy one complete 64-bit register"
+        )));
+    };
+    if parameter.shape.class != ValueClass::Integer
+        || parameter.shape.byte_size != 8
+        || parameter.shape.alignment != 8
+        || call.result.is_some()
+        || call.entry_control != EntryControl::CallReturn
+        || call.policy.architecture() != architecture
+        || register.architecture() != architecture
+    {
+        return Err(omega_external_roots::ExternalRootDiagnostic(format!(
+            "generated {operation} invocation plan is not the exact one-pointer call/return contract for {architecture:?}"
+        )));
+    }
+    Ok(*register)
+}
+
+fn validate_generated_helper_footprint(
+    invocation_plan: &omega_calling_conventions::ValidatedBoundaryEntryPlan,
+    footprint: &omega_calling_conventions::StateFootprintEvidence,
+    operation: &str,
+) -> Result<(), omega_external_roots::ExternalRootDiagnostic> {
+    omega_calling_conventions::validate_state_footprint(invocation_plan, footprint).map_err(
+        |error| {
+            omega_external_roots::ExternalRootDiagnostic(format!(
+                "generated {operation} footprint exceeds its invocation plan: {error}"
+            ))
+        },
+    )
 }
 
 /// Retain the exact validated selection on the checked program. Provider
@@ -691,6 +770,96 @@ pub(crate) fn select_provider_plan_names(
 mod tests {
     use super::*;
 
+    fn private_pointer_plan(
+        policy: omega_calling_conventions::CallingPolicy,
+        parameter_count: usize,
+    ) -> omega_calling_conventions::ValidatedBoundaryEntryPlan {
+        let signature = omega_calling_conventions::CallSignature {
+            parameters: vec![omega_calling_conventions::ValueShape::integer(8, 8); parameter_count],
+            result: None,
+        };
+        omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(policy, &signature)
+            .expect("ordinary private-pointer invocation plan")
+    }
+
+    #[test]
+    fn generated_helpers_materialize_the_plan_selected_private_pointer_register() {
+        let microsoft =
+            private_pointer_plan(omega_calling_conventions::CallingPolicy::MicrosoftX64, 1);
+        assert_eq!(
+            generated_private_pointer_register(
+                &microsoft,
+                omega_target::Architecture::X86_64,
+                "IDT writer",
+            )
+            .expect("Microsoft private pointer register"),
+            omega_calling_conventions::MachineRegister::X86Rcx,
+        );
+
+        let system_v =
+            private_pointer_plan(omega_calling_conventions::CallingPolicy::SystemVAMD64, 1);
+        assert_eq!(
+            generated_private_pointer_register(
+                &system_v,
+                omega_target::Architecture::X86_64,
+                "IDT load",
+            )
+            .expect("SysV private pointer register"),
+            omega_calling_conventions::MachineRegister::X86Rdi,
+        );
+
+        let two_parameters =
+            private_pointer_plan(omega_calling_conventions::CallingPolicy::SystemVAMD64, 2);
+        assert!(
+            generated_private_pointer_register(
+                &two_parameters,
+                omega_target::Architecture::X86_64,
+                "IDT writer",
+            )
+            .expect_err("extra public parameter must reject")
+            .0
+            .contains("exactly one private pointer")
+        );
+        assert!(
+            generated_private_pointer_register(
+                &microsoft,
+                omega_target::Architecture::Aarch64,
+                "IDT load",
+            )
+            .expect_err("cross-architecture plan must reject")
+            .0
+            .contains("one-pointer call/return contract")
+        );
+
+        let load_footprint = omega_instruction_selection::derive_generated_idt_load_footprint(
+            omega_target::Architecture::X86_64,
+        )
+        .expect("x86 IDT-load footprint");
+        assert!(
+            validate_generated_helper_footprint(&microsoft, &load_footprint, "IDT load")
+                .expect_err("ordinary plan must not admit control-state mutation")
+                .0
+                .contains("exceeds the entry plan ceiling")
+        );
+
+        let signature = omega_calling_conventions::CallSignature {
+            parameters: vec![omega_calling_conventions::ValueShape::integer(8, 8)],
+            result: None,
+        };
+        let mut privileged_plan = microsoft.plan().clone();
+        privileged_plan.state.permitted_transitive_use = privileged_plan
+            .state
+            .permitted_transitive_use
+            .union(omega_calling_conventions::MachineStateSet::new([
+                omega_calling_conventions::MachineState::ControlState,
+            ]));
+        let privileged =
+            omega_calling_conventions::validate_boundary_entry_plan(privileged_plan, &signature)
+                .expect("privileged one-pointer plan");
+        validate_generated_helper_footprint(&privileged, &load_footprint, "IDT load")
+            .expect("privileged plan admits exact IDT-load footprint");
+    }
+
     #[test]
     fn populated_writer_facts_lower_without_numeric_addresses() {
         let context = omega_external_roots::IdtWriterContextId::from_normalized_identity(9)
@@ -713,6 +882,7 @@ mod tests {
             source_slot: 0,
         }];
         let lowering = lower_populated_idt_writer_facts(
+            omega_calling_conventions::MachineRegister::X86Rdi,
             context,
             preparation,
             installed_code,
@@ -733,6 +903,7 @@ mod tests {
         assert_eq!(
             lowering.operation(),
             &omega_target_operations::TargetOperationKind::GeneratedIdtWriter {
+                pointer_register: omega_calling_conventions::MachineRegister::X86Rdi,
                 context,
                 preparation,
                 installed_code,
@@ -756,11 +927,13 @@ mod tests {
                 omega_calling_conventions::MachineRegister::X86Rax,
                 omega_calling_conventions::MachineRegister::X86Rcx,
                 omega_calling_conventions::MachineRegister::X86Rdx,
+                omega_calling_conventions::MachineRegister::X86R10,
                 omega_calling_conventions::MachineRegister::X86R11,
             ]
         );
         assert!(
             lower_populated_idt_writer_facts(
+                omega_calling_conventions::MachineRegister::Aarch64X(0),
                 context,
                 preparation,
                 installed_code,
@@ -799,8 +972,10 @@ mod tests {
         let control = omega_external_roots::IdtControlId::from_normalized_identity(13)
             .expect("IDT control identity");
         let lowering = lower_prepared_idt_load_facts(
+            omega_calling_conventions::MachineRegister::X86Rcx,
             materialized,
             descriptor,
+            0xabcd,
             0x1234,
             0x5678,
             control,
@@ -810,8 +985,10 @@ mod tests {
         assert_eq!(
             lowering.operation(),
             &omega_target_operations::TargetOperationKind::GeneratedIdtLoad {
+                pointer_register: omega_calling_conventions::MachineRegister::X86Rcx,
                 materialized,
                 descriptor,
+                descriptor_fingerprint: 0xabcd,
                 content_fingerprint: 0x1234,
                 root_ledger_fingerprint: 0x5678,
                 control,
@@ -828,8 +1005,10 @@ mod tests {
         ));
         assert!(
             lower_prepared_idt_load_facts(
+                omega_calling_conventions::MachineRegister::Aarch64X(0),
                 materialized,
                 descriptor,
+                0xabcd,
                 0x1234,
                 0x5678,
                 control,
