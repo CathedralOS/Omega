@@ -1979,6 +1979,27 @@ fn analyze(
             }
         }
         ExpressionNode::Cast(cast) => {
+            // A recast is a byte-preserving view (`&x as &T`), not a numeric
+            // conversion.  In particular, viewing an f32/f64 place through an
+            // equal-width unsigned referee must not acquire F4's float-to-int
+            // proof obligation: no floating value is being truncated or
+            // rounded.  `expression_types::validate_cast_types` already keeps
+            // this distinction; preserve it in the arithmetic-domain walk as
+            // well so later integer operations see the stated referee type.
+            if cast.form.is_recast() {
+                let primitive = program
+                    .expression_table
+                    .name_path_members(cast.target_type)
+                    .last()
+                    .and_then(|name| PrimitiveType::from_name(name.as_str()));
+                return Analysis {
+                    domain: Some(ArithmeticDomain::Exact),
+                    interval: primitive
+                        .and_then(primitive_range)
+                        .unwrap_or(Interval::UNBOUNDED),
+                    primitive,
+                };
+            }
             // A cast re-types its operand, so the outer target does not flow in.
             let source = analyze(
                 program,

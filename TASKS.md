@@ -1288,8 +1288,16 @@ stronger operations it needs instead of citing machine parameters generally.
   proposition/certificate decision recorded in `OWNER_QUESTIONS.md`; after it
   is settled, prove operation well-definedness and order/completeness and retire
   axioms through the normal boundary-upgrade path.
-- **F6 — total float order.** Add named `TotalOrder` satisfiers for f32/f64
-  using sign-magnitude integer comparison once satisfier dispatch serves.
+- **F6 — total float order (complete 2026-07-23).**
+  `omega::language::core::float_order` now exports the ordinary `Order::before`
+  requirement plus named `F32::TotalOrder` and `F64::TotalOrder` satisfiers.
+  Each recasts the landed primitive's honest bits and applies the branchless
+  sign-magnitude-to-unsigned-key transform, so unsigned comparison implements
+  IEEE totalOrder across negative/positive NaNs and payloads, infinities, and
+  signed zero without changing arithmetic `<`. Static-machine
+  monomorphization now carries an exact selected entry symbol through both the
+  interpreter and native state-call planner, and the active differential
+  canary runs repeated generic selections for both formats before exiting 70.
 - **F7 — float format providers.** `FloatFormat::BINARY32` and
   `FloatFormat::BINARY64` now live in `omega::core` as ordinary semantic data.
   Replace the hardcoded IEEE lowering bootstrap with checked target

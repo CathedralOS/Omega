@@ -475,6 +475,13 @@ sort_by<F64::TotalOrder>(&mut samples);   // IEEE totalOrder — a sign-magnitud
                                           // integer compare, explicit at the site
 ```
 
+The core spelling is provided by
+`omega::language::core::float_order`: `F32::TotalOrder` and
+`F64::TotalOrder` are ordinary `Order::before` satisfiers selected through a
+static machine parameter. They are library machines over honest recast bits,
+not privileged comparison operators; arithmetic `<` keeps its IEEE partial
+order independently.
+
 ### No ambient relaxation
 
 - `a * b + c` is two roundings, on every target, always — the compiler

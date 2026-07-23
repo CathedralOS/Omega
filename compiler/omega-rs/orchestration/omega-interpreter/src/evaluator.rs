@@ -5059,6 +5059,29 @@ impl<'program> Evaluator<'program> {
         target: &str,
         frame: &Frame,
     ) -> EvalResult<(Machine, String, Cell)> {
+        // Static-machine specialization rewrites a parameter call to the exact
+        // selected ENTRY symbol.  Its human-facing target remains the authored
+        // leaf (`TotalOrder`, not `F64::TotalOrder`), so name lookup alone is
+        // insufficient for attached or plural satisfiers.  Receiverless calls
+        // can dispatch directly through that resolved symbol; receiver calls
+        // still need the runtime instance logic below.
+        if !call.receiver.is_valid() && call.target_symbol.is_valid() {
+            for machine in self.program.machines() {
+                if let Some(state) = self
+                    .program
+                    .machine_states(machine)
+                    .iter()
+                    .find(|state| state.symbol == call.target_symbol)
+                {
+                    return Ok((
+                        machine.clone(),
+                        state.name.as_str().to_owned(),
+                        Rc::clone(&frame.self_cell),
+                    ));
+                }
+            }
+        }
+
         // Whether this call is on `self` (or receiverless). A NON-self receiver
         // (`self.host.create(..)`) must resolve on the RECEIVER's type, never on
         // a same-named sibling state of the current machine -- else a wrapper
@@ -6941,6 +6964,24 @@ impl<'program> Evaluator<'program> {
                     return None;
                 }
                 self.attached_field_scalar_type(frame, member.member.as_str())
+            }
+            // A resolved value call carries the exact entry-state symbol.
+            // Preserve its declared primitive/domain as the witness for an
+            // enclosing operation. This matters for u64-returning helpers:
+            // their high-bit results must compare and shift unsigned even
+            // though the interpreter stores the raw pattern in an i64 cell.
+            ExpressionNode::Call(call) if call.target_symbol.is_valid() => {
+                let state = self
+                    .program
+                    .machines()
+                    .iter()
+                    .flat_map(|machine| self.program.machine_states(machine))
+                    .find(|state| state.symbol == call.target_symbol)?;
+                let primitive = self.program.primitive_type_reference(state.return_type)?;
+                let domain = self
+                    .program
+                    .arithmetic_domain_for_type_reference(state.return_type);
+                Some((primitive, domain))
             }
             _ => None,
         }

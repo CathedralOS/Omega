@@ -54,6 +54,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_branching_callee_chain_exit", 70),
     ("control_flow/sum_payload_cast_operand_field_exit", 70),
     ("arithmetic/runtime_float_compare_bool_exit", 70),
+    ("float/runtime_total_order_satisfiers_exit", 70),
     ("arithmetic/runtime_float_nested_operand_exit", 70),
     ("arithmetic/runtime_shift_count_domain_exit", 70),
     ("arithmetic/runtime_exact_guarded_shift_count_exit", 70),
