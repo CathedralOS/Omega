@@ -1,0 +1,240 @@
+// Absolute difference and order lemmas over core Nat. This is the metric
+// substrate used by Rat's denominator-scaled triangle proof: all order facts
+// retain Nat's settled monus spelling (`a <= b` iff `sub(a, b) == Zero`).
+use omega::language::core::nat;
+
+machine nat_gap(a: Nat, b: Nat) -> Nat {
+    let forward: Nat = sub(a, b);
+    let backward: Nat = sub(b, a);
+    let gap: Nat = add(forward, backward);
+    transition { _ -> (gap) }
+}
+
+machine nat_gap_reflexive(a: Nat)
+ensures
+    (nat_gap(a, a)) == Nat::Zero
+{
+    sub_self(a);
+    add_zero_left(Nat::Zero);
+}
+
+machine nat_gap_symmetric(a: Nat, b: Nat)
+ensures
+    (nat_gap(a, b)) == (nat_gap(b, a))
+{
+    add_comm(sub(a, b), sub(b, a));
+}
+
+machine nat_gap_zero_left(b: Nat)
+ensures
+    (nat_gap(Nat::Zero, b)) == b
+{
+    sub_zero_left(b);
+    sub_zero_right(b);
+    add_zero_left(b);
+}
+
+machine nat_gap_zero_right(a: Nat)
+ensures
+    (nat_gap(a, Nat::Zero)) == a
+{
+    sub_zero_right(a);
+    sub_zero_left(a);
+    add_zero_right(a);
+}
+
+machine nat_gap_succ(a: Nat, b: Nat)
+ensures
+    (nat_gap(Nat::Succ { prev: a }, Nat::Succ { prev: b })) == (nat_gap(a, b))
+{
+    succ_sub_succ(a, b);
+    succ_sub_succ(b, a);
+}
+
+machine add_le_add_right(a: Nat, b: Nat, c: Nat) -> Nat
+terminates by c;
+requires
+    (sub(a, b)) == Nat::Zero
+ensures
+    (sub(add(a, c), add(b, c))) == Nat::Zero
+{
+    transition c {
+        Nat::Zero -> alar_zero(a, b)
+        Nat::Succ { prev } -> alar_succ(a, b, prev)
+    }
+
+    state alar_zero(a: Nat, b: Nat) -> Nat {
+        add_zero_right(a);
+        add_zero_right(b);
+        transition { _ -> Nat::Zero }
+    }
+
+    state alar_succ(a: Nat, b: Nat, prev: Nat) -> Nat {
+        add_succ_law(a, prev);
+        add_succ_law(b, prev);
+        succ_sub_succ(add(a, prev), add(b, prev));
+        transition { _ -> (add_le_add_right(a, b, prev)) }
+    }
+}
+
+machine le_trans(a: Nat, b: Nat, c: Nat) -> Nat
+terminates by a;
+requires
+    (sub(a, b)) == Nat::Zero;
+    (sub(b, c)) == Nat::Zero
+ensures
+    (sub(a, c)) == Nat::Zero
+{
+    transition a {
+        Nat::Zero -> le_trans_zero(c)
+        Nat::Succ { prev as pa } -> le_trans_a_succ(pa, b, c)
+    }
+
+    state le_trans_zero(c: Nat) -> Nat {
+        sub_zero_left(c);
+        transition { _ -> Nat::Zero }
+    }
+
+    state le_trans_a_succ(pa: Nat, b: Nat, c: Nat) -> Nat {
+        transition b {
+            Nat::Zero -> le_trans_vacuous()
+            Nat::Succ { prev as pb } -> le_trans_b_succ(pa, pb, c)
+        }
+    }
+
+    state le_trans_b_succ(pa: Nat, pb: Nat, c: Nat) -> Nat {
+        transition c {
+            Nat::Zero -> le_trans_vacuous()
+            Nat::Succ { prev as pc } -> le_trans_step(pa, pb, pc)
+        }
+    }
+
+    state le_trans_step(pa: Nat, pb: Nat, pc: Nat) -> Nat {
+        succ_sub_succ(pa, pb);
+        succ_sub_succ(pb, pc);
+        succ_sub_succ(pa, pc);
+        transition { _ -> (le_trans(pa, pb, pc)) }
+    }
+
+    state le_trans_vacuous() -> Nat {
+        transition { _ -> Nat::Zero }
+    }
+}
+
+machine add_le_add(a: Nat, b: Nat, c: Nat, d: Nat)
+requires
+    (sub(a, b)) == Nat::Zero;
+    (sub(c, d)) == Nat::Zero
+ensures
+    (sub(add(a, c), add(b, d))) == Nat::Zero
+{
+    add_le_add_right(a, b, c);
+    add_comm(c, b);
+    add_comm(d, b);
+    add_le_add_right(c, d, b);
+    le_trans(add(a, c), add(b, c), add(b, d));
+}
+
+// Every b lies below a plus their absolute gap.
+machine le_add_gap(a: Nat, b: Nat) -> Nat
+terminates by a;
+ensures
+    (sub(b, add(a, nat_gap(a, b)))) == Nat::Zero
+{
+    transition a {
+        Nat::Zero -> lag_zero(b)
+        Nat::Succ { prev as pa } -> lag_a_succ(pa, b)
+    }
+
+    state lag_zero(b: Nat) -> Nat {
+        nat_gap_zero_left(b);
+        sub_self(b);
+        transition { _ -> Nat::Zero }
+    }
+
+    state lag_a_succ(pa: Nat, b: Nat) -> Nat {
+        transition b {
+            Nat::Zero -> lag_b_zero(pa)
+            Nat::Succ { prev as pb } -> lag_step(pa, pb)
+        }
+    }
+
+    state lag_b_zero(pa: Nat) -> Nat {
+        sub_zero_left(add(Nat::Succ { prev: pa }, nat_gap(Nat::Succ { prev: pa }, Nat::Zero)));
+        transition { _ -> Nat::Zero }
+    }
+
+    state lag_step(pa: Nat, pb: Nat) -> Nat {
+        nat_gap_succ(pa, pb);
+        succ_sub_succ(pb, add(pa, nat_gap(pa, pb)));
+        transition { _ -> (le_add_gap(pa, pb)) }
+    }
+}
+
+// Absolute difference never exceeds the sum of its endpoints.
+machine nat_gap_le_add(a: Nat, b: Nat)
+ensures
+    (sub(nat_gap(a, b), add(a, b))) == Nat::Zero
+{
+    sub_le(a, b);
+    sub_le(b, a);
+    add_le_add(sub(a, b), a, sub(b, a), b);
+}
+
+machine nat_gap_triangle(a: Nat, b: Nat, c: Nat) -> Nat
+terminates by a;
+ensures
+    (sub(nat_gap(a, c), add(nat_gap(a, b), nat_gap(b, c)))) == Nat::Zero
+{
+    transition a {
+        Nat::Zero -> ngt_a_zero(b, c)
+        Nat::Succ { prev as pa } -> ngt_a_succ(pa, b, c)
+    }
+
+    state ngt_a_zero(b: Nat, c: Nat) -> Nat {
+        nat_gap_zero_left(c);
+        nat_gap_zero_left(b);
+        le_add_gap(b, c);
+        transition { _ -> Nat::Zero }
+    }
+
+    state ngt_a_succ(pa: Nat, b: Nat, c: Nat) -> Nat {
+        transition b {
+            Nat::Zero -> ngt_b_zero(pa, c)
+            Nat::Succ { prev as pb } -> ngt_b_succ(pa, pb, c)
+        }
+    }
+
+    state ngt_b_zero(pa: Nat, c: Nat) -> Nat {
+        nat_gap_zero_right(Nat::Succ { prev: pa });
+        nat_gap_zero_left(c);
+        nat_gap_le_add(Nat::Succ { prev: pa }, c);
+        transition { _ -> Nat::Zero }
+    }
+
+    state ngt_b_succ(pa: Nat, pb: Nat, c: Nat) -> Nat {
+        transition c {
+            Nat::Zero -> ngt_c_zero(pa, pb)
+            Nat::Succ { prev as pc } -> ngt_step(pa, pb, pc)
+        }
+    }
+
+    state ngt_c_zero(pa: Nat, pb: Nat) -> Nat {
+        nat_gap_zero_right(Nat::Succ { prev: pa });
+        nat_gap_zero_right(Nat::Succ { prev: pb });
+        nat_gap_symmetric(Nat::Succ { prev: pa }, Nat::Succ { prev: pb });
+        le_add_gap(Nat::Succ { prev: pb }, Nat::Succ { prev: pa });
+        add_comm(
+            Nat::Succ { prev: pb },
+            nat_gap(Nat::Succ { prev: pb }, Nat::Succ { prev: pa })
+        );
+        transition { _ -> Nat::Zero }
+    }
+
+    state ngt_step(pa: Nat, pb: Nat, pc: Nat) -> Nat {
+        nat_gap_succ(pa, pc);
+        nat_gap_succ(pa, pb);
+        nat_gap_succ(pb, pc);
+        transition { _ -> (nat_gap_triangle(pa, pb, pc)) }
+    }
+}

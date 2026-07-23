@@ -1,0 +1,16 @@
+// N8's denominator-scaling prerequisite: Nat absolute difference is checked
+// reflexive/symmetric and satisfies the triangle inequality in monus order.
+use omega::language::core::nat_metric;
+
+machine triangle_available(a: Nat, b: Nat, c: Nat)
+ensures
+    (sub(nat_gap(a, c), add(nat_gap(a, b), nat_gap(b, c)))) == Nat::Zero
+{
+    nat_gap_triangle(a, b, c);
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

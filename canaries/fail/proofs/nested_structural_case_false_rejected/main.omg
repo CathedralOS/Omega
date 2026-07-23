@@ -1,0 +1,38 @@
+// FAIL CANARY: every leaf of a nested structural case proof is checked.
+// Ignoring the inner Succ leaf would incorrectly certify this result law.
+use omega::language::core::nat;
+
+machine nested_false(a: Nat, b: Nat) -> Nat
+ensures
+    result == Nat::Zero
+{
+    transition a {
+        Nat::Zero -> outer_zero()
+        Nat::Succ { prev } -> inspect_inner(b)
+    }
+
+    state outer_zero() -> Nat {
+        transition { _ -> Nat::Zero }
+    }
+
+    state inspect_inner(b: Nat) -> Nat {
+        transition b {
+            Nat::Zero -> inner_zero()
+            Nat::Succ { prev } -> inner_succ()
+        }
+    }
+
+    state inner_zero() -> Nat {
+        transition { _ -> Nat::Zero }
+    }
+
+    state inner_succ() -> Nat {
+        transition { _ -> Nat::Succ { prev: Nat::Zero } }
+    }
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

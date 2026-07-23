@@ -1,0 +1,23 @@
+// FAIL CANARY: citation facts are statement-ordered. The second premise of
+// le_trans is established only by later citations, so this call must reject.
+use omega::language::core::nat_metric;
+
+machine later_fact_is_not_available(a: Nat, b: Nat, c: Nat, d: Nat)
+requires
+    (sub(a, b)) == Nat::Zero;
+    (sub(c, d)) == Nat::Zero
+ensures
+    (sub(add(a, c), add(b, d))) == Nat::Zero
+{
+    add_le_add_right(a, b, c);
+    le_trans(add(a, c), add(b, c), add(b, d));
+    add_comm(c, b);
+    add_comm(d, b);
+    add_le_add_right(c, d, b);
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
