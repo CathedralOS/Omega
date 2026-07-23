@@ -126,7 +126,9 @@ modulus. `converges_together_at<Left, Right, Modulus>` states its
 heterogeneous two-generator twin. Their arbitrary precision and index inputs
 are the universal variables; positive precision and both modulus bounds are
 ordinary `requires`. There is no hidden quantifier, runtime callable, or
-compiler-known notion of convergence in this surface.
+compiler-known notion of convergence in this surface. Their same-generator
+reflexivity and heterogeneous symmetry facts are checked generic theorem
+machines and remain citable at concrete generator/modulus selections.
 
 A quotient coarsens a type: sort its values into buckets of things a
 proven equivalence calls interchangeable, and the buckets become the

@@ -1137,15 +1137,17 @@ stronger operations it needs instead of citing machine parameters generally.
   points compile and zero precision rejects. Structural application identity
   now retains static-machine selections (`f<A>` no longer aliases `f<B>`),
   generic body unfolding alpha-substitutes those selections, and a false
-  cross-selection equality rejects. Generic wrapper laws remain engineering
-  work because the first concrete specialization consumes the generic template
-  in place before proof validation, leaving universal contract selections and
-  the mutated body in different environments. Preserve a pristine logical
-  template (or validate it before concrete specialization), then add the
-  wrapper extraction laws, build the certified `CauchySeq` carrier, and replace
-  boundary `Real` with `CauchySeq % converges_together`; prove operation
-  well-definedness and order/completeness, and retire axioms through the normal
-  boundary-upgrade path.
+  cross-selection equality rejects. Machine-generic theorem contracts now
+  validate once on the pristine typed graph after selection refinement and
+  before concrete specialization mutates its first template; all non-entailment
+  checks still run on the specialized graph. Consequently the generic
+  `cauchy_at` reflexivity and heterogeneous `converges_together_at` symmetry
+  laws are checked and remain citable after concrete selection. Next establish
+  the precision-splitting triangle/transitivity ladder, build the certified
+  `CauchySeq` carrier, and replace boundary `Real` with
+  `CauchySeq % converges_together`; prove operation well-definedness and
+  order/completeness, and retire axioms through the normal boundary-upgrade
+  path.
 - **F6 — total float order.** Add named `TotalOrder` satisfiers for f32/f64
   using sign-magnitude integer comparison once satisfier dispatch serves.
 - **F7 — float format providers.** `FloatFormat::BINARY32` and

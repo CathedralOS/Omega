@@ -73,6 +73,47 @@ pub use properties::{
 };
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    validate_program_internal(program, false)
+}
+
+/// Validate after machine-generic contracts were checked on the pristine
+/// typed graph, before monomorphization consumed the first template in place.
+/// All other validation still runs on the concrete graph; only those already
+/// proven universal contract entailments are not judged a second time against
+/// a body whose static-machine environment has been substituted.
+pub fn validate_program_after_generic_contract_entailment(
+    program: &TypedTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    validate_program_internal(program, true)
+}
+
+/// Prove machine-generic contracts before specialization. Static selections
+/// must already have been checked against their declared callable contracts.
+pub fn validate_generic_machine_contract_entailment(
+    program: &TypedTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    for machine in program.machines() {
+        if program
+            .machine_type_parameters(machine)
+            .iter()
+            .any(|parameter| {
+                matches!(
+                    parameter.kind,
+                    omega_typed_trees::data::TypeParameterKind::Machine { .. }
+                )
+            })
+        {
+            validate_machine_contract_entailment(program, machine, &mut diagnostics);
+        }
+    }
+    finish_diagnostics(diagnostics)
+}
+
+fn validate_program_internal(
+    program: &TypedTrees,
+    generic_contract_entailment_prevalidated: bool,
+) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let symbols = TopLevelSymbols::build(program, &mut diagnostics);
     let fact_plan = omega_facts::build_definition_fact_plan(program);
@@ -141,7 +182,27 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
         validate_owned_data(program, machine, &symbols, &mut diagnostics);
         validate_machine_effects(program, machine, &mut diagnostics);
         validate_machine_contracts(program, machine, &mut diagnostics);
-        validate_machine_contract_entailment(program, machine, &mut diagnostics);
+        let generic_contract_was_prevalidated = generic_contract_entailment_prevalidated
+            && (program
+                .machine_type_parameters(machine)
+                .iter()
+                .any(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        omega_typed_trees::data::TypeParameterKind::Machine { .. }
+                    )
+                })
+                || program
+                    .machine_specializations
+                    .iter()
+                    .any(|specialization| {
+                        !specialization.machine_arguments.is_empty()
+                            && (specialization.template == machine.symbol
+                                || specialization.instance == machine.symbol)
+                    }));
+        if !generic_contract_was_prevalidated {
+            validate_machine_contract_entailment(program, machine, &mut diagnostics);
+        }
         validate_machine_trait_conformances(program, machine, &mut diagnostics);
 
         // PRV4 step 1: a `via <Binding>` clause is the EXTERNAL LEAF's

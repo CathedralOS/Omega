@@ -1,0 +1,26 @@
+// A machine-generic theorem is proved against its universal static-machine
+// contract before concrete specialization consumes the template. The later
+// concrete call must not turn this unproved universal claim into an admitted
+// fact merely because post-specialization entailment skips the prior proof.
+use omega::language::core::nat;
+
+machine one_source(index: Nat) -> Nat {
+    transition { _ -> Nat::Succ { prev: Nat::Zero } }
+}
+
+machine false_generic_zero<machine Source>(index: Nat)
+where machine Source(index: Nat) -> Nat;
+ensures
+    (Source(index)) == Nat::Zero
+{
+}
+
+machine instantiate_false_claim(index: Nat) {
+    false_generic_zero<one_source>(index);
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

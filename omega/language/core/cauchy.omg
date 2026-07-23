@@ -43,3 +43,52 @@ requires
     let right: Rat = Right(right_index);
     transition { _ -> (rat_close(left, right, precision)) }
 }
+
+machine cauchy_at_reflexive<machine Sequence, machine Modulus>(
+    precision: Nat,
+    index: Nat
+)
+where machine Sequence(index: Nat) -> Rat;
+where machine Modulus(precision: Nat) -> Nat;
+requires
+    (sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
+    (sub(Modulus(precision), index)) == Nat::Zero
+ensures
+    (cauchy_at<Sequence, Modulus>(precision, index, index)) == Nat::Zero
+{
+    let value: Rat = Sequence(index);
+    rat_close_reflexive(value, precision);
+}
+
+machine converges_together_at_symmetric<
+    machine Left,
+    machine Right,
+    machine Modulus
+>(
+    precision: Nat,
+    left_index: Nat,
+    right_index: Nat
+)
+where machine Left(index: Nat) -> Rat;
+where machine Right(index: Nat) -> Rat;
+where machine Modulus(precision: Nat) -> Nat;
+requires
+    (sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
+    (sub(Modulus(precision), left_index)) == Nat::Zero;
+    (sub(Modulus(precision), right_index)) == Nat::Zero;
+    (converges_together_at<Left, Right, Modulus>(
+        precision,
+        left_index,
+        right_index
+    )) == Nat::Zero
+ensures
+    (converges_together_at<Right, Left, Modulus>(
+        precision,
+        right_index,
+        left_index
+    )) == Nat::Zero
+{
+    let left: Rat = Left(left_index);
+    let right: Rat = Right(right_index);
+    rat_close_symmetric(left, right, precision);
+}
