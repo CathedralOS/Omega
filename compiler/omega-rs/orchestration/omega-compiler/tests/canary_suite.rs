@@ -37170,6 +37170,70 @@ fn runtime_float_self_compare_nan_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_total_order_satisfiers_exit_canary_runs() {
+    // F6: the explicit f32/f64 total orders are named trait satisfiers, and a
+    // generic consumer selects their concrete machine symbols statically. Raw
+    // NaN payloads and signed zero distinguish this from arithmetic `<`.
+    let canary = pass_canary("float/runtime_total_order_satisfiers_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("total-order satisfier canary should compile to checked trees");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        interpreted.error, None,
+        "interpreter should support the total-order satisfier path"
+    );
+    assert_eq!(
+        interpreted.exit_code, 70,
+        "interpreter should preserve the complete f32/f64 total-order edge set"
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-total-float-order-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path.clone(),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("total-order satisfier canary should compile natively");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("total-order satisfier canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected IEEE totalOrder over NaNs/infinities/signed zero (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+
+    // Keep both native instruction-selection families on the same static
+    // satisfier path even when the host can execute only one of them.
+    for target in ["linux_x64", "linux_arm64"] {
+        let cross_dir = std::env::temp_dir().join(format!(
+            "omega-total-float-order-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&cross_dir);
+        compile(CompileOptions {
+            root_path: main_path.clone(),
+            build_dir: Some(cross_dir.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|error| {
+            panic!("total-order satisfier canary should cross-compile for {target}: {error:?}")
+        });
+        let _ = fs::remove_dir_all(&cross_dir);
+    }
+}
+
+#[test]
 fn plan_laid_value_field_exit_canary_runs() {
     // PLAN-LAID VALUE TYPES (layouts L4): `gdt: Spread16<Gdtish>` places every
     // field on its own 16-byte slot -- deliberately NOT the native packing --
@@ -37877,6 +37941,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "proofs/ring_law_conformance",
     "proofs/ring_rearrange_core_nat",
     "expressions/float_literal_suffix",
+    "float/runtime_total_order_satisfiers_exit",
     "expressions/runtime_qualified_case_value_exit",
     "calls/recursive_result_bind_first_arg",
     "calls/runtime_branching_callee_chain_exit",

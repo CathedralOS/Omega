@@ -1,0 +1,57 @@
+// Explicit total ordering for the language's IEEE binary32/64 carriers.
+//
+// Arithmetic `<` remains the format's partial order and therefore returns
+// false on NaN.  Algorithms that require a total order select one of these
+// named satisfiers explicitly, for example `sort_by<F64::TotalOrder>(...)`.
+// The implementation maps IEEE sign-magnitude bits into monotonically ordered
+// unsigned keys: invert every negative encoding, and flip only the sign bit on
+// non-negative encodings.  Unsigned integer comparison then implements IEEE
+// totalOrder, including NaN sign/payload order and `-0.0 < +0.0`, without
+// performing a floating-point operation or observing an operation-produced
+// NaN payload.
+
+trait Order {
+    machine before(left: Self, right: Self) -> bool;
+}
+
+// Namespace carriers for the permanent primitive-format bindings.  The
+// selected machines below operate on primitive f32/f64 values; these empty
+// carriers only provide stable qualified names for explicit selection.
+data F32 { }
+data F64 { }
+
+machine f32_total_order_key(bits: &u32) -> u32 {
+    let raw: u32 in Wrapping = bits;
+    let sign_bit: u32 in Wrapping = 2147483648;
+    let zero: u32 in Wrapping = 0;
+    raw ^ ((zero - (raw >> 31)) | sign_bit)
+}
+
+machine f64_total_order_key(bits: &u64) -> u64 {
+    // Bind the u64-magnitude constant to a typed place before using it in an
+    // expression; this keeps the literal's landing width explicit.
+    let raw: u64 in Wrapping = bits;
+    let sign: u64 in Wrapping = 9223372036854775808;
+    let zero: u64 in Wrapping = 0;
+    raw ^ ((zero - (raw >> 63)) | sign)
+}
+
+machine F32::TotalOrder(left: f32, right: f32) -> bool
+satisfies Order::before
+{
+    let left_bits: &u32 = &left as &u32;
+    let right_bits: &u32 = &right as &u32;
+    let left_key: u32 = f32_total_order_key(left_bits);
+    let right_key: u32 = f32_total_order_key(right_bits);
+    left_key < right_key
+}
+
+machine F64::TotalOrder(left: f64, right: f64) -> bool
+satisfies Order::before
+{
+    let left_bits: &u64 = &left as &u64;
+    let right_bits: &u64 = &right as &u64;
+    let left_key: u64 = f64_total_order_key(left_bits);
+    let right_key: u64 = f64_total_order_key(right_bits);
+    left_key < right_key
+}

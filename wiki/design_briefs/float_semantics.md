@@ -116,6 +116,12 @@ Julia muladd vs fma, C23 _Float32, HLSL float16_t. Rules:
   integer compare. Rust needed a bolted-on method (total_cmp) and a
   no-Ord-for-floats scar; the satisfier is the honest encoding. Posits
   total-order natively, so their satisfier is a plain integer compare.
+- Landed 2026-07-23: `omega::language::core::float_order` provides
+  `F32::TotalOrder` and `F64::TotalOrder` as ordinary `Order::before`
+  satisfiers. Their branchless unsigned-key transform is exercised through
+  static-machine selection in interpreter/native differential execution over
+  both NaN signs and payload directions, infinities, and `-0.0 < +0.0`; no
+  float-order intrinsic or ambient comparison mode exists.
 - NaN payloads: unspecified after every op, never proof-observable
   (Rust RFC 3514's enumerated-nondeterminism, taken at the contract
   level); recast reads honest bits. `f != f` is demoted to IEEE-binding

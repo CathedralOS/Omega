@@ -870,6 +870,25 @@ fn resolve_state_call_target(
             );
         }
 
+        // Monomorphization rewrites a call through a static machine parameter
+        // (`Before(left, right)`) to the exact ENTRY-state symbol selected at
+        // the call site.  The authored target spelling remains the parameter's
+        // leaf name, so neither current-machine nor free-machine name lookup
+        // can recover an attached/named satisfier such as `F64::TotalOrder`.
+        // The resolved state symbol is globally unique and is therefore the
+        // authoritative receiverless dispatch identity.
+        if !has_receiver
+            && target_symbol.is_valid()
+            && let Some(state) = control_flow.states.iter().find_map(|(_, state)| {
+                (state.key.state == target_symbol && state.key.segment_index == 0).then_some(state)
+            })
+        {
+            return Some(ResolvedStateCall {
+                key: state.key,
+                resolution: StateCallResolution::NamedMachine,
+            });
+        }
+
         // A receiverless call whose target is a FREE top-level machine
         // (`machine pick(x: i32) -> i32 { ... }`, called as `pick(self.v)`):
         // resolve to that machine's entry state so the call is collected (and

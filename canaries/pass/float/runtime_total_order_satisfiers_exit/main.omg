@@ -1,0 +1,150 @@
+// RUN CANARY (exit 70) + interpreter differential. F6's f32/f64 named total
+// orders are ordinary satisfier machines selected through a compile-time
+// machine parameter. Raw recasts pin the IEEE edge order without using float
+// arithmetic: negative NaN payloads reverse, negative NaN precedes -infinity,
+// -0 precedes +0, +infinity precedes positive NaN, and positive NaN payloads
+// increase. The sibling arithmetic NaN canaries separately pin ordinary
+// float `<` as a partial order (false on NaN).
+use omega::language::core::float_order;
+use omega::language::std::console;
+
+machine selected_before<T, machine Before>(left: T, right: T) -> bool
+where machine Before(left: T, right: T) -> bool;
+{
+    Before(left, right)
+}
+
+data Main {
+    console: Console;
+    f32_negative_nan_large: u32;
+    f32_negative_nan_small: u32;
+    f32_negative_infinity: u32;
+    f32_negative_zero: u32;
+    f32_positive_zero: u32;
+    f32_positive_infinity: u32;
+    f32_positive_nan_small: u32;
+    f32_positive_nan_large: u32;
+    f64_negative_nan_large: u64;
+    f64_negative_nan_small: u64;
+    f64_negative_infinity: u64;
+    f64_negative_zero: u64;
+    f64_positive_zero: u64;
+    f64_positive_infinity: u64;
+    f64_positive_nan_small: u64;
+    f64_positive_nan_large: u64;
+}
+
+machine Main::main(&mut self) {
+    self.f32_negative_nan_large = 4290772994; // 0xffc00002
+    self.f32_negative_nan_small = 4290772993; // 0xffc00001
+    self.f32_negative_infinity = 4286578688;  // 0xff800000
+    self.f32_negative_zero = 2147483648;      // 0x80000000
+    self.f32_positive_zero = 0;
+    self.f32_positive_infinity = 2139095040;  // 0x7f800000
+    self.f32_positive_nan_small = 2143289345; // 0x7fc00001
+    self.f32_positive_nan_large = 2143289346; // 0x7fc00002
+
+    let f32_negative_nan_large_view: &f32 = &self.f32_negative_nan_large as &f32;
+    let f32_negative_nan_small_view: &f32 = &self.f32_negative_nan_small as &f32;
+    let f32_negative_infinity_view: &f32 = &self.f32_negative_infinity as &f32;
+    let f32_negative_zero_view: &f32 = &self.f32_negative_zero as &f32;
+    let f32_positive_zero_view: &f32 = &self.f32_positive_zero as &f32;
+    let f32_positive_infinity_view: &f32 = &self.f32_positive_infinity as &f32;
+    let f32_positive_nan_small_view: &f32 = &self.f32_positive_nan_small as &f32;
+    let f32_positive_nan_large_view: &f32 = &self.f32_positive_nan_large as &f32;
+    let f32_negative_nan_large_value: f32 = f32_negative_nan_large_view;
+    let f32_negative_nan_small_value: f32 = f32_negative_nan_small_view;
+    let f32_negative_infinity_value: f32 = f32_negative_infinity_view;
+    let f32_negative_zero_value: f32 = f32_negative_zero_view;
+    let f32_positive_zero_value: f32 = f32_positive_zero_view;
+    let f32_positive_infinity_value: f32 = f32_positive_infinity_view;
+    let f32_positive_nan_small_value: f32 = f32_positive_nan_small_view;
+    let f32_positive_nan_large_value: f32 = f32_positive_nan_large_view;
+
+    let f32_negative_payload_ok: bool =
+        selected_before<F32::TotalOrder>(f32_negative_nan_large_value, f32_negative_nan_small_value);
+    let f32_negative_nan_ok: bool =
+        F32::TotalOrder(f32_negative_nan_small_value, f32_negative_infinity_value);
+    let f32_zero_ok: bool =
+        F32::TotalOrder(f32_negative_zero_value, f32_positive_zero_value);
+    let f32_positive_nan_ok: bool =
+        F32::TotalOrder(f32_positive_infinity_value, f32_positive_nan_small_value);
+    let f32_positive_payload_ok: bool =
+        F32::TotalOrder(f32_positive_nan_small_value, f32_positive_nan_large_value);
+
+    self.f64_negative_nan_large = 18444492273895866370; // 0xfff8000000000002
+    self.f64_negative_nan_small = 18444492273895866369; // 0xfff8000000000001
+    self.f64_negative_infinity = 18442240474082181120;  // 0xfff0000000000000
+    self.f64_negative_zero = 9223372036854775808;       // 0x8000000000000000
+    self.f64_positive_zero = 0;
+    self.f64_positive_infinity = 9218868437227405312;   // 0x7ff0000000000000
+    self.f64_positive_nan_small = 9221120237041090561;  // 0x7ff8000000000001
+    self.f64_positive_nan_large = 9221120237041090562;  // 0x7ff8000000000002
+
+    let f64_negative_nan_large_view: &f64 = &self.f64_negative_nan_large as &f64;
+    let f64_negative_nan_small_view: &f64 = &self.f64_negative_nan_small as &f64;
+    let f64_negative_infinity_view: &f64 = &self.f64_negative_infinity as &f64;
+    let f64_negative_zero_view: &f64 = &self.f64_negative_zero as &f64;
+    let f64_positive_zero_view: &f64 = &self.f64_positive_zero as &f64;
+    let f64_positive_infinity_view: &f64 = &self.f64_positive_infinity as &f64;
+    let f64_positive_nan_small_view: &f64 = &self.f64_positive_nan_small as &f64;
+    let f64_positive_nan_large_view: &f64 = &self.f64_positive_nan_large as &f64;
+    let f64_negative_nan_large_value: f64 = f64_negative_nan_large_view;
+    let f64_negative_nan_small_value: f64 = f64_negative_nan_small_view;
+    let f64_negative_infinity_value: f64 = f64_negative_infinity_view;
+    let f64_negative_zero_value: f64 = f64_negative_zero_view;
+    let f64_positive_zero_value: f64 = f64_positive_zero_view;
+    let f64_positive_infinity_value: f64 = f64_positive_infinity_view;
+    let f64_positive_nan_small_value: f64 = f64_positive_nan_small_view;
+    let f64_positive_nan_large_value: f64 = f64_positive_nan_large_view;
+
+    let f64_negative_payload_ok: bool =
+        selected_before<F64::TotalOrder>(f64_negative_nan_large_value, f64_negative_nan_small_value);
+    let f64_negative_nan_ok: bool =
+        selected_before<F64::TotalOrder>(f64_negative_nan_small_value, f64_negative_infinity_value);
+    let f64_zero_ok: bool =
+        selected_before<F64::TotalOrder>(f64_negative_zero_value, f64_positive_zero_value);
+    let f64_positive_nan_ok: bool =
+        selected_before<F64::TotalOrder>(f64_positive_infinity_value, f64_positive_nan_small_value);
+    let f64_positive_payload_ok: bool =
+        selected_before<F64::TotalOrder>(f64_positive_nan_small_value, f64_positive_nan_large_value);
+    let f64_ok: bool = f64_negative_payload_ok
+        && f64_negative_nan_ok
+        && f64_zero_ok
+        && f64_positive_nan_ok
+        && f64_positive_payload_ok;
+
+    transition f32_negative_payload_ok {
+        true -> check_f32_negative_nan(
+            f32_negative_nan_ok,
+            f32_zero_ok,
+            f32_positive_nan_ok,
+            f32_positive_payload_ok,
+            f64_ok
+        )
+        false -> bad_f32_negative_payload()
+    }
+
+    state check_f32_negative_nan(&mut self, ok: bool, b: bool, c: bool, d: bool, f64_ok: bool) {
+        transition ok { true -> check_f32_zero(b, c, d, f64_ok) false -> bad_f32_negative_nan() }
+    }
+    state check_f32_zero(&mut self, ok: bool, c: bool, d: bool, f64_ok: bool) {
+        transition ok { true -> check_f32_positive_nan(c, d, f64_ok) false -> bad_f32_zero() }
+    }
+    state check_f32_positive_nan(&mut self, ok: bool, d: bool, f64_ok: bool) {
+        transition ok { true -> check_f32_positive_payload(d, f64_ok) false -> bad_f32_positive_nan() }
+    }
+    state check_f32_positive_payload(&mut self, ok: bool, f64_ok: bool) {
+        transition ok { true -> check_f64(f64_ok) false -> bad_f32_positive_payload() }
+    }
+    state check_f64(&mut self, ok: bool) {
+        transition ok { true -> good() false -> bad_f64() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad_f32_negative_payload(&mut self) { self.console.exit_process(71); }
+    state bad_f32_negative_nan(&mut self) { self.console.exit_process(72); }
+    state bad_f32_zero(&mut self) { self.console.exit_process(73); }
+    state bad_f32_positive_nan(&mut self) { self.console.exit_process(74); }
+    state bad_f32_positive_payload(&mut self) { self.console.exit_process(75); }
+    state bad_f64(&mut self) { self.console.exit_process(77); }
+}
