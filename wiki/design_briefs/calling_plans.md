@@ -363,10 +363,14 @@ provider-local demands and the exact nesting relation produce sealed per-root
 and per-domain maxima, same-stack fault paths add with alignment, and installed
 roots must agree on the complete composition fingerprint. Cycles, missing
 endpoints, unknown nested provider-selected stacks, overflow, and active
-dedicated-class re-entry reject. Provider-specific execution and installation
-remain. The live ledger's deterministic fingerprint and `omega-artifacts`
-`external_roots.json` projection report these facts and the complete boundary
-plan without leaking numeric entry addresses or private ranking/codegen proofs.
+dedicated-class re-entry reject. A sealed provider-execution binding joins the
+normalized selected provider plan, exact entry/boundary/effects, and all three
+resource realizations into admission; it cannot be replayed after realization
+drift, and its identity is reportable. Compiler-selected-plan construction and
+provider-specific installation remain. The live ledger's deterministic
+fingerprint and `omega-artifacts` `external_roots.json` projection report these
+facts and the complete boundary plan without leaking numeric entry addresses or
+private ranking/codegen proofs.
 
 The ledger uses one recording discipline across three
 independent resource columns: stack ceiling/realized WCSU/derivation evidence,

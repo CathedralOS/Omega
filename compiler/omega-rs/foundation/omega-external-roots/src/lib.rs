@@ -43,6 +43,8 @@ normalized_id!(ExternalRootId, "external-root");
 normalized_id!(RootSlotId, "external-root slot");
 normalized_id!(RootSlotOwnerId, "external-root slot owner");
 normalized_id!(RootProviderId, "external-root provider");
+normalized_id!(ProviderPlanId, "provider plan");
+normalized_id!(ProviderExecutionId, "provider execution");
 normalized_id!(RootEffectId, "external-root effect");
 normalized_id!(TrustReceiptId, "external-root trust receipt");
 normalized_id!(NestingRelationId, "external-root nesting relation");
@@ -750,6 +752,127 @@ impl ValidatedExternalRoot {
     }
 }
 
+/// Admitted execution binding for one exact external-root realization.
+///
+/// This does not fuse the stack, structural-work, and machine-state algebras.
+/// It binds their independently validated results, the selected normalized
+/// provider plan, and the executable entry into one provider execution that a
+/// root admission may publish.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProviderExecution {
+    identity: ProviderExecutionId,
+    provider_plan: ProviderPlanId,
+    root: ExternalRootId,
+    normalized_root_identity: u64,
+    provider: RootProviderId,
+    entry: EntryStubId,
+    boundary_contract_fingerprint: u64,
+    stack_artifact_composition_fingerprint: u64,
+    stack_demand_fingerprint: u64,
+    structural_work_fingerprint: u64,
+    machine_state_validation_receipt: StateValidationReceiptId,
+    effects: BTreeSet<RootEffectId>,
+    normalized_identity: u64,
+}
+
+impl ProviderExecution {
+    /// Provider/trust admission creates this binding only after selecting the
+    /// exact provider plan that will execute the validated root.
+    pub fn from_admitted_provider(
+        identity: ProviderExecutionId,
+        provider_plan: ProviderPlanId,
+        root: &ValidatedExternalRoot,
+    ) -> Self {
+        let candidate = root.candidate();
+        let mut hash = Fnv1a::new();
+        hash.u64(identity.normalized_identity());
+        hash.u64(provider_plan.normalized_identity());
+        hash.u64(candidate.identity.normalized_identity());
+        hash.u64(root.normalized_identity());
+        hash.u64(candidate.provider.normalized_identity());
+        hash.u64(candidate.entry.normalized_identity());
+        hash.u64(root.boundary_contract_fingerprint());
+        hash.u64(
+            candidate
+                .stack
+                .realization
+                .artifact_composition_fingerprint(),
+        );
+        hash.u64(candidate.stack.realization.composition_fingerprint());
+        hash.u64(
+            candidate
+                .structural_work
+                .realization
+                .composition_fingerprint(),
+        );
+        hash.u64(
+            candidate
+                .machine_state
+                .validation_receipt
+                .normalized_identity(),
+        );
+        for effect in &candidate.effects {
+            hash.u64(effect.normalized_identity());
+        }
+        Self {
+            identity,
+            provider_plan,
+            root: candidate.identity,
+            normalized_root_identity: root.normalized_identity(),
+            provider: candidate.provider,
+            entry: candidate.entry,
+            boundary_contract_fingerprint: root.boundary_contract_fingerprint(),
+            stack_artifact_composition_fingerprint: candidate
+                .stack
+                .realization
+                .artifact_composition_fingerprint(),
+            stack_demand_fingerprint: candidate.stack.realization.composition_fingerprint(),
+            structural_work_fingerprint: candidate
+                .structural_work
+                .realization
+                .composition_fingerprint(),
+            machine_state_validation_receipt: candidate.machine_state.validation_receipt,
+            effects: candidate.effects.clone(),
+            normalized_identity: hash.finish(),
+        }
+    }
+
+    pub const fn identity(&self) -> ProviderExecutionId {
+        self.identity
+    }
+
+    pub const fn provider_plan(&self) -> ProviderPlanId {
+        self.provider_plan
+    }
+
+    pub const fn normalized_identity(&self) -> u64 {
+        self.normalized_identity
+    }
+
+    fn matches_root(&self, root: &ValidatedExternalRoot) -> bool {
+        let candidate = root.candidate();
+        self.root == candidate.identity
+            && self.normalized_root_identity == root.normalized_identity()
+            && self.provider == candidate.provider
+            && self.entry == candidate.entry
+            && self.boundary_contract_fingerprint == root.boundary_contract_fingerprint()
+            && self.stack_artifact_composition_fingerprint
+                == candidate
+                    .stack
+                    .realization
+                    .artifact_composition_fingerprint()
+            && self.stack_demand_fingerprint
+                == candidate.stack.realization.composition_fingerprint()
+            && self.structural_work_fingerprint
+                == candidate
+                    .structural_work
+                    .realization
+                    .composition_fingerprint()
+            && self.machine_state_validation_receipt == candidate.machine_state.validation_receipt
+            && self.effects == candidate.effects
+    }
+}
+
 pub fn validate_external_root(
     candidate: ExternalRootCandidate,
     boundary: &ValidatedBoundaryEntryPlan,
@@ -853,6 +976,9 @@ impl RootSlotAuthority {
 pub struct RootAdmission {
     identity: RootAdmissionId,
     root_identity: u64,
+    provider_execution: ProviderExecutionId,
+    provider_execution_fingerprint: u64,
+    provider_plan: ProviderPlanId,
     installed_code: InstalledCodeId,
     artifact: ArtifactId,
     slot: RootSlotId,
@@ -864,19 +990,29 @@ impl RootAdmission {
     pub fn from_admitted_provider(
         identity: RootAdmissionId,
         root: &ValidatedExternalRoot,
+        execution: &ProviderExecution,
         installed_code: &InstalledCode,
         slot: &RootSlotAuthority,
         trust_receipts: impl IntoIterator<Item = TrustReceiptId>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        if !execution.matches_root(root) {
+            return Err(ExternalRootDiagnostic(
+                "root admission provider execution does not bind the exact validated root realization"
+                    .into(),
+            ));
+        }
+        Ok(Self {
             identity,
             root_identity: root.normalized_identity,
+            provider_execution: execution.identity,
+            provider_execution_fingerprint: execution.normalized_identity,
+            provider_plan: execution.provider_plan,
             installed_code: installed_code.identity(),
             artifact: installed_code.artifact(),
             slot: slot.slot,
             owner: slot.owner,
             trust_receipts: trust_receipts.into_iter().collect(),
-        }
+        })
     }
 
     pub const fn identity(&self) -> RootAdmissionId {
@@ -899,6 +1035,9 @@ pub struct InstalledRootRecord {
     pub slot: RootSlotId,
     pub owner: RootSlotOwnerId,
     pub admission: RootAdmissionId,
+    pub provider_execution: ProviderExecutionId,
+    pub provider_execution_fingerprint: u64,
+    pub provider_plan: ProviderPlanId,
     pub boundary_contract_fingerprint: u64,
     pub boundary: BoundaryEntryPlan,
     pub provider: RootProviderId,
@@ -968,6 +1107,9 @@ impl InstalledRootLedger {
             hash.u64(record.slot.normalized_identity());
             hash.u64(record.owner.normalized_identity());
             hash.u64(record.admission.normalized_identity());
+            hash.u64(record.provider_execution.normalized_identity());
+            hash.u64(record.provider_execution_fingerprint);
+            hash.u64(record.provider_plan.normalized_identity());
         }
         hash.finish()
     }
@@ -1069,6 +1211,9 @@ impl InstalledRootLedger {
             slot: slot.slot,
             owner: slot.owner,
             admission: admission.identity,
+            provider_execution: admission.provider_execution,
+            provider_execution_fingerprint: admission.provider_execution_fingerprint,
+            provider_plan: admission.provider_plan,
             boundary_contract_fingerprint: root.boundary_contract_fingerprint,
             boundary: root.boundary,
             provider: root.candidate.provider,
@@ -1658,6 +1803,14 @@ mod tests {
         )
     }
 
+    fn provider_execution(root: &ValidatedExternalRoot) -> ProviderExecution {
+        ProviderExecution::from_admitted_provider(
+            root_id(54, ProviderExecutionId::from_normalized_identity),
+            root_id(55, ProviderPlanId::from_normalized_identity),
+            root,
+        )
+    }
+
     #[test]
     fn installation_records_the_complete_external_root_and_pins_code_liveness() {
         let entry = entry_id(1001);
@@ -1665,13 +1818,16 @@ mod tests {
         let validated = validate_external_root(candidate(entry), &boundary()).expect("root plan");
         let validated_identity = validated.normalized_identity();
         let authority = slot();
+        let execution = provider_execution(&validated);
         let admission = RootAdmission::from_admitted_provider(
             root_id(22, RootAdmissionId::from_normalized_identity),
             &validated,
+            &execution,
             &code,
             &authority,
             validated.candidate().trust_receipts.iter().copied(),
-        );
+        )
+        .expect("root admission");
         let mut ledger = InstalledRootLedger::default();
         let installed = ledger
             .install(&code, validated, authority, admission)
@@ -1681,6 +1837,12 @@ mod tests {
         assert_eq!(record.entry, entry);
         assert_eq!(record.normalized_root_identity, validated_identity);
         assert_eq!(record.installed_code, code.identity());
+        assert_eq!(record.provider_execution, execution.identity());
+        assert_eq!(record.provider_plan, execution.provider_plan());
+        assert_eq!(
+            record.provider_execution_fingerprint,
+            execution.normalized_identity()
+        );
         assert_eq!(record.effects.len(), 1);
         assert_eq!(record.trust_receipts.len(), 1);
         assert_eq!(record.stack.realization.composed_wcsu_bytes(), 2048);
@@ -1721,13 +1883,16 @@ mod tests {
         let validated =
             validate_external_root(candidate(foreign_entry), &boundary()).expect("root plan");
         let authority = slot();
+        let execution = provider_execution(&validated);
         let admission = RootAdmission::from_admitted_provider(
             root_id(22, RootAdmissionId::from_normalized_identity),
             &validated,
+            &execution,
             &code,
             &authority,
             validated.candidate().trust_receipts.iter().copied(),
-        );
+        )
+        .expect("root admission");
         let mut ledger = InstalledRootLedger::default();
         let error = ledger
             .install(&code, validated, authority, admission)
@@ -1748,18 +1913,43 @@ mod tests {
     }
 
     #[test]
+    fn root_admission_rejects_provider_execution_from_another_realization() {
+        let first = validate_external_root(candidate(entry_id(1001)), &boundary())
+            .expect("first root realization");
+        let execution = provider_execution(&first);
+        let second = validate_external_root(candidate(entry_id(1002)), &boundary())
+            .expect("second root realization");
+        let code = installed_code(2, entry_id(1002));
+        let authority = slot();
+        let error = RootAdmission::from_admitted_provider(
+            root_id(22, RootAdmissionId::from_normalized_identity),
+            &second,
+            &execution,
+            &code,
+            &authority,
+            second.candidate().trust_receipts.iter().copied(),
+        )
+        .expect_err("provider execution cannot be replayed for changed entry/resources");
+
+        assert!(error.0.contains("exact validated root realization"));
+    }
+
+    #[test]
     fn removal_requires_both_unreachability_and_execution_quiescence() {
         let entry = entry_id(1001);
         let code = installed_code(1, entry);
         let validated = validate_external_root(candidate(entry), &boundary()).expect("root plan");
         let authority = slot();
+        let execution = provider_execution(&validated);
         let admission = RootAdmission::from_admitted_provider(
             root_id(22, RootAdmissionId::from_normalized_identity),
             &validated,
+            &execution,
             &code,
             &authority,
             validated.candidate().trust_receipts.iter().copied(),
-        );
+        )
+        .expect("root admission");
         let mut ledger = InstalledRootLedger::default();
         let installed = ledger
             .install(&code, validated, authority, admission)

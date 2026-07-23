@@ -777,11 +777,16 @@ checks the final footprint against the `StatePlan`; canonical fixed-work
 provider summaries compose transitively while rejecting missing callees,
 cycles, zero invocation bounds, overflow, and excess demand. The report is
 deliberately not a numbered compiler phase because roots may be installed after
-image build. Concrete provider execution bindings and the actual `lidt`
-consumer remain. Provider-neutral acceptance canaries instantiate the timer as
-one root plus fixed one-shot acknowledgement, clock-capture, coalescing-wake,
-and return leaves and derive Cathedral's shared-IRQ stack peak as the maximum
-maskable root plus its permitted current-stack fatal-fault path.
+image build. A sealed provider-execution binding now joins the normalized
+selected provider-plan identity, exact entry and boundary, effects, and the
+three independent resource realizations at root admission. It is identity-bound
+into the ledger/report and cannot be replayed after entry or realization drift.
+Compiler-selected-plan construction, concrete Cathedral PIC/LAPIC execution,
+and the actual `lidt` consumer remain. Provider-neutral acceptance canaries
+instantiate the timer as one root plus fixed one-shot acknowledgement,
+clock-capture, coalescing-wake, and return leaves and derive Cathedral's
+shared-IRQ stack peak as the maximum maskable root plus its permitted
+current-stack fatal-fault path.
 
 ### Installed-root resource contract
 
@@ -1035,12 +1040,12 @@ settled concrete interrupt policy's implementation remain. Remaining order:
    structural-work composition model. The acceptance canary pins five
    normalized nodes, one-shot edges, order-independent composition, and
    missing/recursive-provider rejection.
-8. Connect the ledger's composed fixed-work and WCSU results to provider
-   execution. Materialize the complete exception IDT, provision the dedicated
-   fault and shared maskable-IRQ IST stack classes, connect checked `lidt`, and
-   validate the final no-SIMD/save-all-GPR entry stubs. Artifact-wide WCSU
-   composition and the first Cathedral IRQ/fatal-fault acceptance rail are
-   already live.
+8. Drive the ledger's provider-execution binding from compiler-selected plans
+   and Cathedral's concrete providers. Materialize the complete exception IDT,
+   provision the dedicated fault and shared maskable-IRQ IST stack classes,
+   connect checked `lidt`, and validate the final no-SIMD/save-all-GPR entry
+   stubs. The normalized execution binding, artifact-wide WCSU composition, and
+   first Cathedral IRQ/fatal-fault acceptance rail are already live.
 9. Build the PIT/PIC timer top half and its coalescing handoff to an ordinary
    timer-service task; then add the LAPIC one-shot provider without changing the
    root requirement.

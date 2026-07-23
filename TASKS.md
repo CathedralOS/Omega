@@ -660,13 +660,17 @@ schemas recover the same instance without publishing policy type identity.
    cycles, missing endpoints, unknown nested provider-selected stacks,
    arithmetic overflow, or re-entry of an active dedicated class reject. The
    ledger requires every installed root to carry the same artifact-wide
-   composition fingerprint. Cathedral's acceptance canaries now pin both the
+   composition fingerprint. A sealed `ProviderExecution` now binds the selected
+   normalized provider-plan identity, exact entry/boundary/effect set, and all
+   three independent realizations into root admission; replay after entry or
+   resource drift rejects, and the execution/plan identities enter the ledger
+   fingerprint and manifest. Cathedral's acceptance canaries pin both the
    five-node fixed timer work graph and the shared-IRQ bound of maximum
    maskable-root demand plus the permitted current-stack fatal-fault term.
-   **Next:** connect these admitted work/stack results to concrete provider
-   execution. Add `lidt` only as an installation path through it; the stack/IST
-   policy must remain one fact consumed by both layout materialization and WCSU
-   analysis.
+   **Next:** drive that binding from compiler-selected provider plans and the
+   concrete Cathedral PIC/LAPIC execution, then add `lidt` only as its
+   record-before-publish installation path. The stack/IST policy must remain one
+   fact consumed by both layout materialization and WCSU analysis.
 6. **IDT3 — linear interrupt obligations.** The source contract is live in
    `omega::language::core::interrupt`: opaque linear `InterruptMaskGuard` and
    `InterruptAcknowledgement` values have explicit consuming `restore` and

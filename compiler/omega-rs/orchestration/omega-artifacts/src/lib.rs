@@ -754,6 +754,12 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
     push_hex_identity(output, record.owner.normalized_identity());
     output.push_str(", \"admission\": ");
     push_hex_identity(output, record.admission.normalized_identity());
+    output.push_str(", \"provider_execution\": ");
+    push_hex_identity(output, record.provider_execution.normalized_identity());
+    output.push_str(", \"provider_execution_fingerprint\": ");
+    push_hex_identity(output, record.provider_execution_fingerprint);
+    output.push_str(", \"provider_plan\": ");
+    push_hex_identity(output, record.provider_plan.normalized_identity());
     output.push_str(", \"boundary_contract\": ");
     push_hex_identity(output, record.boundary_contract_fingerprint);
     output.push_str(", \"boundary_plan\": ");
@@ -1790,12 +1796,12 @@ mod tests {
         AcknowledgementPolicyId, ComponentArtifactId, ComponentContractId, ComponentProviderId,
         ComponentVersionPin, ComponentVersionPinId, ExternalRootDiagnostic, ExternalRootId,
         FixedWorkCall, FixedWorkProviderSummary, InstalledRootRecord, MachineStateResourceColumn,
-        NestingRelationId, ProviderStackSummary, ProviderWorkSummaryId,
-        ProviderWorkValidationReceiptId, RootAdmissionId, RootEffectId, RootProviderId, RootSlotId,
-        RootSlotOwnerId, StackNestingRelation, StackResourceColumn, StackValidationReceiptId,
-        StateValidationReceiptId, StructuralWorkProfileId, StructuralWorkResourceColumn,
-        StructuralWorkValidationReceiptId, TrustReceiptId, compose_artifact_stacks,
-        compose_fixed_work,
+        NestingRelationId, ProviderExecutionId, ProviderPlanId, ProviderStackSummary,
+        ProviderWorkSummaryId, ProviderWorkValidationReceiptId, RootAdmissionId, RootEffectId,
+        RootProviderId, RootSlotId, RootSlotOwnerId, StackNestingRelation, StackResourceColumn,
+        StackValidationReceiptId, StateValidationReceiptId, StructuralWorkProfileId,
+        StructuralWorkResourceColumn, StructuralWorkValidationReceiptId, TrustReceiptId,
+        compose_artifact_stacks, compose_fixed_work,
     };
     use omega_layout_plans::EntryStubId;
 
@@ -1912,6 +1918,9 @@ mod tests {
             slot: root_id(5, RootSlotId::from_normalized_identity),
             owner: root_id(6, RootSlotOwnerId::from_normalized_identity),
             admission: root_id(7, RootAdmissionId::from_normalized_identity),
+            provider_execution: root_id(30, ProviderExecutionId::from_normalized_identity),
+            provider_execution_fingerprint: 0x3030,
+            provider_plan: root_id(31, ProviderPlanId::from_normalized_identity),
             boundary_contract_fingerprint: boundary.contract_fingerprint(),
             boundary: boundary.plan().clone(),
             provider: root_id(8, RootProviderId::from_normalized_identity),
@@ -1962,6 +1971,11 @@ mod tests {
             "0x0000000000000101"
         );
         assert_eq!(parsed["roots"][0]["entry"], "0x0000000000000002");
+        assert_eq!(
+            parsed["roots"][0]["provider_execution"],
+            "0x000000000000001e"
+        );
+        assert_eq!(parsed["roots"][0]["provider_plan"], "0x000000000000001f");
         assert_eq!(
             parsed["roots"][0]["boundary_plan"]["call"]["policy"],
             "system_v_amd64"
