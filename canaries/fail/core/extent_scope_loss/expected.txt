@@ -1,0 +1,1 @@
+linear value `extent` reaches scope exit without being consumed or transferred

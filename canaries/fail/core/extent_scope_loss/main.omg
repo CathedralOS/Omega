@@ -1,0 +1,11 @@
+use omega::language::core::extent;
+
+data Main {
+}
+
+machine Main::leak(extent: Extent) {
+    // Owned range authority cannot disappear through ordinary scope cleanup.
+}
+
+machine Main::main(&mut self) {
+}

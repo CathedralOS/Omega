@@ -2,10 +2,8 @@
 // VALUE: machine parameter, return through a value call, local binding,
 // equality -- and `addr + u64`, the index/count/address model's blessed
 // mixed operation (address + count -> address; the axes stay distinct but
-// compose). These are exactly the shapes Arena::allocate implies now that
-// its signature is honest (allocate(size: u64, align: u64) -> addr;
-// deallocate(address: addr, ...) -- the usize-retirement follow-up that
-// moved the trait off "addresses as u64").
+// compose). This tests address arithmetic only. Allocation authority is now
+// represented separately by the opaque linear `Extent` carrier.
 // exits: 71 = bump result wrong.
 use omega::language::std::console;
 data Main { console: Console; base: addr; }
