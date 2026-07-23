@@ -10,8 +10,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_calling_conventions::{
-    BoundaryEntryPlan, EntryStack, MachineRegister, StateFootprintEvidence,
-    ValidatedBoundaryEntryPlan, validate_state_footprint,
+    BoundaryEntryPlan, EntryStack, MachineRegister, ProviderExitRealization,
+    StateFootprintEvidence, ValidatedBoundaryEntryPlan, validate_provider_exit_realization,
+    validate_state_footprint,
 };
 pub use omega_executable_installation::{ArtifactId, InstalledCodeId};
 use omega_executable_installation::{InstalledCode, ResolvedPostHandoffEntryWriterContext};
@@ -750,6 +751,63 @@ pub struct ValidatedExternalRoot {
     normalized_identity: u64,
 }
 
+/// Evidence that an opaque provider cannot escape the boundary's admitted
+/// exit contract. An accepted claim is checked against the exact normalized
+/// `CallPlan + StatePlan`; adequate hardware isolation is the explicit
+/// alternative when the provider's exit is not inspectable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpaqueProviderExitAssurance {
+    AcceptedClaim {
+        realization: ProviderExitRealization,
+        validation_receipt: TrustReceiptId,
+    },
+    HardwareIsolation {
+        validation_receipt: TrustReceiptId,
+    },
+}
+
+impl OpaqueProviderExitAssurance {
+    fn validate(self, root: &ValidatedExternalRoot) -> Result<Self, ExternalRootDiagnostic> {
+        let validation_receipt = match self {
+            Self::AcceptedClaim {
+                validation_receipt, ..
+            }
+            | Self::HardwareIsolation { validation_receipt } => validation_receipt,
+        };
+        if !root.candidate.trust_receipts.contains(&validation_receipt) {
+            return Err(ExternalRootDiagnostic(
+                "opaque provider exit assurance is absent from the root's admitted trust receipts"
+                    .into(),
+            ));
+        }
+        if let Self::AcceptedClaim { realization, .. } = self {
+            validate_provider_exit_realization(&root.boundary, &realization).map_err(|error| {
+                ExternalRootDiagnostic(format!(
+                    "opaque provider exit claim violates the admitted boundary: {error}"
+                ))
+            })?;
+        }
+        Ok(self)
+    }
+
+    fn fingerprint(self) -> u64 {
+        let mut hash = Fnv1a::new();
+        match self {
+            Self::AcceptedClaim {
+                validation_receipt, ..
+            } => {
+                hash.u64(0);
+                hash.u64(validation_receipt.normalized_identity());
+            }
+            Self::HardwareIsolation { validation_receipt } => {
+                hash.u64(1);
+                hash.u64(validation_receipt.normalized_identity());
+            }
+        }
+        hash.finish()
+    }
+}
+
 impl ValidatedExternalRoot {
     pub const fn candidate(&self) -> &ExternalRootCandidate {
         &self.candidate
@@ -787,6 +845,8 @@ pub struct ProviderExecution {
     stack_demand_fingerprint: u64,
     structural_work_fingerprint: u64,
     machine_state_validation_receipt: StateValidationReceiptId,
+    exit_assurance: OpaqueProviderExitAssurance,
+    exit_assurance_fingerprint: u64,
     effects: BTreeSet<RootEffectId>,
     normalized_identity: u64,
 }
@@ -797,7 +857,17 @@ impl ProviderExecution {
     pub fn from_admitted_provider(
         identity: ProviderExecutionId,
         root: &ValidatedExternalRoot,
-    ) -> Self {
+        exit_assurance: Option<OpaqueProviderExitAssurance>,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        let exit_assurance = exit_assurance
+            .ok_or_else(|| {
+                ExternalRootDiagnostic(
+                    "opaque provider requires an accepted exit claim or adequate hardware isolation"
+                        .into(),
+                )
+            })?
+            .validate(root)?;
+        let exit_assurance_fingerprint = exit_assurance.fingerprint();
         let candidate = root.candidate();
         let mut hash = Fnv1a::new();
         hash.u64(identity.normalized_identity());
@@ -826,10 +896,11 @@ impl ProviderExecution {
                 .validation_receipt
                 .normalized_identity(),
         );
+        hash.u64(exit_assurance_fingerprint);
         for effect in &candidate.effects {
             hash.u64(effect.normalized_identity());
         }
-        Self {
+        Ok(Self {
             identity,
             provider_plan: candidate.provider_plan,
             root: candidate.identity,
@@ -847,9 +918,11 @@ impl ProviderExecution {
                 .realization
                 .composition_fingerprint(),
             machine_state_validation_receipt: candidate.machine_state.validation_receipt,
+            exit_assurance,
+            exit_assurance_fingerprint,
             effects: candidate.effects.clone(),
             normalized_identity: hash.finish(),
-        }
+        })
     }
 
     pub const fn identity(&self) -> ProviderExecutionId {
@@ -862,6 +935,14 @@ impl ProviderExecution {
 
     pub const fn normalized_identity(&self) -> u64 {
         self.normalized_identity
+    }
+
+    pub const fn exit_assurance(&self) -> OpaqueProviderExitAssurance {
+        self.exit_assurance
+    }
+
+    pub const fn exit_assurance_fingerprint(&self) -> u64 {
+        self.exit_assurance_fingerprint
     }
 
     fn matches_root(&self, root: &ValidatedExternalRoot) -> bool {
@@ -994,6 +1075,8 @@ pub struct RootAdmission {
     root_identity: u64,
     provider_execution: ProviderExecutionId,
     provider_execution_fingerprint: u64,
+    provider_exit_assurance: OpaqueProviderExitAssurance,
+    provider_exit_assurance_fingerprint: u64,
     provider_plan: ProviderPlanId,
     installed_code: InstalledCodeId,
     artifact: ArtifactId,
@@ -1022,6 +1105,8 @@ impl RootAdmission {
             root_identity: root.normalized_identity,
             provider_execution: execution.identity,
             provider_execution_fingerprint: execution.normalized_identity,
+            provider_exit_assurance: execution.exit_assurance,
+            provider_exit_assurance_fingerprint: execution.exit_assurance_fingerprint,
             provider_plan: execution.provider_plan,
             installed_code: installed_code.identity(),
             artifact: installed_code.artifact(),
@@ -1053,6 +1138,8 @@ pub struct InstalledRootRecord {
     pub admission: RootAdmissionId,
     pub provider_execution: ProviderExecutionId,
     pub provider_execution_fingerprint: u64,
+    pub provider_exit_assurance: OpaqueProviderExitAssurance,
+    pub provider_exit_assurance_fingerprint: u64,
     pub provider_plan: ProviderPlanId,
     pub boundary_contract_fingerprint: u64,
     pub boundary: BoundaryEntryPlan,
@@ -1125,6 +1212,7 @@ impl InstalledRootLedger {
             hash.u64(record.admission.normalized_identity());
             hash.u64(record.provider_execution.normalized_identity());
             hash.u64(record.provider_execution_fingerprint);
+            hash.u64(record.provider_exit_assurance_fingerprint);
             hash.u64(record.provider_plan.normalized_identity());
         }
         hash.finish()
@@ -1229,6 +1317,8 @@ impl InstalledRootLedger {
             admission: admission.identity,
             provider_execution: admission.provider_execution,
             provider_execution_fingerprint: admission.provider_execution_fingerprint,
+            provider_exit_assurance: admission.provider_exit_assurance,
+            provider_exit_assurance_fingerprint: admission.provider_exit_assurance_fingerprint,
             provider_plan: admission.provider_plan,
             boundary_contract_fingerprint: root.boundary_contract_fingerprint,
             boundary: root.boundary,
@@ -2848,7 +2938,81 @@ mod tests {
         ProviderExecution::from_admitted_provider(
             root_id(54, ProviderExecutionId::from_normalized_identity),
             root,
+            Some(OpaqueProviderExitAssurance::AcceptedClaim {
+                realization: ProviderExitRealization {
+                    control: root.boundary().call.entry_control,
+                    restored_state: root.boundary().state.restored_state,
+                },
+                validation_receipt: root_id(4, TrustReceiptId::from_normalized_identity),
+            }),
         )
+        .expect("admitted provider exit")
+    }
+
+    #[test]
+    fn opaque_provider_exit_admission_fails_closed_and_rejects_plan_drift() {
+        let validated =
+            validate_external_root(candidate(entry_id(1001)), &boundary()).expect("root plan");
+        let identity = root_id(54, ProviderExecutionId::from_normalized_identity);
+
+        let missing = ProviderExecution::from_admitted_provider(identity, &validated, None)
+            .expect_err("opaque provider without exit evidence must reject");
+        assert!(
+            missing
+                .0
+                .contains("accepted exit claim or adequate hardware isolation")
+        );
+
+        let unreported_isolation = ProviderExecution::from_admitted_provider(
+            identity,
+            &validated,
+            Some(OpaqueProviderExitAssurance::HardwareIsolation {
+                validation_receipt: root_id(99, TrustReceiptId::from_normalized_identity),
+            }),
+        )
+        .expect_err("unreported isolation cannot serve as adequate evidence");
+        assert!(unreported_isolation.0.contains("admitted trust receipts"));
+
+        let wrong_control = ProviderExecution::from_admitted_provider(
+            identity,
+            &validated,
+            Some(OpaqueProviderExitAssurance::AcceptedClaim {
+                realization: ProviderExitRealization {
+                    control: omega_calling_conventions::EntryControl::InterruptReturn,
+                    restored_state: validated.boundary().state.restored_state,
+                },
+                validation_receipt: root_id(4, TrustReceiptId::from_normalized_identity),
+            }),
+        )
+        .expect_err("provider exit that violates the CallPlan must reject");
+        assert!(wrong_control.0.contains("exit control"));
+
+        let wrong_restore = ProviderExecution::from_admitted_provider(
+            identity,
+            &validated,
+            Some(OpaqueProviderExitAssurance::AcceptedClaim {
+                realization: ProviderExitRealization {
+                    control: validated.boundary().call.entry_control,
+                    restored_state: MachineStateSet::new([MachineState::Flags]),
+                },
+                validation_receipt: root_id(4, TrustReceiptId::from_normalized_identity),
+            }),
+        )
+        .expect_err("provider exit that violates the StatePlan must reject");
+        assert!(wrong_restore.0.contains("restored-state set"));
+
+        let isolated = ProviderExecution::from_admitted_provider(
+            identity,
+            &validated,
+            Some(OpaqueProviderExitAssurance::HardwareIsolation {
+                validation_receipt: root_id(4, TrustReceiptId::from_normalized_identity),
+            }),
+        )
+        .expect("adequate hardware isolation is the explicit alternative");
+        assert!(matches!(
+            isolated.exit_assurance(),
+            OpaqueProviderExitAssurance::HardwareIsolation { .. }
+        ));
     }
 
     #[test]

@@ -198,6 +198,13 @@ fails closed. An independent final-byte transfer certificate and CET, PAC, or
 shadow-stack hardening are deferred PCC/TCB-reduction work, not v1 language
 semantics.
 
+External-root admission enforces that distinction directly. Provider body
+footprint evidence is checked against the state-use ceiling, while a separate
+exit realization must match the plan's exact return-control mechanism and
+restored-state set. An opaque execution can substitute adequate hardware
+isolation only through a trust receipt already reported by that root; missing,
+unreported, or plan-drifted evidence cannot mint `ProviderExecution`.
+
 ## Machine-state regimes
 
 Regime-changing instructions state transitions directly. A far jump or control

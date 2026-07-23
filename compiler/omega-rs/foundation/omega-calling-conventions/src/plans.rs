@@ -415,6 +415,38 @@ impl StateFootprintEvidence {
     }
 }
 
+/// Provider evidence for the control-state transition that leaves one
+/// externally entered boundary. This is implementation evidence, not part of
+/// the public `CallPlan + StatePlan` identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProviderExitRealization {
+    pub control: EntryControl,
+    pub restored_state: MachineStateSet,
+}
+
+/// Verify that a provider's realized exit is exactly the exit admitted by the
+/// boundary contract. Footprint validation covers state touched by the body;
+/// this separate check prevents an otherwise-valid footprint from returning
+/// through the wrong control mechanism or restore set. The plan's
+/// `initial_regime` is an entry fact, so this evidence deliberately does not
+/// invent a same-regime exit promise.
+pub fn validate_provider_exit_realization(
+    plan: &BoundaryEntryPlan,
+    realization: &ProviderExitRealization,
+) -> Result<(), PlanDiagnostic> {
+    if realization.control != plan.call.entry_control {
+        return Err(PlanDiagnostic(
+            "provider exit control does not match the admitted CallPlan".into(),
+        ));
+    }
+    if realization.restored_state != plan.state.restored_state {
+        return Err(PlanDiagnostic(
+            "provider exit restored-state set does not match the admitted StatePlan".into(),
+        ));
+    }
+    Ok(())
+}
+
 /// Compose implementation evidence from independently derived code fragments.
 /// Register sets and machine-state classes are mathematical unions, so the
 /// result is deterministic across fragment ordering and repeated evidence.
@@ -2408,6 +2440,42 @@ mod tests {
             ),
         )
         .expect("ordinary caller-volatile condition flags fit the state ceiling");
+    }
+
+    #[test]
+    fn provider_exit_realization_must_match_the_complete_boundary_exit() {
+        let validated = validate_boundary_entry_plan(strict_x86_entry(), &integer_signature(1))
+            .expect("strict interrupt boundary");
+        let expected = ProviderExitRealization {
+            control: validated.plan().call.entry_control,
+            restored_state: validated.plan().state.restored_state,
+        };
+        validate_provider_exit_realization(validated.plan(), &expected)
+            .expect("exact provider exit realization");
+
+        for (realization, expected_diagnostic) in [
+            (
+                ProviderExitRealization {
+                    control: EntryControl::CallReturn,
+                    ..expected
+                },
+                "exit control",
+            ),
+            (
+                ProviderExitRealization {
+                    restored_state: MachineStateSet::empty(),
+                    ..expected
+                },
+                "restored-state set",
+            ),
+        ] {
+            let error = validate_provider_exit_realization(validated.plan(), &realization)
+                .expect_err("drifted provider exit must reject");
+            assert!(
+                error.0.contains(expected_diagnostic),
+                "expected `{expected_diagnostic}`, got `{error}`"
+            );
+        }
     }
 
     #[test]
