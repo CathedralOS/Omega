@@ -199,6 +199,12 @@ activation/runtime contract. This preserves the same return-integrity argument
 across suspension, cancellation, and component replacement that applies while
 the activation is running.
 
+This opacity is enforced today, not only reserved by the model. Negative
+canaries reject projecting, recasting, taking the address of, or mutating a
+`continuation` through `Task<T>`. The same typed-place validation applies to
+ordinary data locals and parameters, including applied generic carriers, so a
+missing member cannot silently become a zero/default backend value.
+
 Measured, tail-only runtime recursion leaves a bounded lowered call graph. If
 ordinary calls may suspend, a parked continuation can retain a bounded chain
 of compiler-planned frames; bounded does not mean single-frame or free. The

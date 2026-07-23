@@ -43,7 +43,8 @@ pub(crate) fn validate_assignment_target_handle(
         return;
     }
 
-    // The NESTED-target twin of the direct check (same walker as the READ side):
+    // The data-typed local/parameter and nested-target twin of the direct check
+    // (same walker as the READ side):
     // `self.o.inner.nonexistent = 7` / `self.o.bogus.value = 7` used to fall
     // through to the backend's "needs runtime storage write lowering" blocker --
     // loud but MISLEADING (it reads as a missing lowering, not a typo). Report
@@ -301,7 +302,8 @@ fn collect_member_path(program: &TypedTrees, expression: ExpressionHandle) -> Op
     }
 }
 
-/// The first member of a 3+-segment place path that is MISSING from its
+/// The first member of a data-typed local/parameter path, or a 3+-segment
+/// `self` place path, that is MISSING from its
 /// resolved containing data definition: `Some((container, member))` for
 /// `self.o.inner.nonexistent` (final missing) and `self.o.bogus.value`
 /// (intermediate missing) -- both used to compile and silently read a ZII 0.
@@ -321,10 +323,16 @@ pub(crate) fn first_unknown_nested_field(
     expression: ExpressionHandle,
 ) -> Option<(String, String)> {
     let path = collect_member_path(program, expression)?;
-    if path.len() < 3 {
+    if path.len() < 2 {
         return None;
     }
     let (root, rest) = path.split_first()?;
+    // Direct `self.<field>` has a dedicated diagnostic at both read and write
+    // sites. Two-segment non-self roots used to skip both that check and this
+    // walker, silently accepting `typed_local.missing` as a ZII/default read.
+    if root == "self" && path.len() < 3 {
+        return None;
+    }
     let mut current_data = if root == "self" {
         // `self.<contained>/<owned>.…` roots on the MACHINE, not its data.
         let first_hop = rest.first()?;
@@ -413,17 +421,18 @@ pub(crate) fn nested_receiver_type_name<'program>(
     }
 }
 
-/// The data/sum definition behind a type reference (through `&`/`in Domain`
-/// shells). `None` for primitives, arrays, and unknown names.
+/// The data/sum definition behind a named or applied-generic type reference
+/// (through `&`/`in Domain` shells). Type arguments do not change the declared
+/// member names. `None` for primitives, arrays, and unknown names.
 pub(crate) fn data_definition_for_type(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<&omega_typed_trees::data::DataDefinition> {
     let unwrapped = unwrapped_type_reference(program, type_reference)?;
-    let TypeReferenceNode::Named { name, .. } =
-        program.type_reference_table.type_reference(unwrapped)
-    else {
-        return None;
+    let name = match program.type_reference_table.type_reference(unwrapped) {
+        TypeReferenceNode::Named { name, .. } => name,
+        TypeReferenceNode::Generic { base_name, .. } => base_name,
+        _ => return None,
     };
     program
         .data_definitions()

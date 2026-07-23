@@ -1,0 +1,11 @@
+// Address-taking cannot start from another activation's parked continuation:
+// the lifecycle claim contains no source-visible continuation place.
+use omega::language::core::task;
+
+data Main {}
+
+machine Main::inspect(task: &Task<i32>) {
+    let leaked: &u64 = &task.continuation;
+}
+
+machine Main::main(&mut self) {}

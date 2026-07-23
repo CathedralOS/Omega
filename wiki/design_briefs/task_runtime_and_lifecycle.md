@@ -322,7 +322,11 @@ transactional start remain.
    `Rejected(LinearArguments)`, with pass and scope-loss canaries pinning both
    sides. Receiver types now preserve shared `&self` versus consuming `self`;
    lifecycle canaries prove `request_cancel` retains the claim and `finish`
-   consumes it into `TaskOutcome<T>`.
+   consumes it into `TaskOutcome<T>`. Four negative canaries also pin that the
+   compiler/provider-owned parked continuation is absent from the task claim:
+   ordinary code cannot project, recast, address, or mutate it. Typed local and
+   parameter member validation covers applied generic carriers and rejects a
+   missing member before backend lowering.
 3. Concrete compile-time machine-symbol specializations now retain their
    executable instance identity. `TaskRuntime::start<M>` and `try_start<M>`
    elaborate into validated activation plans and the normalized

@@ -1,0 +1,11 @@
+// Recast syntax cannot turn a parked continuation into ordinary bytes because
+// Task<T> exposes no continuation place from which such a view could begin.
+use omega::language::core::task;
+
+data Main {}
+
+machine Main::inspect(task: &Task<i32>) {
+    let leaked: &u64 = &task.continuation as &u64;
+}
+
+machine Main::main(&mut self) {}

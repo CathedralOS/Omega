@@ -34948,6 +34948,24 @@ fn task_lifecycle_operations_conserve_the_linear_claim() {
 }
 
 #[test]
+fn parked_continuation_is_not_source_addressable_through_task_claims() {
+    for operation in ["projection", "recast", "address", "mutation"] {
+        let name = format!("core/task_parked_continuation_{operation}_rejected");
+        let diagnostics = compile_canary_without_output(&fail_canary(&name))
+            .expect_err("parked continuation access must reject");
+        let rendered = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            rendered.contains("has no field `continuation`"),
+            "expected compiler-owned continuation opacity for {operation}, got:\n{rendered}"
+        );
+    }
+}
+
+#[test]
 fn relational_loop_invariant_canaries_pin_symbolic_head_fact() {
     let pass = pass_canary("dependent/relational_loop_invariant_dynamic_length_compile");
     compile_canary_without_output(&pass).unwrap_or_else(|diagnostics| {
@@ -38755,6 +38773,10 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "generics/const_data_where_machine_fact_nested_false",
     "generics/const_data_where_domain_membership_false",
     "core/task_core_scope_loss",
+    "core/task_parked_continuation_projection_rejected",
+    "core/task_parked_continuation_recast_rejected",
+    "core/task_parked_continuation_address_rejected",
+    "core/task_parked_continuation_mutation_rejected",
     "core/extent_construction_rejected",
     "core/extent_scope_loss",
     "core/interrupt_mask_guard_scope_loss",
