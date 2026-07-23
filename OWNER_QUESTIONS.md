@@ -40,37 +40,7 @@ not source attributes or a new `unsafe` escape.
 Detailed surrounding context and engineering residue are in
 [`wiki/design_briefs/os_memory_and_hardware_foundation.md`](wiki/design_briefs/os_memory_and_hardware_foundation.md).
 
-## 2. What is the generated post-handoff writer boundary?
-
-The normalized materializer can derive an atomic writer plan, and exact
-`InstalledCode` can privately resolve only entry identities admitted with that
-artifact. What remains is not an opcode-selection question: no platform
-boundary yet specifies how generated target code receives resolver authority,
-destination authority, staging storage, or publication/failure obligations.
-
-Decide:
-
-- whether the writer is a compiler-generated checked Omega machine, a
-  provider-private admitted entry, or code inlined into each platform provider;
-- what sealed capability resolves `DataSymbolId` and `EntryStubId` without
-  exposing a general numeric-address operation;
-- who owns the full-plan staging buffer required for all-or-nothing publication,
-  how its maximum size/alignment is admitted, and what happens on allocation or
-  resolution failure;
-- which memory-order/cache/device-visibility fact constitutes publication for
-  ordinary RAM versus hardware-consumed tables; and
-- how the writer's call/state plan, footprint evidence, destination extent,
-  installation scope, and installed target lifetimes are bound into one receipt.
-
-Recommendation: generate a provider-private checked Omega machine from the
-normalized writer plan. It should consume an exact destination extent plus a
-sealed resolver capability, use provider-owned bounded staging storage admitted
-with the plan, and return a receipt establishing one target-specific publication
-fact. The machine may lower normally under its evaluated call/state plan; do not
-standardize a public callback ABI or let ordinary Omega code observe resolved
-addresses.
-
-## 3. What is the native boundary ABI for fixed arrays and text descriptors?
+## 2. What is the native boundary ABI for fixed arrays and text descriptors?
 
 Primitive scalars and declared `data` records/cases now have normalized entry
 result shapes across Microsoft x64, SysV AMD64, and AAPCS64. Fixed arrays and
@@ -100,7 +70,7 @@ and classify admitted fixed arrays structurally (including HFA/SSE rules) while
 requiring text to use an explicit public descriptor record after String
 retirement. Do not infer either ABI from byte size alone.
 
-## 4. What is the runtime and object-safety contract for `dyn Trait`?
+## 3. What is the runtime and object-safety contract for `dyn Trait`?
 
 Closed-world call-site specialization currently makes `&dyn Trait` parameters
 execute correctly when every concrete receiver is known at its call site. It
@@ -132,7 +102,7 @@ parameters/results do not mention `Self`; require declared effect/capability
 ceilings at every dynamic slot. This keeps the public model independent of raw
 table addresses and leaves room for loader-controlled table replacement.
 
-## 5. What is automatic cleanup's graph-edge and partial-value contract?
+## 4. What is automatic cleanup's graph-edge and partial-value contract?
 
 Omega already records affine StateExit events and rejects non-empty `drop`
 bodies so cleanup cannot silently disappear. Executing those bodies is not just
@@ -169,7 +139,7 @@ cycles, and any partially moved shape the plan cannot enumerate. Treat this as
 one ownership subsystem rather than special-casing calls in instruction
 selection.
 
-## 6. What is a composite linear value's resource frontier?
+## 5. What is a composite linear value's resource frontier?
 
 Omega requires structural linearity: a record, live sum payload, array, or
 generic container cannot erase a contained linear obligation. The current

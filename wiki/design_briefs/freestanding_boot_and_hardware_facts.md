@@ -1,6 +1,6 @@
 # Design Brief: Freestanding Boot And Hardware Facts
 
-Current direction as of 2026-07-18. Freestanding selection and the security
+Current direction as of 2026-07-22. Freestanding selection and the security
 model are settled. The reusable memory/hardware primitives are specified in
 [`os_memory_and_hardware_foundation.md`](os_memory_and_hardware_foundation.md);
 their source APIs and backend support remain incomplete.
@@ -130,8 +130,11 @@ vertical slice composes the common pieces:
 4. an ordinary `boundary machine ... satisfies ...` handler;
 5. provider/build selection of the handler;
 6. symbolic entry-stub identity resolved by a phase-aware materializer;
-7. checked `lidt` installation under IDT authority; and
-8. a linear acknowledgement token for exactly-once EOI.
+7. a generated checked writer producing a validated, content-bound
+   `MaterializedIdt` from an exclusive unpublished placement;
+8. separate checked `lidt` installation under `IdtControl`, with roots recorded
+   before hardware reachability; and
+9. a linear acknowledgement token for exactly-once EOI.
 
 The provider-neutral obligation spelling is live in
 `omega::language::core::interrupt`: the mask guard and acknowledgement are
@@ -160,6 +163,54 @@ offset with one ordinary pointer relocation, so boot-time materialization after
 the image base is known is the canonical path. Fields consumed by the loader
 before the first Omega instruction must remain expressible in the object
 format's native relocation vocabulary.
+
+The generated writer is not a general table-construction or address-resolution
+API. It receives one exact mapped/pinned/writable unpublished placement and a
+sealed resolver restricted to the boot-admitted artifact's root set. It writes
+that destination directly; failure produces no established table claim.
+Layout validation checks geometry, while the target IDT validator separately
+checks selectors, gates, privilege levels, IST assignments, reserved bits, and
+the exact admitted roots. Only then may the writer produce `MaterializedIdt`.
+
+The writer does not hold `IdtControl` and cannot publish. A separate installer
+prepares the external-root records, completes required visibility, executes
+checked `lidt`, and returns `InstalledIdt` plus its installation receipt. Root
+records precede hardware reachability. The materialization receipt binds the
+writer, plan, artifact, entries, destination, and final content; the installation
+receipt separately binds the granted CPU/table scope, prepared roots, visibility,
+and `lidt` operation.
+
+The earliest writer's software-fault-free claim is an admitted conjunction, not
+an absolute promise that hardware cannot fail. Its destination and stack are
+mapped, pinned, writable, and provisioned; its layout operations and CPU
+instruction support are validated; its path is bounded and cannot allocate,
+block, suspend, dynamically dispatch, or use an unsupported instruction. NMI,
+machine check, and physical failure remain named platform assumptions.
+
+### Who establishes what during boot
+
+The build produces a signed PE/COFF boot envelope containing checked kernel
+code, generated entry stubs and table writers, normalized plans, the admitted
+root manifest, evidence, ordinary native relocations, and reserved data/BSS.
+UEFI authenticates the outer image when Secure Boot policy requires it, loads
+and relocates the sections, and transfers control to the typed Omega entry. It
+does not understand Omega PCC, split IDT offsets, root-ledger policy, or
+`MaterializedIdt`.
+
+While firmware services remain available, Cathedral learns the actual image
+placement, fixes its final virtual-address plan, and reserves the mapped/pinned
+IDT, TSS, and stack placements. Once final addresses are stable, it should
+materialize and validate the table before `ExitBootServices` where practical.
+The post-exit critical sequence then contains only final mapping/stack
+transition where needed, visibility, prepared-root publication, checked
+`lidt`, and installation finalization. External interrupts remain disabled
+until the complete exception floor is installed.
+
+The boot image can perform this work because firmware authenticated and entered
+the initially admitted artifact. That is the explicit trust base, not an
+ordinary package granting itself authority. The platform provider attenuates
+that initial authority into exact placements, the sealed artifact resolver,
+and CPU-scoped `IdtControl`.
 
 ## Admitted executable installation and AP bringup
 
