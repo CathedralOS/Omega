@@ -93,6 +93,8 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -137,6 +139,8 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -239,6 +243,8 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -284,6 +290,8 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -420,6 +428,8 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -456,6 +466,8 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
         decrease_view_arguments: Default::default(),
         decrease_range: Default::default(),
         effects: Default::default(),
+        suspends: false,
+        blocks: false,
         contracts: Default::default(),
         states: Default::default(),
     };

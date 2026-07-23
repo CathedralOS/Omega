@@ -38,7 +38,7 @@ pub(crate) fn build_check_facts(
     let qualifications = build_qualification_facts(program);
     // STR4 checked plans: the normalized machine contracts (published
     // halves + fingerprint; prover-independent by construction).
-    let contract_plans = build_contract_plans(program, &effect_rows);
+    let contract_plans = build_contract_plans(program, &effect_rows, &effects);
     // CRY1: materialize the effective structural policy once in the checked
     // fact layer; authored clauses remain minimum promises on typed data.
     let carry = build_carry_facts(program);
@@ -88,6 +88,7 @@ fn build_carry_facts(program: &TypedTrees) -> omega_checked_trees::CarryFacts {
 fn build_contract_plans(
     program: &TypedTrees,
     effect_rows: &omega_checked_trees::EffectRowFacts,
+    effects: &EffectPlan,
 ) -> omega_checked_trees::MachineContractPlans {
     let mut machines = Vec::new();
     let frame_resolver = omega_validation::CallFrameResolver::new(program);
@@ -236,10 +237,49 @@ fn build_contract_plans(
             }
         }
         canonical_facts.sort();
+        let legacy_summary = effects
+            .machines()
+            .iter()
+            .find(|summary| summary.symbol == machine.symbol);
+        let suspend = omega_effects::EffectSet::from_name("Suspend")
+            .expect("Suspend is a canonical operational effect");
+        let block = omega_effects::EffectSet::from_name("Block")
+            .expect("Block is a canonical operational effect");
+        let publishes_operational_contract =
+            machine.supply_mode != omega_core::semantics::MachineSupplyMode::CheckedBody;
+        let checked_operational_summary = legacy_summary.map(|summary| {
+            if publishes_operational_contract {
+                summary.transitive
+            } else {
+                summary.body_transitive
+            }
+        });
+        let checked_may_suspend =
+            checked_operational_summary.is_some_and(|summary| summary.intersects(suspend));
+        let checked_may_block =
+            checked_operational_summary.is_some_and(|summary| summary.intersects(block));
+        let suspension = omega_core::semantics::SuspensionPlan {
+            interface: if publishes_operational_contract || machine.suspends {
+                omega_core::semantics::SuspensionInterface::PublishedMaySuspend(machine.suspends)
+            } else {
+                omega_core::semantics::SuspensionInterface::InternalInferred
+            },
+            checked_may_suspend,
+        };
+        let blocking = omega_core::semantics::BlockingPlan {
+            interface: if publishes_operational_contract || machine.blocks {
+                omega_core::semantics::BlockingInterface::PublishedMayBlock(machine.blocks)
+            } else {
+                omega_core::semantics::BlockingInterface::InternalInferred
+            },
+            checked_may_block,
+        };
         let fingerprint = omega_checked_trees::contract_fingerprint(
             machine.supply_mode,
             published_effect_row,
             &members,
+            suspension.interface,
+            blocking.interface,
             &published_termination,
             &canonical_facts,
         );
@@ -259,6 +299,8 @@ fn build_contract_plans(
             machine: machine.symbol,
             supply_mode: machine.supply_mode,
             published_effect_row,
+            suspension,
+            blocking,
             published_termination,
             inferred_write_frames,
             fingerprint,
@@ -470,6 +512,10 @@ fn build_effect_row_facts(
     let mut intern_set = |set: omega_effects::EffectSet| {
         let members: Vec<omega_core::semantics::EffectMemberId> = set
             .names()
+            .filter(|name| {
+                omega_core::semantics::effect_member_kind(name)
+                    == Some(omega_core::semantics::EffectMemberKind::ServiceReach)
+            })
             .filter_map(omega_core::semantics::effect_member_id)
             .collect();
         rows.intern(members)

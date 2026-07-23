@@ -23,6 +23,8 @@ type MachineClauses = (
     HandleSpan<omega_syntax_trees::expression::ExpressionHandle>,
     omega_syntax_trees::expression::ExpressionHandle,
     HandleSpan<Identifier>,
+    bool,
+    bool,
     HandleSpan<CapabilityContract>,
     omega_syntax_trees::types::TypeReferenceHandle,
 );
@@ -47,6 +49,8 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     let mut decrease_range = omega_syntax_trees::expression::ExpressionHandle::invalid();
     let mut effect_start = Handle::invalid();
     let mut effect_count = 0u32;
+    let mut suspends = false;
+    let mut blocks = false;
     let mut contract_start = Handle::invalid();
     let mut contract_count = 0u32;
     let mut return_type = omega_syntax_trees::types::TypeReferenceHandle::invalid();
@@ -110,11 +114,14 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                 && !input.at_contextual("ensures")
                 && !input.at_contextual("terminates")
                 && !input.at_contextual("decreases")
+                && !input.at_contextual("suspends")
+                && !input.at_contextual("blocks")
                 && !input.at_contextual("boundary")
                 && !input.at_contextual("where")
                 && !input.at_contextual("satisfies")
             {
                 let (effect, rest) = input.take_identifier()?;
+                reject_retired_operational_effect(&effect, rest)?;
                 let handle = syntax_trees.items.append_identifier_path_member(effect);
                 if effect_count == 0 {
                     effect_start = handle;
@@ -128,6 +135,24 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                     input = input.take_punctuation(PunctuationKind::Comma, ",")?;
                 }
             }
+            continue;
+        }
+
+        if input.at_contextual("suspends") {
+            if suspends {
+                return Err(input.error_here("duplicate `suspends;` operational clause"));
+            }
+            suspends = true;
+            input = take_operational_clause(input, "suspends")?;
+            continue;
+        }
+
+        if input.at_contextual("blocks") {
+            if blocks {
+                return Err(input.error_here("duplicate `blocks;` operational clause"));
+            }
+            blocks = true;
+            input = take_operational_clause(input, "blocks")?;
             continue;
         }
 
@@ -176,6 +201,8 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                         || input.at_contextual("terminates")
                         || input.at_contextual("decreases")
                         || input.at_contextual("effects")
+                        || input.at_contextual("suspends")
+                        || input.at_contextual("blocks")
                         || input.at_contextual("boundary")
                         || input.at_contextual("where")
                         || input.at_contextual("satisfies")
@@ -231,6 +258,8 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             "`terminates`",
             "`decreases`",
             "`effects`",
+            "`suspends;`",
+            "`blocks;`",
             "`boundary`",
             "`requires`",
             "`ensures`",
@@ -258,11 +287,67 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             decrease_view_arguments,
             decrease_range,
             effects,
+            suspends,
+            blocks,
             contracts,
             return_type,
         ),
         input,
     ))
+}
+
+fn reject_retired_operational_effect(
+    effect: &Identifier,
+    input: Input<'_, '_>,
+) -> Result<(), crate::parse_error::ParseError> {
+    let replacement = match effect.as_str() {
+        "Suspend" => "suspends;",
+        "Block" => "blocks;",
+        "thread_block" => "blocks;",
+        "sync_wait" => "the appropriate independent `suspends;` and/or `blocks;` clause",
+        _ => {
+            if omega_core::semantics::effect_member_kind(effect.as_str())
+                != Some(omega_core::semantics::EffectMemberKind::OperationalMay)
+            {
+                return Ok(());
+            }
+            "an independent operational clause"
+        }
+    };
+    Err(input.error_here(format!(
+        "`effects {}` is retired: `effects` contains boundary-service reach only; write `{replacement}` as an independent operational clause",
+        effect.as_str()
+    )))
+}
+
+fn take_operational_clause<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+    name: &str,
+) -> Result<Input<'tokens, 'source>, crate::parse_error::ParseError> {
+    let after_name = input.take_contextual(name)?;
+    let after_semicolon = after_name.take_punctuation(PunctuationKind::Semicolon, ";")?;
+    if continues_after_operational_clause(after_semicolon) {
+        Ok(after_semicolon)
+    } else {
+        // On a bodyless machine this semicolon is both the operational-clause
+        // terminator and the item terminator. Leave it for `parse_machine`.
+        Ok(after_name)
+    }
+}
+
+fn continues_after_operational_clause(input: Input<'_, '_>) -> bool {
+    input.at_punctuation(PunctuationKind::LeftBrace)
+        || input.at_punctuation(PunctuationKind::Arrow)
+        || input.at_contextual("terminates")
+        || input.at_contextual("decreases")
+        || input.at_contextual("effects")
+        || input.at_contextual("suspends")
+        || input.at_contextual("blocks")
+        || input.at_contextual("boundary")
+        || input.at_contextual("requires")
+        || input.at_contextual("ensures")
+        || input.at_contextual("where")
+        || input.at_contextual("satisfies")
 }
 
 fn parse_boundary_clause<'tokens, 'source>(

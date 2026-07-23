@@ -4,14 +4,14 @@ use omega::language::core::task;
 // parameter surface. `Worker::run` is selected statically and survives as the
 // concrete activation target; no runtime callable or inferred capture exists.
 boundary data Sleeper;
-boundary machine Sleeper::park(token: i32) effects Suspend;
+boundary machine Sleeper::park(token: i32) suspends;
 
 data Job {
     value: i32;
 }
 
 data Worker { }
-machine Worker::run(job: Job) -> i32 effects Suspend {
+machine Worker::run(job: Job) -> i32 suspends; {
     let value: i32 = job.value;
     Sleeper::park(value);
     value

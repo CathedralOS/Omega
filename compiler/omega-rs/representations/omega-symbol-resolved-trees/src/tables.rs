@@ -431,6 +431,8 @@ mod tests {
                 decrease_view_arguments: HandleSpan::empty(),
                 decrease_range: Default::default(),
                 effects: HandleSpan::empty(),
+                suspends: false,
+                blocks: false,
                 contracts: HandleSpan::empty(),
                 states,
             },

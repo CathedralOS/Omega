@@ -48,6 +48,10 @@ pub(crate) fn lower_machine_into(
         .symbol_resolved_trees
         .signature_effects(effects)
         .iter()
+        .filter(|name| {
+            omega_core::semantics::effect_member_kind(name.as_str())
+                == Some(omega_core::semantics::EffectMemberKind::ServiceReach)
+        })
         .filter_map(|name| omega_core::semantics::effect_member_id(name.as_str()))
         .collect();
     let effect_row = lowerer
@@ -127,6 +131,8 @@ pub(crate) fn lower_machine_into(
             decrease_view_arguments,
             decrease_range,
             effects,
+            suspends: machine.suspends,
+            blocks: machine.blocks,
             contracts,
             states,
         },

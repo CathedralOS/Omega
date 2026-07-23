@@ -46,7 +46,8 @@ data StartOutcome<T, Arguments> {
 boundary machine Task::request_cancel<T>(&self)
 ensures true;
 
-boundary machine Task::finish<T>(self) -> TaskOutcome<T> effects Suspend, Block
+boundary machine Task::finish<T>(self) -> TaskOutcome<T>
+suspends; blocks;
 ensures true;
 
 // Runtime authority is opaque: source can receive a selected provider but
@@ -59,12 +60,12 @@ boundary machine TaskRuntime::start<T, Arguments, machine Target>(
     &self,
     arguments: Arguments
 ) -> Task<T>
-where machine Target(arguments: Arguments) -> T effects Suspend, Block;
+where machine Target(arguments: Arguments) -> T suspends; blocks;
 ensures true;
 
 boundary machine TaskRuntime::try_start<T, Arguments, machine Target>(
     &self,
     arguments: Arguments
 ) -> StartOutcome<T, Arguments>
-where machine Target(arguments: Arguments) -> T effects Suspend, Block;
+where machine Target(arguments: Arguments) -> T suspends; blocks;
 ensures true;

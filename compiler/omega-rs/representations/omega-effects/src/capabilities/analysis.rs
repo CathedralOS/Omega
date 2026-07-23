@@ -208,5 +208,11 @@ fn signature_effects(program: &TypedTrees, signature: &StateSignature) -> Effect
     for effect in program.state_signature_effects(signature) {
         effects.insert_name(effect.as_str());
     }
+    if signature.suspends {
+        effects.insert_name("Suspend");
+    }
+    if signature.blocks {
+        effects.insert_name("Block");
+    }
     effects
 }

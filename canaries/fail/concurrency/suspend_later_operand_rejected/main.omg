@@ -7,7 +7,7 @@ data Message {
 }
 
 boundary trait Scheduler {
-    machine park() -> i32 effects Suspend;
+    machine park() -> i32 suspends;
 }
 
 data Main {

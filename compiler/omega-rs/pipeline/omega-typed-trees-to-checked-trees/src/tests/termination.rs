@@ -1762,6 +1762,88 @@ fn effect_row_facts_split_ceiling_from_inferred_summaries() {
 }
 
 #[test]
+fn operational_plans_are_independent_from_service_reach_rows() {
+    use omega_core::semantics::{BlockingInterface, SuspensionInterface, effect_member_id};
+
+    let source = r#"
+    data Sleeper {}
+    machine Sleeper::wait(&mut self) effects clock_read suspends; blocks; {}
+
+    data Main { sleeper: Sleeper; }
+    machine Main::run(&mut self) {
+        self.sleeper.wait();
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let symbol_of = |name: &str| {
+        typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+            .symbol
+    };
+    let wait = symbol_of("Sleeper::wait");
+    let run = symbol_of("Main::run");
+    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+
+    let wait_plan = checked
+        .facts
+        .contract_plans
+        .for_machine(wait)
+        .expect("published callee plan");
+    assert_eq!(
+        wait_plan.suspension.interface,
+        SuspensionInterface::PublishedMaySuspend(true)
+    );
+    assert_eq!(
+        wait_plan.blocking.interface,
+        BlockingInterface::PublishedMayBlock(true)
+    );
+    assert!(!wait_plan.suspension.checked_may_suspend);
+    assert!(!wait_plan.blocking.checked_may_block);
+
+    let run_plan = checked
+        .facts
+        .contract_plans
+        .for_machine(run)
+        .expect("caller plan");
+    assert_eq!(
+        run_plan.suspension.interface,
+        SuspensionInterface::InternalInferred
+    );
+    assert_eq!(
+        run_plan.blocking.interface,
+        BlockingInterface::InternalInferred
+    );
+    assert!(run_plan.suspension.checked_may_suspend);
+    assert!(run_plan.blocking.checked_may_block);
+
+    let run_rows = checked
+        .facts
+        .effect_rows
+        .for_machine(run)
+        .expect("caller service row");
+    let inferred = checked
+        .facts
+        .effect_rows
+        .rows
+        .members(run_rows.inferred_transitive);
+    assert_eq!(
+        inferred,
+        &[effect_member_id("clock_read").expect("catalog")]
+    );
+    assert!(!inferred.contains(&effect_member_id("Suspend").expect("catalog")));
+    assert!(!inferred.contains(&effect_member_id("Block").expect("catalog")));
+}
+
+#[test]
 fn qualification_facts_record_policy_commitments() {
     // STR4 checked plans, slice 2: a machine whose body casts under an
     // arithmetic policy COMMITS to that policy's fixed semantic identity;

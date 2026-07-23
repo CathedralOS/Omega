@@ -674,6 +674,8 @@ mod tests {
             decrease_view_arguments: HandleSpan::empty(),
             decrease_range: omega_syntax_trees::expression::ExpressionHandle::invalid(),
             effects: HandleSpan::empty(),
+            suspends: false,
+            blocks: false,
             contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(state_handle, 1),
         }));
@@ -725,6 +727,8 @@ mod tests {
             decrease_view_arguments: HandleSpan::empty(),
             decrease_range: omega_syntax_trees::expression::ExpressionHandle::invalid(),
             effects: HandleSpan::empty(),
+            suspends: false,
+            blocks: false,
             contracts: HandleSpan::from_parts(
                 requires,
                 ensures

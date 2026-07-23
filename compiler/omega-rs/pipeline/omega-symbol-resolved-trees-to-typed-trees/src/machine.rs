@@ -37,6 +37,8 @@ pub(crate) fn lower_machine(
         decrease_view_arguments: omega_core::arena::HandleSpan::empty(),
         decrease_range: typed::expression::ExpressionHandle::invalid(),
         effects: omega_core::arena::HandleSpan::empty(),
+        suspends: machine.suspends,
+        blocks: machine.blocks,
         contracts: omega_core::arena::HandleSpan::empty(),
         states: omega_core::arena::HandleSpan::empty(),
     };

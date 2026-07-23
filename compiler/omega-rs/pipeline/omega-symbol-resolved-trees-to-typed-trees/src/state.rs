@@ -88,6 +88,8 @@ pub(crate) fn lower_state_signature(
             .transpose()?
             .unwrap_or_else(typed::types::TypeReferenceHandle::invalid),
         effects: Default::default(),
+        suspends: signature.suspends,
+        blocks: signature.blocks,
         contracts: Default::default(),
         // TPR4: copied, never re-derived.
         terminates_guarantee: signature.terminates_guarantee,

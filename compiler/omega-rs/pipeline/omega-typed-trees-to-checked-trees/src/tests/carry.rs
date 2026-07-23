@@ -93,7 +93,7 @@ fn call_target_type_parameters_supply_carry_bounds() {
             cpu: any,
             thread: any,
             address: movable,
-        )]>(value: T) effects Suspend {}
+        )]>(value: T) suspends; {}
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
@@ -137,7 +137,7 @@ fn rejects_suspension_while_borrow_carrying_local_remains_live() {
         data Cell { value: i32; }
         data Message { body: &Cell; }
         boundary trait Scheduler {
-            machine park() effects Suspend;
+            machine park() suspends;
         }
         data Main { scheduler: Scheduler; cell: Cell; }
         machine Main::read(&mut self, cell: &Cell) -> i32 {
@@ -169,7 +169,7 @@ fn accepts_suspension_after_restrictive_locals_last_use() {
         data Cell { value: i32; }
         data Message { body: &Cell; }
         boundary trait Scheduler {
-            machine park() effects Suspend;
+            machine park() suspends;
         }
         data Main { scheduler: Scheduler; cell: Cell; }
         machine Main::read(&mut self, cell: &Cell) -> i32 {
@@ -190,7 +190,7 @@ fn checked_crossing_records_canonical_site_and_joined_policy() {
     let checked = lower(
         r#"
         data Sleeper {}
-        machine Sleeper::park(&mut self) effects Suspend {}
+        machine Sleeper::park(&mut self) suspends; {}
         data Main { sleeper: Sleeper; }
         machine Main::keep(&self, value: &i32) {}
         machine Main::run(&mut self) {
@@ -234,7 +234,7 @@ fn rejects_transitive_suspension_reach_with_live_restrictive_value() {
         data Cell { value: i32; }
         data Message { body: &Cell; }
         boundary trait Scheduler {
-            machine park() effects Suspend;
+            machine park() suspends;
         }
         data Main { scheduler: Scheduler; cell: Cell; }
         machine Main::wait(&mut self) { self.scheduler.park(); }
@@ -266,7 +266,7 @@ fn rejects_suspension_while_restrictive_self_field_remains_live() {
         data Cell { value: i32; }
         data Message { body: &Cell; }
         data Sleeper { }
-        machine Sleeper::park(&mut self) effects Suspend { }
+        machine Sleeper::park(&mut self) suspends; { }
         data Main { sleeper: Sleeper; cell: Cell; message: Message; }
         machine Main::read(&mut self, cell: &Cell) -> i32 {
             transition { _ -> cell.value }
@@ -295,7 +295,7 @@ fn accepts_suspension_after_restrictive_self_field_last_use() {
         data Cell { value: i32; }
         data Message { body: &Cell; }
         data Sleeper { }
-        machine Sleeper::park(&mut self) effects Suspend { }
+        machine Sleeper::park(&mut self) suspends; { }
         data Main { sleeper: Sleeper; cell: Cell; message: Message; }
         machine Main::read(&mut self, cell: &Cell) -> i32 {
             transition { _ -> cell.value }
@@ -316,7 +316,7 @@ fn rejects_suspension_when_self_field_is_used_in_reachable_state() {
         data Cell { value: i32; }
         data Message { body: &Cell; }
         data Sleeper { }
-        machine Sleeper::park(&mut self) effects Suspend { }
+        machine Sleeper::park(&mut self) suspends; { }
         data Main { sleeper: Sleeper; cell: Cell; message: Message; }
         machine Main::read(&mut self, cell: &Cell) -> i32 {
             transition { _ -> cell.value }
@@ -348,7 +348,7 @@ fn rejects_restrictive_argument_carried_by_suspending_call() {
         data Cell { value: i32; }
         data Message { body: &Cell; }
         boundary trait Scheduler {
-            machine park(message: Message) effects Suspend;
+            machine park(message: Message) suspends;
         }
         data Main { scheduler: Scheduler; cell: Cell; }
         machine Main::run(&mut self) {
@@ -376,7 +376,7 @@ fn rejects_restrictive_use_after_nested_suspending_call_in_same_statement() {
         data Cell { value: i32; }
         data Message { body: &Cell; }
         boundary trait Scheduler {
-            machine park() -> i32 effects Suspend;
+            machine park() -> i32 suspends;
         }
         data Main { scheduler: Scheduler; cell: Cell; }
         machine Main::read(&mut self, cell: &Cell) -> i32 {
@@ -406,7 +406,7 @@ fn accepts_restrictive_use_before_nested_suspending_call_in_same_statement() {
         data Cell { value: i32; }
         data Message { body: &Cell; }
         boundary trait Scheduler {
-            machine park() -> i32 effects Suspend;
+            machine park() -> i32 suspends;
         }
         data Main { scheduler: Scheduler; cell: Cell; }
         machine Main::read(&mut self, cell: &Cell) -> i32 {

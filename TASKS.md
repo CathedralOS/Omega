@@ -1106,9 +1106,16 @@ stronger operations it needs instead of citing machine parameters generally.
   set normalizer are separate from `SuspensionPlan` and `BlockingPlan`; each
   plan distinguishes private inference from an explicit published `false`
   ceiling, so public omission cannot collapse into internal inference. Syntax,
-  propagation, admission, and compatibility retirement remain. The direct-call
-  acknowledgement keyword is a separate owner decision and must consume the
-  normalized suspension/blocking plans rather than source-token presence.
+  tree propagation, snapshots, checked machine plans, contract fingerprints,
+  and task admission now carry the split axes. The parser rejects operational
+  members in service rows with migration diagnostics, and the core/task/carry
+  fixtures now use the independent clauses. The legacy `EffectSet` fixed point
+  remains a compatibility engine feeding checked operational summaries and
+  carry/provider consumers; independent may-axis fixed points, ceiling
+  enforcement, remaining provider/manifests/diagnostics propagation, and full
+  compatibility retirement remain. The direct-call acknowledgement keyword is
+  a separate owner decision and must consume the normalized
+  suspension/blocking plans rather than source-token presence.
 - **TPR4/TPR6 — publication and progress profiles.** Serialize public
   termination omission/default rules in artifacts. Resolve sealed profile
   domains, grant-backed admission and receipts, and pinned progress premises.

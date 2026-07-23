@@ -12,6 +12,8 @@ pub struct StateSignature {
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: TypeReferenceHandle,
     pub effects: HandleSpan<Identifier>,
+    pub suspends: bool,
+    pub blocks: bool,
     pub contracts: HandleSpan<SignatureContract>,
     /// TPR4 (decision 23): the bodyless requirement's authored PUBLIC
     /// guarantee (bare `terminates;`); the conformance check propagates it
@@ -30,6 +32,8 @@ impl Default for StateSignature {
             parameters: HandleSpan::empty(),
             return_type: TypeReferenceHandle::invalid(),
             effects: HandleSpan::empty(),
+            suspends: false,
+            blocks: false,
             contracts: HandleSpan::empty(),
             terminates_guarantee: false,
         }

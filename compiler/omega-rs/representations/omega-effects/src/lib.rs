@@ -453,6 +453,15 @@ fn declared_machine_effects(program: &TypedTrees, machine: &Machine) -> EffectSe
     for effect in program.machine_effects(machine) {
         effects.insert_name(effect.as_str());
     }
+    // EFX migration bridge: legacy flow/carry consumers still use EffectSet
+    // fixed points. Feed the independent authored axes into that internal
+    // engine without putting their retired names back in the source row.
+    if machine.suspends {
+        effects.insert_name("Suspend");
+    }
+    if machine.blocks {
+        effects.insert_name("Block");
+    }
     effects
 }
 
@@ -738,6 +747,12 @@ fn signature_effects(
     let mut effects = EffectSet::empty();
     for effect in program.state_signature_effects(signature) {
         effects.insert_name(effect.as_str());
+    }
+    if signature.suspends {
+        effects.insert_name("Suspend");
+    }
+    if signature.blocks {
+        effects.insert_name("Block");
     }
     effects
 }

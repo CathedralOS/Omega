@@ -282,6 +282,8 @@ pub struct MachineSnapshot {
     pub decreases: Vec<ExpressionSnapshot>,
     pub decrease_order: Vec<String>,
     pub effects: Vec<String>,
+    pub suspends: bool,
+    pub blocks: bool,
     pub contracts: Vec<SignatureContractSnapshot>,
     pub contains: Vec<ContainedObjectSnapshot>,
     pub owned_data: Vec<OwnedDataSnapshot>,
@@ -328,6 +330,8 @@ pub struct StateSignatureSnapshot {
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: Option<TypeReferenceSnapshot>,
     pub effects: Vec<String>,
+    pub suspends: bool,
+    pub blocks: bool,
     pub contracts: Vec<SignatureContractSnapshot>,
 }
 
@@ -677,6 +681,8 @@ fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> MachineSnapshot 
             .iter()
             .map(ToString::to_string)
             .collect(),
+        suspends: machine.suspends,
+        blocks: machine.blocks,
         contracts: program
             .machine_contracts(machine)
             .iter()
@@ -800,6 +806,8 @@ fn state_signature_snapshot(
             .iter()
             .map(ToString::to_string)
             .collect(),
+        suspends: signature.suspends,
+        blocks: signature.blocks,
         contracts: program
             .state_signature_contracts(signature)
             .iter()

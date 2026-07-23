@@ -9,7 +9,10 @@
 //! exported contract ID) holds BY CONSTRUCTION: only declared/published
 //! halves enter the fingerprint, never inferred rows or witnesses.
 
-use omega_core::semantics::{EffectRowId, MachineSupplyMode, TerminationGuarantee};
+use omega_core::semantics::{
+    BlockingInterface, BlockingPlan, EffectRowId, MachineSupplyMode, SuspensionInterface,
+    SuspensionPlan, TerminationGuarantee,
+};
 use omega_core::symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -52,6 +55,10 @@ pub struct MachineContractPlan {
     /// The authored `effects` clause's normalized row (the published
     /// ceiling; the EMPTY row when no clause).
     pub published_effect_row: EffectRowId,
+    /// Independent authored/inferred operational axes. These are never
+    /// reconstructed from `published_effect_row`.
+    pub suspension: SuspensionPlan,
+    pub blocking: BlockingPlan,
     /// The published termination guarantee (never the witness -- the
     /// firewall is the shape).
     pub published_termination: TerminationGuarantee,
@@ -80,6 +87,8 @@ pub fn contract_fingerprint(
     supply_mode: MachineSupplyMode,
     published_effect_row: EffectRowId,
     published_effect_members: &[omega_core::semantics::EffectMemberId],
+    suspension_interface: SuspensionInterface,
+    blocking_interface: BlockingInterface,
     published_termination: &TerminationGuarantee,
     canonical_facts: &[Vec<u8>],
 ) -> u64 {
@@ -112,6 +121,16 @@ pub fn contract_fingerprint(
             fold(byte);
         }
     }
+    fold(match suspension_interface {
+        SuspensionInterface::InternalInferred => 1,
+        SuspensionInterface::PublishedMaySuspend(false) => 2,
+        SuspensionInterface::PublishedMaySuspend(true) => 3,
+    });
+    fold(match blocking_interface {
+        BlockingInterface::InternalInferred => 1,
+        BlockingInterface::PublishedMayBlock(false) => 2,
+        BlockingInterface::PublishedMayBlock(true) => 3,
+    });
     fold(0xff);
     match published_termination {
         TerminationGuarantee::NoGuarantee => fold(1),
@@ -134,4 +153,39 @@ pub fn contract_fingerprint(
         fold(0xfc);
     }
     hash
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn operational_interfaces_participate_independently_in_contract_identity() {
+        let fingerprint = |suspension, blocking| {
+            contract_fingerprint(
+                MachineSupplyMode::Boundary,
+                EffectRowId::NULL,
+                &[],
+                suspension,
+                blocking,
+                &TerminationGuarantee::NoGuarantee,
+                &[],
+            )
+        };
+        let neither = fingerprint(
+            SuspensionInterface::PublishedMaySuspend(false),
+            BlockingInterface::PublishedMayBlock(false),
+        );
+        let suspending = fingerprint(
+            SuspensionInterface::PublishedMaySuspend(true),
+            BlockingInterface::PublishedMayBlock(false),
+        );
+        let blocking = fingerprint(
+            SuspensionInterface::PublishedMaySuspend(false),
+            BlockingInterface::PublishedMayBlock(true),
+        );
+        assert_ne!(neither, suspending);
+        assert_ne!(neither, blocking);
+        assert_ne!(suspending, blocking);
+    }
 }

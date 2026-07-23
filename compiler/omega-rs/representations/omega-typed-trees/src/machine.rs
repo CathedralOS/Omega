@@ -41,6 +41,8 @@ pub struct Machine {
     /// invalid = absent). The checker verifies it structurally.
     pub decrease_range: ExpressionHandle,
     pub effects: HandleSpan<Identifier>,
+    pub suspends: bool,
+    pub blocks: bool,
     pub contracts: HandleSpan<SignatureContract>,
     pub states: HandleSpan<State>,
 }
@@ -65,6 +67,8 @@ impl Default for Machine {
             decrease_view_arguments: HandleSpan::empty(),
             decrease_range: ExpressionHandle::invalid(),
             effects: HandleSpan::empty(),
+            suspends: false,
+            blocks: false,
             contracts: HandleSpan::empty(),
             states: HandleSpan::empty(),
         }

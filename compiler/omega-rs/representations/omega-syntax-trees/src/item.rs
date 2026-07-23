@@ -262,6 +262,8 @@ impl Default for LibraryFunction {
                 parameters: HandleSpan::empty(),
                 return_type: crate::types::TypeReferenceHandle::invalid(),
                 effects: HandleSpan::empty(),
+                suspends: false,
+                blocks: false,
                 contracts: HandleSpan::empty(),
                 default_body: HandleSpan::empty(),
                 terminates_guarantee: false,
@@ -678,6 +680,10 @@ pub struct Machine {
     /// checker consumes ranges (never silently dropped).
     pub decrease_range: crate::expression::ExpressionHandle,
     pub effects: HandleSpan<Identifier>,
+    /// Independent authored operational may-clauses (decision 22). These are
+    /// never members of `effects`.
+    pub suspends: bool,
+    pub blocks: bool,
     pub contracts: HandleSpan<CapabilityContract>,
     pub states: HandleSpan<StateHandle>,
 }
@@ -718,6 +724,8 @@ pub struct StateSignature {
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
     pub effects: HandleSpan<Identifier>,
+    pub suspends: bool,
+    pub blocks: bool,
     pub contracts: HandleSpan<CapabilityContract>,
     /// Statements authored in a trait machine body. Empty for ordinary
     /// requirements and all non-trait signatures.
@@ -1073,6 +1081,8 @@ impl ItemTable {
             parameters: signature.parameters,
             return_type: signature.return_type,
             effects: signature.effects,
+            suspends: signature.suspends,
+            blocks: signature.blocks,
             contracts: signature.contracts,
             default_body: signature.default_body,
             terminates_guarantee: signature.terminates_guarantee,
@@ -1094,6 +1104,8 @@ impl ItemTable {
             name: machine.name.clone(),
             satisfies: machine.satisfies,
             effects: machine.effects,
+            suspends: machine.suspends,
+            blocks: machine.blocks,
             contracts: machine.contracts,
             states: machine.states,
         })
@@ -1171,6 +1183,8 @@ pub struct StateSignatureNode {
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
     pub effects: HandleSpan<Identifier>,
+    pub suspends: bool,
+    pub blocks: bool,
     pub contracts: HandleSpan<CapabilityContract>,
     pub default_body: HandleSpan<crate::statement::StatementHandle>,
     /// TPR4 (decision 23): the bodyless requirement's authored guarantee.
@@ -1191,6 +1205,8 @@ pub struct MachineNode {
     pub name: Identifier,
     pub satisfies: HandleSpan<SatisfiesClause>,
     pub effects: HandleSpan<Identifier>,
+    pub suspends: bool,
+    pub blocks: bool,
     pub contracts: HandleSpan<CapabilityContract>,
     pub states: HandleSpan<StateHandle>,
 }
