@@ -30126,6 +30126,59 @@ fn cross_aarch64_stack_import_compiles_with_planned_layout() {
 }
 
 #[test]
+fn native_fixed_arrays_classify_by_value_without_pointer_decay() {
+    let canary = pass_canary("capabilities/native_fixed_array_import_compile");
+    for (target, expected_float) in [
+        ("windows_x64", "aggregate 16/4"),
+        ("linux_x64", "hfa4x32"),
+        ("macos_arm64", "hfa4x32"),
+    ] {
+        let scratch = unique_no_output_build_dir();
+        let src_dir = scratch.join("src");
+        let build_dir = scratch.join("out");
+        fs::create_dir_all(&src_dir).expect("fixed-array scratch source directory");
+        fs::copy(canary.join("main.omg"), src_dir.join("main.omg"))
+            .expect("copy fixed-array canary");
+        fs::write(
+            src_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write fixed-array target manifest");
+        let compile_result = compile(CompileOptions {
+            root_path: src_dir.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: Some(target.to_owned()),
+            write_output: true,
+        });
+        if let Err(diagnostics) = compile_result {
+            let only_unbound_elf_imports = target == "linux_x64"
+                && diagnostics.iter().all(|diagnostic| {
+                    diagnostic.message.contains("relocation references unknown symbol")
+                });
+            assert!(
+                only_unbound_elf_imports,
+                "fixed-array boundary canary should reach image binding for {target}: {diagnostics:#?}"
+            );
+        }
+        let report = fs::read_to_string(build_dir.join("backend_report.txt"))
+            .expect("fixed-array compile should publish its backend report");
+        assert!(
+            report.contains("aggregate 16/1"),
+            "{target} must classify `[u8; 16]` as a by-value aggregate:\n{report}"
+        );
+        assert!(
+            report.contains(expected_float),
+            "{target} must preserve `[f32; 4]`'s target aggregate class:\n{report}"
+        );
+        assert!(
+            report.contains("address &"),
+            "{target} must keep `&[u8; 16]` as the distinct pointer form:\n{report}"
+        );
+        let _ = fs::remove_dir_all(scratch);
+    }
+}
+
+#[test]
 fn cross_aarch64_hfa_import_compiles_with_fragmented_plan() {
     let canary = pass_canary("capabilities/aarch64_hfa_import_compile");
     let scratch =
@@ -37731,6 +37784,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/acquires_filesystem_authority",
     "capabilities/stores_capability",
     "capabilities/external_leaf_binding_forms",
+    "capabilities/native_fixed_array_import_compile",
     "targets/target_machine_gating_exit",
     "targets/single_target_internal_machine_skipped",
     "traits/ring_requirement_satisfies_exit",
@@ -38619,6 +38673,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "capabilities/native_slice_external_leaf_rejected",
+    "capabilities/native_bounded_text_external_leaf_rejected",
+    "capabilities/native_vector_external_leaf_rejected",
     "atomics/atomic_load_release_ordering_rejected",
     "atomics/atomic_store_acquire_ordering_rejected",
     "atomics/atomic_compare_exchange_failure_release_rejected",

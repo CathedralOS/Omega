@@ -258,24 +258,24 @@ schemas recover the same instance without publishing policy type identity.
    Native aggregate/slice admission is settled: a policy classifies a public
    semantic shape only when that shape determines every ABI fact; otherwise the
    native leaf declares the foreign API's actual pointer/length/terminator/record
-   structure. Implement the remaining classifier slice:
+   structure. The compiler-side default-policy slice now recursively classifies
+   direct fixed arrays and records under the bundled Microsoft x64, SysV AMD64,
+   and AAPCS64 rules, including homogeneous-float/SSE cases; it no longer falls
+   back to passing an arbitrary by-value place by address. Default-native leaves
+   reject safe slice, text/bounded-text, and vector carriers (including carriers
+   nested in public records), while an explicit custom `Calling<C>` relationship
+   remains the canonical-representation escape hatch. Cross-target canaries pin
+   `[u8; 16]` and `[f32; 4]` as direct aggregates and `&[u8; 16]` as the distinct
+   pointer form. Complete the remaining classifier slice:
    - enrich `BoundarySignature`/`ValueShape` with normalized recursive
      fixed-array and record structure instead of making policy authors depend on
      a compiler-preclassified aggregate case;
-   - teach the bundled Microsoft x64, SysV AMD64, and AAPCS64 policies to
-     classify or reject direct fixed arrays under their real aggregate rules,
-     including HFA/SSE cases, without C-style array decay;
-   - reject bare safe slices, text views, vectors, and bounded-text carriers in
-     default native leaves; permit them only when a custom policy explicitly
-     publishes a canonical representation;
    - keep checked adapters explicit and ensure borrowed-out pointer derivation
      cannot reach a retaining/asynchronous foreign contract without a pinned
      loan, transfer, or registration protocol; and
-   - pin canaries for `[u8; 16]` versus `&[u8; 16]`, `[f32; 4]` target
-     classification, C array-parameter decay requiring the pointer form,
-     separate pointer/length parameters versus an actual descriptor record
-     under Microsoft x64, text domain forget/validate transitions, and the
-     process-entry requirement's scalar exit status.
+   - extend the canaries through separate pointer/length parameters versus an
+     actual descriptor record under Microsoft x64, text domain forget/validate
+     transitions, and the process-entry requirement's scalar exit status.
    Byte size and the compiler's private slice carrier must never silently define
    public ABI.
    Direct scalar binary, numeric-cast, `min`/`max`/`sqrt`, runtime-indexed

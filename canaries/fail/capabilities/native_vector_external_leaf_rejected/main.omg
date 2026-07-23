@@ -1,0 +1,10 @@
+use omega::language::core::vec;
+
+boundary trait NativeVector {
+    machine send(value: &Vec<u8>);
+}
+
+machine send(value: &Vec<u8>) satisfies NativeVector::send via Binding::DllImport("foreign", "send");
+
+data Main { }
+machine Main::main(&mut self) { }

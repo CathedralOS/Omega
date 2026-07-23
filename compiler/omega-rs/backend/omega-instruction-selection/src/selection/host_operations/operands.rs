@@ -238,7 +238,7 @@ pub(super) fn select_host_operation_operands(
                     // (caught cross-compiling the M2 out-param canary,
                     // 2026-07-17). Non-borrow arguments keep scalar-first
                     // (an aggregate still falls through to its address).
-                    if host_call_argument_is_borrow(input, host_call, index) {
+                    if host_call_argument_is_borrow(input, host_call, dispatch_index, index) {
                         address_argument_operand_at(
                             input,
                             host_call,
@@ -301,15 +301,6 @@ pub(super) fn select_host_operation_operands(
                         })
                         .or_else(|| {
                             scalar_argument_operand_at(
-                                input,
-                                host_call,
-                                dispatch_index,
-                                alias_context,
-                                index,
-                            )
-                        })
-                        .or_else(|| {
-                            address_argument_operand_at(
                                 input,
                                 host_call,
                                 dispatch_index,
@@ -2617,47 +2608,114 @@ fn hfa_descriptor_shape(
     input: &InstructionSelectionInput<'_>,
     descriptor: &TypeLayoutDescriptor,
 ) -> Option<(usize, u8)> {
-    let descriptor = match descriptor {
-        TypeLayoutDescriptor::Constrained { base_type, .. } => {
-            return hfa_descriptor_shape(input, base_type);
-        }
-        descriptor => descriptor,
-    };
-    let TypeLayoutDescriptor::Named { symbol, name } = descriptor else {
-        return None;
-    };
-    let data_layout = input
-        .layouts
-        .data_layouts
-        .iter()
-        .find(|(_, layout)| layout.symbol == *symbol || layout.name.as_str() == name.as_str())
-        .map(|(_, layout)| layout)?;
-    let DataShape::Record { fields } = data_layout.shape else {
-        return None;
-    };
-    let fields = input.layouts.fields.span(fields)?;
-    let members = u8::try_from(fields.len()).ok()?;
-    if !(2..=4).contains(&members) {
+    if !aggregate_descriptor_is_public_fixed_shape(input, descriptor) {
         return None;
     }
-    let member_byte_count = fields.first().and_then(|field| {
-        match PrimitiveType::from_name(field.type_name.as_ref())? {
-            PrimitiveType::F32 => Some(4),
-            PrimitiveType::F64 => Some(8),
-            _ => None,
-        }
-    })?;
-    let flat = fields.iter().enumerate().all(|(index, field)| {
-        field.offset == index * member_byte_count
-            && field.layout.size == member_byte_count
-            && PrimitiveType::from_name(field.type_name.as_ref())
-                .and_then(|primitive| primitive.scalar_byte_size())
-                == Some(member_byte_count)
+    let layout = boundary_descriptor_layout(input, descriptor, 0)?;
+    let mut leaves = Vec::new();
+    collect_homogeneous_float_leaves(input, descriptor, layout, 0, &mut leaves, 0)?;
+    let (first_offset, member_byte_count) = *leaves.first()?;
+    let members = u8::try_from(leaves.len()).ok()?;
+    if first_offset != 0 || !(1..=4).contains(&members) {
+        return None;
+    }
+    let contiguous = leaves.iter().enumerate().all(|(index, (offset, size))| {
+        *size == member_byte_count && *offset == index * member_byte_count
     });
-    (flat
-        && data_layout.layout.size == member_byte_count * fields.len()
-        && data_layout.layout.alignment == member_byte_count)
+    (contiguous
+        && matches!(member_byte_count, 4 | 8)
+        && layout.size == member_byte_count * usize::from(members)
+        && layout.alignment == member_byte_count)
         .then_some((member_byte_count, members))
+}
+
+fn collect_homogeneous_float_leaves(
+    input: &InstructionSelectionInput<'_>,
+    descriptor: &TypeLayoutDescriptor,
+    layout: omega_layout::TypeLayout,
+    base_offset: usize,
+    leaves: &mut Vec<(usize, usize)>,
+    depth: usize,
+) -> Option<()> {
+    if depth > 8 || layout.size == 0 {
+        return None;
+    }
+    match descriptor {
+        TypeLayoutDescriptor::Constrained { base_type, .. } => {
+            collect_homogeneous_float_leaves(input, base_type, layout, base_offset, leaves, depth)
+        }
+        TypeLayoutDescriptor::Named { symbol, name } => {
+            if let Some(primitive) = PrimitiveType::from_name(name.as_ref()) {
+                let expected = omega_layout::primitive_layout(
+                    input.target.pointer_size,
+                    input.target.pointer_alignment,
+                    primitive,
+                );
+                if !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+                    || layout != expected
+                {
+                    return None;
+                }
+                leaves.push((base_offset, layout.size));
+                return Some(());
+            }
+            let data_layout = input
+                .layouts
+                .data_layouts
+                .iter()
+                .find(|(_, candidate)| {
+                    candidate.symbol == *symbol || candidate.name.as_str() == name.as_str()
+                })
+                .map(|(_, candidate)| candidate)?;
+            if data_layout.layout != layout {
+                return None;
+            }
+            let DataShape::Record { fields } = data_layout.shape else {
+                return None;
+            };
+            for field in input.layouts.fields.span(fields)? {
+                collect_homogeneous_float_leaves(
+                    input,
+                    &field.type_descriptor,
+                    field.layout,
+                    base_offset.checked_add(field.offset)?,
+                    leaves,
+                    depth + 1,
+                )?;
+            }
+            Some(())
+        }
+        TypeLayoutDescriptor::FixedArray {
+            element_type,
+            length,
+        } => {
+            if *length == 0 {
+                return None;
+            }
+            let element_layout = boundary_descriptor_layout(input, element_type, depth + 1)?;
+            if layout.size != element_layout.size.checked_mul(*length)?
+                || layout.alignment != element_layout.alignment
+            {
+                return None;
+            }
+            for index in 0..*length {
+                collect_homogeneous_float_leaves(
+                    input,
+                    element_type,
+                    element_layout,
+                    base_offset.checked_add(element_layout.size.checked_mul(index)?)?,
+                    leaves,
+                    depth + 1,
+                )?;
+            }
+            Some(())
+        }
+        TypeLayoutDescriptor::Reference { .. }
+        | TypeLayoutDescriptor::BoundedByteBuffer { .. }
+        | TypeLayoutDescriptor::Slice { .. }
+        | TypeLayoutDescriptor::DynamicTrait { .. }
+        | TypeLayoutDescriptor::Unit => None,
+    }
 }
 
 /// Preserve the currently normalized classified SysV record family. Each
@@ -2843,7 +2901,7 @@ fn small_aggregate_descriptor_shape(
     descriptor: &TypeLayoutDescriptor,
 ) -> Option<(usize, usize)> {
     aggregate_descriptor_shape(input, descriptor)
-        .filter(|(byte_count, _)| (9..=16).contains(byte_count))
+        .filter(|(byte_count, _)| (1..=16).contains(byte_count))
 }
 
 fn system_v_pure_integer_aggregate_descriptor_shape(
@@ -2852,7 +2910,7 @@ fn system_v_pure_integer_aggregate_descriptor_shape(
 ) -> Option<(usize, usize)> {
     system_v_record_descriptor_shape(input, descriptor).and_then(
         |(byte_count, alignment, sse_eightbytes)| {
-            (byte_count > 8 && sse_eightbytes == 0).then_some((byte_count, alignment))
+            (sse_eightbytes == 0).then_some((byte_count, alignment))
         },
     )
 }
@@ -2861,50 +2919,24 @@ pub(in crate::selection) fn system_v_record_descriptor_shape(
     input: &InstructionSelectionInput<'_>,
     descriptor: &TypeLayoutDescriptor,
 ) -> Option<(usize, usize, u8)> {
-    let descriptor = match descriptor {
-        TypeLayoutDescriptor::Constrained { base_type, .. } => {
-            return system_v_record_descriptor_shape(input, base_type);
-        }
-        descriptor => descriptor,
-    };
-    let TypeLayoutDescriptor::Named { symbol, name } = descriptor else {
+    if !aggregate_descriptor_is_public_fixed_shape(input, descriptor) {
         return None;
-    };
-    let data_layout = input
-        .layouts
-        .data_layouts
-        .iter()
-        .find(|(_, layout)| layout.symbol == *symbol || layout.name.as_str() == name.as_str())
-        .map(|(_, layout)| layout)?;
-    if !(1..=16).contains(&data_layout.layout.size)
-        || !data_layout.layout.alignment.is_power_of_two()
-        || data_layout.layout.alignment > 8
+    }
+    let layout = boundary_descriptor_layout(input, descriptor, 0)?;
+    if !(1..=16).contains(&layout.size)
+        || !layout.alignment.is_power_of_two()
+        || layout.alignment > 8
     {
         return None;
     }
     let mut classes = [None, None];
-    classify_system_v_record(
-        input,
-        data_layout,
-        0,
-        data_layout.layout.size,
-        &mut classes,
-        0,
-    )?;
+    classify_system_v_field(input, descriptor, layout, 0, layout.size, &mut classes, 0)?;
     let Some(first_is_sse) = classes[0] else {
         return None;
     };
-    let second_is_sse = if data_layout.layout.size > 8 {
-        classes[1]?
-    } else {
-        false
-    };
+    let second_is_sse = if layout.size > 8 { classes[1]? } else { false };
     let sse_eightbytes = u8::from(first_is_sse) | (u8::from(second_is_sse) << 1);
-    Some((
-        data_layout.layout.size,
-        data_layout.layout.alignment,
-        sse_eightbytes,
-    ))
+    Some((layout.size, layout.alignment, sse_eightbytes))
 }
 
 fn classify_system_v_record(
@@ -3063,24 +3095,86 @@ fn aggregate_descriptor_shape(
     input: &InstructionSelectionInput<'_>,
     descriptor: &TypeLayoutDescriptor,
 ) -> Option<(usize, usize)> {
-    let descriptor = match descriptor {
-        TypeLayoutDescriptor::Constrained { base_type, .. } => {
-            return aggregate_descriptor_shape(input, base_type);
-        }
-        descriptor => descriptor,
-    };
-    let TypeLayoutDescriptor::Named { symbol, name } = descriptor else {
+    if !aggregate_descriptor_is_public_fixed_shape(input, descriptor) {
         return None;
-    };
-    let data_layout = input
-        .layouts
-        .data_layouts
-        .iter()
-        .find(|(_, layout)| layout.symbol == *symbol || layout.name.as_str() == name.as_str())
-        .map(|(_, layout)| layout)?;
-    matches!(data_layout.shape, DataShape::Record { .. })
-        .then_some((data_layout.layout.size, data_layout.layout.alignment))
-        .filter(|(byte_count, alignment)| *byte_count > 8 && alignment.is_power_of_two())
+    }
+    let layout = boundary_descriptor_layout(input, descriptor, 0)?;
+    (layout.size > 0 && layout.alignment.is_power_of_two())
+        .then_some((layout.size, layout.alignment))
+}
+
+fn aggregate_descriptor_is_public_fixed_shape(
+    input: &InstructionSelectionInput<'_>,
+    descriptor: &TypeLayoutDescriptor,
+) -> bool {
+    match descriptor {
+        TypeLayoutDescriptor::Constrained { base_type, .. } => {
+            aggregate_descriptor_is_public_fixed_shape(input, base_type)
+        }
+        TypeLayoutDescriptor::FixedArray { .. } => true,
+        TypeLayoutDescriptor::Named { symbol, name } => {
+            PrimitiveType::from_name(name.as_ref()).is_none()
+                && input.layouts.data_layouts.iter().any(|(_, layout)| {
+                    (layout.symbol == *symbol || layout.name.as_str() == name.as_str())
+                        && matches!(layout.shape, DataShape::Record { .. })
+                })
+        }
+        TypeLayoutDescriptor::Reference { .. }
+        | TypeLayoutDescriptor::BoundedByteBuffer { .. }
+        | TypeLayoutDescriptor::Slice { .. }
+        | TypeLayoutDescriptor::DynamicTrait { .. }
+        | TypeLayoutDescriptor::Unit => false,
+    }
+}
+
+fn boundary_descriptor_layout(
+    input: &InstructionSelectionInput<'_>,
+    descriptor: &TypeLayoutDescriptor,
+    depth: usize,
+) -> Option<omega_layout::TypeLayout> {
+    if depth > 8 {
+        return None;
+    }
+    match descriptor {
+        TypeLayoutDescriptor::Constrained { base_type, .. } => {
+            boundary_descriptor_layout(input, base_type, depth)
+        }
+        TypeLayoutDescriptor::Reference { .. } => Some(omega_layout::TypeLayout {
+            size: input.target.pointer_size,
+            alignment: input.target.pointer_alignment,
+        }),
+        TypeLayoutDescriptor::FixedArray {
+            element_type,
+            length,
+        } => {
+            let element = boundary_descriptor_layout(input, element_type, depth + 1)?;
+            Some(omega_layout::TypeLayout {
+                size: element.size.checked_mul(*length)?,
+                alignment: element.alignment,
+            })
+        }
+        TypeLayoutDescriptor::Named { symbol, name } => {
+            if let Some(primitive) = PrimitiveType::from_name(name.as_ref()) {
+                return Some(omega_layout::primitive_layout(
+                    input.target.pointer_size,
+                    input.target.pointer_alignment,
+                    primitive,
+                ));
+            }
+            input
+                .layouts
+                .data_layouts
+                .iter()
+                .find(|(_, layout)| {
+                    layout.symbol == *symbol || layout.name.as_str() == name.as_str()
+                })
+                .map(|(_, layout)| layout.layout)
+        }
+        TypeLayoutDescriptor::BoundedByteBuffer { .. }
+        | TypeLayoutDescriptor::Slice { .. }
+        | TypeLayoutDescriptor::DynamicTrait { .. }
+        | TypeLayoutDescriptor::Unit => None,
+    }
 }
 
 fn first_argument<'plan>(
@@ -3094,12 +3188,15 @@ fn first_argument<'plan>(
         .and_then(|arguments| arguments.first())
 }
 
-/// Whether the host-call argument at `index` is spelled as a BORROW
-/// (`&mut x` / `&x` -- both lower to `ExpressionNode::Mutable`): its ABI
-/// value is the place's ADDRESS, never the pointee value.
+/// Whether the host-call argument at `index` denotes a borrowed place. Mutable
+/// borrows retain a checked-expression marker; immutable `&place` syntax is
+/// erased by parsing, so the formal reference type supplies the missing fact.
+/// A reference-typed actual already contains the pointer value and therefore
+/// must not acquire another address layer.
 fn host_call_argument_is_borrow(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
+    dispatch_index: Option<u32>,
     index: usize,
 ) -> bool {
     let Some(arguments) = input.host_calls.arguments.span(host_call.arguments) else {
@@ -3108,12 +3205,30 @@ fn host_call_argument_is_borrow(
     let Some(argument) = arguments.get(index) else {
         return false;
     };
-    let omega_platform_interface::HostCallArgumentKind::Expression(expression) = &argument.kind
+    if argument.is_borrowed {
+        return true;
+    }
+    if !argument.expects_reference {
+        return false;
+    }
+    let omega_platform_interface::HostCallArgumentKind::Expression(expression) = argument.kind
     else {
         return false;
     };
-    matches!(
-        input.host_calls.expressions.expression(*expression),
-        omega_checked_trees::expression::ExpressionNode::Mutable(_)
-    )
+    let descriptor = resolve_runtime_storage_leaf_descriptor_in_table(
+        input,
+        dispatch_index.unwrap_or(0),
+        host_call.source_key,
+        &input.host_calls.expressions,
+        expression,
+    );
+    !descriptor.is_some_and(|descriptor| descriptor_is_reference(&descriptor))
+}
+
+fn descriptor_is_reference(descriptor: &TypeLayoutDescriptor) -> bool {
+    match descriptor {
+        TypeLayoutDescriptor::Reference { .. } => true,
+        TypeLayoutDescriptor::Constrained { base_type, .. } => descriptor_is_reference(base_type),
+        _ => false,
+    }
 }
