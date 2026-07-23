@@ -14,7 +14,7 @@ use omega_calling_conventions::{
     ValidatedBoundaryEntryPlan, validate_state_footprint,
 };
 use omega_executable_installation::{ArtifactId, InstalledCode, InstalledCodeId};
-use omega_layout_plans::EntryStubId;
+use omega_layout_plans::{EntryStubId, PostHandoffWriterPlan, RelocationTarget};
 
 macro_rules! normalized_id {
     ($name:ident, $label:literal) => {
@@ -70,6 +70,11 @@ normalized_id!(
     "structural-work validation receipt"
 );
 normalized_id!(StateValidationReceiptId, "machine-state validation receipt");
+normalized_id!(MaterializedIdtId, "materialized IDT");
+normalized_id!(IdtMaterializationReceiptId, "IDT materialization receipt");
+normalized_id!(IdtControlId, "IDT control authority");
+normalized_id!(IdtInstallationReceiptId, "IDT installation receipt");
+normalized_id!(InstalledIdtId, "installed IDT");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ComponentVersionPin {
@@ -1335,6 +1340,284 @@ impl<'code> RootRemovalError<'code> {
     }
 }
 
+/// One x86 IDT vector's exact installed-root target.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct IdtRootBinding {
+    pub vector: u8,
+    pub root: ExternalRootId,
+    pub entry: EntryStubId,
+}
+
+/// Content-bound IDT produced by the validated post-handoff writer. Every
+/// symbolic entry target must have one root binding before this value can be
+/// created; constant/data targets cannot masquerade as interrupt entries.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MaterializedIdt {
+    identity: MaterializedIdtId,
+    content_fingerprint: u64,
+    writer: PostHandoffWriterPlan,
+    roots: BTreeMap<u8, IdtRootBinding>,
+    materialization_receipt: IdtMaterializationReceiptId,
+}
+
+impl MaterializedIdt {
+    pub fn from_validated_writer(
+        identity: MaterializedIdtId,
+        content_fingerprint: u64,
+        writer: PostHandoffWriterPlan,
+        bindings: impl IntoIterator<Item = IdtRootBinding>,
+        materialization_receipt: IdtMaterializationReceiptId,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        if content_fingerprint == 0 {
+            return Err(ExternalRootDiagnostic(
+                "materialized IDT content fingerprint cannot be zero".into(),
+            ));
+        }
+        let mut roots = BTreeMap::new();
+        let mut bound_entries = BTreeSet::new();
+        for binding in bindings {
+            if roots.insert(binding.vector, binding).is_some() {
+                return Err(ExternalRootDiagnostic(format!(
+                    "materialized IDT vector {} is bound more than once",
+                    binding.vector
+                )));
+            }
+            bound_entries.insert(binding.entry);
+        }
+        if roots.is_empty() {
+            return Err(ExternalRootDiagnostic(
+                "materialized IDT must bind at least one installed root".into(),
+            ));
+        }
+        let writer_entries: BTreeSet<_> = writer
+            .steps
+            .iter()
+            .filter_map(|step| match step.write.target {
+                RelocationTarget::Entry(entry) => Some(entry),
+                RelocationTarget::Data(_) => None,
+            })
+            .collect();
+        if writer_entries != bound_entries {
+            return Err(ExternalRootDiagnostic(
+                "materialized IDT writer entry targets do not exactly match its installed-root bindings"
+                    .into(),
+            ));
+        }
+        Ok(Self {
+            identity,
+            content_fingerprint,
+            writer,
+            roots,
+            materialization_receipt,
+        })
+    }
+
+    pub const fn identity(&self) -> MaterializedIdtId {
+        self.identity
+    }
+
+    pub const fn content_fingerprint(&self) -> u64 {
+        self.content_fingerprint
+    }
+
+    pub const fn writer(&self) -> &PostHandoffWriterPlan {
+        &self.writer
+    }
+
+    pub fn roots(&self) -> impl Iterator<Item = &IdtRootBinding> {
+        self.roots.values()
+    }
+}
+
+/// Linear authority for the provider-owned architectural IDT register.
+#[derive(Debug, PartialEq, Eq)]
+pub struct IdtControl {
+    identity: IdtControlId,
+}
+
+impl IdtControl {
+    pub const fn from_admitted_provider(identity: IdtControlId) -> Self {
+        Self { identity }
+    }
+
+    pub const fn identity(&self) -> IdtControlId {
+        self.identity
+    }
+}
+
+/// Provider receipt for the exact record-before-`lidt` publication attempt.
+#[derive(Debug, PartialEq, Eq)]
+pub struct IdtInstallationReceipt {
+    identity: IdtInstallationReceiptId,
+    installed: InstalledIdtId,
+    materialized: MaterializedIdtId,
+    content_fingerprint: u64,
+    root_ledger_fingerprint: u64,
+    roots: BTreeSet<ExternalRootId>,
+    published: bool,
+}
+
+impl IdtInstallationReceipt {
+    pub fn from_provider(
+        identity: IdtInstallationReceiptId,
+        installed: InstalledIdtId,
+        materialized: &MaterializedIdt,
+        ledger: &InstalledRootLedger,
+        published: bool,
+    ) -> Self {
+        Self {
+            identity,
+            installed,
+            materialized: materialized.identity,
+            content_fingerprint: materialized.content_fingerprint,
+            root_ledger_fingerprint: ledger.report_fingerprint(),
+            roots: materialized
+                .roots
+                .values()
+                .map(|binding| binding.root)
+                .collect(),
+            published,
+        }
+    }
+}
+
+/// Published IDT. Owning the root handles keeps every referenced code
+/// realization live for as long as hardware can enter through the table.
+#[derive(Debug)]
+pub struct InstalledIdt<'code> {
+    identity: InstalledIdtId,
+    materialized: MaterializedIdt,
+    roots: Vec<InstalledExternalRoot<'code>>,
+    control: IdtControl,
+    installation_receipt: IdtInstallationReceiptId,
+}
+
+impl InstalledIdt<'_> {
+    pub const fn identity(&self) -> InstalledIdtId {
+        self.identity
+    }
+
+    pub const fn materialized(&self) -> &MaterializedIdt {
+        &self.materialized
+    }
+
+    pub fn roots(&self) -> impl Iterator<Item = ExternalRootId> + '_ {
+        self.roots.iter().map(InstalledExternalRoot::root)
+    }
+
+    pub const fn control(&self) -> &IdtControl {
+        &self.control
+    }
+
+    pub const fn installation_receipt(&self) -> IdtInstallationReceiptId {
+        self.installation_receipt
+    }
+}
+
+#[derive(Debug)]
+pub struct IdtInstallError<'code> {
+    materialized: MaterializedIdt,
+    roots: Vec<InstalledExternalRoot<'code>>,
+    control: IdtControl,
+    receipt: IdtInstallationReceipt,
+    diagnostic: ExternalRootDiagnostic,
+}
+
+impl<'code> IdtInstallError<'code> {
+    pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        MaterializedIdt,
+        Vec<InstalledExternalRoot<'code>>,
+        IdtControl,
+        IdtInstallationReceipt,
+    ) {
+        (self.materialized, self.roots, self.control, self.receipt)
+    }
+}
+
+/// Publish one materialized IDT only after every symbolic target is already an
+/// exact record in the supplied ledger. The caller cannot obtain an
+/// `InstalledIdt` from an unpublished receipt, a stale ledger snapshot, or a
+/// root handle targeting different code.
+pub fn install_materialized_idt<'code>(
+    ledger: &InstalledRootLedger,
+    materialized: MaterializedIdt,
+    roots: Vec<InstalledExternalRoot<'code>>,
+    control: IdtControl,
+    receipt: IdtInstallationReceipt,
+) -> Result<InstalledIdt<'code>, Box<IdtInstallError<'code>>> {
+    let reject = |diagnostic, materialized, roots, control, receipt| {
+        Err(Box::new(IdtInstallError {
+            materialized,
+            roots,
+            control,
+            receipt,
+            diagnostic,
+        }))
+    };
+    let handle_roots: BTreeSet<_> = roots.iter().map(InstalledExternalRoot::root).collect();
+    if handle_roots.len() != roots.len() {
+        return reject(
+            ExternalRootDiagnostic("IDT installation repeats an installed-root handle".into()),
+            materialized,
+            roots,
+            control,
+            receipt,
+        );
+    }
+    let expected_roots: BTreeSet<_> = materialized
+        .roots
+        .values()
+        .map(|binding| binding.root)
+        .collect();
+    let recorded = materialized.roots.values().all(|binding| {
+        ledger
+            .record(binding.root)
+            .is_some_and(|record| record.entry == binding.entry)
+    });
+    if handle_roots != expected_roots || !recorded {
+        return reject(
+            ExternalRootDiagnostic(
+                "IDT publication requires exact installed handles and ledger records for every entry target"
+                    .into(),
+            ),
+            materialized,
+            roots,
+            control,
+            receipt,
+        );
+    }
+    if receipt.materialized != materialized.identity
+        || receipt.content_fingerprint != materialized.content_fingerprint
+        || receipt.root_ledger_fingerprint != ledger.report_fingerprint()
+        || receipt.roots != expected_roots
+        || !receipt.published
+    {
+        return reject(
+            ExternalRootDiagnostic(
+                "IDT installation receipt does not prove exact record-before-publish completion"
+                    .into(),
+            ),
+            materialized,
+            roots,
+            control,
+            receipt,
+        );
+    }
+    Ok(InstalledIdt {
+        identity: receipt.installed,
+        materialized,
+        roots,
+        control,
+        installation_receipt: receipt.identity,
+    })
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExternalRootDiagnostic(pub String);
 
@@ -1518,8 +1801,9 @@ mod tests {
         ExtentRights, ExtentRootGrant, MappingEraId,
     };
     use omega_layout_plans::{
-        ArtifactInstallationScopeId, PlacementAddressRange, PlacementConstraints, PlacementPhase,
-        PlacementSite,
+        ArtifactInstallationScopeId, ByteOrder, MaterializationWrite, PlacementAddressRange,
+        PlacementConstraints, PlacementPhase, PlacementSite, PostHandoffWriterSource,
+        PostHandoffWriterStep,
     };
 
     fn root_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExternalRootDiagnostic>) -> T {
@@ -1932,6 +2216,101 @@ mod tests {
         .expect_err("provider execution cannot be replayed for changed entry/resources");
 
         assert!(error.0.contains("exact validated root realization"));
+    }
+
+    #[test]
+    fn idt_publication_requires_recorded_roots_and_exact_publish_receipt() {
+        let entry = entry_id(1001);
+        let code = installed_code(1, entry);
+        let validated = validate_external_root(candidate(entry), &boundary()).expect("root plan");
+        let authority = slot();
+        let execution = provider_execution(&validated);
+        let admission = RootAdmission::from_admitted_provider(
+            root_id(22, RootAdmissionId::from_normalized_identity),
+            &validated,
+            &execution,
+            &code,
+            &authority,
+            validated.candidate().trust_receipts.iter().copied(),
+        )
+        .expect("root admission");
+        let mut ledger = InstalledRootLedger::default();
+        let installed_root = ledger
+            .install(&code, validated, authority, admission)
+            .expect("recorded root");
+        let writer = PostHandoffWriterPlan {
+            byte_len: 16,
+            byte_order: ByteOrder::LittleEndian,
+            placement: constraints(),
+            steps: vec![PostHandoffWriterStep {
+                write: MaterializationWrite {
+                    field: "offset".into(),
+                    target: RelocationTarget::Entry(entry),
+                    container_byte_offset: 0,
+                    container_width_bits: 64,
+                    destination_lsb: 0,
+                    source_lsb: 0,
+                    width: 64,
+                },
+                source: PostHandoffWriterSource::Resolve(RelocationTarget::Entry(entry)),
+            }],
+        };
+        let binding = IdtRootBinding {
+            vector: 32,
+            root: installed_root.root(),
+            entry,
+        };
+        let materialized = MaterializedIdt::from_validated_writer(
+            root_id(200, MaterializedIdtId::from_normalized_identity),
+            0xfeed,
+            writer.clone(),
+            [binding],
+            root_id(201, IdtMaterializationReceiptId::from_normalized_identity),
+        )
+        .expect("materialized IDT");
+        let stale = IdtInstallationReceipt::from_provider(
+            root_id(203, IdtInstallationReceiptId::from_normalized_identity),
+            root_id(204, InstalledIdtId::from_normalized_identity),
+            &materialized,
+            &ledger,
+            false,
+        );
+        let error = install_materialized_idt(
+            &ledger,
+            materialized,
+            vec![installed_root],
+            IdtControl::from_admitted_provider(root_id(
+                202,
+                IdtControlId::from_normalized_identity,
+            )),
+            stale,
+        )
+        .expect_err("unpublished receipt cannot install IDT");
+        assert!(error.diagnostic().0.contains("record-before-publish"));
+        let (materialized, roots, control, _) = error.into_parts();
+        let receipt = IdtInstallationReceipt::from_provider(
+            root_id(205, IdtInstallationReceiptId::from_normalized_identity),
+            root_id(206, InstalledIdtId::from_normalized_identity),
+            &materialized,
+            &ledger,
+            true,
+        );
+        let installed = install_materialized_idt(&ledger, materialized, roots, control, receipt)
+            .expect("recorded IDT publication");
+        assert_eq!(installed.roots().collect::<Vec<_>>(), vec![binding.root]);
+
+        let mismatch = MaterializedIdt::from_validated_writer(
+            root_id(207, MaterializedIdtId::from_normalized_identity),
+            0xbeef,
+            writer,
+            [IdtRootBinding {
+                entry: entry_id(1002),
+                ..binding
+            }],
+            root_id(208, IdtMaterializationReceiptId::from_normalized_identity),
+        )
+        .expect_err("writer target cannot bypass root binding");
+        assert!(mismatch.0.contains("exactly match"));
     }
 
     #[test]
