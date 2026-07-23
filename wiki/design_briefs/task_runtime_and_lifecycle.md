@@ -102,7 +102,10 @@ parameter, local, call signature, aggregate/cast temporary, and reference
 formation visible in checked trees. A complete envelope populates the
 asynchronous migration demand; unresolved coverage remains explicitly absent
 and admission fails closed. `05_carry_manifest.json` exposes both completeness
-and the joined policy.
+and the joined policy. It also publishes every canonical safe-point crossing
+with its exact statement/call identity, target, and typed live-value/storage
+set. Formal models and diagnostics consume that checked artifact; they do not
+reinterpret source syntax to rediscover which values cross a park.
 
 ## Start is transactional
 

@@ -158,6 +158,47 @@ pub fn carry_manifest_json(program: &CheckedTrees) -> String {
         push_carry_policy_json(&mut json, fact.effective);
         json.push_str("\n    }");
     }
+    json.push_str("\n  ],\n  \"safe_point_crossings\": [");
+    for (index, fact) in program.facts.carry.suspension_crossings.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        json.push_str("\n    {\n      \"machine\": ");
+        push_json_string(&mut json, carry_machine_name(program, fact.machine));
+        json.push_str(",\n      \"state\": ");
+        push_json_string(&mut json, carry_state_name(program, fact.state));
+        json.push_str(",\n      \"statement_index\": ");
+        json.push_str(&fact.statement_index.to_string());
+        json.push_str(",\n      \"call_ordinal\": ");
+        json.push_str(&fact.call_ordinal.to_string());
+        json.push_str(",\n      \"target\": ");
+        push_json_string(&mut json, carry_call_target_name(program, fact.target));
+        json.push_str(",\n      \"effective\": ");
+        push_carry_policy_json(&mut json, fact.effective);
+        json.push_str(",\n      \"live_values\": [");
+        for (live_index, live) in fact.live_values.iter().enumerate() {
+            if live_index > 0 {
+                json.push_str(", ");
+            }
+            json.push_str("{\"type\": ");
+            push_json_string(
+                &mut json,
+                &program.display_type_reference_with_constraints(live.type_reference),
+            );
+            json.push_str(", \"storage\": ");
+            push_json_string(
+                &mut json,
+                match live.storage {
+                    omega_checked_trees::SuspensionCrossingStorage::Persistent => "persistent",
+                    omega_checked_trees::SuspensionCrossingStorage::Parameter => "parameter",
+                    omega_checked_trees::SuspensionCrossingStorage::Local => "local",
+                    omega_checked_trees::SuspensionCrossingStorage::CallArgument => "call_argument",
+                },
+            );
+            json.push('}');
+        }
+        json.push_str("]\n    }");
+    }
     json.push_str("\n  ],\n  \"asynchronous_preemption\": [");
     for (index, fact) in program
         .facts
@@ -193,6 +234,50 @@ pub fn carry_manifest_json(program: &CheckedTrees) -> String {
     }
     json.push_str("\n  ]\n}\n");
     json
+}
+
+fn carry_machine_name(program: &CheckedTrees, symbol: SymbolHandle) -> &str {
+    program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == symbol)
+        .map(|machine| machine.name.as_str())
+        .unwrap_or("<unknown>")
+}
+
+fn carry_state_name(program: &CheckedTrees, symbol: SymbolHandle) -> &str {
+    program
+        .machines()
+        .iter()
+        .find_map(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == symbol)
+                .map(|state| state.name.as_str())
+        })
+        .unwrap_or("<unknown>")
+}
+
+fn carry_call_target_name(program: &CheckedTrees, symbol: SymbolHandle) -> &str {
+    if let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == symbol)
+    {
+        return machine.name.as_str();
+    }
+    program
+        .machines()
+        .iter()
+        .find_map(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == symbol)
+                .map(|_| machine.name.as_str())
+        })
+        .unwrap_or("<unknown>")
 }
 
 /// Provider-independent task activation demands. Runtime/provider admission
