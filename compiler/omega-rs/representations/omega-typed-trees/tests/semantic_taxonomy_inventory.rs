@@ -12,6 +12,7 @@
 use omega_typed_trees::data::DataProperties;
 use omega_typed_trees::domain::DomainDefinition;
 use omega_typed_trees::machine::Machine;
+use omega_typed_trees::types::DomainConstraint;
 
 /// LOSS 1 -- PARTIALLY RE-PINNED (DOM1/STR2, 2026-07-23): every domain now
 /// carries the normalized predicate/semantic facet pair. Introduction policy,
@@ -38,6 +39,19 @@ fn domain_definition_carries_normalized_facet_roles() {
         } = definition;
     }
     let _ = witness; // compile-time witness; never called
+}
+
+#[test]
+fn domain_constraint_carries_carrier_resolved_identity_and_facets() {
+    fn witness(constraint: DomainConstraint) {
+        let DomainConstraint {
+            name: _,
+            symbol: _,
+            semantic_id: _,
+            facets: _,
+        } = constraint;
+    }
+    let _ = witness;
 }
 
 /// LOSS 2 -- PARTIALLY RE-PINNED (TPR2, 2026-07-16): the machine record now

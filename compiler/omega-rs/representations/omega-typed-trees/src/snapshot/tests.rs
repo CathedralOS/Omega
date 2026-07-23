@@ -1,6 +1,8 @@
-use super::TypedTreesSnapshot;
+use super::{TypeConstraintSnapshot, TypedTreesSnapshot, type_constraint_snapshot};
 use crate::TypedTrees;
 use crate::domain::DomainDefinition;
+use crate::name::Identifier;
+use crate::types::{DomainConstraint, TypeConstraintNode};
 
 #[test]
 fn snapshots_empty_typed_tree_as_json() {
@@ -31,4 +33,34 @@ fn snapshots_normalized_domain_facets() {
     assert!(!domain.facets.predicate);
     assert_eq!(domain.facets.semantic, Some(23));
     assert!(snapshot.to_json_pretty().is_ok());
+}
+
+#[test]
+fn snapshots_normalized_domain_constraint_identity_and_facets() {
+    let program = TypedTrees::default();
+    let symbol = omega_core::symbols::SymbolHandle::from_arena_index(31);
+    let semantic_id = omega_core::semantics::SemanticDomainId(7);
+    let snapshot = type_constraint_snapshot(
+        &program,
+        &TypeConstraintNode::Domain(DomainConstraint {
+            name: Identifier::generated("Utf8"),
+            symbol,
+            semantic_id,
+            facets: omega_core::semantics::DomainFacets {
+                predicate: true,
+                semantic: Some(semantic_id),
+            },
+        }),
+    );
+
+    assert!(matches!(
+        snapshot,
+        TypeConstraintSnapshot::Domain {
+            name,
+            symbol: 31,
+            semantic_id: 7,
+            predicate_facet: true,
+            semantic_facet: Some(7),
+        } if name == "Utf8"
+    ));
 }

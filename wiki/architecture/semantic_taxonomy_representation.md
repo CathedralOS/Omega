@@ -118,9 +118,19 @@ resolved/typed structural snapshots publish it beside the semantic identity.
 Semantic qualification, commitment collection, introduction-authority lookup,
 and trust publication consume `facets.semantic`, and qualification demands
 proof only when `facets.predicate` is active. Repeated normalized declarations
-compare the pair. Per-axis merge/join/generic-substitution composition,
-authored source policy, full facet bodies, and the checked qualification plan
-remain.
+compare the pair. Per-axis merge/join composition, authored source policy,
+full facet bodies, and the checked qualification plan remain.
+
+Implementation status (DOM1 generic propagation, 2026-07-23): typed
+`TypeConstraintNode::Domain` is a normalized binding-site record, not a bare
+name. A post-lowering pass resolves the short name only against declarations
+whose target matches the constraint's carrier, then stores the declaration
+symbol, semantic identity, and facet pair. Nested generic arguments and all
+type-table copy paths preserve the record. Validation checks the record against
+the carrier declaration; checked field/contract facts and byte predicates use
+the stored symbol directly instead of repeating a global short-name lookup.
+Typed snapshots publish the full record. Generic substitution is therefore no
+longer a facet-loss boundary. Per-axis merge/join composition remains.
 
 ### Carry policy
 

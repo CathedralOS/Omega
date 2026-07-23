@@ -126,6 +126,102 @@ fn lowers_domain_definitions() {
 }
 
 #[test]
+fn normalizes_domain_constraints_by_short_name_and_carrier() {
+    let source = r#"
+    data Box<T> {
+        value: T;
+    }
+
+    data Holder {
+        signed: i64 in Tagged;
+        unsigned: u64 in Tagged;
+        boxed_signed: Box<i64 in Tagged>;
+    }
+
+    domain i64::Tagged {
+    }
+
+    domain u64::Tagged {
+        self >= 0;
+    }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+
+    let signed_domain = typed
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.name.as_str() == "i64::Tagged")
+        .expect("signed domain");
+    let unsigned_domain = typed
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.name.as_str() == "u64::Tagged")
+        .expect("unsigned domain");
+    assert!(!signed_domain.facets.predicate);
+    assert!(unsigned_domain.facets.predicate);
+
+    let holder = typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Holder")
+        .expect("Holder");
+    let fields = typed
+        .data_members(holder)
+        .iter()
+        .filter_map(|member| match member {
+            omega_typed_trees::data::DataMember::Field(field) => {
+                Some((field.name.as_str(), field.type_reference))
+            }
+            omega_typed_trees::data::DataMember::Variant(_) => None,
+        })
+        .collect::<std::collections::HashMap<_, _>>();
+
+    let constraint_for = |type_reference| {
+        let omega_typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } =
+            typed.type_reference_table.type_reference(type_reference)
+        else {
+            panic!("constrained field")
+        };
+        let [omega_typed_trees::types::TypeConstraintNode::Domain(domain)] =
+            typed.type_reference_table.constraints(*constraints)
+        else {
+            panic!("one domain constraint")
+        };
+        domain
+    };
+
+    let signed = constraint_for(fields["signed"]);
+    assert_eq!(signed.symbol, signed_domain.symbol);
+    assert_eq!(signed.semantic_id, signed_domain.semantic_id);
+    assert_eq!(signed.facets, signed_domain.facets);
+
+    let unsigned = constraint_for(fields["unsigned"]);
+    assert_eq!(unsigned.symbol, unsigned_domain.symbol);
+    assert_eq!(unsigned.semantic_id, unsigned_domain.semantic_id);
+    assert_eq!(unsigned.facets, unsigned_domain.facets);
+
+    let omega_typed_trees::types::TypeReferenceNode::Generic { arguments, .. } = typed
+        .type_reference_table
+        .type_reference(fields["boxed_signed"])
+    else {
+        panic!("generic field")
+    };
+    let [argument] = typed
+        .type_reference_table
+        .type_reference_handles(*arguments)
+    else {
+        panic!("one generic argument")
+    };
+    let boxed_signed = constraint_for(*argument);
+    assert_eq!(boxed_signed.symbol, signed_domain.symbol);
+    assert_eq!(boxed_signed.facets, signed_domain.facets);
+}
+
+#[test]
 fn preserves_operator_declarations() {
     let source = r#"
     operator Slice::index<T>(items: &[T], index: usize) -> T

@@ -679,6 +679,67 @@ fn repeated_normalized_domain_name_requires_equal_semantics() {
 }
 
 #[test]
+fn domain_constraints_resolve_same_short_name_by_carrier() {
+    let typed = typed_program_from_source(
+        r#"
+        data Holder {
+            signed: i64 in Tagged;
+            unsigned: u64 in Tagged;
+        }
+        domain i64::Tagged {}
+        domain u64::Tagged { self >= 0; }
+        "#,
+    );
+    validate_program(&typed)
+        .expect("each short domain name should retain its carrier-specific identity");
+}
+
+#[test]
+fn declared_domain_constraint_with_missing_normalized_identity_fails_closed() {
+    let mut typed = typed_program_from_source(
+        r#"
+        data Holder { value: i64 in Tagged; }
+        domain i64::Tagged {}
+        "#,
+    );
+    let (_, constraints) = typed
+        .type_reference_table
+        .constrained_type_references()
+        .into_iter()
+        .find(|(_, constraints)| {
+            typed
+                .type_reference_table
+                .constraints(*constraints)
+                .iter()
+                .any(|constraint| {
+                    matches!(
+                        constraint,
+                        omega_typed_trees::types::TypeConstraintNode::Domain(_)
+                    )
+                })
+        })
+        .expect("declared domain constraint");
+    let domain = typed
+        .type_reference_table
+        .constraints_mut(constraints)
+        .iter_mut()
+        .find_map(|constraint| match constraint {
+            omega_typed_trees::types::TypeConstraintNode::Domain(domain) => Some(domain),
+            _ => None,
+        })
+        .expect("domain constraint");
+    domain.symbol = omega_core::symbols::SymbolHandle::invalid();
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a declared-domain constraint cannot fall back to global name lookup");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("no `domain` named `Tagged` is declared")
+    }));
+}
+
+#[test]
 fn semantic_only_domain_mint_does_not_invent_a_predicate_obligation() {
     let typed = typed_program_from_source(
         r#"

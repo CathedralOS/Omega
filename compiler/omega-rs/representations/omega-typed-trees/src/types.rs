@@ -174,6 +174,30 @@ impl TypeReferenceTable {
         self.constraints.span_or_empty(span)
     }
 
+    /// Every constrained type's carrier and constraint span. Used by the
+    /// post-lowering domain-normalization pass once all declarations exist.
+    pub fn constrained_type_references(
+        &self,
+    ) -> Vec<(TypeReferenceHandle, HandleSpan<TypeConstraintNode>)> {
+        self.type_references
+            .iter()
+            .filter_map(|(_, node)| match node {
+                TypeReferenceNode::Constrained {
+                    base_type,
+                    constraints,
+                } => Some((*base_type, *constraints)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    pub fn constraints_mut(
+        &mut self,
+        span: HandleSpan<TypeConstraintNode>,
+    ) -> &mut [TypeConstraintNode] {
+        self.constraints.span_mut_or_empty(span)
+    }
+
     pub fn constraint_span(
         &self,
         span: HandleSpan<TypeConstraintNode>,
@@ -645,7 +669,30 @@ pub enum TypeConstraintNode {
     },
     ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
     /// A declared domain on a carrier (`[u8] in Utf8`); ch8.
-    Domain(Identifier),
+    Domain(DomainConstraint),
+}
+
+/// DOM1's normalized binding-site carrier. The authored short name remains
+/// for diagnostics and compiler-known pseudo-domains; a valid symbol marks a
+/// declared, carrier-compatible domain resolved after all typed roots exist.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DomainConstraint {
+    pub name: Identifier,
+    pub symbol: SymbolHandle,
+    pub semantic_id: omega_core::semantics::SemanticDomainId,
+    pub facets: omega_core::semantics::DomainFacets,
+}
+
+impl DomainConstraint {
+    pub fn as_str(&self) -> &str {
+        self.name.as_str()
+    }
+}
+
+impl fmt::Display for DomainConstraint {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.name.fmt(formatter)
+    }
 }
 
 impl TypeConstraintNode {
@@ -656,7 +703,7 @@ impl TypeConstraintNode {
     ) -> Self {
         match self {
             TypeConstraintNode::Named(name) => Self::Named(name.clone()),
-            TypeConstraintNode::Domain(name) => Self::Domain(name.clone()),
+            TypeConstraintNode::Domain(domain) => Self::Domain(domain.clone()),
             TypeConstraintNode::Range { minimum, maximum } => Self::Range {
                 minimum: target_expressions.copy_from(source_expressions, *minimum),
                 maximum: target_expressions.copy_from(source_expressions, *maximum),

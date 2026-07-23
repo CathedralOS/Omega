@@ -47,8 +47,7 @@ pub(crate) fn assignment_target_domain_symbol(
     target: omega_typed_trees::expression::ExpressionHandle,
 ) -> Option<SymbolHandle> {
     let type_reference = assignment_target_type_reference(program, machine, state, target)?;
-    let domain_name = domain_constraint_name(program, type_reference)?;
-    resolve_domain_symbol(program, &domain_name)
+    domain_constraint_symbol(program, type_reference)
 }
 
 /// Resolve a state parameter/local target, including nested data members, to
@@ -267,36 +266,27 @@ pub(crate) fn data_definition_for_field_type<'program>(
         .find(|data| data.name.as_str() == name.as_str())
 }
 
-/// The short domain name (`Utf8`) declared on a type reference, looking through a
-/// leading reference (`&[u8] in Utf8`).
-pub(crate) fn domain_constraint_name(
+/// The carrier-aware normalized declaration symbol for the first domain
+/// constraint on a type reference. This never re-resolves a short name
+/// globally.
+pub(crate) fn domain_constraint_symbol(
     program: &omega_typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Option<String> {
+) -> Option<SymbolHandle> {
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => domain_constraint_name(program, *referee),
+        TypeReferenceNode::Reference { referee, .. } => domain_constraint_symbol(program, *referee),
         TypeReferenceNode::Constrained { constraints, .. } => program
             .type_reference_table
             .constraints(*constraints)
             .iter()
             .find_map(|constraint| match constraint {
-                TypeConstraintNode::Domain(name) => Some(name.as_str().to_owned()),
+                TypeConstraintNode::Domain(domain) if domain.symbol.is_valid() => {
+                    Some(domain.symbol)
+                }
                 _ => None,
             }),
         _ => None,
     }
-}
-
-/// Resolve a short domain name (`Utf8`) to its declared domain symbol, matching
-/// the trailing path segment of a domain definition's full name (`[u8]::Utf8`).
-pub(crate) fn resolve_domain_symbol(
-    program: &omega_typed_trees::TypedTrees,
-    wanted: &str,
-) -> Option<SymbolHandle> {
-    program.domain_definitions().iter().find_map(|domain| {
-        let full = domain.name.as_str();
-        (full.rsplit("::").next().unwrap_or(full) == wanted).then_some(domain.symbol)
-    })
 }
 
 // --- comptime byte-predicate machinery (moved here from
