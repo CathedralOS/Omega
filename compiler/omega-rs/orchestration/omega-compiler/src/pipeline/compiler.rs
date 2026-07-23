@@ -416,6 +416,12 @@ impl Compiler {
         );
 
         let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
+        crate::pipeline::provider_plans::retain_selected_provider_plan_facts(
+            Arc::get_mut(&mut checked.program)
+                .expect("checked program must be uniquely owned before backend fan-out"),
+            &provider_plans,
+            &selected_provider_plans,
+        )?;
         crate::pipeline::task_plans::elaborate_task_activation_plans(
             Arc::get_mut(&mut checked.program)
                 .expect("checked program must be uniquely owned before backend fan-out"),

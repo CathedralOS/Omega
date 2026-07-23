@@ -92,9 +92,15 @@ pub fn compile_to_checked(
         target_name,
     )?;
     let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
+    let checked_program = Arc::get_mut(&mut checked.program)
+        .expect("checked program must be uniquely owned before engine handoff");
+    crate::pipeline::provider_plans::retain_selected_provider_plan_facts(
+        checked_program,
+        &provider_plans,
+        &selected_provider_plans,
+    )?;
     crate::pipeline::task_plans::elaborate_task_activation_plans(
-        Arc::get_mut(&mut checked.program)
-            .expect("checked program must be uniquely owned before engine handoff"),
+        checked_program,
         selected_native_target,
     )?;
 

@@ -76,11 +76,30 @@ impl CheckFacts {
 pub struct CheckedTrees {
     pub typed: omega_typed_trees::TypedTrees,
     pub facts: CheckFacts,
+    /// Exact validated provider plans selected for this concrete checked
+    /// program. Kept separate from authored candidates so backend/provider
+    /// consumers cannot accidentally combine rows from different plans.
+    selected_provider_plans: crate::SelectedProviderPlanFacts,
 }
 
 impl CheckedTrees {
     pub fn with_roots(typed: omega_typed_trees::TypedTrees, facts: CheckFacts) -> Self {
-        Self { typed, facts }
+        Self {
+            typed,
+            facts,
+            selected_provider_plans: crate::SelectedProviderPlanFacts::default(),
+        }
+    }
+
+    pub const fn selected_provider_plans(&self) -> &crate::SelectedProviderPlanFacts {
+        &self.selected_provider_plans
+    }
+
+    /// Install a normalized selection produced from the compiler's validated
+    /// candidate set. The wrapper's private storage prevents later consumers
+    /// from mutating retained plan rows after checked lowering.
+    pub fn retain_selected_provider_plans(&mut self, plans: crate::SelectedProviderPlanFacts) {
+        self.selected_provider_plans = plans;
     }
 }
 

@@ -8,6 +8,21 @@
 use omega_effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 use omega_typed_trees::TypedTrees;
 
+/// Retain the exact validated selection on the checked program. Provider
+/// execution and compiler-generated helper machines consume this carrier;
+/// neither may reconstruct a plan by scanning authored `satisfies` rows.
+pub(crate) fn retain_selected_provider_plan_facts(
+    checked: &mut omega_checked_trees::CheckedTrees,
+    candidates: &[ProviderPlan],
+    selected_names: &[String],
+) -> Result<(), Vec<omega_core::diagnostics::Diagnostic>> {
+    let facts =
+        omega_checked_trees::SelectedProviderPlanFacts::from_selection(candidates, selected_names)
+            .map_err(|error| vec![omega_core::diagnostics::Diagnostic::error(error)])?;
+    checked.retain_selected_provider_plans(facts);
+    Ok(())
+}
+
 /// PRV4 order step (2): derive plans from explicit SATISFIES edges -- one
 /// plan per (provider type, boundary trait, target), assembled only from
 /// that provider's conformance closure. External leaves and checked adapters

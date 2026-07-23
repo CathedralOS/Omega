@@ -369,8 +369,10 @@ resource realizations into admission; it cannot be replayed after realization
 drift, and its identity is reportable. The IDT publication gate additionally
 requires every symbolic writer entry target to have an exact ledger record and
 live handle before a content/ledger-bound successful publication receipt can
-produce `InstalledIdt`; that value retains the handles. Compiler-selected-plan
-construction, checked-Omega writer lowering, and provider-specific checked
+produce `InstalledIdt`; that value retains the handles. Exact validated
+compiler-selected plans now survive checked lowering in one canonical fact
+set. Binding those retained facts into root-execution construction,
+checked-Omega writer lowering, and provider-specific checked
 `lidt` execution remain. The normalized materializer already writes only an
 exclusive mapped/pinned/writable unpublished destination through the exact
 installed-code resolver, derives final-byte identity itself, and rejects a

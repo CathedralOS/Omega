@@ -235,8 +235,10 @@ all five and joins policy alignment with layout alignment. Source-level
 symbolic-value derivation and final artifact propagation remain.
 Post-handoff actions also derive a provider-consumable writer program. It
 validates the concrete placement, resolves repeated fragments of one target
-once, stages every write, and leaves the destination unchanged on failure.
-Lowering that program to target-machine code remains.
+once, validates all writes before mutation, and writes directly into the
+exclusive unpublished destination. A failed fill produces no publication
+claim and the destination remains unpublishable; no full-table staging
+allocation is required. Lowering that program to target-machine code remains.
 The object/image substrate no longer assumes relocation sites are text:
 section-qualified generic `Absolute64` relocations can patch initialized data,
 including PE base-rebase records. Materialized-data origin/provenance must get
