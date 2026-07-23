@@ -907,9 +907,12 @@ stronger operations it needs instead of citing machine parameters generally.
   must be deliberately retired or reintroduced before subtree carry semantics
   have a real customer. Continue with admitted and sealed per-mint facts,
   activation-demand joins against pessimistic admitted runtime behavior, and
-  diagnostic and model-export consumers. Checked builds now emit
+  diagnostic and richer formal-model consumers. Checked builds now emit
   `05_carry_manifest.json`, keeping authored minimums separate from effective
-  derived policies with all four axes structured.
+  derived policies with all four axes structured; the artifact also exports
+  each canonical safe-point crossing, its exact statement/call identity,
+  target, joined policy, and typed live-value/storage set so downstream models
+  never reconstruct liveness from source syntax.
 - **CML4 — finish multiplicity migration.** Legacy move/drop compatibility
   arenas now terminate at control flow; abstract operations and every later
   backend representation carry only canonical permission events. A normalized,

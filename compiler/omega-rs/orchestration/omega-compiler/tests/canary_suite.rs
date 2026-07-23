@@ -37665,6 +37665,8 @@ fn task_runtime_machine_selection_reaches_checked_activation_plans() {
     .expect("task-runtime machine selection should emit build artifacts");
     let manifest = fs::read_to_string(build_dir.join("05_task_activations.json"))
         .expect("task activation manifest should be written");
+    let carry_manifest = fs::read_to_string(build_dir.join("05_carry_manifest.json"))
+        .expect("carry manifest should be written");
     assert!(manifest.contains("\"operation\": \"start\""));
     assert!(manifest.contains("\"operation\": \"try_start\""));
     assert_eq!(
@@ -37681,6 +37683,11 @@ fn task_runtime_machine_selection_reaches_checked_activation_plans() {
             .count(),
         2
     );
+    assert!(carry_manifest.contains("\"safe_point_crossings\": [\n    {"));
+    assert!(carry_manifest.contains("\"machine\": \"Worker::run\""));
+    assert!(carry_manifest.contains("\"target\": \"Sleeper::park\""));
+    assert!(carry_manifest.contains("\"storage\": \"call_argument\""));
+    assert!(carry_manifest.contains("\"storage\": \"local\""));
     let _ = fs::remove_dir_all(&build_dir);
 }
 
