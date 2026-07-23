@@ -12,9 +12,12 @@ control-register reads/writes, and `jmp state(...)`
 instructions. Multiple instructions use `;` as an explicit separator because
 newlines are not grammar; empty blocks and a control transfer followed by
 another instruction reject.
-Catalogued entry/exit operations such as `iretq` and `eret` already refuse as
-**deriver only** rather than falling through an unknown-mnemonic path. Returns,
-calls, and indirect branches refuse as hidden exits, while recognized
+Catalogued entry/exit operations such as `iretq` and `eret` and the x86 IDT
+load operation `lidt` refuse as **deriver only** rather than falling through an
+unknown-mnemonic path. `lidt` has a real closed contract—distinct `IdtControl`,
+a private `IdtDescriptor` place lowered through scratch R10, and that exact
+clobber—but only the content/ledger-bound installed-IDT provider may consume it.
+Returns, calls, and indirect branches refuse as hidden exits, while recognized
 load/store spellings refuse until they carry structured provenance and
 permission contracts.
 
@@ -230,7 +233,8 @@ The freestanding x86 vertical slice needs contracts for:
 
 - completed `cli`/`sti`, `hlt`, and structured flags save/restore;
 - `in`/`out` port I/O;
-- `lidt`/`lgdt` (structured control-register and MSR access is complete);
+- completed deriver-only `lidt`; `lgdt` remains (structured control-register
+  and MSR access is complete);
 - atomics and the completed x86 fence slice;
 - cache/TLB maintenance and invalidation;
 - mode-transition operations; and

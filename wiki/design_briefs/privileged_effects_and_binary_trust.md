@@ -119,6 +119,14 @@ CR2 intentionally has no write form. The instruction contract does not by
 itself claim that a new paging or execution regime is valid; provider-level
 facts must discharge those transitions.
 
+`lidt` is now a contracted but deriver-only x86 operation. It requires the
+distinct `IdtControl` authority, consumes a private `IdtDescriptor` place
+through scratch R10, declares that exact clobber, and has the pinned
+`41 0f 01 1a` (`lidt [r10]`) encoding. User assembly rejects before operand
+lowering. Only the installed-IDT provider may issue it after content-bound
+materialization and root-record preparation; the catalog entry therefore does
+not reopen a raw table-installation escape.
+
 ## Still open
 
 - concrete executable/component manifest encoding;

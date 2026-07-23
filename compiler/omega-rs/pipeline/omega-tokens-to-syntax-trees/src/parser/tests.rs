@@ -1565,6 +1565,7 @@ fn rejects_ambiguous_or_empty_multi_instruction_asm_blocks() {
 fn rejects_asm_availability_and_unmodeled_operation_classes() {
     for (instruction, expected) in [
         ("iretq", "deriver-only"),
+        ("lidt self.value", "deriver-only"),
         ("ret", "creates a hidden control exit"),
         (
             "ldr x0, self.value",
@@ -1686,7 +1687,7 @@ fn rejects_inexact_asm_where_clobber_contracts() {
 /// instructions compile (privileged_effects_and_binary_trust, LOCKED point 2).
 #[test]
 fn rejects_unknown_asm_mnemonics() {
-    for block in ["asm { db 0xF4 }", "asm { swapgs }", "asm { lidt }"] {
+    for block in ["asm { db 0xF4 }", "asm { swapgs }"] {
         let source = format!(
             r#"
             data Main {{

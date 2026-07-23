@@ -318,9 +318,12 @@ around a `MachineControl` ceiling. Unknown instructions and raw byte emission
 are rejected. Prebuilt foreign code enters through provider admission instead.
 
 The catalog distinguishes user-available checked instructions from deriver-only
-entry/exit instructions such as `iretq` or `sysret`; user code cannot manufacture
-an unmodeled control exit. Regime-changing instructions state their transition
-directly: require regime R, establish regime R'.
+entry/exit operations such as `iretq` or `sysret`; user code cannot manufacture
+an unmodeled control exit. The x86 `lidt` operation is likewise contracted but
+deriver-only: it requires distinct `IdtControl`, reads the private descriptor
+through scratch R10 with that exact clobber, and lowers to pinned `lidt [r10]`
+bytes only for the installed-table provider. Regime-changing instructions state
+their transition directly: require regime R, establish regime R'.
 
 The former `Binding::Instruction` duplication is retired; parsed checked
 assembly is the only source-level instruction surface.
@@ -791,7 +794,9 @@ the resulting content identity, and checks an exact code/artifact/destination/
 final-byte receipt plus the software-fault-free verdict. It returns every
 linear input on failure and never exposes the resolved entry address.
 Compiler-selected-plan construction, checked-Omega writer lowering, concrete
-Cathedral PIC/LAPIC execution, and the actual checked `lidt` consumer remain.
+Cathedral PIC/LAPIC execution, and provider lowering that supplies the private
+descriptor to the contracted `lidt` consumer remain. The deriver-only catalog
+contract, exact x86 encoding, and source-rejection rail are live.
 Provider-neutral acceptance canaries instantiate the timer as one root plus
 fixed one-shot acknowledgement, clock-capture, coalescing-wake, and return
 leaves and derive Cathedral's shared-IRQ stack peak as the maximum maskable root

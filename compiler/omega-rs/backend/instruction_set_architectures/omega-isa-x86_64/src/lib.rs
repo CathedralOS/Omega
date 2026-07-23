@@ -152,6 +152,17 @@ pub const fn encode_interrupt_control_bytes(
     }
 }
 
+pub const fn lidt_from_r10_width() -> usize {
+    4
+}
+
+/// Deriver-only `lidt [r10]`: R10 points at the private packed 10-byte x86-64
+/// descriptor produced for the exact content/ledger-bound installed table.
+/// Source assembly cannot request this encoding or observe the pointer.
+pub const fn encode_lidt_from_r10_bytes() -> [u8; 4] {
+    [0x41, 0x0f, 0x01, 0x1a]
+}
+
 // --- RFLAGS snapshot/restore -------------------------------------------------
 
 /// Byte offset of the destination-region `mov r15, imm64` inside a flags
@@ -15886,6 +15897,12 @@ mod machine_control_tests {
             [0xfb]
         );
         assert_eq!(interrupt_control_width(), 1);
+    }
+
+    #[test]
+    fn deriver_only_lidt_reads_the_private_descriptor_through_r10() {
+        assert_eq!(encode_lidt_from_r10_bytes(), [0x41, 0x0f, 0x01, 0x1a]);
+        assert_eq!(encode_lidt_from_r10_bytes().len(), lidt_from_r10_width());
     }
 
     #[test]
