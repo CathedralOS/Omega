@@ -667,6 +667,23 @@ The ledger closes three whole-program holes:
 - dynamic install, replacement, and removal are checked against version pins
   and quiescence.
 
+The normalized foundation is live in `omega-external-roots`. A validated root
+binds one compiler-issued entry identity to the complete evaluated
+`BoundaryEntryPlan`, an open effect/receipt set, provider identity, stack and
+nesting policies, optional acknowledgement policy, WCSU size/alignment, and
+component-version pins. Installation consumes owner-scoped slot authority and
+an admission that names the exact root, installed code, artifact, slot, owner,
+and receipts. It also proves that the selected entry belongs to that admitted
+artifact; no numeric entry address enters the ledger.
+
+The installed-root handle borrows the linear installed-code claim. Code
+retirement therefore cannot recover ownership while hardware may still enter
+it. Removal is the opposite-facing gate: the provider's exact receipt must
+establish both that the slot no longer makes the entry reachable and that old
+executions are quiescent before the slot authority is returned. Failure returns
+all consumed values. Provider execution, report emission, artifact-wide WCSU
+composition, and the actual `lidt` consumer remain.
+
 The IDT is consequently a first serious customer, not a special construct:
 
 1. ordinary `data` describes the logical gate;
@@ -822,7 +839,8 @@ concrete interrupt state policy remain. Remaining order:
    contract identity are complete.
 6. Connect the live placement constraints to admitted-artifact validation and
    scoped executable installation.
-7. Add the external-root ledger and IDT/timer vertical slice.
+7. Connect the normalized external-root ledger to provider execution, artifact
+   reporting, and WCSU composition; then build the IDT/timer vertical slice.
 8. Connect the implemented normalized external-loan proxy to Omega linearity,
    permission contexts, and provider receipts; then build the DMA/hostile-IPC
    vertical slices.
