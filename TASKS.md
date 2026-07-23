@@ -978,9 +978,13 @@ stronger operations it needs instead of citing machine parameters generally.
 - **Allocator migration.** Replace ambient legacy `alloc` with explicit
   `Arena`/`Allocation` contracts. Cathedral's bootstrap range-authority source
   now uses the settled `Extent`/`mint_extent` spelling; connect that temporary
-  plain carrier to Omega's eventual opaque linear Extent surface rather than
-  reintroducing `Region`. Core's stage-1 allocator trait/module/canary now use
-  `Arena`, and the false ambient `Vec::with_capacity` surface is retired.
+  plain carrier to Omega's opaque linear Extent surface rather than
+  reintroducing `Region`. The source-visible `boundary data Extent [linear]`
+  and debt-free `ExtentSlot` bridge are live in core; ordinary construction and
+  scope loss reject. Core's stage-1 Arena now returns/reclaims that authority
+  instead of a bare `addr`, while its trait/module/canary use `Arena`; the false
+  ambient `Vec::with_capacity` surface is retired. Connect Cathedral's
+  temporary carrier through provider minting and sealed extent-domain facts.
   Introduce `Allocation<T>` only once its borrow from the Arena can be expressed
   honestly. Structural multiplicity, not a permanent semantic ban, governs
   debt-bearing `Allocation<T>`.

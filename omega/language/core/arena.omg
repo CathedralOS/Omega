@@ -5,6 +5,8 @@
 // concrete address-space range; the two relationships must not share a name.
 // Arena implementations reclaim their storage in bulk only after ordinary
 // multiplicity rules have discharged or moved every stored obligation.
+// The concrete range authority they allocate is `Extent`; returning a bare
+// `addr` here would confuse a forgeable number with authority over storage.
 //
 // STAGE 1 declares only this contract surface: the trait exists so code and
 // designs can NAME the boundary, and so the `alloc`/`dealloc` effects
@@ -15,18 +17,19 @@
 // `Allocation` boundary-provider category, introduces arena-bound
 // `Allocation<T>`, and makes `Vec<'a, T>` borrow that storage.
 //
-// The machines speak raw extents -- `size`/`align` are byte COUNTS (u64),
-// addresses are `addr` (the index/count/address model: the two axes never
-// conflate; `width(count) <= width(addr)` so the model survives CHERI-class
-// ISAs). The typed-container story sits ABOVE this boundary; the boundary
-// itself is exactly what a kernel arena or host malloc can honor.
+// `size`/`align` are byte COUNTS (u64). The returned opaque Extent remembers
+// the selected address and grant metadata privately; reclaiming consumes that
+// exact authority instead of accepting a caller-fabricated address. The typed
+// `Allocation<T>` story sits ABOVE this boundary.
+
+use omega::language::core::extent;
 
 boundary trait Arena {
-    machine allocate(size: u64, align: u64) -> addr
+    machine allocate(size: u64, align: u64) -> Extent
     effects
         alloc;
 
-    machine deallocate(address: addr, size: u64, align: u64)
+    machine deallocate(extent: Extent)
     effects
         dealloc;
 }

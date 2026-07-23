@@ -65,10 +65,13 @@ register block. That is an `Extent`.
 The public carrier is one opaque linear declaration with no public constructor:
 
 ```omega
-data Extent [linear] {
-    // Provider-owned representation.
-}
+boundary data Extent [linear];
 ```
+
+This source carrier is live in `omega::language::core::extent`, together with
+the ordinary debt-free `ExtentSlot { Empty | Live(Extent) }` bridge. Core's
+stage-1 `Arena` now returns and reclaims `Extent`; it never accepts a bare
+caller-fabricated address as allocation authority.
 
 Address space, rights, provenance, and mapping era are sealed domain facts on
 that carrier, not nominal carrier types or generic parameters. Physical,
@@ -111,8 +114,8 @@ space, provenance, era, and lineage identities are normalized; rights are an
 open set of normalized identities rather than a compiler-blessed enumeration;
 and split, attenuation, sibling merge, and bounded shared/exclusive loans are
 validated. Failed consuming operations return every input authority. The
-remaining work is connection to the Omega `[linear]` carrier and sealed domain
-facts, followed by provider mapping and reclamation.
+opaque Omega `[linear]` carrier is connected at the source boundary; sealed
+domain facts, provider mapping, and reclamation remain.
 
 ### Mapping and reclamation
 
@@ -161,8 +164,8 @@ owns, shared-borrows, or exclusive-borrows its source. Shared source custody
 cannot expose mutable mapped loans. `begin_unmap` retains every authority until
 an exact provider receipt establishes that stale translations are released and
 all target completion facts hold; only then are the destination and any owned
-source returned. Provider page-table operations, `Suspend`/`Block` reach, the
-Omega source carrier, and automatic destination allocation remain.
+source returned. Provider page-table operations, `Suspend`/`Block` reach,
+sealed source-domain facts, and automatic destination allocation remain.
 
 Zero-filled storage does not establish a linear extent and creates no
 must-consume obligation. A zero-usable pool uses the ordinary debt-free sum:

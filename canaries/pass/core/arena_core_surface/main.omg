@@ -1,11 +1,10 @@
 use omega::language::core::arena;
 
 // Confirms the ALLOCATOR STORY STAGE 1 Arena surface is browsable: the core
-// `arena` module declares the contract-only bounded-allocation boundary trait
-// (allocation as an explicit capability — `allocate`/`deallocate` machines
-// carrying the chapter 18 `alloc`/`dealloc` effect names), with no provider
-// binding and no runtime. Importing it must type-check cleanly; nothing in
-// stage 1 consumes it.
+// `arena` module declares the contract-only bounded-allocation boundary trait.
+// It returns and reclaims the opaque linear Extent authority rather than a
+// forgeable `addr`; `allocate`/`deallocate` retain the chapter 18
+// `alloc`/`dealloc` effects. No provider or runtime is bound in stage 1.
 
 data Main {
 }
