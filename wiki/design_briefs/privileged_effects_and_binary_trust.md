@@ -92,7 +92,9 @@ RFLAGS.IF transitions (including STI's delayed recognition rule). Structured
 `pushfq <destination>`/`popfq <source>` operations preserve RSP, use exact
 `u64` places, and give restore the same `MachineControl`/`MachineOwner`
 contract. Their higher-level saved-mask/restore protocol remains an ordinary
-provider-minted linear token.
+provider-minted linear token. Its source contract is now live as the opaque
+`InterruptMaskControl`/`InterruptMaskGuard` pair in
+`omega::language::core::interrupt`; provider minting/lowering remains.
 
 Structured `rdmsr <destination>, <index>` and `wrmsr <index>, <value>` now
 model the implicit ECX and EDX:EAX registers as explicit exact `u32`/`u64`

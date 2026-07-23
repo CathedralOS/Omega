@@ -1,0 +1,9 @@
+use omega::language::core::interrupt;
+
+data Main {}
+
+machine Main::leak(acknowledgement: InterruptAcknowledgement) {
+    // A forgotten EOI/acknowledgement is a linearity error.
+}
+
+machine Main::main(&mut self) {}

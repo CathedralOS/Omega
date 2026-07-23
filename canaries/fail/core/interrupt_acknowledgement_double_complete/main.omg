@@ -1,0 +1,12 @@
+use omega::language::core::interrupt;
+
+data Main {}
+
+machine Main::complete_twice(acknowledgement: InterruptAcknowledgement)
+effects device_io
+{
+    acknowledgement.complete();
+    acknowledgement.complete();
+}
+
+machine Main::main(&mut self) {}

@@ -1,0 +1,1 @@
+linear value `guard` reaches scope exit without being consumed or transferred

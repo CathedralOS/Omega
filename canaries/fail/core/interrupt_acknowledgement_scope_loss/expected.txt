@@ -1,0 +1,1 @@
+linear value `acknowledgement` reaches scope exit without being consumed or transferred

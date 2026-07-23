@@ -695,6 +695,17 @@ The IDT is consequently a first serious customer, not a special construct:
 6. checked `lidt` installation requires IDT authority and records roots; and
 7. a linear acknowledgement token forces exactly-once completion.
 
+The source obligation contract is live in
+`omega::language::core::interrupt`. `InterruptMaskControl::save_and_mask`
+returns an opaque linear `InterruptMaskGuard`; only consuming `restore` may
+settle it. An independently opaque linear `InterruptAcknowledgement` is
+settled only by consuming `complete`. The two tokens deliberately remain
+different: restoring the prior CPU interrupt mask reaches `machine_control`,
+while acknowledging the interrupt source reaches `device_io`. Ordinary
+opacity and linearity reject construction, forgotten settlement, and double
+completion; no interrupt-specific cleanup or implicit drop rule exists.
+Provider minting and the concrete entry path remain.
+
 Static IDT construction does not require a source-visible first-class entry
 reference. The selected plan can retain the entry identity privately. Reified
 entry references remain deferred until dynamic callback registration supplies a

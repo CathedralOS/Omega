@@ -604,10 +604,15 @@ schemas recover the same instance without publishing policy type identity.
    reporting, and WCSU composition. Add `lidt` only as an installation path
    through it; the stack/IST policy must remain one fact consumed by both
    layout materialization and WCSU analysis.
-6. **IDT3 — linear interrupt obligations.** Implement saved-mask guards and EOI
-   obligations as provider-minted linear values with explicit consuming
-   restore/complete operations. Do not use drop cleanup or interrupt-specific
-   linearity rules.
+6. **IDT3 — linear interrupt obligations.** The source contract is live in
+   `omega::language::core::interrupt`: opaque linear `InterruptMaskGuard` and
+   `InterruptAcknowledgement` values have explicit consuming `restore` and
+   `complete` operations, while the distinct opaque `InterruptMaskControl`
+   capability is the only source of a saved-mask guard. Their operations pin
+   `machine_control` versus `device_io` reach; construction, forgotten
+   settlement, and double completion reject through ordinary opacity/effects/
+   linearity rules. Connect these contracts to provider minting and the IDT
+   entry path. Do not use drop cleanup or interrupt-specific linearity rules.
 7. **Cathedral timer acceptance.** Program PIT or LAPIC, install the IDT, post
     a bounded tick event, report ticks over the owned serial line, and `hlt`
     between ticks under QEMU. Negative rails: direct assembly cannot launder
