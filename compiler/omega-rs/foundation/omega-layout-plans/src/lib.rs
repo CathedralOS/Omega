@@ -428,10 +428,12 @@ pub struct PostHandoffWriterPlan {
 }
 
 impl PostHandoffWriterPlan {
-    /// Validates the concrete placement, resolves every target, and stages all
-    /// writes before changing the destination. Repeated fragments of one
-    /// target resolve once so a provider cannot observe inconsistent address
-    /// values within one materialization.
+    /// Validates the concrete placement and every write, resolves every target,
+    /// then writes directly into the unpublished destination. Repeated
+    /// fragments of one target resolve once so a provider cannot observe
+    /// inconsistent address values within one materialization. Failure before
+    /// the write loop leaves bytes unchanged; a provider must keep the
+    /// destination unpublished on any later failure.
     pub fn execute(
         &self,
         destination: &mut [u8],
@@ -475,13 +477,17 @@ impl PostHandoffWriterPlan {
                 }
             };
             values.push(value);
+            validate_write(self.byte_len, &step.write)?;
         }
 
-        let mut staged = destination[..self.byte_len].to_vec();
         for (step, value) in self.steps.iter().zip(values) {
-            apply_write(&mut staged, self.byte_order, &step.write, value)?;
+            apply_write(
+                &mut destination[..self.byte_len],
+                self.byte_order,
+                &step.write,
+                value,
+            )?;
         }
-        destination[..self.byte_len].copy_from_slice(&staged);
         Ok(())
     }
 }
@@ -778,6 +784,50 @@ fn apply_write(
     Ok(())
 }
 
+fn validate_write(
+    materialization_len: usize,
+    write: &MaterializationWrite,
+) -> Result<(), MaterializationDiagnostic> {
+    if write.container_width_bits == 0
+        || write.container_width_bits > 64
+        || !write.container_width_bits.is_multiple_of(8)
+    {
+        return Err(MaterializationDiagnostic(format!(
+            "symbolic field `{}` has invalid {}-bit container",
+            write.field, write.container_width_bits
+        )));
+    }
+    if write.width == 0
+        || write.width > 64
+        || write
+            .source_lsb
+            .checked_add(write.width)
+            .is_none_or(|end| end > 64)
+        || write
+            .destination_lsb
+            .checked_add(write.width)
+            .is_none_or(|end| end > write.container_width_bits)
+    {
+        return Err(MaterializationDiagnostic(format!(
+            "symbolic field `{}` has an invalid source or destination bit range",
+            write.field
+        )));
+    }
+    let start = usize::try_from(write.container_byte_offset).map_err(|_| {
+        MaterializationDiagnostic("container offset cannot be represented on this host".into())
+    })?;
+    let end = start
+        .checked_add(usize::from(write.container_width_bits / 8))
+        .ok_or_else(|| MaterializationDiagnostic("container byte range overflows".into()))?;
+    if end > materialization_len {
+        return Err(MaterializationDiagnostic(format!(
+            "symbolic field `{}` writes outside the {}-byte materialization",
+            write.field, materialization_len
+        )));
+    }
+    Ok(())
+}
+
 fn read_container(bytes: &[u8], byte_order: ByteOrder) -> u64 {
     bytes
         .iter()
@@ -971,6 +1021,54 @@ mod tests {
             )
             .expect_err("writer source substitution must reject");
         assert!(error.0.contains("does not match write target"));
+        assert_eq!(bytes, [0xa5; 16]);
+    }
+
+    #[test]
+    fn writer_validates_every_step_before_direct_destination_writes() {
+        let valid = MaterializationWrite {
+            field: "valid".into(),
+            target: entry(),
+            container_byte_offset: 0,
+            container_width_bits: 64,
+            destination_lsb: 0,
+            source_lsb: 0,
+            width: 64,
+        };
+        let invalid = MaterializationWrite {
+            field: "outside".into(),
+            container_byte_offset: 16,
+            ..valid.clone()
+        };
+        let writer = PostHandoffWriterPlan {
+            byte_len: 16,
+            byte_order: ByteOrder::LittleEndian,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+            steps: vec![
+                PostHandoffWriterStep {
+                    write: valid,
+                    source: PostHandoffWriterSource::Resolve(entry()),
+                },
+                PostHandoffWriterStep {
+                    write: invalid,
+                    source: PostHandoffWriterSource::Resolve(entry()),
+                },
+            ],
+        };
+        let mut bytes = [0xa5_u8; 16];
+        let error = writer
+            .execute(
+                &mut bytes,
+                PlacementSite {
+                    base_address: 0,
+                    phase: PlacementPhase::PostHandoff,
+                    machine_regime: None,
+                    installation_scope: None,
+                },
+                |_| Some(0x1122_3344_5566_7788),
+            )
+            .expect_err("invalid later step must reject before direct writes begin");
+        assert!(error.0.contains("outside"));
         assert_eq!(bytes, [0xa5; 16]);
     }
 

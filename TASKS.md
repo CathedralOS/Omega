@@ -637,9 +637,16 @@ schemas recover the same instance without publishing policy type identity.
    now live: `MaterializedIdt` requires its symbolic writer entry targets to
    exactly equal its root bindings, publication requires the matching live
    handles and ledger records plus a content/ledger-bound success receipt, and
-   `InstalledIdt` retains those liveness pins. Implement writer lowering, the
-   concrete materialization receipt, and the provider's checked `lidt`
-   execution behind that gate.
+   `InstalledIdt` retains those liveness pins. The post-handoff executor now
+   validates and resolves every write before mutating the exclusive unpublished
+   destination directly (no transactional staging copy). IDT materialization
+   consumes mapped/pinned/writable unpublished storage, executes only through
+   the exact installed-artifact entry resolver, computes identity from the
+   resulting bytes, and requires an exact code/artifact/destination/final-byte
+   receipt plus the software-fault-free bootstrap verdict. Failure returns the
+   still-unpublished destination and all consumed inputs. Implement lowering of
+   this normalized writer as a compiler-generated checked Omega machine and the
+   provider's checked `lidt` execution behind the live gate.
 5. **IDT2 — installed-root ledger.** The normalized `omega-external-roots`
    foundation is live. It admits only an entry present in the exact
    installed artifact; consumes owner-scoped slot authority; and records
@@ -675,9 +682,10 @@ schemas recover the same instance without publishing policy type identity.
    The normalized IDT publication transition also enforces record-before-`lidt`
    ordering and retains every installed-root handle. **Next:** drive these
    bindings from compiler-selected provider plans and the concrete Cathedral
-   PIC/LAPIC execution, lower the writer, and execute checked `lidt` behind the
-   live publication gate. The stack/IST policy must remain one fact consumed by
-   both layout materialization and WCSU analysis.
+   PIC/LAPIC execution, lower the normalized direct-destination writer into
+   checked Omega, and execute checked `lidt` behind the live publication gate.
+   The stack/IST policy must remain one fact consumed by both layout
+   materialization and WCSU analysis.
 6. **IDT3 — linear interrupt obligations.** The source contract is live in
    `omega::language::core::interrupt`: opaque linear `InterruptMaskGuard` and
    `InterruptAcknowledgement` values have explicit consuming `restore` and

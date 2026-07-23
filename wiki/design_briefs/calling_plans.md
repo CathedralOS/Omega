@@ -370,8 +370,13 @@ drift, and its identity is reportable. The IDT publication gate additionally
 requires every symbolic writer entry target to have an exact ledger record and
 live handle before a content/ledger-bound successful publication receipt can
 produce `InstalledIdt`; that value retains the handles. Compiler-selected-plan
-construction, writer lowering, and provider-specific checked `lidt` execution
-remain. The live ledger's deterministic fingerprint and `omega-artifacts`
+construction, checked-Omega writer lowering, and provider-specific checked
+`lidt` execution remain. The normalized materializer already writes only an
+exclusive mapped/pinned/writable unpublished destination through the exact
+installed-code resolver, derives final-byte identity itself, and rejects a
+receipt that drifts from code, artifact, destination, bytes, or the
+software-fault-free verdict. The live ledger's deterministic fingerprint and
+`omega-artifacts`
 `external_roots.json` projection report these facts and the complete boundary
 plan without leaking numeric entry addresses or private ranking/codegen proofs.
 
