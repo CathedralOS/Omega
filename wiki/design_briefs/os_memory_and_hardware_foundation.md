@@ -147,8 +147,8 @@ The exact overload spelling is engineering; the ownership distinction is law.
 Unmapping consumes the mapped extent, returns the reusable destination range,
 and either returns an owned source or ends its source loan. On targets requiring
 cross-core invalidation, reuse remains gated by a linear shootdown/quiescence
-token. Its completion operation carries the provider's ordinary `Suspend` or
-`Block` ceiling, so an interrupt root cannot hide an illegal wait.
+token. Its completion operation carries the provider's ordinary suspension or
+blocking ceiling, so an interrupt root cannot hide an illegal wait.
 
 V1 has no per-access generation probe. Reclamation requires exclusive ownership
 back and therefore no live in-language views. Forced asynchronous revocation of
@@ -164,7 +164,7 @@ owns, shared-borrows, or exclusive-borrows its source. Shared source custody
 cannot expose mutable mapped loans. `begin_unmap` retains every authority until
 an exact provider receipt establishes that stale translations are released and
 all target completion facts hold; only then are the destination and any owned
-source returned. Provider page-table operations, `Suspend`/`Block` reach,
+source returned. Provider page-table operations, suspension/blocking ceilings,
 sealed source-domain facts, and automatic destination allocation remain.
 
 Zero-filled storage does not establish a linear extent and creates no
@@ -871,7 +871,7 @@ The IDT is consequently a first serious customer, not a special construct:
 1. ordinary `data` describes the logical gate;
 2. an x86 layout policy supplies bit and fragment placements;
 3. a target-specific interrupt requirement pins `CallPlan + StatePlan`, stack
-   class, acknowledgement protocol, and effect ceiling;
+   class, acknowledgement protocol, and service/suspension/blocking ceilings;
 4. build/provider selection chooses a satisfying handler;
 5. the materializer resolves its sealed entry-stub identity into gate bits;
 6. a generated checked writer validates the unpublished table and produces a
@@ -1006,7 +1006,7 @@ behavior. Missing opaque-runtime evidence is pessimistic. Compiler liveness
 derivation and provider-plan integration remain.
 
 The enforcement sites are deliberately asymmetric. A value that forbids
-suspension is checked locally against possible `Suspend` reach; provider
+suspension is checked locally against possible suspension; provider
 selection cannot erase that ceiling. CPU affinity, host-thread affinity, and
 address stability instead join the activation's demands with the runtime's
 normalized behavior at admission. Preemption granularity selects which points

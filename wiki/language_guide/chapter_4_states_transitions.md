@@ -10,7 +10,7 @@ machine Game::run(&mut self) {
     self.view.render_title();
 
     transition {
-        _ -> prompt()
+        _ -> prompt(self)
     }
 
     state prompt(&mut self) {
@@ -18,9 +18,9 @@ machine Game::run(&mut self) {
         self.input.read_line(&mut self.line);
 
         transition self.parser.resolve_command(&self.line) {
-            Command::Look -> look()
-            Command::Quit -> finished()
-            Command::Invalid -> invalid_command()
+            Command::Look -> look(self)
+            Command::Quit -> finished(self)
+            Command::Invalid -> invalid_command(self)
         }
     }
 
@@ -28,7 +28,7 @@ machine Game::run(&mut self) {
         self.view.render_room(&self.room);
 
         transition {
-            _ -> prompt()
+            _ -> prompt(self)
         }
     }
 
@@ -36,7 +36,7 @@ machine Game::run(&mut self) {
         self.view.render_invalid_command();
 
         transition {
-            _ -> prompt()
+            _ -> prompt(self)
         }
     }
 
@@ -72,10 +72,11 @@ machine Inventory::find_item(
     out: &mut Option<u64>
 ) {
     transition {
-        _ -> find_item_at(kind, 0, out)
+        _ -> find_item_at(self, kind, 0, out)
     }
 
     state find_item_at(
+        &self,
         kind: ItemKind,
         index: u64,
         out: &mut Option<u64>
@@ -86,7 +87,7 @@ machine Inventory::find_item(
 
         transition (found, has_next) {
             (true, _) -> found_item(index, out)
-            (false, true) -> find_item_at(kind, next_index, out)
+            (false, true) -> find_item_at(self, kind, next_index, out)
             (false, false) -> not_found(out)
         }
     }

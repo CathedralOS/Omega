@@ -25,10 +25,11 @@ Those contexts change eligibility and lowering; they do not create parallel
 `async`, `proof`, or `const` machine identities.
 
 A machine's substitutable contract is wider than its input/output relation. It
-also includes failure and cancellation, effects and authority, progress and
-suspension, atomicity and reentrancy, context-visible resource bounds, and a
-boundary calling plan where applicable. Provider substitution must refine the
-whole contract.
+also includes failure and cancellation; service reach; possible suspension and
+blocking; required authority; positive progress guarantees;
+atomicity and reentrancy; context-visible resource bounds; and a boundary
+calling plan where applicable. Provider substitution must refine the whole
+contract.
 
 Internal compiler/runtime transitions may be hidden only after projection
 through the declared observation surface and only above the floor imposed by
@@ -145,8 +146,8 @@ The value after `via` must be compile-time evaluable to the closed `Binding`
 vocabulary. The compiler normalizes and validates it, derives the provider
 plan from explicit conformances, and assigns any trust expenditure only when
 the provider is admitted. `satisfies` supplies the requirement contract and
-public effect ceiling; the binding/provider behavior must refine it. A `via`
-machine does not repeat an `effects` clause.
+public service/suspension/blocking ceilings; the binding/provider behavior must
+refine each one. A `via` machine does not repeat those clauses.
 
 Composite adaptation is ordinary checked code. For example, an implementation
 of `Console::write_line` may call separately bound `get_stdout` and
@@ -224,10 +225,12 @@ Working rules:
 - **Mutual cycles share a joint ranking** (lexicographic when needed); every
   cycle through the call graph must decrease it, and at runtime every call
   along the cycle must be tail.
-- **The whole program's worst-case stack is a static constant.** After
-  lowering, the runtime call graph is acyclic, so the maximum live
-  activation storage along any call chain is computable at build time and
-  appears in the layout report.
+- **The admitted artifact's worst-case stack is a static constant.** After
+  lowering, its runtime call graph is acyclic, so the maximum live activation
+  storage along any call chain is computable at build time. External roots and
+  opaque providers remain responsible for their pinned stack domains; their
+  declared nesting and same-stack demands compose through the external-root
+  ledger. The resulting bound appears in the layout report.
 
 Proof-stratum machines (chapter 10) use the same clause and legality rule with
 no tail restriction: non-tail shapes — `1 + max(Tree::depth(node.left),

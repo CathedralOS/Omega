@@ -3,8 +3,11 @@
 Settled at the architectural level. The core claim and outcome spellings are
 live; runtime-provider integration and the remaining library surface are still
 under implementation. Chapter 18 is the user-facing authority. This brief
-records the mechanical model so the implementation does not recreate `spawn`,
-`await`, implicit detach, or a mandatory pool abstraction.
+records the mechanical model so the implementation does not recreate an
+`async machine`/`Future<T>` split, implicit detach, or a mandatory pool
+abstraction. Direct-call suspension acknowledgement is required; only its exact
+spelling and placement remain owner questions, and requiring it does not change
+this task model.
 
 ## Direction
 
@@ -21,7 +24,7 @@ runtime asks an admitted provider to execute a distinct activation.
 
 `TaskRuntime` is the working name for an `omega::core` boundary requirement or
 capability surface, not a new declaration kind. Its operations contribute the
-runtime service's ordinary reach/effect members and are admitted like other
+runtime service's ordinary service reach and operational ceilings and are admitted like other
 providers. A package may wrap that capability with pools or policy without
 changing the normalized task contract.
 
@@ -31,9 +34,11 @@ the slots they own. Selection convenience does not make runtime authority
 ambient: code that starts or controls tasks receives or owns the relevant
 capability.
 
-There is no `async machine` species, `Future<T>` transformation, mandatory
-call-site `await`, bare `spawn` block, implicit fire-and-forget, or privileged
-supervisor/task-group construct.
+There is no `async machine` species, `Future<T>` transformation, bare `spawn`
+block, implicit fire-and-forget, or privileged supervisor/task-group construct.
+The pending suspension-keyword design concerns direct-call audibility, not task
+creation or return-type transformation; the requirement for an acknowledgement
+is settled.
 
 ## Custody, storage, and claim are separate
 
@@ -91,7 +96,7 @@ demand envelopes for safe-point versus asynchronous crossings. The validator
 rejects unsafe possible suspension locally before any runtime is considered.
 Compiler elaboration is now live for concrete `TaskRuntime::start<M>` and
 `try_start<M>` specializations. It retains the concrete specialization symbol,
-derives `reaches_suspend` from the target's checked transitive effect row,
+derives `reaches_suspend` from the target's checked transitive suspension plan,
 sizes the continuation from target layout plus canonical crossing live values,
 joins safe-point carry demands, and emits `05_task_activations.json`. Missing
 crossing evidence fails closed. Because every `Task<T>` claim exposes
@@ -261,7 +266,7 @@ place liveness determines which policies constrain the transition. This
 replaces the provisional `[send]` property and any Rust-style `Send`/`Share`
 marker model.
 
-Suspension is enforced locally against possible `Suspend` reach and cannot be
+Suspension is enforced locally against possible suspension and cannot be
 narrowed away by runtime selection. The provider-side normalized behavior
 contract instead records preemption granularity, CPU migration/pinning,
 host-thread migration/pinning, and continuation-storage movement. Admission
@@ -305,8 +310,9 @@ transactional start remain.
    activation plan is rejected before execution.
 9. Arena-, OS-, remote-, and inline-backed providers share one task contract
    without sharing one physical storage representation.
-10. No user program requires `spawn`, `await`, implicit detach, or a privileged
-    task-group construct.
+10. No user program requires `spawn`, implicit detach, or a privileged
+   task-group construct; any future suspension marker acknowledges a direct
+   call and does not create a task.
 11. A provider is rejected when its migration/thread/storage behavior cannot
     preserve every carry demand in the derived activation plan.
 12. A local suspension or migration point rejects when any live value forbids

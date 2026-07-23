@@ -42,7 +42,7 @@ Productivity does not by itself prove fairness, eventual wakeup, deadlines, or
 starvation freedom. Decision 23 represents v1 provider/environment premises as
 sealed opaque progress profiles admitted through boundary grants. They remain
 separate from termination and from the negative guarantees obtained by
-omitting `Suspend` or `Block`.
+omitting `suspends` or `blocks`.
 
 ## Budgeted unknowns
 

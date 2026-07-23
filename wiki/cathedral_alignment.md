@@ -79,10 +79,11 @@ implementation work. Each one gets more expensive to retrofit every month.
    machine contract concern; there is no `async machine` species. Decisions
    20/21 settle non-suspending cleanup and explicit linear `Task<T>` lifecycle
    consumption.
-   Decision 22 supplies the required `Suspend` / `Block` vocabulary and
-   pinned-row laws. Suspension composes through ordinary calls without a
-   marker; continuation storage and suspension-safe loans still require their
-   amendment brief.
+  Decision 22's split amendment supplies independent `suspends` / `blocks`
+  clauses and pinned-ceiling laws. Suspension composes through ordinary calls;
+  a searchable direct-call acknowledgement is required, with its keyword still
+  pending. Continuation storage and suspension-safe loans still require their
+  amendment brief.
 
    Still compatible: a futex-shaped scheduler boundary, cancellation as an
    explicit outcome, ordinary machines started through an admitted
@@ -243,7 +244,7 @@ None block current compiler development; all should stay visible.
   inference).
 - **DECIDED, engineering pending: effects vocabulary operationalization** —
   decision 22 replaces global lowercase names with boundary-trait service
-  identities plus core operational possibilities (`Suspend`, `Block`). Define
+  identities plus independent `suspends` and `blocks` clauses. Define
   Cathedral's `DeviceIo`, `MemoryMap`, DMA, and interrupt-control boundaries
   with explicit capability parameters; do not grow the compatibility bitset.
 - **TBD: deterministic scheduler / virtual-provider injection hooks** for

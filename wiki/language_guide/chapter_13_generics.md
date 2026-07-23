@@ -167,8 +167,9 @@ Rules:
 
   Refinement is binder-positional: a selected generic schema may call its
   nested parameter something other than `Inner`, but its complete nested
-  parameter/result shape, effects, termination guarantee, and contracts must
-  conservatively refine the authored requirement. Forwarding a distinct
+  parameter/result shape, service reach, suspension/blocking ceilings,
+  termination guarantee, and contracts must conservatively refine the authored
+  requirement. Forwarding a distinct
   machine parameter uses that same judgment. Specialization first replaces
   `Schema` and `Selected`, then continues to a fixed point until the nested
   call is direct and contains no runtime callable representation.
@@ -302,11 +303,11 @@ The obligation `N > 0` is proven when the machine is instantiated. If a caller
 has `FixedBuffer<Item, 8>`, the obligation is easy. If a caller has an unknown
 `N`, that caller must carry a proof fact for `N > 0`.
 
-Generic effect ceilings work the same way: a generic requirement publishes the
-service-reach and operational possibilities of calls through it, and a caller
-must admit that row. Allocation capacity and owned-resource cleanup are not
-generic effect members: they travel through explicit capability contracts and
-the multiplicity/ownership rules.
+Generic service and operational ceilings work the same way: a generic
+requirement publishes the service reach and `suspends`/`blocks` possibilities
+of calls through it, and a caller must admit every axis. Allocation capacity
+and owned-resource cleanup are not service or operational clauses: they travel
+through explicit capability contracts and the multiplicity/ownership rules.
 
 ## Associated Types
 

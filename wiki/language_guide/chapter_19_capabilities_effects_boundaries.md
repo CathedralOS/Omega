@@ -2,11 +2,12 @@
 
 Omega should model host and compiler boundaries explicitly.
 
-> **Effect rows settled 2026-07-18 (frozen decision 22; authoritative
+> **Service and operational contracts revised 2026-07-23 (decision 22 split
+> amendment; authoritative
 > record: [effects_authority_and_observation.md](../design_briefs/effects_authority_and_observation.md)).**
-> Omega has one kinded `effects` row. Boundary-trait identities contribute
-> service reach; a tiny core set contributes operational possibilities such as
-> `Suspend` and `Block`. Authority remains capability values, trust remains
+> `effects` contains boundary-service reach only. Independent `suspends` and
+> `blocks` clauses publish operational may-ceilings; `terminates` remains a
+> separate positive progress guarantee. Authority remains capability values, trust remains
 > provider receipts, failure remains sums, mutation remains ownership, and v1
 > resource bounds remain dependent contracts. The lowercase fixed vocabulary
 > documented later in this chapter is the current compiler compatibility layer,
@@ -91,7 +92,7 @@ boundary trait Readable {
         path: [u8] in Utf8,
         out: &mut Vec<u8>
     ) -> ReadResult
-        effects Suspend;
+      suspends;
 }
 ```
 
@@ -103,48 +104,49 @@ Working interpretation:
 - `requires` clauses are obligations the caller must prove before crossing the
   boundary.
 - `ensures` clauses are guarantees accepted from the boundary implementation.
-- Boundary-trait identity automatically contributes service reach; the
-  written `effects` clause adds other service or operational ceilings such as
-  `Suspend` and `Block`.
+- Boundary-trait identity automatically contributes service reach; a written
+  `effects` clause adds other reachable services. `suspends` and `blocks`
+  publish the operation's independent operational ceilings.
 - Build policy decides which boundary providers are allowed for a target.
 - Safe application packages cannot silently create new host boundaries. A
   provider must come from the toolchain, target configuration, or an explicitly
   whitelisted boundary package.
 
-## Settled Effect Rows
+## Service Reach And Operational Clauses
 
-The source row is one `+`-separated ceiling of name-resolved members:
+The source `effects` row is a `+`-separated ceiling of name-resolved boundary
+services. Operational possibilities use their own clauses:
 
 ```omega
 machine backup(
     src: [u8] in Utf8,
     dst: [u8] in Utf8
 ) -> BackupResult
-    effects Readable + Queryable + Suspend
+  effects Readable + Queryable;
+  suspends;
 {
 }
 ```
 
-V1 members have two mechanically distinct kinds:
+`suspends;` says the invocation may park its activation. `blocks;` says it may
+occupy its worker while waiting. `terminates;` separately guarantees eventual
+terminal progress under pinned premises. Service reach accumulates by row
+union; suspension and blocking accumulate independently by boolean may. If
+`blocks` is omitted from a public contract, no checked callee or admitted
+provider may block a worker. If `Writable` is absent from `effects`, the machine
+cannot reach that service even when it possesses Writable authority.
 
-- service reach from boundary traits (`Readable`, `Queryable`, `Clock`);
-- operational possibility from the core set (`Suspend`, `Block`).
-
-The names are identifiers, not reserved words. Rows are ceilings: effects
-accumulate transitively and absence is the guarantee. If `Block` is absent, no
-checked callee or admitted provider may block a worker. If `Writable` is absent,
-the machine cannot reach that service even when it possesses a Writable
-capability.
-
-Internal rows may be inferred. Exports, trait requirements, and boundary
-operations write their row; omission there means empty. Implementations and
-providers refine by subset. Imports use pinned requirement rows, so later
-provider selection cannot widen a compiled consumer.
+Internal service and operational fields may be inferred. Exports, trait
+requirements, and boundary operations publish them; omission means empty
+service reach, never suspends, or never blocks on the corresponding axis.
+Implementations and providers refine each ceiling independently. Imports use
+pinned requirement contracts, so later provider selection cannot widen a
+compiled consumer.
 
 No masking, subtraction, scoped allowance, or algebraic handlers exist. A
 checked in-memory Readable provider can remove a trust receipt and refine
 operational behavior, but the abstract Readable reach remains visible. V1 also
-has no quantitative row members: heap/region bounds use capability contracts;
+has no quantitative service members: heap/region bounds use capability contracts;
 task and version capacity use their own declared budgets.
 
 The complete laws, algebra, identity rule, tests, and deferred spaces are in
@@ -569,8 +571,8 @@ Authority flow and boundary calls are related but separate reports:
 
 A library can therefore be audited along three axes:
 
-- Effect ceiling: which service surfaces and operational possibilities may be
-  reached.
+- Service/operational ceiling: which service surfaces may be reached and
+  whether execution may suspend or block.
 - Authority-flow ceiling: what authority values may move through or be minted
   by the package.
 - Provider/trust ceiling: which direct and transitive realizations are allowed.
@@ -635,9 +637,9 @@ machines. Raw syscall numbers, imported DLL functions, firmware jumps,
 compiler intrinsics, and instruction leaves are binding details; sequences,
 argument reshaping, newline policy, caching, and other composition are normal
 checked Omega machines. The satisfied requirement contributes the public
-effect ceiling, while the binding/provider contract supplies behavior that
-must refine it. Trust is assigned at admission rather than selected by source
-spelling.
+service-reach, suspension, and blocking ceilings, while the binding/provider
+contract supplies behavior that must refine each of them. Trust is assigned at
+admission rather than selected by source spelling.
 
 ## Freestanding Targets And Hardware Facts
 
@@ -961,7 +963,7 @@ Each `BoundaryProvider` record carries:
   `DescriptorConstruction`, `Allocation`, or `HostAbiCall`.
 - the public contract it implements (a reference, so the proof obligation and
   signature stay visible).
-- its normalized kinded effect row.
+- its normalized service-reach row and suspension/blocking ceilings.
 - its target applicability.
 - the origin package that declared it.
 
@@ -988,13 +990,13 @@ Imported entries that can block must say what can unblock them, or they must be
 reported as boundary opaque waits.
 
 Blocking and parking are distinct. An imported/provider contract carries
-`Block` when it may occupy the calling worker and `Suspend` when it may park a
-task. That row is checked against the pinned requirement at admission; the
+`blocks` when it may occupy the calling worker and `suspends` when it may park a
+task. Those ceilings are checked against the pinned requirement at admission; the
 eventual provider cannot widen a consumer compiled against a no-block/no-park
 slot. Decision 23 represents v1 positive wake/fairness premises as sealed,
 grant-backed opaque progress profiles on the pinned operation/provider
 contract. They participate in admission and trust reports but do not become
-ordinary proof facts or follow merely from row membership.
+ordinary proof facts or follow merely from an operational clause.
 
 Examples:
 
