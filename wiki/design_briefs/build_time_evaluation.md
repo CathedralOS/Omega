@@ -6,9 +6,10 @@ remaining engineering sequence.
 
 ## The settled model (2026-07-02)
 
-- **No marker, ever.** Build-time-evaluability is derived from the complete
-  normalized machine contract. An empty service/operational row is necessary
-  but not by itself sufficient: trust reach, authority inputs, resources,
+- **No declaration marker.** Build-time-evaluability is derived from the
+  complete normalized machine contract. Empty service reach plus absence of
+  `suspends` and `blocks` are necessary but not by themselves sufficient: trust
+  reach, authority inputs, resources,
   failure/control outcomes, and termination must also fit the build-time
   context. A keyword would restate a checked contract judgment.
 - **Evaluation time is a fact of the POSITION, not the declaration.** A
@@ -17,8 +18,9 @@ remaining engineering sequence.
   evaluates there; the compiler checks every machine reached against the
   build-time contract floor and errors at the use site otherwise, rendering
   the CHAIN from the position to the offending contract axis.
-- **The trait signature is the stability contract.** `Layout::plan` has an
-  empty published effect row and build-time-compatible contract; conformance
+- **The trait signature is the stability contract.** `Layout::plan` has empty
+  published service reach, omits `suspends` and `blocks`, and carries a build-
+  time-compatible contract; conformance
   requires signature agreement, so an implementation growing an effect breaks at ITS declaration
   — exactly where a keyword would have put the error, with zero new surface.
 - **Cross-compilation**: build-time evaluation runs on the host but computes
@@ -58,14 +60,22 @@ remaining engineering sequence.
    position — so the layouts ladder can start on the interpreter entry point
    alone.)
 2. **Admission gate: reuse the complete normalized contract** —
-   build-time-evaluable(callee) requires an empty service/operational row,
-   build-time-valid authority/trust/resource/failure behavior, termination, and
-   no escaping runtime mutation. No annotation; the
+  build-time-evaluable(callee) requires empty service reach, no possible
+  suspension or blocking, build-time-valid authority/trust/resource/failure
+  behavior, termination, and no escaping runtime mutation. No annotation; the
    position makes it build-time, the effect system makes it legal.
-3. **Termination**: no separate build-time rule. Recursive calls carry checked
-   decreasing measures; runtime lowering additionally requires tail position,
-   while proof/build-time evaluation may use measured non-tail recursion.
-   Evaluator fuel is only a defense-in-depth backstop against checker gaps.
+3. **Termination and evaluator budget**: every compiler-run invocation must
+  have an `EventualTerminal` guarantee available from its visible contract or
+  checked local summary. Recursive calls carry checked decreasing measures;
+  runtime lowering additionally requires tail position, while proof/build-time
+  evaluation may use measured non-tail recursion. A deterministic evaluator
+  work budget remains an independent resource policy: fuel does not make a
+  partial machine admissible, and exhausting it reports a build-resource limit,
+  never semantic divergence or a failed termination proof. The exact surface
+  for raising a project budget and constraining dependency-supplied evaluation
+  remains to be settled; expensive repeatable work should be Merkle-cached,
+  and proof searches may instead produce a certificate for a cheaper checked
+  verifier.
 4. **Determinism**: emulate TARGET integer widths in the build-time evaluator
    (the interpreter already has signedness/width adjustment — audit and
    reuse). Host-width leakage is a correctness bug; cross-compilation is a
@@ -90,7 +100,7 @@ evaluation entry point + error reporting), resolved→typed lowering
 
 ## Staging
 
-1. Build-time evaluation entry point + effect gate + target-width audit +
+1. Build-time evaluation entry point + contract gate + target-width audit +
    failure diagnostics; the layouts `plan()` call site as the pilot client
    (see programmable_layouts.md) alongside or ahead of array lengths;
    Equatable-via-generator as a hand-wired pilot.

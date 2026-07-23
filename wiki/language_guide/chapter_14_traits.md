@@ -92,9 +92,10 @@ fulfills the matching requirement from `Incrementable`.
 > irreducible external realization.
 
 A satisfying implementation inherits the requirement's authored contracts,
-including `requires`, `ensures`, effect ceiling, and bare `terminates`
-guarantee. A cyclic implementation may add `terminates by ...` as private
-ranking evidence; it does not restate or alter the requirement contract.
+including `requires`, `ensures`, service-reach ceiling, `suspends`/`blocks`
+ceilings, and bare `terminates` guarantee. A cyclic implementation may add
+`terminates by ...` as private ranking evidence; it does not restate or alter
+the requirement contract.
 
 ## Machine Binding
 
@@ -137,10 +138,10 @@ effects
 ```
 
 Clause ordering is signature, `satisfies`, `terminates [by ...]`, ordinary
-contracts/effect ceiling, then body. Trait binding belongs with the machine
-contract, not inside the machine name. An irreducible external implementation
-instead ends with `via <Binding>;`; it inherits the requirement contract and
-cannot also carry a body or repeat an `effects` ceiling.
+contracts and service/operational ceilings, then body. Trait binding belongs
+with the machine contract, not inside the machine name. An irreducible external
+implementation instead ends with `via <Binding>;`; it inherits the requirement
+contract and cannot also carry a body or repeat those ceilings.
 
 ## Individual Machine Requirements
 
@@ -489,13 +490,13 @@ trait BoundedCounter {
 This matters because a reusable surface is not only "these calls exist." It is
 also "these calls preserve the obligations callers rely on."
 
-Trait machine requirements carry the same kinded ceilings as other exported
-machines. Service members name boundary traits such as `Readable` or
-`Writable`; operational members use the small core set such as `Suspend` and
-`Block`. An ordinary trait is not automatically an effect member: it may state
-an effect ceiling for its machines, but only a boundary trait contributes a
-service-reach identity. An omitted `effects` clause on a trait requirement
-means the empty row.
+Trait machine requirements carry the same separate ceilings as other exported
+machines. `effects` names reachable boundary traits such as `Readable` or
+`Writable`; `suspends` and `blocks` publish operational possibilities. An
+ordinary trait is not automatically a service member: it may state a service-
+reach ceiling for its machines, but only a boundary trait contributes a service
+identity. Omission on a trait requirement means an empty service row,
+never-suspends, or never-blocks on the corresponding axis.
 
 For hot swapping and driver-like code, trait effects may be part of replacement
 safety:

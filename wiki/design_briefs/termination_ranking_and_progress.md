@@ -146,9 +146,10 @@ result and state satisfy the proposition. A result domain cannot prove that
 the edge is ever reached, because completion classifies executions rather
 than values.
 
-`effects` remains an event/service/operational ceiling. Reaching a
-`ProcessExit` service may appear in the row; the `Aborted` terminal outcome is
-not itself an effect. The checked artifact may derive a completion
+`effects` remains a service-reach ceiling. `suspends` and `blocks` remain
+independent operational may-ceilings. Reaching a `ProcessExit` service may
+appear in the row; the `Aborted` terminal outcome is not itself an effect. The
+checked artifact may derive a completion
 classification from:
 
 ```text
@@ -160,9 +161,9 @@ surface `Completes<...>` syntax.
 
 ## Progress premises and trust
 
-An effect row says which events may occur. It does not identify the premise
-under which a suspended operation makes progress. Pinned operation and
-provider contracts supply those premises and guarantees.
+Neither service reach nor a `suspends` declaration identifies the premise under
+which a suspended operation makes progress. Pinned operation and provider
+contracts supply those premises and guarantees.
 
 V1 progress profiles are named, opaque semantic domains over boundary-provider
 capability values. They use ordinary domain declaration syntax, for example:
@@ -191,9 +192,9 @@ is a sealed semantic qualification of the provider/capability, not a new
 machine clause or ambient promise.
 
 The normalized guarantee records the actual pinned premises, not merely the
-presence of `Suspend` or `Block` in an effect row. General machine-side trace
-propositions, deadlines, starvation freedom, and entailment between progress
-profiles remain deferred until a trace logic exists.
+presence of `suspends` or `blocks` operational clauses. General machine-side
+trace propositions, deadlines, starvation freedom, and entailment between
+progress profiles remain deferred until a trace logic exists.
 
 ## Identity and revalidation firewall
 
@@ -221,7 +222,7 @@ contract, not in the hidden ranking witness.
    authored subtraction.
 6. Adding a second user measure cannot reinterpret a short-form witness.
 7. Every edge in a mutually cyclic component decreases one joint ranking.
-8. `terminates` plus `Suspend` remains conditional on the pinned wake/progress
+8. `terminates` plus `suspends` remains conditional on the pinned wake/progress
    premises; the effect row alone cannot invent them.
 9. An ungranted provider cannot self-assert a sealed progress profile.
 10. Swapping a provider's valid ranking witness revalidates that provider only;

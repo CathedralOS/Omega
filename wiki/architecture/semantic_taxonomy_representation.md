@@ -2,7 +2,7 @@
 
 Status: **high-priority compiler architecture task**, loaded 2026-07-18.
 
-The domain-facet, machine-taxonomy, core-multiplicity, kinded-effect-row, and
+The domain-facet, machine-taxonomy, core-multiplicity, service/operational, and
 termination/ranking settlements are not documentation-only classifications. They make distinctions that affect
 resolution, interface identity, admissibility, ownership, diagnostics, and
 lowering. If the compiler stores only the old undifferentiated shapes and
@@ -77,15 +77,16 @@ arena is also compatibility output only. The deliberately deferred work is the
 multi-resource/nested obligation algebra, not reconstruction from lossy
 move/drop summaries.
 
-### Effects
+### Service reach and operational behavior
 
-`omega-effects` currently represents standard effects as bits in one flat
-`EffectSet`. The source and validator also use effect-name rows. This is
-adequate for the existing transitive-effect check, but it loses decision 22's
-member kinds, name resolution, parent closure, authored public ceiling, pinned
-slot ceiling, and provider refinement. It also encourages authority, trust,
-resources, failure, and mutation to be folded into the row even though they
-have separate semantic homes.
+`omega-effects` currently represents service names plus suspension/blocking
+compatibility names as bits in one flat `EffectSet`. The source and validator
+also use effect-name rows. This is adequate for the existing transitive check,
+but it conflates boundary-service reach with operational behavior and loses
+name resolution, service-parent closure, independent authored ceilings, pinned
+slot ceilings, and per-axis provider refinement. It also encourages authority,
+trust, resources, failure, and mutation to be folded into the set even though
+they have separate semantic homes.
 
 ## Target representations
 
@@ -178,7 +179,7 @@ RuntimeBehaviorContract {
 ```
 
 Suspension permission has no runtime counterpart: canonical liveness checks it
-locally against possible `Suspend` reach. Admission joins the other three
+locally against the checked suspension plan. Admission joins the other three
 carry dimensions with runtime behavior, while preemption granularity selects
 the relevant crossing points. Unknown behavior normalizes pessimistically.
 Checked provider evidence may prove a narrower record; accepted evidence needs
@@ -193,8 +194,8 @@ The parser requires a complete `[carry(...)]` product and rejects retired
 `[send]` with guidance. Transparent data and generic bounds use independent
 per-axis composition/comparison; concrete generic instantiations substitute
 their actual arguments through nested transparent wrappers. Canonical
-place-liveness rejects forbidden values across direct or transitive `Suspend`
-reach, including persistent fields through reachable state transitions,
+place-liveness rejects forbidden values across direct or transitive possible
+suspension, including persistent fields through reachable state transitions,
 arguments carried by the call itself, and later operands under left-to-right
 evaluation. Opaque admission, per-mint qualification, contained-machine
 subtrees, runtime admission, and artifact/model export remain. The legacy
@@ -342,7 +343,7 @@ Concrete static-machine specializations retain their executable instance
 symbol. The compiler derives a validated `TaskActivationPlan` for each closed
 TaskRuntime start specialization and emits `05_task_activations.json`. The plan
 uses checked contract/entry/layout/calling identities, the normalized
-transitive effect row for `Suspend`, canonical crossing liveness/carry facts,
+transitive suspension plan, canonical crossing liveness/carry facts,
 and concrete target layout to size its continuation. Safe-point migration is
 therefore evidence-backed. A separate checked all-instruction envelope joins
 every persistent slot, parameter, local, call signature, aggregate/cast
@@ -416,32 +417,45 @@ and component-origin decisions under "composite linear value's resource
 frontier." Broader
 resource algebra remains.
 
-### Effects and observation
+### Service reach and operational ceilings
 
-Represent the qualitative effect row as symbol-resolved, kinded identities:
+Represent service reach as symbol-resolved boundary-trait identities and keep
+suspension and blocking in independent plans:
 
 ```text
-EffectMemberKind = ServiceReach | OperationalMay
-EffectMemberId   = normalized declaration/core identity
-EffectRow        = normalized set of EffectMemberId + parent closure
+ServiceReachId  = normalized boundary-trait identity
+ServiceReachRow = normalized set of ServiceReachId + parent closure
 
-MachineEffectPlan {
-    interface: InternalInferred | PublishedCeiling(EffectRowId),
-    checked_inferred: EffectRowId,
+MachineServiceReachPlan {
+  interface: InternalInferred | PublishedCeiling(ServiceReachRowId),
+  checked_inferred: ServiceReachRowId,
+}
+
+SuspensionPlan {
+  interface: InternalInferred | PublishedMaySuspend(bool),
+  checked_may_suspend: bool,
+}
+
+BlockingPlan {
+  interface: InternalInferred | PublishedMayBlock(bool),
+  checked_may_block: bool,
 }
 ```
 
-Boundary-trait declarations mint `ServiceReach` identities. The core mints the
-small v1 `OperationalMay` set (`Suspend`, `Block`). The deterministic
-normalizer owns row and exported-contract identity; the entailment engine may
-gate reachability or legality but never rewrite a published ceiling.
+Boundary-trait declarations mint service identities. `suspends;` and `blocks;`
+publish independent may-ceilings; omission on a public requirement is the
+corresponding negative guarantee. Private omission infers each axis. The
+deterministic normalizer owns service-row and operational contract identity;
+the entailment engine may gate reachability or legality but never rewrite a
+published ceiling. `MachineTerminationPlan` remains independent and retains
+the positive `terminates` guarantee and private ranking witness.
 
 Authority possession, provider trust receipts, resource bounds, failure
 outcomes, and mutation remain separate fields/analyses. Do not manufacture a
-single all-purpose effect record merely because the surface has one `effects`
-clause. Provide a compatibility projection to today's `EffectSet` during
-migration. The flat set may remain a fast cache for legacy members after it
-ceases to be the semantic source of truth.
+single all-purpose effect record. Provide compatibility projections to today's
+`EffectSet` during migration; the flat set may remain a cache for legacy
+service members after it ceases to be the semantic source of truth, but
+suspension and blocking must not be reconstructed from it.
 
 ## Staged migration
 
@@ -450,18 +464,20 @@ ceases to be the semantic source of truth.
    must survive.
 2. **Core semantic enums/IDs.** Land facet pair, introduction policy,
    multiplicity, carry policy, supply mode, termination guarantee/witness,
-   progress-profile ID, effect-member kind/ID, normalized effect-row ID, and other identity
-   handles in the lowest dependency-safe crates. No
+  progress-profile ID, service-reach ID/row, suspension plan, blocking plan,
+  and other identity handles in the lowest dependency-safe crates. No
    behavior change.
 3. **Tree propagation.** Carry the representations through symbol-resolved and
    typed trees, snapshots, cloning/substitution, and diagnostics. Eliminate
    re-derivation from body shape/keyword presence.
 4. **Checked plans.** Split predicate facts from semantic qualifications; add
-   the place-keyed permission plan, kinded effect plan, termination plan, and
+  the place-keyed permission plan, service-reach plan, suspension plan,
+  blocking plan, termination plan, and
    normalized machine contracts.
 5. **Validation and resolution.** Enforce facet activation, introduction,
    operator selection, multiplicity conservation, carry derivation/local
-   transition legality/runtime refinement, row inclusion/propagation, and
+  transition legality/runtime refinement, service-row inclusion/propagation,
+  suspension/blocking propagation, and
    supply/admission rules.
 6. **Lowering boundary.** Lower only from checked selections/plans. Preserve
    semantic contract IDs in proof/component/debug artifacts while erasing
@@ -477,13 +493,14 @@ ceases to be the semantic source of truth.
 - Linear `Task<T>`, transactions, or dependent-linear buffers must not grow on
   move/drop-only ownership summaries.
 - Component import slots and hot-swap manifests must not pin a body hash or
-  flat effect row in place of normalized machine contract identity.
+  flat service row in place of normalized machine contract identity.
 - Ranking subjects, views, ranges, SCC mapping, and certificates must not enter
   published machine-contract identity.
-- Effect-row identity must not depend on prover strength, provider selection,
-  or the legacy numeric bit assigned to a name.
-- Import slots pin authored normalized ceilings; provider admission compares
-  normalized rows by subset and never consults a global import scan.
+- Service-row and operational-ceiling identity must not depend on prover
+  strength, provider selection, or a legacy numeric bit.
+- Import slots pin authored normalized service and operational ceilings;
+  provider admission compares each axis independently and never consults a
+  global import scan.
 
 ## Acceptance criteria
 
@@ -507,11 +524,14 @@ ceases to be the semantic source of truth.
   plans; it does not repeat semantic resolution.
 - Semantic interface identity and physical ABI identity are distinct and both
   queryable.
-- Service reach and operational possibility remain distinguishable after
-  parsing, normalization, inference, diagnostics, and artifact emission.
-- An exported authored row is stable when prover strength changes; an internal
-  omitted row reaches the deterministic least fixed point of its checked call
-  component.
-- A provider carrying `Block` cannot satisfy a slot pinned to `Suspend` alone.
-- The legacy `EffectSet` can be derived from the normalized row during
-  migration, but no semantic decision depends on projecting back from it.
+- Service reach, possible suspension, possible blocking, and positive
+  termination remain independent after parsing, normalization, inference,
+  diagnostics, and artifact emission.
+- An exported authored service/operational contract is stable when prover
+  strength changes; internal omissions reach deterministic least fixed points
+  in their checked call component.
+- A blocking provider cannot satisfy a slot that permits suspension but omits
+  `blocks`.
+- The legacy `EffectSet` service projection can be derived from the normalized
+  service row during migration, but no semantic decision projects suspension
+  or blocking back from it.

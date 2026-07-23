@@ -33,7 +33,7 @@ transitions, while preserved semantic evidence lives under
 | Drops | Preserved from graph ownership summaries into control-flow ownership events. |
 | Calls | Become explicit control-flow operations. |
 | Transitions | Lower into branches, calls, exits, continuations, and block edges. |
-| Effects | Attach to operations/blocks for later reporting and validation. |
+| Service/operational contracts | Attach service reach and independent suspension/blocking summaries to operations/blocks for later reporting and validation. |
 | Boundary edges | Graph boundary summaries are preserved as control-flow boundary summaries. |
 
 ## Ownership Rules
@@ -41,8 +41,9 @@ transitions, while preserved semantic evidence lives under
 Must own:
 
 - Explicit block/operation/branch/exit structure for state-machine execution.
-- Preservation of graph-carried contracts, borrows, facts, effects, and boundary
-  edges as control-flow metadata or events.
+- Preservation of graph-carried contracts, borrows, facts, service reach,
+  suspension/blocking summaries, and boundary edges as control-flow metadata or
+  events.
 - Preservation of graph-carried value summaries without inventing storage or
   ownership policy.
 - Scheduling of already-checked cleanup and ownership events once those events

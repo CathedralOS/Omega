@@ -42,8 +42,8 @@ The exact syntax is provisional, but the semantics are not:
 - `MutexGuard<T>` owns the obligation to unlock.
 - When the guard dies, the compiler inserts `MutexGuard::drop`.
 - The drop guarantee contributes the fact that the mutex is unlocked.
-- If a context forbids blocking cleanup, `drop` must satisfy that effect
-  requirement.
+- If a context forbids blocking cleanup, `drop` must satisfy that operational
+  blocking ceiling.
 
 ## Edge Cleanup
 

@@ -16,10 +16,13 @@ it in the current activation; supplying the machine symbol to
 `runtime.start<Worker::run>(job)` asks a runtime provider to establish a
 distinct concurrent activation.
 
-The model has no bare `spawn` block, `async machine`, `Future<T>`, mandatory
-`await` marker, implicit detach, or privileged task group. Starting,
-cancellation, completion, storage provisioning, and supervision are ordinary
-contracted operations over explicit capabilities and linear data.
+The model has no bare `spawn` block, `async machine`, `Future<T>`, implicit
+detach, or privileged task group. Starting, cancellation, completion, storage
+provisioning, and supervision are ordinary contracted operations over explicit
+capabilities and linear data. A direct call whose contract permits suspension
+will carry a source acknowledgement keyword for searchability and review
+visibility. Its spelling remains open; it will not create a future or a
+distinct activation.
 
 `TaskRuntime` is a working core boundary requirement/capability, not a new
 language construct. Starting and controlling a task reach that service through
@@ -104,35 +107,36 @@ responsible for eventual settlement.
 
 ## Suspension (elaboration pending)
 
-Suspension is an operational property of an ordinary machine. Decision 22
-supplies distinct `Suspend` and `Block` row members; absence of each is the
-corresponding negative guarantee. The continuation, loan, and lowering rules
-remain to be frozen.
+Suspension is an operational property of an ordinary machine. Decision 22's
+split amendment supplies independent `suspends` and `blocks` clauses; absence
+of each is the corresponding negative guarantee. The continuation, loan, and
+lowering rules remain to be frozen.
 
 Decision 23 keeps positive progress separate. Pinned operations/providers may
 carry sealed opaque progress profiles authorized through boundary grants. A
 termination guarantee records the actual required profiles; the presence of
-`Suspend` or `Block` says only that such an event is possible and cannot name
+`suspends` or `blocks` says only that such an event is possible and cannot name
 what will wake it. General trace entailment remains deferred.
 
 The constraints that *are* settled are:
 
 - suspension is an operational part of the ordinary machine contract, not a
   `Future` return type or a separate `async machine` species;
-- a caller/context imposes an effect and resource ceiling, so a provider whose
-  row contains `Suspend` or `Block` cannot satisfy a slot that omits it;
-- suspension composes through ordinary calls without a call-site marker;
-  visibility comes from inferred effects, public contract ceilings,
-  diagnostics, and artifacts;
+- a caller/context imposes service, operational, and resource ceilings, so a
+  provider that may suspend or block cannot satisfy a slot that omits the
+  corresponding clause;
+- suspension composes through ordinary calls through the normalized contract;
+  the pending keyword changes source acknowledgement only, not propagation or
+  lowering;
 - automatic cleanup may execute but may never suspend or fail;
 - `Task<T>` is linear and must be settled or transferred explicitly; and
 - a loan may cross suspension only when the eventual suspension model can
   prove its storage, pinning, aliasing, and cancellation safety. Blanket
   acceptance and blanket rejection are both premature.
 
-Suspension composes through ordinary calls, with the effect propagated/inferred
-and bounded continuation storage planned by the compiler. Public rows are
-explicit ceilings; internal rows infer. Exact
+Suspension composes through ordinary calls, with the suspension plan propagated/
+inferred and bounded continuation storage planned by the compiler. Public
+operational clauses are explicit ceilings; private omissions infer. Exact
 continuation lowering and suspension-safe-loan rules remain the queued
 suspension amendment. See
 [effects_authority_and_observation.md](../design_briefs/effects_authority_and_observation.md).
@@ -154,8 +158,8 @@ requires a sanctioned shared-access/atomic/protocol contract. Neither question
 is a marker trait, and neither follows merely from `[copy]`.
 
 The enforcement sites are not symmetric. Suspension is a static reach
-question: at a call or park, canonical place liveness plus possible `Suspend`
-reach decides legality, and provider selection cannot erase that ceiling.
+question: at a call or park, canonical place liveness plus possible suspension
+decides legality, and provider selection cannot erase that ceiling.
 CPU/thread migration and address movement are runtime behavior, so activation
 admission compares those accumulated demands with the selected provider's
 normalized contract. Preemption granularity determines which points require
@@ -247,7 +251,8 @@ data Take {
 }
 
 machine Worker::run(&mut self, ring: &mut Ring) {
-    let taken: Take = ring.take();  // may suspend under the eventual effect contract
+  // The required suspension acknowledgement keyword is pending.
+  let taken: Take = ring.take();
     transition taken {
         Take::Got(frame) -> work(frame)
         Take::Cancelled  -> cleanup()   // ordinary transition; nothing interrupted
@@ -278,7 +283,8 @@ data Event {
 }
 
 machine Server::run(&mut self) {
-    let event: Event = self.inbox.take();   // one wait source; may suspend
+  // One wait source; suspension acknowledgement keyword pending.
+  let event: Event = self.inbox.take();
 
     transition event {                       // a completely ordinary transition
         Event::Packet(frame) -> handle(frame)
@@ -296,8 +302,9 @@ nothing.
 
 ## Completion And Supervision
 
-Finishing a task is an ordinary possibly-suspending machine call; it needs no
-`await` marker:
+Finishing a task is an ordinary possibly-suspending machine call. It will use
+the required call-site acknowledgement once that keyword is selected; this does
+not turn the result into a future:
 
 ```omega
 machine Scheduler::run(runtime: &TaskRuntime, job: Job) -> WorkResult {
@@ -359,8 +366,9 @@ the target permits it:
 
 The abstraction must remain honest. A target mechanism that cannot refine the
 pinned wait contract is an accepted/opaque boundary rather than a fake futex.
-Wait operations carry `Suspend`, `Block`, or both as their contracts require;
-wake-only operations carry neither merely because they reach the scheduler.
+Wait operations declare `suspends`, `blocks`, or both as their contracts
+require; wake-only operations declare neither merely because they reach the
+scheduler.
 “What can unblock this wait?” remains part of the temporal contract used by the
 deadlock model below.
 

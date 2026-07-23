@@ -1,12 +1,14 @@
 # Design Brief: Concurrency And Atomics
 
-Current as of 2026-07-20. This brief records the surviving concurrency model
+Current as of 2026-07-23. This brief records the surviving concurrency model
 after decisions 20–22 and the task-runtime settlement. Chapter 18 is the
 user-facing authority; the detailed lifecycle record is
 [task_runtime_and_lifecycle.md](task_runtime_and_lifecycle.md). The suspension
-amendment remains open. Mandatory `await`, spawn-only suspension, bare `spawn`,
-single-level carry sets, blanket loan death, erased `Join<T>`, implicit detach,
-and Join-on-drop designs are not canon.
+amendment remains open. A direct-call suspension acknowledgement has been
+reopened in `OWNER_QUESTIONS.md`; it would not restore `async machine`,
+`Future<T>`, or spawn-only suspension. Bare `spawn`, single-level carry sets,
+blanket loan death, erased `Join<T>`, implicit detach, and Join-on-drop designs
+are not canon.
 
 ## Settled language model
 
@@ -22,11 +24,12 @@ and Join-on-drop designs are not canon.
   caller-supplied storage lease.
 - Automatic cleanup may relinquish affine resources but may not suspend or
   fail.
-- Suspension and worker blocking are distinct operational possibilities:
-  `Suspend` and `Block` in decision 22's normalized effect row. Absence is the
-  corresponding negative guarantee.
-- A provider's row must refine the pinned scheduler/wait requirement. A
-  blocking provider cannot satisfy a suspend-only slot.
+- Suspension and worker blocking are distinct operational possibilities,
+  published through independent `suspends;` and `blocks;` clauses. Absence is
+  the corresponding negative guarantee.
+- A provider's service and operational ceilings must refine the pinned
+  scheduler/wait requirement. A blocking provider cannot satisfy a slot that
+  permits suspension but omits blocking.
 - Cancellation is an explicit outcome observed at a wait/safe point; Omega
   does not unwind or interrupt arbitrary states.
 - Multiplexing is a library/data problem: producers post case-bearing events to
@@ -40,9 +43,11 @@ and Join-on-drop designs are not canon.
 
 ## Suspension amendment still required
 
-Suspension propagates through ordinary calls with no call-site marker. The
-compiler retains the bounded chain of planned frames and the machine's row
-carries `Suspend` transitively.
+Suspension propagates through ordinary calls. The compiler retains the bounded
+chain of planned frames and the machine's suspension plan propagates
+transitively. Such a direct call will carry a source acknowledgement for
+searchability and review visibility; its exact keyword remains an owner
+question. The acknowledgement does not change propagation or lowering.
 
 The amendment must still settle:
 
@@ -51,8 +56,10 @@ The amendment must still settle:
 - cancellation and failure timing across a suspended call chain;
 - the precise wait-provider contract and positive progress hypotheses.
 
-No implementation may restore mandatory `await`, forbid all suspending calls,
-or kill every loan at suspension merely because those rules simplify lowering.
+No implementation may restore an `async machine`/`Future<T>` split, forbid all
+suspending calls, or kill every loan at suspension merely because those rules
+simplify lowering. The call-site acknowledgement is a static check over possible
+suspension, not a future transformation.
 
 ## Wait substrate
 
@@ -62,8 +69,8 @@ completion, mutexes, barriers, channels, sockets, and event queues are
 libraries over that contract where the target permits it.
 
 Reach and temporal behavior remain separate. `wake_one` reaches the scheduler
-service without parking; a wait operation may carry `Suspend`, `Block`, or both
-according to its pinned contract. Fairness, deadlines, and eventual wakeup are
+service without parking; a wait operation may declare `suspends`, `blocks`, or
+both according to its pinned contract. Fairness, deadlines, and eventual wakeup are
 positive provider hypotheses, not implied by either row member.
 
 The “one substrate” direction is an engineering constraint, not permission to
@@ -160,7 +167,7 @@ region requires explicit authority; operations reach the relevant hardware
 boundary service. Authority possession and service reach are separate axes.
 
 Interrupt handlers enter through a restricted boundary/calling plan. They must
-fit a ceiling that excludes forbidden `Suspend`/`Block` behavior and satisfy
+fit ceilings that exclude forbidden suspension/blocking behavior and satisfy
 their target's reentrancy/resource rules. The exact entry and MMIO spellings
 remain open.
 
@@ -170,7 +177,7 @@ hard-real-time requirements force it.
 
 ## Acceptance cases
 
-1. A wake-only scheduler call does not acquire `Suspend`.
+1. A wake-only scheduler call does not acquire a suspension ceiling.
 2. A blocking provider cannot satisfy a suspend-only slot.
 3. A live `Task<T>` at scope exit is rejected.
 4. Automatic cleanup never settles a task, parks, or reports failure.

@@ -11,17 +11,19 @@ Last pruned: 2026-07-22.
 
 - Extend decision 23's opaque, sealed progress profiles into a general trace
   logic only when a concrete customer needs machine-side fairness, deadlines,
-  starvation freedom, or profile entailment. `terminates`, effect-row members,
+  starvation freedom, or profile entailment. `terminates`, service reach,
+  operational clauses,
   and ungranted provider claims do not manufacture those theorems.
 - Settle the quantitative resource algebra before adding entries such as
   `Alloc<Peak, Retained>` to effect rows, general owned-buffer splitting, or
   claiming compile-time reconciliation of local task-pool child leases.
-- Defer user-defined operational effect members and effect-row polymorphism
+- Defer additional operational clauses and service-row polymorphism
   until a concrete customer forces their declaration, coherence, and
   separate-compilation rules.
 - Finish the suspension implementation brief: continuation layout and capacity,
   cancellation behavior, and suspension-safe loans. Ordinary calls compose
-  suspension without a call-site marker.
+  suspension through the normalized contract; `OWNER_QUESTIONS.md` selects the
+  required direct-call acknowledgement keyword and its exact placement.
 - Define scheduler operation contracts in terms of decision 23's sealed
   profiles, including wake-one/wake-all and timed-wait placement.
 

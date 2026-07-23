@@ -151,3 +151,104 @@ machines out of runtime layout. Do not admit an always-true executable relation,
 an implicit compiler quantifier, or a boundary axiom as a temporary Real
 implementation: each would change or assume the semantics the construction is
 supposed to prove.
+
+## 5. What are the semantic world and resource policy for compiler-run Omega code?
+
+Build-time evaluation executes ordinary machines in constant positions and
+compiler-owned generator sites. Eligibility can require a checked
+`EventualTerminal` summary, but termination proves only that work eventually
+finishes; it does not make brute-force proof search, layout generation, or a
+dependency-supplied computation affordable. Wall-clock limits would be
+nondeterministic, while an unbounded evaluator permits accidental or hostile
+compile-time cost.
+
+The evaluator process runs on the build host but must interpret the selected
+target's Omega world. Target integer widths, overflow and float behavior,
+layout, endianness, calling-plan inputs, and other admitted target facts must
+therefore be explicit semantic inputs. Accidentally consulting host width,
+layout, environment, clock, filesystem, or floating-point behavior is a
+correctness bug, not an implementation detail; a cross-build must compute the
+same value as an equivalent evaluator hosted on the target.
+
+Decide:
+
+- which target facts compiler-run code may observe, how they enter the
+  evaluation context, and which host observations remain categorically
+  unavailable;
+- how target-world inputs and evaluator-semantics version enter cache and
+  diagnostic identity so a host or target change cannot reuse a stale result;
+- which deterministic work unit the evaluator charges (machine transitions,
+  reduced terms, proof-engine steps, or a normalized weighted combination);
+- whether budgets are per invocation, package, compilation, or a hierarchy of
+  all three, and how parallel evaluation preserves deterministic accounting;
+- how a root project raises a budget deliberately without allowing a dependency
+  to raise or consume an unreviewed amount silently;
+- whether approaching a budget emits warnings, whether exhaustion is always a
+  hard error, and how diagnostics render the expensive call chain and cache
+  misses;
+- how target-dependent operation costs interact with target-world semantic
+  evaluation without turning the limit into target-specific wall time; and
+- which results and certificates are Merkle-cached, and how cache identity
+  includes target facts, evaluator semantics, and the granted budget where it
+  can affect strategy.
+
+Recommendation: require an available `EventualTerminal` guarantee for every
+compiler-run invocation, including a local checked summary for an acyclic body;
+this is admission, not budgeting. Charge a deterministic semantic-work counter,
+apply conservative per-invocation and aggregate project ceilings, and let only
+the root project grant explicit named increases. Exhaustion reports a
+build-resource limit, never divergence or a failed termination proof. Cache
+repeatable results by semantic inputs. Encourage expensive searches to emit
+compact certificates consumed by cheaper checked verifiers, while still
+allowing an owner-approved high budget for deliberate brute-force work.
+
+## 6. Which keyword acknowledges a suspension-capable direct call?
+
+Omega intentionally avoids `async machine` and `Future<T>`: one ordinary
+machine can run in the current activation or be supplied to `runtime.start<M>`
+for a distinct activation. That does not require possible parking to be hidden
+at an ordinary-looking direct call. Suspension changes latency, cancellation
+timing, continuation retention, and which loans and linear values cross a
+scheduler boundary. Hiding those facts behind a local-call-shaped API conflicts
+with Omega's bias toward explicit high-consequence behavior.
+
+The direction is deliberate: Omega will require a source keyword at a direct
+call whose selected contract may suspend. This makes latency-bearing calls
+searchable, keeps suspension visible in code review, and prevents an ordinary-
+looking API from hiding scheduler and continuation consequences. The previous
+no-call-site-marker ruling was flawed because it optimized away exactly the
+explicitness Omega normally requires. What remains deferred is the keyword and
+its precise treatment of blocking, expression position, and generated code,
+not whether suspension should be acknowledged.
+
+Decide:
+
+- whether possible blocking requires its own acknowledgement, shares one
+  latency-bearing-call marker with suspension, or remains visible only through
+  the contract and tooling; a shared marker is terser but hides whether the
+  runtime may park the activation or occupy its worker;
+- the spelling (`suspend`, `await`, or another term), especially since the call
+  may complete immediately and returns an ordinary value rather than a future;
+- how the checker derives the requirement from the normalized selected
+  contract, so a concrete checked non-suspending refinement needs no marker
+  while a call through a suspension-capable requirement does;
+- how calls in expressions, transition subjects and arguments, generated code,
+  proof/build-time evaluation, cleanup, and boundary adapters spell or forbid
+  the acknowledgement;
+- how artifacts record the marker's source acknowledgement while it affects
+  only source legality and diagnostics, with no new machine identity, ABI,
+  return type, activation, or lowering semantics; and
+- how task start is distinguished: `runtime.start<M>` acknowledges creation of
+  a distinct activation, while the call to `start` itself needs the suspension
+  marker only when `start` may park the current activation.
+
+Recommendation: treat the keyword as an audibility check over the normalized
+suspension contract, not an execution operator: it does not force a park,
+create a future, or change synchronous/direct invocation.
+Calling `M(args)` still runs `M` in the current activation; `runtime.start<M>`
+still creates another activation. A genuinely non-suspending API must expose a
+narrower checked contract, commonly through a `try_` operation, rather than
+promising that one invocation of a suspension-capable slot happens not to park.
+This follows the distributed-systems lesson that local and latency-bearing
+operations should not be made syntactically indistinguishable; the closest
+classic reference is Waldo et al., *A Note on Distributed Computing*.

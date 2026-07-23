@@ -285,7 +285,7 @@ schemas recover the same instance without publishing policy type identity.
    normalized contract axis that distinguishes call-scoped borrowing from
    retention or identifies which protocol discharges it. Resume this check only
    after that foreign-lifetime contract is settled; do not infer retention from
-   `Suspend`, `Block`, ABI shape, or an `addr` value. Canary evidence already
+  suspension, blocking, ABI shape, or an `addr` value. Canary evidence already
    pins the settled surrounding distinctions: under Microsoft x64, separate
    pointer and length scalars consume two argument positions while a 16-byte
    descriptor is one indirect argument backed by a caller copy; predicate-only
@@ -1067,10 +1067,23 @@ stronger operations it needs instead of citing machine parameters generally.
 - **STR — semantic carrier cleanup.** Finish termination-plan integration,
   validation/resolution from normalized domain/machine/permission plans,
   lowering only from checked selections, and deletion of compatibility bools.
-- **EFX — kinded effects completion.** Resolve boundary-trait and core members;
-  compute transitive recursive fixed points; enforce public ceilings and pinned
-  provider subsets; split artifact/diagnostic/trust-ledger output; migrate core,
-  std, and canaries away from the lowercase global table as semantic canon.
+- **EFX — split service reach, suspension, and blocking.** Make `effects` a
+  symbol-resolved row of boundary-service reach only. Add independent
+  `suspends;` and `blocks;` public may-clauses; omission on a requirement or
+  export is the corresponding negative guarantee, while private bodies infer
+  both operational possibilities. Keep `terminates [by ...]` as the existing
+  separate positive progress guarantee with premises, never an effect or may-
+  clause. Carry `ServiceReachPlan`, `SuspensionPlan`, `BlockingPlan`, and
+  `MachineTerminationPlan` independently through syntax, resolved, typed,
+  checked, specialization, contract fingerprints, task/provider admission,
+  manifests, and diagnostics. Compute recursive fixed points per may-axis;
+  enforce checked behavior within public ceilings and providers within pinned
+  slots. Reject retired `effects Suspend`, `effects Block`, and mixed service/
+  operational rows with migration diagnostics. Migrate core, std, samples,
+  canaries, and compiler/lattice fixtures atomically, then retire operational
+  members from the legacy `EffectSet` semantic path. The direct-call
+  acknowledgement keyword is a separate owner decision and must consume the
+  normalized suspension/blocking plans rather than source-token presence.
 - **TPR4/TPR6 — publication and progress profiles.** Serialize public
   termination omission/default rules in artifacts. Resolve sealed profile
   domains, grant-backed admission and receipts, and pinned progress premises.
@@ -1094,7 +1107,7 @@ stronger operations it needs instead of citing machine parameters generally.
   the strict effective carry policy, and reject permissive property claims
   until admission can provide receipts. Statement-bound canonical liveness now
   rejects parameters and locals whose effective policy forbids suspension when
-  they remain live across a direct or transitive `Suspend` call. Field-segment
+  they remain live across a direct or transitively suspending call. Field-segment
   liveness also tracks attached-data fields and compatibility machine-owned
   cells through reachable state transitions without collapsing them into
   whole-`self`; effect, borrow, flow, and contract analyses join calls by the
@@ -1153,12 +1166,13 @@ stronger operations it needs instead of citing machine parameters generally.
   execution, local suspension safety, and separate safe-point/asynchronous
   migration-demand envelopes. Core now exposes opaque `TaskRuntime::start` and
   `try_start` generic boundary signatures whose static target contracts admit
-  `Suspend` and `Block`. Concrete machine specializations retain their instance
+  suspension and blocking. Concrete machine specializations retain their instance
   symbols, and compiler elaboration emits validated target-specific plans in
   `05_task_activations.json`: normalized machine/entry/layout/calling IDs,
   continuation sizing from the resume word, persistent target layout, and
-  canonical live values, `reaches_suspend` from the checked transitive effect
-  row, and safe-point migration demands from checked carry crossings. Missing
+  canonical live values, `reaches_suspend` from the checked transitive
+  `SuspensionPlan`, and safe-point migration demands from checked carry
+  crossings. Missing
   crossing evidence fails closed. Checked carry facts now also contain one
   all-instruction envelope per machine, conservatively joining persistent
   storage, parameters, locals, call signatures, aggregate/cast temporaries,
@@ -1659,9 +1673,12 @@ stronger operations it needs instead of citing machine parameters generally.
   out of the authoritative pass roster until that admissibility rule is frozen;
   this does not block proof-only SCCs because they require strict structural
   descent on every edge.
-- **Kinded effects.** Demonstrate separate service reach and `Suspend`/`Block`
-  members, recursive inference, public-ceiling failures, provider subset
-  admission, and stable normalized IDs independent of prover strength.
+- **Service and operational contract split.** Demonstrate service-reach rows,
+  independent inferred/published `suspends` and `blocks` ceilings, and the
+  separate `terminates` guarantee; pin recursive inference, omission as a
+  negative public guarantee, provider subset admission on every axis, retired
+  mixed-row diagnostics, and stable normalized IDs independent of prover
+  strength.
 - **Units.** Before broad generic work, implement two units in one dimension
   and pin: explicit conversion, scaled dimensionless results, distinct
   Energy/Torque kinds, generic preservation, no silent forgetting, and package

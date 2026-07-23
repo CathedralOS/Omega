@@ -107,10 +107,10 @@ applies to the selected target, and covers the complete slot schema. Thus the
 marker grants neither rows nor trust; it spends the build root's slot-selection
 authority over an already-derived and independently admitted candidate.
 
-The satisfied requirement supplies the public contract and effect ceiling.
-The external realization's behavior is derived from the binding/provider
-contract and must refine that ceiling at validation/admission. A `via` machine
-does not repeat an authored `effects` row.
+The satisfied requirement supplies the public contract, including service-
+reach, suspension, and blocking ceilings. The external realization's behavior
+is derived from the binding/provider contract and must refine every ceiling at
+validation/admission. A `via` machine does not repeat those clauses.
 
 ## Effects, authority, and trust
 
@@ -119,7 +119,8 @@ Decision 22 applies without an extern exception:
 - the boundary-trait identity contributes service reach;
 - capability/evidence values carry authority;
 - the selected external provider produces a trust receipt; and
-- `Suspend`/`Block` are operation/provider contract members when applicable.
+- `suspends`/`blocks` are independent operation/provider ceilings when
+    applicable.
 
 A checked wrapper may refine operational behavior or reduce trust expenditure;
 it does not erase the abstract service reach from callers compiled against that

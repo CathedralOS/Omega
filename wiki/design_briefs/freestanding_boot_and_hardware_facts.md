@@ -125,8 +125,8 @@ vertical slice composes the common pieces:
 1. ordinary `data` for the gate schema;
 2. an x86 layout policy with bit and fragmented placements;
 3. a target-specific boundary requirement carrying `Calling<C>`, `CallPlan`,
-   `StatePlan`, stack/preemption class, effect ceiling, and acknowledgement
-   protocol;
+    `StatePlan`, stack/preemption class, service/suspension/blocking ceilings,
+    and acknowledgement protocol;
 4. an ordinary `boundary machine ... satisfies ...` handler;
 5. provider/build selection of the handler;
 6. symbolic entry-stub identity resolved by a phase-aware materializer;

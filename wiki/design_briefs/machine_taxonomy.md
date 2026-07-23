@@ -49,6 +49,26 @@ the provider asks no more of its caller. Handoff, remote execution, or a
 scheduler strategy that changes an observable item is a different declared
 contract, not a silent implementation choice.
 
+This is refinement, not signature equality. Mechanically, each contract axis
+keeps the same substitution direction:
+
+| Axis | Provider admitted when |
+|---|---|
+| Caller requirements | the requirement's preconditions imply the provider's; the provider asks no more |
+| Result/state guarantees | the provider's guarantees imply the requirement's; the provider promises no less |
+| Service reach | the provider row is a subset of the requirement ceiling |
+| Suspension | a provider may suspend only when the requirement declares `suspends` |
+| Blocking | a provider may block only when the requirement declares `blocks` |
+| Failure, trap, and cancellation | provider-visible outcomes are a subset of those the requirement permits |
+| Termination and positive progress | the provider preserves every published guarantee under no stronger premises |
+| Context-visible resources | provider demand is within the requirement ceiling |
+| Atomicity, reentrancy, and calling plan | provider behavior is compatible with or stronger than the pinned promise |
+
+The corresponding contract analyses prove those axis judgments; admission
+conjoins them. A provider may be strictly more capable or predictable than its
+requirement without acquiring the requirement's identity, but failure on any
+one axis rejects substitution.
+
 ## Supply modes
 
 Supply answers **where the implementation or accepted evidence comes from**:
@@ -98,10 +118,10 @@ plan derivation validates it structurally, and admission assigns trust from
 the binding kind and evidence. Merely writing `via` asserts no trust class.
 
 `satisfies` identifies the requirement and inherits its contract. The
-requirement's effect row is the public ceiling. The realization's checked
-provider behavior is derived from its binding/provider contract and must
-refine that ceiling during validation and admission; a `via` declaration does
-not author a second `effects` row.
+requirement's service-reach row and `suspends`/`blocks` fields are public
+ceilings. The realization's checked provider behavior is derived from its
+binding/provider contract and must refine every ceiling during validation and
+admission; a `via` declaration does not author a second copy of them.
 
 Checked adapters remain ordinary machines. A Console operation that obtains a
 handle and performs two writes is authored as an Omega body satisfying the
@@ -141,15 +161,16 @@ declaration species.
 
 Compiler, runtime, and provider steps may be internal (`tau`) only after
 projection through the machine's declared observation surface, subject to the
-observation requirements imposed by its calling context. Declared effects,
-authority, resource bounds, failure, cancellation, and temporal guarantees
-remain observable wherever the context requires them.
+observation requirements imposed by its calling context. Declared service
+reach, operational ceilings, authority, resource bounds, failure,
+cancellation, and temporal guarantees remain observable wherever the context
+requires them.
 
 This gives implementations room to refine or stutter internally without
 letting a machine self-certify away a real cost. In particular, a provider
 cannot call worker-thread occupation "unobservable" to become admissible in a
-no-block context. The context's effect/resource ceiling is the observation
-floor.
+no-block context. The context's service/operational/resource ceilings are the
+observation floor.
 
 ## States and transitions
 
@@ -180,7 +201,7 @@ effects happen to be implemented. See
    terminal return.
 3. A provider with a stronger result relation and no stronger requirements is
    admitted; one with a hidden extra effect is rejected.
-4. A machine cannot hide `Block` merely by omitting it from its chosen
+4. A machine cannot hide blocking merely by omitting it from its chosen
    observation vocabulary when the calling context forbids blocking.
 5. Internal scheduling steps may stutter without changing meaning when the
    contract deliberately abstracts them and the context permits that
