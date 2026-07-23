@@ -80,6 +80,15 @@ memory behavior, and suspension. Quantitative memory and retention bounds
 likewise belong to the resource algebra rather than a single `budget` clause
 or qualitative effect-row member.
 
+Hard external roots expose the intermediate structural tier explicitly.
+Admission may require a public maximum-work profile and compare it with the
+realized final artifact, while `terminates by` rankings, acyclic control flow,
+callee summaries, and codegen certificates remain private evidence. A
+compile-time ranking range can bound cyclic edges; it does not by itself bound
+transitive work or latency. Cathedral's first timer uses the trivial profile:
+acyclic final control flow and fixed-work admitted leaves. This proves finite
+structural work under provider contracts, not a portable deadline or WCET.
+
 ## Acceptance register
 
 1. An unranked cycle in a terminating machine rejects.

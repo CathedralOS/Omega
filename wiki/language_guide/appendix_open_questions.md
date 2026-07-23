@@ -49,8 +49,9 @@ Last pruned: 2026-07-18.
   calls, suspension/continuations, exceptions, interrupt stubs, veneers/thunks,
   and admitted foreign providers. Installation provenance prevents injection;
   it does not replace this separate control-transfer gate.
-- Finish constraint-bearing placement, fragmented symbolic materialization, and
-  the concrete x86 interrupt `CallPlan + StatePlan`/root-ledger records.
+- Finish constraint-bearing placement and fragmented symbolic materialization;
+  implement the settled Cathedral x86 exception/IRQ stack policy and extend the
+  root ledger with stack/work/state ceiling-realization-receipt columns.
 
 ## Domains, proofs, and arithmetic
 

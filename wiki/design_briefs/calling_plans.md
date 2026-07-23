@@ -285,6 +285,21 @@ deterministic fingerprint and `omega-artifacts` `external_roots.json` projection
 already report the exact normalized root/installation bindings and complete
 boundary plan without leaking numeric entry addresses.
 
+The required ledger extension uses one recording discipline across three
+independent resource columns: stack ceiling/realized WCSU/derivation evidence,
+structural-work ceiling/realized composed demand/control-flow evidence, and
+`StatePlan` ceiling/realized footprint/codegen evidence. Reports retain ceilings,
+realized facts, and validation receipts; private rankings and codegen proofs stay
+behind the evidence firewall. Structural work proves only a finite admitted
+operation path, not target WCET.
+
+Cathedral's first x86 policy is fixed: distinct ISTs for double fault, NMI, and
+machine check; one shared, non-reentrant per-CPU IST stack class for maskable
+external roots; IF clear until deriver-owned exit; save-all GPRs with a final
+transitive no-SIMD/x87 check; and a protocol-neutral linear acknowledgement. The
+timer hard root is acyclic fixed work and hands off through a preallocated
+coalescing wake to an ordinary timer-service task.
+
 ## Compiler-owned pieces
 
 Policies choose from closed placement and machine-state vocabularies. Compiler
@@ -513,8 +528,8 @@ Remaining order:
 - object-certificate composition and final-image validation format;
 - admitted indirect-call footprint contracts;
 - unwind/non-local-exit representation; and
-- the concrete x86 interrupt `StatePlan`, stack classes, and acknowledgement
-  requirement used by Cathedral's timer slice.
+- general quantitative resource/WCET algebra beyond the timer's structural
+  fixed-work profile.
 
 These are plan/checker/backend questions. They do not justify reviving
 `boundary(<Plan>)`, adding an interrupt machine species, or exposing code

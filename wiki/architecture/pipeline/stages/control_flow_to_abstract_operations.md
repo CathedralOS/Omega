@@ -118,8 +118,9 @@ shared target-state event. Program-entry StateEntry events join the normalized
 platform argument writes before either selection path begins; missing inbound
 code stays unlinked, and a later consume cannot stand in for establishment. The
 complete current ownership pass corpus is covered. Remaining gaps include
-state-exit actions that need code (owner-blocked on `OWNER_QUESTIONS.md` section
-6) and ownership forms not reached by current operation-site hooks.
+state-exit actions that need code (owner-blocked on the "automatic cleanup's
+graph-edge and partial-value contract" question in `OWNER_QUESTIONS.md`) and
+ownership forms not reached by current operation-site hooks.
 Compatibility move/drop rows remain upstream only and are deliberately ignored
 at this boundary.
 It preserves control-flow value summaries as abstract value summaries, but does
