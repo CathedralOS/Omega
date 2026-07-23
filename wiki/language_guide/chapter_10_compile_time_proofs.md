@@ -167,10 +167,17 @@ ensures equiv(f(a), f(b))
 }
 ```
 
-For a multi-argument operation, each varying carrier-argument pair needs its
-own relation premise. A boundary axiom may be cited as an assumption elsewhere,
-but cannot admit either an equivalence or a respect certificate: both require
-checked proof machines. Finally, proven
+This also applies to operations attached to the carrier. Their receiver is the
+first operand, so a receiver-only operation needs a premise for the paired
+receivers, while every varying explicit carrier argument adds another premise.
+An attached carrier operation used this way has a by-value receiver and is
+proof-side only: it does not install a method or reify a representative on the
+quotient. A borrowed or mutable receiver is still a forbidden runtime use of
+proof-only data. Operations attached to runtime data remain runtime operations
+and cannot accept proof-only values.
+A boundary axiom may be cited as an assumption elsewhere, but cannot admit
+either an equivalence or a respect certificate: both require checked proof
+machines. Finally, proven
 `equiv(a, b)` makes `(a as Real) == (b as Real)` a fact. Equality on a
 quotient means "same bucket," never "same representative".
 

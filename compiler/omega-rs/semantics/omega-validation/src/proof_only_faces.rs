@@ -65,6 +65,16 @@ pub(crate) fn validate_proof_only_consumption(
     }
 
     for machine in program.machines() {
+        // A computed proof machine emits no runtime code. This includes both
+        // free machines whose signatures mention proof-only values and
+        // by-value operations attached directly to a proof-only carrier; the
+        // latter's receiver is a proof term, never storage or runtime
+        // dispatch. Borrowed or mutable receivers intentionally fall through
+        // to the attached-storage fence below.
+        if classification.is_proof_machine(program, machine) {
+            continue;
+        }
+
         // The machine's own storage: `machine Main::main` runs ON `Main`.
         if let Some(attached) = machine.attached_data.as_ref()
             && let Some(definition) = program
@@ -91,16 +101,6 @@ pub(crate) fn validate_proof_only_consumption(
                     machine.name, contained.name
                 )));
             }
-        }
-
-        // A FREE machine whose signature mentions proof-only data is a
-        // PROOF MACHINE (machine-stratum contagion, N2d gateway): it emits
-        // no runtime code, so the param/local/return faces below do not
-        // apply -- the machine IS the fact position the module doc names.
-        // Attached machines fall through and refuse: their receiver is
-        // runtime storage.
-        if classification.is_proof_machine(program, machine) {
-            continue;
         }
 
         // Machine-owned data slots.

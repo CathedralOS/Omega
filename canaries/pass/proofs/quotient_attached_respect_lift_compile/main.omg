@@ -1,0 +1,82 @@
+// N6: an attached pure carrier operation lifts through its receiver when an
+// ordinary structural respect proof relates the two receiver results.
+data Representative {
+    case Zero;
+    case Next(previous: Representative);
+}
+
+machine equivalent(a: Representative, b: Representative) -> bool {
+    transition { _ -> (true) }
+}
+
+machine equivalent_reflexive(a: Representative)
+ensures equivalent(a, a)
+{
+}
+
+machine equivalent_symmetric(a: Representative, b: Representative)
+requires equivalent(a, b)
+ensures equivalent(b, a)
+{
+}
+
+machine equivalent_transitive(
+    a: Representative,
+    b: Representative,
+    c: Representative
+)
+requires
+    equivalent(a, b)
+    equivalent(b, c)
+ensures equivalent(a, c)
+{
+}
+
+data EquivalenceClass = Representative % equivalent;
+
+machine Representative::advance(self) -> Representative {
+    self
+}
+
+machine advance_respects(a: Representative, b: Representative)
+requires equivalent(a, b)
+ensures equivalent(a.advance(), b.advance())
+{
+}
+
+machine lifted_advance(value: EquivalenceClass) -> EquivalenceClass {
+    value.advance()
+}
+
+machine Representative::combine(self, other: Representative) -> Representative {
+    self
+}
+
+machine combine_respects(
+    left_a: Representative,
+    left_b: Representative,
+    right_a: Representative,
+    right_b: Representative
+)
+requires
+    equivalent(left_a, left_b)
+    equivalent(right_a, right_b)
+ensures equivalent(
+    left_a.combine(right_a),
+    left_b.combine(right_b)
+)
+{
+}
+
+machine lifted_combine(
+    left: EquivalenceClass,
+    right: EquivalenceClass
+) -> EquivalenceClass {
+    left.combine(right)
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
