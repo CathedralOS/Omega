@@ -4433,7 +4433,9 @@ enum StructuralTerm {
         case: String,
         fields: Vec<(String, StructuralTerm)>,
     },
-    /// A FREE call whose arguments all term-ify (`add(Nat::Zero, b)`).
+    /// A FREE call whose arguments all term-ify (`add(Nat::Zero, b)`). Static
+    /// machine selections are encoded in `machine`, so `f<A>` and `f<B>`
+    /// remain distinct terms and generic unfolding can alpha-substitute them.
     /// Resolution UNFOLDS it when the callee is a single-state proof
     /// machine of the case-arm shape and the matched argument resolves to
     /// a constructor -- the compute-mode of N3's operator routing.
@@ -4682,9 +4684,28 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         let program = self.program;
+        let (machine_name, selected_machines) = split_structural_machine_name(machine_name);
         let machine = program.machines().iter().find(|machine| {
             machine.attached_data.is_none() && machine.name.as_str() == machine_name
         })?;
+        let machine_parameters: Vec<&omega_typed_trees::data::TypeParameter> = program
+            .machine_type_parameters(machine)
+            .iter()
+            .filter(|parameter| {
+                matches!(
+                    parameter.kind,
+                    omega_typed_trees::data::TypeParameterKind::Machine { .. }
+                )
+            })
+            .collect();
+        if machine_parameters.len() != selected_machines.len() {
+            return None;
+        }
+        let machine_environment: Vec<(String, String)> = machine_parameters
+            .iter()
+            .zip(selected_machines)
+            .map(|(parameter, selected)| (parameter.name.as_str().to_owned(), selected.to_owned()))
+            .collect();
         let [state] = program.machine_states(machine) else {
             return None;
         };
@@ -4729,9 +4750,12 @@ impl<'program> StructuralJudge<'program> {
                     let ProofFact::Expression(expression) = fact else {
                         continue;
                     };
-                    if let Some(term) =
-                        self.functional_ensures_result(*expression, &environment, depth + 1)
-                    {
+                    if let Some(term) = self.functional_ensures_result(
+                        *expression,
+                        &environment,
+                        &machine_environment,
+                        depth + 1,
+                    ) {
                         return Some(term);
                     }
                 }
@@ -4750,7 +4774,12 @@ impl<'program> StructuralJudge<'program> {
                 continue; // exhaustiveness carrier, not shape
             }
             if let StatementNode::LocalData(local) = statement {
-                let term = self.callee_term(local.initial_value, &environment, depth + 1)?;
+                let term = self.callee_term_with_machines(
+                    local.initial_value,
+                    &environment,
+                    &machine_environment,
+                    depth + 1,
+                )?;
                 environment.push((local.name.as_str().to_owned(), term));
                 continue;
             }
@@ -4807,7 +4836,12 @@ impl<'program> StructuralJudge<'program> {
             else {
                 return None;
             };
-            return self.callee_term(*value, &environment, depth + 1);
+            return self.callee_term_with_machines(
+                *value,
+                &environment,
+                &machine_environment,
+                depth + 1,
+            );
         }
         None
     }
@@ -4819,6 +4853,7 @@ impl<'program> StructuralJudge<'program> {
         &self,
         ensures_fact: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
+        machine_environment: &[(String, String)],
         depth: usize,
     ) -> Option<StructuralTerm> {
         let program = self.program;
@@ -4846,7 +4881,7 @@ impl<'program> StructuralJudge<'program> {
         } else {
             return None;
         };
-        self.callee_term(value, environment, depth)
+        self.callee_term_with_machines(value, environment, machine_environment, depth)
     }
 
     /// Convert a callee-body expression to a term under the call
@@ -4857,6 +4892,16 @@ impl<'program> StructuralJudge<'program> {
         &self,
         expression: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
+        depth: usize,
+    ) -> Option<StructuralTerm> {
+        self.callee_term_with_machines(expression, environment, &[], depth)
+    }
+
+    fn callee_term_with_machines(
+        &self,
+        expression: ExpressionHandle,
+        environment: &[(String, StructuralTerm)],
+        machine_environment: &[(String, String)],
         depth: usize,
     ) -> Option<StructuralTerm> {
         if depth >= 32 {
@@ -4927,7 +4972,12 @@ impl<'program> StructuralJudge<'program> {
                 for field in program.expression_table.struct_fields(literal.fields) {
                     fields.push((
                         field.name.as_str().to_owned(),
-                        self.callee_term(field.value, environment, depth + 1)?,
+                        self.callee_term_with_machines(
+                            field.value,
+                            environment,
+                            machine_environment,
+                            depth + 1,
+                        )?,
                     ));
                 }
                 fields.sort_by(|(left, _), (right, _)| left.cmp(right));
@@ -4943,10 +4993,19 @@ impl<'program> StructuralJudge<'program> {
                 }
                 let mut arguments = Vec::new();
                 for argument in program.expression_table.expression_handles(call.arguments) {
-                    arguments.push(self.callee_term(*argument, environment, depth + 1)?);
+                    arguments.push(self.callee_term_with_machines(
+                        *argument,
+                        environment,
+                        machine_environment,
+                        depth + 1,
+                    )?);
                 }
                 Some(StructuralTerm::Application {
-                    machine: call.target.as_str().to_owned(),
+                    machine: structural_call_machine_name(
+                        call.target.as_str(),
+                        &call.machine_arguments,
+                        machine_environment,
+                    ),
                     arguments,
                 })
             }
@@ -6121,6 +6180,57 @@ fn constant_machine_constructor(program: &TypedTrees, name: &str) -> Option<Stru
     is_closed(&term).then_some(term)
 }
 
+/// Preserve compile-time machine selections in structural application
+/// identity. Static machine arguments are part of a call's meaning:
+/// `f<A>(x)` and `f<B>(x)` must never collapse to the same proof term.
+/// During generic body unfolding, selections are alpha-substituted through
+/// `machine_environment` (`Sequence` -> `unit_sample`) exactly as value
+/// parameters are substituted through the ordinary term environment.
+fn structural_call_machine_name(
+    target: &str,
+    machine_arguments: &[omega_typed_trees::expression::StaticMachineArgument],
+    machine_environment: &[(String, String)],
+) -> String {
+    let substitute = |name: String| {
+        machine_environment
+            .iter()
+            .find(|(parameter, _)| parameter == &name)
+            .map(|(_, selected)| selected.clone())
+            .unwrap_or(name)
+    };
+    let target = substitute(target.to_owned());
+    if machine_arguments.is_empty() {
+        return target;
+    }
+    let selected: Vec<String> = machine_arguments
+        .iter()
+        .map(|argument| {
+            let name = argument
+                .path
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            substitute(name)
+        })
+        .collect();
+    format!("{target}<{}>", selected.join(","))
+}
+
+fn split_structural_machine_name(name: &str) -> (&str, Vec<&str>) {
+    let Some((base, selected)) = name.split_once('<') else {
+        return (name, Vec::new());
+    };
+    let Some(selected) = selected.strip_suffix('>') else {
+        return (name, Vec::new());
+    };
+    if selected.is_empty() {
+        (base, Vec::new())
+    } else {
+        (base, selected.split(',').collect())
+    }
+}
+
 fn structural_term(program: &TypedTrees, expression: ExpressionHandle) -> Option<StructuralTerm> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
@@ -6182,7 +6292,11 @@ fn structural_term(program: &TypedTrees, expression: ExpressionHandle) -> Option
                     .collect();
                 if arguments.len() == handles.len() {
                     return Some(StructuralTerm::Application {
-                        machine: call.target.as_str().to_owned(),
+                        machine: structural_call_machine_name(
+                            call.target.as_str(),
+                            &call.machine_arguments,
+                            &[],
+                        ),
                         arguments,
                     });
                 }

@@ -23,7 +23,7 @@ requires
 {
     let left: Rat = Sequence(left_index);
     let right: Rat = Sequence(right_index);
-    rat_close(left, right, precision)
+    transition { _ -> (rat_close(left, right, precision)) }
 }
 
 machine converges_together_at<machine Left, machine Right, machine Modulus>(
@@ -41,5 +41,5 @@ requires
 {
     let left: Rat = Left(left_index);
     let right: Rat = Right(right_index);
-    rat_close(left, right, precision)
+    transition { _ -> (rat_close(left, right, precision)) }
 }
