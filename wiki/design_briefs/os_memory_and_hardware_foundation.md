@@ -1063,10 +1063,12 @@ settled concrete interrupt policy's implementation remain. Remaining order:
 8. Drive the ledger's provider-execution binding from compiler-selected plans
    and Cathedral's concrete providers. Materialize the complete exception IDT,
    provision the dedicated fault and shared maskable-IRQ IST stack classes,
-   connect checked `lidt`, and validate the final no-SIMD/save-all-GPR entry
-   stubs. The normalized execution binding, direct-destination materialization
-   receipt, record-before-publish IDT gate, artifact-wide WCSU composition, and
-   first Cathedral IRQ/fatal-fault acceptance rail are already live.
+   connect the generated checked `lidt` carrier to private-descriptor address
+   materialization, and validate the final no-SIMD/save-all-GPR entry stubs. The
+   normalized execution binding, direct-destination materialization receipt,
+   record-before-publish IDT gate, sealed prepared-load proof, exact x86
+   emission/footprint carrier, artifact-wide WCSU composition, and first
+   Cathedral IRQ/fatal-fault acceptance rail are already live.
 9. Build the PIT/PIC timer top half and its coalescing handoff to an ordinary
    timer-service task; then add the LAPIC one-shot provider without changing the
    root requirement.

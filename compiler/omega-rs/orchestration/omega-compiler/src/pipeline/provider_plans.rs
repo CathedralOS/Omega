@@ -8,6 +8,79 @@
 use omega_effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 use omega_typed_trees::TypedTrees;
 
+/// Closed compiler result for the provider's checked IDT publication step.
+/// The target operation retains the exact prepared table/ledger/control facts;
+/// its footprint is derived from the same x86 encoder contract that owns the
+/// final bytes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GeneratedIdtLoadLowering {
+    operation: omega_target_operations::TargetOperationKind,
+    footprint: omega_calling_conventions::StateFootprintEvidence,
+}
+
+impl GeneratedIdtLoadLowering {
+    pub const fn operation(&self) -> &omega_target_operations::TargetOperationKind {
+        &self.operation
+    }
+
+    pub const fn footprint(&self) -> &omega_calling_conventions::StateFootprintEvidence {
+        &self.footprint
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        omega_target_operations::TargetOperationKind,
+        omega_calling_conventions::StateFootprintEvidence,
+    ) {
+        (self.operation, self.footprint)
+    }
+}
+
+/// Lower the checked record-before-reachability carrier to the one
+/// deriver-only operation allowed to execute `lidt [r10]`. There is no
+/// abstract/source counterpart, and non-x86 targets fail closed.
+pub fn lower_prepared_idt_load(
+    prepared: &omega_external_roots::PreparedIdtLoad,
+    architecture: omega_target::Architecture,
+) -> Result<GeneratedIdtLoadLowering, omega_external_roots::ExternalRootDiagnostic> {
+    lower_prepared_idt_load_facts(
+        prepared.materialized(),
+        prepared.destination(),
+        prepared.content_fingerprint(),
+        prepared.root_ledger_fingerprint(),
+        prepared.control(),
+        architecture,
+    )
+}
+
+fn lower_prepared_idt_load_facts(
+    materialized: omega_external_roots::MaterializedIdtId,
+    descriptor: omega_external_roots::IdtDestinationId,
+    content_fingerprint: u64,
+    root_ledger_fingerprint: u64,
+    control: omega_external_roots::IdtControlId,
+    architecture: omega_target::Architecture,
+) -> Result<GeneratedIdtLoadLowering, omega_external_roots::ExternalRootDiagnostic> {
+    let Some(footprint) =
+        omega_instruction_selection::derive_generated_idt_load_footprint(architecture)
+    else {
+        return Err(omega_external_roots::ExternalRootDiagnostic(
+            "generated IDT load is x86_64-only; no AArch64 lowering exists".into(),
+        ));
+    };
+    Ok(GeneratedIdtLoadLowering {
+        operation: omega_target_operations::TargetOperationKind::GeneratedIdtLoad {
+            materialized,
+            descriptor,
+            content_fingerprint,
+            root_ledger_fingerprint,
+            control,
+        },
+        footprint,
+    })
+}
+
 /// Retain the exact validated selection on the checked program. Provider
 /// execution and compiler-generated helper machines consume this carrier;
 /// neither may reconstruct a plan by scanning authored `satisfies` rows.
@@ -503,6 +576,57 @@ pub(crate) fn select_provider_plan_names(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn prepared_idt_facts_lower_to_one_exact_generated_operation() {
+        let materialized = omega_external_roots::MaterializedIdtId::from_normalized_identity(11)
+            .expect("materialized IDT identity");
+        let descriptor = omega_external_roots::IdtDestinationId::from_normalized_identity(12)
+            .expect("IDT destination identity");
+        let control = omega_external_roots::IdtControlId::from_normalized_identity(13)
+            .expect("IDT control identity");
+        let lowering = lower_prepared_idt_load_facts(
+            materialized,
+            descriptor,
+            0x1234,
+            0x5678,
+            control,
+            omega_target::Architecture::X86_64,
+        )
+        .expect("prepared x86 IDT facts lower");
+        assert_eq!(
+            lowering.operation(),
+            &omega_target_operations::TargetOperationKind::GeneratedIdtLoad {
+                materialized,
+                descriptor,
+                content_fingerprint: 0x1234,
+                root_ledger_fingerprint: 0x5678,
+                control,
+            }
+        );
+        assert_eq!(
+            lowering.footprint().registers().as_slice(),
+            &[omega_calling_conventions::MachineRegister::X86R10]
+        );
+        assert!(lowering.footprint().machine_state().contains_all(
+            omega_calling_conventions::MachineStateSet::new([
+                omega_calling_conventions::MachineState::ControlState,
+            ])
+        ));
+        assert!(
+            lower_prepared_idt_load_facts(
+                materialized,
+                descriptor,
+                0x1234,
+                0x5678,
+                control,
+                omega_target::Architecture::Aarch64,
+            )
+            .expect_err("x86 IDT operation must reject on AArch64")
+            .0
+            .contains("x86_64-only")
+        );
+    }
 
     fn selection_plan(name: &str, methods: &[&str], rows: &[&str]) -> ProviderPlan {
         ProviderPlan {

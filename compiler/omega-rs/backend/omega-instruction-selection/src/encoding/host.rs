@@ -1253,6 +1253,13 @@ pub fn encode_interrupt_control_bytes(
     }
 }
 
+pub fn encode_generated_idt_load_bytes(architecture: Architecture) -> Option<Vec<u8>> {
+    match architecture {
+        Architecture::Aarch64 => None,
+        Architecture::X86_64 => Some(x86_64::encode_lidt_from_r10_bytes().to_vec()),
+    }
+}
+
 pub fn encode_runtime_storage_copy_to_return_register_bytes(
     architecture: Architecture,
     register: omega_calling_conventions::MachineRegister,

@@ -124,6 +124,8 @@ pub enum MachineInstructionKind {
     MemoryFence(omega_core::inline_assembly::AsmFenceKind),
     /// x86 CLI/STI interrupt-flag control.
     InterruptControl(omega_core::inline_assembly::AsmInterruptControlKind),
+    /// Compiler-generated, deriver-only `lidt [r10]` publication operation.
+    GeneratedIdtLoad,
     /// Compiler-balanced RFLAGS snapshot.
     FlagsSnapshot,
     /// Compiler-balanced RFLAGS restore.

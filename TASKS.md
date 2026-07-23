@@ -23,11 +23,13 @@ chapter 23.
 
 The checked x86 catalog includes structured control-register, MSR, flags,
 fence, and interrupt-mask operations. `iretq`, `sysret`/`sysretq`, `eret`, and
-the new `lidt` contract are deriver-only. `lidt` requires distinct `IdtControl`,
-reads the private descriptor through deriver scratch R10, records that exact
-clobber, and has a pinned `41 0f 01 1a` x86 encoding. User spelling rejects
-before operand lowering; only the installed-IDT provider path may consume it,
-so it cannot bypass the root ledger and create an effect/WCSU audit hole.
+the `lidt` contract are deriver-only. `lidt` requires distinct `IdtControl` and
+the private descriptor through deriver scratch R10. Its generated-only
+target/machine carrier retains the exact materialized-table, destination,
+content, root-ledger, and control identities, records R10 plus control state as
+its footprint, emits pinned `41 0f 01 1a` bytes, and rejects on AArch64. User
+spelling rejects before operand lowering; only a provider holding the sealed
+record-before-reachability preparation proof may request compiler lowering.
 
 The first ENT2 slice is implemented in `omega-calling-conventions`: normalized
 register/value-placement vocabularies, deterministic `CallPlan + StatePlan`
@@ -646,11 +648,17 @@ schemas recover the same instance without publishing policy type identity.
    the exact installed-artifact entry resolver, computes identity from the
    resulting bytes, and requires an exact code/artifact/destination/final-byte
    receipt plus the software-fault-free bootstrap verdict. Failure returns the
-   still-unpublished destination and all consumed inputs. Implement lowering of
-   this normalized writer as a compiler-generated checked Omega machine and the
-   provider lowering that supplies the private descriptor to the now-contracted
-   deriver-only `lidt` operation behind the live gate. Its exact x86
-   `lidt [r10]` encoding and source-rejection rail are already live.
+   still-unpublished destination and all consumed inputs. The checked
+   publication-operation carrier is now live: `prepare_idt_load` first proves
+   the exact live handles and ledger records, binds the unpublished descriptor
+   destination/content and `IdtControl`, and only that sealed proof can enter
+   compiler lowering. The generated target/machine operation retains those
+   facts, carries the exact R10 + control-state footprint, emits only pinned
+   x86 `lidt [r10]`, and rejects on AArch64; source spelling still rejects
+   before operand lowering. **Next:** lower the normalized writer as a
+   compiler-generated checked Omega machine, materialize its private descriptor
+   address into R10, and insert/execute this checked operation in the concrete
+   provider sequence.
 5. **IDT2 — installed-root ledger.** The normalized `omega-external-roots`
    foundation is live. It admits only an entry present in the exact
    installed artifact; consumes owner-scoped slot authority; and records
@@ -692,10 +700,13 @@ schemas recover the same instance without publishing policy type identity.
    bound of maximum maskable-root demand plus the permitted current-stack
    fatal-fault term.
    The normalized IDT publication transition also enforces record-before-`lidt`
-   ordering and retains every installed-root handle. **Next:** drive the
-   selected-plan/root binding from concrete Cathedral PIC/LAPIC candidate
-   construction, lower the normalized direct-destination writer into
-   checked Omega, and execute checked `lidt` behind the live publication gate.
+   ordering and retains every installed-root handle. A sealed prepared-load
+   carrier now prevents the generated checked `lidt` operation from being
+   constructed until that exact root/ledger/control gate succeeds. **Next:**
+   drive the selected-plan/root binding from concrete Cathedral PIC/LAPIC
+   candidate construction, lower the normalized direct-destination writer into
+   checked Omega, and connect descriptor-address materialization plus execution
+   of the generated load in the concrete provider.
    The stack/IST policy must remain one fact consumed by both layout
    materialization and WCSU analysis.
 6. **IDT3 — linear interrupt obligations.** The source contract is live in

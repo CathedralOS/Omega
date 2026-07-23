@@ -3,8 +3,56 @@ use omega_abstract_operations::{
     AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, AbstractPermissionEvent,
     AbstractSourceBoundaryEdge, AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
 };
-use omega_assigned_target_operations::AssignedTargetOperationPlan;
+use omega_assigned_target_operations::{
+    AssignedOperation, AssignedTargetOperationFunction, AssignedTargetOperationPlan,
+    SelectedInstructionKind,
+};
 use omega_core::symbols::SymbolHandle;
+
+#[test]
+fn generated_idt_load_retains_prepared_facts_in_machine_lowering() {
+    let mut assigned_operations = AssignedTargetOperationPlan::default();
+    let source_kind = SelectedInstructionKind::GeneratedIdtLoad {
+        materialized: omega_external_roots::MaterializedIdtId::from_normalized_identity(1)
+            .expect("materialized IDT identity"),
+        descriptor: omega_external_roots::IdtDestinationId::from_normalized_identity(2)
+            .expect("IDT destination identity"),
+        content_fingerprint: 3,
+        root_ledger_fingerprint: 4,
+        control: omega_external_roots::IdtControlId::from_normalized_identity(5)
+            .expect("IDT control identity"),
+    };
+    let instructions = assigned_operations
+        .code
+        .instructions
+        .insert_many([AssignedOperation {
+            kind: source_kind.clone(),
+            source_key: Default::default(),
+            source_statement: 0,
+        }]);
+    assigned_operations
+        .code
+        .functions
+        .insert(AssignedTargetOperationFunction {
+            instructions,
+            ..Default::default()
+        });
+
+    let machine = build_machine_instructions(&assigned_operations)
+        .expect("generated IDT operation should lower to machine carrier");
+    let instruction = machine
+        .code
+        .instructions
+        .iter()
+        .next()
+        .map(|(_, instruction)| instruction)
+        .expect("generated machine instruction");
+    assert_eq!(
+        instruction.kind,
+        omega_machine_instructions::MachineInstructionKind::GeneratedIdtLoad
+    );
+    assert_eq!(instruction.source_kind, source_kind);
+}
 
 #[test]
 fn copies_assigned_value_summary_to_machine_instruction_plan() {

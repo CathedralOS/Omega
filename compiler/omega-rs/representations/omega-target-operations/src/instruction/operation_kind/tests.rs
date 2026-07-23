@@ -70,4 +70,20 @@ fn operation_kinds_expose_control_domains() {
         TargetOperationKind::SetDispatchState { dispatch_index: 3 }.semantic_domain(),
         TargetOperationDomain::DispatchControl
     );
+    let idt_load = TargetOperationKind::GeneratedIdtLoad {
+        materialized: omega_external_roots::MaterializedIdtId::from_normalized_identity(1)
+            .expect("materialized IDT identity"),
+        descriptor: omega_external_roots::IdtDestinationId::from_normalized_identity(2)
+            .expect("IDT destination identity"),
+        content_fingerprint: 3,
+        root_ledger_fingerprint: 4,
+        control: omega_external_roots::IdtControlId::from_normalized_identity(5)
+            .expect("IDT control identity"),
+    };
+    assert_eq!(
+        idt_load.semantic_domain(),
+        TargetOperationDomain::MachineControl
+    );
+    assert!(!idt_load.crosses_host_boundary());
+    assert!(!idt_load.touches_runtime_storage());
 }

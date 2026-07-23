@@ -404,6 +404,13 @@ pub fn interrupt_control_width(architecture: Architecture) -> Option<usize> {
     }
 }
 
+pub fn generated_idt_load_width(architecture: Architecture) -> Option<usize> {
+    match architecture {
+        Architecture::Aarch64 => None,
+        Architecture::X86_64 => Some(x86_64::lidt_from_r10_width()),
+    }
+}
+
 /// RFLAGS value operations are x86_64-only. Layout/encoding reject other
 /// architectures before using these target-specific helpers.
 pub fn flags_snapshot_width() -> usize {

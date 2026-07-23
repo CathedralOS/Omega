@@ -831,6 +831,15 @@ fn selected_instruction_name(
         SelectedInstructionKind::InterruptControl(kind) => {
             format!("interrupt control ({})", kind.mnemonic())
         }
+        SelectedInstructionKind::GeneratedIdtLoad {
+            materialized,
+            descriptor,
+            content_fingerprint,
+            root_ledger_fingerprint,
+            control,
+        } => format!(
+            "generated IDT publication load (lidt [r10]) materialized={materialized:?} descriptor={descriptor:?} content={content_fingerprint:016x} ledger={root_ledger_fingerprint:016x} control={control:?}"
+        ),
         SelectedInstructionKind::FlagsSnapshot {
             dest_byte_offset, ..
         } => format!("RFLAGS snapshot -> +{dest_byte_offset}"),
