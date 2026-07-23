@@ -653,8 +653,11 @@ schemas recover the same instance without publishing policy type identity.
    private ranking and codegen proofs. Fixed-work summaries fail closed on
    missing providers, cycles, zero multiplicities, arithmetic overflow, and a
    final demand above the root ceiling; they prove finite structural work, not
-   WCET. **Next:** instantiate the first timer's acyclic acknowledgement,
-   clock, wake, and return leaf summaries, then connect the admitted result to
+   WCET. The first Cathedral timer profile is now instantiated in that model as
+   a five-node acceptance canary: one root reaches acknowledgement,
+   clock-capture, preallocated coalescing-wake, and return leaves exactly once;
+   presentation order is identity-inert, while a missing leaf or recursion
+   behind acknowledgement rejects. **Next:** connect that admitted result to
    provider execution and WCSU composition. Add `lidt` only as an installation
    path through it; the stack/IST policy must remain one fact consumed by both
    layout materialization and WCSU analysis.
