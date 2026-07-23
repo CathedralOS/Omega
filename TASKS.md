@@ -716,10 +716,14 @@ schemas recover the same instance without publishing policy type identity.
    root fingerprint, `ProviderExecution` derives it from the validated root
    instead of accepting a late independent ID, and the compiler resolves the
    boundary slot only from its retained selected-plan set. Missing or ambiguous
-   retained slots reject. Cathedral's acceptance
-   canaries pin both the five-node fixed timer work graph and the shared-IRQ
-   bound of maximum maskable-root demand plus the permitted current-stack
-   fatal-fault term.
+   retained slots reject. A source-level timer acceptance test now authors the
+   complete x86 `InterruptReturn` policy with dedicated stack class, masked
+   preemption, and exact saved/restored state; the same plan fingerprint
+   survives the boundary schema, selected provider plan, and external-root
+   bridge rather than being reconstructed from a Rust fixture. Cathedral's
+   acceptance canaries pin both the five-node fixed timer work graph and the
+   shared-IRQ bound of maximum maskable-root demand plus the permitted
+   current-stack fatal-fault term.
    The normalized IDT publication transition also enforces record-before-`lidt`
    ordering and retains every installed-root handle. A sealed prepared-load
    carrier now prevents the generated checked `lidt` operation from being

@@ -1,5 +1,10 @@
-use omega_calling_conventions::{CallSignature, CallingPolicy, ValueShape};
-use omega_compiler::{compile_to_checked, evaluate_calling_policy_plan};
+use omega_calling_conventions::{
+    CallSignature, CallingPolicy, EntryControl, EntryStack, MachineState, MachineStateSet,
+    Preemption, ValueShape,
+};
+use omega_compiler::{
+    compile_to_checked, evaluate_calling_policy_plan, selected_external_root_provider_plan_id,
+};
 use std::fs;
 use std::path::PathBuf;
 
@@ -52,6 +57,107 @@ boundary trait Tick: Calling<NoResultPolicy> {
 data Main { }
 machine Main::main(&mut self) { }
 "#;
+
+const INTERRUPT_POLICY: &str = r#"
+use omega::language::std::calling;
+
+data X86InterruptPolicy { }
+
+machine X86InterruptPolicy::plan(
+    signature: BoundarySignature
+) -> BoundaryPlanResult
+    satisfies CallingPolicy::plan
+{
+    let mut output: BoundaryEntryPlan;
+    output.call.convention = CallingConvention::SystemVAMD64;
+    output.call.stack_alignment = 16;
+    output.call.entry_control = EntryControl::InterruptReturn;
+    output.state.initial_regime = MachineRegime::X86Long64;
+    output.state.interrupted_state.general_registers = true;
+    output.state.interrupted_state.vector_registers = true;
+    output.state.interrupted_state.flags = true;
+    output.state.interrupted_state.instruction_pointer = true;
+    output.state.interrupted_state.stack_pointer = true;
+    output.state.saved_state.general_registers = true;
+    output.state.saved_state.flags = true;
+    output.state.saved_state.instruction_pointer = true;
+    output.state.saved_state.stack_pointer = true;
+    output.state.restored_state.general_registers = true;
+    output.state.restored_state.flags = true;
+    output.state.restored_state.instruction_pointer = true;
+    output.state.restored_state.stack_pointer = true;
+    output.state.stack = EntryStack::Dedicated { class: 1 };
+    output.state.preemption = Preemption::Masked;
+    BoundaryPlanResult::Accepted { plan: output }
+}
+
+boundary trait TimerRoot: Calling<X86InterruptPolicy> {
+    machine tick();
+}
+
+machine timer_leaf()
+    satisfies TimerRoot::tick
+    via Binding::VtableSlot(0);
+
+data Main { }
+machine Main::main(&mut self) { }
+"#;
+
+#[test]
+fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
+    let main_path = write_program("interrupt-entry", INTERRUPT_POLICY);
+    let checked = compile_to_checked(&main_path, None).expect("interrupt policy should compile");
+    let validated = evaluate_calling_policy_plan(
+        &checked.typed,
+        "X86InterruptPolicy::plan",
+        &CallSignature::default(),
+    )
+    .expect("interrupt policy should validate");
+    let plan = validated.plan();
+
+    assert_eq!(plan.call.policy, CallingPolicy::SystemVAMD64);
+    assert_eq!(plan.call.entry_control, EntryControl::InterruptReturn);
+    assert_eq!(plan.state.stack, EntryStack::Dedicated { class: 1 });
+    assert_eq!(plan.state.preemption, Preemption::Masked);
+    let saved = MachineStateSet::new([
+        MachineState::GeneralRegisters,
+        MachineState::Flags,
+        MachineState::InstructionPointer,
+        MachineState::StackPointer,
+    ]);
+    assert_eq!(plan.state.saved_state, saved);
+    assert_eq!(plan.state.restored_state, saved);
+    assert!(
+        plan.state
+            .interrupted_state
+            .contains_all(saved.union(MachineStateSet::new([MachineState::VectorRegisters])))
+    );
+
+    let timer = checked
+        .typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "TimerRoot")
+        .expect("TimerRoot boundary trait");
+    let schema = omega_effects::provider_plan::ServiceSchema::from_typed(&checked.typed, timer)
+        .expect("TimerRoot service schema");
+    assert_eq!(
+        schema.methods[0].calling_plan_fingerprint,
+        Some(validated.contract_fingerprint())
+    );
+    let selected = checked
+        .selected_provider_plans()
+        .plan_by_name("satisfies::TimerRoot")
+        .expect("selected TimerRoot provider plan");
+    assert_eq!(selected.rows.len(), 1);
+    assert_eq!(
+        selected_external_root_provider_plan_id(&checked, "TimerRoot")
+            .expect("external-root bridge should retain the selected timer plan")
+            .normalized_identity(),
+        selected.identity_fingerprint()
+    );
+    let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
+}
 
 #[test]
 fn source_policy_receives_signature_and_publishes_only_validated_acceptance() {
