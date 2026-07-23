@@ -647,20 +647,26 @@ schemas recover the same instance without publishing policy type identity.
    fingerprint over exact root/realization/slot/admission bindings, and
    `omega-artifacts` emits `external_roots.json` directly from that ledger.
    The record/report now has three independently validated columns: stack
-   ceiling plus local/composed WCSU, structural-work ceiling plus canonical
-   transitive fixed-work demand, and `StatePlan` ceiling plus realized final
-   footprint. Each retains normalized validation receipts while excluding
-   private ranking and codegen proofs. Fixed-work summaries fail closed on
-   missing providers, cycles, zero multiplicities, arithmetic overflow, and a
-   final demand above the root ceiling; they prove finite structural work, not
-   WCET. The first Cathedral timer profile is now instantiated in that model as
-   a five-node acceptance canary: one root reaches acknowledgement,
-   clock-capture, preallocated coalescing-wake, and return leaves exactly once;
-   presentation order is identity-inert, while a missing leaf or recursion
-   behind acknowledgement rejects. **Next:** connect that admitted result to
-   provider execution and WCSU composition. Add `lidt` only as an installation
-   path through it; the stack/IST policy must remain one fact consumed by both
-   layout materialization and WCSU analysis.
+   ceiling plus sealed artifact-wide WCSU composition, structural-work ceiling
+   plus canonical transitive fixed-work demand, and `StatePlan` ceiling plus
+   realized final footprint. Each retains normalized validation receipts while
+   excluding private ranking and codegen proofs. Fixed-work summaries fail
+   closed on missing providers, cycles, zero multiplicities, arithmetic
+   overflow, and a final demand above the root ceiling; they prove finite
+   structural work, not WCET. Stack composition consumes provider-local demand,
+   the exact normalized `EntryStack`, and one complete nesting relation;
+   interrupted-stack entries add with alignment, distinct dedicated classes
+   switch domains, sequential roots sharing a class combine by maximum, and
+   cycles, missing endpoints, unknown nested provider-selected stacks,
+   arithmetic overflow, or re-entry of an active dedicated class reject. The
+   ledger requires every installed root to carry the same artifact-wide
+   composition fingerprint. Cathedral's acceptance canaries now pin both the
+   five-node fixed timer work graph and the shared-IRQ bound of maximum
+   maskable-root demand plus the permitted current-stack fatal-fault term.
+   **Next:** connect these admitted work/stack results to concrete provider
+   execution. Add `lidt` only as an installation path through it; the stack/IST
+   policy must remain one fact consumed by both layout materialization and WCSU
+   analysis.
 6. **IDT3 — linear interrupt obligations.** The source contract is live in
    `omega::language::core::interrupt`: opaque linear `InterruptMaskGuard` and
    `InterruptAcknowledgement` values have explicit consuming `restore` and

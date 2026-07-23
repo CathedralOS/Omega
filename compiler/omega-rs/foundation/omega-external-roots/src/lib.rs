@@ -10,8 +10,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_calling_conventions::{
-    BoundaryEntryPlan, MachineRegister, StateFootprintEvidence, ValidatedBoundaryEntryPlan,
-    validate_state_footprint,
+    BoundaryEntryPlan, EntryStack, MachineRegister, StateFootprintEvidence,
+    ValidatedBoundaryEntryPlan, validate_state_footprint,
 };
 use omega_executable_installation::{ArtifactId, InstalledCode, InstalledCodeId};
 use omega_layout_plans::EntryStubId;
@@ -77,16 +77,432 @@ pub struct ComponentVersionPin {
     pub version: ComponentVersionPinId,
 }
 
-/// Stack provisioning admitted for one external root. The stack domain itself
-/// is the single normalized value in `BoundaryEntryPlan::state.stack`; this
-/// column adds the independent quantitative ceiling and final composed WCSU.
+/// One provider's validated local stack demand for an external entry.
+///
+/// `stack` is copied from the entry's normalized `StatePlan`; composition and
+/// final root admission verify that it has not drifted from that source fact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StackResourceColumn {
-    pub ceiling_bytes: u64,
+pub struct ProviderStackSummary {
+    pub root: ExternalRootId,
+    pub provider: RootProviderId,
+    pub stack: EntryStack,
     pub local_wcsu_bytes: u64,
-    pub composed_wcsu_bytes: u64,
     pub wcsu_alignment: u64,
     pub validation_receipt: StackValidationReceiptId,
+}
+
+/// One possible asynchronous preemption in an artifact-wide nesting relation.
+/// `preemptor` may enter while `interrupted` is live.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct StackNestingEdge {
+    pub interrupted: ExternalRootId,
+    pub preemptor: ExternalRootId,
+}
+
+/// Exact architecture/provider nesting graph consumed by stack composition.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StackNestingRelation {
+    pub identity: NestingRelationId,
+    pub edges: BTreeSet<StackNestingEdge>,
+}
+
+/// Provisioning domain produced from the one normalized `EntryStack` fact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum StackDomain {
+    Interrupted,
+    Dedicated { class: u16 },
+    ProviderSelected,
+}
+
+/// Canonical transitive stack result for one external root. Private fields
+/// prevent an unaudited caller-authored composed WCSU from entering the ledger.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComposedStackDemand {
+    root: ExternalRootId,
+    root_provider: RootProviderId,
+    relation: NestingRelationId,
+    stack: EntryStack,
+    local_wcsu_bytes: u64,
+    composed_wcsu_bytes: u64,
+    wcsu_alignment: u64,
+    contributing_roots: BTreeSet<ExternalRootId>,
+    validation_receipts: BTreeSet<StackValidationReceiptId>,
+    artifact_composition_fingerprint: u64,
+    composition_fingerprint: u64,
+}
+
+impl ComposedStackDemand {
+    pub const fn root(&self) -> ExternalRootId {
+        self.root
+    }
+
+    pub const fn root_provider(&self) -> RootProviderId {
+        self.root_provider
+    }
+
+    pub const fn relation(&self) -> NestingRelationId {
+        self.relation
+    }
+
+    pub const fn stack(&self) -> EntryStack {
+        self.stack
+    }
+
+    pub const fn local_wcsu_bytes(&self) -> u64 {
+        self.local_wcsu_bytes
+    }
+
+    pub const fn composed_wcsu_bytes(&self) -> u64 {
+        self.composed_wcsu_bytes
+    }
+
+    pub const fn wcsu_alignment(&self) -> u64 {
+        self.wcsu_alignment
+    }
+
+    pub const fn contributing_roots(&self) -> &BTreeSet<ExternalRootId> {
+        &self.contributing_roots
+    }
+
+    pub const fn validation_receipts(&self) -> &BTreeSet<StackValidationReceiptId> {
+        &self.validation_receipts
+    }
+
+    pub const fn composition_fingerprint(&self) -> u64 {
+        self.composition_fingerprint
+    }
+
+    pub const fn artifact_composition_fingerprint(&self) -> u64 {
+        self.artifact_composition_fingerprint
+    }
+}
+
+/// Canonical artifact-wide WCSU result. Per-domain provisioning takes the
+/// maximum of roots that begin in that domain; sequential entries reuse the
+/// same storage instead of being summed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArtifactStackComposition {
+    relation: NestingRelationId,
+    demands: BTreeMap<ExternalRootId, ComposedStackDemand>,
+    domain_wcsu_bytes: BTreeMap<StackDomain, u64>,
+    domain_alignments: BTreeMap<StackDomain, u64>,
+    composition_fingerprint: u64,
+}
+
+impl ArtifactStackComposition {
+    pub const fn relation(&self) -> NestingRelationId {
+        self.relation
+    }
+
+    pub fn demand(&self, root: ExternalRootId) -> Option<&ComposedStackDemand> {
+        self.demands.get(&root)
+    }
+
+    pub fn domain_wcsu_bytes(&self, domain: StackDomain) -> Option<u64> {
+        self.domain_wcsu_bytes.get(&domain).copied()
+    }
+
+    pub fn domain_alignment(&self, domain: StackDomain) -> Option<u64> {
+        self.domain_alignments.get(&domain).copied()
+    }
+
+    pub const fn composition_fingerprint(&self) -> u64 {
+        self.composition_fingerprint
+    }
+}
+
+/// Stack provisioning admitted for one external root. The stack domain itself
+/// remains the single value in `BoundaryEntryPlan::state.stack`; this column
+/// adds a ceiling and the sealed artifact-wide composition that refines it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StackResourceColumn {
+    pub ceiling_bytes: u64,
+    pub realization: ComposedStackDemand,
+    pub validation_receipt: StackValidationReceiptId,
+}
+
+/// Compose every provider stack summary under one exact artifact-wide nesting
+/// relation. Interrupted-stack entries add (with alignment) to the active
+/// domain. Dedicated entries switch domains. Re-entering a dedicated class
+/// that is already active is rejected because provisioning cannot make such a
+/// reset-style stack switch preserve the suspended frames.
+pub fn compose_artifact_stacks<'a>(
+    relation: &StackNestingRelation,
+    summaries: impl IntoIterator<Item = &'a ProviderStackSummary>,
+) -> Result<ArtifactStackComposition, ExternalRootDiagnostic> {
+    let mut by_root = BTreeMap::new();
+    for summary in summaries {
+        if summary.local_wcsu_bytes == 0 {
+            return Err(ExternalRootDiagnostic(format!(
+                "provider stack summary for root 0x{:016x} has zero local WCSU",
+                summary.root.normalized_identity()
+            )));
+        }
+        if summary.wcsu_alignment == 0 || !summary.wcsu_alignment.is_power_of_two() {
+            return Err(ExternalRootDiagnostic(format!(
+                "provider stack summary for root 0x{:016x} has alignment {} instead of a nonzero power of two",
+                summary.root.normalized_identity(),
+                summary.wcsu_alignment
+            )));
+        }
+        if by_root.insert(summary.root, summary).is_some() {
+            return Err(ExternalRootDiagnostic(format!(
+                "provider stack summary for root 0x{:016x} is duplicated",
+                summary.root.normalized_identity()
+            )));
+        }
+    }
+    if by_root.is_empty() {
+        return Err(ExternalRootDiagnostic(
+            "artifact stack composition requires at least one provider summary".into(),
+        ));
+    }
+
+    let mut outgoing: BTreeMap<ExternalRootId, Vec<ExternalRootId>> = BTreeMap::new();
+    for edge in &relation.edges {
+        if !by_root.contains_key(&edge.interrupted) {
+            return Err(ExternalRootDiagnostic(format!(
+                "stack nesting relation references missing interrupted root 0x{:016x}",
+                edge.interrupted.normalized_identity()
+            )));
+        }
+        let preemptor = by_root.get(&edge.preemptor).ok_or_else(|| {
+            ExternalRootDiagnostic(format!(
+                "stack nesting relation references missing preemptor root 0x{:016x}",
+                edge.preemptor.normalized_identity()
+            ))
+        })?;
+        if preemptor.stack == EntryStack::ProviderSelected {
+            return Err(ExternalRootDiagnostic(format!(
+                "provider-selected stack for nested root 0x{:016x} does not determine whether the active stack is shared or switched",
+                edge.preemptor.normalized_identity()
+            )));
+        }
+        outgoing
+            .entry(edge.interrupted)
+            .or_default()
+            .push(edge.preemptor);
+    }
+
+    let mut visiting = BTreeSet::new();
+    let mut visited = BTreeSet::new();
+    for root in by_root.keys().copied() {
+        reject_stack_cycle(root, &outgoing, &mut visiting, &mut visited)?;
+    }
+    for root in by_root.keys().copied() {
+        let mut active_classes = BTreeSet::new();
+        reject_dedicated_stack_reentry(root, &outgoing, &by_root, &mut active_classes)?;
+    }
+
+    let input_fingerprint = fingerprint_stack_inputs(relation, &by_root);
+    let mut demands = BTreeMap::new();
+    let mut domain_wcsu_bytes = BTreeMap::new();
+    let mut domain_alignments = BTreeMap::new();
+    for (root, summary) in &by_root {
+        let mut contributing_roots = BTreeSet::from([*root]);
+        let mut validation_receipts = BTreeSet::from([summary.validation_receipt]);
+        let (composed_wcsu_bytes, wcsu_alignment) = compose_active_stack_peak(
+            *root,
+            summary.local_wcsu_bytes,
+            summary.wcsu_alignment,
+            &outgoing,
+            &by_root,
+            &mut contributing_roots,
+            &mut validation_receipts,
+        )?;
+        let domain = stack_domain(summary.stack);
+        domain_wcsu_bytes
+            .entry(domain)
+            .and_modify(|bytes: &mut u64| *bytes = (*bytes).max(composed_wcsu_bytes))
+            .or_insert(composed_wcsu_bytes);
+        domain_alignments
+            .entry(domain)
+            .and_modify(|alignment: &mut u64| *alignment = (*alignment).max(wcsu_alignment))
+            .or_insert(wcsu_alignment);
+
+        let mut fingerprint = Fnv1a::new();
+        fingerprint.u64(input_fingerprint);
+        fingerprint.u64(root.normalized_identity());
+        fingerprint.u64(composed_wcsu_bytes);
+        fingerprint.u64(wcsu_alignment);
+        for contributor in &contributing_roots {
+            fingerprint.u64(contributor.normalized_identity());
+        }
+        demands.insert(
+            *root,
+            ComposedStackDemand {
+                root: *root,
+                root_provider: summary.provider,
+                relation: relation.identity,
+                stack: summary.stack,
+                local_wcsu_bytes: summary.local_wcsu_bytes,
+                composed_wcsu_bytes,
+                wcsu_alignment,
+                contributing_roots,
+                validation_receipts,
+                artifact_composition_fingerprint: input_fingerprint,
+                composition_fingerprint: fingerprint.finish(),
+            },
+        );
+    }
+    Ok(ArtifactStackComposition {
+        relation: relation.identity,
+        demands,
+        domain_wcsu_bytes,
+        domain_alignments,
+        composition_fingerprint: input_fingerprint,
+    })
+}
+
+fn reject_stack_cycle(
+    root: ExternalRootId,
+    outgoing: &BTreeMap<ExternalRootId, Vec<ExternalRootId>>,
+    visiting: &mut BTreeSet<ExternalRootId>,
+    visited: &mut BTreeSet<ExternalRootId>,
+) -> Result<(), ExternalRootDiagnostic> {
+    if visited.contains(&root) {
+        return Ok(());
+    }
+    if !visiting.insert(root) {
+        return Err(ExternalRootDiagnostic(format!(
+            "stack nesting relation contains a cycle through root 0x{:016x}",
+            root.normalized_identity()
+        )));
+    }
+    if let Some(preemptors) = outgoing.get(&root) {
+        for preemptor in preemptors {
+            reject_stack_cycle(*preemptor, outgoing, visiting, visited)?;
+        }
+    }
+    visiting.remove(&root);
+    visited.insert(root);
+    Ok(())
+}
+
+fn reject_dedicated_stack_reentry(
+    root: ExternalRootId,
+    outgoing: &BTreeMap<ExternalRootId, Vec<ExternalRootId>>,
+    summaries: &BTreeMap<ExternalRootId, &ProviderStackSummary>,
+    active_classes: &mut BTreeSet<u16>,
+) -> Result<(), ExternalRootDiagnostic> {
+    let stack = summaries
+        .get(&root)
+        .expect("nesting root has summary")
+        .stack;
+    let inserted = match stack {
+        EntryStack::Dedicated { class } => {
+            if !active_classes.insert(class) {
+                return Err(ExternalRootDiagnostic(format!(
+                    "stack nesting path re-enters active dedicated class {} at root 0x{:016x}",
+                    class,
+                    root.normalized_identity()
+                )));
+            }
+            Some(class)
+        }
+        EntryStack::Interrupted | EntryStack::ProviderSelected => None,
+    };
+    if let Some(preemptors) = outgoing.get(&root) {
+        for preemptor in preemptors {
+            reject_dedicated_stack_reentry(*preemptor, outgoing, summaries, active_classes)?;
+        }
+    }
+    if let Some(class) = inserted {
+        active_classes.remove(&class);
+    }
+    Ok(())
+}
+
+fn compose_active_stack_peak(
+    root: ExternalRootId,
+    current_bytes: u64,
+    current_alignment: u64,
+    outgoing: &BTreeMap<ExternalRootId, Vec<ExternalRootId>>,
+    summaries: &BTreeMap<ExternalRootId, &ProviderStackSummary>,
+    contributing_roots: &mut BTreeSet<ExternalRootId>,
+    validation_receipts: &mut BTreeSet<StackValidationReceiptId>,
+) -> Result<(u64, u64), ExternalRootDiagnostic> {
+    let mut peak = current_bytes;
+    let mut alignment = current_alignment;
+    if let Some(preemptors) = outgoing.get(&root) {
+        for preemptor in preemptors {
+            let summary = summaries
+                .get(preemptor)
+                .expect("nesting preemptor has summary");
+            if summary.stack != EntryStack::Interrupted {
+                continue;
+            }
+            contributing_roots.insert(*preemptor);
+            validation_receipts.insert(summary.validation_receipt);
+            let aligned = align_up_checked(current_bytes, summary.wcsu_alignment)?;
+            let nested_bytes = aligned
+                .checked_add(summary.local_wcsu_bytes)
+                .ok_or_else(|| {
+                    ExternalRootDiagnostic("stack WCSU composition addition overflowed".into())
+                })?;
+            let (nested_peak, nested_alignment) = compose_active_stack_peak(
+                *preemptor,
+                nested_bytes,
+                current_alignment.max(summary.wcsu_alignment),
+                outgoing,
+                summaries,
+                contributing_roots,
+                validation_receipts,
+            )?;
+            peak = peak.max(nested_peak);
+            alignment = alignment.max(nested_alignment);
+        }
+    }
+    Ok((peak, alignment))
+}
+
+fn align_up_checked(value: u64, alignment: u64) -> Result<u64, ExternalRootDiagnostic> {
+    value
+        .checked_add(alignment - 1)
+        .map(|sum| sum & !(alignment - 1))
+        .ok_or_else(|| ExternalRootDiagnostic("stack WCSU alignment overflowed".into()))
+}
+
+const fn stack_domain(stack: EntryStack) -> StackDomain {
+    match stack {
+        EntryStack::Interrupted => StackDomain::Interrupted,
+        EntryStack::Dedicated { class } => StackDomain::Dedicated { class },
+        EntryStack::ProviderSelected => StackDomain::ProviderSelected,
+    }
+}
+
+fn fingerprint_stack_inputs(
+    relation: &StackNestingRelation,
+    summaries: &BTreeMap<ExternalRootId, &ProviderStackSummary>,
+) -> u64 {
+    let mut hash = Fnv1a::new();
+    hash.u64(relation.identity.normalized_identity());
+    hash.u64(summaries.len() as u64);
+    for summary in summaries.values() {
+        hash.u64(summary.root.normalized_identity());
+        hash.u64(summary.provider.normalized_identity());
+        fingerprint_entry_stack(&mut hash, summary.stack);
+        hash.u64(summary.local_wcsu_bytes);
+        hash.u64(summary.wcsu_alignment);
+        hash.u64(summary.validation_receipt.normalized_identity());
+    }
+    hash.u64(relation.edges.len() as u64);
+    for edge in &relation.edges {
+        hash.u64(edge.interrupted.normalized_identity());
+        hash.u64(edge.preemptor.normalized_identity());
+    }
+    hash.finish()
+}
+
+fn fingerprint_entry_stack(hash: &mut Fnv1a, stack: EntryStack) {
+    match stack {
+        EntryStack::Interrupted => hash.u64(0),
+        EntryStack::Dedicated { class } => {
+            hash.u64(1);
+            hash.u64(u64::from(class));
+        }
+        EntryStack::ProviderSelected => hash.u64(2),
+    }
 }
 
 /// One bounded call edge in a fixed-work provider summary. Multiplicity is
@@ -338,26 +754,32 @@ pub fn validate_external_root(
     candidate: ExternalRootCandidate,
     boundary: &ValidatedBoundaryEntryPlan,
 ) -> Result<ValidatedExternalRoot, ExternalRootDiagnostic> {
-    if candidate.stack.ceiling_bytes == 0
-        || candidate.stack.local_wcsu_bytes == 0
-        || candidate.stack.composed_wcsu_bytes == 0
-    {
+    if candidate.stack.ceiling_bytes == 0 {
         return Err(ExternalRootDiagnostic(
-            "external-root stack ceiling and WCSU demands must be nonzero".into(),
+            "external-root stack ceiling must be nonzero".into(),
         ));
     }
-    if candidate.stack.wcsu_alignment == 0 || !candidate.stack.wcsu_alignment.is_power_of_two() {
-        return Err(ExternalRootDiagnostic(format!(
-            "external-root WCSU alignment {} is not a nonzero power of two",
-            candidate.stack.wcsu_alignment
-        )));
-    }
-    if candidate.stack.local_wcsu_bytes > candidate.stack.composed_wcsu_bytes {
+    if candidate.stack.realization.root() != candidate.identity {
         return Err(ExternalRootDiagnostic(
-            "external-root composed WCSU cannot be smaller than local WCSU".into(),
+            "external-root stack realization does not name the candidate root".into(),
         ));
     }
-    if candidate.stack.composed_wcsu_bytes > candidate.stack.ceiling_bytes {
+    if candidate.stack.realization.root_provider() != candidate.provider {
+        return Err(ExternalRootDiagnostic(
+            "external-root stack realization provider does not match the selected provider".into(),
+        ));
+    }
+    if candidate.stack.realization.relation() != candidate.nesting_relation {
+        return Err(ExternalRootDiagnostic(
+            "external-root stack realization does not use the selected nesting relation".into(),
+        ));
+    }
+    if candidate.stack.realization.stack() != boundary.plan().state.stack {
+        return Err(ExternalRootDiagnostic(
+            "external-root stack realization does not match the boundary StatePlan stack".into(),
+        ));
+    }
+    if candidate.stack.realization.composed_wcsu_bytes() > candidate.stack.ceiling_bytes {
         return Err(ExternalRootDiagnostic(
             "external-root composed WCSU exceeds the admitted stack ceiling".into(),
         ));
@@ -585,6 +1007,28 @@ impl InstalledRootLedger {
                 admission,
             );
         }
+        if let Some(existing) = self.roots.values().next()
+            && (existing.nesting_relation != root.candidate.nesting_relation
+                || existing
+                    .stack
+                    .realization
+                    .artifact_composition_fingerprint()
+                    != root
+                        .candidate
+                        .stack
+                        .realization
+                        .artifact_composition_fingerprint())
+        {
+            return reject(
+                ExternalRootDiagnostic(
+                    "external-root stack realization does not match the ledger's artifact-wide nesting composition"
+                        .into(),
+                ),
+                root,
+                slot,
+                admission,
+            );
+        }
         if installed_code
             .selected_entry_target(root.candidate.entry)
             .is_err()
@@ -771,9 +1215,26 @@ fn fingerprint_root(candidate: &ExternalRootCandidate, boundary: u64) -> u64 {
             .unwrap_or_default(),
     );
     hash.u64(candidate.stack.ceiling_bytes);
-    hash.u64(candidate.stack.local_wcsu_bytes);
-    hash.u64(candidate.stack.composed_wcsu_bytes);
-    hash.u64(candidate.stack.wcsu_alignment);
+    hash.u64(candidate.stack.realization.root().normalized_identity());
+    hash.u64(
+        candidate
+            .stack
+            .realization
+            .root_provider()
+            .normalized_identity(),
+    );
+    hash.u64(candidate.stack.realization.relation().normalized_identity());
+    fingerprint_entry_stack(&mut hash, candidate.stack.realization.stack());
+    hash.u64(candidate.stack.realization.local_wcsu_bytes());
+    hash.u64(candidate.stack.realization.composed_wcsu_bytes());
+    hash.u64(candidate.stack.realization.wcsu_alignment());
+    hash.u64(
+        candidate
+            .stack
+            .realization
+            .artifact_composition_fingerprint(),
+    );
+    hash.u64(candidate.stack.realization.composition_fingerprint());
     hash.u64(candidate.stack.validation_receipt.normalized_identity());
     hash.u64(candidate.structural_work.profile.normalized_identity());
     hash.u64(candidate.structural_work.ceiling_units);
@@ -1105,27 +1566,62 @@ mod tests {
         compose_fixed_work(root.identity, [&root, &leaf]).expect("fixed-work composition")
     }
 
+    fn stack_demand(
+        root: ExternalRootId,
+        provider: RootProviderId,
+        relation: NestingRelationId,
+        stack: EntryStack,
+        local_wcsu_bytes: u64,
+    ) -> ComposedStackDemand {
+        let summary = ProviderStackSummary {
+            root,
+            provider,
+            stack,
+            local_wcsu_bytes,
+            wcsu_alignment: 16,
+            validation_receipt: root_id(49, StackValidationReceiptId::from_normalized_identity),
+        };
+        compose_artifact_stacks(
+            &StackNestingRelation {
+                identity: relation,
+                edges: BTreeSet::new(),
+            },
+            [&summary],
+        )
+        .expect("stack composition")
+        .demand(root)
+        .expect("root stack demand")
+        .clone()
+    }
+
     fn candidate(entry: EntryStubId) -> ExternalRootCandidate {
+        let root = root_id(1, ExternalRootId::from_normalized_identity);
+        let provider = root_id(2, RootProviderId::from_normalized_identity);
+        let nesting_relation = root_id(6, NestingRelationId::from_normalized_identity);
         ExternalRootCandidate {
-            identity: root_id(1, ExternalRootId::from_normalized_identity),
+            identity: root,
             entry,
-            provider: root_id(2, RootProviderId::from_normalized_identity),
+            provider,
             effects: [root_id(3, RootEffectId::from_normalized_identity)]
                 .into_iter()
                 .collect(),
             trust_receipts: [root_id(4, TrustReceiptId::from_normalized_identity)]
                 .into_iter()
                 .collect(),
-            nesting_relation: root_id(6, NestingRelationId::from_normalized_identity),
+            nesting_relation,
             acknowledgement_policy: Some(root_id(
                 7,
                 AcknowledgementPolicyId::from_normalized_identity,
             )),
             stack: StackResourceColumn {
                 ceiling_bytes: 8192,
-                local_wcsu_bytes: 2048,
-                composed_wcsu_bytes: 4096,
-                wcsu_alignment: 16,
+                realization: stack_demand(
+                    root,
+                    provider,
+                    nesting_relation,
+                    EntryStack::ProviderSelected,
+                    2048,
+                ),
                 validation_receipt: root_id(50, StackValidationReceiptId::from_normalized_identity),
             },
             structural_work: StructuralWorkResourceColumn {
@@ -1187,7 +1683,7 @@ mod tests {
         assert_eq!(record.installed_code, code.identity());
         assert_eq!(record.effects.len(), 1);
         assert_eq!(record.trust_receipts.len(), 1);
-        assert_eq!(record.stack.composed_wcsu_bytes, 4096);
+        assert_eq!(record.stack.realization.composed_wcsu_bytes(), 2048);
         assert_eq!(record.structural_work.realization.units(), 7);
         assert_eq!(
             record.machine_state.realization.registers().as_slice(),
@@ -1287,20 +1783,39 @@ mod tests {
 
     #[test]
     fn independent_resource_columns_are_validated_before_ledger_entry() {
-        let mut invalid = candidate(entry_id(1001));
-        invalid.stack.wcsu_alignment = 3;
-        let error = validate_external_root(invalid, &boundary()).expect_err("bad WCSU alignment");
+        let invalid_summary = ProviderStackSummary {
+            root: root_id(1, ExternalRootId::from_normalized_identity),
+            provider: root_id(2, RootProviderId::from_normalized_identity),
+            stack: EntryStack::ProviderSelected,
+            local_wcsu_bytes: 2048,
+            wcsu_alignment: 3,
+            validation_receipt: root_id(49, StackValidationReceiptId::from_normalized_identity),
+        };
+        let error = compose_artifact_stacks(
+            &StackNestingRelation {
+                identity: root_id(6, NestingRelationId::from_normalized_identity),
+                edges: BTreeSet::new(),
+            },
+            [&invalid_summary],
+        )
+        .expect_err("bad WCSU alignment");
         assert!(error.0.contains("power of two"));
 
-        let mut empty = candidate(entry_id(1001));
-        empty.stack.composed_wcsu_bytes = 0;
-        let error = validate_external_root(empty, &boundary()).expect_err("zero WCSU");
-        assert!(error.0.contains("nonzero"));
-
         let mut over_stack = candidate(entry_id(1001));
-        over_stack.stack.composed_wcsu_bytes = over_stack.stack.ceiling_bytes + 1;
+        over_stack.stack.ceiling_bytes = 2047;
         let error = validate_external_root(over_stack, &boundary()).expect_err("stack ceiling");
         assert!(error.0.contains("stack ceiling"));
+
+        let mut wrong_root = candidate(entry_id(1001));
+        wrong_root.stack.realization = stack_demand(
+            root_id(99, ExternalRootId::from_normalized_identity),
+            root_id(2, RootProviderId::from_normalized_identity),
+            root_id(6, NestingRelationId::from_normalized_identity),
+            EntryStack::ProviderSelected,
+            2048,
+        );
+        let error = validate_external_root(wrong_root, &boundary()).expect_err("wrong stack root");
+        assert!(error.0.contains("candidate root"));
 
         let mut over_work = candidate(entry_id(1001));
         over_work.structural_work.ceiling_units = 6;
@@ -1325,6 +1840,145 @@ mod tests {
         let error = validate_external_root(conflicting, &boundary())
             .expect_err("one contract cannot pin two component realizations");
         assert!(error.0.contains("more than one realization"));
+    }
+
+    #[test]
+    fn cathedral_irq_stack_is_maximum_root_plus_current_stack_fault() {
+        let timer = root_id(100, ExternalRootId::from_normalized_identity);
+        let keyboard = root_id(101, ExternalRootId::from_normalized_identity);
+        let fatal_fault = root_id(102, ExternalRootId::from_normalized_identity);
+        let double_fault = root_id(103, ExternalRootId::from_normalized_identity);
+        let relation_identity = root_id(110, NestingRelationId::from_normalized_identity);
+        let irq_provider = root_id(120, RootProviderId::from_normalized_identity);
+        let fault_provider = root_id(121, RootProviderId::from_normalized_identity);
+        let receipt =
+            |identity| root_id(identity, StackValidationReceiptId::from_normalized_identity);
+        let timer_summary = ProviderStackSummary {
+            root: timer,
+            provider: irq_provider,
+            stack: EntryStack::Dedicated { class: 4 },
+            local_wcsu_bytes: 2048,
+            wcsu_alignment: 16,
+            validation_receipt: receipt(130),
+        };
+        let keyboard_summary = ProviderStackSummary {
+            root: keyboard,
+            provider: irq_provider,
+            stack: EntryStack::Dedicated { class: 4 },
+            local_wcsu_bytes: 1536,
+            wcsu_alignment: 16,
+            validation_receipt: receipt(131),
+        };
+        let fatal_fault_summary = ProviderStackSummary {
+            root: fatal_fault,
+            provider: fault_provider,
+            stack: EntryStack::Interrupted,
+            local_wcsu_bytes: 1024,
+            wcsu_alignment: 16,
+            validation_receipt: receipt(132),
+        };
+        let double_fault_summary = ProviderStackSummary {
+            root: double_fault,
+            provider: fault_provider,
+            stack: EntryStack::Dedicated { class: 1 },
+            local_wcsu_bytes: 4096,
+            wcsu_alignment: 64,
+            validation_receipt: receipt(133),
+        };
+        let relation = StackNestingRelation {
+            identity: relation_identity,
+            edges: BTreeSet::from([
+                StackNestingEdge {
+                    interrupted: timer,
+                    preemptor: fatal_fault,
+                },
+                StackNestingEdge {
+                    interrupted: timer,
+                    preemptor: double_fault,
+                },
+                StackNestingEdge {
+                    interrupted: keyboard,
+                    preemptor: fatal_fault,
+                },
+            ]),
+        };
+
+        let forward = compose_artifact_stacks(
+            &relation,
+            [
+                &timer_summary,
+                &keyboard_summary,
+                &fatal_fault_summary,
+                &double_fault_summary,
+            ],
+        )
+        .expect("Cathedral stack composition");
+        let reverse = compose_artifact_stacks(
+            &relation,
+            [
+                &double_fault_summary,
+                &fatal_fault_summary,
+                &keyboard_summary,
+                &timer_summary,
+            ],
+        )
+        .expect("order-independent Cathedral stack composition");
+
+        assert_eq!(forward, reverse);
+        assert_eq!(
+            forward
+                .demand(timer)
+                .expect("timer WCSU")
+                .composed_wcsu_bytes(),
+            3072
+        );
+        assert_eq!(
+            forward.domain_wcsu_bytes(StackDomain::Dedicated { class: 4 }),
+            Some(3072)
+        );
+        assert_eq!(
+            forward.domain_wcsu_bytes(StackDomain::Dedicated { class: 1 }),
+            Some(4096)
+        );
+        assert_eq!(
+            forward
+                .demand(timer)
+                .expect("timer WCSU")
+                .contributing_roots(),
+            &BTreeSet::from([timer, fatal_fault])
+        );
+
+        let nested_maskable = StackNestingRelation {
+            identity: relation_identity,
+            edges: BTreeSet::from([StackNestingEdge {
+                interrupted: timer,
+                preemptor: keyboard,
+            }]),
+        };
+        let error = compose_artifact_stacks(&nested_maskable, [&timer_summary, &keyboard_summary])
+            .expect_err("shared dedicated IRQ stack cannot be re-entered");
+        assert!(error.0.contains("re-enters active dedicated class 4"));
+
+        let missing = compose_artifact_stacks(&relation, [&timer_summary])
+            .expect_err("every nesting endpoint needs a provider stack summary");
+        assert!(missing.0.contains("missing"));
+
+        let cyclic = StackNestingRelation {
+            identity: relation_identity,
+            edges: BTreeSet::from([
+                StackNestingEdge {
+                    interrupted: timer,
+                    preemptor: fatal_fault,
+                },
+                StackNestingEdge {
+                    interrupted: fatal_fault,
+                    preemptor: timer,
+                },
+            ]),
+        };
+        let error = compose_artifact_stacks(&cyclic, [&timer_summary, &fatal_fault_summary])
+            .expect_err("recursive nesting is not a finite WCSU");
+        assert!(error.0.contains("cycle"));
     }
 
     #[test]

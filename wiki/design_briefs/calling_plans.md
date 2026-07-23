@@ -358,11 +358,15 @@ receipts. Fixed-work provider summaries compose transitively and fail closed on
 missing summaries, recursion, invalid multiplicity, or arithmetic overflow.
 Installation consumes an owner-scoped slot and returns a linear handle borrowing
 the installed-code claim; removal returns the slot only after exact
-unreachability and quiescence evidence. Provider-specific installation and
-artifact-wide WCSU integration remain. The live ledger's deterministic
-fingerprint and `omega-artifacts` `external_roots.json` projection report these
-facts and the complete boundary plan without leaking numeric entry addresses or
-private ranking/codegen proofs.
+unreachability and quiescence evidence. Artifact-wide WCSU composition is live:
+provider-local demands and the exact nesting relation produce sealed per-root
+and per-domain maxima, same-stack fault paths add with alignment, and installed
+roots must agree on the complete composition fingerprint. Cycles, missing
+endpoints, unknown nested provider-selected stacks, overflow, and active
+dedicated-class re-entry reject. Provider-specific execution and installation
+remain. The live ledger's deterministic fingerprint and `omega-artifacts`
+`external_roots.json` projection report these facts and the complete boundary
+plan without leaking numeric entry addresses or private ranking/codegen proofs.
 
 The ledger uses one recording discipline across three
 independent resource columns: stack ceiling/realized WCSU/derivation evidence,

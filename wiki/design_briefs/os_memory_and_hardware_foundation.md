@@ -765,17 +765,23 @@ state as `external_roots.json`: the complete evaluated `CallPlan + StatePlan`,
 provider/effect/trust identities, the three resource columns, nesting and
 acknowledgement policy, and component pins are machine-readable, while friendly
 names, numeric entry addresses, and private proof internals are absent by
-construction. Stack admission checks the composed WCSU against its ceiling;
-machine-state admission checks the final footprint against the `StatePlan`;
-and canonical fixed-work provider summaries compose transitively while
-rejecting missing callees, cycles, zero invocation bounds, overflow, and excess
-demand. The report is deliberately not a numbered compiler phase because roots
-may be installed after image build. Provider execution, artifact-wide WCSU
-composition, the concrete provider bindings behind the timer leaf profile, and
-the actual `lidt` consumer remain. The provider-neutral acceptance canary
-already instantiates the timer as one root plus fixed one-shot acknowledgement,
-clock-capture, coalescing-wake, and return leaves; missing leaves and recursive
-laundering fail closed.
+construction. Stack admission now accepts only a sealed result of artifact-wide
+composition, not a caller-authored composed number. Provider-local demands are
+joined under one exact nesting relation: an `Interrupted` entry adds to the
+active domain with alignment, a distinct dedicated class switches domains, and
+sequential roots sharing a class provision their maximum. Missing endpoints,
+cycles, unknown nested provider-selected stacks, overflow, and re-entry of an
+already active dedicated class fail closed. Every installed root in a ledger
+must bind the same complete composition fingerprint. Machine-state admission
+checks the final footprint against the `StatePlan`; canonical fixed-work
+provider summaries compose transitively while rejecting missing callees,
+cycles, zero invocation bounds, overflow, and excess demand. The report is
+deliberately not a numbered compiler phase because roots may be installed after
+image build. Concrete provider execution bindings and the actual `lidt`
+consumer remain. Provider-neutral acceptance canaries instantiate the timer as
+one root plus fixed one-shot acknowledgement, clock-capture, coalescing-wake,
+and return leaves and derive Cathedral's shared-IRQ stack peak as the maximum
+maskable root plus its permitted current-stack fatal-fault path.
 
 ### Installed-root resource contract
 
@@ -1029,10 +1035,12 @@ settled concrete interrupt policy's implementation remain. Remaining order:
    structural-work composition model. The acceptance canary pins five
    normalized nodes, one-shot edges, order-independent composition, and
    missing/recursive-provider rejection.
-8. Connect the ledger to provider execution and WCSU composition. Materialize
-   the complete exception IDT, provision the dedicated fault and shared
-   maskable-IRQ IST stack classes, connect checked `lidt`, and validate the
-   final no-SIMD/save-all-GPR entry stubs.
+8. Connect the ledger's composed fixed-work and WCSU results to provider
+   execution. Materialize the complete exception IDT, provision the dedicated
+   fault and shared maskable-IRQ IST stack classes, connect checked `lidt`, and
+   validate the final no-SIMD/save-all-GPR entry stubs. Artifact-wide WCSU
+   composition and the first Cathedral IRQ/fatal-fault acceptance rail are
+   already live.
 9. Build the PIT/PIC timer top half and its coalescing handoff to an ordinary
    timer-service task; then add the LAPIC one-shot provider without changing the
    root requirement.
