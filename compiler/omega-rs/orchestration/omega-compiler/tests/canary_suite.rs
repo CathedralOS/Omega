@@ -38817,6 +38817,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "providers/via_signature_mismatch_rejected",
     "host/terminal_host_call_value",
     "calls/guarded_value_call_terminal_rejected",
+    "proofs/cauchy_zero_precision_rejected",
     "proofs/core_nat_runtime_consumption_rejected",
     "proofs/rat_metric_false_reflexivity",
     "proofs/rat_zero_denominator_rejected",

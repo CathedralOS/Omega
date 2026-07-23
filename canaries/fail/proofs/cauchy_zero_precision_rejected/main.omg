@@ -1,0 +1,28 @@
+// Cauchy point obligations quantify only over positive reciprocal precision.
+// A resolved call at precision zero refutes that ordinary `requires` fact.
+use omega::language::core::cauchy;
+
+machine unit_sample(index: Nat) -> Rat {
+    Rat {
+        num: Nat::Succ { prev: Nat::Zero },
+        den: Nat::Succ { prev: Nat::Zero }
+    }
+}
+
+machine immediate_modulus(precision: Nat) -> Nat {
+    Nat::Zero
+}
+
+machine invalid_cauchy_point() -> Nat {
+    cauchy_at<unit_sample, immediate_modulus>(
+        Nat::Zero,
+        Nat::Zero,
+        Nat::Zero
+    )
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
