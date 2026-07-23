@@ -19,12 +19,12 @@ pub struct GeneratedIdtLoadLowering {
 }
 
 /// Closed compiler carrier for one prepared direct-destination IDT writer.
-/// It retains address-free fragment geometry and exact preparation facts. ISA
-/// emission deliberately remains unavailable until the provider-private
-/// context ABI is pinned.
+/// It retains address-free fragment geometry and exact preparation facts plus
+/// the pinned provider-private `IDTWRIT1` context ABI and encoder footprint.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GeneratedIdtWriterLowering {
     operation: omega_target_operations::TargetOperationKind,
+    footprint: omega_calling_conventions::StateFootprintEvidence,
 }
 
 impl GeneratedIdtWriterLowering {
@@ -32,8 +32,17 @@ impl GeneratedIdtWriterLowering {
         &self.operation
     }
 
-    pub fn into_operation(self) -> omega_target_operations::TargetOperationKind {
-        self.operation
+    pub const fn footprint(&self) -> &omega_calling_conventions::StateFootprintEvidence {
+        &self.footprint
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        omega_target_operations::TargetOperationKind,
+        omega_calling_conventions::StateFootprintEvidence,
+    ) {
+        (self.operation, self.footprint)
     }
 }
 
@@ -42,7 +51,8 @@ impl GeneratedIdtWriterLowering {
 /// the operation; generated code sees provider-private source-slot indices.
 pub fn lower_prepared_idt_writer(
     prepared: &omega_external_roots::PreparedIdtWriter,
-) -> GeneratedIdtWriterLowering {
+    architecture: omega_target::Architecture,
+) -> Result<GeneratedIdtWriterLowering, omega_external_roots::ExternalRootDiagnostic> {
     lower_prepared_idt_writer_facts(
         prepared.identity(),
         prepared.installed_code(),
@@ -55,7 +65,19 @@ pub fn lower_prepared_idt_writer(
         prepared.byte_len(),
         prepared.little_endian(),
         prepared.source_slot_count(),
-        prepared.lowering_steps(),
+        prepared
+            .lowering_steps()
+            .into_iter()
+            .map(|step| omega_target_operations::GeneratedIdtWriterStep {
+                container_byte_offset: step.container_byte_offset,
+                container_width_bits: step.container_width_bits,
+                destination_lsb: step.destination_lsb,
+                source_lsb: step.source_lsb,
+                width: step.width,
+                source_slot: step.source_slot,
+            })
+            .collect(),
+        architecture,
     )
 }
 
@@ -72,9 +94,17 @@ fn lower_prepared_idt_writer_facts(
     byte_len: usize,
     little_endian: bool,
     source_slot_count: usize,
-    steps: Vec<omega_external_roots::PreparedIdtWriterStep>,
-) -> GeneratedIdtWriterLowering {
-    GeneratedIdtWriterLowering {
+    steps: Vec<omega_target_operations::GeneratedIdtWriterStep>,
+    architecture: omega_target::Architecture,
+) -> Result<GeneratedIdtWriterLowering, omega_external_roots::ExternalRootDiagnostic> {
+    let Some(footprint) =
+        omega_instruction_selection::derive_generated_idt_writer_footprint(architecture)
+    else {
+        return Err(omega_external_roots::ExternalRootDiagnostic(
+            "generated IDT writer is x86_64-only; no AArch64 lowering exists".into(),
+        ));
+    };
+    Ok(GeneratedIdtWriterLowering {
         operation: omega_target_operations::TargetOperationKind::GeneratedIdtWriter {
             preparation,
             installed_code,
@@ -86,10 +116,12 @@ fn lower_prepared_idt_writer_facts(
             root_binding_fingerprint,
             byte_len,
             little_endian,
+            context_abi: omega_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
             source_slot_count,
             steps: steps.into(),
         },
-    }
+        footprint,
+    })
 }
 
 impl GeneratedIdtLoadLowering {
@@ -662,7 +694,7 @@ mod tests {
             .expect("artifact identity");
         let destination = omega_external_roots::IdtDestinationId::from_normalized_identity(13)
             .expect("destination identity");
-        let steps = vec![omega_external_roots::PreparedIdtWriterStep {
+        let steps = vec![omega_target_operations::GeneratedIdtWriterStep {
             container_byte_offset: 8,
             container_width_bits: 64,
             destination_lsb: 16,
@@ -683,7 +715,9 @@ mod tests {
             true,
             1,
             steps.clone(),
-        );
+            omega_target::Architecture::X86_64,
+        )
+        .expect("prepared x86 writer facts lower");
         assert_eq!(
             lowering.operation(),
             &omega_target_operations::TargetOperationKind::GeneratedIdtWriter {
@@ -697,9 +731,46 @@ mod tests {
                 root_binding_fingerprint: 0x4444,
                 byte_len: 4096,
                 little_endian: true,
+                context_abi: omega_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
                 source_slot_count: 1,
                 steps: steps.into(),
             }
+        );
+        assert_eq!(
+            lowering.footprint().registers().as_slice(),
+            &[
+                omega_calling_conventions::MachineRegister::X86Rax,
+                omega_calling_conventions::MachineRegister::X86Rcx,
+                omega_calling_conventions::MachineRegister::X86Rdx,
+                omega_calling_conventions::MachineRegister::X86R11,
+            ]
+        );
+        assert!(
+            lower_prepared_idt_writer_facts(
+                preparation,
+                installed_code,
+                artifact,
+                destination,
+                0x1111,
+                0x2222,
+                0x3333,
+                0x4444,
+                4096,
+                true,
+                1,
+                vec![omega_target_operations::GeneratedIdtWriterStep {
+                    container_byte_offset: 8,
+                    container_width_bits: 64,
+                    destination_lsb: 16,
+                    source_lsb: 32,
+                    width: 16,
+                    source_slot: 0,
+                }],
+                omega_target::Architecture::Aarch64,
+            )
+            .expect_err("x86 IDT writer must reject on AArch64")
+            .0
+            .contains("x86_64-only")
         );
     }
 

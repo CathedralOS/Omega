@@ -126,8 +126,8 @@ pub enum MachineInstructionKind {
     InterruptControl(omega_core::inline_assembly::AsmInterruptControlKind),
     /// Compiler-generated, deriver-only `lidt [r10]` publication operation.
     GeneratedIdtLoad,
-    /// Compiler-generated checked IDT writer over a private provider context.
-    /// Final ISA emission remains fail-closed until that context ABI is pinned.
+    /// Compiler-generated checked IDT writer over the pinned private
+    /// `IDTWRIT1` provider context.
     GeneratedIdtWriter,
     /// Compiler-balanced RFLAGS snapshot.
     FlagsSnapshot,

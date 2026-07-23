@@ -23,6 +23,22 @@ pub fn derive_generated_idt_load_footprint(
     }
 }
 
+/// Exact implementation footprint of the generated direct-destination IDT
+/// writer. R10 is a read-only private-context input; the encoder writes four
+/// scratch registers and arithmetic flags while preserving control state and
+/// the stack.
+pub fn derive_generated_idt_writer_footprint(
+    architecture: omega_target::Architecture,
+) -> Option<StateFootprintEvidence> {
+    match architecture {
+        omega_target::Architecture::Aarch64 => None,
+        omega_target::Architecture::X86_64 => Some(StateFootprintEvidence::new(
+            omega_isa_x86_64::generated_idt_writer_clobbers(),
+            omega_isa_x86_64::generated_idt_writer_additional_machine_state(),
+        )),
+    }
+}
+
 /// The observable exit half of one validated boundary plan. Result fragments
 /// remain ordered exactly as canonical validation produced them.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -771,6 +787,29 @@ mod tests {
                 .contains_all(MachineStateSet::new([MachineState::ControlState]))
         );
         assert!(derive_generated_idt_load_footprint(omega_target::Architecture::Aarch64).is_none());
+    }
+
+    #[test]
+    fn generated_idt_writer_footprint_is_exact_and_x86_only() {
+        let evidence = derive_generated_idt_writer_footprint(omega_target::Architecture::X86_64)
+            .expect("x86 IDT writer footprint");
+        assert_eq!(
+            evidence.registers().as_slice(),
+            &[
+                MachineRegister::X86Rax,
+                MachineRegister::X86Rcx,
+                MachineRegister::X86Rdx,
+                MachineRegister::X86R11,
+            ]
+        );
+        assert!(
+            evidence
+                .machine_state()
+                .contains_all(MachineStateSet::new([MachineState::Flags]))
+        );
+        assert!(
+            derive_generated_idt_writer_footprint(omega_target::Architecture::Aarch64).is_none()
+        );
     }
 
     #[test]

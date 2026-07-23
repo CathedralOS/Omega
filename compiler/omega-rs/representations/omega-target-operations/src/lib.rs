@@ -7,13 +7,16 @@ pub use data::{
 };
 pub use instruction::{
     AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, AbstractDataObjectHandle,
-    FunctionInstructionPlan, HostOperationKey, InstructionOperand, InstructionOperandKind,
-    InstructionOperandLike, InstructionPlan, RuntimeStorageRegion, RuntimeTextReadSource,
-    RuntimeValueOperand, RuntimeValueOperandHandle, RuntimeValueOperandSource, SelectedInstruction,
-    SelectedInstructionKind, TargetBoundarySummary, TargetHostBinding, TargetInstructionOperand,
-    TargetInstructionOperandKind, TargetOperation, TargetOperationCode, TargetOperationDomain,
-    TargetOperationFunction, TargetOperationKind, TargetOperationPlan, TargetOwnershipSummary,
-    TargetSemanticSummary, TargetValueOperand, TargetValueOperandHandle, TargetValueSummary,
+    FunctionInstructionPlan, GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
+    GENERATED_IDT_WRITER_DESTINATION_OFFSET, GENERATED_IDT_WRITER_SOURCE_SLOT_WIDTH,
+    GENERATED_IDT_WRITER_SOURCE_SLOTS_OFFSET, GeneratedIdtWriterStep, HostOperationKey,
+    InstructionOperand, InstructionOperandKind, InstructionOperandLike, InstructionPlan,
+    RuntimeStorageRegion, RuntimeTextReadSource, RuntimeValueOperand, RuntimeValueOperandHandle,
+    RuntimeValueOperandSource, SelectedInstruction, SelectedInstructionKind, TargetBoundarySummary,
+    TargetHostBinding, TargetInstructionOperand, TargetInstructionOperandKind, TargetOperation,
+    TargetOperationCode, TargetOperationDomain, TargetOperationFunction, TargetOperationKind,
+    TargetOperationPlan, TargetOwnershipSummary, TargetSemanticSummary, TargetValueOperand,
+    TargetValueOperandHandle, TargetValueSummary, generated_idt_writer_context_byte_len,
 };
 pub use omega_abstract_operations::{
     BoundaryFootprintFragment, BoundaryFootprintFragmentOrigin, BoundaryFootprintPlan,

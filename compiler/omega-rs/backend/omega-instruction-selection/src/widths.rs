@@ -411,6 +411,28 @@ pub fn generated_idt_load_width(architecture: Architecture) -> Option<usize> {
     }
 }
 
+pub fn generated_idt_writer_width(
+    architecture: Architecture,
+    byte_len: usize,
+    little_endian: bool,
+    context_abi: u64,
+    source_slot_count: usize,
+    steps: &[omega_target_operations::GeneratedIdtWriterStep],
+) -> Result<usize, omega_core::diagnostics::Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(omega_core::diagnostics::Diagnostic::error(
+            "generated IDT writer is x86_64-only; no AArch64 lowering exists",
+        )),
+        Architecture::X86_64 => omega_isa_x86_64::generated_idt_writer_width(
+            byte_len,
+            little_endian,
+            context_abi,
+            source_slot_count,
+            steps,
+        ),
+    }
+}
+
 /// RFLAGS value operations are x86_64-only. Layout/encoding reject other
 /// architectures before using these target-specific helpers.
 pub fn flags_snapshot_width() -> usize {

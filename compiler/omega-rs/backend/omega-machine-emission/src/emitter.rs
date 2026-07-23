@@ -277,70 +277,92 @@ mod tests {
     }
 
     #[test]
-    fn generated_idt_writer_refuses_emission_until_private_context_abi_is_pinned() {
-        let target = NativeTarget::linux_x64();
-        let assigned_target_operations =
-            AssignedTargetOperationPlan::with_capacity(target, 0, 0, 0, 0, 0);
-        let host_abi = build_host_abi_plan(target);
-        let data = omega_target_operations::TargetDataPlan::default();
-        let mut machine_instructions = MachineInstructionPlan::with_capacity(target, 1, 1);
-        let instructions =
+    fn generated_idt_writer_emits_exact_x86_bytes_and_refuses_aarch64() {
+        let source_kind = SelectedInstructionKind::GeneratedIdtWriter {
+            preparation: omega_external_roots::IdtWriterPreparationId::from_normalized_identity(1)
+                .expect("writer preparation identity"),
+            installed_code: omega_external_roots::InstalledCodeId::from_normalized_identity(2)
+                .expect("installed code identity"),
+            artifact: omega_external_roots::ArtifactId::from_normalized_identity(3)
+                .expect("artifact identity"),
+            destination: omega_external_roots::IdtDestinationId::from_normalized_identity(4)
+                .expect("destination identity"),
+            writer_fingerprint: 5,
+            placement_fingerprint: 6,
+            initial_content_fingerprint: 7,
+            root_binding_fingerprint: 8,
+            byte_len: 16,
+            little_endian: true,
+            context_abi: omega_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
+            source_slot_count: 1,
+            steps: vec![omega_target_operations::GeneratedIdtWriterStep {
+                container_byte_offset: 0,
+                container_width_bits: 64,
+                destination_lsb: 0,
+                source_lsb: 0,
+                width: 64,
+                source_slot: 0,
+            }]
+            .into(),
+        };
+        let emit = |target| {
+            let assigned_target_operations =
+                AssignedTargetOperationPlan::with_capacity(target, 0, 0, 0, 0, 0);
+            let host_abi = build_host_abi_plan(target);
+            let data = omega_target_operations::TargetDataPlan::default();
+            let mut machine_instructions = MachineInstructionPlan::with_capacity(target, 1, 1);
+            let instructions =
+                machine_instructions
+                    .code
+                    .instructions
+                    .insert_many([MachineInstruction {
+                        selected_instruction_index: 0,
+                        source_kind: source_kind.clone(),
+                        kind: MachineInstructionKind::GeneratedIdtWriter,
+                    }]);
             machine_instructions
                 .code
-                .instructions
-                .insert_many([MachineInstruction {
-                    selected_instruction_index: 0,
-                    source_kind: SelectedInstructionKind::GeneratedIdtWriter {
-                        preparation:
-                            omega_external_roots::IdtWriterPreparationId::from_normalized_identity(
-                                1,
-                            )
-                            .expect("writer preparation identity"),
-                        installed_code:
-                            omega_external_roots::InstalledCodeId::from_normalized_identity(2)
-                                .expect("installed code identity"),
-                        artifact: omega_external_roots::ArtifactId::from_normalized_identity(3)
-                            .expect("artifact identity"),
-                        destination:
-                            omega_external_roots::IdtDestinationId::from_normalized_identity(4)
-                                .expect("destination identity"),
-                        writer_fingerprint: 5,
-                        placement_fingerprint: 6,
-                        initial_content_fingerprint: 7,
-                        root_binding_fingerprint: 8,
-                        byte_len: 16,
-                        little_endian: true,
-                        source_slot_count: 1,
-                        steps: vec![omega_external_roots::PreparedIdtWriterStep {
-                            container_byte_offset: 0,
-                            container_width_bits: 64,
-                            destination_lsb: 0,
-                            source_lsb: 0,
-                            width: 64,
-                            source_slot: 0,
-                        }]
-                        .into(),
-                    },
-                    kind: MachineInstructionKind::GeneratedIdtWriter,
-                }]);
-        machine_instructions
-            .code
-            .functions
-            .insert(MachineInstructionFunction {
-                source_key: Default::default(),
-                instructions,
-            });
+                .functions
+                .insert(MachineInstructionFunction {
+                    source_key: Default::default(),
+                    instructions,
+                });
+            emit_machine_bytes(MachineEmissionInput {
+                target,
+                assigned_target_operations: &assigned_target_operations,
+                machine_instructions: &machine_instructions,
+                host_abi: &host_abi,
+                data: &data,
+                terminal_dispatch_index: 0,
+            })
+        };
 
-        let error = emit_machine_bytes(MachineEmissionInput {
-            target,
-            assigned_target_operations: &assigned_target_operations,
-            machine_instructions: &machine_instructions,
-            host_abi: &host_abi,
-            data: &data,
-            terminal_dispatch_index: 0,
-        })
-        .expect_err("unimplemented writer ABI must reject before byte emission");
+        let encoded = emit(NativeTarget::linux_x64()).expect("generated x86 writer emits");
+        let SelectedInstructionKind::GeneratedIdtWriter {
+            byte_len,
+            little_endian,
+            context_abi,
+            source_slot_count,
+            steps,
+            ..
+        } = &source_kind
+        else {
+            unreachable!("generated writer source kind")
+        };
+        assert_eq!(
+            encoded.code.bytes.storage_slice(),
+            omega_isa_x86_64::encode_generated_idt_writer_bytes(
+                *byte_len,
+                *little_endian,
+                *context_abi,
+                *source_slot_count,
+                steps,
+            )
+            .expect("pinned x86 writer bytes")
+        );
 
-        assert!(error.message.contains("private-context ISA encoding"));
+        let error = emit(NativeTarget::linux_arm64())
+            .expect_err("generated IDT writer must reject on AArch64");
+        assert!(error.message.contains("x86_64-only"));
     }
 }

@@ -260,8 +260,13 @@ to the installed code and deterministic fingerprints, and lowers to an
 address-free generated machine carrier using only private source-slot indices.
 Foreign entries,
 placement/root drift, and invalid destination authority reject before lowering;
-numeric entry addresses never become a public API. The private-context ABI and
-target-machine emission of the writer remain.
+numeric entry addresses never become a public API. The packed private
+`IDTWRIT1` context ABI is pinned as an R10-addressed destination pointer plus
+dense u64 source slots; exact x86 emission/width and the RAX/RCX/RDX/R11 plus
+Flags footprint are live, with unsupported ABI/architecture/slot/geometry
+combinations rejected before emission. Private context population from the
+exact installed resolver, R10 materialization, and concrete provider execution
+remain.
 
 ## Still open
 

@@ -72,8 +72,9 @@ fn generated_idt_writer_retains_address_free_preparation_in_machine_lowering() {
         root_binding_fingerprint: 8,
         byte_len: 4096,
         little_endian: true,
+        context_abi: omega_assigned_target_operations::GENERATED_IDT_WRITER_CONTEXT_ABI_V1,
         source_slot_count: 1,
-        steps: vec![omega_external_roots::PreparedIdtWriterStep {
+        steps: vec![omega_assigned_target_operations::GeneratedIdtWriterStep {
             container_byte_offset: 8,
             container_width_bits: 64,
             destination_lsb: 16,
