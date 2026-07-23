@@ -20,21 +20,26 @@ rather than extending old booleans and bitsets by convention.
 
 `omega-symbol-resolved-trees/src/domain.rs` and
 `omega-typed-trees/src/domain.rs` represent every domain as one
-`DomainDefinition` containing invariant `facts` and `operators`. They do
-not represent:
+`DomainDefinition` containing invariant `facts`, `operators`, and an explicit
+normalized predicate/semantic facet pair. The pair represents hybrids without
+duplication and is populated once at syntax-to-resolved lowering, then copied
+to typed trees. They do not yet represent:
 
-- predicate versus semantic facets, including hybrids;
+- authored predicate-versus-semantic facet policy (the compatibility
+  projection classifies factful declarations as hybrids and factless
+  declarations as semantic-only);
 - semantic introduction policy or mint authority;
 - denotation schema;
 - implicit-weakening certificate/sealed theory;
-- normalized semantic-domain identity; or
 - the distinction between fact membership and binding-site semantic
   qualification.
 
 `omega-checked-trees::DomainFacts` is appropriately fact-shaped for predicate
-membership, but there is no parallel semantic-qualification plan. Arithmetic
-policies survive through compiler-specific `ArithmeticDomain` paths, which is
-useful bootstrap behavior but not the general domain model.
+membership, while qualification casts and emitted semantic commitments now
+consult the explicit semantic facet. There is no complete parallel
+semantic-qualification plan yet. Arithmetic policies survive through
+compiler-specific `ArithmeticDomain` paths, which is useful bootstrap behavior
+but not the general domain model.
 
 ### Machines
 
@@ -105,6 +110,15 @@ hybrids are first-class. Checked types/bindings carry a normalized
 `SemanticDomainId`; flow facts carry predicate membership. The deterministic
 normalizer owns semantic interface identity. Layout continues to use the
 carrier ABI.
+
+Implementation status (DOM1/STR2, 2026-07-23): core, symbol-resolved, and typed
+layers carry the normalized facet pair. Syntax lowering is the sole legacy
+shape projection; downstream tree propagation copies it verbatim. Semantic
+qualification, commitment collection, introduction-authority lookup, and trust
+publication consume `facets.semantic`, and qualification demands proof only
+when `facets.predicate` is active. Repeated normalized declarations compare the
+pair. Per-axis merge/join/generic-substitution composition, authored source
+policy, full facet bodies, and the checked qualification plan remain.
 
 ### Carry policy
 

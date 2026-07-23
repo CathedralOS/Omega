@@ -29,6 +29,9 @@ fn fnv1a(text: &str) -> u64 {
 
 fn commitment_statement(typed: &TypedTrees, grant: &str) -> (String, String) {
     for domain in typed.domain_definitions() {
+        if domain.facets.semantic.is_none() {
+            continue;
+        }
         let leaf = domain
             .name
             .as_str()

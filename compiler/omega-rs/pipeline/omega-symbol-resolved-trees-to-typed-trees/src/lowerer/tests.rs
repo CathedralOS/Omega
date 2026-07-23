@@ -79,6 +79,9 @@ fn lowers_domain_definitions() {
         self in Player::Valid;
         self.health > 0
     }
+
+    domain Player::Tagged {
+    }
     "#;
 
     let tokens = Lexer::new(source)
@@ -89,7 +92,7 @@ fn lowers_domain_definitions() {
     let typed_trees =
         lower_symbol_resolved_trees(&resolved_program).expect("lowering should succeed");
 
-    assert_eq!(typed_trees.domain_definitions().len(), 2);
+    assert_eq!(typed_trees.domain_definitions().len(), 3);
     let domain = typed_trees
         .domain_definitions()
         .iter()
@@ -105,6 +108,21 @@ fn lowers_domain_definitions() {
     assert!(membership.domain_symbol.is_valid());
     assert!(domain.body_token_count >= 3);
     assert!(domain.target_type.is_valid());
+    let resolved_domain = resolved_program
+        .domain_definitions
+        .iter()
+        .find(|candidate| candidate.name.as_str() == "Player::Alive")
+        .expect("resolved alive domain");
+    assert_eq!(domain.facets, resolved_domain.facets);
+    assert!(domain.facets.predicate);
+    assert_eq!(domain.facets.semantic, Some(domain.semantic_id));
+    let tagged = typed_trees
+        .domain_definitions()
+        .iter()
+        .find(|candidate| candidate.name.as_str() == "Player::Tagged")
+        .expect("typed tagged domain");
+    assert!(!tagged.facets.predicate);
+    assert_eq!(tagged.facets.semantic, Some(tagged.semantic_id));
 }
 
 #[test]

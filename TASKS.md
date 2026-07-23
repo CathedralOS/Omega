@@ -1032,8 +1032,16 @@ stronger operations it needs instead of citing machine parameters generally.
 
 ### Domain facets, effects, termination, and trust
 
-- **DOM1 — facet kinds.** Enforce predicate versus semantic facets through
-  merges, joins, casts, and generic substitution with per-axis composition.
+- **DOM1 — facet kinds.** Resolved and typed domain declarations now carry the
+  normalized predicate/semantic facet pair populated once at syntax lowering
+  and copied downstream. Qualification casts, semantic commitment collection,
+  introduction-authority checks, trust reports, and trust-lockfile grant
+  matching consume the semantic facet; semantic-only domains no longer invent
+  a predicate-proof obligation. Until authored facet syntax/policy lands, the
+  compatibility projection treats factful declarations as hybrids and
+  factless declarations as semantic-only. Remaining: enforce per-axis
+  composition through merges, joins, and generic substitution, then retire the
+  compatibility projection.
 - **DOM2 — binding-site operators.** Resolve operator theory from declarations,
   mints, and `requires`; never from flow facts. Resolve tuples deterministically
   and reject collisions.

@@ -60,6 +60,7 @@ fn validate_repeated_normalized_domain_identities(
             .filter(|peer| peer.name == domain.name);
         if peers.any(|peer| {
             peer.semantic_id != domain.semantic_id
+                || peer.facets != domain.facets
                 || normalized_domain_facts(program, fact_plan, peer.symbol) != normalized_facts
         }) {
             diagnostics.push(Diagnostic::error(format!(
