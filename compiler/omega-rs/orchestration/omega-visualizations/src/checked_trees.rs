@@ -384,12 +384,10 @@ pub fn task_activation_manifest_json(program: &CheckedTrees) -> String {
         json.push_str(&plan.continuation_bytes.to_string());
         json.push_str(", \"alignment\": ");
         json.push_str(&plan.continuation_alignment.to_string());
-        json.push_str("},\n      \"reaches_suspend\": ");
-        json.push_str(if plan.reaches_suspend {
-            "true"
-        } else {
-            "false"
-        });
+        json.push_str("},\n      \"may_suspend\": ");
+        json.push_str(if plan.may_suspend { "true" } else { "false" });
+        json.push_str(",\n      \"may_block\": ");
+        json.push_str(if plan.may_block { "true" } else { "false" });
         json.push_str(",\n      \"suspension_crossings_safe\": ");
         json.push_str(if plan.suspension_crossings_safe {
             "true"
@@ -491,6 +489,10 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
             push_json_string(&mut json, supply_mode_name(contract.supply_mode));
             json.push_str(",\n        \"published_effect_row\": ");
             json.push_str(&contract.published_effect_row.0.to_string());
+            json.push_str(",\n        \"suspension\": ");
+            push_suspension_plan_json(&mut json, contract.suspension);
+            json.push_str(",\n        \"blocking\": ");
+            push_blocking_plan_json(&mut json, contract.blocking);
             json.push_str(",\n        \"published_termination\": ");
             push_termination_json(&mut json, &contract.published_termination);
             json.push_str("\n      }");
@@ -501,7 +503,19 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
         json.push_str(",\n      \"implementation\": {");
         let mut has_implementation_field = false;
         if let Some(contract) = program.facts.contract_plans.for_machine(machine.symbol) {
-            json.push_str("\n        \"inferred_write_frames\": [");
+            json.push_str("\n        \"checked_may_suspend\": ");
+            json.push_str(if contract.suspension.checked_may_suspend {
+                "true"
+            } else {
+                "false"
+            });
+            json.push_str(",\n        \"checked_may_block\": ");
+            json.push_str(if contract.blocking.checked_may_block {
+                "true"
+            } else {
+                "false"
+            });
+            json.push_str(",\n        \"inferred_write_frames\": [");
             for (frame_index, state_frame) in contract.inferred_write_frames.iter().enumerate() {
                 if frame_index > 0 {
                     json.push(',');
@@ -634,6 +648,34 @@ fn supply_mode_name(mode: omega_core::semantics::MachineSupplyMode) -> &'static 
         MachineSupplyMode::Boundary => "boundary",
         MachineSupplyMode::Accepted => "accepted",
         MachineSupplyMode::ExternalRealization { .. } => "external-realization",
+    }
+}
+
+fn push_suspension_plan_json(json: &mut String, plan: omega_core::semantics::SuspensionPlan) {
+    use omega_core::semantics::SuspensionInterface;
+    match plan.interface {
+        SuspensionInterface::InternalInferred => {
+            json.push_str("{\"interface\": \"internal_inferred\"}");
+        }
+        SuspensionInterface::PublishedMaySuspend(value) => {
+            json.push_str("{\"interface\": \"published_ceiling\", \"may_suspend\": ");
+            json.push_str(if value { "true" } else { "false" });
+            json.push('}');
+        }
+    }
+}
+
+fn push_blocking_plan_json(json: &mut String, plan: omega_core::semantics::BlockingPlan) {
+    use omega_core::semantics::BlockingInterface;
+    match plan.interface {
+        BlockingInterface::InternalInferred => {
+            json.push_str("{\"interface\": \"internal_inferred\"}");
+        }
+        BlockingInterface::PublishedMayBlock(value) => {
+            json.push_str("{\"interface\": \"published_ceiling\", \"may_block\": ");
+            json.push_str(if value { "true" } else { "false" });
+            json.push('}');
+        }
     }
 }
 
@@ -1440,9 +1482,9 @@ mod tests {
         MachineTerminationFact,
     };
     use omega_core::semantics::{
-        CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension, EffectRowId,
-        MachineSupplyMode, MachineTerminationPlan, RankingViewId, RankingWitness,
-        TerminationGuarantee,
+        BlockingInterface, BlockingPlan, CarryAddress, CarryCpu, CarryHostThread, CarryPolicy,
+        CarrySuspension, EffectRowId, MachineSupplyMode, MachineTerminationPlan, RankingViewId,
+        RankingWitness, SuspensionInterface, SuspensionPlan, TerminationGuarantee,
     };
     use omega_core::symbols::SymbolHandle;
     use omega_typed_trees::machine::Machine;
@@ -1530,8 +1572,14 @@ mod tests {
                 machine: symbol,
                 supply_mode: MachineSupplyMode::CheckedBody,
                 published_effect_row: EffectRowId::NULL,
-                suspension: Default::default(),
-                blocking: Default::default(),
+                suspension: SuspensionPlan {
+                    interface: SuspensionInterface::PublishedMaySuspend(false),
+                    checked_may_suspend: false,
+                },
+                blocking: BlockingPlan {
+                    interface: BlockingInterface::PublishedMayBlock(true),
+                    checked_may_block: true,
+                },
                 published_termination: TerminationGuarantee::NoGuarantee,
                 inferred_write_frames: Vec::new(),
                 fingerprint: 0x1234,
@@ -1556,10 +1604,20 @@ mod tests {
         let contract = &json[contract_start..implementation_start];
 
         assert!(contract.contains("\"fingerprint\": \"0x0000000000001234\""));
+        assert!(contract.contains(
+            "\"suspension\": {\"interface\": \"published_ceiling\", \"may_suspend\": false}"
+        ));
+        assert!(
+            contract.contains(
+                "\"blocking\": {\"interface\": \"published_ceiling\", \"may_block\": true}"
+            )
+        );
         assert!(contract.contains("\"kind\": \"no_guarantee\""));
         assert!(!contract.contains("inferred_write_frames"));
         assert!(!contract.contains("remaining"));
         assert!(json[implementation_start..].contains("\"inferred_write_frames\": []"));
+        assert!(json[implementation_start..].contains("\"checked_may_suspend\": false"));
+        assert!(json[implementation_start..].contains("\"checked_may_block\": true"));
         assert!(json[implementation_start..].contains("\"kind\": \"eventual_terminal\""));
         assert!(json[implementation_start..].contains("\"subjects\": [\"remaining\"]"));
         assert!(json[implementation_start..].contains("\"view\": \"Nat::Descending\""));

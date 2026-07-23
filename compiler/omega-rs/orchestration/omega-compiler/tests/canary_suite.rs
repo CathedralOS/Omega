@@ -36047,7 +36047,7 @@ fn suspension_carry_canaries_pin_statement_bound_liveness() {
         "concurrency/suspend_after_self_field_last_use_compile",
     ] {
         let pass = pass_canary(name);
-        compile_canary_without_output(&pass).unwrap_or_else(|diagnostics| {
+        compile_to_checked(&pass.join("main.omg"), None).unwrap_or_else(|diagnostics| {
             panic!(
                 "{} should compile after the restrictive value's last use:\n{}",
                 pass.display(),
@@ -36063,23 +36063,23 @@ fn suspension_carry_canaries_pin_statement_bound_liveness() {
     for (name, expected) in [
         (
             "concurrency/suspend_live_value_rejected",
-            "may reach `Suspend` while `message` remains live",
+            "may suspend while `message` remains live",
         ),
         (
             "concurrency/suspend_self_field_reachable_state_rejected",
-            "may reach `Suspend` while `self.message` remains live",
+            "may suspend while `self.message` remains live",
         ),
         (
             "concurrency/suspend_call_argument_rejected",
-            "may reach `Suspend` while `message` remains live",
+            "may suspend while `message` remains live",
         ),
         (
             "concurrency/suspend_later_operand_rejected",
-            "may reach `Suspend` while `message` remains live",
+            "may suspend while `message` remains live",
         ),
     ] {
         let fail = fail_canary(name);
-        let diagnostics = compile_canary_without_output(&fail)
+        let diagnostics = compile_to_checked(&fail.join("main.omg"), None)
             .expect_err("a restrictive live value must reject possible suspension");
         let combined = diagnostics
             .iter()
@@ -37869,7 +37869,8 @@ fn task_runtime_machine_selection_reaches_checked_activation_plans() {
             .find(|machine| machine.symbol == activation.target_machine)
             .expect("activation target machine should survive specialization");
         assert_eq!(target.name.as_str(), "Worker::run");
-        assert!(activation.plan.candidate().reaches_suspend);
+        assert!(activation.plan.candidate().may_suspend);
+        assert!(!activation.plan.candidate().may_block);
         assert_ne!(
             activation.plan.normalized_identity().normalized_identity(),
             0,
@@ -37901,7 +37902,8 @@ fn task_runtime_machine_selection_reaches_checked_activation_plans() {
             .count(),
         2
     );
-    assert_eq!(manifest.matches("\"reaches_suspend\": true").count(), 2);
+    assert_eq!(manifest.matches("\"may_suspend\": true").count(), 2);
+    assert_eq!(manifest.matches("\"may_block\": false").count(), 2);
     assert_eq!(manifest.matches("\"activation_plan_id\": \"0x").count(), 2);
     assert_eq!(
         manifest

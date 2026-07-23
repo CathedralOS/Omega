@@ -329,15 +329,15 @@ pub struct MachineTerminationPlan {
     pub implementation_witness: Option<RankingWitness>,
 }
 
-/// Decision 22's member kinds: the qualitative effect row is KINDED, never
-/// one undifferentiated name list. A provider carrying an `OperationalMay`
-/// member (e.g. `Block`) cannot satisfy a slot pinned without it.
+/// Compatibility classification for the v0 catalog. Normalized service rows
+/// accept only `ServiceReach`; operational spellings remain classified solely
+/// so parsers and migration diagnostics can direct authors to the independent
+/// `suspends;` and `blocks;` clauses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EffectMemberKind {
     /// Reach to a boundary service (minted by boundary-trait declarations).
     ServiceReach,
-    /// An operational possibility the caller must tolerate (core-minted v1
-    /// set: `Suspend`, `Block`).
+    /// A retired mixed-row spelling for an operational possibility.
     OperationalMay,
 }
 
@@ -498,11 +498,11 @@ impl RankingViewId {
     }
 }
 
-/// Decision 22 (STR4): the CANONICAL effect-member catalog v1 -- each
-/// standard effect name with its KIND. `EffectMemberId` = catalog position
-/// + 1 (deterministic across programs). omega-effects' legacy bit table
-/// must stay name-for-name consistent (its unit test pins the
-/// correspondence); ROW identity never reads the legacy bits.
+/// Compatibility catalog for standard service names plus retired operational
+/// spellings. `EffectMemberId` = catalog position + 1 (deterministic across
+/// programs). Normalized `ServiceReachRowId` construction admits only entries
+/// classified as `ServiceReach`; omega-effects' legacy bit table is the
+/// service-only subset, and row identity never reads those bits.
 pub const EFFECT_MEMBER_CATALOG: &[(&str, EffectMemberKind)] = &[
     ("alloc", EffectMemberKind::ServiceReach),
     ("dealloc", EffectMemberKind::ServiceReach),
@@ -527,11 +527,8 @@ pub const EFFECT_MEMBER_CATALOG: &[(&str, EffectMemberKind)] = &[
     ("dynamic_link", EffectMemberKind::ServiceReach),
     ("host_boundary", EffectMemberKind::ServiceReach),
     ("machine_control", EffectMemberKind::ServiceReach),
-    // Decision 22's core operational possibilities. These are semantic row
-    // members rather than boundary services: they describe what an operation
-    // may do to its caller. Keep the older lowercase host-effect entries above
-    // during the EFX migration, but new concurrency contracts use these exact
-    // identities.
+    // Retained only for directed migration diagnostics. They are not service
+    // row members and have no legacy EffectSet bits.
     ("Suspend", EffectMemberKind::OperationalMay),
     ("Block", EffectMemberKind::OperationalMay),
 ];

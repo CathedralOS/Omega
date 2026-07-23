@@ -6,12 +6,12 @@ data Message {
     body: &Cell;
 }
 
-data Sleeper { }
-
-machine Sleeper::park(&mut self) suspends; { }
+boundary trait Scheduler {
+    machine park() suspends;
+}
 
 data Main {
-    sleeper: Sleeper;
+    scheduler: Scheduler;
     cell: Cell;
     message: Message;
 }
@@ -21,7 +21,7 @@ machine Main::read(&mut self, cell: &Cell) -> i32 {
 }
 
 machine Main::main(&mut self) {
-    self.sleeper.park();
+    self.scheduler.park();
     transition { _ -> resumed() }
 
     state resumed(&mut self) {

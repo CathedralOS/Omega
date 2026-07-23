@@ -1109,13 +1109,19 @@ stronger operations it needs instead of citing machine parameters generally.
   tree propagation, snapshots, checked machine plans, contract fingerprints,
   and task admission now carry the split axes. The parser rejects operational
   members in service rows with migration diagnostics, and the core/task/carry
-  fixtures now use the independent clauses. The legacy `EffectSet` fixed point
-  remains a compatibility engine feeding checked operational summaries and
-  carry/provider consumers; independent may-axis fixed points, ceiling
-  enforcement, remaining provider/manifests/diagnostics propagation, and full
-  compatibility retirement remain. The direct-call acknowledgement keyword is
-  a separate owner decision and must consume the normalized
-  suspension/blocking plans rather than source-token presence.
+  fixtures now use the independent clauses. Independent recursive boolean
+  fixed points now feed checked contracts, carry checks, and task activation;
+  local checked calls consume honest inferred summaries while requirements and
+  boundaries consume pinned authored ceilings. Published omission and inferred
+  static-provider widening reject independently on both axes. Specialization
+  identity, machine-contract/task manifests, and task-plan identity carry both
+  axes, and operational spellings no longer have legacy `EffectSet` bits or
+  capability-audit projections. Remaining work is to replace the global
+  service-name/u64 compatibility engine with boundary-symbol-resolved
+  `ServiceReachPlan` construction throughout provider/component artifacts and
+  then delete that compatibility engine entirely. The direct-call
+  acknowledgement keyword is a separate owner decision and must consume the
+  normalized suspension/blocking plans rather than source-token presence.
 - **TPR4/TPR6 — publication and progress profiles.** Serialize public
   termination omission/default rules in artifacts. Resolve sealed profile
   domains, grant-backed admission and receipts, and pinned progress premises.
@@ -1202,8 +1208,9 @@ stronger operations it needs instead of citing machine parameters generally.
   symbols, and compiler elaboration emits validated target-specific plans in
   `05_task_activations.json`: normalized machine/entry/layout/calling IDs,
   continuation sizing from the resume word, persistent target layout, and
-  canonical live values, `reaches_suspend` from the checked transitive
-  `SuspensionPlan`, and safe-point migration demands from checked carry
+  canonical live values, independent `may_suspend`/`may_block` bits from the
+  checked transitive `SuspensionPlan`/`BlockingPlan`, and safe-point migration
+  demands from checked carry
   crossings. Missing
   crossing evidence fails closed. Checked carry facts now also contain one
   all-instruction envelope per machine, conservatively joining persistent

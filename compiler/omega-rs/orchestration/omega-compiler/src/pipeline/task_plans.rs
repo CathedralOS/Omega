@@ -126,7 +126,8 @@ pub(super) fn elaborate_task_activation_plans(
             CallingPlanId::from_normalized_identity,
         )?;
 
-        let reaches_suspend = contract.suspension.checked_may_suspend;
+        let may_suspend = contract.suspension.checked_may_suspend;
+        let may_block = contract.blocking.checked_may_block;
         let crossings = program
             .facts
             .carry
@@ -137,7 +138,7 @@ pub(super) fn elaborate_task_activation_plans(
         // A transparent target that reaches Suspend must have canonical facts
         // for its possible park sites. Missing facts are not evidence of
         // safety: keep the plan validator fail-closed.
-        let suspension_crossings_safe = !reaches_suspend
+        let suspension_crossings_safe = !may_suspend
             || (!crossings.is_empty()
                 && crossings
                     .iter()
@@ -164,7 +165,8 @@ pub(super) fn elaborate_task_activation_plans(
             calling_plan,
             continuation_bytes,
             continuation_alignment,
-            reaches_suspend,
+            may_suspend,
+            may_block,
             suspension_crossings_safe,
             safe_point_migration: migration_demand(safe_point_policy),
             // An asynchronous provider can preempt at every instruction. The
@@ -523,7 +525,8 @@ mod tests {
         let plan = activation.plan.candidate();
         assert_eq!(plan.continuation_bytes, 16);
         assert_eq!(plan.continuation_alignment, 8);
-        assert!(plan.reaches_suspend);
+        assert!(plan.may_suspend);
+        assert!(!plan.may_block);
         assert_eq!(
             plan.asynchronous_migration,
             Some(MigrationDemand::unconstrained())

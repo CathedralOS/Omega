@@ -28,8 +28,6 @@ pub(super) fn check_suspension_carry(
     facts: &mut omega_checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     facts.carry.asynchronous_preemption = preemption::build_machine_preemption_carry_facts(program);
-    let suspend = omega_effects::EffectSet::from_name("Suspend")
-        .expect("Suspend is a canonical operational effect");
     let mut diagnostics = Vec::new();
     let mut suspension_crossings = Vec::new();
 
@@ -79,9 +77,7 @@ pub(super) fn check_suspension_carry(
             else {
                 continue;
             };
-            if !call_effects.direct.intersects(suspend)
-                && !call_effects.transitive.intersects(suspend)
-            {
+            if !call_effects.direct_may_suspend && !call_effects.transitive_may_suspend {
                 continue;
             }
 
@@ -561,7 +557,7 @@ fn append_if_suspension_forbidden_with_type_parameters(
 
     let target_name = crate::labels::symbol_name(program, call.target_symbol);
     let message = format!(
-        "call to `{target_name}` may reach `Suspend` while `{value_name}` remains live, but its effective policy is `{policy}`; consume the value before the call or use a suspension-safe carrier"
+        "call to `{target_name}` may suspend while `{value_name}` remains live, but its effective policy is `{policy}`; consume the value before the call or use a suspension-safe carrier"
     );
     if diagnostics
         .iter()

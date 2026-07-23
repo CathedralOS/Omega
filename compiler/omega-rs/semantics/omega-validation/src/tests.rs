@@ -274,6 +274,189 @@ fn static_machine_argument_refines_authored_generic_contract() {
 }
 
 #[test]
+fn static_machine_argument_rejects_inferred_suspension_above_slot_ceiling() {
+    let typed = typed_program_from_source(
+        r#"
+        data Token {}
+        boundary machine suspend_source(value: &Token) suspends;
+
+        machine work(value: &Token) {
+            suspend_source(value);
+        }
+
+        machine invoke<machine F>(value: &Token)
+        where machine F(value: &Token)
+        {}
+
+        machine caller(value: &Token) {
+            invoke<work>(value);
+        }
+        "#,
+    );
+
+    let effects = omega_effects::infer_effects(&typed);
+    let worker = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "work")
+        .expect("worker machine");
+    let summary = effects
+        .machines()
+        .iter()
+        .find(|summary| summary.symbol == worker.symbol)
+        .expect("worker effects");
+    assert!(summary.transitive_may_suspend, "{summary:#?}");
+
+    let diagnostics = super::validate_static_machine_selections(&typed)
+        .expect_err("an inferred suspending provider must not widen a negative slot ceiling");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("may suspend")
+            && diagnostic.message.contains("requirement omits `suspends;`")
+    }));
+}
+
+#[test]
+fn static_machine_argument_rejects_blocking_independently_from_suspension() {
+    let typed = typed_program_from_source(
+        r#"
+        data Token {}
+        boundary machine blocking_source(value: &Token) blocks;
+
+        machine work(value: &Token) {
+            blocking_source(value);
+        }
+
+        machine invoke<machine F>(value: &Token)
+        where machine F(value: &Token) suspends;
+        {}
+
+        machine caller(value: &Token) {
+            invoke<work>(value);
+        }
+        "#,
+    );
+
+    let effects = omega_effects::infer_effects(&typed);
+    let worker = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "work")
+        .expect("worker machine");
+    let summary = effects
+        .machines()
+        .iter()
+        .find(|summary| summary.symbol == worker.symbol)
+        .expect("worker effects");
+    assert!(summary.transitive_may_block, "{summary:#?}");
+
+    let diagnostics = super::validate_static_machine_selections(&typed)
+        .expect_err("allowing suspension must not silently allow blocking");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("may block")
+            && diagnostic.message.contains("requirement omits `blocks;`")
+    }));
+    assert!(!diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("may suspend")
+            && diagnostic.message.contains("requirement omits `suspends;`")
+    }));
+}
+
+#[test]
+fn static_machine_argument_admits_provider_within_both_operational_ceilings() {
+    let typed = typed_program_from_source(
+        r#"
+        data Token {}
+        boundary machine waiting_source(value: &Token) suspends; blocks;
+
+        machine work(value: &Token) {
+            waiting_source(value);
+        }
+
+        machine invoke<machine F>(value: &Token)
+        where machine F(value: &Token) suspends; blocks;
+        {}
+
+        machine caller(value: &Token) {
+            invoke<work>(value);
+        }
+        "#,
+    );
+
+    super::validate_static_machine_selections(&typed)
+        .expect("a provider within both pinned axes should validate");
+}
+
+#[test]
+fn recursive_private_operational_inference_reaches_independent_fixed_points() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary trait WaitingSource {
+            machine wait() suspends; blocks;
+        }
+
+        data A {}
+        data B {}
+
+        machine A::step(&mut self, b: &mut B, source: &mut WaitingSource) {
+            b.step(self, source);
+        }
+
+        machine B::step(&mut self, a: &mut A, source: &mut WaitingSource) {
+            a.step(self, source);
+            source.wait();
+        }
+        "#,
+    );
+    let effects = omega_effects::infer_effects(&typed);
+
+    for name in ["A::step", "B::step"] {
+        let symbol = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+            .symbol;
+        let summary = effects
+            .machines()
+            .iter()
+            .find(|summary| summary.symbol == symbol)
+            .unwrap_or_else(|| panic!("effect summary for {name}"));
+        assert!(summary.body_may_suspend, "{name} should infer suspension");
+        assert!(summary.body_may_block, "{name} should infer blocking");
+        assert!(summary.transitive_may_suspend);
+        assert!(summary.transitive_may_block);
+    }
+}
+
+#[test]
+fn published_operational_omission_is_a_negative_ceiling() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary trait WaitingSource {
+            machine wait() suspends; blocks;
+        }
+
+        data Published { source: WaitingSource; }
+        boundary machine Published::entry(&mut self) {
+            self.source.wait();
+        }
+        "#,
+    );
+    let effects = omega_effects::infer_effects(&typed);
+    let diagnostics = validate_effect_plan(&typed, &effects)
+        .expect_err("published omission must reject inferred operational behavior");
+
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("omits `suspends;`")
+            && diagnostic.message.contains("body may suspend")
+    }));
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("omits `blocks;`")
+            && diagnostic.message.contains("body may block")
+    }));
+}
+
+#[test]
 fn static_machine_argument_rejects_callable_shape_mismatch() {
     let typed = typed_program_from_source(
         r#"

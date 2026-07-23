@@ -1,1 +1,1 @@
-may reach `Suspend` while `message` remains live
+may suspend while `message` remains live

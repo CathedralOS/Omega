@@ -22,13 +22,9 @@ pub fn validate_effect_plan(
             continue;
         };
 
-        let declared_effects = service_reach_effects(declared_machine_effect_set(program, machine));
-        if declared_effects.is_empty() {
-            continue;
-        }
-
-        let reached_effects = service_reach_effects(machine_effects.transitive);
-        if !declared_effects.contains_all(reached_effects) {
+        let declared_effects = declared_machine_effect_set(program, machine);
+        let reached_effects = machine_effects.transitive;
+        if !declared_effects.is_empty() && !declared_effects.contains_all(reached_effects) {
             let missing = reached_effects.difference(declared_effects);
             let mut message = format!(
                 "machine `{}` declares effects `{}` but reaches undeclared effects `{}`",
@@ -45,21 +41,30 @@ pub fn validate_effect_plan(
             );
             diagnostics.push(Diagnostic::error(message));
         }
+
+        // Requirements, boundaries, accepted contracts, and external
+        // realizations publish closed operational ceilings. Omission is an
+        // authored `false`, unlike omission on a private checked body, where
+        // both axes are inferred. Validate the declaration-free body fixed
+        // points so a published machine cannot launder behavior through a
+        // local helper or a pinned requirement.
+        if machine.supply_mode != omega_core::semantics::MachineSupplyMode::CheckedBody {
+            if machine_effects.body_may_suspend && !machine.suspends {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` omits `suspends;` from its published contract, but its body may suspend",
+                    machine.name
+                )));
+            }
+            if machine_effects.body_may_block && !machine.blocks {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` omits `blocks;` from its published contract, but its body may block",
+                    machine.name
+                )));
+            }
+        }
     }
 
     crate::finish_diagnostics(diagnostics)
-}
-
-fn service_reach_effects(effects: omega_effects::EffectSet) -> omega_effects::EffectSet {
-    let mut services = omega_effects::EffectSet::empty();
-    for name in effects.names() {
-        if omega_core::semantics::effect_member_kind(name)
-            == Some(omega_core::semantics::EffectMemberKind::ServiceReach)
-        {
-            services.insert_name(name);
-        }
-    }
-    services
 }
 
 /// The v0 `machine_control`/port-I/O DISCHARGE gate

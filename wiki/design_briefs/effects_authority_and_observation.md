@@ -259,11 +259,12 @@ clauses, quantitative service entries, and service-row polymorphism are
 deferred until their algebras have real customers.
 
 The current compiler's lowercase names and `u64 EffectSet` are a compatibility
-implementation, not the semantic model. Migration replaces service-name lookup
-with symbol-resolved rows and moves suspension/blocking to dedicated plans,
-while retaining compatibility projections where useful. Unknown service
-identifiers resolve normally; there is no global hard-coded service table in
-the end state.
+implementation, not the semantic model. That table is now service-only;
+suspension and blocking use dedicated recursive boolean summaries, checked
+plans, admission checks, and manifest fields. The remaining migration replaces
+service-name lookup with symbol-resolved rows and then deletes the table.
+Unknown service identifiers resolve normally; there is no global hard-coded
+service table in the end state.
 
 ## Acceptance register
 

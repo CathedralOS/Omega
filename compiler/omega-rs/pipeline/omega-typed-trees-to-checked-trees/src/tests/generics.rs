@@ -828,6 +828,58 @@ fn generic_template_identity_is_positional_across_parameter_renames() {
 }
 
 #[test]
+fn generic_template_identity_pins_independent_operational_interfaces() {
+    fn fingerprint(source: String) -> u64 {
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax = parse_syntax_trees(&tokens)
+            .unwrap_or_else(|error| panic!("parse should succeed for `{source}`: {error:?}"));
+        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        let admitted = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "admitted")
+            .expect("generic template should exist");
+        crate::monomorphization::generic_machine_template_fingerprint(&typed, admitted.symbol)
+            .expect("generic template should have an identity")
+    }
+
+    fn template_fingerprint(template_clause: &str) -> u64 {
+        let source = format!(
+            r#"
+                boundary machine admitted<T>(value: &T) {template_clause}
+                ensures true;
+            "#
+        );
+        fingerprint(source)
+    }
+
+    fn slot_fingerprint(slot_clause: &str) -> u64 {
+        fingerprint(format!(
+            r#"
+                boundary machine admitted<T, machine F>(value: &T)
+                where machine F(item: &T) {slot_clause}
+                ensures true;
+            "#
+        ))
+    }
+
+    let template_base = template_fingerprint("");
+    assert_ne!(template_base, template_fingerprint("suspends;"));
+    assert_ne!(template_base, template_fingerprint("blocks;"));
+
+    let slot_base = slot_fingerprint(";");
+    assert_ne!(slot_base, slot_fingerprint("suspends;"));
+    assert_ne!(slot_base, slot_fingerprint("blocks;"));
+    assert_ne!(
+        slot_fingerprint("suspends;"),
+        slot_fingerprint("blocks;")
+    );
+}
+
+#[test]
 fn consuming_seq_map_specializes_recursive_machine_parameter_calls() {
     let source = r#"
         data Seq<T> {
