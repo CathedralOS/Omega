@@ -266,10 +266,13 @@ schemas recover the same instance without publishing policy type identity.
    nested in public records), while an explicit custom `Calling<C>` relationship
    remains the canonical-representation escape hatch. Cross-target canaries pin
    `[u8; 16]` and `[f32; 4]` as direct aggregates and `&[u8; 16]` as the distinct
-   pointer form. Complete the remaining classifier slice:
-   - enrich `BoundarySignature`/`ValueShape` with normalized recursive
-     fixed-array and record structure instead of making policy authors depend on
-     a compiler-preclassified aggregate case;
+   pointer form. Authored policies now receive a bounded normalized
+   `BoundarySignature` graph: parameter/result roots index recursive `ValueShape`
+   nodes, fixed arrays name their element root and count, and records name
+   `ValueField` ranges carrying child roots and exact byte offsets. Policy output
+   uses the separate closed `AbiValueShape` vocabulary, and compiler validation
+   checks its MS-x64, SysV AMD64, or AAPCS64 classification against the public
+   graph before accepting the plan. Complete the remaining classifier slice:
    - keep checked adapters explicit and ensure borrowed-out pointer derivation
      cannot reach a retaining/asynchronous foreign contract without a pinned
      loan, transfer, or registration protocol; and

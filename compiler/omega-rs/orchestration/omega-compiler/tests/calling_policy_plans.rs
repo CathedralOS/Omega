@@ -238,3 +238,127 @@ fn uninstantiated_generic_boundary_does_not_publish_an_abi() {
 
     assert_eq!(schema.methods[0].calling_plan_fingerprint, None);
 }
+
+#[test]
+fn source_policy_receives_recursive_fixed_array_and_record_shapes() {
+    let source = r#"
+use omega::language::std::calling;
+
+data Pair {
+    left: f32;
+    right: f32;
+}
+
+data RecursiveShapePolicy { }
+
+machine RecursiveShapePolicy::plan(
+    signature: BoundarySignature
+) -> BoundaryPlanResult
+    satisfies CallingPolicy::plan
+{
+    transition signature.parameter_count == 2 {
+        true -> bytes(signature, signature.parameters[0])
+        _ -> wrong()
+    }
+
+    state bytes(signature: BoundarySignature, root: i64) -> BoundaryPlanResult {
+        transition signature.shapes[root].class {
+            ValueClass::FixedArray { element, length } -> bytes_array(signature, root, element, length)
+            _ -> wrong()
+        }
+    }
+
+    state bytes_array(signature: BoundarySignature, root: i64, element: i64, length: i64) -> BoundaryPlanResult {
+        transition length == 16 && signature.shapes[root].byte_size == 16 && signature.shapes[root].alignment == 1 {
+            true -> bytes_element(signature, element)
+            _ -> wrong()
+        }
+    }
+
+    state bytes_element(signature: BoundarySignature, element: i64) -> BoundaryPlanResult {
+        transition signature.shapes[element].class {
+            ValueClass::Integer -> pairs(signature, signature.parameters[1])
+            _ -> wrong()
+        }
+    }
+
+    state pairs(signature: BoundarySignature, root: i64) -> BoundaryPlanResult {
+        transition signature.shapes[root].class {
+            ValueClass::FixedArray { element, length } -> pair_array(signature, root, element, length)
+            _ -> wrong()
+        }
+    }
+
+    state pair_array(signature: BoundarySignature, root: i64, element: i64, length: i64) -> BoundaryPlanResult {
+        transition length == 2 && signature.shapes[root].byte_size == 16 && signature.shapes[root].alignment == 4 {
+            true -> pair_record(signature, element)
+            _ -> wrong()
+        }
+    }
+
+    state pair_record(signature: BoundarySignature, root: i64) -> BoundaryPlanResult {
+        transition signature.shapes[root].class {
+            ValueClass::Record { first_field, field_count } -> pair_fields(signature, first_field, field_count)
+            _ -> wrong()
+        }
+    }
+
+    state pair_fields(signature: BoundarySignature, first: i64, count: i64) -> BoundaryPlanResult {
+        transition count == 2 && signature.fields[first].byte_offset == 0 && signature.fields[first + 1].byte_offset == 4 {
+            true -> first_float(signature, signature.fields[first].shape, signature.fields[first + 1].shape)
+            _ -> wrong()
+        }
+    }
+
+    state first_float(signature: BoundarySignature, first: i64, second: i64) -> BoundaryPlanResult {
+        transition signature.shapes[first].class {
+            ValueClass::Float -> second_float(signature, second)
+            _ -> wrong()
+        }
+    }
+
+    state second_float(signature: BoundarySignature, second: i64) -> BoundaryPlanResult {
+        transition signature.shapes[second].class {
+            ValueClass::Float -> observed()
+            _ -> wrong()
+        }
+    }
+
+    state observed() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection {
+                reason: "recursive fixed-array/record shape observed",
+            },
+        }
+    }
+
+    state wrong() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection {
+                reason: "recursive shape mismatch",
+            },
+        }
+    }
+}
+
+boundary trait Probe: Calling<RecursiveShapePolicy> {
+    machine inspect(bytes: [u8; 16], pairs: [Pair; 2]);
+}
+
+data Main { }
+machine Main::main(&mut self) { }
+"#;
+    let main_path = write_program("recursive-shape", source);
+    let diagnostics = compile_to_checked(&main_path, None)
+        .expect_err("the observing policy deliberately rejects after checking its input graph");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("recursive fixed-array/record shape observed"),
+        "policy did not observe the expected recursive boundary graph:\n{rendered}"
+    );
+    assert!(!rendered.contains("recursive shape mismatch"), "{rendered}");
+}

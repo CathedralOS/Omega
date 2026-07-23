@@ -17,6 +17,8 @@ use omega_typed_trees::TypedTrees;
 use omega_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 const PARAMETER_CAPACITY: usize = 32;
+const VALUE_SHAPE_CAPACITY: usize = 256;
+const VALUE_FIELD_CAPACITY: usize = 256;
 const LOCATION_CAPACITY: usize = 16;
 const REGISTER_CAPACITY: usize = 64;
 
@@ -30,6 +32,36 @@ struct TraitTypeBinding {
 struct BoundarySignatureInstance<'a> {
     signature: &'a omega_typed_trees::signature::StateSignature,
     bindings: Vec<TraitTypeBinding>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum BoundaryValueClass {
+    Integer,
+    Float,
+    Reference,
+    FixedArray { element: u16, length: u16 },
+    Record { first_field: u16, field_count: u16 },
+}
+
+#[derive(Debug, Clone, Copy)]
+struct BoundaryValueShape {
+    class: BoundaryValueClass,
+    byte_size: u16,
+    alignment: u16,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct BoundaryValueField {
+    shape: u16,
+    byte_offset: u16,
+}
+
+#[derive(Debug, Clone)]
+struct MaterializedBoundarySignature {
+    shapes: Vec<BoundaryValueShape>,
+    fields: Vec<BoundaryValueField>,
+    parameters: Vec<u16>,
+    result: Option<u16>,
 }
 
 /// Discover concrete `Calling<C>` relationships, evaluate `C::plan` once for
@@ -150,7 +182,7 @@ pub(crate) fn compute_boundary_calling_plans(
             );
             for signature_instance in signatures {
                 let signature = signature_instance.signature;
-                let call_signature =
+                let boundary_signature =
                     call_signature_from_typed(typed, signature, &signature_instance.bindings)
                         .map_err(|reason| {
                             vec![Diagnostic::error(format!(
@@ -164,7 +196,7 @@ pub(crate) fn compute_boundary_calling_plans(
                     boundary_arguments.clone(),
                     signature.symbol,
                     policy_machine.name.as_str().to_owned(),
-                    call_signature,
+                    boundary_signature,
                     relationship_span,
                 ));
             }
@@ -182,9 +214,9 @@ pub(crate) fn compute_boundary_calling_plans(
     ) in pending
     {
         let validated =
-            evaluate_calling_policy_plan(typed, &policy_machine, &signature).map_err(|reason| {
-                vec![Diagnostic::error(reason).with_source_span(relationship_span)]
-            })?;
+            evaluate_materialized_calling_policy_plan(typed, &policy_machine, &signature).map_err(
+                |reason| vec![Diagnostic::error(reason).with_source_span(relationship_span)],
+            )?;
         evaluated.push(
             omega_typed_trees::typed_trees::BoundaryCallingPlanIdentity {
                 boundary_trait,
@@ -381,21 +413,44 @@ fn call_signature_from_typed(
     typed: &TypedTrees,
     signature: &omega_typed_trees::signature::StateSignature,
     bindings: &[TraitTypeBinding],
-) -> Result<CallSignature, String> {
-    let parameters = typed
+) -> Result<MaterializedBoundarySignature, String> {
+    let mut shapes = Vec::new();
+    let mut fields = Vec::new();
+    let mut parameters = Vec::new();
+    for parameter in typed
         .state_signature_parameters(signature)
         .iter()
         .filter(|parameter| !parameter.is_self)
-        .map(|parameter| {
-            value_shape_from_type(typed, parameter.type_reference, bindings, &mut Vec::new())
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let result = signature
-        .return_type
-        .is_valid()
-        .then(|| value_shape_from_type(typed, signature.return_type, bindings, &mut Vec::new()))
-        .transpose()?;
-    Ok(CallSignature { parameters, result })
+    {
+        let (_, root) = value_shape_from_type(
+            typed,
+            parameter.type_reference,
+            bindings,
+            &mut Vec::new(),
+            &mut shapes,
+            &mut fields,
+        )?;
+        parameters.push(root);
+    }
+    let result = if signature.return_type.is_valid() {
+        let (_, root) = value_shape_from_type(
+            typed,
+            signature.return_type,
+            bindings,
+            &mut Vec::new(),
+            &mut shapes,
+            &mut fields,
+        )?;
+        Some(root)
+    } else {
+        None
+    };
+    Ok(MaterializedBoundarySignature {
+        shapes,
+        fields,
+        parameters,
+        result,
+    })
 }
 
 fn value_shape_from_type(
@@ -403,14 +458,30 @@ fn value_shape_from_type(
     mut type_reference: TypeReferenceHandle,
     bindings: &[TraitTypeBinding],
     visiting: &mut Vec<omega_core::symbols::SymbolHandle>,
-) -> Result<ValueShape, String> {
+    shapes: &mut Vec<BoundaryValueShape>,
+    fields: &mut Vec<BoundaryValueField>,
+) -> Result<(ValueShape, u16), String> {
     type_reference = substituted_type_reference(typed, type_reference, bindings);
     if let Some(primitive) = typed.primitive_type_reference(type_reference) {
-        return primitive_value_shape(primitive);
+        let abi = primitive_value_shape(primitive)?;
+        let class = if matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) {
+            BoundaryValueClass::Float
+        } else {
+            BoundaryValueClass::Integer
+        };
+        let root = push_boundary_shape(
+            shapes,
+            BoundaryValueShape {
+                class,
+                byte_size: abi.byte_size,
+                alignment: abi.alignment,
+            },
+        )?;
+        return Ok((abi, root));
     }
     match typed.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { base_type, .. } => {
-            value_shape_from_type(typed, *base_type, bindings, visiting)
+            value_shape_from_type(typed, *base_type, bindings, visiting, shapes, fields)
         }
         TypeReferenceNode::Reference { referee, .. } => {
             let mut referee = substituted_type_reference(typed, *referee, bindings);
@@ -427,27 +498,79 @@ fn value_shape_from_type(
                 TypeReferenceNode::Named { name, .. } => name.as_str() == "string",
                 _ => false,
             };
-            Ok(ValueShape::integer(if is_fat { 16 } else { 8 }, 8))
+            let abi = ValueShape::integer(if is_fat { 16 } else { 8 }, 8);
+            let root = push_boundary_shape(
+                shapes,
+                BoundaryValueShape {
+                    class: BoundaryValueClass::Reference,
+                    byte_size: abi.byte_size,
+                    alignment: abi.alignment,
+                },
+            )?;
+            Ok((abi, root))
         }
-        TypeReferenceNode::Slice { .. } => Ok(ValueShape::integer(16, 8)),
+        TypeReferenceNode::Slice { .. } => {
+            let abi = ValueShape::integer(16, 8);
+            let root = push_boundary_shape(
+                shapes,
+                BoundaryValueShape {
+                    class: BoundaryValueClass::Reference,
+                    byte_size: abi.byte_size,
+                    alignment: abi.alignment,
+                },
+            )?;
+            Ok((abi, root))
+        }
         TypeReferenceNode::FixedArray {
             element_type,
             length: omega_typed_trees::types::FixedArrayLength::Literal(length),
         } => {
-            let element = value_shape_from_type(typed, *element_type, bindings, visiting)?;
+            let (element, element_root) =
+                value_shape_from_type(typed, *element_type, bindings, visiting, shapes, fields)?;
             let size = usize::from(element.byte_size)
                 .checked_mul(*length)
                 .ok_or_else(|| "fixed-array boundary shape overflows".to_owned())?;
-            Ok(ValueShape::integer(
+            let abi = ValueShape::integer(
                 u16::try_from(size)
                     .map_err(|_| "fixed-array boundary shape exceeds 65535 bytes".to_owned())?,
                 element.alignment,
-            ))
+            );
+            let root = push_boundary_shape(
+                shapes,
+                BoundaryValueShape {
+                    class: BoundaryValueClass::FixedArray {
+                        element: element_root,
+                        length: u16::try_from(*length).map_err(|_| {
+                            "fixed-array boundary length exceeds 65535 elements".to_owned()
+                        })?,
+                    },
+                    byte_size: abi.byte_size,
+                    alignment: abi.alignment,
+                },
+            )?;
+            Ok((abi, root))
         }
-        TypeReferenceNode::Named { symbol, name } => {
-            plain_data_value_shape(typed, *symbol, name.as_str(), bindings, visiting)
+        TypeReferenceNode::Named { symbol, name } => plain_data_value_shape(
+            typed,
+            *symbol,
+            name.as_str(),
+            bindings,
+            visiting,
+            shapes,
+            fields,
+        ),
+        TypeReferenceNode::DynamicTrait { .. } => {
+            let abi = ValueShape::integer(16, 8);
+            let root = push_boundary_shape(
+                shapes,
+                BoundaryValueShape {
+                    class: BoundaryValueClass::Reference,
+                    byte_size: abi.byte_size,
+                    alignment: abi.alignment,
+                },
+            )?;
+            Ok((abi, root))
         }
-        TypeReferenceNode::DynamicTrait { .. } => Ok(ValueShape::integer(16, 8)),
         TypeReferenceNode::Generic { .. } => Err(format!(
             "generic value type `{}` is not concrete at the Calling<C> relationship",
             typed.display_type_reference(type_reference)
@@ -458,6 +581,20 @@ fn value_shape_from_type(
         )),
         TypeReferenceNode::Unit => Err("unit is not a boundary value shape".to_owned()),
     }
+}
+
+fn push_boundary_shape(
+    shapes: &mut Vec<BoundaryValueShape>,
+    shape: BoundaryValueShape,
+) -> Result<u16, String> {
+    if shapes.len() >= VALUE_SHAPE_CAPACITY {
+        return Err(format!(
+            "boundary signature exceeds the normalized shape capacity of {VALUE_SHAPE_CAPACITY}"
+        ));
+    }
+    let index = u16::try_from(shapes.len()).expect("boundary shape capacity fits u16");
+    shapes.push(shape);
+    Ok(index)
 }
 
 fn primitive_value_shape(primitive: PrimitiveType) -> Result<ValueShape, String> {
@@ -480,7 +617,9 @@ fn plain_data_value_shape(
     name: &str,
     bindings: &[TraitTypeBinding],
     visiting: &mut Vec<omega_core::symbols::SymbolHandle>,
-) -> Result<ValueShape, String> {
+    shapes: &mut Vec<BoundaryValueShape>,
+    fields: &mut Vec<BoundaryValueField>,
+) -> Result<(ValueShape, u16), String> {
     if visiting.contains(&symbol) {
         return Err(format!(
             "recursive by-value data `{name}` has no finite boundary shape"
@@ -491,23 +630,55 @@ fn plain_data_value_shape(
         .iter()
         .find(|definition| definition.symbol == symbol)
         .ok_or_else(|| format!("named boundary type `{name}` has no data definition"))?;
+    let planned_layout = typed
+        .plan_laid_layouts
+        .iter()
+        .find(|layout| layout.data_name == definition.name.as_str());
+    if let Some(layout) = planned_layout
+        && layout.offsets.len() != typed.data_members(definition).len()
+    {
+        return Err(format!(
+            "plan-laid data `{name}` has {} members but its layout publishes {} offsets",
+            typed.data_members(definition).len(),
+            layout.offsets.len()
+        ));
+    }
     visiting.push(symbol);
     let mut size = 0usize;
     let mut alignment = 1usize;
     let mut float_member_size = None;
     let mut float_members = 0usize;
-    for member in typed.data_members(definition) {
+    let mut record_fields = Vec::new();
+    for (field_index, member) in typed.data_members(definition).iter().enumerate() {
         let omega_typed_trees::data::DataMember::Field(field) = member else {
             visiting.pop();
             return Err(format!(
                 "case data `{name}` is not yet classifiable as a boundary value; pass it by reference"
             ));
         };
-        let shape = value_shape_from_type(typed, field.type_reference, bindings, visiting)?;
+        let (shape, field_root) = value_shape_from_type(
+            typed,
+            field.type_reference,
+            bindings,
+            visiting,
+            shapes,
+            fields,
+        )?;
         let field_alignment = usize::from(shape.alignment);
-        size = align_up(size, field_alignment)
-            .checked_add(usize::from(shape.byte_size))
-            .ok_or_else(|| format!("data `{name}` boundary layout overflows"))?;
+        let field_offset = planned_layout.map_or_else(
+            || align_up(size, field_alignment),
+            |layout| layout.offsets[field_index],
+        );
+        size = size.max(
+            field_offset
+                .checked_add(usize::from(shape.byte_size))
+                .ok_or_else(|| format!("data `{name}` boundary layout overflows"))?,
+        );
+        record_fields.push(BoundaryValueField {
+            shape: field_root,
+            byte_offset: u16::try_from(field_offset)
+                .map_err(|_| format!("data `{name}` field offset exceeds 65535 bytes"))?,
+        });
         alignment = alignment.max(field_alignment);
         match shape.class {
             ValueClass::Float
@@ -521,7 +692,12 @@ fn plain_data_value_shape(
         }
     }
     visiting.pop();
-    size = align_up(size, alignment);
+    if let Some(layout) = planned_layout {
+        size = layout.size;
+        alignment = layout.align;
+    } else {
+        size = align_up(size, alignment);
+    }
     if size == 0 {
         return Err(format!(
             "zero-sized data `{name}` cannot cross a boundary by value"
@@ -531,14 +707,42 @@ fn plain_data_value_shape(
         .map_err(|_| format!("data `{name}` boundary shape exceeds 65535 bytes"))?;
     let alignment = u16::try_from(alignment)
         .map_err(|_| format!("data `{name}` boundary alignment exceeds 65535 bytes"))?;
-    if (1..=4).contains(&float_members) {
-        Ok(ValueShape::homogeneous_float_aggregate(
+    let abi = if (1..=4).contains(&float_members)
+        && float_member_size.is_some_and(|member_size| {
+            usize::from(size) == usize::from(member_size) * float_members
+                && alignment == member_size
+                && record_fields.iter().enumerate().all(|(index, field)| {
+                    usize::from(field.byte_offset) == index * usize::from(member_size)
+                })
+        }) {
+        ValueShape::homogeneous_float_aggregate(
             float_member_size.expect("float member count has size"),
             u8::try_from(float_members).expect("HFA member count fits u8"),
-        ))
+        )
     } else {
-        Ok(ValueShape::integer(size, alignment))
+        ValueShape::integer(size, alignment)
+    };
+    if fields.len().saturating_add(record_fields.len()) > VALUE_FIELD_CAPACITY {
+        return Err(format!(
+            "boundary signature exceeds the normalized field capacity of {VALUE_FIELD_CAPACITY}"
+        ));
     }
+    let first_field = u16::try_from(fields.len()).expect("boundary field capacity fits u16");
+    let field_count = u16::try_from(record_fields.len())
+        .map_err(|_| format!("data `{name}` has more than 65535 boundary fields"))?;
+    fields.extend(record_fields);
+    let root = push_boundary_shape(
+        shapes,
+        BoundaryValueShape {
+            class: BoundaryValueClass::Record {
+                first_field,
+                field_count,
+            },
+            byte_size: size,
+            alignment,
+        },
+    )?;
+    Ok((abi, root))
 }
 
 fn align_up(value: usize, alignment: usize) -> usize {
@@ -552,6 +756,15 @@ pub fn evaluate_calling_policy_plan(
     typed: &TypedTrees,
     policy_machine: &str,
     signature: &CallSignature,
+) -> Result<ValidatedBoundaryEntryPlan, String> {
+    let materialized = materialized_boundary_signature_from_abi(signature)?;
+    evaluate_materialized_calling_policy_plan(typed, policy_machine, &materialized)
+}
+
+fn evaluate_materialized_calling_policy_plan(
+    typed: &TypedTrees,
+    policy_machine: &str,
+    signature: &MaterializedBoundarySignature,
 ) -> Result<ValidatedBoundaryEntryPlan, String> {
     if signature.parameters.len() > PARAMETER_CAPACITY {
         return Err(format!(
@@ -591,23 +804,98 @@ pub fn evaluate_calling_policy_plan(
         format!("calling policy `{policy_machine}` returned an invalid result: {reason}")
     })?;
 
-    validate_boundary_plan_result(result, signature).map_err(|diagnostic| diagnostic.to_string())
+    validate_materialized_boundary_plan_result(result, signature)
 }
 
-fn build_boundary_signature(signature: &CallSignature) -> BuildTimeValue {
-    let mut parameters = Vec::with_capacity(PARAMETER_CAPACITY);
-    for index in 0..PARAMETER_CAPACITY {
-        parameters.push(build_value_shape(
+fn materialized_boundary_signature_from_abi(
+    signature: &CallSignature,
+) -> Result<MaterializedBoundarySignature, String> {
+    let mut shapes = Vec::new();
+    let mut parameters = Vec::new();
+    for shape in &signature.parameters {
+        parameters.push(push_boundary_shape(
+            &mut shapes,
+            BoundaryValueShape {
+                class: match shape.class {
+                    ValueClass::Float => BoundaryValueClass::Float,
+                    _ => BoundaryValueClass::Integer,
+                },
+                byte_size: shape.byte_size,
+                alignment: shape.alignment,
+            },
+        )?);
+    }
+    let result = signature
+        .result
+        .map(|shape| {
+            push_boundary_shape(
+                &mut shapes,
+                BoundaryValueShape {
+                    class: match shape.class {
+                        ValueClass::Float => BoundaryValueClass::Float,
+                        _ => BoundaryValueClass::Integer,
+                    },
+                    byte_size: shape.byte_size,
+                    alignment: shape.alignment,
+                },
+            )
+        })
+        .transpose()?;
+    Ok(MaterializedBoundarySignature {
+        shapes,
+        fields: Vec::new(),
+        parameters,
+        result,
+    })
+}
+
+fn build_boundary_signature(signature: &MaterializedBoundarySignature) -> BuildTimeValue {
+    let mut shapes = Vec::with_capacity(VALUE_SHAPE_CAPACITY);
+    for index in 0..VALUE_SHAPE_CAPACITY {
+        shapes.push(build_boundary_value_shape(
             signature
-                .parameters
+                .shapes
                 .get(index)
                 .copied()
-                .unwrap_or_else(|| ValueShape::integer(0, 0)),
+                .unwrap_or(BoundaryValueShape {
+                    class: BoundaryValueClass::Integer,
+                    byte_size: 0,
+                    alignment: 0,
+                }),
         ));
+    }
+    let mut fields = Vec::with_capacity(VALUE_FIELD_CAPACITY);
+    for index in 0..VALUE_FIELD_CAPACITY {
+        fields.push(build_boundary_value_field(
+            signature
+                .fields
+                .get(index)
+                .copied()
+                .unwrap_or(BoundaryValueField {
+                    shape: 0,
+                    byte_offset: 0,
+                }),
+        ));
+    }
+    let mut parameters = Vec::with_capacity(PARAMETER_CAPACITY);
+    for index in 0..PARAMETER_CAPACITY {
+        parameters.push(BuildTimeValue::Int(i64::from(
+            signature.parameters.get(index).copied().unwrap_or(0),
+        )));
     }
     BuildTimeValue::Struct {
         type_name: "BoundarySignature".to_owned(),
         fields: vec![
+            ("shapes".to_owned(), BuildTimeValue::Array(shapes)),
+            (
+                "shape_count".to_owned(),
+                BuildTimeValue::Int(signature.shapes.len() as i64),
+            ),
+            ("fields".to_owned(), BuildTimeValue::Array(fields)),
+            (
+                "field_count".to_owned(),
+                BuildTimeValue::Int(signature.fields.len() as i64),
+            ),
             ("parameters".to_owned(), BuildTimeValue::Array(parameters)),
             (
                 "parameter_count".to_owned(),
@@ -619,32 +907,41 @@ fn build_boundary_signature(signature: &CallSignature) -> BuildTimeValue {
             ),
             (
                 "result".to_owned(),
-                build_value_shape(
-                    signature
-                        .result
-                        .unwrap_or_else(|| ValueShape::integer(0, 0)),
-                ),
+                BuildTimeValue::Int(i64::from(signature.result.unwrap_or(0))),
             ),
         ],
     }
 }
 
-fn build_value_shape(shape: ValueShape) -> BuildTimeValue {
+fn build_boundary_value_shape(shape: BoundaryValueShape) -> BuildTimeValue {
     let class = match shape.class {
-        ValueClass::Integer => case("Integer", vec![]),
-        ValueClass::Float => case("Float", vec![]),
-        ValueClass::HomogeneousFloatAggregate { members } => case(
-            "HomogeneousFloatAggregate",
-            vec![(
-                "members".to_owned(),
-                BuildTimeValue::Int(i64::from(members)),
-            )],
-        ),
-        ValueClass::SystemVAggregate { first, second } => case(
-            "SystemVAggregate",
+        BoundaryValueClass::Integer => case("Integer", vec![]),
+        BoundaryValueClass::Float => case("Float", vec![]),
+        BoundaryValueClass::Reference => case("Reference", vec![]),
+        BoundaryValueClass::FixedArray { element, length } => case(
+            "FixedArray",
             vec![
-                ("first".to_owned(), build_eightbyte_class(first)),
-                ("second".to_owned(), build_eightbyte_class(second)),
+                (
+                    "element".to_owned(),
+                    BuildTimeValue::Int(i64::from(element)),
+                ),
+                ("length".to_owned(), BuildTimeValue::Int(i64::from(length))),
+            ],
+        ),
+        BoundaryValueClass::Record {
+            first_field,
+            field_count,
+        } => case(
+            "Record",
+            vec![
+                (
+                    "first_field".to_owned(),
+                    BuildTimeValue::Int(i64::from(first_field)),
+                ),
+                (
+                    "field_count".to_owned(),
+                    BuildTimeValue::Int(i64::from(field_count)),
+                ),
             ],
         ),
     };
@@ -664,14 +961,262 @@ fn build_value_shape(shape: ValueShape) -> BuildTimeValue {
     }
 }
 
-fn build_eightbyte_class(class: SystemVEightbyteClass) -> BuildTimeValue {
-    case(
-        match class {
-            SystemVEightbyteClass::Integer => "Integer",
-            SystemVEightbyteClass::Sse => "Sse",
+fn build_boundary_value_field(field: BoundaryValueField) -> BuildTimeValue {
+    BuildTimeValue::Struct {
+        type_name: "ValueField".to_owned(),
+        fields: vec![
+            (
+                "shape".to_owned(),
+                BuildTimeValue::Int(i64::from(field.shape)),
+            ),
+            (
+                "byte_offset".to_owned(),
+                BuildTimeValue::Int(i64::from(field.byte_offset)),
+            ),
+        ],
+    }
+}
+
+fn validate_materialized_boundary_plan_result(
+    result: BoundaryPlanResult,
+    signature: &MaterializedBoundarySignature,
+) -> Result<ValidatedBoundaryEntryPlan, String> {
+    let BoundaryPlanResult::Accepted(plan) = result else {
+        return validate_boundary_plan_result(result, &CallSignature::default())
+            .map_err(|diagnostic| diagnostic.to_string());
+    };
+    if plan.call.parameters.len() != signature.parameters.len() {
+        return Err(invalid_authored_plan(format!(
+            "plan places {} parameters for a boundary signature with {} parameters",
+            plan.call.parameters.len(),
+            signature.parameters.len()
+        )));
+    }
+    if plan.call.result.is_some() != signature.result.is_some() {
+        return Err(invalid_authored_plan(
+            "plan result presence does not match the boundary signature".to_owned(),
+        ));
+    }
+    for (index, (placement, root)) in plan
+        .call
+        .parameters
+        .iter()
+        .zip(signature.parameters.iter().copied())
+        .enumerate()
+    {
+        validate_authored_abi_shape(signature, root, placement.shape, plan.call.policy).map_err(
+            |reason| {
+                invalid_authored_plan(format!(
+                    "parameter {index} classification is invalid: {reason}"
+                ))
+            },
+        )?;
+    }
+    if let (Some(placement), Some(root)) = (&plan.call.result, signature.result) {
+        validate_authored_abi_shape(signature, root, placement.shape, plan.call.policy).map_err(
+            |reason| invalid_authored_plan(format!("result classification is invalid: {reason}")),
+        )?;
+    }
+    let classified = CallSignature {
+        parameters: plan
+            .call
+            .parameters
+            .iter()
+            .map(|placement| placement.shape)
+            .collect(),
+        result: plan.call.result.as_ref().map(|placement| placement.shape),
+    };
+    validate_boundary_plan_result(BoundaryPlanResult::Accepted(plan), &classified)
+        .map_err(|diagnostic| diagnostic.to_string())
+}
+
+fn invalid_authored_plan(reason: String) -> String {
+    format!("calling policy accepted an invalid plan: {reason}")
+}
+
+fn validate_authored_abi_shape(
+    signature: &MaterializedBoundarySignature,
+    root: u16,
+    abi: ValueShape,
+    policy: CallingPolicy,
+) -> Result<(), String> {
+    let shape = signature
+        .shapes
+        .get(usize::from(root))
+        .ok_or_else(|| format!("shape root {root} is outside the normalized graph"))?;
+    if abi.byte_size != shape.byte_size || abi.alignment != shape.alignment {
+        return Err(format!(
+            "ABI shape {}/{} does not preserve semantic size/alignment {}/{}",
+            abi.byte_size, abi.alignment, shape.byte_size, shape.alignment
+        ));
+    }
+    let expected = match shape.class {
+        BoundaryValueClass::Integer | BoundaryValueClass::Reference => ValueClass::Integer,
+        BoundaryValueClass::Float => ValueClass::Float,
+        BoundaryValueClass::FixedArray { .. } | BoundaryValueClass::Record { .. } => {
+            classify_boundary_aggregate(signature, root, policy)?
+        }
+    };
+    if abi.class != expected {
+        return Err(format!(
+            "policy published ABI class {:?}, but its recursive public shape requires {:?} under {:?}",
+            abi.class, expected, policy
+        ));
+    }
+    Ok(())
+}
+
+fn classify_boundary_aggregate(
+    signature: &MaterializedBoundarySignature,
+    root: u16,
+    policy: CallingPolicy,
+) -> Result<ValueClass, String> {
+    if policy == CallingPolicy::MicrosoftX64 {
+        return Ok(ValueClass::Integer);
+    }
+    let shape = signature
+        .shapes
+        .get(usize::from(root))
+        .ok_or_else(|| format!("shape root {root} is outside the normalized graph"))?;
+    let mut leaves = Vec::new();
+    collect_boundary_scalar_leaves(signature, root, 0, &mut leaves, 0)?;
+    if let Some(members) = homogeneous_float_leaf_shape(shape, &leaves) {
+        if policy == CallingPolicy::Aapcs64
+            || (policy == CallingPolicy::SystemVAMD64 && members > 1)
+        {
+            return Ok(ValueClass::HomogeneousFloatAggregate { members });
+        }
+        if policy == CallingPolicy::SystemVAMD64 && members == 1 {
+            return Ok(ValueClass::Float);
+        }
+    }
+    if policy != CallingPolicy::SystemVAMD64 || shape.byte_size > 16 {
+        return Ok(ValueClass::Integer);
+    }
+    let mut classes = [None, None];
+    for &(offset, byte_size, is_float) in &leaves {
+        let eightbyte = usize::from(offset) / 8;
+        let last = usize::from(offset)
+            .checked_add(usize::from(byte_size))
+            .and_then(|end| end.checked_sub(1))
+            .ok_or_else(|| "aggregate contains a zero-width scalar leaf".to_owned())?;
+        if eightbyte > 1 || eightbyte != last / 8 {
+            return Err(
+                "aggregate has a scalar leaf crossing a SysV eightbyte boundary".to_owned(),
+            );
+        }
+        classes[eightbyte] = Some(match classes[eightbyte] {
+            Some(existing_is_sse) => existing_is_sse && is_float,
+            None => is_float,
+        });
+    }
+    let first = classes[0].ok_or_else(|| "aggregate has no scalar leaves".to_owned())?;
+    let second = if shape.byte_size > 8 {
+        classes[1].ok_or_else(|| "aggregate leaves do not cover its second eightbyte".to_owned())?
+    } else {
+        false
+    };
+    if !first && !second {
+        return Ok(ValueClass::Integer);
+    }
+    if shape.byte_size <= 8 {
+        return Err(
+            "one-eightbyte non-homogeneous SSE aggregates are not representable in the closed ABI vocabulary"
+                .to_owned(),
+        );
+    }
+    Ok(ValueClass::SystemVAggregate {
+        first: if first {
+            SystemVEightbyteClass::Sse
+        } else {
+            SystemVEightbyteClass::Integer
         },
-        vec![],
-    )
+        second: if second {
+            SystemVEightbyteClass::Sse
+        } else {
+            SystemVEightbyteClass::Integer
+        },
+    })
+}
+
+fn homogeneous_float_leaf_shape(
+    aggregate: &BoundaryValueShape,
+    leaves: &[(u16, u16, bool)],
+) -> Option<u8> {
+    let &(first_offset, member_size, true) = leaves.first()? else {
+        return None;
+    };
+    let members = u8::try_from(leaves.len()).ok()?;
+    (first_offset == 0
+        && (1..=4).contains(&members)
+        && matches!(member_size, 4 | 8)
+        && leaves
+            .iter()
+            .enumerate()
+            .all(|(index, &(offset, size, is_float))| {
+                is_float
+                    && size == member_size
+                    && usize::from(offset) == index * usize::from(member_size)
+            })
+        && aggregate.byte_size == member_size * u16::from(members)
+        && aggregate.alignment == member_size)
+        .then_some(members)
+}
+
+fn collect_boundary_scalar_leaves(
+    signature: &MaterializedBoundarySignature,
+    root: u16,
+    base_offset: u16,
+    leaves: &mut Vec<(u16, u16, bool)>,
+    depth: usize,
+) -> Result<(), String> {
+    if depth > 32 {
+        return Err("boundary shape nesting exceeds 32 levels".to_owned());
+    }
+    let shape = signature
+        .shapes
+        .get(usize::from(root))
+        .ok_or_else(|| format!("shape root {root} is outside the normalized graph"))?;
+    match shape.class {
+        BoundaryValueClass::Integer | BoundaryValueClass::Reference => {
+            leaves.push((base_offset, shape.byte_size, false));
+        }
+        BoundaryValueClass::Float => leaves.push((base_offset, shape.byte_size, true)),
+        BoundaryValueClass::FixedArray { element, length } => {
+            let element_shape = signature
+                .shapes
+                .get(usize::from(element))
+                .ok_or_else(|| format!("array element shape {element} is outside the graph"))?;
+            for index in 0..length {
+                let offset = element_shape
+                    .byte_size
+                    .checked_mul(index)
+                    .and_then(|offset| base_offset.checked_add(offset))
+                    .ok_or_else(|| "fixed-array leaf offset overflows u16".to_owned())?;
+                collect_boundary_scalar_leaves(signature, element, offset, leaves, depth + 1)?;
+            }
+        }
+        BoundaryValueClass::Record {
+            first_field,
+            field_count,
+        } => {
+            let start = usize::from(first_field);
+            let end = start
+                .checked_add(usize::from(field_count))
+                .ok_or_else(|| "record field range overflows".to_owned())?;
+            let fields = signature
+                .fields
+                .get(start..end)
+                .ok_or_else(|| "record field range is outside the normalized graph".to_owned())?;
+            for field in fields {
+                let offset = base_offset
+                    .checked_add(field.byte_offset)
+                    .ok_or_else(|| "record field offset overflows u16".to_owned())?;
+                collect_boundary_scalar_leaves(signature, field.shape, offset, leaves, depth + 1)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 fn case(variant: &str, payload: Vec<(String, BuildTimeValue)>) -> BuildTimeValue {
@@ -771,8 +1316,8 @@ fn decode_value_placement(value: &BuildTimeValue) -> Result<ValuePlacement, Stri
 }
 
 fn decode_value_shape(value: &BuildTimeValue) -> Result<ValueShape, String> {
-    let fields = struct_parts(value, "ValueShape")?;
-    let (variant, payload) = case_parts(field(fields, "class", "ValueShape")?, "ValueClass")?;
+    let fields = struct_parts(value, "AbiValueShape")?;
+    let (variant, payload) = case_parts(field(fields, "class", "AbiValueShape")?, "AbiValueClass")?;
     let class = match variant {
         "Integer" => ValueClass::Integer,
         "Float" => ValueClass::Float,
@@ -788,14 +1333,14 @@ fn decode_value_shape(value: &BuildTimeValue) -> Result<ValueShape, String> {
         },
         other => {
             return Err(format!(
-                "ValueClass case `{other}` is outside the compiler-owned vocabulary"
+                "AbiValueClass case `{other}` is outside the compiler-owned vocabulary"
             ));
         }
     };
     Ok(ValueShape {
         class,
-        byte_size: u16_value(field(fields, "byte_size", "ValueShape")?, "byte_size")?,
-        alignment: u16_value(field(fields, "alignment", "ValueShape")?, "alignment")?,
+        byte_size: u16_value(field(fields, "byte_size", "AbiValueShape")?, "byte_size")?,
+        alignment: u16_value(field(fields, "alignment", "AbiValueShape")?, "alignment")?,
     })
 }
 
@@ -1125,4 +1670,65 @@ fn u16_value(value: &BuildTimeValue, context: &str) -> Result<u16, String> {
 
 fn u32_value(value: &BuildTimeValue, context: &str) -> Result<u32, String> {
     u32::try_from(int(value, context)?).map_err(|_| format!("{context} is outside u32 range"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn four_f32_array_signature() -> MaterializedBoundarySignature {
+        MaterializedBoundarySignature {
+            shapes: vec![
+                BoundaryValueShape {
+                    class: BoundaryValueClass::Float,
+                    byte_size: 4,
+                    alignment: 4,
+                },
+                BoundaryValueShape {
+                    class: BoundaryValueClass::FixedArray {
+                        element: 0,
+                        length: 4,
+                    },
+                    byte_size: 16,
+                    alignment: 4,
+                },
+            ],
+            fields: Vec::new(),
+            parameters: vec![1],
+            result: None,
+        }
+    }
+
+    #[test]
+    fn recursive_array_classification_is_policy_specific() {
+        let signature = four_f32_array_signature();
+        let hfa = ValueShape::homogeneous_float_aggregate(4, 4);
+        validate_authored_abi_shape(&signature, 1, hfa, CallingPolicy::Aapcs64)
+            .expect("AAPCS64 should classify four f32 elements as an HFA");
+        validate_authored_abi_shape(&signature, 1, hfa, CallingPolicy::SystemVAMD64)
+            .expect("SysV should classify four f32 elements through its SSE aggregate path");
+        validate_authored_abi_shape(
+            &signature,
+            1,
+            ValueShape::integer(16, 4),
+            CallingPolicy::MicrosoftX64,
+        )
+        .expect("Microsoft x64 should classify the fixed array as an indirect aggregate");
+    }
+
+    #[test]
+    fn authored_policy_cannot_publish_a_preclassified_shape_for_the_wrong_abi() {
+        let signature = four_f32_array_signature();
+        let error = validate_authored_abi_shape(
+            &signature,
+            1,
+            ValueShape::integer(16, 4),
+            CallingPolicy::Aapcs64,
+        )
+        .expect_err("AAPCS64 policy must preserve the HFA classification");
+        assert!(
+            error.contains("requires HomogeneousFloatAggregate"),
+            "{error}"
+        );
+    }
 }
