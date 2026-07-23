@@ -24,7 +24,10 @@ pub(super) fn lower_type_constraint_node_span_from_table(
                 typed::types::TypeConstraintNode::Named(crate::name::lower_name(name))
             }
             resolved::types::TypeConstraintNode::Domain(name) => {
-                typed::types::TypeConstraintNode::Domain(crate::name::lower_name(name))
+                typed::types::TypeConstraintNode::Domain(typed::types::DomainConstraint {
+                    name: crate::name::lower_name(name),
+                    ..Default::default()
+                })
             }
             resolved::types::TypeConstraintNode::Range { minimum, maximum } => {
                 typed::types::TypeConstraintNode::Range {
@@ -147,7 +150,10 @@ fn lower_type_constraint_node_with_context(
             typed::types::TypeConstraintNode::Named(crate::name::lower_name(name)),
         ),
         resolved::types::TypeConstraint::Domain(name) => Ok(
-            typed::types::TypeConstraintNode::Domain(crate::name::lower_name(name)),
+            typed::types::TypeConstraintNode::Domain(typed::types::DomainConstraint {
+                name: crate::name::lower_name(name),
+                ..Default::default()
+            }),
         ),
         resolved::types::TypeConstraint::Range { minimum, maximum } => {
             Ok(typed::types::TypeConstraintNode::Range {

@@ -197,7 +197,7 @@ pub(crate) fn domain_constraint_name(
             .constraints(*constraints)
             .iter()
             .find_map(|constraint| match constraint {
-                typed::types::TypeConstraintNode::Domain(name) => Some(name.clone()),
+                typed::types::TypeConstraintNode::Domain(domain) => Some(domain.name.clone()),
                 _ => None,
             }),
         _ => None,

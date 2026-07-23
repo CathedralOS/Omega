@@ -1,5 +1,6 @@
 use super::{
-    FixedArrayLength, PrimitiveType, TypeConstraintNode, TypeReferenceNode, TypeReferenceTable,
+    DomainConstraint, FixedArrayLength, PrimitiveType, TypeConstraintNode, TypeReferenceNode,
+    TypeReferenceTable,
 };
 use crate::expression::{ExpressionNode, ExpressionTable};
 use crate::name::Identifier;
@@ -94,8 +95,21 @@ fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
         element_type: u8_reference,
         length: FixedArrayLength::Literal(8),
     });
-    let constraints =
-        source_types.insert_constraints([TypeConstraintNode::Range { minimum, maximum }]);
+    let domain_symbol = SymbolHandle::from_arena_index(12);
+    let semantic_id = omega_core::semantics::SemanticDomainId(9);
+    let facets = omega_core::semantics::DomainFacets {
+        predicate: true,
+        semantic: Some(semantic_id),
+    };
+    let constraints = source_types.insert_constraints([
+        TypeConstraintNode::Range { minimum, maximum },
+        TypeConstraintNode::Domain(DomainConstraint {
+            name: Identifier::generated("Utf8"),
+            symbol: domain_symbol,
+            semantic_id,
+            facets,
+        }),
+    ]);
     let source_root = source_types.insert(TypeReferenceNode::Constrained {
         base_type: fixed_array_reference,
         constraints,
@@ -112,7 +126,7 @@ fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
 
     assert_eq!(
         copied_types.display_name_with_constraints(copied_root, &copied_expressions),
-        "[u8; 8][1..=8]"
+        "[u8; 8][1..=8, in Utf8]"
     );
     assert_eq!(
         copied_types.type_reference_count(),
@@ -122,6 +136,18 @@ fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
         copied_expressions.expression_count(),
         source_expressions.expression_count()
     );
+    let TypeReferenceNode::Constrained { constraints, .. } =
+        copied_types.type_reference(copied_root)
+    else {
+        panic!("copied constrained type")
+    };
+    let [_, TypeConstraintNode::Domain(copied_domain)] = copied_types.constraints(*constraints)
+    else {
+        panic!("copied normalized domain constraint")
+    };
+    assert_eq!(copied_domain.symbol, domain_symbol);
+    assert_eq!(copied_domain.semantic_id, semantic_id);
+    assert_eq!(copied_domain.facets, facets);
 }
 
 #[test]

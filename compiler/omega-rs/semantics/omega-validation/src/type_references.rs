@@ -804,12 +804,18 @@ impl<'program> TypeParameterScope<'program> {
 /// carrier must match `base_type`. Domains are storage-bound (re-declared per
 /// carrier), so `[u8] in Utf8` resolves to `domain [u8]::Utf8` and NOT to a
 /// `domain String::Utf8` that happens to share the `Utf8` name.
-fn domain_is_declared(program: &TypedTrees, base_type: TypeReferenceHandle, wanted: &str) -> bool {
-    program.domain_definitions().iter().any(|domain| {
-        let full = domain.name.as_str();
-        let name_matches = full.rsplit("::").next().unwrap_or(full) == wanted;
-        name_matches && type_references_match(program, base_type, domain.target_type)
-    })
+fn domain_is_declared(
+    program: &TypedTrees,
+    base_type: TypeReferenceHandle,
+    constraint: &omega_typed_trees::types::DomainConstraint,
+) -> bool {
+    constraint.symbol.is_valid()
+        && program.domain_definitions().iter().any(|domain| {
+            domain.symbol == constraint.symbol
+                && domain.semantic_id == constraint.semantic_id
+                && domain.facets == constraint.facets
+                && type_references_match(program, base_type, domain.target_type)
+        })
 }
 
 fn type_reference_is_named_str(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
@@ -904,10 +910,10 @@ fn validate_type_constraints_node(
             // must reference a `domain ...::Name` declaration -- this rejects
             // typos (`in Utf8x`) and is what distinguishes a domain from a
             // structural property (`[copy]`, which stays an unvalidated `Named`).
-            TypeConstraintNode::Domain(name) => {
-                if !domain_is_declared(program, base_type, name.as_str()) {
+            TypeConstraintNode::Domain(domain) => {
+                if !domain_is_declared(program, base_type, domain) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "{owner} uses `in {name}`, but no `domain` named `{name}` is declared \
+                        "{owner} uses `in {domain}`, but no `domain` named `{domain}` is declared \
                          for `{}` (domains are bound to their storage type)",
                         type_reference_label(program, base_type)
                     )));

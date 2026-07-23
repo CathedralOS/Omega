@@ -1041,8 +1041,13 @@ stronger operations it needs instead of citing machine parameters generally.
   a predicate-proof obligation. Until authored facet syntax/policy lands, the
   compatibility projection treats factful declarations as hybrids and
   factless declarations as semantic-only. Remaining: enforce per-axis
-  composition through merges, joins, and generic substitution, then retire the
-  compatibility projection.
+  composition through merges and joins, then retire the compatibility
+  projection. Typed `T in D` constraints now bind the authored short name to a
+  carrier-compatible declaration after the complete typed program exists and
+  retain its symbol, semantic identity, and facet pair. Nested generic
+  arguments, type-table copies, checked field/contract facts, byte predicates,
+  validation, and typed snapshots consume or preserve that normalized record;
+  none re-resolve the short name globally.
 - **DOM2 — binding-site operators.** Resolve operator theory from declarations,
   mints, and `requires`; never from flow facts. Resolve tuples deterministically
   and reject collisions.

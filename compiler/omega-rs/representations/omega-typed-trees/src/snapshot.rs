@@ -525,6 +525,13 @@ pub enum TypeConstraintSnapshot {
     Named {
         name: String,
     },
+    Domain {
+        name: String,
+        symbol: u32,
+        semantic_id: u32,
+        predicate_facet: bool,
+        semantic_facet: Option<u32>,
+    },
     Range {
         minimum: ExpressionSnapshot,
         maximum: ExpressionSnapshot,
@@ -1181,11 +1188,16 @@ fn type_constraint_snapshot(
     constraint: &TypeConstraintNode,
 ) -> TypeConstraintSnapshot {
     match constraint {
-        TypeConstraintNode::Named(name) | TypeConstraintNode::Domain(name) => {
-            TypeConstraintSnapshot::Named {
-                name: name.to_string(),
-            }
-        }
+        TypeConstraintNode::Named(name) => TypeConstraintSnapshot::Named {
+            name: name.to_string(),
+        },
+        TypeConstraintNode::Domain(domain) => TypeConstraintSnapshot::Domain {
+            name: domain.name.to_string(),
+            symbol: domain.symbol.arena_index(),
+            semantic_id: domain.semantic_id.0,
+            predicate_facet: domain.facets.predicate,
+            semantic_facet: domain.facets.semantic.map(|semantic| semantic.0),
+        },
         TypeConstraintNode::Range { minimum, maximum } => TypeConstraintSnapshot::Range {
             minimum: expression_snapshot(program, *minimum),
             maximum: expression_snapshot(program, *maximum),

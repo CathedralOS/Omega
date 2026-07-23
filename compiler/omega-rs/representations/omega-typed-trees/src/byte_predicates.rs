@@ -75,22 +75,18 @@ pub fn type_reference_domain_predicates(
                 constraints,
             } => {
                 for constraint in program.type_reference_table.constraints(*constraints) {
-                    let TypeConstraintNode::Domain(name) = constraint else {
+                    let TypeConstraintNode::Domain(domain_constraint) = constraint else {
                         continue;
                     };
-                    // A domain's stored name is carrier-qualified
-                    // (`[u8]::Utf8`) while the constraint spells the bare
-                    // segment (`Utf8`): match the LAST `::` segment, the
-                    // same rule as the checker's `resolve_domain_symbol`.
-                    let predicate = program
-                        .domain_definitions()
-                        .iter()
-                        .find(|domain| {
-                            let full = domain.name.as_str();
-                            full.rsplit("::").next().unwrap_or(full) == name.as_str()
-                        })
-                        .and_then(|domain| domain_byte_predicate(program, domain.symbol));
-                    predicates.push((name.as_str().to_owned(), predicate));
+                    // The carrier-aware typed normalization pass already
+                    // selected the declaration; never repeat a global lookup
+                    // from the authored short name here.
+                    let predicate = domain_constraint
+                        .symbol
+                        .is_valid()
+                        .then(|| domain_byte_predicate(program, domain_constraint.symbol))
+                        .flatten();
+                    predicates.push((domain_constraint.name.as_str().to_owned(), predicate));
                 }
                 handle = *base_type;
             }

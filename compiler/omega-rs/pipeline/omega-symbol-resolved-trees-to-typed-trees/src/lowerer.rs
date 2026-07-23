@@ -1,5 +1,6 @@
 use crate::data::lower_data_definition;
 use crate::domain::lower_domain_definition;
+use crate::domain_constraints::normalize_domain_constraints;
 use crate::invariant::lower_invariant_definition;
 use crate::machine::lower_machine;
 use crate::operator::lower_operator_definition;
@@ -142,6 +143,7 @@ impl Lowerer<'_> {
         // STR4: the copied interners survive the rebuild.
         trees.effect_rows = effect_rows;
         trees.semantic_domains = semantic_domains;
+        normalize_domain_constraints(&mut trees);
         Ok(trees)
     }
 }

@@ -456,25 +456,23 @@ fn field_domain_symbol(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
-    let domain_name = domain_constraint_name(program, type_reference)?;
-    program.domain_definitions().iter().find_map(|domain| {
-        let full = domain.name.as_str();
-        (full.rsplit("::").next().unwrap_or(full) == domain_name).then_some(domain.symbol)
-    })
+    domain_constraint_symbol(program, type_reference)
 }
 
-fn domain_constraint_name<'program>(
-    program: &'program TypedTrees,
+fn domain_constraint_symbol(
+    program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Option<&'program str> {
+) -> Option<SymbolHandle> {
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => domain_constraint_name(program, *referee),
+        TypeReferenceNode::Reference { referee, .. } => domain_constraint_symbol(program, *referee),
         TypeReferenceNode::Constrained { constraints, .. } => program
             .type_reference_table
             .constraints(*constraints)
             .iter()
             .find_map(|constraint| match constraint {
-                TypeConstraintNode::Domain(name) => Some(name.as_str()),
+                TypeConstraintNode::Domain(domain) if domain.symbol.is_valid() => {
+                    Some(domain.symbol)
+                }
                 _ => None,
             }),
         _ => None,

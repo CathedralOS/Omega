@@ -691,8 +691,7 @@ fn construction_field_domain_symbol(
     }
 
     let field_type = construction_field_type(program, data_definition, case_name, field_name)?;
-    let domain_name = crate::field_domain::domain_constraint_name(program, field_type)?;
-    crate::field_domain::resolve_domain_symbol(program, &domain_name)
+    crate::field_domain::domain_constraint_symbol(program, field_type)
 }
 
 /// The declared type of a constructed field (a case PAYLOAD field for the named
@@ -918,8 +917,7 @@ fn declared_value_domain_implies(
     else {
         return false;
     };
-    let Some(value_domain) = crate::field_domain::domain_constraint_name(program, value_type)
-        .and_then(|name| crate::field_domain::resolve_domain_symbol(program, &name))
+    let Some(value_domain) = crate::field_domain::domain_constraint_symbol(program, value_type)
     else {
         return false;
     };
@@ -946,8 +944,7 @@ fn value_call_return_domain_implies(
         return false;
     }
     let Some(return_domain) =
-        crate::field_domain::domain_constraint_name(program, target.return_type)
-            .and_then(|name| crate::field_domain::resolve_domain_symbol(program, &name))
+        crate::field_domain::domain_constraint_symbol(program, target.return_type)
     else {
         return false;
     };

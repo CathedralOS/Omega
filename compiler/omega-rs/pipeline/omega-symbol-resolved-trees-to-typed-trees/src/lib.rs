@@ -1,5 +1,6 @@
 mod data;
 mod domain;
+mod domain_constraints;
 mod equality;
 mod equatable;
 mod exhaustiveness;

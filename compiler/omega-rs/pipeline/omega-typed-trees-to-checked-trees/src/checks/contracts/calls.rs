@@ -266,8 +266,7 @@ fn parameter_domain_grants(
         return false;
     }
     let Some(param_domain) =
-        crate::field_domain::domain_constraint_name(program, parameter.type_reference)
-            .and_then(|name| crate::field_domain::resolve_domain_symbol(program, &name))
+        crate::field_domain::domain_constraint_symbol(program, parameter.type_reference)
     else {
         return false;
     };
@@ -334,8 +333,7 @@ fn value_call_return_domain_grants(
         return false;
     }
     let Some(return_domain) =
-        crate::field_domain::domain_constraint_name(program, target.return_type)
-            .and_then(|name| crate::field_domain::resolve_domain_symbol(program, &name))
+        crate::field_domain::domain_constraint_symbol(program, target.return_type)
     else {
         return false;
     };
