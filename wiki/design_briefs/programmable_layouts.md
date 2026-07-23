@@ -251,10 +251,17 @@ the entry-set identity through artifact admission, and allows an admitted
 artifact to yield only a sealed target present in that set. Source-level data
 identity derivation and final artifact propagation remain. For entry targets,
 the exact `InstalledCode` state now supplies the private resolver while the
-normalized writer validates its destination, resolves each target once, stages
-all fragments, and publishes atomically. Foreign entries and data symbols fail
-without changing the destination; numeric entry addresses never become a
-public API. Target-machine emission of the writer remains.
+normalized writer validates its destination and every source before mutation,
+resolves each target once, then writes the exclusive unpublished destination
+directly. Failure produces no publication claim; it does not promise
+transactional restoration after writes begin. A sealed writer preparation now
+owns the exact destination, its initial content, plan, and root set, binds them
+to the installed code and deterministic fingerprints, and lowers to an
+address-free generated machine carrier using only private source-slot indices.
+Foreign entries,
+placement/root drift, and invalid destination authority reject before lowering;
+numeric entry addresses never become a public API. The private-context ABI and
+target-machine emission of the writer remain.
 
 ## Still open
 

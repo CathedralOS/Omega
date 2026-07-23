@@ -55,6 +55,67 @@ fn generated_idt_load_retains_prepared_facts_in_machine_lowering() {
 }
 
 #[test]
+fn generated_idt_writer_retains_address_free_preparation_in_machine_lowering() {
+    let mut assigned_operations = AssignedTargetOperationPlan::default();
+    let source_kind = SelectedInstructionKind::GeneratedIdtWriter {
+        preparation: omega_external_roots::IdtWriterPreparationId::from_normalized_identity(1)
+            .expect("writer preparation identity"),
+        installed_code: omega_external_roots::InstalledCodeId::from_normalized_identity(2)
+            .expect("installed code identity"),
+        artifact: omega_external_roots::ArtifactId::from_normalized_identity(3)
+            .expect("artifact identity"),
+        destination: omega_external_roots::IdtDestinationId::from_normalized_identity(4)
+            .expect("destination identity"),
+        writer_fingerprint: 5,
+        placement_fingerprint: 6,
+        initial_content_fingerprint: 7,
+        root_binding_fingerprint: 8,
+        byte_len: 4096,
+        little_endian: true,
+        source_slot_count: 1,
+        steps: vec![omega_external_roots::PreparedIdtWriterStep {
+            container_byte_offset: 8,
+            container_width_bits: 64,
+            destination_lsb: 16,
+            source_lsb: 32,
+            width: 16,
+            source_slot: 0,
+        }]
+        .into(),
+    };
+    let instructions = assigned_operations
+        .code
+        .instructions
+        .insert_many([AssignedOperation {
+            kind: source_kind.clone(),
+            source_key: Default::default(),
+            source_statement: 0,
+        }]);
+    assigned_operations
+        .code
+        .functions
+        .insert(AssignedTargetOperationFunction {
+            instructions,
+            ..Default::default()
+        });
+
+    let machine = build_machine_instructions(&assigned_operations)
+        .expect("generated IDT writer should lower to machine carrier");
+    let instruction = machine
+        .code
+        .instructions
+        .iter()
+        .next()
+        .map(|(_, instruction)| instruction)
+        .expect("generated machine instruction");
+    assert_eq!(
+        instruction.kind,
+        omega_machine_instructions::MachineInstructionKind::GeneratedIdtWriter
+    );
+    assert_eq!(instruction.source_kind, source_kind);
+}
+
+#[test]
 fn copies_assigned_value_summary_to_machine_instruction_plan() {
     let mut assigned_operations = AssignedTargetOperationPlan::default();
     let machine_symbol = SymbolHandle::from_arena_index(1);

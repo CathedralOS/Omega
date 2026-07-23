@@ -9,7 +9,7 @@ use std::sync::Arc;
 use omega_extents::{AddressSpaceId, Extent, ExtentProvenanceId, ExtentRights};
 use omega_layout_plans::{
     EntryStubId, MaterializationDiagnostic, PlacementConstraints, PlacementSite,
-    PostHandoffWriterPlan, RelocationTarget,
+    PostHandoffWriterPlan, PostHandoffWriterSource, RelocationTarget,
 };
 
 macro_rules! normalized_id {
@@ -779,6 +779,49 @@ impl InstalledCode {
         self.artifact.selected_entry_target(identity)
     }
 
+    /// Check the exact post-handoff entry writer without resolving an entry
+    /// address into a public value or changing destination bytes. This is the
+    /// provider-side preparation gate used before compiler-generated writer
+    /// lowering. Pre-resolved entry fragments must equal the address from this
+    /// exact installed realization; unresolved fragments must be members of
+    /// this artifact's admitted entry set.
+    pub fn validate_post_handoff_entry_writer(
+        &self,
+        plan: &PostHandoffWriterPlan,
+        destination_len: usize,
+        destination_site: PlacementSite,
+    ) -> Result<(), MaterializationDiagnostic> {
+        plan.validate(destination_len, destination_site)?;
+        for step in &plan.steps {
+            match step.source {
+                PostHandoffWriterSource::Resolve(target) => {
+                    if self.resolve_entry_target(target).is_none() {
+                        return Err(MaterializationDiagnostic(format!(
+                            "post-handoff writer target {target:?} is not an admitted entry in the exact installed artifact"
+                        )));
+                    }
+                }
+                PostHandoffWriterSource::Resolved(value) => match step.write.target {
+                    RelocationTarget::Entry(_)
+                        if self.resolve_entry_target(step.write.target) == Some(value) => {}
+                    RelocationTarget::Entry(_) => {
+                        return Err(MaterializationDiagnostic(format!(
+                            "post-handoff writer pre-resolved entry {:?} does not match the exact installed realization",
+                            step.write.target
+                        )));
+                    }
+                    RelocationTarget::Data(_) => {
+                        return Err(MaterializationDiagnostic(format!(
+                            "post-handoff entry writer target {:?} is not an admitted entry in the exact installed artifact",
+                            step.write.target
+                        )));
+                    }
+                },
+            }
+        }
+        Ok(())
+    }
+
     /// Executes an atomic post-handoff writer using this installed code as the
     /// resolver authority for entry targets. Data symbols and entries from any
     /// other artifact fail before the destination is published.
@@ -788,14 +831,21 @@ impl InstalledCode {
         destination: &mut [u8],
         destination_site: PlacementSite,
     ) -> Result<(), MaterializationDiagnostic> {
-        plan.execute(destination, destination_site, |target| match target {
+        self.validate_post_handoff_entry_writer(plan, destination.len(), destination_site)?;
+        plan.execute(destination, destination_site, |target| {
+            self.resolve_entry_target(target)
+        })
+    }
+
+    fn resolve_entry_target(&self, target: RelocationTarget) -> Option<u64> {
+        match target {
             RelocationTarget::Entry(identity) => self
                 .artifact
                 .artifact
                 .entry(identity)
                 .and_then(|entry| self.placement.extent.base().checked_add(entry.code_offset)),
             RelocationTarget::Data(_) => None,
-        })
+        }
     }
 }
 
@@ -1311,7 +1361,15 @@ mod tests {
         let error = installed
             .execute_post_handoff_entry_writer(&writer(foreign), &mut unchanged, destination_site)
             .expect_err("foreign artifact entry must not resolve");
-        assert!(error.0.contains("could not resolve symbolic target"));
+        assert!(error.0.contains("exact installed artifact"));
+        assert_eq!(unchanged, [0xa5; 8]);
+
+        let mut stale = writer(target);
+        stale.steps[0].source = PostHandoffWriterSource::Resolved(0xdead_beef);
+        let error = installed
+            .execute_post_handoff_entry_writer(&stale, &mut unchanged, destination_site)
+            .expect_err("pre-resolved address from another realization must reject");
+        assert!(error.0.contains("exact installed realization"));
         assert_eq!(unchanged, [0xa5; 8]);
     }
 

@@ -13,8 +13,12 @@ use omega_calling_conventions::{
     BoundaryEntryPlan, EntryStack, MachineRegister, StateFootprintEvidence,
     ValidatedBoundaryEntryPlan, validate_state_footprint,
 };
-use omega_executable_installation::{ArtifactId, InstalledCode, InstalledCodeId};
-use omega_layout_plans::{EntryStubId, PlacementSite, PostHandoffWriterPlan, RelocationTarget};
+use omega_executable_installation::InstalledCode;
+pub use omega_executable_installation::{ArtifactId, InstalledCodeId};
+use omega_layout_plans::{
+    ByteOrder, EntryStubId, PlacementPhase, PlacementSite, PostHandoffWriterPlan,
+    PostHandoffWriterSource, RelocationTarget,
+};
 
 macro_rules! normalized_id {
     ($name:ident, $label:literal) => {
@@ -72,6 +76,7 @@ normalized_id!(
 normalized_id!(StateValidationReceiptId, "machine-state validation receipt");
 normalized_id!(MaterializedIdtId, "materialized IDT");
 normalized_id!(IdtDestinationId, "IDT destination");
+normalized_id!(IdtWriterPreparationId, "IDT writer preparation");
 normalized_id!(IdtMaterializationReceiptId, "IDT materialization receipt");
 normalized_id!(IdtControlId, "IDT control authority");
 normalized_id!(IdtInstallationReceiptId, "IDT installation receipt");
@@ -1390,6 +1395,242 @@ impl UnpublishedIdtDestination {
     }
 }
 
+/// Sealed proof that one normalized writer has passed the exact installed
+/// artifact, unpublished destination, placement, and root-binding gates. Only
+/// this proof may enter compiler-generated IDT writer lowering or the final
+/// materialization transition; numeric entry addresses remain private to
+/// `InstalledCode`.
+#[derive(PartialEq, Eq)]
+pub struct PreparedIdtWriter {
+    identity: IdtWriterPreparationId,
+    installed_code: InstalledCodeId,
+    artifact: ArtifactId,
+    writer_fingerprint: u64,
+    placement_fingerprint: u64,
+    initial_content_fingerprint: u64,
+    root_binding_fingerprint: u64,
+    destination: UnpublishedIdtDestination,
+    writer: PostHandoffWriterPlan,
+    roots: BTreeMap<u8, IdtRootBinding>,
+}
+
+impl std::fmt::Debug for PreparedIdtWriter {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("PreparedIdtWriter")
+            .field("identity", &self.identity)
+            .field("installed_code", &self.installed_code)
+            .field("artifact", &self.artifact)
+            .field("destination", &self.destination.identity)
+            .field("writer_fingerprint", &self.writer_fingerprint)
+            .field("placement_fingerprint", &self.placement_fingerprint)
+            .field(
+                "initial_content_fingerprint",
+                &self.initial_content_fingerprint,
+            )
+            .field("root_binding_fingerprint", &self.root_binding_fingerprint)
+            .field("byte_len", &self.writer.byte_len)
+            .field("step_count", &self.writer.steps.len())
+            .field("source_slot_count", &self.source_slot_count())
+            .finish()
+    }
+}
+
+/// Address-free fragment retained by compiler lowering. `source_slot` names a
+/// provider-private context slot whose value is populated only through the
+/// sealed installed-code resolver; it is not a source-visible address.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PreparedIdtWriterStep {
+    pub container_byte_offset: u64,
+    pub container_width_bits: u16,
+    pub destination_lsb: u16,
+    pub source_lsb: u16,
+    pub width: u16,
+    pub source_slot: usize,
+}
+
+impl PreparedIdtWriter {
+    pub const fn identity(&self) -> IdtWriterPreparationId {
+        self.identity
+    }
+
+    pub const fn installed_code(&self) -> InstalledCodeId {
+        self.installed_code
+    }
+
+    pub const fn artifact(&self) -> ArtifactId {
+        self.artifact
+    }
+
+    pub const fn destination(&self) -> IdtDestinationId {
+        self.destination.identity
+    }
+
+    pub const fn writer_fingerprint(&self) -> u64 {
+        self.writer_fingerprint
+    }
+
+    pub const fn placement_fingerprint(&self) -> u64 {
+        self.placement_fingerprint
+    }
+
+    pub const fn initial_content_fingerprint(&self) -> u64 {
+        self.initial_content_fingerprint
+    }
+
+    pub const fn root_binding_fingerprint(&self) -> u64 {
+        self.root_binding_fingerprint
+    }
+
+    pub const fn byte_len(&self) -> usize {
+        self.writer.byte_len
+    }
+
+    pub const fn step_count(&self) -> usize {
+        self.writer.steps.len()
+    }
+
+    pub const fn little_endian(&self) -> bool {
+        matches!(self.writer.byte_order, ByteOrder::LittleEndian)
+    }
+
+    pub fn lowering_steps(&self) -> Vec<PreparedIdtWriterStep> {
+        let mut sources = Vec::<PostHandoffWriterSource>::new();
+        self.writer
+            .steps
+            .iter()
+            .map(|step| {
+                let source_slot = sources
+                    .iter()
+                    .position(|source| *source == step.source)
+                    .unwrap_or_else(|| {
+                        let slot = sources.len();
+                        sources.push(step.source);
+                        slot
+                    });
+                PreparedIdtWriterStep {
+                    container_byte_offset: step.write.container_byte_offset,
+                    container_width_bits: step.write.container_width_bits,
+                    destination_lsb: step.write.destination_lsb,
+                    source_lsb: step.write.source_lsb,
+                    width: step.write.width,
+                    source_slot,
+                }
+            })
+            .collect()
+    }
+
+    pub fn source_slot_count(&self) -> usize {
+        let mut sources = Vec::<PostHandoffWriterSource>::new();
+        for step in &self.writer.steps {
+            if !sources.contains(&step.source) {
+                sources.push(step.source);
+            }
+        }
+        sources.len()
+    }
+}
+
+#[derive(Debug)]
+pub struct IdtWriterPreparationError {
+    destination: UnpublishedIdtDestination,
+    writer: PostHandoffWriterPlan,
+    bindings: Vec<IdtRootBinding>,
+    diagnostic: ExternalRootDiagnostic,
+}
+
+impl IdtWriterPreparationError {
+    pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        UnpublishedIdtDestination,
+        PostHandoffWriterPlan,
+        Vec<IdtRootBinding>,
+    ) {
+        (self.destination, self.writer, self.bindings)
+    }
+}
+
+/// Prepare one exact direct-destination writer without resolving an entry to
+/// a public number or mutating the destination. The installed artifact checks
+/// every symbolic source, while this gate binds the linear unpublished
+/// destination and exact root set that the completed IDT must retain.
+pub fn prepare_idt_writer(
+    installed_code: &InstalledCode,
+    destination: UnpublishedIdtDestination,
+    writer: PostHandoffWriterPlan,
+    bindings: impl IntoIterator<Item = IdtRootBinding>,
+) -> Result<PreparedIdtWriter, Box<IdtWriterPreparationError>> {
+    let bindings = bindings.into_iter().collect::<Vec<_>>();
+    let reject = |diagnostic, destination, writer, bindings| {
+        Err(Box::new(IdtWriterPreparationError {
+            destination,
+            writer,
+            bindings,
+            diagnostic,
+        }))
+    };
+    let roots = match validate_idt_writer_bindings(&writer, &bindings) {
+        Ok(roots) => roots,
+        Err(diagnostic) => return reject(diagnostic, destination, writer, bindings),
+    };
+    if !destination.mapped || !destination.pinned || !destination.writable {
+        return reject(
+            ExternalRootDiagnostic(
+                "IDT writer destination must be mapped, pinned, and writable".into(),
+            ),
+            destination,
+            writer,
+            bindings,
+        );
+    }
+    if let Err(error) = installed_code.validate_post_handoff_entry_writer(
+        &writer,
+        destination.bytes.len(),
+        destination.site,
+    ) {
+        return reject(
+            ExternalRootDiagnostic(format!("IDT writer preparation failed: {error}")),
+            destination,
+            writer,
+            bindings,
+        );
+    }
+
+    let writer_fingerprint = fingerprint_idt_writer(&writer);
+    let placement_fingerprint = fingerprint_placement_site(destination.site);
+    let initial_content_fingerprint =
+        nonzero_fingerprint(fingerprint_bytes(&destination.bytes[..writer.byte_len]));
+    let root_binding_fingerprint = fingerprint_idt_bindings(&roots);
+    let identity = fingerprint_idt_writer_preparation(
+        installed_code.identity(),
+        installed_code.artifact(),
+        destination.identity,
+        writer_fingerprint,
+        placement_fingerprint,
+        initial_content_fingerprint,
+        root_binding_fingerprint,
+        writer.byte_len,
+        writer.steps.len(),
+    );
+    Ok(PreparedIdtWriter {
+        identity: IdtWriterPreparationId(identity),
+        installed_code: installed_code.identity(),
+        artifact: installed_code.artifact(),
+        writer_fingerprint,
+        placement_fingerprint,
+        initial_content_fingerprint,
+        root_binding_fingerprint,
+        destination,
+        writer,
+        roots,
+    })
+}
+
 /// Provider certificate over the completed direct-destination writer and its
 /// software-fault-free bootstrap checks.
 #[derive(Debug, PartialEq, Eq)]
@@ -1467,9 +1708,7 @@ impl MaterializedIdt {
 
 #[derive(Debug)]
 pub struct IdtMaterializationError {
-    destination: UnpublishedIdtDestination,
-    writer: PostHandoffWriterPlan,
-    bindings: Vec<IdtRootBinding>,
+    prepared: PreparedIdtWriter,
     receipt: IdtMaterializationReceipt,
     diagnostic: ExternalRootDiagnostic,
 }
@@ -1479,54 +1718,38 @@ impl IdtMaterializationError {
         &self.diagnostic
     }
 
-    pub fn into_parts(
-        self,
-    ) -> (
-        UnpublishedIdtDestination,
-        PostHandoffWriterPlan,
-        Vec<IdtRootBinding>,
-        IdtMaterializationReceipt,
-    ) {
-        (self.destination, self.writer, self.bindings, self.receipt)
+    pub fn into_parts(self) -> (PreparedIdtWriter, IdtMaterializationReceipt) {
+        (self.prepared, self.receipt)
     }
 }
 
 pub fn materialize_idt(
     identity: MaterializedIdtId,
     installed_code: &InstalledCode,
-    mut destination: UnpublishedIdtDestination,
-    writer: PostHandoffWriterPlan,
-    bindings: impl IntoIterator<Item = IdtRootBinding>,
+    mut prepared: PreparedIdtWriter,
     receipt: IdtMaterializationReceipt,
 ) -> Result<MaterializedIdt, Box<IdtMaterializationError>> {
-    let bindings: Vec<_> = bindings.into_iter().collect();
-    let reject = |diagnostic, destination, writer, bindings, receipt| {
+    let reject = |diagnostic, prepared, receipt| {
         Err(Box::new(IdtMaterializationError {
-            destination,
-            writer,
-            bindings,
+            prepared,
             receipt,
             diagnostic,
         }))
     };
-    let roots = match validate_idt_writer_bindings(&writer, &bindings) {
-        Ok(roots) => roots,
-        Err(diagnostic) => return reject(diagnostic, destination, writer, bindings, receipt),
-    };
-    if !destination.mapped || !destination.pinned || !destination.writable {
+    if prepared.installed_code != installed_code.identity()
+        || prepared.artifact != installed_code.artifact()
+    {
         return reject(
             ExternalRootDiagnostic(
-                "IDT writer destination must be mapped, pinned, and writable".into(),
+                "prepared IDT writer does not bind the exact installed code and artifact".into(),
             ),
-            destination,
-            writer,
-            bindings,
+            prepared,
             receipt,
         );
     }
     if receipt.installed_code != installed_code.identity()
         || receipt.artifact != installed_code.artifact()
-        || receipt.destination != destination.identity
+        || receipt.destination != prepared.destination.identity
         || !receipt.software_fault_free
         || !receipt.remains_unpublished
     {
@@ -1535,37 +1758,39 @@ pub fn materialize_idt(
                 "IDT materialization receipt does not bind the exact code/destination and software-fault-free unpublished result"
                     .into(),
             ),
-            destination,
-            writer,
-            bindings,
+            prepared,
             receipt,
         );
     }
+    let destination_site = prepared.destination.site;
     if let Err(error) = installed_code.execute_post_handoff_entry_writer(
-        &writer,
-        &mut destination.bytes,
-        destination.site,
+        &prepared.writer,
+        &mut prepared.destination.bytes,
+        destination_site,
     ) {
         return reject(
             ExternalRootDiagnostic(format!("IDT writer execution failed: {error}")),
-            destination,
-            writer,
-            bindings,
+            prepared,
             receipt,
         );
     }
-    let content_fingerprint = fingerprint_bytes(&destination.bytes[..writer.byte_len]);
+    let content_fingerprint =
+        fingerprint_bytes(&prepared.destination.bytes[..prepared.writer.byte_len]);
     if content_fingerprint == 0 || receipt.content_fingerprint != content_fingerprint {
         return reject(
             ExternalRootDiagnostic(
                 "IDT materialization receipt does not bind the exact completed bytes".into(),
             ),
-            destination,
-            writer,
-            bindings,
+            prepared,
             receipt,
         );
     }
+    let PreparedIdtWriter {
+        destination,
+        writer,
+        roots,
+        ..
+    } = prepared;
     Ok(MaterializedIdt {
         identity,
         content_fingerprint,
@@ -1611,6 +1836,144 @@ fn validate_idt_writer_bindings(
         ));
     }
     Ok(roots)
+}
+
+fn fingerprint_idt_writer(writer: &PostHandoffWriterPlan) -> u64 {
+    let mut hash = Fnv1a::new();
+    hash.u64(writer.byte_len as u64);
+    hash.u64(match writer.byte_order {
+        ByteOrder::LittleEndian => 1,
+        ByteOrder::BigEndian => 2,
+    });
+    let placement = writer.placement;
+    match placement.permitted_range() {
+        Some(range) => {
+            hash.u64(1);
+            hash.u64(range.start_inclusive());
+            hash.u64(range.end_exclusive());
+        }
+        None => hash.u64(0),
+    }
+    hash.u64(placement.alignment());
+    hash.u64(placement_phase_identity(placement.phase()));
+    hash.u64(
+        placement
+            .machine_regime()
+            .map_or(0, |identity| identity.normalized_identity()),
+    );
+    hash.u64(
+        placement
+            .installation_scope()
+            .map_or(0, |identity| identity.normalized_identity()),
+    );
+    hash.u64(writer.steps.len() as u64);
+    for step in &writer.steps {
+        fingerprint_text(&mut hash, &step.write.field);
+        fingerprint_relocation_target(&mut hash, step.write.target);
+        hash.u64(step.write.container_byte_offset);
+        hash.u64(u64::from(step.write.container_width_bits));
+        hash.u64(u64::from(step.write.destination_lsb));
+        hash.u64(u64::from(step.write.source_lsb));
+        hash.u64(u64::from(step.write.width));
+        match step.source {
+            PostHandoffWriterSource::Resolved(value) => {
+                hash.u64(1);
+                hash.u64(value);
+            }
+            PostHandoffWriterSource::Resolve(target) => {
+                hash.u64(2);
+                fingerprint_relocation_target(&mut hash, target);
+            }
+        }
+    }
+    nonzero_fingerprint(hash.finish())
+}
+
+fn fingerprint_placement_site(site: PlacementSite) -> u64 {
+    let mut hash = Fnv1a::new();
+    hash.u64(site.base_address);
+    hash.u64(placement_phase_identity(site.phase));
+    hash.u64(
+        site.machine_regime
+            .map_or(0, |identity| identity.normalized_identity()),
+    );
+    hash.u64(
+        site.installation_scope
+            .map_or(0, |identity| identity.normalized_identity()),
+    );
+    nonzero_fingerprint(hash.finish())
+}
+
+fn fingerprint_idt_bindings(roots: &BTreeMap<u8, IdtRootBinding>) -> u64 {
+    let mut hash = Fnv1a::new();
+    hash.u64(roots.len() as u64);
+    for binding in roots.values() {
+        hash.u64(u64::from(binding.vector));
+        hash.u64(binding.root.normalized_identity());
+        hash.u64(binding.entry.normalized_identity());
+    }
+    nonzero_fingerprint(hash.finish())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn fingerprint_idt_writer_preparation(
+    installed_code: InstalledCodeId,
+    artifact: ArtifactId,
+    destination: IdtDestinationId,
+    writer_fingerprint: u64,
+    placement_fingerprint: u64,
+    initial_content_fingerprint: u64,
+    root_binding_fingerprint: u64,
+    byte_len: usize,
+    step_count: usize,
+) -> u64 {
+    let mut hash = Fnv1a::new();
+    hash.u64(installed_code.normalized_identity());
+    hash.u64(artifact.normalized_identity());
+    hash.u64(destination.normalized_identity());
+    hash.u64(writer_fingerprint);
+    hash.u64(placement_fingerprint);
+    hash.u64(initial_content_fingerprint);
+    hash.u64(root_binding_fingerprint);
+    hash.u64(byte_len as u64);
+    hash.u64(step_count as u64);
+    nonzero_fingerprint(hash.finish())
+}
+
+fn fingerprint_relocation_target(hash: &mut Fnv1a, target: RelocationTarget) {
+    match target {
+        RelocationTarget::Data(identity) => {
+            hash.u64(1);
+            hash.u64(identity.normalized_identity());
+        }
+        RelocationTarget::Entry(identity) => {
+            hash.u64(2);
+            hash.u64(identity.normalized_identity());
+        }
+    }
+}
+
+fn fingerprint_text(hash: &mut Fnv1a, text: &str) {
+    hash.u64(text.len() as u64);
+    for byte in text.bytes() {
+        hash.u64(u64::from(byte));
+    }
+}
+
+const fn placement_phase_identity(phase: PlacementPhase) -> u64 {
+    match phase {
+        PlacementPhase::Build => 1,
+        PlacementPhase::Load => 2,
+        PlacementPhase::PostHandoff => 3,
+    }
+}
+
+const fn nonzero_fingerprint(fingerprint: u64) -> u64 {
+    if fingerprint == 0 {
+        0xcbf2_9ce4_8422_2325
+    } else {
+        fingerprint
+    }
 }
 
 /// Linear authority for the provider-owned architectural IDT register.
@@ -2552,6 +2915,75 @@ mod tests {
             ),
         };
         let destination_id = root_id(199, IdtDestinationId::from_normalized_identity);
+        let mut foreign_writer = writer.clone();
+        let foreign_entry = entry_id(1002);
+        foreign_writer.steps[0].write.target = RelocationTarget::Entry(foreign_entry);
+        foreign_writer.steps[0].source =
+            PostHandoffWriterSource::Resolve(RelocationTarget::Entry(foreign_entry));
+        let foreign_error = prepare_idt_writer(
+            &code,
+            UnpublishedIdtDestination::from_provider(
+                destination_id,
+                vec![0_u8; 16],
+                site,
+                true,
+                true,
+                true,
+            ),
+            foreign_writer,
+            [IdtRootBinding {
+                entry: foreign_entry,
+                ..binding
+            }],
+        )
+        .expect_err("foreign entry cannot enter checked writer lowering");
+        assert!(
+            foreign_error
+                .diagnostic()
+                .0
+                .contains("exact installed artifact")
+        );
+
+        let wrong_phase_error = prepare_idt_writer(
+            &code,
+            UnpublishedIdtDestination::from_provider(
+                destination_id,
+                vec![0_u8; 16],
+                PlacementSite {
+                    phase: PlacementPhase::Load,
+                    ..site
+                },
+                true,
+                true,
+                true,
+            ),
+            writer.clone(),
+            [binding],
+        )
+        .expect_err("placement phase drift cannot enter checked writer lowering");
+        assert!(wrong_phase_error.diagnostic().0.contains("placement phase"));
+
+        let writable_error = prepare_idt_writer(
+            &code,
+            UnpublishedIdtDestination::from_provider(
+                destination_id,
+                vec![0_u8; 16],
+                site,
+                true,
+                true,
+                false,
+            ),
+            writer.clone(),
+            [binding],
+        )
+        .expect_err("non-writable destination cannot enter checked writer lowering");
+        assert!(
+            writable_error
+                .diagnostic()
+                .0
+                .contains("mapped, pinned, and writable")
+        );
+
         let mut expected = vec![0_u8; 16];
         expected[..8].copy_from_slice(&0x1010_u64.to_le_bytes());
         let bad_materialization_receipt = IdtMaterializationReceipt::from_provider(
@@ -2563,8 +2995,7 @@ mod tests {
             true,
             true,
         );
-        let error = materialize_idt(
-            root_id(200, MaterializedIdtId::from_normalized_identity),
+        let prepared = prepare_idt_writer(
             &code,
             UnpublishedIdtDestination::from_provider(
                 destination_id,
@@ -2576,12 +3007,37 @@ mod tests {
             ),
             writer.clone(),
             [binding],
+        )
+        .expect("exact writer inputs prepare");
+        assert_eq!(prepared.installed_code(), code.identity());
+        assert_eq!(prepared.artifact(), code.artifact());
+        assert_eq!(prepared.destination(), destination_id);
+        assert_ne!(prepared.writer_fingerprint(), 0);
+        assert_ne!(prepared.placement_fingerprint(), 0);
+        assert_ne!(prepared.initial_content_fingerprint(), 0);
+        assert_ne!(prepared.root_binding_fingerprint(), 0);
+        assert_eq!(prepared.source_slot_count(), 1);
+        assert_eq!(
+            prepared.lowering_steps(),
+            vec![PreparedIdtWriterStep {
+                container_byte_offset: 0,
+                container_width_bits: 64,
+                destination_lsb: 0,
+                source_lsb: 0,
+                width: 64,
+                source_slot: 0,
+            }]
+        );
+        let error = materialize_idt(
+            root_id(200, MaterializedIdtId::from_normalized_identity),
+            &code,
+            prepared,
             bad_materialization_receipt,
         )
         .expect_err("receipt for different final bytes cannot mint MaterializedIdt");
         assert!(error.diagnostic().0.contains("exact completed bytes"));
-        let (destination, retry_writer, bindings, _) = error.into_parts();
-        assert_eq!(destination.bytes, expected);
+        let (retry_prepared, _) = error.into_parts();
+        assert_eq!(retry_prepared.destination.bytes, expected);
         let materialization_receipt = IdtMaterializationReceipt::from_provider(
             root_id(210, IdtMaterializationReceiptId::from_normalized_identity),
             code.identity(),
@@ -2594,9 +3050,7 @@ mod tests {
         let materialized = materialize_idt(
             root_id(200, MaterializedIdtId::from_normalized_identity),
             &code,
-            destination,
-            retry_writer,
-            bindings,
+            retry_prepared,
             materialization_receipt,
         )
         .expect("materialized IDT");
@@ -2671,8 +3125,7 @@ mod tests {
         assert_eq!(installed.roots().collect::<Vec<_>>(), vec![binding.root]);
 
         let mismatch_destination = root_id(209, IdtDestinationId::from_normalized_identity);
-        let mismatch = materialize_idt(
-            root_id(207, MaterializedIdtId::from_normalized_identity),
+        let mismatch = prepare_idt_writer(
             &code,
             UnpublishedIdtDestination::from_provider(
                 mismatch_destination,
@@ -2687,17 +3140,8 @@ mod tests {
                 entry: entry_id(1002),
                 ..binding
             }],
-            IdtMaterializationReceipt::from_provider(
-                root_id(208, IdtMaterializationReceiptId::from_normalized_identity),
-                code.identity(),
-                code.artifact(),
-                mismatch_destination,
-                fingerprint_bytes(&expected),
-                true,
-                true,
-            ),
         )
-        .expect_err("writer target cannot bypass root binding");
+        .expect_err("writer target cannot bypass root binding preparation");
         assert!(mismatch.diagnostic().0.contains("exactly match"));
     }
 

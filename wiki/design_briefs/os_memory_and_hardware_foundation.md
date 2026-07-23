@@ -516,8 +516,9 @@ relocation vocabulary. Post-handoff structures may use the generated writer.
 The normalized writer program is now derived from the same actions: it
 validates the concrete placement, resolves each sealed target once through the
 provider, derives every fragment, writes only the unpublished destination, and
-publishes only after the complete result validates. Target-machine emission of
-that program remains engineering work.
+publishes only after the complete result validates. Its sealed preparation and
+address-free generated target/machine carrier are live; the private context
+ABI, exact footprint, and target-machine emission remain engineering work.
 Placement plans may constrain range, alignment, phase, machine regime, and
 scoped artifact-installation authority. The normalized materialization
 foundation now carries those five facts: policy alignment is joined with the
@@ -793,14 +794,23 @@ writing the mapped/pinned/writable unpublished destination directly, computes
 the resulting content identity, and checks an exact code/artifact/destination/
 final-byte receipt plus the software-fault-free verdict. It returns every
 linear input on failure and never exposes the resolved entry address. The
+writer now has its own sealed pre-lowering gate: `PreparedIdtWriter` owns the
+exact unpublished destination, normalized plan, and root set after checking
+the installed-artifact resolver, placement phase, mapped/pinned/writable
+authority, and fragment geometry. Its identity binds code, artifact,
+destination and initial content, plan, placement, and roots. Compiler lowering
+preserves those facts and address-free fragment geometry in a generated-only
+target/machine carrier whose source operands are private context-slot indices;
+final emission currently rejects until that private context ABI is pinned. The
 compiler now retains the exact validated selected provider-plan set through
 checked lowering, with canonical per-plan and whole-selection identities. Root
 candidates now carry the selected plan identity before validation, normalized
 root identity covers it, and `ProviderExecution` inherits it from that root;
 the compiler's boundary-slot bridge consumes only the retained selection and
 rejects missing or ambiguous matches. Concrete Cathedral PIC/LAPIC candidate
-construction, checked-Omega writer lowering, and provider lowering
-that supplies the private descriptor to the contracted `lidt` consumer remain.
+construction, the writer's private context ABI/ISA emission, and provider
+lowering that executes the writer and supplies the private descriptor to the
+contracted `lidt` consumer remain.
 The deriver-only catalog contract, exact x86 encoding, and source-rejection
 rail are live.
 Provider-neutral acceptance canaries instantiate the timer as one root plus
@@ -1013,7 +1023,7 @@ settled concrete interrupt policy's implementation remain. Remaining order:
    entry provider. No raw-byte shortcut.
 2. Derive sealed data/entry identities from selected compiler artifacts,
    propagate normalized placement constraints through artifact construction,
-   and lower the derived post-handoff writer program as a compiler-generated
+   and emit the derived post-handoff writer program as a compiler-generated
    checked Omega machine. Give it only an exclusive unpublished mapped/pinned/
    writable placement and the sealed exact-artifact resolver; write the
    destination directly and mint no result after partial failure. Validate the
@@ -1034,10 +1044,13 @@ settled concrete interrupt policy's implementation remain. Remaining order:
    lets only an admitted artifact select sealed `EntryStubId` targets present
    in the set. The exact installed-code state now privately resolves those
    entries against its placement while executing an atomic-publication
-   post-handoff writer;
+   post-handoff writer. The sealed preparation and address-free generated
+   target/machine carrier are live: exact code/artifact/destination/plan/
+   placement/initial-content/root fingerprints and fragment geometry survive
+   lowering, while resolved values remain provider-private source slots;
    foreign entries and data symbols reject before publication, without a
-   source-visible numeric-address operation. Target-machine writer emission
-   remains.
+   source-visible numeric-address operation. Pinning the private context ABI,
+   its exact footprint, and target-machine writer emission remains.
 3. Connect the implemented normalized `Extent` conservation/mapping model to
    the Omega linear carrier and sealed facts, then implement provider execution
    and source APIs. Root admission, split/merge/attenuation, borrow polarity,

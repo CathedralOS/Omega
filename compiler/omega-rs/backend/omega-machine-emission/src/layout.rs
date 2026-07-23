@@ -903,6 +903,11 @@ fn machine_instruction_width(
                 )
             });
         }
+        SelectedInstructionKind::GeneratedIdtWriter { .. } => {
+            return Err(Diagnostic::error(
+                "generated IDT writer has no pinned private-context ISA encoding yet",
+            ));
+        }
         SelectedInstructionKind::FlagsSnapshot { .. } => {
             if input.target.architecture != omega_target::Architecture::X86_64 {
                 return Err(Diagnostic::error(
