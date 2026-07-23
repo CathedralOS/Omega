@@ -1,0 +1,17 @@
+// Attached proof operations are admitted only when the receiver carrier itself
+// is proof-only. A runtime-backed receiver cannot hide proof-only parameters.
+data ProofTerm {
+    case Zero;
+    case Next(previous: ProofTerm);
+}
+
+data RuntimeState {
+    value: i32;
+}
+
+machine RuntimeState::bad(&mut self, term: ProofTerm) {
+    self.value = 1;
+}
+
+machine RuntimeState::main(&mut self) {
+}

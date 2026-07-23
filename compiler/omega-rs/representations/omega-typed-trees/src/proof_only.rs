@@ -103,23 +103,41 @@ impl ProofOnlyClassification {
 }
 
 impl ProofOnlyClassification {
-    /// Machine-stratum contagion (math roster N2d gateway): a FREE machine
-    /// (no attached data, no receiver) whose signature -- any state's
-    /// params, returns, or locals -- mentions proof-only data is a PROOF
-    /// MACHINE: an ordinary machine used only as evidence (chapter 10; the
-    /// design brief's `proof machine` keyword dissolved into exactly this
-    /// computed classification). It emits no runtime code, so the runtime
-    /// consumption faces do not apply to it; validation and the proof
-    /// engines still see it whole. Attached machines stay refused at the
-    /// faces: their receiver is runtime storage, and a lemma about a
-    /// machine's fields belongs in that machine's contracts instead.
+    /// Machine-stratum contagion (math roster N2d gateway): a free machine
+    /// whose signature mentions proof-only data, or a by-value operation
+    /// attached to proof-only data itself, is a PROOF MACHINE. The latter is a
+    /// proof-side receiver operation, not storage-backed runtime dispatch.
+    /// Borrowed or mutable receivers remain runtime consumption attempts, as
+    /// do operations attached to runtime data even when another signature
+    /// position mentions proof-only data.
     pub fn is_proof_machine(
         &self,
         program: &TypedTrees,
         machine: &crate::machine::Machine,
     ) -> bool {
-        if machine.attached_data.is_some() {
-            return false;
+        if let Some(attached) = machine.attached_data.as_ref() {
+            let attached_is_proof_only = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.name.as_str() == attached.as_str())
+                .is_some_and(|definition| self.is_proof_only(definition.symbol));
+            return attached_is_proof_only
+                && program.machine_states(machine).iter().all(|state| {
+                    program
+                        .state_parameters(state)
+                        .iter()
+                        .find(|parameter| parameter.is_self)
+                        .is_some_and(|receiver| {
+                            !receiver.is_mutable
+                                && receiver.type_reference.is_valid()
+                                && !matches!(
+                                    program
+                                        .type_reference_table
+                                        .type_reference(receiver.type_reference),
+                                    TypeReferenceNode::Reference { .. }
+                                )
+                        })
+                });
         }
         program.machine_states(machine).iter().any(|state| {
             program.state_parameters(state).iter().any(|parameter| {

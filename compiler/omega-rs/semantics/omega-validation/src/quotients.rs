@@ -130,6 +130,7 @@ fn base_data_symbol(
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
         TypeReferenceNode::Generic { base_symbol, .. } => Some(*base_symbol),
+        TypeReferenceNode::Reference { referee, .. } => base_data_symbol(program, *referee),
         TypeReferenceNode::Constrained { base_type, .. } => base_data_symbol(program, *base_type),
         _ => None,
     }
@@ -293,10 +294,10 @@ fn name_operand(program: &TypedTrees, expression: ExpressionHandle) -> Option<St
     }
 }
 
-/// A receiver-free representative operation whose entire carrier argument
-/// list has been lifted to one quotient. The candidate exists independently
-/// of certification so callers can replace a generic nominal-mismatch cascade
-/// with the precise missing-respect diagnostic.
+/// A representative operation whose receiver (when attached) and complete
+/// carrier argument list have been lifted to one quotient. The candidate
+/// exists independently of certification so callers can replace a generic
+/// nominal-mismatch cascade with the precise missing-respect diagnostic.
 pub(crate) struct QuotientLiftCandidate<'program> {
     pub(crate) quotient: &'program omega_typed_trees::data::DataDefinition,
     pub(crate) operation: &'program Machine,
@@ -305,6 +306,7 @@ pub(crate) struct QuotientLiftCandidate<'program> {
 
 pub(crate) fn quotient_lift_candidate<'program>(
     program: &'program TypedTrees,
+    receiver_type: Option<TypeReferenceHandle>,
     argument_types: &[Option<TypeReferenceHandle>],
     state: &'program State,
 ) -> Option<QuotientLiftCandidate<'program>> {
@@ -313,16 +315,41 @@ pub(crate) fn quotient_lift_candidate<'program>(
         .iter()
         .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
-    if parameters.is_empty() || parameters.len() != argument_types.len() {
+    if parameters.len() != argument_types.len() {
         return None;
     }
 
-    let first_argument = argument_types.first().copied().flatten()?;
-    let quotient = quotient_for_type(program, first_argument)?;
+    let operation = program.machines().iter().find(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .any(|candidate| candidate.symbol == state.symbol)
+    })?;
+    let is_attached = operation.attached_data.is_some();
+    if is_attached != receiver_type.is_some() {
+        return None;
+    }
+
+    let first_operand = receiver_type.or_else(|| argument_types.first().copied().flatten())?;
+    let quotient = quotient_for_type(program, first_operand)?;
     let quotient_metadata = quotient.quotient.as_ref()?;
     let carrier = base_data_symbol(program, quotient_metadata.carrier)?;
     if base_data_symbol(program, state.return_type) != Some(carrier) {
         return None;
+    }
+    if let Some(receiver_type) = receiver_type {
+        if quotient_for_type(program, receiver_type)?.symbol != quotient.symbol {
+            return None;
+        }
+        let attached_carrier = operation.attached_data.as_ref().and_then(|attached| {
+            program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.name.as_str() == attached.as_str())
+        })?;
+        if attached_carrier.symbol != carrier {
+            return None;
+        }
     }
     for (parameter, argument_type) in parameters.iter().zip(argument_types) {
         if base_data_symbol(program, parameter.type_reference) != Some(carrier) {
@@ -334,13 +361,6 @@ pub(crate) fn quotient_lift_candidate<'program>(
         }
     }
 
-    let operation = program.machines().iter().find(|machine| {
-        machine.attached_data.is_none()
-            && program
-                .machine_states(machine)
-                .iter()
-                .any(|candidate| candidate.symbol == state.symbol)
-    })?;
     let certified = !operation.boundary
         && program.machine_effects(operation).is_empty()
         && operation_respects_quotient(program, operation, state, quotient);
@@ -348,6 +368,36 @@ pub(crate) fn quotient_lift_candidate<'program>(
         quotient,
         operation,
         certified,
+    })
+}
+
+/// Resolve an operation attached to a quotient's representative carrier. This
+/// is deliberately a validation-only projection: the quotient remains
+/// proof-only and no representative or runtime dispatch target is reified.
+pub(crate) fn representative_operation_for_quotient<'program>(
+    program: &'program TypedTrees,
+    receiver_type: TypeReferenceHandle,
+    target: &str,
+) -> Option<(&'program Machine, &'program State)> {
+    let quotient = quotient_for_type(program, receiver_type)?;
+    let carrier_symbol = base_data_symbol(program, quotient.quotient.as_ref()?.carrier)?;
+    let carrier = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == carrier_symbol)?;
+    program.machines().iter().find_map(|machine| {
+        machine
+            .attached_data
+            .as_ref()
+            .is_some_and(|attached| attached.as_str() == carrier.name.as_str())
+            .then(|| {
+                program
+                    .machine_states(machine)
+                    .iter()
+                    .find(|state| state.name.as_str() == target)
+                    .map(|state| (machine, state))
+            })
+            .flatten()
     })
 }
 
@@ -405,31 +455,28 @@ fn operation_respects_quotient(
             {
                 continue;
             }
-            let left_arguments = program
-                .expression_table
-                .expression_handles(left_call.arguments);
-            let right_arguments = program
-                .expression_table
-                .expression_handles(right_call.arguments);
-            let operation_arity = program
-                .state_parameters(operation_state)
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .count();
-            if left_arguments.len() != operation_arity
-                || right_arguments.len() != operation_arity
-                || left_arguments.is_empty()
+            let Some(left_operands) = operation_call_operands(program, left_call, operation) else {
+                continue;
+            };
+            let Some(right_operands) = operation_call_operands(program, right_call, operation)
+            else {
+                continue;
+            };
+            let operation_arity = program.state_parameters(operation_state).iter().count();
+            if left_operands.len() != operation_arity
+                || right_operands.len() != operation_arity
+                || left_operands.is_empty()
             {
                 continue;
             }
             let mut varies = false;
-            let respected = left_arguments
+            let respected = left_operands
                 .iter()
-                .zip(right_arguments)
+                .zip(right_operands)
                 .all(|(left, right)| {
                     if program
                         .expression_table
-                        .expressions_structurally_equal(*left, *right)
+                        .expressions_structurally_equal(*left, right)
                     {
                         return true;
                     }
@@ -440,7 +487,7 @@ fn operation_respects_quotient(
                             *required,
                             relation.relation_symbol,
                             *left,
-                            *right,
+                            right,
                         )
                     })
                 });
@@ -450,6 +497,24 @@ fn operation_respects_quotient(
         }
     }
     false
+}
+
+fn operation_call_operands(
+    program: &TypedTrees,
+    call: &omega_typed_trees::expression::TableCallExpression,
+    operation: &Machine,
+) -> Option<Vec<ExpressionHandle>> {
+    let mut operands = Vec::new();
+    if operation.attached_data.is_some() {
+        if !call.receiver.is_valid() {
+            return None;
+        }
+        operands.push(call.receiver);
+    } else if call.receiver.is_valid() {
+        return None;
+    }
+    operands.extend_from_slice(program.expression_table.expression_handles(call.arguments));
+    Some(operands)
 }
 
 fn contract_expression_handles(

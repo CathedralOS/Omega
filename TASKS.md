@@ -1092,14 +1092,20 @@ stronger operations it needs instead of citing machine parameters generally.
   left/right generator symbols (`relation<A, B>(CauchySeq<A>, CauchySeq<B>)`):
   contract references resolve those lexical selections, and proof-only
   selections remain universal schema arguments instead of accidentally
-  monomorphizing the relation to one concrete pair. Checked pure free operations
-  whose carrier arguments and return share the quotient carrier now lift onto
-  quotient arguments only when an ordinary proof machine structurally
-  establishes the relation over paired outputs from pairwise-related inputs;
-  missing certificates reject, and boundary axioms cannot masquerade as
-  equivalence or respect proofs. Extend lifting through attached/receiver
-  operation forms, then build the ordinary-core `data Real = CauchySeq %
-  converges_together` surface from the honest N8 convergence corpus.
+  monomorphizing the relation to one concrete pair. Checked pure free and
+  attached operations whose carrier operands and return share the quotient
+  carrier now lift onto quotient arguments/receivers only when an ordinary
+  proof machine structurally establishes the relation over paired outputs from
+  pairwise-related inputs. For attached operations the receiver is the first
+  operand, so both receiver-only and receiver-plus-argument forms require the
+  corresponding premises. By-value operations attached directly to proof-only
+  data are computed proof machines and emit no runtime dispatch; borrowed or
+  mutable receivers remain forbidden runtime-consumption attempts, and an
+  operation attached to runtime data remains runtime and cannot hide
+  proof-only parameters.
+  Missing certificates reject, and boundary axioms cannot masquerade as
+  equivalence or respect proofs. Next build the ordinary-core `data Real =
+  CauchySeq % converges_together` surface from the honest N8 convergence corpus.
 - **N7 — nested schemas (complete).** Proof-only data may declare `<machine S>`
   with its mandatory `where machine S(...)` contract. Recursive occurrences
   forward the family parameter, concrete arguments are checked through the full

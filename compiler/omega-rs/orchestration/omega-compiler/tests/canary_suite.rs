@@ -670,6 +670,7 @@ fn linux_x64_cli_mvp_emits_elf_with_syscalls() {
     );
 
     let _ = fs::remove_dir_all(&build_dir);
+
 }
 
 #[test]
@@ -2045,7 +2046,6 @@ fn value_call_as_host_arg_exit_canary_runs() {
     );
 
     let _ = fs::remove_dir_all(&build_dir);
-
 }
 
 #[test]
@@ -38257,6 +38257,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "proofs/quotient_generic_relation_compile",
     "proofs/quotient_machine_family_compile",
     "proofs/quotient_respect_lift_compile",
+    "proofs/quotient_attached_respect_lift_compile",
     "proofs/higher_order_machine_schema_compile",
     "proofs/runtime_core_roster_ops_exit",
     "proofs/machine_parameterized_data_compile",
@@ -38836,6 +38837,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/quotient_cross_family_construction",
     "proofs/quotient_boundary_law_rejected",
     "proofs/quotient_lift_missing_respect",
+    "proofs/quotient_attached_lift_missing_respect",
+    "proofs/runtime_attached_machine_proof_parameter_rejected",
     "proofs/higher_order_machine_forwarded_contract_mismatch",
     "proofs/higher_order_machine_schema_contract_mismatch",
     "proofs/machine_parameterized_data_contract_mismatch",

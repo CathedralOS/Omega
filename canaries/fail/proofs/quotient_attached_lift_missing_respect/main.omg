@@ -1,0 +1,49 @@
+// An attached representative operation is not callable on its quotient merely
+// because the receiver/return carrier shapes match: it still needs respect.
+data Representative {
+    case Zero;
+    case Next(previous: Representative);
+}
+
+machine equivalent(a: Representative, b: Representative) -> bool {
+    transition { _ -> (true) }
+}
+
+machine equivalent_reflexive(a: Representative)
+ensures equivalent(a, a)
+{
+}
+
+machine equivalent_symmetric(a: Representative, b: Representative)
+requires equivalent(a, b)
+ensures equivalent(b, a)
+{
+}
+
+machine equivalent_transitive(
+    a: Representative,
+    b: Representative,
+    c: Representative
+)
+requires
+    equivalent(a, b)
+    equivalent(b, c)
+ensures equivalent(a, c)
+{
+}
+
+data EquivalenceClass = Representative % equivalent;
+
+machine Representative::advance(self) -> Representative {
+    self
+}
+
+machine bad_lift(value: EquivalenceClass) -> EquivalenceClass {
+    value.advance()
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

@@ -1673,7 +1673,7 @@ pub(crate) fn validate_call_arguments_handles(
             .iter()
             .map(|argument| declared_place_type(program, current_machine, current_state, *argument))
             .collect::<Vec<_>>();
-        crate::quotients::quotient_lift_candidate(program, &argument_types, state)
+        crate::quotients::quotient_lift_candidate(program, None, &argument_types, state)
     });
     if let Some(lift) = &quotient_lift
         && !lift.certified
@@ -1903,6 +1903,29 @@ fn validate_value_call_argument_classes(
     callee_state: &State,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    validate_value_call_argument_classes_with_receiver(
+        program,
+        current_machine,
+        current_state,
+        value_env,
+        None,
+        arguments,
+        callee_state,
+        diagnostics,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_value_call_argument_classes_with_receiver(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: &State,
+    value_env: &ValueEnv,
+    receiver_type: Option<TypeReferenceHandle>,
+    arguments: &[ExpressionHandle],
+    callee_state: &State,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     // (The void-callee-in-value-position check lives in report_void_value_callee:
     // it consults the resolved state's return type AND the callee machine's
     // transition VALUE arms, which is what keying off `callee_state.return_type`
@@ -1928,8 +1951,12 @@ fn validate_value_call_argument_classes(
             declared_place_type(program, current_machine, Some(current_state), *argument)
         })
         .collect::<Vec<_>>();
-    let quotient_lift =
-        crate::quotients::quotient_lift_candidate(program, &argument_types, callee_state);
+    let quotient_lift = crate::quotients::quotient_lift_candidate(
+        program,
+        receiver_type,
+        &argument_types,
+        callee_state,
+    );
     if let Some(lift) = &quotient_lift
         && !lift.certified
     {
@@ -4264,6 +4291,66 @@ fn validate_expression_call_bounds(
             &chain,
         )
     });
+
+    // N6 attached lift: a quotient has no runtime representative or attached
+    // methods of its own, but a checked pure operation attached to its carrier
+    // may be used proof-side when a structural respect certificate covers the
+    // receiver and every explicit carrier argument. Resolve that projection
+    // only from the receiver's exact quotient type; no method is installed on
+    // the quotient and no runtime dispatch target is minted.
+    let receiver_type_reference = crate::places::declared_place_type(
+        program,
+        current_machine,
+        Some(current_state),
+        call.receiver,
+    );
+    if let Some(receiver_type_reference) = receiver_type_reference
+        && let Some((callee_machine, callee_state)) =
+            crate::quotients::representative_operation_for_quotient(
+                program,
+                receiver_type_reference,
+                call.target.as_str(),
+            )
+    {
+        report_void_value_callee(
+            program,
+            callee_machine,
+            current_machine,
+            current_state,
+            callee_state,
+            call.target.as_str(),
+            diagnostics,
+        );
+        fence_generic_value_callee(
+            program,
+            current_machine,
+            callee_machine,
+            call.target.as_str(),
+            diagnostics,
+        );
+        validate_machine_call_type_parameter_bounds(
+            program,
+            symbols,
+            callee_machine,
+            callee_state,
+            callee_state.name.as_str(),
+            arguments,
+            current_machine,
+            Some(current_state),
+            diagnostics,
+        );
+        validate_value_call_argument_classes_with_receiver(
+            program,
+            current_machine,
+            current_state,
+            value_env,
+            Some(receiver_type_reference),
+            arguments,
+            callee_state,
+            diagnostics,
+        );
+        return;
+    }
 
     // External machine receiver.
     if let Some(callee_machine) = receiver_type
