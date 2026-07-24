@@ -95,6 +95,21 @@ pub struct AccessPlan {
     pub entries: Vec<AccessFieldEntry>,
 }
 
+/// Normalizer-owned identity of one validated access policy.
+///
+/// Authored entry order is not semantic: fields are name-keyed, so validation
+/// canonicalizes them before computing this identity. The identity includes
+/// every operation, observation, exposure, transfer-width, and service-reach
+/// fact that lowering is allowed to consume.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AccessPlanId(u64);
+
+impl AccessPlanId {
+    pub const fn normalized_identity(self) -> u64 {
+        self.0
+    }
+}
+
 /// Sealed geometry and policy for one projected field.
 ///
 /// The offset is intentionally private. Only plan validation can construct a
@@ -167,12 +182,17 @@ impl AuthorizedFieldAccess {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedAccessPlan {
+    identity: AccessPlanId,
     plan: AccessPlan,
     fields: Vec<FieldAccessDescriptor>,
     layout_size_bytes: u64,
 }
 
 impl ValidatedAccessPlan {
+    pub const fn identity(&self) -> AccessPlanId {
+        self.identity
+    }
+
     pub const fn plan(&self) -> &AccessPlan {
         &self.plan
     }
@@ -242,7 +262,7 @@ impl std::fmt::Display for AccessPlanDiagnostic {
 impl std::error::Error for AccessPlanDiagnostic {}
 
 pub fn validate_access_plan(
-    plan: AccessPlan,
+    mut plan: AccessPlan,
     layout: &LayoutPlanReport,
 ) -> Result<ValidatedAccessPlan, AccessPlanDiagnostic> {
     let layout_size = layout.size.ok_or_else(|| {
@@ -268,6 +288,12 @@ pub fn validate_access_plan(
             )));
         }
     }
+    // Field identity, not authored list position, owns access semantics.
+    // Canonical ordering makes equivalent policy machines normalize to the
+    // same plan and gives every later consumer one deterministic traversal.
+    plan.entries
+        .sort_unstable_by(|left, right| left.field.cmp(&right.field));
+
     let mut descriptors = Vec::with_capacity(plan.entries.len());
     for entry in &plan.entries {
         validate_entry_policy(entry)?;
@@ -283,11 +309,81 @@ pub fn validate_access_plan(
         });
     }
 
+    let identity = normalized_access_plan_identity(&plan);
     Ok(ValidatedAccessPlan {
+        identity,
         plan,
         fields: descriptors,
         layout_size_bytes: layout_size,
     })
+}
+
+fn normalized_access_plan_identity(plan: &AccessPlan) -> AccessPlanId {
+    // FNV-1a is used as a compact deterministic artifact identity here, never
+    // as authorization or collision-resistant evidence. The versioned prefix
+    // makes any future vocabulary change an explicit identity migration.
+    let mut hash = 0xcbf29ce484222325u64;
+    hash_bytes(&mut hash, b"omega.access-plan.v1");
+    hash_u64(&mut hash, plan.entries.len() as u64);
+    for entry in &plan.entries {
+        hash_u64(&mut hash, entry.field.len() as u64);
+        hash_bytes(&mut hash, entry.field.as_bytes());
+        hash_u64(&mut hash, u64::from(entry.transfer_width_bits));
+        hash_byte(
+            &mut hash,
+            match entry.observation {
+                ObservationModel::Stable => 0,
+                ObservationModel::External => 1,
+                ObservationModel::Atomic => 2,
+            },
+        );
+        hash_byte(&mut hash, u8::from(entry.permissions.read));
+        hash_byte(&mut hash, u8::from(entry.permissions.write));
+        hash_byte(&mut hash, u8::from(entry.permissions.read_modify_write));
+        hash_byte(&mut hash, u8::from(entry.permissions.atomic.load));
+        hash_byte(&mut hash, u8::from(entry.permissions.atomic.store));
+        hash_byte(
+            &mut hash,
+            u8::from(entry.permissions.atomic.compare_exchange),
+        );
+        hash_byte(
+            &mut hash,
+            u8::from(entry.permissions.atomic.read_modify_write),
+        );
+        hash_byte(
+            &mut hash,
+            match entry.exposure {
+                AccessExposure::Exported => 0,
+                AccessExposure::ProviderPrivate => 1,
+            },
+        );
+        match entry.service_reach {
+            Some(reach) => {
+                hash_byte(&mut hash, 1);
+                hash_u64(&mut hash, reach.normalized_identity());
+            }
+            None => hash_byte(&mut hash, 0),
+        }
+    }
+    // Zero is reserved as the inert/no-plan identity throughout the semantic
+    // spine. A hash hitting it remains deterministic but is remapped out of
+    // the reserved value.
+    AccessPlanId(if hash == 0 { 1 } else { hash })
+}
+
+fn hash_u64(hash: &mut u64, value: u64) {
+    hash_bytes(hash, &value.to_le_bytes());
+}
+
+fn hash_bytes(hash: &mut u64, bytes: &[u8]) {
+    for byte in bytes {
+        hash_byte(hash, *byte);
+    }
+}
+
+fn hash_byte(hash: &mut u64, byte: u8) {
+    *hash ^= u64::from(byte);
+    *hash = hash.wrapping_mul(0x100000001b3);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -732,6 +828,84 @@ mod tests {
             &uart_layout(),
         )
         .expect("UART plan")
+    }
+
+    #[test]
+    fn normalized_identity_is_name_keyed_and_order_independent() {
+        let forward = uart_access_plan();
+        let mut reversed_source = forward.plan().clone();
+        reversed_source.entries.reverse();
+        let reversed =
+            validate_access_plan(reversed_source, &uart_layout()).expect("reordered UART plan");
+
+        assert_eq!(forward.identity(), reversed.identity());
+        assert_eq!(forward.plan(), reversed.plan());
+        assert_eq!(
+            forward
+                .plan()
+                .entries
+                .iter()
+                .map(|entry| entry.field.as_str())
+                .collect::<Vec<_>>(),
+            vec!["control", "status", "transmit"]
+        );
+        assert_ne!(forward.identity().normalized_identity(), 0);
+    }
+
+    #[test]
+    fn normalized_identity_covers_operation_width_exposure_and_reach() {
+        let layout = LayoutPlanReport {
+            entries: vec![LayoutFieldEntryReport {
+                field: "word".into(),
+                placement: LayoutPlacementReport::At { offset: 0 },
+            }],
+            offsets: Some(vec![0]),
+            size: Some(8),
+            align: 8,
+        };
+        let validate = |entry: AccessFieldEntry| {
+            validate_access_plan(
+                AccessPlan {
+                    entries: vec![entry],
+                },
+                &layout,
+            )
+            .expect("identity test plan")
+            .identity()
+        };
+        let stable_read = AccessFieldEntry {
+            field: "word".into(),
+            transfer_width_bits: 32,
+            observation: ObservationModel::Stable,
+            permissions: ordinary(true, false, false),
+            exposure: AccessExposure::Exported,
+            service_reach: None,
+        };
+        let mut stable_write = stable_read.clone();
+        stable_write.permissions = ordinary(false, true, false);
+        let mut wider = stable_read.clone();
+        wider.transfer_width_bits = 64;
+        let mut private = stable_read.clone();
+        private.exposure = AccessExposure::ProviderPrivate;
+        let mut external = stable_read.clone();
+        external.observation = ObservationModel::External;
+        external.service_reach = Some(reach());
+
+        let identities = [
+            validate(stable_read),
+            validate(stable_write),
+            validate(wider),
+            validate(private),
+            validate(external),
+        ];
+        for (index, identity) in identities.iter().enumerate() {
+            assert!(
+                identities[index + 1..]
+                    .iter()
+                    .all(|other| other != identity),
+                "every semantic policy change must alter normalized identity"
+            );
+        }
     }
 
     #[test]

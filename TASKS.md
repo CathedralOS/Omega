@@ -1614,7 +1614,11 @@ stronger operations it needs instead of citing machine parameters generally.
 - **L6b — AccessPlan and placed views.** The separate normalized validator is
   live: name-keyed entries pin exact transfer width, stable/external/atomic
   observation, ordinary and atomic permissions, exported versus
-  provider-private access, and static service reach. Validation checks fixed
+  provider-private access, and static service reach. Authored entry order is
+  erased: validation sorts by field identity and assigns a deterministic
+  normalizer-owned plan identity covering every operation, observation, width,
+  exposure, and reach fact, so equivalent policy machines cannot fracture
+  artifact identity. Validation checks fixed
   layout geometry, rejects multi-container one-access laundering and public
   external RMW, and enforces borrow polarity at operation authorization. Add
   the Omega-authored policy surface, source-level borrow-carrying access
