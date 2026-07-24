@@ -58,6 +58,16 @@ impl ArtifactRelocationKind {
             | Self::Aarch64Branch26 => 4,
         }
     }
+
+    const fn supports(self, architecture: Architecture) -> bool {
+        match self {
+            Self::Absolute64 => true,
+            Self::X86Relative32 => matches!(architecture, Architecture::X86_64),
+            Self::Aarch64Page21 | Self::Aarch64PageOffset12 | Self::Aarch64Branch26 => {
+                matches!(architecture, Architecture::Aarch64)
+            }
+        }
+    }
 }
 
 /// One checked-schema relocation record before semantic validation. The
@@ -302,6 +312,7 @@ pub fn validate_decoded_container(
 
     let relocations = validate_decoded_relocations(
         decoded.relocations,
+        decoded.architecture,
         decoded.code_length,
         limits.max_relocations,
     )?;
@@ -355,6 +366,7 @@ pub fn normalized_decoded_content_identity(
 ) -> Result<ArtifactContentId, InstallationDiagnostic> {
     let relocations = validate_decoded_relocations(
         decoded.relocations.clone(),
+        decoded.architecture,
         decoded.code_length,
         decoded.relocations.len().max(1),
     )?;
@@ -500,6 +512,7 @@ fn fingerprint_bytes(fingerprint: &mut u64, bytes: &[u8]) {
 
 fn validate_decoded_relocations(
     mut relocations: Vec<DecodedArtifactRelocation>,
+    architecture: Architecture,
     code_length: u64,
     max_relocations: usize,
 ) -> Result<Vec<DecodedArtifactRelocation>, InstallationDiagnostic> {
@@ -521,6 +534,12 @@ fn validate_decoded_relocations(
     });
     let mut prior_end = 0u64;
     for (index, relocation) in relocations.iter().enumerate() {
+        if !relocation.kind.supports(architecture) {
+            return Err(InstallationDiagnostic(format!(
+                "artifact relocation {:?} is incompatible with architecture {:?}",
+                relocation.kind, architecture
+            )));
+        }
         let width = relocation.kind.byte_width();
         let end = relocation
             .destination_offset
@@ -676,6 +695,9 @@ mod tests {
     #[test]
     fn content_identity_binds_the_instruction_set_architecture() {
         let mut changed = decoded();
+        changed.relocations[0].kind = ArtifactRelocationKind::Absolute64;
+        changed.content =
+            normalized_decoded_content_identity(&changed).expect("portable relocation identity");
         changed.architecture = Architecture::Aarch64;
 
         let error =
@@ -807,7 +829,7 @@ mod tests {
                 addend: 0,
             },
             DecodedArtifactRelocation {
-                kind: ArtifactRelocationKind::Aarch64Branch26,
+                kind: ArtifactRelocationKind::X86Relative32,
                 destination_offset: 12,
                 target: RelocationTarget::Entry(entry),
                 addend: 0,
@@ -832,6 +854,29 @@ mod tests {
         });
         let error = validate_decoded_container(too_many, strict_limits).expect_err("bound rejects");
         assert!(error.0.contains("exceeding configured bound"));
+    }
+
+    #[test]
+    fn architecture_specific_relocations_reject_during_candidate_validation() {
+        let mut aarch64_in_x86 = decoded();
+        aarch64_in_x86.relocations[0].kind = ArtifactRelocationKind::Aarch64Branch26;
+        let error = validate_decoded_container(aarch64_in_x86, limits())
+            .expect_err("AArch64 relocation in x86 artifact rejects");
+        assert!(error.0.contains("incompatible with architecture X86_64"));
+
+        let mut x86_in_aarch64 = decoded();
+        x86_in_aarch64.architecture = Architecture::Aarch64;
+        let error = validate_decoded_container(x86_in_aarch64, limits())
+            .expect_err("x86 relocation in AArch64 artifact rejects");
+        assert!(error.0.contains("incompatible with architecture Aarch64"));
+
+        let mut portable_absolute = decoded();
+        portable_absolute.architecture = Architecture::Aarch64;
+        portable_absolute.relocations[0].kind = ArtifactRelocationKind::Absolute64;
+        portable_absolute.content = normalized_decoded_content_identity(&portable_absolute)
+            .expect("absolute relocation is valid on AArch64");
+        validate_decoded_container(portable_absolute, limits())
+            .expect("absolute relocation remains architecture-neutral");
     }
 
     #[test]

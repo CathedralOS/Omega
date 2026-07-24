@@ -280,20 +280,7 @@ mod tests {
         assert!(error.message.contains("artifact architecture"));
         assert_eq!(aarch64.record_count(), 0);
 
-        let (wrong_architecture, target) = validated(ArtifactRelocationKind::Aarch64Branch26, 0);
         let mut x86 = RelocationPlan::with_target(NativeTarget::linux_x64());
-        let error = append_validated_artifact_relocations(
-            &wrong_architecture,
-            SectionKind::Text,
-            0,
-            owner,
-            &mut x86,
-            |candidate| (candidate == target).then_some(destination),
-        )
-        .expect_err("architecture mismatch rejects");
-        assert!(error.message.contains("incompatible"));
-        assert_eq!(x86.record_count(), 0);
-
         let (addend, target) = validated(ArtifactRelocationKind::X86Relative32, 4);
         append_validated_artifact_relocations(
             &addend,
