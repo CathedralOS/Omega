@@ -1,0 +1,19 @@
+// FAIL CANARY: Wide does not imply Narrow. A shared recast may forget an
+// established domain fact, but it may not manufacture a stronger one merely
+// because both domains use the same carrier and storage layout.
+domain u32::Wide {
+    self <= 100;
+}
+
+domain u32::Narrow {
+    self in u32::Wide;
+    self <= 10;
+}
+
+data Main {
+    value: u32 in Wide;
+}
+
+machine Main::main(&mut self) {
+    let view: &u32 in Narrow = &self.value as &u32;
+}
