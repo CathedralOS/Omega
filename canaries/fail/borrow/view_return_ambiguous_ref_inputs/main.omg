@@ -1,8 +1,9 @@
 // FAIL canary (lifetimes stage 1, elision-only output-borrow linkage): a
 // machine returning a view with MULTIPLE non-self candidate ref inputs is
 // ambiguous -- the elision rules cannot decide which input the returned view
-// borrows, and explicit lifetime parameters (the tick spelling of frozen
-// decision 15) are not implemented yet. Rejected at the declaration.
+// borrows. The author must use explicit lifetime tags (the tick spelling of
+// frozen decision 15) to link the output to exactly one input. Rejected at the
+// declaration.
 
 use omega::language::std::console;
 

@@ -120,6 +120,337 @@ fn rejects_borrow_carrying_data_returned_from_local() {
     );
 }
 
+/// A nested record cannot erase a loan. Returning `Envelope` is sound because
+/// its nested `Message` ultimately borrows the machine input.
+#[test]
+fn accepts_nested_borrow_carrying_data_returned_from_input() {
+    let source = r#"
+        data Message {
+            body: &i32;
+        }
+
+        data Envelope {
+            message: Message;
+        }
+
+        machine wrap(input: &i32) -> Envelope {
+            let envelope: Envelope = Envelope {
+                message: Message { body: input }
+            };
+            transition {
+                _ -> envelope
+            }
+        }
+    "#;
+
+    check_program(source)
+        .expect("a nested borrow-carrying value borrowing an input should compile");
+}
+
+/// Several fields may carry the same valid source; the aggregate remains
+/// returnable when every carried loan reaches the input.
+#[test]
+fn accepts_multiple_borrowing_fields_returned_from_input() {
+    let source = r#"
+        data Pair {
+            first: &i32;
+            second: &i32;
+        }
+
+        machine wrap(input: &i32) -> Pair {
+            let pair: Pair = Pair {
+                first: input,
+                second: input
+            };
+            transition {
+                _ -> pair
+            }
+        }
+    "#;
+
+    check_program(source).expect("all carried input loans should outlive the result");
+}
+
+/// Projecting one reference field out of a multi-loan carrier rebases through
+/// that field only; a disjoint sibling source remains independently writable
+/// after the carrier's last use.
+#[test]
+fn accepts_projected_field_from_multi_loan_carrier() {
+    let source = r#"
+        data Pair {
+            first: &mut i32;
+            second: &mut i32;
+        }
+
+        machine write(value: &mut i32) {
+            value = 1;
+        }
+
+        machine exercise(first: &mut i32, second: &mut i32) {
+            let pair: Pair = Pair {
+                first: first,
+                second: second
+            };
+            let selected: &mut i32 = pair.first;
+            write(second);
+            write(selected);
+        }
+    "#;
+
+    check_program(source).expect("field projection must not retain a disjoint sibling source");
+}
+
+/// Generic storage participates in the same structural walk: substituting a
+/// borrow-carrying argument into an otherwise ordinary field keeps the loan.
+#[test]
+fn accepts_generic_wrapper_of_borrow_carrying_data() {
+    let source = r#"
+        data Message {
+            body: &i32;
+        }
+
+        data Envelope<T> {
+            value: T;
+        }
+
+        machine wrap(input: &i32) -> Envelope<Message> {
+            let envelope: Envelope<Message> = Envelope {
+                value: Message { body: input }
+            };
+            transition {
+                _ -> envelope
+            }
+        }
+    "#;
+
+    check_program(source)
+        .expect("a generic wrapper must retain its concrete argument's input loan");
+}
+
+/// Projection paths through a concrete generic wrapper retain the substituted
+/// field's source rather than appearing rooted in the temporary wrapper.
+#[test]
+fn accepts_projected_borrow_through_generic_wrapper() {
+    let source = r#"
+        data Message {
+            body: &mut i32;
+        }
+
+        data Wrapper<T> {
+            value: T;
+        }
+
+        machine pick(input: &mut i32) -> &mut i32 {
+            let wrapper: Wrapper<Message> = Wrapper {
+                value: Message { body: input }
+            };
+            let selected: &mut i32 = wrapper.value.body;
+            transition {
+                _ -> selected
+            }
+        }
+    "#;
+
+    check_program(source)
+        .expect("projection through a generic wrapper must retain the input source");
+}
+
+/// The active payload of a sum is part of the carrier. Selecting a case cannot
+/// hide the input loan stored inside that payload.
+#[test]
+fn accepts_sum_payload_carrying_an_input_borrow() {
+    let source = r#"
+        data Message {
+            body: &i32;
+        }
+
+        data Envelope {
+            case Empty;
+            case Message(message: Message);
+        }
+
+        machine wrap(input: &i32) -> Envelope {
+            let envelope: Envelope = Envelope::Message {
+                message: Message { body: input }
+            };
+            transition {
+                _ -> envelope
+            }
+        }
+    "#;
+
+    check_program(source).expect("an active sum payload must retain its input loan");
+}
+
+/// Fixed arrays compose borrow carrying structurally just like records and sum
+/// payloads.
+#[test]
+fn accepts_fixed_array_carrying_an_input_borrow() {
+    let source = r#"
+        data Message {
+            body: &i32;
+        }
+
+        machine wrap(input: &i32) -> [Message; 1] {
+            let messages: [Message; 1] = [
+                Message { body: input }
+            ];
+            transition {
+                _ -> messages
+            }
+        }
+    "#;
+
+    check_program(source).expect("a fixed array must retain its element's input loan");
+}
+
+/// The nested escape companion: wrapping a local borrow in two records does not
+/// make it outlive the call.
+#[test]
+fn rejects_nested_borrow_carrying_data_returned_from_local() {
+    let source = r#"
+        data Message {
+            body: &i32;
+        }
+
+        data Envelope {
+            message: Message;
+        }
+
+        machine bad(seed: &i32) -> Envelope {
+            let owned: i32 = 9;
+            let envelope: Envelope = Envelope {
+                message: Message { body: &owned }
+            };
+            transition {
+                _ -> envelope
+            }
+        }
+    "#;
+
+    let diagnostics = check_program(source)
+        .expect_err("a nested borrow-carrying value borrowing a local should reject");
+    let combined = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("returns a view borrowing the local `envelope`"),
+        "expected the nested escape rejection, got:\n{combined}"
+    );
+}
+
+/// Escape safety is universal over the carrier's loans, not existential: one
+/// valid input loan cannot hide a dangling sibling field.
+#[test]
+fn rejects_mixed_input_and_local_loans_in_returned_data() {
+    let source = r#"
+        data Pair {
+            first: &i32;
+            second: &i32;
+        }
+
+        machine bad(input: &i32) -> Pair {
+            let owned: i32 = 9;
+            let pair: Pair = Pair {
+                first: input,
+                second: &owned
+            };
+            transition {
+                _ -> pair
+            }
+        }
+    "#;
+
+    let diagnostics = check_program(source)
+        .expect_err("a valid first field must not hide a dangling sibling loan");
+    let combined = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("returns a view borrowing the local `pair`"),
+        "expected the mixed-source escape rejection, got:\n{combined}"
+    );
+}
+
+/// Fixed arrays carry every element loan as well; a valid first element cannot
+/// hide a dangling later element.
+#[test]
+fn rejects_mixed_input_and_local_loans_in_returned_array() {
+    let source = r#"
+        data Message {
+            body: &i32;
+        }
+
+        machine bad(input: &i32) -> [Message; 2] {
+            let owned: i32 = 9;
+            let messages: [Message; 2] = [
+                Message { body: input },
+                Message { body: &owned }
+            ];
+            transition {
+                _ -> messages
+            }
+        }
+    "#;
+
+    let diagnostics = check_program(source)
+        .expect_err("a valid first element must not hide a dangling later loan");
+    let combined = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("returns a view borrowing the local `messages`"),
+        "expected the mixed-array escape rejection, got:\n{combined}"
+    );
+}
+
+/// Recursive data without a reference terminates the structural borrow walk
+/// and remains an ordinary owned value.
+#[test]
+fn accepts_recursive_data_without_a_borrow() {
+    let source = r#"
+        data Chain {
+            case End;
+            case Next(next: Chain);
+        }
+
+        machine make() -> Chain {
+            transition {
+                _ -> Chain::End
+            }
+        }
+    "#;
+
+    check_program(source).expect("recursive owned data must not look borrow-carrying");
+}
+
+/// A recursive edge encountered before a borrowing payload must not terminate
+/// the whole structural search early.
+#[test]
+fn accepts_recursive_data_with_a_later_borrowing_payload() {
+    let source = r#"
+        data Chain {
+            case Next(next: Chain);
+            case End(value: &i32);
+        }
+
+        machine wrap(input: &i32) -> Chain {
+            let chain: Chain = Chain::End { value: input };
+            transition {
+                _ -> chain
+            }
+        }
+    "#;
+
+    check_program(source).expect("cycle detection must still find a later borrowing payload");
+}
+
 /// Run a source program through the full frontend check, returning the borrow
 /// checker's verdict.
 fn check_program(source: &str) -> Result<(), Vec<omega_core::diagnostics::Diagnostic>> {

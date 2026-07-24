@@ -3,7 +3,7 @@ use omega_checked_trees::BorrowLoanFact;
 
 use super::calls::collect_statement_borrow_calls;
 use super::last_uses::update_state_loan_last_uses;
-use super::loans::statement_borrow_loan;
+use super::loans::statement_borrow_loans;
 use super::roots::{append_state_writable_roots, mutable_parameter_count};
 use super::tracker::StateLoanTracker;
 
@@ -41,34 +41,35 @@ pub(super) fn append_state_borrow_facts(
         .iter()
         .enumerate()
     {
-        if let Some((owner_symbol, owner_name, place, source_owner_symbol, kind)) =
-            statement_borrow_loan(
-                program,
-                state,
-                statement_index,
-                machine.symbol,
-                statement,
-                state_loan_trackers,
-            )
-        {
-            let loan_segments = arenas.access_segments.insert_many(place.segments.clone());
+        for pending in statement_borrow_loans(
+            program,
+            state,
+            statement_index,
+            machine.symbol,
+            statement,
+            state_loan_trackers,
+        ) {
+            let loan_segments = arenas
+                .access_segments
+                .insert_many(pending.place.segments.clone());
             let handle = arenas.loans.append_to_span(
                 &mut loans_span,
                 BorrowLoanFact {
                     statement_index,
                     last_use_statement_index: statement_index,
-                    owner_symbol,
-                    source_owner_symbol,
-                    root_symbol: place.root_symbol,
+                    owner_symbol: pending.owner_symbol,
+                    source_owner_symbol: pending.source_owner_symbol,
+                    root_symbol: pending.place.root_symbol,
                     segments: loan_segments,
-                    kind,
+                    kind: pending.kind,
                 },
             );
             state_loan_trackers.push(StateLoanTracker {
                 handle,
-                owner_symbol,
-                owner_name,
-                place,
+                owner_symbol: pending.owner_symbol,
+                owner_name: pending.owner_name,
+                owner_path: pending.owner_path,
+                place: pending.place,
             });
         }
         let mut call_ordinal = 0usize;
