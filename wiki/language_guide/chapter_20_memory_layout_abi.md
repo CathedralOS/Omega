@@ -357,8 +357,10 @@ mint element facts. These structural views preserve indexed read/write identity
 through state forwarding in both native backends and the interpreter. Float
 ranges compose by interval inclusion only when both views use the same float
 carrier; equal intervals may alias mutably. The same leaf rule composes through
-typed record views. They remain fenced across carriers, because a numeric
-interval is not an enumeration of IEEE bit patterns.
+typed record views. A shared view may forget the interval by exposing the same
+bytes through an unconstrained equal-width carrier. Cross-carrier mutable
+equivalence remains fenced, because a numeric interval is not an enumeration
+of IEEE bit patterns.
 
 The same judgment applies to scalar aliases. `bool` has the exact established
 representation set `{0,1}`: it may be viewed through a shared unconstrained byte

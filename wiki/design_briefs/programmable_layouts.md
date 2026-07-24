@@ -201,8 +201,9 @@ materialization minting the established value. Domain predicates over different
 carriers remain fenced until their representation sets can be proved rather
 than guessed. Float ranges compose by numeric interval inclusion on the same
 float carrier, with exact interval equality required for mutable aliases. The
-same leaf judgment composes through typed record views; it never justifies
-cross-carrier bit-pattern equivalence.
+same leaf judgment composes through typed record views. A shared view may
+forget the interval into an unconstrained equal-width bit carrier; it never
+justifies cross-carrier mutable equivalence.
 
 Top-level structural targets are live on the same full-type-reference spine.
 Literal-length fixed arrays apply the recursive element judgment directly.
