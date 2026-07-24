@@ -791,8 +791,11 @@ schemas recover the same instance without publishing policy type identity.
      due registrations and rearms the next deadline. Cathedral now carries
      pure, zero-authority 8259A and 8254 hardware-fact packages for the port
      map, initialization/control words, cascade wiring, masks, timer modes, and
-     clock rate. The checked PortIo provider, remap execution, acknowledgement,
-     and root connection remain.
+     clock rate. Cathedral also has checked `PortIo` helpers that remap both
+     controllers while masked, unmask only the timer line, and emit the
+     master-PIC acknowledgement. Invoking those helpers during bootstrap and
+     connecting the acknowledgement to the installed root remain gated by the
+     exception-IDT publication path; do not enable IF before that path is live.
    - Add LAPIC one-shot timing as the production multicore/tickless provider
      without changing the root requirement.
    - Report ticks over the owned serial line and `hlt` between ticks under QEMU.
