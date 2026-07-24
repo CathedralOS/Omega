@@ -285,9 +285,11 @@ A decoder supporting historical eras targets an ordinary lineage envelope
 declared by the format package (Chapter 22); there is no builtin
 `Versioned<T>` container.
 Failure semantics: the verdict is sticky — the first violation (wrong era, a tag
-that is not the next expected field number, truncated input, or an overlong
-varint past ten groups) makes the decode report failure, and nothing can set
-the flag back. On failure the decoder guarantees only the flag: `read` and
+that is not the next expected field number, truncated input, or a noncanonical
+varint) makes the decode report failure, and nothing can set the flag back.
+Canonical unsigned LEB128 uses the fewest possible groups, no more than ten
+groups for a `u64`, and only payload bit zero in the tenth group. On failure the
+decoder guarantees only the flag: `read` and
 the message's fields may reflect a partial or garbage decode (no rollback),
 but every byte read is bounds-checked against the buffer's compile-time
 length, so a failed decode never reads out of bounds.

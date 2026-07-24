@@ -2716,10 +2716,10 @@ impl<'program> Evaluator<'program> {
             }
         };
 
-        // One LEB128 value read, mirroring the native loop exactly:
-        // truncation and continuations past shift 63 (more than ten groups)
-        // clear ok; the accumulated value is returned regardless (the native
-        // sequence stores it unconditionally).
+        // One canonical LEB128 value read, mirroring the native loop exactly:
+        // truncation, more than ten groups, a zero terminal payload after the
+        // first group, or a tenth payload above one clear ok. The accumulated
+        // value is returned regardless (failure permits partial output).
         let read_varint = |cursor: &mut usize, ok: &mut bool| -> u64 {
             let mut value = 0u64;
             let mut shift = 0u32;
@@ -2733,9 +2733,17 @@ impl<'program> Evaluator<'program> {
                     return value;
                 };
                 *cursor += 1;
-                value |= u64::from(byte & 0x7f) << shift;
+                let payload = u64::from(byte & 0x7f);
+                if shift == 63 && payload > 1 {
+                    *ok = false;
+                }
+                value |= payload << shift;
+                let terminal = byte & 0x80 == 0;
+                if terminal && shift > 0 && payload == 0 {
+                    *ok = false;
+                }
                 shift += 7;
-                if byte & 0x80 == 0 {
+                if terminal {
                     return value;
                 }
             }

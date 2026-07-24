@@ -9165,9 +9165,49 @@ pub fn encode_read_wire_expected_byte(
     Ok(bytes)
 }
 
-/// The fixed LEB128 read loop + fail tail (see the decoder body).
+/// The fixed canonical LEB128 read loop + fail tail (see the decoder body).
 fn wire_varint_read_loop_width() -> usize {
-    56
+    81
+}
+
+fn append_wire_varint_read_loop(
+    bytes: &mut Vec<u8>,
+    buffer_length: usize,
+) -> Result<(), Diagnostic> {
+    let start = bytes.len();
+    // Canonical unsigned LEB128:
+    // - at most ten groups;
+    // - a multi-group value's terminal payload is nonzero;
+    // - the tenth payload is at most one (only bit 63 remains).
+    //
+    // rcx is the NEXT shift after each group, so terminal rcx == 7 means the
+    // one-group case and rcx == 70 means the tenth group.
+    bytes.extend([0x48, 0x83, 0xf9, 0x3f]); // cmp rcx, 63
+    bytes.extend([0x77, 0x48]); // ja +72 -> fail
+    bytes.extend([0x49, 0x81, 0xfa]); // cmp r10, imm32
+    bytes.extend(wire_decode_length_imm32(buffer_length)?.to_le_bytes());
+    bytes.extend([0x73, 0x3f]); // jae +63 -> fail
+    bytes.extend([0x45, 0x0f, 0xb6, 0x1f]); // movzx r11d, byte [r15]
+    bytes.extend([0x49, 0xff, 0xc7]); // inc r15
+    bytes.extend([0x49, 0xff, 0xc2]); // inc r10
+    bytes.extend([0x4d, 0x89, 0xd8]); // mov r8, r11
+    bytes.extend([0x49, 0x83, 0xe0, 0x7f]); // and r8, 0x7f
+    bytes.extend([0x49, 0xd3, 0xe0]); // shl r8, cl
+    bytes.extend([0x4c, 0x09, 0xc0]); // or rax, r8
+    bytes.extend([0x48, 0x83, 0xc1, 0x07]); // add rcx, 7
+    bytes.extend([0x49, 0xf7, 0xc3, 0x80, 0x00, 0x00, 0x00]); // test r11, 0x80
+    bytes.extend([0x75, 0xcd]); // jnz -51 -> loop
+    bytes.extend([0x48, 0x83, 0xf9, 0x07]); // cmp rcx, 7
+    bytes.extend([0x74, 0x18]); // je +24 -> done (one group)
+    bytes.extend([0x49, 0xf7, 0xc3, 0x7f, 0x00, 0x00, 0x00]); // test r11,0x7f
+    bytes.extend([0x74, 0x0c]); // jz +12 -> fail (non-minimal)
+    bytes.extend([0x48, 0x83, 0xf9, 0x46]); // cmp rcx, 70
+    bytes.extend([0x75, 0x09]); // jne +9 -> done
+    bytes.extend([0x49, 0x83, 0xfb, 0x01]); // cmp r11, 1
+    bytes.extend([0x76, 0x03]); // jbe +3 -> done
+    bytes.extend([0x45, 0x31, 0xc9]); // fail: xor r9d, r9d
+    debug_assert_eq!(bytes.len() - start, wire_varint_read_loop_width());
+    Ok(())
 }
 
 /// `mov r11, rax` + `and r11, 1` + `neg r11` + `shr rax, 1` + `xor rax, r11`.
@@ -9240,41 +9280,10 @@ pub fn encode_read_wire_scalar_varint(
     bytes.extend([0x31, 0xc0]); // xor eax, eax (value)
     bytes.extend([0x31, 0xc9]); // xor ecx, ecx (shift)
 
-    // LEB128 read loop (fixed 56 bytes, `wire_varint_read_loop_width`):
-    //   loop: cmp  rcx, 63
-    //         ja   fail            (+47: overlong varint, >10 groups)
-    //         cmp  r10, imm32(length)
-    //         jae  fail            (+38: truncated input)
-    //         movzx r11d, byte [r15]
-    //         inc  r15
-    //         inc  r10
-    //         mov  r8, r11
-    //         and  r8, 0x7f
-    //         shl  r8, cl
-    //         or   rax, r8
-    //         add  rcx, 7
-    //         test r11, 0x80       (continuation bit)
-    //         jnz  loop            (-51)
-    //         jmp  done            (+3: skip the fail xor)
-    //   fail: xor  r9d, r9d
-    //   done:
-    bytes.extend([0x48, 0x83, 0xf9, 0x3f]); // cmp rcx, 63
-    bytes.extend([0x77, 0x2f]); // ja +47 -> fail
-    bytes.extend([0x49, 0x81, 0xfa]); // cmp r10, imm32
-    bytes.extend(wire_decode_length_imm32(buffer_length)?.to_le_bytes());
-    bytes.extend([0x73, 0x26]); // jae +38 -> fail
-    bytes.extend([0x45, 0x0f, 0xb6, 0x1f]); // movzx r11d, byte [r15]
-    bytes.extend([0x49, 0xff, 0xc7]); // inc r15
-    bytes.extend([0x49, 0xff, 0xc2]); // inc r10
-    bytes.extend([0x4d, 0x89, 0xd8]); // mov r8, r11
-    bytes.extend([0x49, 0x83, 0xe0, 0x7f]); // and r8, 0x7f
-    bytes.extend([0x49, 0xd3, 0xe0]); // shl r8, cl
-    bytes.extend([0x4c, 0x09, 0xc0]); // or rax, r8
-    bytes.extend([0x48, 0x83, 0xc1, 0x07]); // add rcx, 7
-    bytes.extend([0x49, 0xf7, 0xc3, 0x80, 0x00, 0x00, 0x00]); // test r11, 0x80
-    bytes.extend([0x75, 0xcd]); // jnz -51 -> loop
-    bytes.extend([0xeb, 0x03]); // jmp +3 -> done
-    bytes.extend([0x45, 0x31, 0xc9]); // xor r9d, r9d
+    // Canonical LEB128 read loop (fixed width; see the shared emitter).
+    let loop_start = bytes.len();
+    append_wire_varint_read_loop(&mut bytes, buffer_length)?;
+    debug_assert_eq!(bytes.len() - loop_start, wire_varint_read_loop_width());
 
     if zigzag {
         // unzigzag(n) = (n >> 1) ^ -(n & 1); r11 holds the mask.
@@ -9367,25 +9376,9 @@ pub fn encode_read_wire_byte_slice(
     bytes.extend([0x31, 0xc0]); // xor eax, eax (length)
     bytes.extend([0x31, 0xc9]); // xor ecx, ecx (shift)
 
-    // Identical LEB128 read loop to the scalar decoder: rax = length, r15 now
-    // points at the CONTENT (just past the length varint), r10 = cursor.
-    bytes.extend([0x48, 0x83, 0xf9, 0x3f]); // cmp rcx, 63
-    bytes.extend([0x77, 0x2f]); // ja +47 -> fail
-    bytes.extend([0x49, 0x81, 0xfa]); // cmp r10, imm32
-    bytes.extend(wire_decode_length_imm32(buffer_length)?.to_le_bytes());
-    bytes.extend([0x73, 0x26]); // jae +38 -> fail
-    bytes.extend([0x45, 0x0f, 0xb6, 0x1f]); // movzx r11d, byte [r15]
-    bytes.extend([0x49, 0xff, 0xc7]); // inc r15
-    bytes.extend([0x49, 0xff, 0xc2]); // inc r10
-    bytes.extend([0x4d, 0x89, 0xd8]); // mov r8, r11
-    bytes.extend([0x49, 0x83, 0xe0, 0x7f]); // and r8, 0x7f
-    bytes.extend([0x49, 0xd3, 0xe0]); // shl r8, cl
-    bytes.extend([0x4c, 0x09, 0xc0]); // or rax, r8
-    bytes.extend([0x48, 0x83, 0xc1, 0x07]); // add rcx, 7
-    bytes.extend([0x49, 0xf7, 0xc3, 0x80, 0x00, 0x00, 0x00]); // test r11, 0x80
-    bytes.extend([0x75, 0xcd]); // jnz -51 -> loop
-    bytes.extend([0xeb, 0x03]); // jmp +3 -> done
-    bytes.extend([0x45, 0x31, 0xc9]); // xor r9d, r9d (fail: clear ok)
+    // Shared canonical LEB128 read loop: rax = length, r15 points at the
+    // CONTENT (just past the length varint), and r10 is the cursor.
+    append_wire_varint_read_loop(&mut bytes, buffer_length)?;
 
     // Bounds + advance (fixed 21 bytes): end = cursor + len; if end >
     // buffer_length clear ok; cursor = end.
@@ -10142,23 +10135,9 @@ pub fn encode_read_wire_repeated_scalar_varint(
     bytes.extend([0x31, 0xc0]); // xor eax, eax (value)
     bytes.extend([0x31, 0xc9]); // xor ecx, ecx (shift)
 
-    bytes.extend([0x48, 0x83, 0xf9, 0x3f]); // cmp rcx, 63
-    bytes.extend([0x77, 0x2f]); // ja +47 -> fail
-    bytes.extend([0x49, 0x81, 0xfa]); // cmp r10, imm32
-    bytes.extend(wire_decode_length_imm32(buffer_length)?.to_le_bytes());
-    bytes.extend([0x73, 0x26]); // jae +38 -> fail
-    bytes.extend([0x45, 0x0f, 0xb6, 0x1f]); // movzx r11d, byte [r15]
-    bytes.extend([0x49, 0xff, 0xc7]); // inc r15
-    bytes.extend([0x49, 0xff, 0xc2]); // inc r10
-    bytes.extend([0x4d, 0x89, 0xd8]); // mov r8, r11
-    bytes.extend([0x49, 0x83, 0xe0, 0x7f]); // and r8, 0x7f
-    bytes.extend([0x49, 0xd3, 0xe0]); // shl r8, cl
-    bytes.extend([0x4c, 0x09, 0xc0]); // or rax, r8
-    bytes.extend([0x48, 0x83, 0xc1, 0x07]); // add rcx, 7
-    bytes.extend([0x49, 0xf7, 0xc3, 0x80, 0x00, 0x00, 0x00]); // test r11, 0x80
-    bytes.extend([0x75, 0xcd]); // jnz -51 -> loop
-    bytes.extend([0xeb, 0x03]); // jmp +3 -> done
-    bytes.extend([0x45, 0x31, 0xc9]); // xor r9d, r9d
+    let loop_start = bytes.len();
+    append_wire_varint_read_loop(&mut bytes, buffer_length)?;
+    debug_assert_eq!(bytes.len() - loop_start, wire_varint_read_loop_width());
 
     if zigzag {
         bytes.extend([0x49, 0x89, 0xc3]); // mov r11, rax

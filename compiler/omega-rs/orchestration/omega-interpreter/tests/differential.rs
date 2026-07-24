@@ -974,6 +974,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         70,
     ),
     (
+        "wire/runtime_wire_decode_rejects_noncanonical_varint_exit",
+        70,
+    ),
+    (
         "wire/runtime_wire_decode_rejects_scalar_width_overflow_exit",
         70,
     ),
@@ -1655,6 +1659,25 @@ fn interpreter_rejects_noncanonical_wire_booleans() {
     assert!(
         !outcome.is_error(),
         "noncanonical bool wire decode should be supported, got {:?}",
+        outcome.error
+    );
+    assert_eq!(outcome.exit_code, 70);
+}
+
+#[test]
+fn interpreter_rejects_noncanonical_wire_varints() {
+    let main_path =
+        pass_canary("wire/runtime_wire_decode_rejects_noncanonical_varint_exit").join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "noncanonical varint wire decode compile failed:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "noncanonical varint wire decode should be supported, got {:?}",
         outcome.error
     );
     assert_eq!(outcome.exit_code, 70);

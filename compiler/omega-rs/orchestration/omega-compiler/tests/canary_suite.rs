@@ -9341,6 +9341,41 @@ fn runtime_wire_decode_rejects_noncanonical_bool_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_wire_decode_rejects_noncanonical_varint_exit_canary_runs() {
+    // LEB128 values must use the fewest groups and may not carry bits beyond
+    // u64, while the canonical ten-group u64 maximum remains valid.
+    let canary = pass_canary("wire/runtime_wire_decode_rejects_noncanonical_varint_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-wire-noncanonical-varint-decode-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("noncanonical varint wire decode canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("noncanonical varint wire decode canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected canonical LEB128 enforcement (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_wire_decode_rejects_scalar_width_overflow_exit_canary_runs() {
     // Wider hostile varints must not become valid i32/u32 values merely
     // because the final destination store truncates their high bits.
@@ -38134,6 +38169,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "wire/runtime_wire_decode_ranged_field_exit",
     "wire/runtime_wire_decode_ranged_repeated_exit",
     "wire/runtime_wire_decode_rejects_noncanonical_bool_exit",
+    "wire/runtime_wire_decode_rejects_noncanonical_varint_exit",
     "wire/runtime_wire_decode_rejects_scalar_width_overflow_exit",
     "wire/runtime_wire_decode_rejects_wrong_era_exit",
     "wire/runtime_wire_encode_string_exit",

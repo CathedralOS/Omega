@@ -2441,10 +2441,10 @@ fn wire_decode_tail_width(read_offset: usize, ok_offset: usize) -> usize {
         + store_data_offset_width(read_offset, 8)
 }
 
-/// The fixed fourteen-instruction LEB128 read loop in
+/// The fixed canonical LEB128 read loop in
 /// `encode_read_wire_scalar_varint`.
 pub fn wire_varint_read_loop_width() -> usize {
-    56
+    84
 }
 
 /// movz #63 + lslv + asr + lsr + eor (`(n >> 1) ^ -(n & 1)`).
