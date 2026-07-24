@@ -32,6 +32,14 @@ pub enum CheckedOperandLoaderKind {
         field_byte_offset: u32,
         byte_size: u8,
     },
+    FrameBaseIndexed {
+        base_byte_offset: u32,
+        index_byte_offset: u32,
+        index_byte_size: u8,
+        element_byte_size: u32,
+        field_byte_offset: u32,
+        byte_size: u8,
+    },
 }
 
 /// One operand loader's exact subspan and expected semantic meaning.

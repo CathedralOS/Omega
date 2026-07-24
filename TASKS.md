@@ -635,10 +635,12 @@ schemas recover the same instance without publishing policy type identity.
    remains intact. Pointee and constant frame-indexed loaders now retain their
    separate semantic identities, exact pointer/value displacements, widths,
    destination registers, and frame relocation; even byte-identical lowered
-   shapes fingerprint differently when their source semantics differ. Complete
-   semantic decoding of dynamic frame/base/machine-indexed, text, conversion,
-   and recursive binary value operands, other operand-bearing checked assembly,
-   and general compiler-function body decoding remain incomplete.
+   shapes fingerprint differently when their source semantics differ.
+   Frame-base-indexed loaders additionally bind the unsigned index load,
+   element scale, address formation, and value projection. Complete semantic
+   decoding of descriptor-frame-indexed, machine-indexed, text, conversion, and
+   recursive binary value operands, other operand-bearing checked assembly, and
+   general compiler-function body decoding remain incomplete.
    Checked direct-image emission now rejects any unclassified executable gap,
    so the current closed emitter has complete region enumeration. Relaxation
    products, veneers, and general generated stubs are recorded as absent by
