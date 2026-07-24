@@ -1,0 +1,11 @@
+// FAIL CANARY: equal width and equal range cardinality do not establish
+// representation equivalence. The target admits bit pattern 101 while the
+// source admits bit pattern 0, so either mutable alias could invalidate the
+// other view's range fact.
+data Main {
+    value: i32 [0..=100];
+}
+
+machine Main::main(&mut self) {
+    let view: &mut u32 [1..=101] = &mut self.value as &mut u32;
+}

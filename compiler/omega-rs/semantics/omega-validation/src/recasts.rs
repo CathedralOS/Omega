@@ -9,9 +9,10 @@
 //!   proven in-bounds `[u8; N]` region, bound as the direct
 //!   initializer of a reference-typed let whose stated type restates the
 //!   target. Shared views may weaken source facts. Mutable scalar views admit
-//!   fact-free types or normalized domain conjunctions that imply one another
-//!   in BOTH directions; ranges and merely equal-looking cross-carrier
-//!   predicates remain fenced. Mutable record views require recursively
+//!   fact-free types, normalized domain conjunctions that imply one another
+//!   in BOTH directions, or integer ranges that denote the same normalized
+//!   bit-pattern set. Merely equal-looking cross-carrier predicates and float
+//!   ranges remain fenced. Mutable record views require recursively
 //!   fact-free target shapes, including literal-length fixed arrays nested in
 //!   records. Lowering is address identity:
 //!   native reads/writes the place through the stated type; the interpreter
@@ -496,12 +497,15 @@ fn judge_scalar_recast(
         region_length,
     } = interior
     {
+        let target_facts = mutable_scalar_representation_facts(program, let_referee);
+        let raw_facts = MutableScalarRepresentationFacts {
+            domains: Vec::new(),
+            bit_patterns: full_scalar_bit_patterns(target),
+        };
         if mutable_recast
-            && !mutable_scalar_fact_sets_equivalent(
-                program,
-                &[],
-                mutable_scalar_fact_domains(program, let_referee).as_deref(),
-            )
+            && !target_facts.as_ref().is_some_and(|target_facts| {
+                mutable_scalar_representation_facts_equivalent(program, &raw_facts, target_facts)
+            })
         {
             diagnostics.push(Diagnostic::error(format!(
                 "{context}: a mutable recast must prove fact implication in BOTH directions; \
@@ -541,14 +545,16 @@ fn judge_scalar_recast(
         return;
     }
     if mutable_recast {
-        let source_facts = source_type
-            .and_then(|type_reference| mutable_scalar_fact_domains(program, type_reference));
-        let target_facts = mutable_scalar_fact_domains(program, let_referee);
-        if !mutable_scalar_fact_sets_equivalent(
-            program,
-            source_facts.as_deref().unwrap_or(&[]),
-            target_facts.as_deref(),
-        ) || source_facts.is_none()
+        let source_facts = source_type.and_then(|type_reference| {
+            mutable_scalar_representation_facts(program, type_reference)
+        });
+        let target_facts = mutable_scalar_representation_facts(program, let_referee);
+        if !source_facts
+            .as_ref()
+            .zip(target_facts.as_ref())
+            .is_some_and(|(source_facts, target_facts)| {
+                mutable_scalar_representation_facts_equivalent(program, source_facts, target_facts)
+            })
         {
             diagnostics.push(Diagnostic::error(format!(
                 "{context}: a mutable recast must prove fact implication in BOTH directions; \
@@ -573,17 +579,28 @@ fn judge_scalar_recast(
     }
 }
 
-/// The normalized domain facts carried by one scalar type reference.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct MutableScalarRepresentationFacts {
+    domains: Vec<SymbolHandle>,
+    /// Inclusive bit-pattern intervals in ascending unsigned order. Integer
+    /// ranges may split at signed zero; every other admitted scalar is the one
+    /// full-width interval.
+    bit_patterns: Vec<(u64, u64)>,
+}
+
+/// The normalized representation facts carried by one scalar type reference.
 ///
 /// Arithmetic policy changes how expressions compute, not which bit patterns
-/// are established values, so it contributes no representation fact here.
-/// Ranges and legacy named constraints remain fenced until their value-set
-/// equivalence can be proved rather than guessed.
-fn mutable_scalar_fact_domains(
+/// are established values, so it contributes no representation fact here. A
+/// constant integer range is normalized into its exact two's-complement
+/// bit-pattern set. Float ranges and legacy named constraints remain fenced:
+/// numeric float intervals do not describe NaNs, signed zero, or payload bits.
+fn mutable_scalar_representation_facts(
     program: &TypedTrees,
     mut type_reference: TypeReferenceHandle,
-) -> Option<Vec<SymbolHandle>> {
+) -> Option<MutableScalarRepresentationFacts> {
     let mut domains = Vec::new();
+    let mut range: Option<(i64, i64)> = None;
     loop {
         match program.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Reference { referee, .. } => {
@@ -603,9 +620,23 @@ fn mutable_scalar_fact_domains(
                             }
                         }
                         omega_typed_trees::types::TypeConstraintNode::ArithmeticDomain(_) => {}
+                        omega_typed_trees::types::TypeConstraintNode::Range {
+                            minimum,
+                            maximum,
+                        } => {
+                            let minimum =
+                                crate::arithmetic_domains::literal_i64(program, *minimum)?;
+                            let maximum =
+                                crate::arithmetic_domains::literal_i64(program, *maximum)?;
+                            range = Some(match range {
+                                Some((existing_minimum, existing_maximum)) => {
+                                    (existing_minimum.max(minimum), existing_maximum.min(maximum))
+                                }
+                                None => (minimum, maximum),
+                            });
+                        }
                         omega_typed_trees::types::TypeConstraintNode::Domain(_)
-                        | omega_typed_trees::types::TypeConstraintNode::Named(_)
-                        | omega_typed_trees::types::TypeConstraintNode::Range { .. } => {
+                        | omega_typed_trees::types::TypeConstraintNode::Named(_) => {
                             return None;
                         }
                     }
@@ -616,25 +647,90 @@ fn mutable_scalar_fact_domains(
                 if PrimitiveType::from_name(name.as_str())
                     .is_some_and(|primitive| primitive != PrimitiveType::Bool) =>
             {
-                return Some(domains);
+                let primitive = PrimitiveType::from_name(name.as_str())?;
+                let bit_patterns = match range {
+                    Some(range) => integer_range_bit_patterns(primitive, range)?,
+                    None => full_scalar_bit_patterns(primitive),
+                };
+                return Some(MutableScalarRepresentationFacts {
+                    domains,
+                    bit_patterns,
+                });
             }
             _ => return None,
         }
     }
 }
 
+fn full_scalar_bit_patterns(primitive: PrimitiveType) -> Vec<(u64, u64)> {
+    let bit_count = primitive
+        .scalar_byte_size()
+        .expect("scalar primitive must have a byte size")
+        * 8;
+    let maximum = if bit_count == 64 {
+        u64::MAX
+    } else {
+        (1u64 << bit_count) - 1
+    };
+    vec![(0, maximum)]
+}
+
+/// Normalize one inclusive integer value interval into the exact set of stored
+/// bit patterns. Signed negative values occupy the high unsigned interval; a
+/// range crossing zero therefore becomes two intervals. This makes
+/// `i32 [0..=100]` representation-equivalent to `u32 [0..=100]`, while
+/// `i32 [-1..=99]` is correctly distinct despite having the same cardinality.
+fn integer_range_bit_patterns(
+    primitive: PrimitiveType,
+    (minimum, maximum): (i64, i64),
+) -> Option<Vec<(u64, u64)>> {
+    if minimum > maximum || !primitive.accepts_integer_literal() {
+        return None;
+    }
+    let bit_count = primitive.scalar_byte_size()? * 8;
+    let mask = if bit_count == 64 {
+        u64::MAX
+    } else {
+        (1u64 << bit_count) - 1
+    };
+    let signed = primitive.is_signed_integer();
+    if signed {
+        let (primitive_minimum, primitive_maximum) = if bit_count == 64 {
+            (i64::MIN, i64::MAX)
+        } else {
+            let half = 1i64 << (bit_count - 1);
+            (-half, half - 1)
+        };
+        if minimum < primitive_minimum || maximum > primitive_maximum {
+            return None;
+        }
+        let bits = |value: i64| (value as u64) & mask;
+        return Some(if maximum < 0 || minimum >= 0 {
+            vec![(bits(minimum), bits(maximum))]
+        } else {
+            vec![(0, bits(maximum)), (bits(minimum), mask)]
+        });
+    }
+
+    if minimum < 0 || (bit_count < 64 && maximum as u64 > mask) {
+        return None;
+    }
+    Some(vec![(minimum as u64, maximum as u64)])
+}
+
 /// Mutable aliases are safe only when arbitrary writes accepted through either
 /// view remain established through the other. Domain conjunctions therefore
-/// owe implication in both directions. The normalized domain graph already
-/// accounts for shared semantic identities and explicit membership chains.
-fn mutable_scalar_fact_sets_equivalent(
+/// owe implication in both directions, and their normalized bit-pattern sets
+/// must be identical. The normalized domain graph already accounts for shared
+/// semantic identities and explicit membership chains.
+fn mutable_scalar_representation_facts_equivalent(
     program: &TypedTrees,
-    source_domains: &[SymbolHandle],
-    target_domains: Option<&[SymbolHandle]>,
+    source: &MutableScalarRepresentationFacts,
+    target: &MutableScalarRepresentationFacts,
 ) -> bool {
-    let Some(target_domains) = target_domains else {
+    if source.bit_patterns != target.bit_patterns {
         return false;
-    };
+    }
     let implies = |sources: &[SymbolHandle], targets: &[SymbolHandle]| {
         targets.iter().all(|target| {
             sources.iter().any(|source| {
@@ -642,7 +738,33 @@ fn mutable_scalar_fact_sets_equivalent(
             })
         })
     };
-    implies(source_domains, target_domains) && implies(target_domains, source_domains)
+    implies(&source.domains, &target.domains) && implies(&target.domains, &source.domains)
+}
+
+#[cfg(test)]
+mod representation_set_tests {
+    use super::integer_range_bit_patterns;
+    use omega_typed_trees::types::PrimitiveType;
+
+    #[test]
+    fn signed_negative_ranges_normalize_to_high_unsigned_patterns() {
+        assert_eq!(
+            integer_range_bit_patterns(PrimitiveType::I8, (-4, -1)),
+            Some(vec![(252, 255)])
+        );
+        assert_eq!(
+            integer_range_bit_patterns(PrimitiveType::U8, (252, 255)),
+            Some(vec![(252, 255)])
+        );
+    }
+
+    #[test]
+    fn signed_ranges_crossing_zero_split_without_inventing_the_gap() {
+        assert_eq!(
+            integer_range_bit_patterns(PrimitiveType::I8, (-2, 2)),
+            Some(vec![(0, 2), (254, 255)])
+        );
+    }
 }
 
 /// The companion hole-closer: a reference-typed let over a BARE borrow of a
