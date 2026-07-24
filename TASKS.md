@@ -623,7 +623,9 @@ schemas recover the same instance without publishing policy type identity.
    Immediate-port and immediate-MSR writes likewise bind the exact value-loader
    boundary, while control-register writes and RFLAGS restore bind the exact
    source-loader boundary; none may hide extra unclassified bytes between its
-   operand and privileged opcode.
+   operand and privileged opcode. Machine emission now fails closed if any
+   user-checked catalog instruction lacks that final-image validation evidence;
+   an unsupported operand shape cannot silently fall back to ordinary bytes.
    Complete semantic decoding of the retained value-operand loaders, other
    operand-bearing checked assembly, and general compiler-function body
    decoding remain incomplete.

@@ -60,6 +60,15 @@ pub(crate) fn emit_function_bytes(
             ));
         }
         if laid_out_instruction.byte_width == 0 {
+            if machine_instruction
+                .kind
+                .requires_checked_assembly_validation()
+            {
+                return Err(Diagnostic::error(format!(
+                    "checked-assembly instruction #{} reached emission without bytes",
+                    machine_instruction.selected_instruction_index
+                )));
+            }
             encoded_code.instructions.insert(EncodedMachineInstruction {
                 selected_instruction_index: machine_instruction.selected_instruction_index,
                 bytes: HandleSpan::empty(),
@@ -102,13 +111,22 @@ pub(crate) fn emit_function_bytes(
                 operand_note,
             )));
         }
+        let checked_validation_kind =
+            checked_instruction_validation_kind(emission_context, &machine_instruction.source_kind);
+        if machine_instruction
+            .kind
+            .requires_checked_assembly_validation()
+            && checked_validation_kind.is_none()
+        {
+            return Err(Diagnostic::error(format!(
+                "checked-assembly instruction #{} reached emission without final-image validation evidence",
+                machine_instruction.selected_instruction_index
+            )));
+        }
         encoded_code.instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: machine_instruction.selected_instruction_index,
             bytes: byte_span,
-            checked_validation_kind: checked_instruction_validation_kind(
-                emission_context,
-                &machine_instruction.source_kind,
-            ),
+            checked_validation_kind,
         });
     }
 

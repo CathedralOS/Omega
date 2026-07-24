@@ -138,7 +138,7 @@ fn write_executable_region_inventory(
         inventory.inventory_fingerprint,
     );
     let mut json = String::from(
-        "{\n  \"placement_stage\": \"final_image\",\n  \"enumeration_complete\": false,\n  \"region_enumeration_complete\": true,\n  \"footprint_enumeration_complete\": false,\n  \"covered_classes\": [\"compiler_functions\", \"import_thunks\"],\n  \"absent_by_construction_classes\": [\"relaxation_products\", \"veneers\", \"generated_stubs\"],\n  \"final_byte_validated_classes\": [\"compiler_function_relocation_envelope\", \"compiler_entry_call_return_mechanics\", \"fixed_checked_assembly\", \"import_thunks\"],\n  \"missing_classes\": [\"compiler_function_body_footprint_decoding\", \"admitted_leaves\"],\n",
+        "{\n  \"placement_stage\": \"final_image\",\n  \"enumeration_complete\": false,\n  \"region_enumeration_complete\": true,\n  \"footprint_enumeration_complete\": false,\n  \"covered_classes\": [\"compiler_functions\", \"import_thunks\"],\n  \"absent_by_construction_classes\": [\"relaxation_products\", \"veneers\", \"generated_stubs\"],\n  \"final_byte_validated_classes\": [\"compiler_function_relocation_envelope\", \"compiler_entry_call_return_mechanics\", \"catalog_checked_assembly\", \"import_thunks\"],\n  \"missing_classes\": [\"compiler_function_body_footprint_decoding\", \"admitted_leaves\"],\n",
     );
     json.push_str("  \"boundary_contract_fingerprint\": ");
     if let Some(fingerprint) = footprints.boundary_contract_fingerprint {

@@ -33317,7 +33317,7 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
 ];
 
 #[test]
-fn fixed_checked_assembly_is_validated_against_final_image_bytes() {
+fn catalog_checked_assembly_is_validated_against_final_image_bytes() {
     let canary = pass_canary("inline_asm/asm_fences_compile");
     let build_dir =
         std::env::temp_dir().join(format!("omega-final-asm-evidence-{}", std::process::id()));
@@ -33338,7 +33338,7 @@ fn fixed_checked_assembly_is_validated_against_final_image_bytes() {
             && executable_regions.contains(
                 "\"checked_instruction_validation_fingerprint\": \"0x"
             )
-            && executable_regions.contains("\"fixed_checked_assembly\"")
+            && executable_regions.contains("\"catalog_checked_assembly\"")
             && executable_regions.contains(
                 "\"missing_classes\": [\"compiler_function_body_footprint_decoding\", \"admitted_leaves\"]"
             ),
