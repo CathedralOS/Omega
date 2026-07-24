@@ -363,23 +363,35 @@ in either direction is a malformed payload, not a silent skew.
 
 ## Compatibility Reports
 
-The compiler should be able to report protocol compatibility changes.
+Every successful build writes `04_wire_protocols.txt`. The report records each
+schema's current era, field-number/type table, retired numbers, and every
+declared historical era. Compatibility is compared between ADJACENT eras along
+the declared chain, never by comparing every historical era directly with the
+current body.
 
 Example artifact shape:
 
 ```text
 data CounterMessage:
-  compatible:
-    added field 3 timestamp_millis
-  incompatible:
-    field 1 changed i32 -> AtomicI32 without decode rule
-  retired:
-    field 2 retired in v2
+  current era: 2
+  compatibility v1 -> v2:
+    compatible:
+      field 0 renamed count -> total (number and type stable)
+    requires migration:
+      field 1 changes type i32 -> i64
+  compatibility v2 -> current:
+    reserved:
+      field 2 legacy_flags retired; number reserved
+    compatible:
+      added field 3 timestamp_millis u64
 ```
 
-This fits Omega's broader design direction: facts, obligations, and boundary
-should be visible in build artifacts instead of hiding inside implementation
-details.
+Stable additions and renames are compatible. A type change at a stable number
+is an explicit migration step: decode through that era's table, then migrate
+to its successor. Retiring a field requires reserving its number in the
+successor. Validation rejects incompatible evolution before a successful
+artifact can publish it; the report preserves the accepted compatibility and
+migration facts for package and deployment tooling.
 
 ## Working Rules
 
@@ -406,7 +418,8 @@ details.
   repeated fields?), and how much of protobuf's ecosystem behavior
   (unknown-field preservation) is worth carrying?
 - How should optional, required, repeated, and defaulted fields be spelled?
-- How much compatibility can the compiler infer safely?
+- Which additional compatibility facts, beyond the implemented
+  number/type/reservation rules, may the compiler infer safely?
 - When does a field type change require a new field number instead of a
   decode rule?
 - The publish-time predecessor diff: exactly where it runs (package manager,
