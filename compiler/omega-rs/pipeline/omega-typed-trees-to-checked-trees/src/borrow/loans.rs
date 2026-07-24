@@ -88,7 +88,7 @@ pub(super) fn statement_borrow_loans(
                 return Vec::new();
             };
 
-            rebase_borrow_places_through_local_loans(place, loan_trackers)
+            rebase_borrow_places_through_local_loans(program, place, loan_trackers)
                 .into_iter()
                 .map(|(place, source_owner_symbol)| StatementBorrowLoan {
                     owner_symbol: local_data.symbol,
@@ -144,7 +144,7 @@ fn borrow_carrying_data_loans(
             ) else {
                 return Vec::new();
             };
-            rebase_borrow_places_through_local_loans(place, loan_trackers)
+            rebase_borrow_places_through_local_loans(program, place, loan_trackers)
                 .into_iter()
                 .map(|(place, source_owner_symbol)| StatementBorrowLoan {
                     owner_symbol: local_data.symbol,
@@ -196,13 +196,14 @@ fn borrowed_initializers(
             else {
                 return Vec::new();
             };
-            let mut element_path = owner_path.to_vec();
-            element_path.push(BorrowOwnerSegment::AnyIndex);
             program
                 .expression_table
                 .expression_handles(*values)
                 .iter()
-                .flat_map(|value| {
+                .enumerate()
+                .flat_map(|(index, value)| {
+                    let mut element_path = owner_path.to_vec();
+                    element_path.push(BorrowOwnerSegment::FixedIndex(index));
                     borrowed_initializers(
                         program,
                         *element_type,
@@ -447,6 +448,7 @@ fn argument_borrow_loan_place(
 }
 
 fn rebase_borrow_places_through_local_loans(
+    program: &omega_typed_trees::TypedTrees,
     place: accesses::BorrowAccessPlace,
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<(accesses::BorrowAccessPlace, SymbolHandle)> {
@@ -455,7 +457,7 @@ fn rebase_borrow_places_through_local_loans(
         .rev()
         .filter(|loan| {
             loan.owner_symbol == place.root_symbol
-                && owner_path_matches(&loan.owner_path, &place.segments)
+                && owner_path_matches(program, &loan.owner_path, &place.segments)
         })
         .collect();
     if source_loans.is_empty() {
@@ -488,6 +490,7 @@ fn rebase_borrow_places_through_local_loans(
 }
 
 fn owner_path_matches(
+    program: &omega_typed_trees::TypedTrees,
     owner_path: &[BorrowOwnerSegment],
     place_segments: &[omega_facts::PlaceSegment],
 ) -> bool {
@@ -502,7 +505,14 @@ fn owner_path_matches(
                         symbol: place_symbol,
                     },
                 ) => !place_symbol.is_valid() || owner_symbol == place_symbol,
-                (BorrowOwnerSegment::AnyIndex, omega_facts::PlaceSegment::Index { .. }) => true,
+                (
+                    BorrowOwnerSegment::FixedIndex(owner_index),
+                    omega_facts::PlaceSegment::Index { expression },
+                ) => program
+                    .expression_table
+                    .constant_integer_value(*expression)
+                    .and_then(|value| usize::try_from(value).ok())
+                    .is_none_or(|place_index| *owner_index == place_index),
                 _ => false,
             })
 }

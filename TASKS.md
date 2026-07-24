@@ -1539,9 +1539,11 @@ stronger operations it needs instead of citing machine parameters generally.
   generic arguments. Literal construction records every carried source,
   return escape requires all sources to outlive the call, and named-field
   projection rebases through only that field, so a valid first field cannot
-  hide a dangling sibling. Finish explicit lifetime arguments on named
-  borrow-carrying data, result contracts relating different fields to
-  different input lifetimes, exact fixed-array projection, outlives
+  hide a dangling sibling. Fixed-array literal positions likewise retain exact
+  element ordinals: constant indexing keeps only the selected element's loans,
+  while dynamic indexing conservatively retains every candidate element.
+  Finish explicit lifetime arguments on named borrow-carrying data, result
+  contracts relating different fields to different input lifetimes, outlives
   constraints, and loan propagation through non-literal aggregate
   construction. These are settled implementation work needed by placed views
   and task storage, not owner-design blockers.

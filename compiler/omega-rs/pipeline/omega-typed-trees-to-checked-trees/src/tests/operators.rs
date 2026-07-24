@@ -1063,6 +1063,7 @@ fn operator_with_spelling(symbol: SymbolHandle, spelling: OperatorSpelling) -> O
         is_boundary: false,
         symbol,
         name: HandleSpan::empty(),
+        lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
         parameters: HandleSpan::empty(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
