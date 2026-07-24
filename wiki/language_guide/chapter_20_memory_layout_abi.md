@@ -291,10 +291,13 @@ compiler-owned control storage outside the agent's reachable authority.
 Mapping also requires authority on both sides. Fixed placement consumes an
 owned virtual-range extent; a bare `addr` is at most a hint. The physical source
 may be owned or borrowed, and the mapped extent preserves that relationship.
-Unmapping consumes the mapping and returns reusable authority only after any
-required shootdown/quiescence token completes. V1 performs no generation check
-on each access: ordinary borrowing prevents in-language reclamation while a
-view remains live.
+Structural validation alone produces only a pending mapping. It exposes no
+mapped access until an exact provider receipt establishes that translations
+were installed and every target activation fact holds. Unmapping consumes the
+mapping and returns reusable authority only after any required
+shootdown/quiescence token completes. V1 performs no generation check on each
+access: ordinary borrowing prevents in-language reclamation while a view
+remains live.
 
 The compiler derives sealed field-access values. Pure projection narrows the
 extent to a passable borrow-carrying field accessor without performing I/O.

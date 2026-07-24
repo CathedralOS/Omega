@@ -161,14 +161,18 @@ ordinary runtime provider work.
 
 The provider-neutral mapping lifecycle is live in `omega-extents`. An admitted
 mapping grant pins source custody, source/destination spaces and required
-rights, provider-established mapped facts, and an open set of translation
-release facts. Fixed mapping consumes the destination Extent and independently
-owns, shared-borrows, or exclusive-borrows its source. Shared source custody
-cannot expose mutable mapped loans. `begin_unmap` retains every authority until
-an exact provider receipt establishes that stale translations are released and
-all target completion facts hold; only then are the destination and any owned
-source returned. Provider page-table operations, suspension/blocking ceilings,
-sealed source-domain facts, and automatic destination allocation remain.
+rights, provider-established mapped facts, and open sets of translation
+activation and release facts. Fixed mapping consumes the destination Extent and
+independently owns, shared-borrows, or exclusive-borrows its source. Structural
+validation yields only a non-clonable pending mapping; it exposes no mapped
+loans. An exact provider receipt must bind the mapping and grant, establish that
+translations were installed, and discharge every activation fact before
+`MappedExtent` exists. Shared source custody then cannot expose mutable mapped
+loans. `begin_unmap` retains every authority until another exact provider
+receipt establishes that stale translations are released and all target
+completion facts hold; only then are the destination and any owned source
+returned. Provider page-table operations, suspension/blocking ceilings, sealed
+source-domain facts, and automatic destination allocation remain.
 
 Zero-filled storage does not establish a linear extent and creates no
 must-consume obligation. A zero-usable pool uses the ordinary debt-free sum:
