@@ -1,0 +1,18 @@
+// FAIL CANARY: mutable aliases need leaf implication in both directions. The
+// target's wider same-carrier float interval could write a value that leaves
+// the source's established 0..=1 interval.
+data NarrowReading {
+    value: f32 [0..=1];
+}
+
+data WideReading {
+    value: f32 [0..=2];
+}
+
+data Main {
+    reading: NarrowReading;
+}
+
+machine Main::main(&mut self) {
+    let view: &mut WideReading = &mut self.reading as &mut WideReading;
+}
