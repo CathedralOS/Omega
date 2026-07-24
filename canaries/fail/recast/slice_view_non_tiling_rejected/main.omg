@@ -1,0 +1,16 @@
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    bytes: [u8; 7];
+}
+
+machine Main::main(&mut self) {
+    let words: &[u16] = &self.bytes as &[u16];
+    transition words.len == 3 {
+        true -> done()
+        false -> done()
+    }
+
+    state done(&mut self) { self.console.exit_process(0); }
+}

@@ -1577,9 +1577,14 @@ stronger operations it needs instead of citing machine parameters generally.
   bidirectional representation equivalence, and mutable views preserve
   indexed read/write identity in native and interpreter execution. Focused
   canaries also cross-compile on x86-64 and AArch64 and reject attempts to mint
-  `bool` element facts from raw bytes. Complete the unsized-slice
-  representation judgment, length/divisibility rules, interpreter behavior,
-  native lowering, and differential canaries on the same structural identity.
+  `bool` element facts from raw bytes. Unsized-slice recasts now consume the
+  complete source representation, reject non-divisible tilings, derive the fat
+  descriptor length from the target element layout, preserve mutable indexed
+  write-through across state forwarding in native and interpreter execution,
+  and cross-compile on x86-64 and AArch64. Raw bytes remain unable to mint
+  slice-element facts. Continue the remaining validate/materialize mint,
+  codec-conformance, and float/domain representation-set work without adding a
+  second structural-view mechanism.
 - **L6a — Extent.** The normalized conservation foundation is live in
   `omega-extents`: admitted one-shot root grants mint nonempty ranges;
   move-split preserves exact geometry; only compatible siblings from one

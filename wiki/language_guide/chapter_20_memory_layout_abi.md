@@ -323,6 +323,7 @@ let read: &u32 = &self.word as &u32;
 let write: &mut u32 = &mut self.float as &mut u32;
 let interior: &mut u32 = &mut self.bytes[offset] as &mut u32;
 let header: &mut Header = &mut self.bytes[offset] as &mut Header;
+let words: &mut [u16] = &mut self.bytes as &mut [u16];
 ```
 
 The source and target must cover the same bytes under their normalized layout
@@ -336,12 +337,16 @@ such regions. Those record shapes may contain literal-length fixed arrays,
 including arrays of nested records. Record fields and statically or dynamically
 indexed array elements follow ordinary or validated plan-laid offsets
 recursively; reads and writes preserve the complete scalar footprints in both
-native backends and the interpreter. Typed record-to-record mutable aliases may
-also retain scalar leaf facts when normalized size/alignment, leaf geometry, and
-representation sets are equivalent in both directions. Raw bytes still cannot
-mint those facts. Top-level array/slice targets await the engineering migration
-from name-path-only cast targets to full type references; float ranges remain
-fenced until their exact representation sets can be proved.
+native backends and the interpreter. Top-level literal-length arrays use the
+same recursive judgment. An unsized slice target consumes the complete source
+representation; its runtime element count is
+`source_byte_count / target_element_byte_size`, and a remainder rejects rather
+than truncating. Typed shared aliases may weaken facts, while typed mutable
+aliases require bidirectional representation equivalence. Raw bytes can target
+only recursively fact-free elements, so neither an array nor a slice recast can
+mint element facts. These structural views preserve indexed read/write identity
+through state forwarding in both native backends and the interpreter. Float
+ranges remain fenced until their exact representation sets can be proved.
 
 See [`Programmable Layouts`](../design_briefs/programmable_layouts.md) and the
 [`OS Memory And Hardware Foundation`](../design_briefs/os_memory_and_hardware_foundation.md)

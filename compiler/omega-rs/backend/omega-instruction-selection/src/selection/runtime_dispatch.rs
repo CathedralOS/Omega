@@ -3060,6 +3060,38 @@ fn select_runtime_dispatch_local_initializer_write(
         expressions.expression(recast_initializer)
         && cast.form.is_recast()
     {
+        if let Some(place) =
+            crate::selection::storage_places::resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index,
+                resolved_initializer_source_key,
+                expressions,
+                cast.value,
+            )
+            && let Some(element_count) =
+                recast_slice_element_count(input, cast.target_type, place.byte_count)
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind: write_place_address_direct(
+                    place.region,
+                    place.byte_offset,
+                    slot.byte_offset + input.runtime_abi.slice_descriptor().ptr_offset(),
+                ),
+                source_key,
+                source_statement: statement_index,
+            });
+            selected_instructions.push(SelectedInstruction {
+                kind: write_place_integer_direct(
+                    RuntimeStorageRegion::RuntimeFrame,
+                    slot.byte_offset + input.runtime_abi.slice_descriptor().len_offset(),
+                    element_count as i64,
+                    input.runtime_abi.slice_descriptor().len_size(),
+                ),
+                source_key,
+                source_statement: statement_index,
+            });
+            return;
+        }
         // A MUTABLE recast must retain ADDRESS identity even when its referee
         // fits in a word. Shared scalar recasts deliberately content-spill for
         // flat reads; doing that here would make `view = value` dereference the
@@ -3210,13 +3242,13 @@ fn select_runtime_dispatch_local_initializer_write(
     // unrelated caller-frame operands and overwrite the correct result.
     if initializer_is_direct_call
         && copy_assignment_value_call_result_into_local(
-        input,
-        dispatch_index,
-        source_key,
-        statement_index,
-        slot,
-        selected_instructions,
-    )
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            slot,
+            selected_instructions,
+        )
     {
         return;
     }
@@ -3418,6 +3450,22 @@ pub(in crate::selection) fn recast_target_byte_size(
     omega_layout::layout_type_reference(input.program, input.target, target)
         .ok()
         .map(|layout| layout.size)
+}
+
+pub(in crate::selection) fn recast_slice_element_count(
+    input: &InstructionSelectionInput<'_>,
+    target: omega_checked_trees::types::TypeReferenceHandle,
+    source_byte_count: usize,
+) -> Option<usize> {
+    let omega_checked_trees::types::TypeReferenceNode::Slice { element_type } =
+        input.program.type_reference_table.type_reference(target)
+    else {
+        return None;
+    };
+    let element =
+        omega_layout::layout_type_reference(input.program, input.target, *element_type).ok()?;
+    (element.size > 0 && source_byte_count % element.size == 0)
+        .then_some(source_byte_count / element.size)
 }
 
 /// Extract the callee `target_key` from a StateCall-family operation, or

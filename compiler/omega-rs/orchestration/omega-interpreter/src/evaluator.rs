@@ -448,7 +448,7 @@ enum MutableScalarRecast {
     },
     AggregateTyped {
         source: Cell,
-        source_name: String,
+        source_type: TypeReferenceHandle,
         target_type: TypeReferenceHandle,
     },
 }
@@ -473,6 +473,7 @@ enum MutableRecordProjectionStep {
 /// shared by `&` during statement execution.
 struct Frame {
     locals: RefCell<BTreeMap<String, Cell>>,
+    type_locals: RefCell<BTreeMap<String, TypeReferenceHandle>>,
     /// DECLARED scalar (primitive, arithmetic-domain) of locals/params, recorded
     /// at binding -- the static type witness `Value::Int` alone cannot carry.
     /// Read for two classifications native derives from the same declared types:
@@ -784,7 +785,7 @@ impl<'program> Evaluator<'program> {
         let instance = self.instantiate_machine(&machine)?;
         let argument_cells = arguments
             .into_iter()
-            .map(|argument| argument.into_value().cell())
+            .map(|argument| EvaluatedArgument::plain(argument.into_value().cell()))
             .collect();
         let returned =
             self.run_state_collect(&machine, &entry_state_name, instance, argument_cells)?;
@@ -861,8 +862,12 @@ impl<'program> Evaluator<'program> {
         // Keep the cells: a `&mut` parameter aliases its cell, so the run's
         // mutations are visible here afterward.
         let kept: Vec<Cell> = argument_cells.clone();
+        let evaluated_arguments = argument_cells
+            .into_iter()
+            .map(EvaluatedArgument::plain)
+            .collect();
         let _terminal =
-            self.run_state_collect(&machine, &entry_state_name, instance, argument_cells)?;
+            self.run_state_collect(&machine, &entry_state_name, instance, evaluated_arguments)?;
         let impure = if allow_filesystem {
             self.non_fs_host_boundary_touched
         } else {
@@ -904,6 +909,7 @@ impl<'program> Evaluator<'program> {
             let value = if owned.initial_value.is_valid() {
                 let frame = Frame {
                     locals: RefCell::new(BTreeMap::new()),
+                    type_locals: RefCell::new(BTreeMap::new()),
                     self_cell: Value::Unit.cell(),
                     machine_symbol: SymbolHandle::invalid(),
                     scalar_locals: RefCell::new(BTreeMap::new()),
@@ -1302,7 +1308,7 @@ impl<'program> Evaluator<'program> {
         machine: &Machine,
         state_name: &str,
         instance: Cell,
-        args: Vec<Cell>,
+        args: Vec<EvaluatedArgument>,
     ) -> EvalResult<Option<Value>> {
         self.call_depth += 1;
         if self.call_depth > CALL_DEPTH_BUDGET {
@@ -1319,7 +1325,7 @@ impl<'program> Evaluator<'program> {
         machine: &Machine,
         state_name: &str,
         instance: Cell,
-        args: Vec<Cell>,
+        args: Vec<EvaluatedArgument>,
     ) -> EvalResult<Option<Value>> {
         // MR4 admission: the cross-machine tail transition REBINDS these and
         // continues the loop (a jump, mirroring the native dispatch-loop
@@ -1334,6 +1340,8 @@ impl<'program> Evaluator<'program> {
         // enclosing state's params/`let`s (e.g. `mark_current_room` reading `enter_room`'s
         // `room_index`). New args bind on top; carried-over names stay visible.
         let mut carried: BTreeMap<String, Cell> = BTreeMap::new();
+        let mut carried_types: BTreeMap<String, TypeReferenceHandle> = BTreeMap::new();
+        let mut carried_recasts: BTreeMap<String, MutableScalarRecast> = BTreeMap::new();
 
         loop {
             self.tick()?;
@@ -1348,6 +1356,8 @@ impl<'program> Evaluator<'program> {
                 &current_args,
                 machine.symbol,
                 &carried,
+                &carried_types,
+                &carried_recasts,
             )?;
 
             // Execute statements, watching for the first satisfied transition. A state
@@ -1385,6 +1395,8 @@ impl<'program> Evaluator<'program> {
                     // Re-run the same state (rare; guard against infinite loops via budget),
                     // carrying its bindings forward.
                     carried = frame.locals.into_inner();
+                    carried_types = frame.type_locals.into_inner();
+                    carried_recasts = frame.mutable_scalar_recasts.into_inner();
                     continue;
                 }
                 Some(TransitionDecision::Named {
@@ -1398,6 +1410,8 @@ impl<'program> Evaluator<'program> {
                     {
                         // Carry this state's bindings forward to the sibling state.
                         carried = frame.locals.into_inner();
+                        carried_types = frame.type_locals.into_inner();
+                        carried_recasts = frame.mutable_scalar_recasts.into_inner();
                         current_state = state_name;
                         current_args = args;
                         continue;
@@ -1413,6 +1427,8 @@ impl<'program> Evaluator<'program> {
                     current_state = state_name;
                     current_args = args;
                     carried = BTreeMap::new();
+                    carried_types = BTreeMap::new();
+                    carried_recasts = BTreeMap::new();
                     continue;
                 }
             }
@@ -1426,21 +1442,26 @@ impl<'program> Evaluator<'program> {
         &self,
         state: &State,
         self_cell: Cell,
-        args: &[Cell],
+        args: &[EvaluatedArgument],
         machine_symbol: SymbolHandle,
         carried: &BTreeMap<String, Cell>,
+        carried_types: &BTreeMap<String, TypeReferenceHandle>,
+        carried_recasts: &BTreeMap<String, MutableScalarRecast>,
     ) -> EvalResult<Frame> {
         let mut scalar_locals = BTreeMap::new();
         let mut locals = carried.clone();
+        let mut type_locals = carried_types.clone();
+        let mut mutable_scalar_recasts = carried_recasts.clone();
         let mut arg_index = 0;
         for parameter in self.program.state_parameters(state) {
             if parameter.is_self {
                 continue;
             }
-            let cell = args
+            let argument = args
                 .get(arg_index)
                 .cloned()
-                .unwrap_or_else(|| Value::Unit.cell());
+                .unwrap_or_else(|| EvaluatedArgument::plain(Value::Unit.cell()));
+            let cell = argument.cell;
             // Coerce a by-value ARGUMENT to the param's declared width/domain at
             // the binding, matching the native truncating/clamping/trapping store
             // at the call boundary. Mirrors the Assignment/LocalData store wraps:
@@ -1475,14 +1496,19 @@ impl<'program> Evaluator<'program> {
                 None => cell,
             };
             locals.insert(parameter.name.as_str().to_owned(), cell);
+            type_locals.insert(parameter.name.as_str().to_owned(), parameter.type_reference);
+            if let Some(recast) = argument.mutable_recast {
+                mutable_scalar_recasts.insert(parameter.name.as_str().to_owned(), recast);
+            }
             arg_index += 1;
         }
         Ok(Frame {
             locals: RefCell::new(locals),
+            type_locals: RefCell::new(type_locals),
             self_cell,
             machine_symbol,
             scalar_locals: RefCell::new(scalar_locals),
-            mutable_scalar_recasts: RefCell::new(BTreeMap::new()),
+            mutable_scalar_recasts: RefCell::new(mutable_scalar_recasts),
             guard_call_results: RefCell::new(Vec::new()),
         })
     }
@@ -1654,6 +1680,7 @@ impl<'program> Evaluator<'program> {
                         self.mutable_scalar_recast_initializer(local.initial_value, frame)?
                     {
                         frame.bind(local.name.as_str(), Value::Ref(source).cell());
+                        frame.bind_type(local.name.as_str(), local.type_reference);
                         frame
                             .mutable_scalar_recasts
                             .borrow_mut()
@@ -1698,6 +1725,7 @@ impl<'program> Evaluator<'program> {
                         .insert(local.name.as_str().to_owned(), (primitive, domain));
                 }
                 frame.bind(local.name.as_str(), value.cell());
+                frame.bind_type(local.name.as_str(), local.type_reference);
                 Ok(())
             }
             StatementNode::Call(call) => {
@@ -1783,7 +1811,7 @@ impl<'program> Evaluator<'program> {
 
                 let mut args = Vec::new();
                 for argument in self.program.statement_table.expression_handles(*arguments) {
-                    args.push(self.eval_argument(*argument, frame)?);
+                    args.push(self.eval_state_argument(*argument, frame)?);
                 }
 
                 Ok(TransitionDecision::Named {
@@ -1904,7 +1932,7 @@ impl<'program> Evaluator<'program> {
             .statement_table
             .expression_handles(call.arguments)
         {
-            args.push(self.eval_argument(*argument, frame)?);
+            args.push(self.eval_state_argument(*argument, frame)?);
         }
 
         self.run_state_collect(&machine, &state_name, instance, args)
@@ -4638,6 +4666,16 @@ impl<'program> Evaluator<'program> {
                 }
             }
             ExpressionNode::Mutable(inner) => {
+                // `&mut place as &mut View` can survive typed-tree rewriting as
+                // `Mutable(Cast(RecastMutable))` in a guard or forwarded value.
+                // In value position evaluate the recast view itself; argument
+                // and assignment seams separately preserve its mutable alias.
+                if matches!(
+                    self.program.expression_table.expression(inner),
+                    ExpressionNode::Cast(cast) if cast.form.is_recast()
+                ) {
+                    return self.eval_expression(inner, frame);
+                }
                 let cell = self.resolve_place(inner, frame)?;
                 // Re-borrow collapse: see eval_argument's Mutable arm.
                 let target = match &*cell.borrow() {
@@ -4721,6 +4759,20 @@ impl<'program> Evaluator<'program> {
                 }
                 let value = self.eval_expression(cast.value, frame)?;
                 if cast.form.is_recast() {
+                    if target.is_none()
+                        && let Some(source_type) = self.expression_type_reference(cast.value, frame)
+                        && self
+                            .record_view_type_layout(source_type, &mut HashSet::new())
+                            .is_some()
+                    {
+                        let source = value.clone().cell();
+                        let cells = self.snapshot_typed_value_bytes(&source, source_type)?;
+                        if let Some(value) =
+                            self.assemble_record_view_type(cast.target_type, &cells, 0)?
+                        {
+                            return Ok(value);
+                        }
+                    }
                     return self.eval_recast_to_type(value, cast.target_type);
                 }
                 self.eval_cast(value, target, cast.domain)
@@ -5039,7 +5091,7 @@ impl<'program> Evaluator<'program> {
             .expression_table
             .expression_handles(call.arguments)
         {
-            args.push(self.eval_call_expression_argument(*argument, frame)?);
+            args.push(self.eval_state_argument(*argument, frame)?);
         }
         // Suspend the guard flag while the callee RUNS: distinct same-shaped calls
         // inside its body are genuine repeat calls, not copies of one source
@@ -5247,10 +5299,10 @@ impl<'program> Evaluator<'program> {
                         }),
                     MutableScalarRecast::AggregateTyped {
                         source,
-                        source_name,
+                        source_type,
                         target_type,
                     } => {
-                        let cells = self.snapshot_typed_record_bytes(&source, &source_name)?;
+                        let cells = self.snapshot_typed_value_bytes(&source, source_type)?;
                         self.assemble_record_view_type(target_type, &cells, 0)?
                             .ok_or_else(|| {
                                 Halt::Trap(format!(
@@ -5291,8 +5343,33 @@ impl<'program> Evaluator<'program> {
             return Ok(None);
         }
         let target = self.cast_target_primitive(cast.target_type);
-        if let ExpressionNode::Indexed(indexed) =
-            self.program.expression_table.expression(cast.value).clone()
+        // A forwarded mutable view can acquire another same-target recast at
+        // the parameter boundary. Semantically that is still one view over the
+        // original storage, so peel the recast-only chain before resolving the
+        // source place. Treating the inner Cast as a place is unsupported and,
+        // more importantly, would lose the original alias identity.
+        let mut source_handle = cast.value;
+        loop {
+            match self.program.expression_table.expression(source_handle) {
+                ExpressionNode::Cast(inner) if inner.form.is_recast() => {
+                    source_handle = inner.value;
+                }
+                ExpressionNode::Mutable(inner)
+                    if matches!(
+                        self.program.expression_table.expression(*inner),
+                        ExpressionNode::Cast(cast) if cast.form.is_recast()
+                    ) =>
+                {
+                    source_handle = *inner;
+                }
+                _ => break,
+            }
+        }
+        if let ExpressionNode::Indexed(indexed) = self
+            .program
+            .expression_table
+            .expression(source_handle)
+            .clone()
         {
             let offset = self.eval_index(indexed.index, frame)?;
             if let Value::Array(cells) = self.eval_expression(indexed.collection, frame)? {
@@ -5317,18 +5394,20 @@ impl<'program> Evaluator<'program> {
             }
         }
         if target.is_none() {
-            let source = self.resolve_place(cast.value, frame)?;
+            let source = self.resolve_place(source_handle, frame)?;
             let source = self.deref_cell(source);
-            let source_name = match &*source.borrow() {
-                Value::Struct { type_name, .. } => Some(type_name.clone()),
-                _ => None,
-            };
-            if let Some(source_name) = source_name {
+            let source_type = self.expression_type_reference(source_handle, frame);
+            let source_layout = source_type.and_then(|source_type| {
+                self.record_view_type_layout(source_type, &mut HashSet::new())
+            });
+            if let Some(source_type) = source_type
+                && source_layout.is_some()
+            {
                 return Ok(Some((
                     Rc::clone(&source),
                     MutableScalarRecast::AggregateTyped {
                         source,
-                        source_name,
+                        source_type,
                         target_type: cast.target_type,
                     },
                 )));
@@ -5337,10 +5416,10 @@ impl<'program> Evaluator<'program> {
         let Some(target) = target else {
             return Ok(None);
         };
-        let Some((source, _)) = self.expression_scalar_type(cast.value, frame) else {
+        let Some((source, _)) = self.expression_scalar_type(source_handle, frame) else {
             return Ok(None);
         };
-        let source_cell = self.resolve_place(cast.value, frame)?;
+        let source_cell = self.resolve_place(source_handle, frame)?;
         Ok(Some((
             self.deref_cell(source_cell),
             MutableScalarRecast::Direct { source, target },
@@ -5377,46 +5456,65 @@ impl<'program> Evaluator<'program> {
     /// it. Typed expressions use both `Name([view, field])` and nested Member
     /// nodes, so normalize both spellings here.
     fn mutable_recast_path(
-        &self,
+        &mut self,
         handle: ExpressionHandle,
         frame: &Frame,
-    ) -> Option<(MutableScalarRecast, Vec<MutableRecordProjectionStep>)> {
-        match self.program.expression_table.expression(handle) {
-            ExpressionNode::Mutable(inner) => self.mutable_recast_path(*inner, frame),
+    ) -> EvalResult<Option<(MutableScalarRecast, Vec<MutableRecordProjectionStep>)>> {
+        match self.program.expression_table.expression(handle).clone() {
+            ExpressionNode::Mutable(inner) => {
+                if let Some((_, recast)) = self.mutable_scalar_recast_initializer(handle, frame)? {
+                    return Ok(Some((recast, Vec::new())));
+                }
+                self.mutable_recast_path(inner, frame)
+            }
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => Ok(self
+                .mutable_scalar_recast_initializer(handle, frame)?
+                .map(|(_, recast)| (recast, Vec::new()))),
             ExpressionNode::Name(path) => {
                 let members = self
                     .program
                     .expression_table
                     .name_path_members(path.members);
-                let root = members.first()?;
+                let Some(root) = members.first() else {
+                    return Ok(None);
+                };
                 let recast = frame
                     .mutable_scalar_recasts
                     .borrow()
                     .get(root.as_str())
-                    .cloned()?;
-                Some((
-                    recast,
-                    members[1..]
-                        .iter()
-                        .map(|member| {
-                            MutableRecordProjectionStep::Field(member.as_str().to_owned())
-                        })
-                        .collect(),
-                ))
+                    .cloned();
+                Ok(recast.map(|recast| {
+                    (
+                        recast,
+                        members[1..]
+                            .iter()
+                            .map(|member| {
+                                MutableRecordProjectionStep::Field(member.as_str().to_owned())
+                            })
+                            .collect(),
+                    )
+                }))
             }
             ExpressionNode::Member(member) => {
-                let (recast, mut path) = self.mutable_recast_path(member.receiver, frame)?;
+                let Some((recast, mut path)) = self.mutable_recast_path(member.receiver, frame)?
+                else {
+                    return Ok(None);
+                };
                 path.push(MutableRecordProjectionStep::Field(
                     member.member.as_str().to_owned(),
                 ));
-                Some((recast, path))
+                Ok(Some((recast, path)))
             }
             ExpressionNode::Indexed(indexed) => {
-                let (recast, mut path) = self.mutable_recast_path(indexed.collection, frame)?;
+                let Some((recast, mut path)) =
+                    self.mutable_recast_path(indexed.collection, frame)?
+                else {
+                    return Ok(None);
+                };
                 path.push(MutableRecordProjectionStep::Index(indexed.index));
-                Some((recast, path))
+                Ok(Some((recast, path)))
             }
-            _ => None,
+            _ => Ok(None),
         }
     }
 
@@ -5425,7 +5523,7 @@ impl<'program> Evaluator<'program> {
         handle: ExpressionHandle,
         frame: &Frame,
     ) -> EvalResult<Option<Value>> {
-        let Some((recast, path)) = self.mutable_recast_path(handle, frame) else {
+        let Some((recast, path)) = self.mutable_recast_path(handle, frame)? else {
             return Ok(None);
         };
         let (cells, offset, target_type) = match recast {
@@ -5436,10 +5534,10 @@ impl<'program> Evaluator<'program> {
             } => (cells, offset, target_type),
             MutableScalarRecast::AggregateTyped {
                 source,
-                source_name,
+                source_type,
                 target_type,
             } => (
-                self.snapshot_typed_record_bytes(&source, &source_name)?,
+                self.snapshot_typed_value_bytes(&source, source_type)?,
                 0,
                 target_type,
             ),
@@ -5448,8 +5546,22 @@ impl<'program> Evaluator<'program> {
         if path.is_empty() {
             return self.assemble_record_view_type(target_type, &cells, offset);
         }
+        if matches!(
+            path.as_slice(),
+            [MutableRecordProjectionStep::Field(field)] if field == "len"
+        ) && self.declared_type_is_slice(target_type)
+            && let Some(element_type) = self.collection_element_type(target_type)
+            && let Some((stride, _)) =
+                self.record_view_type_layout(element_type, &mut HashSet::new())
+        {
+            let remaining = cells.len().saturating_sub(offset);
+            if stride == 0 || remaining % stride != 0 {
+                return trap("slice recast bytes do not tile the element layout");
+            }
+            return Ok(Some(Value::Int((remaining / stride) as i64)));
+        }
         let Some((field_offset, field_type)) =
-            self.record_view_type_projection(target_type, &path, offset, frame)?
+            self.record_view_type_projection(target_type, &path, offset, cells.len(), frame)?
         else {
             return trap(format!(
                 "cannot project `{}` through mutable aggregate recast `{}`",
@@ -5466,7 +5578,7 @@ impl<'program> Evaluator<'program> {
         frame: &Frame,
         value: Value,
     ) -> EvalResult<bool> {
-        let Some((recast, path)) = self.mutable_recast_path(handle, frame) else {
+        let Some((recast, path)) = self.mutable_recast_path(handle, frame)? else {
             return Ok(false);
         };
         let (cells, offset, target_type, typed_source) = match recast {
@@ -5477,25 +5589,25 @@ impl<'program> Evaluator<'program> {
             } => (cells, offset, target_type, None),
             MutableScalarRecast::AggregateTyped {
                 source,
-                source_name,
+                source_type,
                 target_type,
             } => (
-                self.snapshot_typed_record_bytes(&source, &source_name)?,
+                self.snapshot_typed_value_bytes(&source, source_type)?,
                 0,
                 target_type,
-                Some((source, source_name)),
+                Some((source, source_type)),
             ),
             _ => return Ok(false),
         };
         if path.is_empty() {
             self.write_record_view_type(target_type, &cells, offset, value)?;
-            if let Some((source, source_name)) = typed_source {
-                self.commit_typed_record_bytes(&source, &source_name, &cells)?;
+            if let Some((source, source_type)) = typed_source {
+                self.commit_typed_value_bytes(&source, source_type, &cells)?;
             }
             return Ok(true);
         }
         let Some((field_offset, field_type)) =
-            self.record_view_type_projection(target_type, &path, offset, frame)?
+            self.record_view_type_projection(target_type, &path, offset, cells.len(), frame)?
         else {
             return trap(format!(
                 "cannot project `{}` through mutable aggregate recast `{}`",
@@ -5504,8 +5616,8 @@ impl<'program> Evaluator<'program> {
             ));
         };
         self.write_record_view_type(field_type, &cells, field_offset, value)?;
-        if let Some((source, source_name)) = typed_source {
-            self.commit_typed_record_bytes(&source, &source_name, &cells)?;
+        if let Some((source, source_type)) = typed_source {
+            self.commit_typed_value_bytes(&source, source_type, &cells)?;
         }
         Ok(true)
     }
@@ -6480,6 +6592,36 @@ impl<'program> Evaluator<'program> {
                 }
                 Ok(Some(Value::Array(values)))
             }
+            TypeReferenceNode::Slice { element_type } => {
+                let Some((stride, _)) =
+                    self.record_view_type_layout(*element_type, &mut HashSet::new())
+                else {
+                    return Ok(None);
+                };
+                let remaining = cells.len().saturating_sub(base_offset);
+                if stride == 0 || remaining % stride != 0 {
+                    return trap("slice recast bytes do not tile the element layout");
+                }
+                let length = remaining / stride;
+                let mut values = Vec::with_capacity(length);
+                for index in 0..length {
+                    let offset = stride
+                        .checked_mul(index)
+                        .and_then(|delta| base_offset.checked_add(delta))
+                        .ok_or_else(|| Halt::Trap("slice recast offset overflow".to_owned()))?;
+                    let Some(value) = self.assemble_record_view_type_inner(
+                        *element_type,
+                        cells,
+                        offset,
+                        visiting,
+                    )?
+                    else {
+                        return Ok(None);
+                    };
+                    values.push(value.cell());
+                }
+                Ok(Some(Value::Array(values)))
+            }
             TypeReferenceNode::Named { name, .. } => {
                 self.assemble_record_view_inner(name.as_str(), cells, base_offset, visiting)
             }
@@ -6611,6 +6753,7 @@ impl<'program> Evaluator<'program> {
         type_name: &str,
         path: &[MutableRecordProjectionStep],
         base_offset: usize,
+        region_len: usize,
         frame: &Frame,
     ) -> EvalResult<Option<(usize, TypeReferenceHandle)>> {
         let Some((MutableRecordProjectionStep::Field(field_name), rest)) = path.split_first()
@@ -6630,7 +6773,7 @@ impl<'program> Evaluator<'program> {
         let offset = base_offset
             .checked_add(field_offset)
             .ok_or_else(|| Halt::Trap("record-view field offset overflow".to_owned()))?;
-        self.record_view_type_projection(field_type, rest, offset, frame)
+        self.record_view_type_projection(field_type, rest, offset, region_len, frame)
     }
 
     fn record_view_type_projection(
@@ -6638,6 +6781,7 @@ impl<'program> Evaluator<'program> {
         type_reference: TypeReferenceHandle,
         path: &[MutableRecordProjectionStep],
         base_offset: usize,
+        region_len: usize,
         frame: &Frame,
     ) -> EvalResult<Option<(usize, TypeReferenceHandle)>> {
         if path.is_empty() {
@@ -6652,7 +6796,7 @@ impl<'program> Evaluator<'program> {
                 else {
                     return Ok(None);
                 };
-                self.record_view_projection(&nested_name, path, base_offset, frame)
+                self.record_view_projection(&nested_name, path, base_offset, region_len, frame)
             }
             MutableRecordProjectionStep::Index(index_handle) => {
                 let node = self
@@ -6669,6 +6813,7 @@ impl<'program> Evaluator<'program> {
                             base_type,
                             path,
                             base_offset,
+                            region_len,
                             frame,
                         );
                     }
@@ -6676,6 +6821,17 @@ impl<'program> Evaluator<'program> {
                         element_type,
                         length: FixedArrayLength::Literal(length),
                     } => (element_type, length),
+                    TypeReferenceNode::Slice { element_type } => {
+                        let Some((stride, _)) =
+                            self.record_view_type_layout(element_type, &mut HashSet::new())
+                        else {
+                            return Ok(None);
+                        };
+                        if stride == 0 || base_offset > region_len {
+                            return Ok(None);
+                        }
+                        (element_type, (region_len - base_offset) / stride)
+                    }
                     _ => return Ok(None),
                 };
                 let index = self.eval_index(*index_handle, frame)?;
@@ -6693,7 +6849,7 @@ impl<'program> Evaluator<'program> {
                     .checked_mul(index)
                     .and_then(|delta| base_offset.checked_add(delta))
                     .ok_or_else(|| Halt::Trap("record-view array offset overflow".to_owned()))?;
-                self.record_view_type_projection(element_type, rest, offset, frame)
+                self.record_view_type_projection(element_type, rest, offset, region_len, frame)
             }
         }
     }
@@ -6730,40 +6886,60 @@ impl<'program> Evaluator<'program> {
         Ok(())
     }
 
+    fn declared_type_is_slice(&self, type_reference: TypeReferenceHandle) -> bool {
+        if !type_reference.is_valid() {
+            return false;
+        }
+        match self
+            .program
+            .type_reference_table
+            .type_reference(type_reference)
+        {
+            TypeReferenceNode::Slice { .. } => true,
+            TypeReferenceNode::Constrained { base_type, .. }
+            | TypeReferenceNode::Reference {
+                referee: base_type, ..
+            } => self.declared_type_is_slice(*base_type),
+            _ => false,
+        }
+    }
+
     /// The interpreter stores typed records as semantic field cells rather
     /// than a contiguous byte allocation. A typed record recast nevertheless
     /// aliases the record's representation, so snapshot the established source
     /// through its own layout, operate on those bytes through the target
     /// layout, then decode writes back through the source layout. Validation
     /// has already proved identical geometry and leaf representation sets.
-    fn snapshot_typed_record_bytes(
+    fn snapshot_typed_value_bytes(
         &self,
         source: &Cell,
-        source_name: &str,
+        source_type: TypeReferenceHandle,
     ) -> EvalResult<Vec<Cell>> {
         let (size, _) = self
-            .record_view_data_layout(source_name, &mut HashSet::new())
+            .record_view_type_layout(source_type, &mut HashSet::new())
             .ok_or_else(|| {
                 Halt::Trap(format!(
-                    "cannot lay out typed mutable record recast source `{source_name}`"
+                    "cannot lay out typed mutable recast source `{}`",
+                    self.program.display_type_reference(source_type)
                 ))
             })?;
         let cells = (0..size).map(|_| Value::Int(0).cell()).collect::<Vec<_>>();
-        self.write_record_view(source_name, &cells, 0, source.borrow().clone())?;
+        self.write_record_view_type(source_type, &cells, 0, source.borrow().clone())?;
         Ok(cells)
     }
 
-    fn commit_typed_record_bytes(
+    fn commit_typed_value_bytes(
         &self,
         source: &Cell,
-        source_name: &str,
+        source_type: TypeReferenceHandle,
         cells: &[Cell],
     ) -> EvalResult<()> {
         let value = self
-            .assemble_record_view_inner(source_name, cells, 0, &mut HashSet::new())?
+            .assemble_record_view_type(source_type, cells, 0)?
             .ok_or_else(|| {
                 Halt::Trap(format!(
-                    "cannot restore typed mutable record recast source `{source_name}`"
+                    "cannot restore typed mutable recast source `{}`",
+                    self.program.display_type_reference(source_type)
                 ))
             })?;
         *source.borrow_mut() = value;
@@ -6818,6 +6994,33 @@ impl<'program> Evaluator<'program> {
                         .ok_or_else(|| {
                             Halt::Trap("mutable record array offset overflow".to_owned())
                         })?;
+                    self.write_record_view_type(
+                        *element_type,
+                        cells,
+                        offset,
+                        value.borrow().clone(),
+                    )?;
+                }
+                Ok(())
+            }
+            TypeReferenceNode::Slice { element_type } => {
+                let Value::Array(values) = value else {
+                    return trap("mutable slice recast requires an array value");
+                };
+                let Some((stride, _)) =
+                    self.record_view_type_layout(*element_type, &mut HashSet::new())
+                else {
+                    return trap("cannot lay out mutable slice element");
+                };
+                let available = cells.len().saturating_sub(base_offset);
+                if stride == 0 || available % stride != 0 || values.len() != available / stride {
+                    return trap("mutable slice recast write has the wrong length");
+                }
+                for (index, value) in values.into_iter().enumerate() {
+                    let offset = stride
+                        .checked_mul(index)
+                        .and_then(|delta| base_offset.checked_add(delta))
+                        .ok_or_else(|| Halt::Trap("mutable slice offset overflow".to_owned()))?;
                     self.write_record_view_type(
                         *element_type,
                         cells,
@@ -6903,6 +7106,162 @@ impl<'program> Evaluator<'program> {
         }
     }
 
+    /// Evaluate an argument that lands in an Omega state parameter. In addition
+    /// to the ordinary aliased cell, preserve the interpretation carried by a
+    /// mutable recast view. The target parameter receives the same sealed view
+    /// metadata under its own name, so forwarding `&mut [u16]` derived from
+    /// `[u8; N]` does not degrade into a byte-array reference at a state edge.
+    fn eval_state_argument(
+        &mut self,
+        argument: ExpressionHandle,
+        frame: &Frame,
+    ) -> EvalResult<EvaluatedArgument> {
+        let initializer = self.mutable_scalar_recast_initializer(argument, frame)?;
+        if let Some((source, recast)) = initializer {
+            return Ok(EvaluatedArgument {
+                cell: Value::Ref(source).cell(),
+                mutable_recast: Some(recast),
+            });
+        }
+        let mutable_recast = self
+            .mutable_recast_path(argument, frame)?
+            .map(|(recast, _)| recast);
+        Ok(EvaluatedArgument {
+            cell: self.eval_argument(argument, frame)?,
+            mutable_recast,
+        })
+    }
+
+    fn expression_type_reference(
+        &self,
+        expression: ExpressionHandle,
+        frame: &Frame,
+    ) -> Option<TypeReferenceHandle> {
+        match self.program.expression_table.expression(expression) {
+            ExpressionNode::Mutable(inner) => self.expression_type_reference(*inner, frame),
+            ExpressionNode::Cast(cast) => Some(cast.target_type),
+            ExpressionNode::Indexed(indexed) => {
+                let collection = self.expression_type_reference(indexed.collection, frame)?;
+                self.collection_element_type(collection)
+            }
+            ExpressionNode::Member(member) => {
+                if let ExpressionNode::Name(path) =
+                    self.program.expression_table.expression(member.receiver)
+                {
+                    let members = self
+                        .program
+                        .expression_table
+                        .name_path_members(path.members);
+                    if matches!(members, [head] if head.as_str() == "self") {
+                        return self.machine_attached_field_type(
+                            frame.machine_symbol,
+                            member.member.as_str(),
+                        );
+                    }
+                }
+                let receiver = self.expression_type_reference(member.receiver, frame)?;
+                self.projected_member_type(receiver, member.member.as_str())
+            }
+            ExpressionNode::Name(path) => {
+                let members = self
+                    .program
+                    .expression_table
+                    .name_path_members(path.members);
+                let (mut current, rest) = match members {
+                    [] => return None,
+                    [head] if head.as_str() == "self" => return None,
+                    [head, field, rest @ ..] if head.as_str() == "self" => (
+                        self.machine_attached_field_type(frame.machine_symbol, field.as_str())?,
+                        rest,
+                    ),
+                    [head, rest @ ..] => {
+                        match frame.type_locals.borrow().get(head.as_str()).copied() {
+                            Some(local) => (local, rest),
+                            None => (
+                                self.machine_attached_field_type(
+                                    frame.machine_symbol,
+                                    head.as_str(),
+                                )?,
+                                rest,
+                            ),
+                        }
+                    }
+                };
+                for member in rest {
+                    current = self.projected_member_type(current, member.as_str())?;
+                }
+                Some(current)
+            }
+            _ => None,
+        }
+    }
+
+    fn machine_attached_field_type(
+        &self,
+        machine_symbol: SymbolHandle,
+        field_name: &str,
+    ) -> Option<TypeReferenceHandle> {
+        let machine = self
+            .program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_symbol)?;
+        let name = machine.attached_data.as_ref()?;
+        let data = self.find_data_by_name(name.as_str())?;
+        self.program.data_members(data).iter().find_map(|member| {
+            let DataMember::Field(field) = member else {
+                return None;
+            };
+            (field.name.as_str() == field_name).then_some(field.type_reference)
+        })
+    }
+
+    fn projected_member_type(
+        &self,
+        mut type_reference: TypeReferenceHandle,
+        member_name: &str,
+    ) -> Option<TypeReferenceHandle> {
+        loop {
+            match self
+                .program
+                .type_reference_table
+                .type_reference(type_reference)
+            {
+                TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
+                TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+                TypeReferenceNode::Named { name, .. } => {
+                    let data = self.find_data_by_name(name.as_str())?;
+                    return self.program.data_members(data).iter().find_map(|member| {
+                        let DataMember::Field(field) = member else {
+                            return None;
+                        };
+                        (field.name.as_str() == member_name).then_some(field.type_reference)
+                    });
+                }
+                _ => return None,
+            }
+        }
+    }
+
+    fn collection_element_type(
+        &self,
+        mut type_reference: TypeReferenceHandle,
+    ) -> Option<TypeReferenceHandle> {
+        loop {
+            match self
+                .program
+                .type_reference_table
+                .type_reference(type_reference)
+            {
+                TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
+                TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+                TypeReferenceNode::FixedArray { element_type, .. }
+                | TypeReferenceNode::Slice { element_type } => return Some(*element_type),
+                _ => return None,
+            }
+        }
+    }
+
     fn eval_recast_to_type(
         &self,
         value: Value,
@@ -6916,8 +7275,7 @@ impl<'program> Evaluator<'program> {
         match target {
             TypeReferenceNode::Reference { referee, .. }
             | TypeReferenceNode::Constrained {
-                base_type: referee,
-                ..
+                base_type: referee, ..
             } => self.eval_recast_to_type(value, referee),
             TypeReferenceNode::FixedArray {
                 element_type,
@@ -8003,6 +8361,21 @@ fn wrap_to_width(raw: i64, ty: PrimitiveType) -> i64 {
 }
 
 /// What a satisfied transition decided to do next.
+#[derive(Clone)]
+struct EvaluatedArgument {
+    cell: Cell,
+    mutable_recast: Option<MutableScalarRecast>,
+}
+
+impl EvaluatedArgument {
+    fn plain(cell: Cell) -> Self {
+        Self {
+            cell,
+            mutable_recast: None,
+        }
+    }
+}
+
 enum TransitionDecision {
     Terminal,
     SelfTarget,
@@ -8011,7 +8384,7 @@ enum TransitionDecision {
         state_name: String,
         machine: Machine,
         instance: Cell,
-        args: Vec<Cell>,
+        args: Vec<EvaluatedArgument>,
     },
 }
 
@@ -8040,6 +8413,12 @@ impl Frame {
 
     fn bind(&self, name: &str, cell: Cell) {
         self.locals_ref().borrow_mut().insert(name.to_owned(), cell);
+    }
+
+    fn bind_type(&self, name: &str, type_reference: TypeReferenceHandle) {
+        self.type_locals
+            .borrow_mut()
+            .insert(name.to_owned(), type_reference);
     }
 
     fn locals_ref(&self) -> &RefCell<BTreeMap<String, Cell>> {
