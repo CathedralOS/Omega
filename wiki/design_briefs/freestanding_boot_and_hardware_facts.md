@@ -286,6 +286,9 @@ decode output. It enforces configured bounds, checked non-overlapping ranges,
 one exact copy of every semantic section, rejection of unknown required
 sections, and informational-only treatment of unknown optional sections. It
 produces an immutable admission candidate, never executable eligibility.
+Verifier evidence retains that exact immutable candidate rather than using its
+compact FNV identities as collision-resistant authority; the proof payload is
+bound separately and informational sections remain authority-free.
 Normalization binds the exact code bytes, instruction-set architecture,
 contracts, footprint, placement, entries, and canonical relocations into
 content identity; proof evidence remains outside that promise. The artifact
