@@ -1794,7 +1794,9 @@ stronger operations it needs instead of citing machine parameters generally.
   the object adapter independently rejects cross-architecture substitution
   even for shared relocation forms. Canonical AArch64 entry offsets must also
   satisfy the ISA's four-byte instruction alignment; x86 entry offsets retain
-  their byte-granular rule.
+  their byte-granular rule. The reusable immutable artifact now retains the
+  canonical relocation set alongside its exact code bytes, so admission cannot
+  strand the later materializer or force an unmodeled relocation side channel.
   Entry/section order, proof evidence, and informational sections remain identity-invisible.
   Implement
   admission/PCC and final-footprint validators, materializer/installer

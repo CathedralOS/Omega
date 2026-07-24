@@ -115,8 +115,6 @@ pub struct DecodedArtifactContainer {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedArtifactContainer {
     artifact: Artifact,
-    relocation_set: RelocationSetId,
-    relocations: Vec<DecodedArtifactRelocation>,
     proof_payload: ProofPayloadId,
     informational_sections: Vec<InformationalSectionId>,
     unknown_informational_sections: Vec<u64>,
@@ -127,14 +125,14 @@ impl ValidatedArtifactContainer {
         &self.artifact
     }
 
-    pub const fn relocation_set(&self) -> RelocationSetId {
-        self.relocation_set
+    pub fn relocation_set(&self) -> RelocationSetId {
+        self.artifact.relocation_set()
     }
 
     /// Canonical destination-order relocation records. Their symbolic targets
     /// remain sealed identities; this projection grants no resolver.
     pub fn relocations(&self) -> &[DecodedArtifactRelocation] {
-        &self.relocations
+        self.artifact.relocations()
     }
 
     pub const fn proof_payload(&self) -> ProofPayloadId {
@@ -346,11 +344,11 @@ pub fn validate_decoded_container(
         decoded.placement_constraints,
         decoded.entry_set,
         decoded.entries,
+        decoded.relocation_set,
+        relocations,
     )?;
     Ok(ValidatedArtifactContainer {
         artifact,
-        relocation_set: decoded.relocation_set,
-        relocations,
         proof_payload: decoded.proof_payload,
         informational_sections: informational,
         unknown_informational_sections: unknown_informational,
@@ -510,7 +508,7 @@ fn fingerprint_bytes(fingerprint: &mut u64, bytes: &[u8]) {
     }
 }
 
-fn validate_decoded_relocations(
+pub(super) fn validate_decoded_relocations(
     mut relocations: Vec<DecodedArtifactRelocation>,
     architecture: Architecture,
     code_length: u64,

@@ -3341,7 +3341,7 @@ mod tests {
         CodePlacementAuthority, CodePlacementId, EntrySetId, FinalBytesId,
         FinalValidationCertificate, FinalValidationId, InstallAuthority, InstallationAudience,
         InstallationReceipt, InstallationScopeId, MachineContractSetId, MachineFootprintId,
-        MaterializationReceipt, PlacementPlanId, WxEnforcement, admit_executable,
+        MaterializationReceipt, PlacementPlanId, RelocationSetId, WxEnforcement, admit_executable,
         install_validated, materialize_and_freeze, validate_final_placement,
     };
     use omega_extents::{
@@ -3402,6 +3402,8 @@ mod tests {
             constraints(),
             install_id(33, EntrySetId::from_normalized_identity),
             vec![ArtifactEntry::from_canonical_decode(entry, 16)],
+            install_id(34, RelocationSetId::from_normalized_identity),
+            Vec::new(),
         )
         .expect("artifact");
         let admitted = admit_executable(
