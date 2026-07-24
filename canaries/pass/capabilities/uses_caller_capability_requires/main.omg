@@ -18,7 +18,7 @@ boundary trait Filesystem {
     requires
         folder in Folder::Writable
     effects
-        filesystem_io;
+        Filesystem;
 }
 
 data Thumbnailer {
@@ -29,7 +29,7 @@ machine Thumbnailer::write_cache(&mut self, cache: Folder)
 requires
     cache in Folder::Writable
 effects
-    filesystem_io
+    Filesystem
 {
     self.fs.write_bytes(cache, "thumb.bin");
 }

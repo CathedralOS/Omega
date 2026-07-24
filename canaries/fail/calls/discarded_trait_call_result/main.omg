@@ -4,7 +4,7 @@
 boundary trait Probe {
     machine sample(code: i32) -> bool
     effects
-        process_exit;
+        Probe;
 }
 
 data Main {

@@ -20,7 +20,7 @@ boundary trait Desktop {
     ensures
         result in Folder::Writable
     effects
-        filesystem_io;
+        Desktop;
 }
 
 data Vault {
@@ -29,7 +29,7 @@ data Vault {
 
 machine Vault::pick(&mut self) -> Folder
 effects
-    filesystem_io
+    Desktop
 {
     self.desktop.choose_folder("choose a backup folder")
 }
@@ -40,7 +40,7 @@ data Backup {
 
 machine Backup::stage(&mut self) -> Folder
 effects
-    filesystem_io
+    Desktop
 {
     self.vault.pick()
 }

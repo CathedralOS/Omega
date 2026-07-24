@@ -110,12 +110,19 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
     program.push_machine(caller_machine);
 
     let proof_plan = omega_proof::obligations::build_proof_plan(&program);
-    let effects = omega_effects::infer_effects(&program);
+    let operations = omega_effects::infer_operational_may(&program);
     let borrow = build_borrow_facts(&program);
     let proof = build_proof_facts(&program, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&program, &proof);
     let domains = build_domain_facts(&program, &semantic);
-    let flow = build_flow_facts(&program, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &program,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
 
     let caller_borrow_state = borrow
         .states
@@ -357,12 +364,19 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
     program.push_machine(caller_machine);
 
     let proof_plan = omega_proof::obligations::build_proof_plan(&program);
-    let effects = omega_effects::infer_effects(&program);
+    let operations = omega_effects::infer_operational_may(&program);
     let borrow = build_borrow_facts(&program);
     let proof = build_proof_facts(&program, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&program, &proof);
     let domains = build_domain_facts(&program, &semantic);
-    let flow = build_flow_facts(&program, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &program,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
 
     let caller_flow = flow
         .control
@@ -395,7 +409,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
         boundary_signature_symbol
     );
 
-    let service_reaches = omega_effects::infer_service_reaches(&program, &effects);
+    let service_reaches = omega_effects::infer_service_reaches(&program, &operations);
     let capabilities =
         crate::capabilities::build_capability_facts(&program, &service_reaches, &flow);
     assert_eq!(
@@ -438,12 +452,19 @@ fn carries_local_borrow_loans_into_later_call_constraints() {
     let typed = omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
 
     let state_flow = flow
         .control
@@ -522,12 +543,19 @@ fn carries_helper_returned_loans_into_later_call_constraints() {
     let typed = omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
 
     let state_flow = flow
         .control
@@ -605,12 +633,19 @@ fn drops_local_borrow_loans_after_last_use() {
     let typed = omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
 
     let loan = borrow
         .loans
@@ -678,12 +713,19 @@ fn drops_local_borrow_loans_after_local_reassignment() {
     let typed = omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
 
     let state_flow = flow
         .control

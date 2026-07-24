@@ -1654,12 +1654,19 @@ fn accepts_requires_from_local_alias_transfer() {
 
     let typed = parse_typed_trees(source);
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let inspect_contract = proof
         .contract_facts
         .iter()

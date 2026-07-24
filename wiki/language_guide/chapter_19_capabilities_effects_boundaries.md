@@ -152,72 +152,19 @@ task and version capacity use their own declared budgets.
 The complete laws, algebra, identity rule, tests, and deferred spaces are in
 the decision-22 brief.
 
-## Legacy Standard Effects (compiler compatibility layer)
+## Service Identities And Inference
 
-The remainder of this section documents the currently implemented lowercase
-`u64 EffectSet`. It is retained to explain existing compiler behavior and old
-samples while the decision-22 migration lands. These names are not new
-language canon and must not be extended as the effects architecture.
+An `effects` member resolves to a boundary-trait identity. There is no global
+standard-effect vocabulary or numeric effect bitset. `Console`,
+`FilesystemHost`, `Arena`, `MachineControl`, and application-defined boundary
+traits all enter the same symbol-resolved service-row model. Boundary-trait
+inheritance contributes parent closure.
 
-The durable compiler path already resolves boundary-trait identities into
-canonical service rows, computes their recursive fixed point independently,
-and uses those rows for checked ceilings, machine/provider admission, contract
-identity, snapshots, and manifests. The catalog below remains only for
-unmigrated compatibility consumers; it is not a second source of service
-semantics.
-
-The legacy design treated effects as stable language-level names for externally
-visible behavior rather than host-specific syscall names. Decision 22 replaces
-those fixed names with symbol-resolved service traits and kinded operational
-members while preserving the provider-independent intent.
-
-Implemented compatibility names:
-
-- `alloc`: may allocate memory through the language/runtime allocator.
-- `dealloc`: may release memory through the language/runtime allocator.
-- `stdin_io`: may read from standard input or an equivalent console input
-  stream.
-- `stdout_io`: may write to standard output or an equivalent console output
-  stream.
-- `stderr_io`: may write to standard error or an equivalent diagnostics stream.
-- `filesystem_io`: may read, write, open, close, query, rename, or delete
-  filesystem objects.
-- `network_io`: may use network sockets, packet interfaces, or equivalent
-  network services.
-- `process_spawn`: may create or launch a process/task outside the current
-  program image.
-- `process_exit`: may terminate the current process/task.
-- `process_signal`: may signal, cancel, suspend, resume, or otherwise affect
-  another process/task.
-- `env_read`: may read process, user, host, or build environment values.
-- `env_write`: may mutate process, user, host, or build environment values.
-- `clock_read`: may observe wall-clock time, monotonic time, timers, or
-  scheduler time.
-- `random_read`: may read entropy or random values from a host/runtime source.
-- `thread_spawn`: may create a concurrent thread/task/fiber of execution.
-- `thread_block`: may block the current thread/task/fiber waiting for another
-  event.
-- `sync_wait`: may wait on a synchronization object such as a lock, condition,
-  join handle, semaphore, futex, or channel receive.
-- `sync_wake`: may wake or signal a synchronization object such as a lock,
-  condition, semaphore, futex, or channel send.
-- `device_io`: may interact with hardware, drivers, firmware, or memory-mapped
-  device registers.
-- `memory_map`: may map, unmap, remap, pin, share, or change permissions on
-  virtual/physical memory regions.
-- `dynamic_link`: may load, unload, resolve, or call through dynamically linked
-  code.
-
-Effect-row purity is the empty row, not a named member. It proves no service
-reach and none of the represented operational possibilities; it does not by
-itself prove termination, absence of failure, or absence of owned-state
-mutation. Adding a boundary call, allocator reach, wait, or other row member
-later changes the inferred row and must satisfy the caller's ceiling.
-
-The compiler-side source of truth for this transitional vocabulary is the
-standard effect name list in `omega-effects`. The representation migration
-replaces it with normalized symbol/kind identities; the old bit positions may
-survive only as a cache/projection.
+Purity on this axis is an empty service row. Possible suspension and blocking
+are independent: `suspends;` and `blocks;` publish those may-ceilings, and
+private bodies infer them. Empty service reach plus neither operational
+possibility still does not prove termination, absence of failure, absence of
+authority use, or absence of owned-state mutation.
 
 Declared effects are ceilings. A trait can say "any implementation of this
 machine may require at most these effects." A concrete machine may declare the
@@ -228,12 +175,12 @@ target. It may not declare a new effect outside the trait requirement.
 boundary trait Console {
     machine write_line(text: &[u8])
     effects
-        stdout_io;
+        Console;
 }
 
 machine Console::write_line(text: &[u8])
 effects
-    stdout_io
+    Console
 {
     HostConsole::write_line(text);
 }
@@ -247,9 +194,8 @@ It is statically linkable and proof-checked like any other machine. The
 boundary is the lower `HostConsole` provider edge where the implementation is a
 syscall, imported symbol, firmware call, loader hook, or boundary test surface.
 
-Effects propagate through the call graph. The compiler should compute direct
-effects for each callable and then compute transitive effects for every machine
-from the machines it can call.
+Service reach propagates through the call graph. The compiler computes direct
+and transitive canonical rows for each machine, state, and call.
 
 Effect declarations are policy surfaces, not required noise on every machine:
 
@@ -274,15 +220,15 @@ reach anything outside this set."
 Main::main
   declared: <none>
   direct:   <none>
-  reached:  stdin_io, stdout_io, process_exit
+  reached:  Console
 
 executable manifest:
-  stdin_io, stdout_io, process_exit
+  Console
 
 Grep::search
-  declared: filesystem_io
+  declared: Filesystem
   direct:   <none>
-  reached:  filesystem_io
+  reached:  Filesystem
 ```
 
 A stricter release, OS, or audited build can require an explicit checked-in
@@ -290,31 +236,11 @@ effect and authority manifest for executable entry points. That requirement
 belongs to build policy. It does not mean ordinary application authors must
 manually thread every reached effect through `main` while iterating locally.
 
-The compiler can represent standard effects as a compact bitset because the
-standard vocabulary is finite and stable for a given toolchain. Names remain
-the source syntax, diagnostic format, package manifest format, and OS prompt
-format. Bit positions are an implementation detail owned by the compiler and
-loader, not a user-facing ABI.
-
-This gives each layer the shape it needs:
-
-- Source and docs use readable names such as `filesystem_io`.
-- Compiler checks use fast set operations such as subset, union, and
-  intersection.
-- Optimizers can use the propagated bitsets as reordering, inlining, and
-  scheduling facts.
-- Executables can carry named effect and authority manifests plus any
-  loader-native bitset encoding needed by the target OS.
-
-The list should stay intentionally small. More specific host details belong in
-boundary provider metadata and authority-flow facts, not in effect names. For
-example, `stdout_io` is enough for the language-level effect report; whether
-the implementation uses Darwin `libSystem`, Linux `write`, Windows console
-APIs, or a firmware UART is a provider detail.
-
-The legacy implementation rejects names outside its closed table. End-state
-rows resolve ordinary boundary-trait/core-member identifiers instead; user-
-defined operational-member declarations remain deferred by decision 22.
+Rows use compact interned identities and deterministic normalized sets, while
+source, diagnostics, and manifests render canonical trait names. Provider
+metadata records whether a `Console` implementation uses Darwin `libSystem`,
+Linux syscalls, Windows APIs, firmware, or a test harness; that implementation
+detail does not create a second service taxonomy.
 
 Console boundaries should use the same shape:
 
@@ -330,27 +256,27 @@ data ByteRead {
 boundary trait Console {
     machine write(text: &[u8])
     effects
-        stdout_io;
+        Console;
 
     machine write_line(text: &[u8])
     effects
-        stdout_io;
+        Console;
 
     machine read_line(out: &mut [u8])
     effects
-        stdin_io;
+        Console;
 
     machine read_byte() -> ByteRead
     effects
-        stdin_io;
+        Console;
 
     machine write_byte(byte: i32)
     effects
-        stdout_io;
+        Console;
 
     machine exit_process(code: i32)
     effects
-        process_exit;
+        Console;
 }
 ```
 
@@ -362,18 +288,15 @@ for free, and native lowerings exploit the ZII rule directly (the result
 slot is pre-zeroed; only an arrived byte writes the non-zero tag, so the
 EOF path executes no write at all).
 
-Implementation state: the standard Console is now a boundary trait with effect
-rows. Its friendly `write` and `write_line` members are ordinary checked Omega
+Implementation state: the standard Console is a boundary trait with canonical
+service rows. Its friendly `write` and `write_line` members are ordinary checked Omega
 adapters over `write_byte`: they accept a borrowed byte view directly and walk
 it with a measured state machine. The raw byte operation remains the provider
 leaf. `read_line` accepts a mutable byte view. Its current owned-destination
 route requires a concrete `[u8; N] in D` carrier at the call site: boundary
 planning derives `N` from that place, writes directly into its inline bytes,
 and establishes the carrier's runtime length. A shorter carrier never inherits
-the old compatibility implementation's 256-byte scratch ceiling. Legacy composite provider
-rows remain temporarily for deliberately nonstandard semantic-test
-declarations; the ordinary corpus imports the standard package. `TASKS.md`
-tracks compatibility-row deletion.
+the old implementation's 256-byte scratch ceiling.
 
 Bounded in-place text construction is likewise proof-carrying: straight-line
 reaching writes supply the current maximum length, overlapping writes invalidate
@@ -391,7 +314,7 @@ domain [u8]::NonEmpty {
 boundary trait Filesystem {
     machine open(path: &[u8] in NonEmpty)
     effects
-        filesystem_io;
+        Filesystem;
 }
 ```
 
@@ -404,7 +327,7 @@ actually needs:
 boundary trait CConsole {
     machine write(text: &[u8] in Utf8 & NoNul)
     effects
-        stdout_io;
+        CConsole;
 }
 ```
 

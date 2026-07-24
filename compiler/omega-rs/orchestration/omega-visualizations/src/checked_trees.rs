@@ -1262,7 +1262,7 @@ fn machine_operational_summary(
     }
     if let Some(machine) = program
         .facts
-        .effects
+        .operations
         .machines()
         .iter()
         .find(|machine| machine.symbol == symbol)

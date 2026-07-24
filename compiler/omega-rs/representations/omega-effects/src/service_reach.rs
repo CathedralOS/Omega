@@ -3,7 +3,7 @@ use omega_core::semantics::{ServiceReachId, ServiceReachRowId, ServiceReachRowTa
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
 
-use crate::EffectPlan;
+use crate::OperationalPlan;
 
 /// The symbol-resolved recursive service summary for one machine. All sets
 /// are interned in the plan's shared row table; child state/call summaries are
@@ -93,7 +93,7 @@ struct MachineReachWork {
 
 pub fn infer_service_reaches(
     program: &TypedTrees,
-    effects: &EffectPlan,
+    operations: &OperationalPlan,
 ) -> ServiceReachInferencePlan {
     let mut work = Vec::new();
     for machine in program.machines() {
@@ -103,13 +103,13 @@ pub fn infer_service_reaches(
             .to_vec();
         let mut calls = Vec::new();
         let mut direct = Vec::new();
-        if let Some(summary) = effects
+        if let Some(summary) = operations
             .machines()
             .iter()
             .find(|summary| summary.symbol == machine.symbol)
         {
-            for state in effects.states.span_or_empty(summary.states) {
-                for call in effects.calls.span_or_empty(state.calls) {
+            for state in operations.states.span_or_empty(summary.states) {
+                for call in operations.calls.span_or_empty(state.calls) {
                     let call_services =
                         direct_service_reach_for_call(program, call.target_state_symbol);
                     extend_service_set(&mut direct, &call_services);
@@ -166,22 +166,22 @@ pub fn infer_service_reaches(
             continue;
         };
         let mut states = HandleSpan::empty();
-        if let Some(machine_effects) = effects
+        if let Some(machine_operations) = operations
             .machines()
             .iter()
             .find(|summary| summary.symbol == machine.symbol)
         {
-            for state_effects in effects.states.span_or_empty(machine_effects.states) {
+            for state_operations in operations.states.span_or_empty(machine_operations.states) {
                 let mut calls = HandleSpan::empty();
                 let mut state_direct = Vec::new();
                 let mut state_transitive = Vec::new();
-                for call_effects in effects.calls.span_or_empty(state_effects.calls) {
+                for call_operations in operations.calls.span_or_empty(state_operations.calls) {
                     let call_direct =
-                        direct_service_reach_for_call(program, call_effects.target_state_symbol);
+                        direct_service_reach_for_call(program, call_operations.target_state_symbol);
                     let mut call_transitive = call_direct.clone();
                     if let Some(target) = work
                         .iter()
-                        .find(|summary| summary.symbol == call_effects.target_machine_symbol)
+                        .find(|summary| summary.symbol == call_operations.target_machine_symbol)
                     {
                         extend_service_set(&mut call_transitive, effective_services(target));
                     }
@@ -192,10 +192,10 @@ pub fn infer_service_reaches(
                     plan.calls.append_to_span(
                         &mut calls,
                         CallServiceReachInference {
-                            statement_index: call_effects.statement_index,
-                            call_ordinal: call_effects.call_ordinal,
-                            target_state: call_effects.target_state_symbol,
-                            target_machine: call_effects.target_machine_symbol,
+                            statement_index: call_operations.statement_index,
+                            call_ordinal: call_operations.call_ordinal,
+                            target_state: call_operations.target_state_symbol,
+                            target_machine: call_operations.target_machine_symbol,
                             inferred_direct,
                             inferred_transitive,
                         },
@@ -206,7 +206,7 @@ pub fn infer_service_reaches(
                 plan.states.append_to_span(
                     &mut states,
                     StateServiceReachInference {
-                        state: state_effects.symbol,
+                        state: state_operations.symbol,
                         inferred_direct,
                         inferred_transitive,
                         calls,

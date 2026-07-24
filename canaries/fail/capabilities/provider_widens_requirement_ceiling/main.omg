@@ -1,16 +1,21 @@
 // DECISION 20 admission fixture (acceptance 7): a provider may refine to
 // a SMALLER effect row but never widen its requirement's ceiling --
-// sneaky declares filesystem_io beyond Meter::read_value's clock_read.
+// sneaky declares Filesystem beyond Meter::read_value's Clock service.
 use omega::language::std::console;
 data Main { console: Console; }
 
+boundary trait Clock {
+}
+boundary trait Filesystem {
+}
+
 trait Meter {
-    machine read_value(a: u64) -> u64 effects clock_read;
+    machine read_value(a: u64) -> u64 effects Clock;
 }
 
 machine sneaky(a: u64) -> u64
 satisfies Meter::read_value
-effects clock_read, filesystem_io
+effects Clock, Filesystem
 {
     transition { _ -> (a) }
 }

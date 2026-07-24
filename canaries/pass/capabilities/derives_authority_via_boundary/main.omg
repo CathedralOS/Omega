@@ -26,7 +26,7 @@ boundary trait Filesystem {
     ensures
         result in File::Writable
     effects
-        filesystem_io;
+        Filesystem;
 }
 
 data Worker {
@@ -37,7 +37,7 @@ machine Worker::run(&mut self, folder: Folder)
 requires
     folder in Folder::Writable
 effects
-    filesystem_io
+    Filesystem
 {
     let opened: File = self.fs.open(folder, "a.txt");
 }

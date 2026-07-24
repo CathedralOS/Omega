@@ -1168,9 +1168,9 @@ stronger operations it needs instead of citing machine parameters generally.
   legacy effect-row inputs/artifact field in machine-contract identity are
   deleted. The obsolete `EffectRowId`/`EffectRowTable` carrier is also gone
   from core, resolved trees, and typed trees; those stages retain only
-  symbol-resolved `ServiceReachRowId` values. Remaining EFX work is to migrate
-  the legacy general-validation consumers and lowercase fixtures, and then
-  delete the global service-name/u64 engine entirely. Build-script admission
+  symbol-resolved `ServiceReachRowId` values. General validation, std, samples,
+  canaries, and compiler fixtures now consume canonical service rows directly;
+  the global lowercase service-name/u64 engine is deleted. Build-script admission
   now recognizes only the pinned canonical `FilesystemHost` and `Console`
   staging services; custom boundary wrappers cannot launder admission through
   a lowercase category.

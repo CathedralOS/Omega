@@ -1963,7 +1963,7 @@ mod tests {
         assert!(html.contains("const SERVICE_REACH_NAMES = [\"Console\",\"PortIo\"]"));
         assert!(html.contains("\"serviceReaches\":[\"PortIo\",\"Console\"]"));
         assert!(html.contains("<h2>Service reach</h2>"));
-        assert!(!html.contains("STANDARD_EFFECT_NAMES"));
+        assert!(!html.contains("EffectSet"));
         assert!(!html.contains("\"effects\":"));
         assert!(!html.contains("stdout_io"));
     }

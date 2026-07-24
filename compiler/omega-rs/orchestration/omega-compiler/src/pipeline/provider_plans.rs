@@ -516,7 +516,7 @@ pub(crate) fn validate_provider_plan_candidates(
     plans: &[omega_effects::provider_plan::ProviderPlan],
 ) -> Vec<omega_core::diagnostics::Diagnostic> {
     let mut diagnostics = Vec::new();
-    let effect_plan = omega_effects::infer_effects(typed);
+    let effect_plan = omega_effects::infer_operational_may(typed);
     let service_reach_plan = omega_effects::infer_service_reaches(typed, &effect_plan);
     for plan in plans {
         diagnostics.extend(

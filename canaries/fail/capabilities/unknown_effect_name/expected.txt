@@ -1,1 +1,1 @@
-declares unknown effect `teleport_io`
+declares unknown boundary service `teleport_io`

@@ -59,7 +59,7 @@ use crate::transitions::validate_transition_target_node;
 use crate::type_references::{
     TypeReferenceOwner, validate_type_reference_handle_with_type_parameters,
 };
-pub use effects::{validate_asm_discharge, validate_effect_plan};
+pub use effects::{validate_asm_discharge, validate_behavior_plan};
 /// The declared type of a simple place argument (bare name / `self.field`,
 /// through the `&mut` marker), WITH its Constrained shells -- exposed for the
 /// typed-trees machine-monomorphization pass's param-position inference.

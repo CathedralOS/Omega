@@ -1,1 +1,1 @@
-declares unknown effect `nonblocking`
+declares unknown boundary service `nonblocking`

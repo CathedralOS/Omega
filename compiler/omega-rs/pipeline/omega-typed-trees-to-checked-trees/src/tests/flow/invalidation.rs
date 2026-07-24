@@ -46,12 +46,19 @@ fn invalidates_proved_domain_membership_after_mutating_call() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let main_machine = typed
         .machines()
         .iter()
@@ -214,12 +221,19 @@ fn invalidates_imported_domain_requires_after_mutating_call() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let main_machine = typed
         .machines()
         .iter()
@@ -354,12 +368,19 @@ fn preserves_imported_domain_requires_across_disjoint_mutating_call() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let main_machine = typed
         .machines()
         .iter()
@@ -483,12 +504,19 @@ fn preserves_domain_intersection_requires_across_unrelated_machine_field_mutatio
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let main_machine = typed
         .machines()
         .iter()

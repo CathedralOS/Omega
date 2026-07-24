@@ -86,7 +86,7 @@ pub(crate) fn validate_quotients(
                 .type_reference_table
                 .primitive_type(entry.return_type)
                 == Some(PrimitiveType::Bool)
-            && program.machine_effects(relation).is_empty();
+            && authored_behavior_is_empty(program, relation);
         if !signature_matches {
             diagnostics.push(Diagnostic::error(format!(
                 "quotient data `{}` relation `{relation_name}` must be a free checked pure machine `(a: {}, b: {}) -> bool`",
@@ -165,7 +165,7 @@ fn discover_equivalence_laws(
     for proof in program.machines() {
         if proof.symbol == relation.symbol
             || proof.boundary
-            || !program.machine_effects(proof).is_empty()
+            || !authored_behavior_is_empty(program, proof)
         {
             continue;
         }
@@ -362,7 +362,7 @@ pub(crate) fn quotient_lift_candidate<'program>(
     }
 
     let certified = !operation.boundary
-        && program.machine_effects(operation).is_empty()
+        && authored_behavior_is_empty(program, operation)
         && operation_respects_quotient(program, operation, state, quotient);
     Some(QuotientLiftCandidate {
         quotient,
@@ -425,7 +425,7 @@ fn operation_respects_quotient(
     for proof in program.machines() {
         if proof.symbol == operation.symbol
             || proof.boundary
-            || !program.machine_effects(proof).is_empty()
+            || !authored_behavior_is_empty(program, proof)
         {
             continue;
         }
@@ -497,6 +497,15 @@ fn operation_respects_quotient(
         }
     }
     false
+}
+
+fn authored_behavior_is_empty(program: &TypedTrees, machine: &Machine) -> bool {
+    program
+        .service_reach_rows
+        .services(machine.service_reach_row)
+        .is_empty()
+        && !machine.suspends
+        && !machine.blocks
 }
 
 fn operation_call_operands(

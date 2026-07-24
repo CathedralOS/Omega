@@ -14,16 +14,16 @@ data ByteRead {
 boundary trait Console {
     machine write_line(text: &[u8])
     effects
-        stdout_io;
+        Console;
     machine write(text: &[u8])
     effects
-        stdout_io;
+        Console;
     // The concrete owned `[u8; N] in D` destination supplies the write bound;
     // provider planning derives N from that call-site place and updates its
     // runtime length. A growable destination remains allocator-gated.
     machine read_line(out_line: &mut [u8])
     effects
-        stdin_io;
+        Console;
     // Byte-level stdin/stdout (the universal console surface, OWNER_QUESTIONS
     // #12): `read_byte` yields the next stdin byte as `ByteRead::Byte`, or
     // `ByteRead::Eof` at end-of-input; `write_byte` appends one byte to
@@ -31,13 +31,13 @@ boundary trait Console {
     // the friendly text adapters below are shared checked Omega code.
     machine read_byte() -> ByteRead
     effects
-        stdin_io;
+        Console;
     machine write_byte(byte: i32)
     effects
-        stdout_io;
+        Console;
     machine exit_process(return_code: i32)
     effects
-        process_exit;
+        Console;
 }
 
 // Friendly output is checked Omega code over the byte-level boundary leaf.
@@ -47,7 +47,7 @@ boundary trait Console {
 machine console_write_bytes(console: Console, bytes: &[u8], newline: bool)
 terminates by bytes -> Slice::Length;
 effects
-    stdout_io
+    Console
 {
     transition bytes.len > 0 {
         true -> emit(console, bytes[0], bytes[1..], newline)
@@ -80,14 +80,14 @@ effects
 
 machine console_write(console: Console, text: &[u8]) satisfies Console::write
 effects
-    stdout_io
+    Console
 {
     console_write_bytes(console, text, false);
 }
 
 machine console_write_line(console: Console, text: &[u8]) satisfies Console::write_line
 effects
-    stdout_io
+    Console
 {
     console_write_bytes(console, text, true);
 }

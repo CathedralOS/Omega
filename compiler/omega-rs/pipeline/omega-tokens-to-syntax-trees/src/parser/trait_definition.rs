@@ -432,14 +432,7 @@ fn reject_retired_operational_effect(
         "Block" => "blocks;",
         "thread_block" => "blocks;",
         "sync_wait" => "the appropriate independent `suspends;` and/or `blocks;` clause",
-        _ => {
-            if omega_core::semantics::effect_member_kind(effect.as_str())
-                != Some(omega_core::semantics::EffectMemberKind::OperationalMay)
-            {
-                return Ok(());
-            }
-            "an independent operational clause"
-        }
+        _ => return Ok(()),
     };
     Err(input.error_here(format!(
         "`effects {}` is retired: `effects` contains boundary-service reach only; write `{replacement}` as an independent operational clause",

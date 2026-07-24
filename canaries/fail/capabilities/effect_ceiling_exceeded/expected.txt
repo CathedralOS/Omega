@@ -1,1 +1,1 @@
-reaches undeclared effects `filesystem_io`
+reaches undeclared service `Disk`

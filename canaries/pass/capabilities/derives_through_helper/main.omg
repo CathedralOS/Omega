@@ -22,7 +22,7 @@ boundary trait Filesystem {
     ensures
         result in File::Writable
     effects
-        filesystem_io;
+        Filesystem;
 }
 
 data Worker {
@@ -31,14 +31,14 @@ data Worker {
 
 machine Worker::open_log(&mut self, folder: Folder) -> File
 effects
-    filesystem_io
+    Filesystem
 {
     self.fs.open(folder, "log.txt")
 }
 
 machine Worker::open_main_log(&mut self, folder: Folder) -> File
 effects
-    filesystem_io
+    Filesystem
 {
     self.open_log(folder)
 }

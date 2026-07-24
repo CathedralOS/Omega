@@ -613,8 +613,8 @@ mod tests {
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let resolved = lower_syntax_trees(&syntax).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let effects = omega_effects::infer_effects(&typed);
-        let service_reaches = omega_effects::infer_service_reaches(&typed, &effects);
+        let operations = omega_effects::infer_operational_may(&typed);
+        let service_reaches = omega_effects::infer_service_reaches(&typed, &operations);
         // Capability-flow verbs derive from normalized call topology,
         // independent of raw control-flow facts, so an empty FlowFacts
         // exercises the nested-propagation logic.
@@ -710,19 +710,19 @@ mod tests {
             boundary trait Folder {
                 machine write_line(text: String)
                 effects
-                    filesystem_io;
+                    Folder;
             }
 
             boundary trait SubFolder {
                 machine write_line(text: String)
                 effects
-                    filesystem_io;
+                    SubFolder;
             }
 
             boundary trait Workspace {
                 machine subfolder(parent: Folder) -> SubFolder
                 effects
-                    filesystem_io;
+                    Workspace;
             }
 
             data Broker {
@@ -774,13 +774,13 @@ mod tests {
             boundary trait Folder {
                 machine write_line(text: String)
                 effects
-                    filesystem_io;
+                    Folder;
             }
 
             boundary trait RootDir {
                 machine open() -> Folder
                 effects
-                    filesystem_io;
+                    RootDir;
             }
 
             data Vault {
@@ -879,13 +879,13 @@ mod tests {
             boundary trait Folder {
                 machine write_line(text: String)
                 effects
-                    filesystem_io;
+                    Folder;
             }
 
             boundary trait RootDir {
                 machine open() -> Folder
                 effects
-                    filesystem_io;
+                    RootDir;
             }
 
             data Vault {

@@ -258,10 +258,8 @@ closed operational clauses, `suspends` and `blocks`. Additional operational
 clauses, quantitative service entries, and service-row polymorphism are
 deferred until their algebras have real customers.
 
-The current compiler's lowercase names and `u64 EffectSet` are a compatibility
-implementation, not the semantic model. That table is now service-only;
-suspension and blocking use dedicated recursive boolean summaries, checked
-plans, admission checks, and manifest fields. Boundary-trait declarations now
+The compiler now uses the semantic model directly: suspension and blocking use
+dedicated recursive boolean summaries, while boundary-trait declarations
 mint canonical symbol-keyed identities after resolution, and normalized rows
 with parent closure drive recursive inference, checked ceilings, static-machine
 and checked-provider admission, contract/provider identity, snapshots, and
@@ -272,16 +270,14 @@ symbol-exact, capability flows use normalized call topology, and categorical
 provider authority/reporting no longer projects service names. Static-machine
 refinement consumes exact service rows, checked trees carry grouped
 `ServiceReachFacts` directly, and machine-contract identity has no legacy
-effect-row field or fingerprint input. The remaining migration removes
-lowercase general-validation consumers and old fixtures, then deletes the
-global service-name/u64 table. The obsolete `EffectRowId`/`EffectRowTable`
-carrier has already been removed from core, resolved trees, and typed trees;
-those stages retain only symbol-resolved `ServiceReachRowId` values.
+effect-row field or fingerprint input. The obsolete
+`EffectRowId`/`EffectRowTable` carrier and global lowercase service-name/u64
+table are deleted. Core, resolved trees, and typed trees retain only
+symbol-resolved `ServiceReachRowId` values.
 Build-script admission now consumes exact service reach and admits only the
 pinned canonical `FilesystemHost` and `Console` staging slots; custom boundary
-wrappers do not inherit admission from a lowercase category. Unknown service
-identifiers resolve normally; there is no global hard-coded service table in
-the end state.
+wrappers do not inherit admission from a category alias. Unknown service
+identifiers resolve normally; there is no global hard-coded service table.
 
 ## Acceptance register
 

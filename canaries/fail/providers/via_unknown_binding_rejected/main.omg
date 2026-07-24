@@ -2,7 +2,7 @@
 // outside that vocabulary is a guided error: each mechanism needs validated
 // lowering and cannot be invented by a package.
 boundary trait Mixed {
-    machine via_syscall() effects stdout_io;
+    machine via_syscall() effects Mixed;
 }
 
 demo_target machine syscall_leaf() satisfies Mixed::via_syscall via Binding::Frobnicate(1);

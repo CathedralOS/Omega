@@ -13,7 +13,8 @@ pub struct CheckFacts {
     pub invariants: InvariantFacts,
     pub domains: DomainFacts,
     pub operators: CheckedOperatorFacts,
-    pub effects: omega_effects::EffectPlan,
+    /// Grouped machine/state/call suspension and blocking inference.
+    pub operations: omega_effects::OperationalPlan,
     pub capabilities: omega_effects::CapabilityFlowPlan,
     pub flow: FlowFacts,
     /// TPR3 slice 4 (decision 23): the checker-established termination
@@ -43,7 +44,7 @@ impl CheckFacts {
         invariants: InvariantFacts,
         domains: DomainFacts,
         operators: CheckedOperatorFacts,
-        effects: omega_effects::EffectPlan,
+        operations: omega_effects::OperationalPlan,
         capabilities: omega_effects::CapabilityFlowPlan,
         flow: FlowFacts,
         termination: TerminationFacts,
@@ -60,7 +61,7 @@ impl CheckFacts {
             invariants,
             domains,
             operators,
-            effects,
+            operations,
             capabilities,
             flow,
             termination,

@@ -79,14 +79,12 @@ move/drop summaries.
 
 ### Service reach and operational behavior
 
-`omega-effects` currently represents service names plus suspension/blocking
-compatibility names as bits in one flat `EffectSet`. The source and validator
-also use effect-name rows. This is adequate for the existing transitive check,
-but it conflates boundary-service reach with operational behavior and loses
-name resolution, service-parent closure, independent authored ceilings, pinned
-slot ceilings, and per-axis provider refinement. It also encourages authority,
-trust, resources, failure, and mutation to be folded into the set even though
-they have separate semantic homes.
+`omega-effects` now keeps symbol-resolved service reach separate from recursive
+suspension/blocking inference. Both plans retain the same grouped
+machine/state/call topology, but service rows are interned canonical trait
+identities while operational summaries are independent booleans. Authority,
+trust, resources, failure, and mutation remain in their separate semantic
+homes.
 
 ## Target representations
 
@@ -494,9 +492,8 @@ a first-class root; their duplicate `EffectRowFacts` carrier and the legacy
 effect-row field/input in machine contract artifacts and fingerprints are
 deleted. The obsolete `EffectRowId`/`EffectRowTable` carrier is also gone from
 core, resolved trees, and typed trees; those stages retain only
-symbol-resolved `ServiceReachRowId` values. The legacy flat `EffectSet`
-remains only for general-validation compatibility and lowercase-fixture
-consumers.
+symbol-resolved `ServiceReachRowId` values. General validation consumes
+canonical service rows plus the operational plan directly.
 Normalized inference now retains machine/state/call structure as shared-row
 identities in grouped arenas. Checked-flow, state-graph, and control-flow
 records carry those identities alongside independent suspension/blocking
@@ -507,20 +504,17 @@ canonical service catalog from rendered node rows rather than the global
 lowercase effect-name table. Provider-plan method schemas and fingerprints
 likewise retain only canonical service names and independent
 `may_suspend`/`may_block` ceilings; the duplicate lowercase method surface and
-plan-wide compatibility bitset are gone.
-Dedicated may-axis fixed points never depend on operational bits. Migrating the
-remaining general-validation/fixture consumers, then deleting the
-compatibility engine, is the next EFX slice. Build-script admission consumes
-exact service reach and admits only the pinned canonical `FilesystemHost` and
-`Console` staging slots; a custom boundary wrapper remains a distinct,
-rejected service.
+plan-wide compatibility bitset are gone. Dedicated may-axis fixed points never
+depend on service rows or numeric bits. The global lowercase service catalog
+and `u64` engine are deleted; std, canaries, and compiler fixtures author
+boundary-trait identities. Build-script admission consumes exact service reach
+and admits only the pinned canonical `FilesystemHost` and `Console` staging
+slots; a custom boundary wrapper remains a distinct, rejected service.
 
 Authority possession, provider trust receipts, resource bounds, failure
 outcomes, and mutation remain separate fields/analyses. Do not manufacture a
-single all-purpose effect record. Provide compatibility projections to today's
-`EffectSet` during migration; the flat set may remain a cache for legacy
-service members after it ceases to be the semantic source of truth, but
-suspension and blocking must not be reconstructed from it.
+single all-purpose effect record or reconstruct suspension/blocking from
+service reach.
 
 ## Staged migration
 
@@ -597,6 +591,5 @@ suspension and blocking must not be reconstructed from it.
   in their checked call component.
 - A blocking provider cannot satisfy a slot that permits suspension but omits
   `blocks`.
-- The legacy `EffectSet` service projection can be derived from the normalized
-  service row during migration, but no semantic decision projects suspension
-  or blocking back from it.
+- No semantic decision projects suspension or blocking from service reach, or
+  service reach from an operational boolean.
