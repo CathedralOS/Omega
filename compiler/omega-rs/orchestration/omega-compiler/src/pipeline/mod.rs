@@ -41,7 +41,8 @@ pub use layout_plans::{
 pub use omega_layout_plans::{
     ByteOrder, ConsumptionInstant, DataSymbolId, EntryStubId, MaterializationAction,
     MaterializationContext, MaterializationDiagnostic, MaterializationWrite, RelocationTarget,
-    SymbolicFieldValue, SymbolicMaterializationPlan, derive_symbolic_materialization,
+    ScalarFieldValue, SymbolicFieldValue, SymbolicMaterializationPlan,
+    derive_symbolic_materialization, materialize_scalar_layout_into,
 };
 pub use provider_plans::{
     GeneratedIdtLoadLowering, GeneratedIdtWriterLowering, lower_populated_idt_writer,
