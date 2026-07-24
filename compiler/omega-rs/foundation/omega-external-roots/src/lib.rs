@@ -3394,7 +3394,7 @@ mod tests {
                 artifact_identity + 10,
                 ArtifactContentId::from_normalized_identity,
             ),
-            64,
+            vec![0; 64],
             install_id(30, MachineContractSetId::from_normalized_identity),
             install_id(31, MachineFootprintId::from_normalized_identity),
             install_id(32, PlacementPlanId::from_normalized_identity),

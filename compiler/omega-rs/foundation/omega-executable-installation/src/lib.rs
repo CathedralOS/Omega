@@ -61,6 +61,7 @@ struct ArtifactRecord {
     identity: ArtifactId,
     content: ArtifactContentId,
     byte_length: u64,
+    code: Vec<u8>,
     contracts: MachineContractSetId,
     declared_footprint: MachineFootprintId,
     placement_plan: PlacementPlanId,
@@ -104,7 +105,7 @@ impl Artifact {
     pub fn from_canonical_decode(
         identity: ArtifactId,
         content: ArtifactContentId,
-        byte_length: u64,
+        code: Vec<u8>,
         contracts: MachineContractSetId,
         declared_footprint: MachineFootprintId,
         placement_plan: PlacementPlanId,
@@ -112,11 +113,16 @@ impl Artifact {
         entry_set: EntrySetId,
         mut entries: Vec<ArtifactEntry>,
     ) -> Result<Self, InstallationDiagnostic> {
-        if byte_length == 0 {
+        if code.is_empty() {
             return Err(InstallationDiagnostic(
                 "executable artifact cannot have empty content".into(),
             ));
         }
+        let byte_length = u64::try_from(code.len()).map_err(|_| {
+            InstallationDiagnostic(
+                "executable artifact byte length cannot be represented by the container".into(),
+            )
+        })?;
         if entries.is_empty() {
             return Err(InstallationDiagnostic(
                 "executable artifact must publish at least one selected entry".into(),
@@ -143,6 +149,7 @@ impl Artifact {
             identity,
             content,
             byte_length,
+            code,
             contracts,
             declared_footprint,
             placement_plan,
@@ -162,6 +169,13 @@ impl Artifact {
 
     pub fn byte_length(&self) -> u64 {
         self.0.byte_length
+    }
+
+    /// Exact immutable executable bytes bound by this artifact's normalized
+    /// content identity. This provider-side projection grants neither
+    /// placement nor execute authority.
+    pub fn code(&self) -> &[u8] {
+        &self.0.code
     }
 
     pub fn placement_constraints(&self) -> PlacementConstraints {
@@ -1246,7 +1260,7 @@ mod tests {
         Artifact::from_canonical_decode(
             id(identity, ArtifactId::from_normalized_identity),
             id(identity + 10, ArtifactContentId::from_normalized_identity),
-            64,
+            vec![0; 64],
             id(30, MachineContractSetId::from_normalized_identity),
             id(31, MachineFootprintId::from_normalized_identity),
             id(32, PlacementPlanId::from_normalized_identity),

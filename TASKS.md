@@ -1765,11 +1765,12 @@ stronger operations it needs instead of citing machine parameters generally.
   architecture mismatch, missing symbols, or section-offset overflow before
   appending any record. Signed semantic addends now survive the object carrier,
   direct-image application, reports, and identity fingerprints instead of
-  being silently discarded or rejected. The decoded carrier now
-  retains the exact code bytes, and validation derives rather than trusts the
-  normalizer-owned content identity over code, contract/footprint/placement
-  promises, canonical entries, and canonical relocations. Entry/section order,
-  proof evidence, and informational sections remain identity-invisible.
+  being silently discarded or rejected. The decoded carrier and resulting
+  immutable artifact now retain the exact code bytes, so a later materializer
+  needs no unmodeled byte side channel. Validation derives rather than trusts
+  the normalizer-owned content identity over code, contract/footprint/
+  placement promises, canonical entries, and canonical relocations.
+  Entry/section order, proof evidence, and informational sections remain identity-invisible.
   Implement
   admission/PCC and final-footprint validators, materializer/installer
   providers, Omega linear integration, and provider-backed
