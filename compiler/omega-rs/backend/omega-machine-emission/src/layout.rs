@@ -690,6 +690,7 @@ fn machine_instruction_width(
             target_offset,
             byte_size,
             zigzag,
+            range,
             ..
         } => omega_instruction_selection::read_wire_repeated_scalar_varint_width(
             input.target.architecture,
@@ -702,6 +703,7 @@ fn machine_instruction_width(
             *target_offset,
             *byte_size,
             *zigzag,
+            *range,
         ),
         SelectedInstructionKind::AppendPlaceBoundedBufferSource { target, source } => {
             omega_instruction_selection::append_place_bounded_buffer_source_width(

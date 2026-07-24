@@ -266,6 +266,7 @@ pub enum TargetOperationKind {
         target_offset: usize,
         byte_size: usize,
         zigzag: bool,
+        range: Option<omega_core::wire::WireScalarRange>,
     },
     /// Entry prologue: store the normalized plan's incoming argument register
     /// into the entry parameter's frame slot.

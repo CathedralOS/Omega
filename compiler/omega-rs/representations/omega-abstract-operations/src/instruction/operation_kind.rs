@@ -327,6 +327,10 @@ pub enum AbstractOperationKind {
         byte_size: usize,
         /// Signed targets un-zigzag after the read.
         zigzag: bool,
+        /// Inclusive range established for each decoded destination element.
+        /// Out-of-range input clears `ok` and preserves that element's prior
+        /// valid value.
+        range: Option<omega_core::wire::WireScalarRange>,
     },
     /// The ENTRY PROLOGUE's inbound calling plan: store the platform's incoming
     /// argument register selected by the normalized boundary `CallPlan` into

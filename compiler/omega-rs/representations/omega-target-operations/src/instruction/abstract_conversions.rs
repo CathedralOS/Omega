@@ -361,6 +361,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 target_offset,
                 byte_size,
                 zigzag,
+                range,
             } => Self::ReadWireRepeatedScalarVarint {
                 buffer_region: *buffer_region,
                 buffer_offset: *buffer_offset,
@@ -377,6 +378,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 target_offset: *target_offset,
                 byte_size: *byte_size,
                 zigzag: *zigzag,
+                range: *range,
             },
             omega_abstract_operations::AbstractOperationKind::WriteEntryArgumentRegister {
                 register,

@@ -597,6 +597,7 @@ fn selected_instruction_name(
             target_offset,
             byte_size,
             zigzag,
+            range,
         } => {
             let buffer_symbol =
                 storage_region_symbol_name(*buffer_region, backend_plan.entry_machine_name());
@@ -611,8 +612,15 @@ fn selected_instruction_name(
             let target_symbol =
                 storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
             let encoding = if *zigzag { "zigzag varint" } else { "varint" };
+            let establishment = range.map_or_else(String::new, |range| {
+                let algebra = if range.signed { "signed" } else { "unsigned" };
+                format!(
+                    ", establish {algebra} [{}..={}]",
+                    range.minimum, range.maximum
+                )
+            });
             format!(
-                "wire read repeated {encoding} {target_symbol}@{target_offset} ({byte_size} bytes) while cursor < end {end_symbol}@{end_offset}, count {count_symbol}@{count_offset} += 1 <- {buffer_symbol}@{buffer_offset} (len {buffer_length}) + cursor {read_symbol}@{read_offset}, ok {ok_symbol}@{ok_offset}"
+                "wire read repeated {encoding} {target_symbol}@{target_offset} ({byte_size} bytes){establishment} while cursor < end {end_symbol}@{end_offset}, count {count_symbol}@{count_offset} += 1 <- {buffer_symbol}@{buffer_offset} (len {buffer_length}) + cursor {read_symbol}@{read_offset}, ok {ok_symbol}@{ok_offset}"
             )
         }
         SelectedInstructionKind::WriteRuntimeStorageConvert {
