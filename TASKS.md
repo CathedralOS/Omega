@@ -1683,9 +1683,13 @@ stronger operations it needs instead of citing machine parameters generally.
   or different returned authority. Removal is now symmetric:
   installed storage and mappings remain captive until the exact installation
   is inactive, every open table-retirement fact holds, and every mapping
-  supplies its own valid translation-release receipt. Target-specific entry
-  writers, imported-table scanners, page-table-control execution/effects, and
-  further normalized mapping work remain ordinary engineering. Connecting
+  supplies its own valid translation-release receipt. A target provider can
+  now borrow the draft's canonical pending-map sequence and inspect the exact
+  source/destination geometry, custody, and normalized authority facts needed
+  to derive entries; the projection exposes inert data and cannot complete a
+  mapping or release authority. Target-specific entry writers, imported-table
+  scanners, page-table-control execution/effects, and further normalized
+  mapping work remain ordinary engineering. Connecting
   this model to the source-visible opaque Omega `[linear]` carrier, sealed fact
   establishment, storage, calling conventions, and source APIs is
   **OWNER-BLOCKED (#8)** on the runtime representation plan for opaque
