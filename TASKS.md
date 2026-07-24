@@ -1439,8 +1439,14 @@ stronger operations it needs instead of citing machine parameters generally.
   `StatLayout` policies rather than compatibility offsets. Fixed-array fields,
   including arrays of nested records, now participate in recursively fact-free
   mutable record views; runtime-indexed projections preserve live backing-byte
-  identity in the interpreter and native x86-64/AArch64 lowering. Fact-bearing
-  array elements reject at the same bidirectional-fact gate. Mutable scalar
+  identity in the interpreter and native x86-64/AArch64 lowering. Indexed value
+  operands now carry the index slot's declared width through selection,
+  assignment, reporting, and both ISA encoders, preventing a narrow index load
+  from consuming adjacent frame bytes. The broader indexed-`Place` materializer
+  still canonicalizes dynamic indices to 32 bits; carry selected index widths
+  through `PlaceStep::ScaledIndex` and add high-bit/out-of-bounds negative rails
+  before claiming general width-correct indexed writes. Fact-bearing array
+  elements reject at the same bidirectional-fact gate. Mutable scalar
   views now admit normalized declared-domain conjunctions only when the shared
   domain graph proves implication in both directions; the implication relation
   is owned once by typed domains and reused by validation and flow checking.

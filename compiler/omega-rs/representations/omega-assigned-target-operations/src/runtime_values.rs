@@ -43,12 +43,21 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
     fn frame_indexed(
         &self,
         handle: omega_target_operations::RuntimeValueOperandHandle,
-    ) -> Option<(usize, RuntimeStorageRegion, usize, usize, usize, usize)> {
+    ) -> Option<(
+        usize,
+        RuntimeStorageRegion,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+    )> {
         match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
             AssignedValueOperandKind::FrameIndexed {
                 descriptor_offset,
                 index_region,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
                 byte_size,
@@ -56,6 +65,7 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
                 *descriptor_offset,
                 *index_region,
                 *index_offset,
+                *index_byte_size,
                 *element_byte_size,
                 *field_byte_offset,
                 *byte_size,
@@ -67,17 +77,19 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
     fn frame_base_indexed(
         &self,
         handle: omega_target_operations::RuntimeValueOperandHandle,
-    ) -> Option<(usize, usize, usize, usize, usize)> {
+    ) -> Option<(usize, usize, usize, usize, usize, usize)> {
         match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
             AssignedValueOperandKind::FrameBaseIndexed {
                 base_byte_offset,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
                 byte_size,
             } => Some((
                 *base_byte_offset,
                 *index_offset,
+                *index_byte_size,
                 *element_byte_size,
                 *field_byte_offset,
                 *byte_size,
@@ -111,12 +123,21 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
     fn machine_indexed(
         &self,
         handle: omega_target_operations::RuntimeValueOperandHandle,
-    ) -> Option<(usize, RuntimeStorageRegion, usize, usize, usize, usize)> {
+    ) -> Option<(
+        usize,
+        RuntimeStorageRegion,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+    )> {
         match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
             AssignedValueOperandKind::MachineIndexed {
                 base_byte_offset,
                 index_region,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
                 byte_size,
@@ -124,6 +145,7 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
                 *base_byte_offset,
                 *index_region,
                 *index_offset,
+                *index_byte_size,
                 *element_byte_size,
                 *field_byte_offset,
                 *byte_size,

@@ -2,6 +2,9 @@
 // descends through fixed arrays and nested records. Both array indices and the
 // outer byte-region offset are runtime values; writes must land in the live
 // backing bytes and reads must reconstruct the same nested values.
+// `i` is deliberately a four-byte slot adjacent to later frame data: native
+// address lowering must read exactly its declared width rather than splicing
+// neighboring bytes into the index.
 use omega::language::std::console;
 
 data Pair {

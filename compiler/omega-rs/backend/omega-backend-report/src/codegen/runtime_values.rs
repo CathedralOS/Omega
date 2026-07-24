@@ -89,20 +89,22 @@ pub(super) fn runtime_value_operand_name(
             descriptor_offset,
             index_region,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
             byte_size,
         } => format!(
-            "frame_indexed(descriptor@{descriptor_offset}, index {index_region:?}@{index_offset}, elem {element_byte_size}, field +{field_byte_offset}, bytes {byte_size})"
+            "frame_indexed(descriptor@{descriptor_offset}, index {index_region:?}@{index_offset}/{index_byte_size}, elem {element_byte_size}, field +{field_byte_offset}, bytes {byte_size})"
         ),
         RuntimeValueOperand::FrameBaseIndexed {
             base_byte_offset,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
             byte_size,
         } => format!(
-            "frame_base_indexed(base@{base_byte_offset}, index@{index_offset}, elem {element_byte_size}, field +{field_byte_offset}, bytes {byte_size})"
+            "frame_base_indexed(base@{base_byte_offset}, index@{index_offset}/{index_byte_size}, elem {element_byte_size}, field +{field_byte_offset}, bytes {byte_size})"
         ),
         RuntimeValueOperand::FrameFixedIndexed {
             descriptor_offset,
@@ -117,11 +119,12 @@ pub(super) fn runtime_value_operand_name(
             base_byte_offset,
             index_region,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
             byte_size,
         } => format!(
-            "machine_indexed(base@{base_byte_offset}, index {index_region:?}@{index_offset}, elem {element_byte_size}, field +{field_byte_offset}, bytes {byte_size})"
+            "machine_indexed(base@{base_byte_offset}, index {index_region:?}@{index_offset}/{index_byte_size}, elem {element_byte_size}, field +{field_byte_offset}, bytes {byte_size})"
         ),
         RuntimeValueOperand::Binary {
             left,

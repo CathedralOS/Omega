@@ -84,21 +84,23 @@ fn assigned_value_home_name(operand: &AssignedValueOperand) -> String {
             descriptor_offset,
             index_region,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
             byte_size,
         } => format!(
-            "frame-indexed desc@{descriptor_offset} idx {index_region:?}@{index_offset} elem {element_byte_size} field +{field_byte_offset}/{}",
+            "frame-indexed desc@{descriptor_offset} idx {index_region:?}@{index_offset}/{index_byte_size} elem {element_byte_size} field +{field_byte_offset}/{}",
             byte_size
         ),
         AssignedValueHomeKind::RuntimeFrameBaseIndexed {
             base_byte_offset,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
             byte_size,
         } => format!(
-            "frame-base-indexed base@{base_byte_offset} idx@{index_offset} elem {element_byte_size} field +{field_byte_offset}/{}",
+            "frame-base-indexed base@{base_byte_offset} idx@{index_offset}/{index_byte_size} elem {element_byte_size} field +{field_byte_offset}/{}",
             byte_size
         ),
         AssignedValueHomeKind::RuntimeFrameFixedIndexed {

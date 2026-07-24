@@ -89,6 +89,7 @@ fn validate_runtime_value_home(
             descriptor_offset,
             index_region,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
             byte_size,
@@ -99,12 +100,14 @@ fn validate_runtime_value_home(
                     descriptor_offset: home_descriptor,
                     index_region: home_index_region,
                     index_offset: home_index,
+                    index_byte_size: home_index_size,
                     element_byte_size: home_element_size,
                     field_byte_offset: home_field,
                     byte_size: home_size,
                 } if home_descriptor == *descriptor_offset
                     && home_index_region == *index_region
                     && home_index == *index_offset
+                    && home_index_size == *index_byte_size
                     && home_element_size == *element_byte_size
                     && home_field == *field_byte_offset
                     && home_size == *byte_size
@@ -117,6 +120,7 @@ fn validate_runtime_value_home(
         RuntimeValueOperand::FrameBaseIndexed {
             base_byte_offset,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
             byte_size,
@@ -126,11 +130,13 @@ fn validate_runtime_value_home(
                 omega_assigned_target_operations::AssignedValueHomeKind::RuntimeFrameBaseIndexed {
                     base_byte_offset: home_base,
                     index_offset: home_index,
+                    index_byte_size: home_index_size,
                     element_byte_size: home_element_size,
                     field_byte_offset: home_field,
                     byte_size: home_size,
                 } if home_base == *base_byte_offset
                     && home_index == *index_offset
+                    && home_index_size == *index_byte_size
                     && home_element_size == *element_byte_size
                     && home_field == *field_byte_offset
                     && home_size == *byte_size

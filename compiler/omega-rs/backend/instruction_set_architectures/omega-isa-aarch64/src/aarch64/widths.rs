@@ -782,10 +782,24 @@ pub(in crate::aarch64) fn runtime_frame_base_index_setup_width(
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
+    runtime_frame_base_index_setup_width_with_index_width(
+        base_byte_offset,
+        index_offset,
+        4,
+        element_byte_size,
+        field_byte_offset,
+    )
+}
+
+fn runtime_frame_base_index_setup_width_with_index_width(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
     16 + add_constant_width(base_byte_offset)
-        // Index is loaded as a 32-bit (4-byte) value, see
-        // append_runtime_frame_base_index_target_address.
-        + load_data_offset_width(index_offset, 4)
+        + load_data_offset_width(index_offset, index_byte_size)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
 }
@@ -1948,18 +1962,25 @@ pub fn runtime_text_equals_literal_operand_width(
         // Page pair (8) + the 8-byte pointer load (4) with its optional
         // offset add, + the optional field-offset add.
         12 + add_constant_width(pointer_byte_offset) + add_constant_width(field_byte_offset)
-    } else if let Some((_, index_region, _, element_byte_size, field_byte_offset, _)) =
+    } else if let Some((_, index_region, _, _, element_byte_size, field_byte_offset, _)) =
         runtime_value_operands.frame_indexed(place)
     {
         runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
             + usize::from(index_region == omega_target_operations::RuntimeStorageRegion::Machine)
                 * 8
-    } else if let Some((base_byte_offset, index_offset, element_byte_size, field_byte_offset, _)) =
-        runtime_value_operands.frame_base_indexed(place)
+    } else if let Some((
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        _,
+    )) = runtime_value_operands.frame_base_indexed(place)
     {
-        runtime_frame_base_index_setup_width(
+        runtime_frame_base_index_setup_width_with_index_width(
             base_byte_offset,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
         )
@@ -2006,7 +2027,7 @@ pub fn runtime_value_operand_width(
         12 + add_constant_width(pointer_byte_offset)
             + add_constant_width(field_byte_offset)
             + runtime_load_data_width(byte_size)
-    } else if let Some((_, index_region, _, element_byte_size, field_byte_offset, byte_size)) =
+    } else if let Some((_, index_region, _, _, element_byte_size, field_byte_offset, byte_size)) =
         runtime_value_operands.frame_indexed(operand)
     {
         runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
@@ -2016,14 +2037,16 @@ pub fn runtime_value_operand_width(
     } else if let Some((
         base_byte_offset,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         byte_size,
     )) = runtime_value_operands.frame_base_indexed(operand)
     {
-        runtime_frame_base_index_setup_width(
+        runtime_frame_base_index_setup_width_with_index_width(
             base_byte_offset,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
         ) + runtime_load_data_width(byte_size)
@@ -2045,6 +2068,7 @@ pub fn runtime_value_operand_width(
         base_byte_offset,
         index_region,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         byte_size,
@@ -2061,7 +2085,7 @@ pub fn runtime_value_operand_width(
             };
         let _ = byte_size;
         8 + frame_pair
-            + load_data_offset_width(index_offset, 4)
+            + load_data_offset_width(index_offset, index_byte_size)
             + scale_index_width(element_byte_size)
             + 4
             + add_constant_width(base_byte_offset + field_byte_offset)
