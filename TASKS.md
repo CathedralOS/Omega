@@ -778,7 +778,10 @@ schemas recover the same instance without publishing policy type identity.
 7. **Cathedral exception-IDT and timer acceptance.**
    - Materialize a diagnostic/fatal entry for every architecturally defined
      exception before enabling the timer. Provision distinct per-CPU ISTs for
-     double fault, NMI, and machine check.
+     double fault, NMI, and machine check. Cathedral now carries a pure,
+     zero-authority fact package for all 32 CPU-reserved vector slots, including
+     profile-qualified AMD #HV/#VC/#SX identities and the three v1 IST vector
+     selections. Entry contracts, stubs, stacks, and publication remain.
    - Provision one shared per-CPU IST stack class for all maskable external
      roots. Use interrupt gates, keep IF clear until deriver-owned exit, and
      include the maximum current-stack fatal-fault term in its WCSU.
