@@ -878,9 +878,12 @@ binds one compiler-issued entry identity to the complete evaluated
 `BoundaryEntryPlan`, an open effect/receipt set, provider identity, stack and
 nesting policies, optional acknowledgement policy, WCSU size/alignment, and
 component-version pins. Installation consumes owner-scoped slot authority and
-an admission that names the exact root, installed code, artifact, slot, owner,
-and receipts. It also proves that the selected entry belongs to that admitted
-artifact; no numeric entry address enters the ledger.
+an admission that retains the complete validated root and selected provider
+execution alongside its report identities, installed code, artifact, slot,
+owner, and receipts. Compact FNV identities therefore cannot replay acceptance
+across acknowledgement, component-pin, trust-receipt, entry, or resource
+drift. Installation also proves that the selected entry belongs to that
+admitted artifact; no numeric entry address enters the ledger.
 
 The installed-root handle borrows the linear installed-code claim. Code
 retirement therefore cannot recover ownership while hardware may still enter
