@@ -17,6 +17,7 @@ pub mod span;
 pub mod symbols;
 pub mod trust;
 pub mod value_domain;
+pub mod wire;
 
 pub use diagnostics::{Diagnostic, format_diagnostics};
 pub use span::Span;

@@ -6,37 +6,6 @@ use omega_typed_trees::TypedTrees;
 use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use omega_typed_trees::wire::{WireField, WireMember, WireReserved, WireSchema, WireVersion};
 
-/// Whether a declared type carries a RANGE fact, walking `&`/constraint
-/// shells. The decoder cannot yet ESTABLISH declared facts from untrusted
-/// bytes, so a ranged decode target is rejected (see the decode fence).
-fn declared_type_carries_range(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
-    if !handle.is_valid() {
-        return false;
-    }
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            declared_type_carries_range(program, *referee)
-        }
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            program
-                .type_reference_table
-                .constraints(*constraints)
-                .iter()
-                .any(|constraint| {
-                    matches!(
-                        constraint,
-                        omega_typed_trees::types::TypeConstraintNode::Range { .. }
-                    )
-                })
-                || declared_type_carries_range(program, *base_type)
-        }
-        _ => false,
-    }
-}
-
 /// Validates `wire data` protocol schemas (chapter 20): stable field numbers,
 /// reserved (retired) tags, version eras, resolvable field types, and the
 /// checkable compatibility rules along the VERSION CHAIN -- each declared era
@@ -1061,19 +1030,24 @@ fn validate_wire_decode_call(
                     program.display_type_reference(field.type_reference)
                 )));
             }
-            // SOUNDNESS FENCE (probed 2026-07-02: a hostile payload stored 200
-            // into a `u32 [0..=100]` field with ok = true): the decoder writes
-            // wire values STRAIGHT into fields, so it cannot yet establish a
-            // declared range fact -- and every downstream proof trusts that
-            // fact. Until decode validation checks ranges as part of the mint,
-            // a ranged decode target is a clean error.
-            if declared_type_carries_range(program, value_field.type_reference) {
+            // Decode ESTABLISHES a declared range from hostile bytes. The
+            // native and interpreter reads carry the normalized interval and
+            // leave the prior field value untouched while clearing the
+            // verdict when the decoded scalar falls outside it. Refuse here
+            // only if a declared range somehow survived the ordinary range
+            // validator without a constant normalized interval.
+            if omega_typed_trees::wire::type_reference_carries_range(
+                program,
+                value_field.type_reference,
+            ) && omega_typed_trees::wire::scalar_decode_range(
+                program,
+                value_field.type_reference,
+            )
+            .is_none()
+            {
                 diagnostics.push(Diagnostic::error(format!(
-                    "`{}::decode` value field `{}.{}` declares a range fact (`{}`), but \
-                     the decoder cannot yet establish declared facts from untrusted bytes -- \
-                     a hostile payload would violate the invariant downstream proofs trust. \
-                     Decode into an unconstrained field and guard the value into the ranged \
-                     place",
+                    "`{}::decode` value field `{}.{}` declares a range fact (`{}`) \
+                     that cannot be normalized into a constant scalar interval",
                     schema.name,
                     value_data.name,
                     field.name,
@@ -1306,15 +1280,22 @@ fn validate_nested_value_field(
             )));
             continue;
         };
-        // The decode soundness fence, one level down (see the top-level
-        // decode loop): a nested ranged field would take hostile bytes too.
+        // Same establishment rule one level down: every scalar read carries
+        // the nested destination field's normalized interval.
         if machine_name == "decode"
-            && declared_type_carries_range(program, child_value_field.type_reference)
+            && omega_typed_trees::wire::type_reference_carries_range(
+                program,
+                child_value_field.type_reference,
+            )
+            && omega_typed_trees::wire::scalar_decode_range(
+                program,
+                child_value_field.type_reference,
+            )
+            .is_none()
         {
             diagnostics.push(Diagnostic::error(format!(
-                "`{}::decode` nested value field `{}.{}` declares a range fact (`{}`), \
-                 but the decoder cannot yet establish declared facts from untrusted bytes. \
-                 Decode into an unconstrained field and guard the value into the ranged place",
+                "`{}::decode` nested value field `{}.{}` declares a range fact (`{}`) \
+                 that cannot be normalized into a constant scalar interval",
                 schema.name,
                 child_value_data.name,
                 child_field.name,

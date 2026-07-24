@@ -43,6 +43,7 @@ pub fn encode_read_wire_scalar_varint(
     target_offset: usize,
     byte_size: usize,
     zigzag: bool,
+    range: Option<omega_core::wire::WireScalarRange>,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_read_wire_scalar_varint(
@@ -54,6 +55,7 @@ pub fn encode_read_wire_scalar_varint(
             target_offset,
             byte_size,
             zigzag,
+            range,
         ),
         Architecture::X86_64 => x86_64::encode_read_wire_scalar_varint(
             buffer_offset,
@@ -64,6 +66,7 @@ pub fn encode_read_wire_scalar_varint(
             target_offset,
             byte_size,
             zigzag,
+            range,
         ),
     }
 }
@@ -256,6 +259,7 @@ mod tests {
                                 target_offset,
                                 byte_size,
                                 zigzag,
+                                None,
                             )
                             .expect("scalar varint read should encode");
                             assert_eq!(
@@ -268,7 +272,8 @@ mod tests {
                                     72,
                                     target_offset,
                                     byte_size,
-                                    zigzag
+                                    zigzag,
+                                    None
                                 ),
                                 "{architecture:?} varint read width drifted at buffer {buffer_offset} length {buffer_length} target {target_offset} size {byte_size} zigzag {zigzag}"
                             );
@@ -423,7 +428,8 @@ mod tests {
                                     0,
                                     0,
                                     8,
-                                    zigzag
+                                    zigzag,
+                                    None
                                 )
                         );
                     }

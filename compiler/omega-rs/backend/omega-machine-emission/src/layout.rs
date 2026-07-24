@@ -603,6 +603,7 @@ fn machine_instruction_width(
             target_offset,
             byte_size,
             zigzag,
+            range,
             ..
         } => omega_instruction_selection::read_wire_scalar_varint_width(
             input.target.architecture,
@@ -613,6 +614,7 @@ fn machine_instruction_width(
             *target_offset,
             *byte_size,
             *zigzag,
+            *range,
         ),
         SelectedInstructionKind::ReadWireByteSlice {
             buffer_offset,

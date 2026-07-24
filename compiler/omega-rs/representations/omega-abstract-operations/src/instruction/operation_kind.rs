@@ -193,8 +193,10 @@ pub enum AbstractOperationKind {
     /// the cursor by the consumed byte count. Truncated input (cursor past
     /// `buffer_length` mid-varint) and overlong varints (more than ten groups,
     /// i.e. a continuation past shift 63) clear the sticky `ok` flag; the
-    /// target is stored regardless (failed decodes leave unspecified field
-    /// contents -- the contract is `ok`, not the partial payload).
+    /// target is stored after syntactically complete decodes; malformed
+    /// varints may leave unspecified field contents. A complete value that
+    /// violates `range` instead preserves the prior field value while
+    /// clearing the sticky `ok` flag.
     ReadWireScalarVarint {
         buffer_region: RuntimeStorageRegion,
         buffer_offset: usize,
@@ -210,6 +212,10 @@ pub enum AbstractOperationKind {
         byte_size: usize,
         /// Signed targets un-zigzag (`(n >> 1) ^ -(n & 1)`) after the read.
         zigzag: bool,
+        /// Inclusive destination range established from hostile bytes before
+        /// the constrained field is written. Out-of-range input clears `ok`
+        /// and leaves the prior target value untouched.
+        range: Option<omega_core::wire::WireScalarRange>,
     },
     /// compact_binary v0 wire decoding (#43, borrowed `&[u8]` fields): read a
     /// byte-LENGTH varint, bounds-check it, then store a fat `{ptr, len}`

@@ -30,6 +30,7 @@ use omega_abstract_operations::{
 };
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::statement::StatementNode;
+use omega_checked_trees::types::TypeReferenceHandle;
 use omega_checked_trees::wire::{WireMember, WirePlacement, WireScalarEncoding, wire_varint_bytes};
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
@@ -49,6 +50,7 @@ enum WireReadContent {
     Scalar {
         encoding: WireScalarEncoding,
         place: RuntimeStoragePlace,
+        range: Option<omega_core::wire::WireScalarRange>,
     },
     Nested {
         /// The child schema (its own plan supplies the expected child tags).
@@ -119,6 +121,15 @@ pub(super) fn select_wire_decode_call(
     else {
         return false;
     };
+    let Some(value_type) = declared_expression_type(
+        input,
+        machine,
+        state,
+        &input.program.expression_table,
+        *value_argument,
+    ) else {
+        return false;
+    };
 
     // Copy the four argument expressions into a scratch table so the
     // per-field member writes can be synthesized next to them.
@@ -176,6 +187,7 @@ pub(super) fn select_wire_decode_call(
         source_key,
         &mut expressions,
         value_root,
+        value_type,
         schema,
         true,
     ) else {
@@ -245,21 +257,25 @@ pub(super) fn select_wire_decode_call(
         push(expected_byte_kind(byte));
     }
 
-    let scalar_read_kind = |place: &RuntimeStoragePlace, encoding: &WireScalarEncoding| {
-        SelectedInstructionKind::ReadWireScalarVarint {
-            buffer_region: buffer_place.region,
-            buffer_offset: buffer_place.byte_offset,
-            buffer_length,
-            read_region: read_place.region,
-            read_offset: read_place.byte_offset,
-            ok_region: ok_place.region,
-            ok_offset: ok_place.byte_offset,
-            target_region: place.region,
-            target_offset: place.byte_offset,
-            byte_size: encoding.byte_size,
-            zigzag: encoding.zigzag,
-        }
-    };
+    let scalar_read_kind =
+        |place: &RuntimeStoragePlace,
+         encoding: &WireScalarEncoding,
+         range: Option<omega_core::wire::WireScalarRange>| {
+            SelectedInstructionKind::ReadWireScalarVarint {
+                buffer_region: buffer_place.region,
+                buffer_offset: buffer_place.byte_offset,
+                buffer_length,
+                read_region: read_place.region,
+                read_offset: read_place.byte_offset,
+                ok_region: ok_place.region,
+                ok_offset: ok_place.byte_offset,
+                target_region: place.region,
+                target_offset: place.byte_offset,
+                byte_size: encoding.byte_size,
+                zigzag: encoding.zigzag,
+                range,
+            }
+        };
 
     // MINT ARC RUNG 2a: the derived wire plan drives the EXPECTED tag bytes
     // (see wire_encode.rs -- same agreement assertion, same fallback).
@@ -289,8 +305,12 @@ pub(super) fn select_wire_decode_call(
             push(expected_byte_kind(byte));
         }
         match &field.content {
-            WireReadContent::Scalar { encoding, place } => {
-                push(scalar_read_kind(place, encoding));
+            WireReadContent::Scalar {
+                encoding,
+                place,
+                range,
+            } => {
+                push(scalar_read_kind(place, encoding, *range));
             }
             WireReadContent::ByteSlice {
                 place,
@@ -350,6 +370,7 @@ pub(super) fn select_wire_decode_call(
                     target_offset: end_offset,
                     byte_size: 8,
                     zigzag: false,
+                    range: None,
                 });
                 push(SelectedInstructionKind::ReadWireNestedOpen {
                     buffer_region: buffer_place.region,
@@ -370,10 +391,15 @@ pub(super) fn select_wire_decode_call(
                     for byte in wire_varint_bytes(child_tag as u64) {
                         push(expected_byte_kind(byte));
                     }
-                    let WireReadContent::Scalar { encoding, place } = &child.content else {
+                    let WireReadContent::Scalar {
+                        encoding,
+                        place,
+                        range,
+                    } = &child.content
+                    else {
                         unreachable!("collection admits only scalar children");
                     };
-                    push(scalar_read_kind(place, encoding));
+                    push(scalar_read_kind(place, encoding, *range));
                 }
                 push(SelectedInstructionKind::ReadWireNestedClose {
                     buffer_region: buffer_place.region,
@@ -413,6 +439,7 @@ pub(super) fn select_wire_decode_call(
                     target_offset: end_offset,
                     byte_size: 8,
                     zigzag: false,
+                    range: None,
                 });
                 push(SelectedInstructionKind::ReadWireNestedOpen {
                     buffer_region: buffer_place.region,
@@ -480,6 +507,7 @@ fn collect_field_reads(
     source_key: StateKey,
     expressions: &mut ExpressionTable,
     receiver: ExpressionHandle,
+    receiver_type: TypeReferenceHandle,
     schema: &omega_checked_trees::wire::WireSchema,
     allow_nested: bool,
 ) -> Option<Vec<WireFieldRead>> {
@@ -500,6 +528,11 @@ fn collect_field_reads(
                 case_variant: None,
             },
         ));
+        let member_type = omega_checked_trees::wire::data_field_type(
+            input.program,
+            receiver_type,
+            field.name.as_str(),
+        )?;
 
         // A repeated field resolves the array member AND its count companion
         // (`<name>_count`); validation has guaranteed both exist with the
@@ -561,6 +594,7 @@ fn collect_field_reads(
                 source_key,
                 expressions,
                 member_handle,
+                member_type,
                 child,
                 false,
             )?;
@@ -628,11 +662,95 @@ fn collect_field_reads(
 
         fields.push(WireFieldRead {
             number: field.number,
-            content: WireReadContent::Scalar { encoding, place },
+            content: WireReadContent::Scalar {
+                encoding,
+                place,
+                range: omega_checked_trees::wire::scalar_decode_range(input.program, member_type),
+            },
         });
     }
     fields.sort_by_key(|field| field.number);
     Some(fields)
+}
+
+/// Resolve the declared type of the decode value expression. This deliberately
+/// follows semantic declarations rather than runtime-layout descriptors: the
+/// range fact lives on the authored destination field and must survive even
+/// when storage planning has flattened that field into a frame slot.
+fn declared_expression_type(
+    input: &InstructionSelectionInput<'_>,
+    machine: &omega_checked_trees::machine::Machine,
+    state: &omega_checked_trees::state::State,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    match expressions.expression(expression) {
+        ExpressionNode::Mutable(inner) => {
+            declared_expression_type(input, machine, state, expressions, *inner)
+        }
+        ExpressionNode::Member(member) => {
+            let receiver =
+                declared_expression_type(input, machine, state, expressions, member.receiver)?;
+            omega_checked_trees::wire::data_field_type(
+                input.program,
+                receiver,
+                member.member.as_str(),
+            )
+        }
+        ExpressionNode::Name(path) => {
+            let members = expressions.name_path_members(path.members);
+            let root_name = members.first()?.as_str();
+            let root_symbol = if path.head_symbol.is_valid() {
+                path.head_symbol
+            } else {
+                path.symbol
+            };
+            let mut current = input
+                .program
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| {
+                    (root_symbol.is_valid() && parameter.symbol == root_symbol)
+                        || parameter.name.as_str() == root_name
+                })
+                .map(|parameter| parameter.type_reference)
+                .or_else(|| {
+                    input
+                        .program
+                        .statement_table
+                        .statements(state.statement_nodes)
+                        .iter()
+                        .find_map(|statement| {
+                            let StatementNode::LocalData(local) = statement else {
+                                return None;
+                            };
+                            ((root_symbol.is_valid() && local.symbol == root_symbol)
+                                || local.name.as_str() == root_name)
+                                .then_some(local.type_reference)
+                        })
+                })
+                .or_else(|| {
+                    input
+                        .program
+                        .machine_owned_data(machine)
+                        .iter()
+                        .find(|owned| {
+                            (root_symbol.is_valid() && owned.symbol == root_symbol)
+                                || owned.name.as_str() == root_name
+                        })
+                        .map(|owned| owned.type_reference)
+                })?;
+            for member in members.iter().skip(1) {
+                current = omega_checked_trees::wire::data_field_type(
+                    input.program,
+                    current,
+                    member.as_str(),
+                )?;
+            }
+            Some(current)
+        }
+        _ => None,
+    }
 }
 
 /// Copy one call argument into the scratch table, unwrapping the `&mut`

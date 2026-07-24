@@ -2546,6 +2546,28 @@ impl<'program> Evaluator<'program> {
         };
         let schema_name = schema.name.as_str().to_owned();
         let era = self.program.wire_schema_current_era(schema);
+        let arguments = self
+            .program
+            .statement_table
+            .expression_handles(call.arguments);
+        let [value_argument, buffer_argument, read_argument, ok_argument] = arguments else {
+            return Err(Halt::Trap(format!(
+                "`{schema_name}::decode` expects 4 arguments, got {}",
+                arguments.len()
+            )));
+        };
+        let (value_argument, buffer_argument, read_argument, ok_argument) = (
+            *value_argument,
+            *buffer_argument,
+            *read_argument,
+            *ok_argument,
+        );
+        let value_type = wire_argument_declared_type(self.program, frame, value_argument)
+            .ok_or_else(|| {
+                Halt::Unsupported(format!(
+                    "`{schema_name}::decode` cannot resolve the declared value type"
+                ))
+            })?;
 
         // (field name, number, content) of the CURRENT era, in field-number
         // order -- validation has already enforced the stage 2 field set
@@ -2555,6 +2577,17 @@ impl<'program> Evaluator<'program> {
             let WireMember::Field(field) = member else {
                 continue;
             };
+            let target_type = omega_typed_trees::wire::data_field_type(
+                self.program,
+                value_type,
+                field.name.as_str(),
+            )
+            .ok_or_else(|| {
+                Halt::Unsupported(format!(
+                    "`{schema_name}::decode` cannot resolve destination field `{}`",
+                    field.name
+                ))
+            })?;
             if let Some(repeated) = self.program.wire_field_repeated_encoding(field) {
                 fields.push((
                     field.name.as_str().to_owned(),
@@ -2564,7 +2597,7 @@ impl<'program> Evaluator<'program> {
                 continue;
             }
             if let Some(child) = self.program.wire_field_nested_schema(field) {
-                let children = wire_nested_scalar_fields(&self.program, child)?;
+                let children = wire_nested_decode_scalar_fields(&self.program, child, target_type)?;
                 fields.push((
                     field.name.as_str().to_owned(),
                     field.number,
@@ -2618,27 +2651,13 @@ impl<'program> Evaluator<'program> {
             fields.push((
                 field.name.as_str().to_owned(),
                 field.number,
-                WireInterpScalarField::Scalar(encoding),
+                WireInterpScalarField::Scalar {
+                    encoding,
+                    range: omega_typed_trees::wire::scalar_decode_range(self.program, target_type),
+                },
             ));
         }
         fields.sort_by_key(|(_, number, _)| *number);
-
-        let arguments = self
-            .program
-            .statement_table
-            .expression_handles(call.arguments);
-        let [value_argument, buffer_argument, read_argument, ok_argument] = arguments else {
-            return Err(Halt::Trap(format!(
-                "`{schema_name}::decode` expects 4 arguments, got {}",
-                arguments.len()
-            )));
-        };
-        let (value_argument, buffer_argument, read_argument, ok_argument) = (
-            *value_argument,
-            *buffer_argument,
-            *read_argument,
-            *ok_argument,
-        );
 
         let value_cell = self.eval_argument(value_argument, frame)?;
         let value_cell = self.deref_cell(value_cell);
@@ -2740,9 +2759,14 @@ impl<'program> Evaluator<'program> {
             let field_cell = self.deref_cell(field_cell);
 
             match content {
-                WireInterpScalarField::Scalar(encoding) => {
+                WireInterpScalarField::Scalar { encoding, range } => {
                     let raw = read_varint(&mut cursor, &mut ok);
-                    *field_cell.borrow_mut() = wire_decoded_scalar_value(raw, *encoding)?;
+                    let decoded = wire_decoded_scalar_value(raw, *encoding)?;
+                    if range.is_none_or(|range| wire_scalar_in_range(&decoded, range)) {
+                        *field_cell.borrow_mut() = decoded;
+                    } else {
+                        ok = false;
+                    }
                 }
                 WireInterpScalarField::ByteSlice { predicates } => {
                     // A borrowed `&[u8]`: a byte-LENGTH varint then that many
@@ -2790,7 +2814,7 @@ impl<'program> Evaluator<'program> {
                     if end > buffer.len() {
                         ok = false;
                     }
-                    for (child_name, child_number, encoding) in children {
+                    for (child_name, child_number, encoding, range) in children {
                         for byte in wire_varint_bytes(*child_number as u64) {
                             expect_byte(&mut cursor, &mut ok, byte);
                         }
@@ -2811,7 +2835,11 @@ impl<'program> Evaluator<'program> {
                             }
                         };
                         let child_cell = self.deref_cell(child_cell);
-                        *child_cell.borrow_mut() = decoded;
+                        if range.is_none_or(|range| wire_scalar_in_range(&decoded, range)) {
+                            *child_cell.borrow_mut() = decoded;
+                        } else {
+                            ok = false;
+                        }
                     }
                     if cursor != end {
                         ok = false;
@@ -8152,8 +8180,18 @@ enum WireInterpField {
 /// it. An owned `String` is encode-only, but a borrowed `&[u8]` byte slice
 /// decodes ZERO-COPY as a length-prefixed view of the buffer (`ByteSlice`).
 enum WireInterpScalarField {
-    Scalar(omega_typed_trees::wire::WireScalarEncoding),
-    Nested(Vec<(String, i64, omega_typed_trees::wire::WireScalarEncoding)>),
+    Scalar {
+        encoding: omega_typed_trees::wire::WireScalarEncoding,
+        range: Option<omega_core::wire::WireScalarRange>,
+    },
+    Nested(
+        Vec<(
+            String,
+            i64,
+            omega_typed_trees::wire::WireScalarEncoding,
+            Option<omega_core::wire::WireScalarRange>,
+        )>,
+    ),
     Repeated(omega_typed_trees::wire::WireRepeatedEncoding),
     /// A borrowed `&[u8]` field: read a byte-length varint then that many bytes
     /// from the buffer. Stored as an owned `Array` of byte values --
@@ -8192,6 +8230,92 @@ fn wire_nested_scalar_fields(
     }
     children.sort_by_key(|(_, number, _)| *number);
     Ok(children)
+}
+
+/// Decode-side nested fields additionally carry the destination declaration's
+/// range, because the schema primitive alone does not contain that fact.
+fn wire_nested_decode_scalar_fields(
+    program: &TypedTrees,
+    child: &omega_typed_trees::wire::WireSchema,
+    value_type: TypeReferenceHandle,
+) -> Result<
+    Vec<(
+        String,
+        i64,
+        omega_typed_trees::wire::WireScalarEncoding,
+        Option<omega_core::wire::WireScalarRange>,
+    )>,
+    Halt,
+> {
+    use omega_typed_trees::wire::{WireMember, WireScalarEncoding};
+
+    let mut children = Vec::new();
+    for member in program.wire_members(child.members) {
+        let WireMember::Field(field) = member else {
+            continue;
+        };
+        let target_type =
+            omega_typed_trees::wire::data_field_type(program, value_type, field.name.as_str())
+                .ok_or_else(|| {
+                    Halt::Unsupported(format!(
+                        "data `{}` nested destination has no field `{}`",
+                        child.name, field.name
+                    ))
+                })?;
+        let scalar = program
+            .primitive_type_reference(field.type_reference)
+            .and_then(WireScalarEncoding::for_primitive)
+            .ok_or_else(|| {
+                Halt::Unsupported(format!(
+                    "data `{}` nested field `{}` is not a stage 2 scalar",
+                    child.name, field.name
+                ))
+            })?;
+        children.push((
+            field.name.as_str().to_owned(),
+            field.number,
+            scalar,
+            omega_typed_trees::wire::scalar_decode_range(program, target_type),
+        ));
+    }
+    children.sort_by_key(|(_, number, _, _)| *number);
+    Ok(children)
+}
+
+fn wire_argument_declared_type(
+    program: &TypedTrees,
+    frame: &Frame,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => wire_argument_declared_type(program, frame, *inner),
+        ExpressionNode::Member(member) => {
+            let receiver = wire_argument_declared_type(program, frame, member.receiver)?;
+            omega_typed_trees::wire::data_field_type(program, receiver, member.member.as_str())
+        }
+        ExpressionNode::Name(path) => {
+            let members = program.expression_table.name_path_members(path.members);
+            let mut current = *frame.type_locals.borrow().get(members.first()?.as_str())?;
+            for member in members.iter().skip(1) {
+                current =
+                    omega_typed_trees::wire::data_field_type(program, current, member.as_str())?;
+            }
+            Some(current)
+        }
+        _ => None,
+    }
+}
+
+fn wire_scalar_in_range(value: &Value, range: omega_core::wire::WireScalarRange) -> bool {
+    let Some(value) = value.as_int() else {
+        return false;
+    };
+    if range.signed {
+        value >= range.minimum && value <= range.maximum
+    } else {
+        let value = value as u64;
+        value >= range.minimum as u64 && value <= range.maximum as u64
+    }
 }
 
 /// The unsigned LEB128 payload a scalar value encodes as -- the same

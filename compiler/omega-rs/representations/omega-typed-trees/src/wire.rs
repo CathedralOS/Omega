@@ -114,6 +114,127 @@ pub struct WireScalarEncoding {
     pub zigzag: bool,
 }
 
+/// Whether a declared type carries an inclusive integer range, looking
+/// through reference and nested constraint shells.
+pub fn type_reference_carries_range(
+    program: &crate::TypedTrees,
+    handle: TypeReferenceHandle,
+) -> bool {
+    if !handle.is_valid() {
+        return false;
+    }
+    match program.type_reference_table.type_reference(handle) {
+        crate::types::TypeReferenceNode::Reference { referee, .. } => {
+            type_reference_carries_range(program, *referee)
+        }
+        crate::types::TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            program
+                .type_reference_table
+                .constraints(*constraints)
+                .iter()
+                .any(|constraint| {
+                    matches!(constraint, crate::types::TypeConstraintNode::Range { .. })
+                })
+                || type_reference_carries_range(program, *base_type)
+        }
+        _ => false,
+    }
+}
+
+/// Normalize every inclusive range shell on a stage-2 wire scalar into the
+/// one interval the decode boundary must establish. Validation has already
+/// rejected non-constant or contradictory ranges; `None` therefore means the
+/// type carries no range (or is not a supported integer scalar), never "skip a
+/// range we failed to understand".
+pub fn scalar_decode_range(
+    program: &crate::TypedTrees,
+    handle: TypeReferenceHandle,
+) -> Option<omega_core::wire::WireScalarRange> {
+    fn collect(
+        program: &crate::TypedTrees,
+        handle: TypeReferenceHandle,
+        minimum: &mut i64,
+        maximum: &mut i64,
+        found: &mut bool,
+    ) -> Option<()> {
+        match program.type_reference_table.type_reference(handle) {
+            crate::types::TypeReferenceNode::Reference { referee, .. } => {
+                collect(program, *referee, minimum, maximum, found)
+            }
+            crate::types::TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                for constraint in program.type_reference_table.constraints(*constraints) {
+                    if let crate::types::TypeConstraintNode::Range {
+                        minimum: lower,
+                        maximum: upper,
+                    } = constraint
+                    {
+                        *minimum = (*minimum)
+                            .max(program.expression_table.constant_integer_value(*lower)?);
+                        *maximum = (*maximum)
+                            .min(program.expression_table.constant_integer_value(*upper)?);
+                        *found = true;
+                    }
+                }
+                collect(program, *base_type, minimum, maximum, found)
+            }
+            _ => Some(()),
+        }
+    }
+
+    let primitive = program.primitive_type_reference(handle)?;
+    if !primitive.accepts_range_constraint() {
+        return None;
+    }
+    let mut minimum = i64::MIN;
+    let mut maximum = i64::MAX;
+    let mut found = false;
+    collect(program, handle, &mut minimum, &mut maximum, &mut found)?;
+    (found && minimum <= maximum).then_some(omega_core::wire::WireScalarRange {
+        minimum,
+        maximum,
+        signed: primitive.is_signed_integer(),
+    })
+}
+
+/// Resolve one named data field's declared type through reference/constraint
+/// shells. Wire encode/decode consumers use the destination/source data
+/// declaration rather than assuming the schema field's less-refined type.
+pub fn data_field_type(
+    program: &crate::TypedTrees,
+    mut receiver: TypeReferenceHandle,
+    field_name: &str,
+) -> Option<TypeReferenceHandle> {
+    loop {
+        receiver = match program.type_reference_table.type_reference(receiver) {
+            crate::types::TypeReferenceNode::Reference { referee, .. } => *referee,
+            crate::types::TypeReferenceNode::Constrained { base_type, .. } => *base_type,
+            crate::types::TypeReferenceNode::Named { symbol, name } => {
+                let data = program.data_definitions().iter().find(|data| {
+                    (symbol.is_valid() && data.symbol == *symbol) || data.name == *name
+                })?;
+                return program
+                    .data_members(data)
+                    .iter()
+                    .find_map(|member| match member {
+                        crate::data::DataMember::Field(field)
+                            if field.name.as_str() == field_name =>
+                        {
+                            Some(field.type_reference)
+                        }
+                        _ => None,
+                    });
+            }
+            _ => return None,
+        };
+    }
+}
+
 impl WireScalarEncoding {
     /// The stage 2a scalar set: i32/i64/u32/u64/bool. Everything else is
     /// rejected by validation with a clear diagnostic.
