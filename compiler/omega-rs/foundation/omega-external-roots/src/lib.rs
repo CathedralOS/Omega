@@ -3462,19 +3462,13 @@ mod tests {
             ),
         )
         .expect("frozen placement");
-        let validated = validate_final_placement(
-            frozen,
-            &FinalValidationCertificate::from_validator(
-                install_id(180, FinalValidationId::from_normalized_identity),
-                artifact.identity(),
-                admitted.admission(),
-                install_id(100, CodePlacementId::from_normalized_identity),
-                materialized.final_bytes(),
-                install_id(71, MachineFootprintId::from_normalized_identity),
-                true,
-            ),
-        )
-        .expect("validated placement");
+        let certificate = FinalValidationCertificate::from_validator(
+            install_id(180, FinalValidationId::from_normalized_identity),
+            &frozen,
+            true,
+        );
+        let validated =
+            validate_final_placement(frozen, &certificate).expect("validated placement");
         install_validated(
             validated,
             InstallAuthority::from_admitted_provider(

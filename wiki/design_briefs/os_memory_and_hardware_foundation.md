@@ -721,15 +721,19 @@ sealed entry/data identities, applies checked target relocations to a private
 copy, validates AArch64 instruction shapes, and derives a content- and
 placement-bound final-byte identity; this inert result grants neither writes
 nor execution. The write/freeze transition consumes that exact output and
-matches its artifact, admission, placement, base, plan, byte length, and final
-identity rather than accepting a caller-restated hash. `FrozenPlacement`
+its receipt retains the complete canonical output rather than restating compact
+FNV identities. The gate matches artifact, admission, placement, base, plan,
+exact bytes, byte length, and final identity. `FrozenPlacement`
 retains the immutable final-byte snapshot, so final footprint/PCC validation
 examines exactly the bytes whose write authority was frozen. This is a
 provider-side inspection surface, not a source-visible byte-to-code operation.
 A separate provider writes those bytes and freezes authority.
-The final certificate is bound to artifact + placement + final bytes + realized
-footprint, and installation consumes an authority scoped to that artifact,
-admission, placement, scope, and audience. Synchronous visibility and
+The final certificate can be constructed only from the exact frozen carrier it
+claims to validate and retains the complete artifact and byte snapshot plus
+placement and realized footprint. Compact artifact/final-byte IDs remain report
+keys, never collision-resistant authorization. Installation consumes an
+authority scoped to that artifact, admission, placement, scope, and audience.
+Synchronous visibility and
 `HardwareEnforced | ConventionOnly | Unsupported` W^X reporting are checked.
 Failed linear transitions return their inputs. Schema byte decode, actual PCC
 and final-code validators, destination write/freeze and installation-provider
