@@ -2,8 +2,7 @@ use super::super::text_writes::string_literal_data_handle;
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_abstract_operations::{
-    RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
-    StateGuardOperator,
+    RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction, StateGuardOperator,
 };
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_control_flow::StateKey;

@@ -19,9 +19,7 @@ use crate::selection::storage_places::{
     resolve_runtime_transition_argument_call_result_place,
     resolve_runtime_transition_argument_call_result_place_by_rank,
 };
-use omega_abstract_operations::{
-    RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
-};
+use omega_abstract_operations::{RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction};
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::{StateKey, StateParameterFlow};

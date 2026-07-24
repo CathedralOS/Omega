@@ -820,9 +820,9 @@ pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut V
         }
     };
 
-    let mut check = |value: ExpressionHandle,
-                     declared: omega_typed_trees::types::TypeReferenceHandle,
-                     diagnostics: &mut Vec<Diagnostic>| {
+    let check = |value: ExpressionHandle,
+                 declared: omega_typed_trees::types::TypeReferenceHandle,
+                 diagnostics: &mut Vec<Diagnostic>| {
         let Some(unwrapped) = crate::places::unwrapped_type_reference(program, declared) else {
             return;
         };

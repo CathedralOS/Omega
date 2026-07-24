@@ -525,45 +525,6 @@ fn subgraph_is_acyclic(component: &[usize], edges: &[(usize, usize)]) -> bool {
         .all(|&node| color.get(&node).copied().unwrap_or(0) != 0 || visit(node, edges, &mut color))
 }
 
-/// Prove a strict decrease across one cyclic edge between (possibly distinct)
-/// states. Only orders with a pointwise cross-state meaning are accepted here.
-fn edge_has_proven_decrease(
-    program: &omega_typed_trees::TypedTrees,
-    source: &omega_typed_trees::state::State,
-    target: &omega_typed_trees::state::State,
-    measure: DecreaseMeasure,
-    order: &RankingOrder,
-    orientation: DistanceOrientation,
-) -> bool {
-    match order {
-        RankingOrder::NatDescending
-        | RankingOrder::BoundedDistance
-        | RankingOrder::IncreasingTo(_)
-        | RankingOrder::CustomNatDescending => program
-            .statement_table
-            .statements(source.statement_nodes)
-            .iter()
-            .filter_map(|statement| patterns::guarded_edge_to(program, statement, target.symbol))
-            .any(|edge| {
-                nat::edge_decrease_proven(
-                    program,
-                    source,
-                    target,
-                    edge.guard,
-                    edge.arguments,
-                    measure,
-                    orientation,
-                )
-            }),
-        // Slice-length, struct-view and lexicographic decreases are only
-        // proven across direct self-loops; a multi-state cycle using one of
-        // these orders is conservatively rejected.
-        RankingOrder::SliceLength
-        | RankingOrder::CustomStructView(_)
-        | RankingOrder::Lexicographic(_) => false,
-    }
-}
-
 fn state_has_proven_supported_self_loop(
     program: &omega_typed_trees::TypedTrees,
     state: &omega_typed_trees::state::State,

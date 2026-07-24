@@ -5358,7 +5358,7 @@ fn float_policy_guard_bytes(
             checks.push((encode_conditional_branch_higher_or_same, vec![abs(left)]));
             // Assemble: compute each branch's distance to the end.
             let mut segments: Vec<Vec<u8>> = Vec::new();
-            for (index, (branch, setup)) in checks.iter().enumerate() {
+            for (index, (_, setup)) in checks.iter().enumerate() {
                 let mut segment = Vec::new();
                 for instruction in setup {
                     segment.extend(instruction);
@@ -5992,7 +5992,7 @@ fn append_runtime_float_binary_operation(
     bytes.extend(encode_float_move_from_gpr(byte_size, 1, right_register)?);
     // F5: the arithmetic ops append the policy guard AFTER the op (the raw
     // operand bits stay live in the GPRs -- the FMOVs copy, never move).
-    let mut guard = |bytes: &mut Vec<u8>| -> Result<(), Diagnostic> {
+    let guard = |bytes: &mut Vec<u8>| -> Result<(), Diagnostic> {
         bytes.extend(float_policy_guard_bytes(
             domain,
             operator,
