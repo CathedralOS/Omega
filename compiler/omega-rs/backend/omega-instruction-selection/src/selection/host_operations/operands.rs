@@ -2591,6 +2591,17 @@ fn native_hfa_argument_operand_at(
         *expression,
     )?;
     let (member_byte_count, members) = hfa_descriptor_shape(input, &descriptor)?;
+    // SysV has no distinct one-member HFA ABI class: a record that recursively
+    // contains one f32/f64 occupies one SSE eightbyte and follows the ordinary
+    // classified-record path below.  Preserving it as
+    // `RuntimeHomogeneousFloatAggregate { members: 1 }` makes selection produce
+    // a shape the SysV plan deliberately rejects (its HFA carrier represents
+    // only the multi-member fragmented case), even though the record is a
+    // perfectly legal native aggregate.  AAPCS64 does classify one-to-four
+    // member HFAs, so keep the one-member carrier there.
+    if policy == CallingPolicy::SystemVAMD64 && members == 1 {
+        return None;
+    }
     if policy == CallingPolicy::SystemVAMD64 && member_byte_count * usize::from(members) > 16 {
         return None;
     }
