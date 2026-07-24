@@ -485,12 +485,16 @@ snapshots, and manifests. Ordinary policy traits never mint service identity.
 Executable capability manifests now read the checked service, suspension, and
 blocking plans directly: they publish canonical service names and independent
 `may_suspend` / `may_block` values without a lowercase-name or numeric-bit
-projection. The legacy flat `EffectSet` remains only for capability/authority,
-the typed-tree compatibility visualization, and lowercase-fixture consumers.
+projection. The legacy flat `EffectSet` remains only for capability/authority
+and lowercase-fixture consumers.
 Normalized inference now retains machine/state/call structure as shared-row
 identities in grouped arenas. Checked-flow, state-graph, and control-flow
 records carry those identities alongside independent suspension/blocking
 summaries, and the persistent graph crates no longer depend on `omega-effects`.
+The typed-tree report joins those same normalized scopes with the independent
+operational fixed points. All semantic phase filters derive their sorted
+canonical service catalog from rendered node rows rather than the global
+lowercase effect-name table.
 Dedicated may-axis fixed points never depend on operational bits. Migrating the
 remaining capability/fixture consumers and deleting the compatibility engine
 is the next EFX slice.

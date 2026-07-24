@@ -29,7 +29,7 @@ pub fn checked_trees_html(program: &CheckedTrees) -> String {
             machine_index + 1,
         );
         let reach = machine_service_reach(program, machine.symbol);
-        diagram.node_effects(
+        diagram.node_service_reaches(
             &machine_id,
             service_names(
                 &program.facts.effect_rows.service_reaches.services,
@@ -47,7 +47,7 @@ pub fn checked_trees_html(program: &CheckedTrees) -> String {
                 machine_index + 1,
             );
             if let Some(flow_state) = flow_state_for(program, machine.symbol, state.symbol) {
-                diagram.node_effects(
+                diagram.node_service_reaches(
                     &state_id,
                     service_names(
                         &program.facts.effect_rows.service_reaches.services,
@@ -964,7 +964,7 @@ fn append_checked_call_nodes(
                 diagram.node(call_id, label, "external_call", machine_index + 1)
             };
 
-        diagram.node_effects(
+        diagram.node_service_reaches(
             &rendered_id,
             service_names(
                 &program.facts.effect_rows.service_reaches.services,

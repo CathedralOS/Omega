@@ -7,7 +7,7 @@ struct PhaseDiagramNode {
     kind: String,
     rank: usize,
     scope_target: Option<String>,
-    effects: Vec<String>,
+    service_reaches: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -75,7 +75,7 @@ impl PhaseDiagramBuilder {
             kind: kind.into(),
             rank,
             scope_target: None,
-            effects: Vec::new(),
+            service_reaches: Vec::new(),
         });
         id
     }
@@ -97,7 +97,7 @@ impl PhaseDiagramBuilder {
             kind: kind.into(),
             rank,
             scope_target: Some(scope_target.into()),
-            effects: Vec::new(),
+            service_reaches: Vec::new(),
         });
         id
     }
@@ -118,12 +118,16 @@ impl PhaseDiagramBuilder {
         node.scoped_label = Some(label.into());
     }
 
-    pub fn node_effects(&mut self, id: &str, effects: impl IntoIterator<Item = impl Into<String>>) {
+    pub fn node_service_reaches(
+        &mut self,
+        id: &str,
+        services: impl IntoIterator<Item = impl Into<String>>,
+    ) {
         let Some(node) = self.nodes.iter_mut().find(|node| node.id == id) else {
             return;
         };
 
-        node.effects = effects.into_iter().map(Into::into).collect();
+        node.service_reaches = services.into_iter().map(Into::into).collect();
     }
 
     pub fn containment_edge(&mut self, from: &str, to: &str) {
@@ -165,7 +169,7 @@ fn render_html(title: &str, nodes: &[PhaseDiagramNode], edges: &[PhaseDiagramEdg
     html.push_str(
         "<label><input id=\"show-data\" type=\"checkbox\" checked> Data definitions</label>\n",
     );
-    html.push_str("<div id=\"effect-filter\" class=\"hidden\"><h2>Effects</h2><div id=\"effect-buttons\"></div></div>\n");
+    html.push_str("<div id=\"service-reach-filter\" class=\"hidden\"><h2>Service reach</h2><div id=\"service-reach-buttons\"></div></div>\n");
     html.push_str("<p id=\"counts\"></p>\n");
     html.push_str("<div id=\"details-actions\" class=\"hidden\"></div>\n");
     html.push_str("<pre id=\"details\">Click a node for details.</pre>\n");
@@ -175,8 +179,8 @@ fn render_html(title: &str, nodes: &[PhaseDiagramNode], edges: &[PhaseDiagramEdg
     html.push_str("<script>\nconst GRAPH = ");
     push_graph_json(&mut html, title, nodes, edges);
     html.push_str(";\n");
-    html.push_str("const EFFECT_NAMES = ");
-    push_effect_names_json(&mut html);
+    html.push_str("const SERVICE_REACH_NAMES = ");
+    push_service_reach_names_json(&mut html, nodes);
     html.push_str(";\n");
     html.push_str(SCRIPT);
     html.push_str("\n</script>\n</body>\n</html>\n");
@@ -297,13 +301,13 @@ fn push_graph_json(
         push_json_string(output, &node.kind);
         output.push_str(",\"rank\":");
         output.push_str(&node.rank.to_string());
-        if !node.effects.is_empty() {
-            output.push_str(",\"effects\":[");
-            for (effect_index, effect) in node.effects.iter().enumerate() {
-                if effect_index > 0 {
+        if !node.service_reaches.is_empty() {
+            output.push_str(",\"serviceReaches\":[");
+            for (service_index, service) in node.service_reaches.iter().enumerate() {
+                if service_index > 0 {
                     output.push(',');
                 }
-                push_json_string(output, effect);
+                push_json_string(output, service);
             }
             output.push(']');
         }
@@ -329,9 +333,16 @@ fn push_graph_json(
     output.push_str("]}");
 }
 
-fn push_effect_names_json(output: &mut String) {
+fn push_service_reach_names_json(output: &mut String, nodes: &[PhaseDiagramNode]) {
+    let mut names = nodes
+        .iter()
+        .flat_map(|node| node.service_reaches.iter().map(String::as_str))
+        .collect::<Vec<_>>();
+    names.sort_unstable();
+    names.dedup();
+
     output.push('[');
-    for (index, name) in omega_effects::STANDARD_EFFECT_NAMES.iter().enumerate() {
+    for (index, name) in names.into_iter().enumerate() {
         if index > 0 {
             output.push(',');
         }
@@ -518,26 +529,26 @@ label { display: block; color: var(--muted); margin: 10px 0; }
   margin: 10px 0;
 }
 #details-actions.hidden { display: none; }
-#effect-filter {
+#service-reach-filter {
   border: 1px solid #283343;
   border-radius: 12px;
   background: #0d1117;
   margin: 12px 0;
   padding: 10px;
 }
-#effect-filter.hidden { display: none; }
-#effect-filter h2 { margin-bottom: 8px; }
-#effect-buttons {
+#service-reach-filter.hidden { display: none; }
+#service-reach-filter h2 { margin-bottom: 8px; }
+#service-reach-buttons {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
-#effect-buttons button {
+#service-reach-buttons button {
   border-radius: 999px;
   font-size: 11px;
   padding: 6px 8px;
 }
-#effect-buttons button.active {
+#service-reach-buttons button.active {
   border-color: var(--match);
   color: #ffffff;
 }
@@ -796,8 +807,8 @@ const search = document.getElementById("search");
 const details = document.getElementById("details");
 const detailsActions = document.getElementById("details-actions");
 const counts = document.getElementById("counts");
-const effectFilter = document.getElementById("effect-filter");
-const effectButtons = document.getElementById("effect-buttons");
+const serviceReachFilter = document.getElementById("service-reach-filter");
+const serviceReachButtons = document.getElementById("service-reach-buttons");
 const scopePanel = document.getElementById("scope-panel");
 const scopeTitle = document.getElementById("scope-title");
 const scopeSearch = document.getElementById("scope-search");
@@ -841,7 +852,7 @@ let scopedId = null;
 let visibleNodeIds = new Set(GRAPH.nodes.map(node => node.id));
 let transform = { x: 0, y: 0, scale: 1 };
 let lastActivation = { id: null, time: 0 };
-let activeEffect = null;
+let activeServiceReach = null;
 
 function displayLabel(node) {
   if (node.scopedLabel && scopedId && containedNodeSet(scopedId).has(node.id)) {
@@ -1221,40 +1232,40 @@ function render() {
   nodeLayer.replaceChildren();
   for (const edge of GRAPH.edges) drawEdge(edge);
   for (const node of GRAPH.nodes) drawNode(node);
-  renderEffectFilters();
+  renderServiceReachFilters();
   renderScopeOutline();
   calculateBounds();
   applyFilters();
 }
 
-function renderEffectFilters() {
-  effectButtons.replaceChildren();
-  const presentEffects = EFFECT_NAMES.filter(effect =>
-    GRAPH.nodes.some(node => (node.effects || []).includes(effect))
+function renderServiceReachFilters() {
+  serviceReachButtons.replaceChildren();
+  const presentServices = SERVICE_REACH_NAMES.filter(service =>
+    GRAPH.nodes.some(node => (node.serviceReaches || []).includes(service))
   );
-  effectFilter.classList.toggle("hidden", presentEffects.length === 0);
-  if (presentEffects.length === 0) return;
+  serviceReachFilter.classList.toggle("hidden", presentServices.length === 0);
+  if (presentServices.length === 0) return;
 
   const allButton = document.createElement("button");
   allButton.textContent = "all";
-  allButton.classList.toggle("active", !activeEffect);
+  allButton.classList.toggle("active", !activeServiceReach);
   allButton.addEventListener("click", () => {
-    activeEffect = null;
-    renderEffectFilters();
+    activeServiceReach = null;
+    renderServiceReachFilters();
     applyFilters();
   });
-  effectButtons.appendChild(allButton);
+  serviceReachButtons.appendChild(allButton);
 
-  for (const effect of presentEffects) {
+  for (const service of presentServices) {
     const button = document.createElement("button");
-    button.textContent = effect;
-    button.classList.toggle("active", activeEffect === effect);
+    button.textContent = service;
+    button.classList.toggle("active", activeServiceReach === service);
     button.addEventListener("click", () => {
-      activeEffect = activeEffect === effect ? null : effect;
-      renderEffectFilters();
+      activeServiceReach = activeServiceReach === service ? null : service;
+      renderServiceReachFilters();
       applyFilters();
     });
-    effectButtons.appendChild(button);
+    serviceReachButtons.appendChild(button);
   }
 }
 
@@ -1525,7 +1536,7 @@ function fitLine(line, max) {
   return line.length > max ? line.slice(0, max - 1) + "..." : line;
 }
 
-const LABEL_TOKEN_RE = /(active loan|borrow call|activation|weakening|borrow|contracts?|params|ops|transitions|direct effects|reached effects|attached data|states|contains|owned data|mutable params|created|last use|instructions|control|calls|terminator|call|ctrl|data)|(0x[0-9a-fA-F]+|#\d+(?:\.\d+)?|\b\d+\b)|((?:self|mut)\b)|([A-Za-z_][A-Za-z0-9_]*(?:(?:::[A-Za-z_][A-Za-z0-9_]*)|(?:\.[A-Za-z_][A-Za-z0-9_]*)|(?:\[[^\]]*\]))+)/g;
+const LABEL_TOKEN_RE = /(active loan|borrow call|activation|weakening|borrow|contracts?|params|ops|transitions|direct service reach|reached service reach|suspension|blocking|attached data|states|contains|owned data|mutable params|created|last use|instructions|control|calls|terminator|call|ctrl|data)|(#\d+(?:\.\d+)?|\b\d+\b)|((?:self|mut)\b)|([A-Za-z_][A-Za-z0-9_]*(?:(?:::[A-Za-z_][A-Za-z0-9_]*)|(?:\.[A-Za-z_][A-Za-z0-9_]*)|(?:\[[^\]]*\]))+)/g;
 
 function appendStyledLine(textNode, line) {
   let lastIndex = 0;
@@ -1754,7 +1765,7 @@ function applyFilters() {
     const visible = inScope
       && scopeAllowsNode
       && (showDataNodes || node.kind !== "data")
-      && (!activeEffect || (node.effects || []).includes(activeEffect));
+      && (!activeServiceReach || (node.serviceReaches || []).includes(activeServiceReach));
     const isMatch = !query || node.id.toLowerCase().includes(query) || node.label.toLowerCase().includes(query);
     const element = document.querySelector(`.node[data-id="${CSS.escape(node.id)}"]`);
     if (!element) continue;
@@ -1783,8 +1794,8 @@ function applyFilters() {
   calculateBounds();
   const visibleEdges = Array.from(document.querySelectorAll(".edge")).filter(edge => !edge.classList.contains("hidden")).length;
   const scopeLabel = scopedId ? ` scoped to ${outlineLabel(nodeById.get(scopedId))}` : "";
-  const effectLabel = activeEffect ? ` effect ${activeEffect}` : "";
-  counts.textContent = `${visibleNodeIds.size}/${GRAPH.nodes.length} nodes, ${visibleEdges}/${GRAPH.edges.length} edges${scopeLabel}${effectLabel}`;
+  const serviceLabel = activeServiceReach ? ` service ${activeServiceReach}` : "";
+  counts.textContent = `${visibleNodeIds.size}/${GRAPH.nodes.length} nodes, ${visibleEdges}/${GRAPH.edges.length} edges${scopeLabel}${serviceLabel}`;
   applyRelationshipHighlight();
 }
 
@@ -1934,3 +1945,26 @@ window.addEventListener("resize", fitGraph);
 render();
 fitGraph();
 "#;
+
+#[cfg(test)]
+mod tests {
+    use super::PhaseDiagramBuilder;
+
+    #[test]
+    fn service_filters_are_derived_from_canonical_node_rows() {
+        let mut diagram = PhaseDiagramBuilder::new("services");
+        let first = diagram.node("first", "first", "machine", 1);
+        let second = diagram.node("second", "second", "machine", 1);
+        diagram.node_service_reaches(&first, ["PortIo", "Console"]);
+        diagram.node_service_reaches(&second, ["Console"]);
+
+        let html = diagram.finish();
+
+        assert!(html.contains("const SERVICE_REACH_NAMES = [\"Console\",\"PortIo\"]"));
+        assert!(html.contains("\"serviceReaches\":[\"PortIo\",\"Console\"]"));
+        assert!(html.contains("<h2>Service reach</h2>"));
+        assert!(!html.contains("STANDARD_EFFECT_NAMES"));
+        assert!(!html.contains("\"effects\":"));
+        assert!(!html.contains("stdout_io"));
+    }
+}

@@ -1151,11 +1151,14 @@ stronger operations it needs instead of citing machine parameters generally.
   table. Checked-flow, state-graph, and control-flow nodes carry compact
   direct/transitive service-row identities plus independent suspension and
   blocking summaries; the persistent graph representations and their reports
-  no longer depend on `omega-effects` or reconstruct numeric bits. Remaining
-  EFX work is to migrate the legacy capability/authority consumers and the
-  typed-tree compatibility visualization, migrate other lowercase fixtures,
-  eliminate the remaining compatibility projection, and then delete the
-  global service-name/u64 engine entirely. The direct-call
+  no longer depend on `omega-effects` or reconstruct numeric bits. The
+  typed-tree report now joins the same normalized machine/state/call service
+  rows with the independent operational fixed points, and the shared phase
+  filter derives a deterministic canonical-service catalog from rendered
+  nodes instead of the global lowercase effect-name table. Remaining EFX work
+  is to migrate the legacy capability/authority consumers and other lowercase
+  fixtures, eliminate the remaining compatibility projection, and then delete
+  the global service-name/u64 engine entirely. The direct-call
   acknowledgement keyword is a separate owner decision and must consume the
   normalized suspension/blocking plans rather than source-token presence.
 - **TPR4/TPR6 — publication and progress profiles.** Serialize public

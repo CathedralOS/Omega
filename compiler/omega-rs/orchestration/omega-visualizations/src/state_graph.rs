@@ -33,7 +33,7 @@ pub fn state_graph_html(graph: &StateGraph) -> String {
                 "machine",
                 machine_index.arena_index() as usize,
             );
-            diagram.node_effects(
+            diagram.node_service_reaches(
                 &machine_id,
                 service_names(
                     &graph.semantics.service_reach.services,
@@ -68,7 +68,7 @@ pub fn state_graph_html(graph: &StateGraph) -> String {
                 "state_block",
                 machine_index.arena_index() as usize,
             );
-            diagram.node_effects(
+            diagram.node_service_reaches(
                 &state_id,
                 service_names(
                     &graph.semantics.service_reach.services,

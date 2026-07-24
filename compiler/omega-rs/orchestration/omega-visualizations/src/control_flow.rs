@@ -33,7 +33,7 @@ pub fn control_flow_html(plan: &ControlFlowPlan) -> String {
                 "machine",
                 machine_index.arena_index() as usize,
             );
-            diagram.node_effects(
+            diagram.node_service_reaches(
                 &machine_id,
                 service_names(
                     &plan.semantics.service_reach.services,
@@ -68,7 +68,7 @@ pub fn control_flow_html(plan: &ControlFlowPlan) -> String {
                 "state_block",
                 machine_index.arena_index() as usize,
             );
-            diagram.node_effects(
+            diagram.node_service_reaches(
                 &state_id,
                 service_names(
                     &plan.semantics.service_reach.services,
