@@ -172,9 +172,8 @@ fn lower_type_constraint_handle(
             Ok(TypeConstraint::Domain(crate::name::lower_name(name)))
         }
         syntax::types::TypeConstraintNode::Range { minimum, maximum } => {
-            let expressions = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
-            let minimum = lower_expression_into_table(syntax_trees, expressions, *minimum)?;
-            let maximum = lower_expression_into_table(syntax_trees, expressions, *maximum)?;
+            let minimum = lower_expression_into_table(lowerer, syntax_trees, *minimum)?;
+            let maximum = lower_expression_into_table(lowerer, syntax_trees, *maximum)?;
             Ok(TypeConstraint::Range { minimum, maximum })
         }
         syntax::types::TypeConstraintNode::ArithmeticDomain(domain) => {

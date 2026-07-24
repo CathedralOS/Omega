@@ -15,19 +15,39 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
+    parse_type_reference_handle_with_trailing_domain(syntax_trees, input, true)
+}
+
+/// Cast/recast targets leave their trailing `in <Domain>` for the cast parser:
+/// it is an arithmetic/semantic qualification on the conversion, and recasts
+/// reject it. Nested type references retain their ordinary domain grammar.
+pub(super) fn parse_cast_target_type_reference_handle<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
+    parse_type_reference_handle_with_trailing_domain(syntax_trees, input, false)
+}
+
+fn parse_type_reference_handle_with_trailing_domain<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    allow_trailing_domain: bool,
+) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
     // Bound nesting depth: nested array types (`[[...;1];1]`) recurse through
     // this choke point. Deepen on entry to reject pathological nesting before it
     // overflows the stack, restoring the caller's depth on exit (see the mirror
     // in `parse_expression_handle_in`).
     let outer_depth = input.depth();
     let input = input.deepen()?;
-    let (type_reference, rest) = parse_type_reference_handle_inner(syntax_trees, input)?;
+    let (type_reference, rest) =
+        parse_type_reference_handle_inner(syntax_trees, input, allow_trailing_domain)?;
     Ok((type_reference, rest.with_depth(outer_depth)))
 }
 
 fn parse_type_reference_handle_inner<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
+    allow_trailing_domain: bool,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
     if input.at_punctuation(PunctuationKind::LeftParen) {
         let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
@@ -75,7 +95,11 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                     length,
                 });
             // A fixed array can carry an encoding domain: `[u8; 32] in Utf8`.
-            return apply_in_domain_suffix(syntax_trees, array, input);
+            return if allow_trailing_domain {
+                apply_in_domain_suffix(syntax_trees, array, input)
+            } else {
+                Ok((array, input))
+            };
         }
 
         let mut type_reference = syntax_trees
@@ -97,7 +121,11 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
 
         let input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
         // A slice can carry an encoding domain: `[u8] in Utf8` (ch8).
-        return apply_in_domain_suffix(syntax_trees, type_reference, input);
+        return if allow_trailing_domain {
+            apply_in_domain_suffix(syntax_trees, type_reference, input)
+        } else {
+            Ok((type_reference, input))
+        };
     }
 
     if input.at_keyword(KeywordKind::SelfType) {
@@ -292,7 +320,11 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
             });
     }
 
-    let (type_reference, input) = apply_in_domain_suffix(syntax_trees, type_reference, input)?;
+    let (type_reference, input) = if allow_trailing_domain {
+        apply_in_domain_suffix(syntax_trees, type_reference, input)?
+    } else {
+        (type_reference, input)
+    };
     Ok((type_reference, input))
 }
 

@@ -256,9 +256,7 @@ impl PreemptionAccumulator<'_> {
                 self.visit_expression(cast.value);
                 let target_name = self
                     .program
-                    .expression_table
-                    .name_path_members(cast.target_type)
-                    .last()
+                    .named_type_reference(cast.target_type)
                     .map(|name| name.as_str());
                 self.add_unnamed_named_type(target_name);
             }

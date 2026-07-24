@@ -202,6 +202,7 @@ pub(super) fn resolve_runtime_alias_binding(
                     omega_checked_trees::expression::CastExpression {
                         value: resolved.expression,
                         target_type: cast.target_type.clone(),
+                        target_label: cast.target_label.clone(),
                         domain: cast.domain,
                         form: cast.form,
                     },
@@ -451,6 +452,7 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                     omega_checked_trees::expression::TableCastExpression {
                         value: resolved.expression,
                         target_type: cast.target_type,
+                        target_label: cast.target_label,
                         domain: cast.domain,
                         semantic_domain: cast.semantic_domain,
                         form: cast.form,
@@ -710,6 +712,7 @@ fn resolve_leaf_binding_expression_handle_at_depth(
                 omega_checked_trees::expression::TableCastExpression {
                     value,
                     target_type: cast.target_type,
+                    target_label: cast.target_label,
                     domain: cast.domain,
                     semantic_domain: cast.semantic_domain,
                     form: cast.form,
@@ -965,6 +968,7 @@ fn resolve_straight_line_binding_expression_handle_at_depth(
                 omega_checked_trees::expression::TableCastExpression {
                     value,
                     target_type: cast.target_type,
+                    target_label: cast.target_label,
                     domain: cast.domain,
                     semantic_domain: cast.semantic_domain,
                     form: cast.form,

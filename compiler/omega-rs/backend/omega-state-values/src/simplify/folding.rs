@@ -1091,9 +1091,9 @@ pub(super) fn expressions_equivalent(left: &Expression, right: &Expression) -> b
                     .all(|(left, right)| expressions_equivalent(left, right))
         }
         (Expression::Cast(left), Expression::Cast(right)) => {
-            left.target_type.symbol().is_valid()
-                && right.target_type.symbol().is_valid()
-                && left.target_type.symbol() == right.target_type.symbol()
+            left.target_type == right.target_type
+                && left.domain == right.domain
+                && left.form == right.form
                 && expressions_equivalent(&left.value, &right.value)
         }
         (Expression::Float(left), Expression::Float(right)) => left == right,

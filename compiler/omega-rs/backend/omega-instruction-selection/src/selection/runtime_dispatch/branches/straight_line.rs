@@ -923,6 +923,7 @@ fn fold_straight_line_prior_local_names(
                 omega_checked_trees::expression::TableCastExpression {
                     value,
                     target_type: cast.target_type,
+                    target_label: cast.target_label,
                     domain: cast.domain,
                     semantic_domain: cast.semantic_domain,
                     form: cast.form,
@@ -1160,20 +1161,18 @@ fn select_runtime_straight_line_local_initializer_write(
                 return;
             }
         }
-        let target_size = expressions
-            .name_path_members(cast.target_type)
-            .last()
-            .and_then(|name| {
-                omega_checked_trees::types::PrimitiveType::from_name(name.as_str())
-                    .and_then(|primitive| primitive.scalar_byte_size())
-                    .or_else(|| {
-                        input
-                            .layouts
-                            .data_layouts
-                            .iter()
-                            .find(|(_, data)| data.name.as_str() == name.as_str())
-                            .map(|(_, data)| data.layout.size)
-                    })
+        let target_size = input
+            .program
+            .primitive_type_reference(cast.target_type)
+            .and_then(|primitive| primitive.scalar_byte_size())
+            .or_else(|| {
+                let name = input.program.named_type_reference(cast.target_type)?;
+                input
+                    .layouts
+                    .data_layouts
+                    .iter()
+                    .find(|(_, data)| data.name.as_str() == name.as_str())
+                    .map(|(_, data)| data.layout.size)
             });
         if let Some(size) = target_size
             && let Some(place) = resolve_runtime_storage_place_in_table(
@@ -2007,6 +2006,7 @@ fn resolve_leaf_call_expression_handle(
                 omega_checked_trees::expression::TableCastExpression {
                     value,
                     target_type: cast.target_type,
+                    target_label: cast.target_label,
                     domain: cast.domain,
                     semantic_domain: cast.semantic_domain,
                     form: cast.form,

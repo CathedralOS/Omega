@@ -247,10 +247,7 @@ fn resolve_runtime_value_operand_in_table_with_root(
     // in-place conversion (cvttsd2si / cvtsi2sd / cvtsd2ss / movsxd).
     if let ExpressionNode::Cast(cast) = expressions.expression(expression) {
         let source_expression = cast.value;
-        let target_primitive = expressions
-            .name_path_members(cast.target_type)
-            .last()
-            .and_then(|name| PrimitiveType::from_name(name.as_str()))?;
+        let target_primitive = input.program.primitive_type_reference(cast.target_type)?;
         let source_primitive = classify_scalar_value_type_in_table(
             input,
             dispatch_index,

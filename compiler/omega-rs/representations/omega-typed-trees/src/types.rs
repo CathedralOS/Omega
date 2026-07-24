@@ -230,6 +230,26 @@ impl TypeReferenceTable {
         self.type_reference(handle).primitive_type(self)
     }
 
+    /// The terminal nominal name of a reference, looking through reference and
+    /// constraint shells. Compound structural types deliberately have no
+    /// nominal name: callers that need their meaning must inspect the type
+    /// reference rather than fall back to a diagnostic spelling.
+    pub fn named_type(&self, handle: TypeReferenceHandle) -> Option<&Identifier> {
+        if !handle.is_valid() {
+            return None;
+        }
+        match self.type_reference(handle) {
+            TypeReferenceNode::Reference { referee, .. } => self.named_type(*referee),
+            TypeReferenceNode::Constrained { base_type, .. } => self.named_type(*base_type),
+            TypeReferenceNode::Named { name, .. } => Some(name),
+            TypeReferenceNode::FixedArray { .. }
+            | TypeReferenceNode::Slice { .. }
+            | TypeReferenceNode::Generic { .. }
+            | TypeReferenceNode::DynamicTrait { .. }
+            | TypeReferenceNode::Unit => None,
+        }
+    }
+
     /// True when the type bottoms out in a borrowed byte slice `&[u8]` (a
     /// `Slice` whose element is `u8`, looking through a leading reference /
     /// constraints). This is the honest zero-copy RAW-bytes/text view -- a

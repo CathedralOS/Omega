@@ -392,6 +392,7 @@ fn rewrite_children(
                 ExpressionNode::Cast(TableCastExpression {
                     value,
                     target_type: cast.target_type,
+                    target_label: cast.target_label,
                     domain: cast.domain,
                     semantic_domain: cast.semantic_domain,
                     form: cast.form,
@@ -1111,8 +1112,8 @@ fn lower_statement_expression(
     expression: syntax::expression::ExpressionHandle,
 ) -> Result<omega_symbol_resolved_trees::expression::ExpressionHandle, Diagnostic> {
     lower_expression_into_table(
+        lowerer,
         syntax_trees,
-        &mut lowerer.symbol_resolved_trees.tables.bodies.expressions,
         expression,
     )
 }
@@ -1136,8 +1137,8 @@ fn lower_statement_expressions(
         .enumerate()
     {
         let expression = lower_expression_into_table(
+            lowerer,
             syntax_trees,
-            &mut lowerer.symbol_resolved_trees.tables.bodies.expressions,
             *expression,
         )?;
         lowerer

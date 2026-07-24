@@ -1958,11 +1958,7 @@ fn analyze(
             // this distinction; preserve it in the arithmetic-domain walk as
             // well so later integer operations see the stated referee type.
             if cast.form.is_recast() {
-                let primitive = program
-                    .expression_table
-                    .name_path_members(cast.target_type)
-                    .last()
-                    .and_then(|name| PrimitiveType::from_name(name.as_str()));
+                let primitive = program.primitive_type_reference(cast.target_type);
                 return Analysis {
                     domain: Some(ArithmeticDomain::Exact),
                     interval: primitive
@@ -1983,11 +1979,7 @@ fn analyze(
                 owner,
                 diagnostics,
             );
-            let primitive = program
-                .expression_table
-                .name_path_members(cast.target_type)
-                .last()
-                .and_then(|name| PrimitiveType::from_name(name.as_str()));
+            let primitive = program.primitive_type_reference(cast.target_type);
             // F4 (the float->int cast ruling): there is NO MODULAR READING
             // of a float, so `f as iN in Wrapping` is a compile error (ch5;
             // the ruling's precedent generalized to the float domain list).

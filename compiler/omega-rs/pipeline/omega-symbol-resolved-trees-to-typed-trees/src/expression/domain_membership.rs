@@ -17,7 +17,7 @@ use omega_typed_trees as typed;
 pub(super) fn lower_case_membership_expression(
     program: &resolved::SymbolResolvedTrees,
     source: &resolved::expression::ExpressionTable,
-    target: &mut typed::expression::ExpressionTable,
+    target: &mut typed::TypedTrees,
     value: typed::expression::ExpressionHandle,
     domain: omega_core::arena::HandleSpan<resolved::name::DiagnosticName>,
 ) -> Option<typed::expression::ExpressionHandle> {
@@ -31,7 +31,7 @@ pub(super) fn lower_case_membership_expression(
 
 fn lower_case_membership_expression_from_members(
     program: &resolved::SymbolResolvedTrees,
-    target: &mut typed::expression::ExpressionTable,
+    target: &mut typed::TypedTrees,
     value: typed::expression::ExpressionHandle,
     domain_members: &[resolved::name::DiagnosticName],
 ) -> Option<typed::expression::ExpressionHandle> {
@@ -59,21 +59,30 @@ fn lower_case_membership_expression_from_members(
     // clamp keys the tag-only compare off a symbol-stamped `Type::Case` path.
     let mut members = omega_core::arena::HandleSpan::empty();
     for member in domain_members {
-        target.push_name_path_member(&mut members, lower_name(member));
+        target
+            .expression_table
+            .push_name_path_member(&mut members, lower_name(member));
     }
     let mut member_symbols = omega_core::arena::HandleSpan::empty();
-    target.push_name_path_member_symbol(&mut member_symbols, data_definition.symbol);
-    target.push_name_path_member_symbol(&mut member_symbols, variant_symbol);
-    let case_reference = target.insert(typed::expression::ExpressionNode::Name(
-        typed::expression::TableNamePath {
-            members,
-            member_symbols,
-            head_symbol: data_definition.symbol,
-            symbol: variant_symbol,
-        },
-    ));
+    target
+        .expression_table
+        .push_name_path_member_symbol(&mut member_symbols, data_definition.symbol);
+    target
+        .expression_table
+        .push_name_path_member_symbol(&mut member_symbols, variant_symbol);
+    let case_reference =
+        target
+            .expression_table
+            .insert(typed::expression::ExpressionNode::Name(
+                typed::expression::TableNamePath {
+                    members,
+                    member_symbols,
+                    head_symbol: data_definition.symbol,
+                    symbol: variant_symbol,
+                },
+            ));
 
-    Some(target.insert(typed::expression::ExpressionNode::Binary(
+    Some(target.expression_table.insert(typed::expression::ExpressionNode::Binary(
         typed::expression::TableBinaryExpression {
             left: value,
             operator: typed::expression::BinaryOperator::Equal,
@@ -84,7 +93,7 @@ fn lower_case_membership_expression_from_members(
 
 pub(super) fn lower_domain_membership_expression(
     program: &resolved::SymbolResolvedTrees,
-    target: &mut typed::expression::ExpressionTable,
+    target: &mut typed::TypedTrees,
     value: typed::expression::ExpressionHandle,
     domain_symbol: omega_core::symbols::SymbolHandle,
 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
@@ -143,11 +152,13 @@ pub(super) fn lower_domain_membership_expression(
 
     let mut lowered_facts = lowered_facts.into_iter();
     let Some(mut combined) = lowered_facts.next() else {
-        return Ok(target.insert(typed::expression::ExpressionNode::Boolean(true)));
+        return Ok(target
+            .expression_table
+            .insert(typed::expression::ExpressionNode::Boolean(true)));
     };
 
     for fact in lowered_facts {
-        combined = target.insert(typed::expression::ExpressionNode::Binary(
+        combined = target.expression_table.insert(typed::expression::ExpressionNode::Binary(
             typed::expression::TableBinaryExpression {
                 left: combined,
                 operator: typed::expression::BinaryOperator::And,

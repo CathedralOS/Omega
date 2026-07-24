@@ -534,10 +534,7 @@ pub(crate) fn validate_cast_types(
     if cast.form.is_recast() {
         return;
     }
-    let target_name = program
-        .expression_table
-        .name_path_members(cast.target_type)
-        .last();
+    let target_name = program.named_type_reference(cast.target_type);
     // N6 quotient mint: `carrier as Quotient` is not a scalar conversion.
     // It introduces an equivalence class while retaining no representative,
     // and is legal only from the quotient's exact carrier family.
@@ -1106,10 +1103,7 @@ fn expression_is_float_typed(
             expression_is_float_typed(program, machine, state, unary.operand)
         }
         ExpressionNode::Cast(cast) => program
-            .expression_table
-            .name_path_members(cast.target_type)
-            .last()
-            .and_then(|name| PrimitiveType::from_name(name.as_str()))
+            .primitive_type_reference(cast.target_type)
             .is_some_and(|primitive| primitive.accepts_float_literal()),
         ExpressionNode::Call(call) => {
             crate::arithmetic_domains::call_return_type(program, machine, call)

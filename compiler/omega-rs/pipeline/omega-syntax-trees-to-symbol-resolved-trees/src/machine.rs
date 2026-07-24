@@ -31,8 +31,8 @@ pub(crate) fn lower_machine_into(
     // compilation otherwise -- consumed, never silently dropped.
     let decrease_range = if machine.decrease_range.is_valid() {
         lower_expression_into_table(
+            lowerer,
             syntax_trees,
-            &mut lowerer.symbol_resolved_trees.tables.bodies.expressions,
             machine.decrease_range,
         )?
     } else {
@@ -385,8 +385,8 @@ fn lower_machine_decreases(
 
     for expression in syntax_trees.expressions.expression_handles(decreases) {
         let expression = lower_expression_into_table(
+            lowerer,
             syntax_trees,
-            &mut lowerer.symbol_resolved_trees.tables.bodies.expressions,
             *expression,
         )?;
         expressions.push(expression);

@@ -25,7 +25,7 @@
 //!   (Declaration-site conformance for unused consts joins build-time eval.)
 
 use omega_core::diagnostics::Diagnostic;
-use omega_symbol_resolved_trees::expression::{ExpressionHandle, ExpressionTable};
+use omega_symbol_resolved_trees::expression::ExpressionHandle;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{ConstDefinition, DataMember, Item};
@@ -174,8 +174,8 @@ fn free_const_shadowing_walk(
 /// into `expressions` and return it. `None` = not a const reference; the
 /// caller lowers the path normally.
 pub(crate) fn try_lower_const_reference(
+    lowerer: &mut crate::lowerer::Lowerer,
     syntax_trees: &SyntaxTrees,
-    expressions: &mut ExpressionTable,
     members: &[Identifier],
 ) -> Option<Result<ExpressionHandle, Diagnostic>> {
     let (scope_str, name) = match members {
@@ -201,8 +201,8 @@ pub(crate) fn try_lower_const_reference(
         return Some(Err(diagnostic));
     }
     Some(crate::expression::lower_expression_into_table(
+        lowerer,
         syntax_trees,
-        expressions,
         definition.value,
     ))
 }

@@ -378,11 +378,9 @@ fn judge_scalar_recast(
 
     // Target: a fixed-width scalar primitive, restated by the let.
     let target_name = program
-        .expression_table
-        .name_path_members(cast.target_type)
-        .last()
+        .named_type_reference(cast.target_type)
         .map(|name| name.as_str().to_string())
-        .unwrap_or_default();
+        .unwrap_or_else(|| program.display_type_reference(cast.target_type));
     // RUNG C2: a fixed RECORD target, recursively containing primitives,
     // records, and literal-length arrays, sized by the natural-alignment rule
     // (kept in lockstep with omega-layout by the drift canary). The view keeps

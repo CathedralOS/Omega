@@ -385,15 +385,14 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                 }
             }
             ExpressionNode::Cast(cast) => {
-                let format = program
-                    .expression_table
-                    .name_path_members(cast.target_type)
-                    .last()
-                    .and_then(|name| match name.as_str() {
-                        "f32" => Some(FloatFormat::F32),
-                        "f64" => Some(FloatFormat::F64),
-                        _ => None,
-                    });
+                let format =
+                    program
+                        .primitive_type_reference(cast.target_type)
+                        .and_then(|primitive| match primitive {
+                            PrimitiveType::F32 => Some(FloatFormat::F32),
+                            PrimitiveType::F64 => Some(FloatFormat::F64),
+                            _ => None,
+                        });
                 if let Some(format) = format {
                     direct_formats.push((cast.value, format));
                 }

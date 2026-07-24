@@ -612,14 +612,8 @@ fn quotient_equality_goal(
     if left.form.is_recast() || right.form.is_recast() {
         return None;
     }
-    let left_name = program
-        .expression_table
-        .name_path_members(left.target_type)
-        .last()?;
-    let right_name = program
-        .expression_table
-        .name_path_members(right.target_type)
-        .last()?;
+    let left_name = program.named_type_reference(left.target_type)?;
+    let right_name = program.named_type_reference(right.target_type)?;
     if left_name.as_str() != right_name.as_str() {
         return None;
     }

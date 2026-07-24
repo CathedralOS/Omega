@@ -135,7 +135,7 @@ fn copied_expression_capacity(
             capacity.saturating_add_assign(copied_expression_capacity(program, cast.value));
             capacity.name_path_members = capacity
                 .name_path_members
-                .saturating_add(span_count(cast.target_type));
+                .saturating_add(span_count(cast.target_label));
         }
         ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {

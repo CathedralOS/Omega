@@ -825,10 +825,7 @@ pub(super) fn resolve_runtime_storage_is_signed_in_table(
     // type) -- without this, the place resolution below fails on the Cast node
     // and the caller falls back to the signed encoding.
     if let ExpressionNode::Cast(cast) = expressions.expression(expression) {
-        let target = expressions
-            .name_path_members(cast.target_type)
-            .last()
-            .and_then(|name| PrimitiveType::from_name(name.as_str()))?;
+        let target = input.program.primitive_type_reference(cast.target_type)?;
         return Some(target.is_signed_integer());
     }
     // A nested BINARY operand has the signedness of its own operands (one
@@ -1267,10 +1264,7 @@ pub(super) fn classify_scalar_value_type_in_table(
         // was silently dropped (the f32->f64-local->i32 miscompile). The
         // `as`-value resolves via its own Convert selection; here we only need
         // its result type so a CONSUMING cast can size its source.
-        ExpressionNode::Cast(cast) => expressions
-            .name_path_members(cast.target_type)
-            .last()
-            .and_then(|name| PrimitiveType::from_name(name.as_str())),
+        ExpressionNode::Cast(cast) => input.program.primitive_type_reference(cast.target_type),
         // A slice/array element read (`s[0]`) has the COLLECTION's element type.
         // Without this, a cast of an element (`s[0] as i32 in Wrapping`) could not
         // classify its source, the cast's `?` bailed, the whole binary operand

@@ -517,7 +517,7 @@ fn count_expression_node(
         }
         ExpressionNode::Cast(cast) => {
             count_expression_handle(table, cast.value, counts);
-            for name in table.name_path_members(cast.target_type) {
+            for name in table.name_path_members(cast.target_label) {
                 count_expression_path_member(name, counts);
             }
         }

@@ -5291,9 +5291,7 @@ impl<'program> Evaluator<'program> {
         let target = self.cast_target_primitive(cast.target_type);
         let target_name = self
             .program
-            .expression_table
-            .name_path_members(cast.target_type)
-            .last()
+            .named_type_reference(cast.target_type)
             .map(|name| name.as_str().to_owned())
             .unwrap_or_default();
         if let ExpressionNode::Indexed(indexed) =
@@ -6147,16 +6145,12 @@ impl<'program> Evaluator<'program> {
 
     // ---- operators ----------------------------------------------------------
 
-    /// The target `PrimitiveType` of a cast's `target_type` name-path (its leaf member).
+    /// The target `PrimitiveType` of a cast's full type reference.
     fn cast_target_primitive(
         &self,
-        target_type: omega_core::arena::HandleSpan<omega_typed_trees::name::Identifier>,
+        target_type: omega_typed_trees::types::TypeReferenceHandle,
     ) -> Option<PrimitiveType> {
-        self.program
-            .expression_table
-            .name_path_members(target_type)
-            .last()
-            .and_then(|name| PrimitiveType::from_name(name.as_str()))
+        self.program.primitive_type_reference(target_type)
     }
 
     /// Apply an `as` cast with width/signedness semantics: int<->float conversions and
@@ -6267,9 +6261,7 @@ impl<'program> Evaluator<'program> {
         let Some(target) = target else {
             let target_name = self
                 .program
-                .expression_table
-                .name_path_members(cast.target_type)
-                .last()
+                .named_type_reference(cast.target_type)
                 .map(|name| name.as_str().to_owned())
                 .unwrap_or_default();
             return self.assemble_record_view(&target_name, &cells, offset);
