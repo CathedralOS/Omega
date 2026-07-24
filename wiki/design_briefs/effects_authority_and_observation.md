@@ -267,11 +267,13 @@ with parent closure drive recursive inference, checked ceilings, static-machine
 and checked-provider admission, contract/provider identity, snapshots, and
 manifests. Checked flow/graph carriers, semantic reports, build-time purity,
 assembly reach, executable manifests, and provider-plan schema identity now
-consume the split representation directly. The remaining migration removes
-the lowercase host-authority/capability audits and old fixtures, eliminates
-the final compatibility projections, and deletes the table. Unknown service
-identifiers resolve normally; there is no global hard-coded service table in
-the end state.
+consume the split representation directly. Boundary-provider approval is
+symbol-exact, capability flows use normalized call topology, and categorical
+provider authority/reporting no longer projects service names. The remaining
+migration removes lowercase validation/build-policy consumers and old
+fixtures, eliminates the final compatibility projections, and deletes the
+table. Unknown service identifiers resolve normally; there is no global
+hard-coded service table in the end state.
 
 ## Acceptance register
 

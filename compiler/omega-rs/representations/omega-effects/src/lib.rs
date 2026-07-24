@@ -10,11 +10,11 @@ use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{StatementNode, TableCall};
 
 pub use capabilities::analysis::{
-    UnapprovedHostCall, audit_host_calls, build_host_authority_registry,
+    UnapprovedBoundaryCall, audit_boundary_provider_calls,
+    build_boundary_provider_approval_registry,
 };
-pub use capabilities::host_authority::{
-    HOST_AUTHORITY_EFFECT_NAMES, HostAuthorityProvider, HostAuthorityRegistry,
-    HostCallAuthorization, authority_effects, host_authority_effects, requires_host_authority,
+pub use capabilities::provider_approval::{
+    BoundaryCallApproval, BoundaryProviderApproval, BoundaryProviderApprovalRegistry,
 };
 pub use capabilities::provider_plan;
 pub use capabilities::providers::{

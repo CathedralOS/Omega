@@ -485,8 +485,11 @@ snapshots, and manifests. Ordinary policy traits never mint service identity.
 Executable capability manifests now read the checked service, suspension, and
 blocking plans directly: they publish canonical service names and independent
 `may_suspend` / `may_block` values without a lowercase-name or numeric-bit
-projection. The legacy flat `EffectSet` remains only for capability/authority
-and lowercase-fixture consumers.
+projection. Boundary-provider approval is exact to the reached capability
+symbol, capability acquisition follows normalized call topology, primitive
+provider authority is categorical metadata, and reports never reconstruct
+authority from service names. The legacy flat `EffectSet` remains only for
+validation/build-policy compatibility and lowercase-fixture consumers.
 Normalized inference now retains machine/state/call structure as shared-row
 identities in grouped arenas. Checked-flow, state-graph, and control-flow
 records carry those identities alongside independent suspension/blocking
@@ -499,7 +502,7 @@ likewise retain only canonical service names and independent
 `may_suspend`/`may_block` ceilings; the duplicate lowercase method surface and
 plan-wide compatibility bitset are gone.
 Dedicated may-axis fixed points never depend on operational bits. Migrating the
-remaining capability/fixture consumers and deleting the compatibility engine
+remaining validation/fixture consumers and deleting the compatibility engine
 is the next EFX slice.
 
 Authority possession, provider trust receipts, resource bounds, failure

@@ -587,22 +587,17 @@ impl ArtifactWriter {
         } else {
             for (_, provider) in boundary_report.providers.iter() {
                 let contract = provider.contract_ref.as_deref().unwrap_or("none");
-                let authority = if provider.authority_effects.is_empty() {
-                    "none".to_owned()
-                } else {
-                    provider.authority_effects.join(", ")
-                };
                 let targets = if provider.target_applicability.is_empty() {
                     "all".to_owned()
                 } else {
                     provider.target_applicability.join(", ")
                 };
                 output.push_str(&format!(
-                    "- provider `{}` [{}] contract `{}` authority {{{}}} targets {{{}}} origin `{}`\n",
+                    "- provider `{}` [{}] contract `{}` host authority required {} targets {{{}}} origin `{}`\n",
                     provider.name,
                     provider.category,
                     contract,
-                    authority,
+                    provider.requires_host_authority,
                     targets,
                     provider.origin_package,
                 ));
@@ -664,16 +659,10 @@ impl ArtifactWriter {
                 } else {
                     "in-package provider"
                 };
-                let effects = if radius.authority_effects.is_empty() {
-                    "none".to_owned()
-                } else {
-                    radius.authority_effects.join(", ")
-                };
                 output.push_str(&format!(
-                    "- capability `{}` [{}] authority {{{}}} uses {} acquires {} returns {} stores {} derives {}\n",
+                    "- capability `{}` [{}] authority is the capability value; uses {} acquires {} returns {} stores {} derives {}\n",
                     radius.capability,
                     provider,
-                    effects,
                     radius.uses,
                     radius.acquires,
                     radius.returns,
@@ -1617,7 +1606,7 @@ pub struct BoundaryReport {
 }
 
 /// One registered boundary primitive provider (frozen Wave 0 decision #4):
-/// the governing contract, the authority effects it carries, and the targets
+/// the governing contract, its categorical host-authority requirement, and the targets
 /// it applies to, sourced from the boundary operator(s) bound to it.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BoundaryProviderEntry {
@@ -1625,20 +1614,19 @@ pub struct BoundaryProviderEntry {
     pub category: String,
     /// The contract governing the provider, when a bound operator declares one.
     pub contract_ref: Option<String>,
-    pub authority_effects: Vec<String>,
+    pub requires_host_authority: bool,
     /// Targets the provider applies to; empty means all targets.
     pub target_applicability: Vec<String>,
     pub origin_package: String,
 }
 
-/// Theoretical blast radius for a single boundary capability: the host-authority
-/// effects it can mint, whether it is an approved provider edge or an in-package
-/// (application-minted) provider, and the authority-flow verbs it participates in
-/// (chapter 18, "Capabilities And Authority Flow").
+/// Theoretical blast radius for a single boundary capability: whether it is an
+/// approved provider edge or an in-package (application-minted) provider, and
+/// the authority-flow verbs it participates in. The capability value itself is
+/// the authority; service names are deliberately absent.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CapabilityBlastRadius {
     pub capability: String,
-    pub authority_effects: Vec<String>,
     pub approved_provider: bool,
     pub uses: usize,
     pub returns: usize,

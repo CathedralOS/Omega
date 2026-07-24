@@ -1971,8 +1971,15 @@ fn capability_manifest_reports_authority_flow_verbs() {
         let boundary = fs::read_to_string(build_dir.join("10_boundary.html"))
             .expect("boundary report should be written");
         assert!(
-            boundary.contains("Capability Blast Radius") && boundary.contains("approved provider"),
-            "boundary report for {canary_name} should surface the capability blast radius\n{boundary}"
+            boundary.contains("Capability Blast Radius")
+                && boundary.contains("approved provider")
+                && boundary.contains("authority is the capability value"),
+            "boundary report for {canary_name} should surface capability-valued authority without a service-name projection\n{boundary}"
+        );
+        assert!(
+            !boundary.contains("authority {filesystem_io")
+                && !boundary.contains("authority {host_boundary"),
+            "boundary report for {canary_name} must not render service names as authority\n{boundary}"
         );
         assert!(
             boundary.contains("Boundary Providers"),
@@ -2045,11 +2052,11 @@ fn capability_flows_propagate_through_nested_helpers() {
 }
 
 #[test]
-fn unapproved_host_call_canary_is_rejected() {
+fn unapproved_boundary_call_canary_is_rejected() {
     let canary = fail_canary("capabilities/unapproved_host_call");
     let diagnostics = match compile_canary_without_output(&canary) {
         Ok(report) => panic!(
-            "expected unapproved host call canary to reject, but it compiled: {}",
+            "expected unapproved boundary call canary to reject, but it compiled: {}",
             report.summary()
         ),
         Err(diagnostics) => diagnostics,
@@ -2060,8 +2067,8 @@ fn unapproved_host_call_canary_is_rejected() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        combined.contains("unapproved host call"),
-        "expected unapproved host call diagnostic, got:\n{combined}"
+        combined.contains("unapproved boundary call") && combined.contains("exact capability"),
+        "expected exact boundary-provider approval diagnostic, got:\n{combined}"
     );
 }
 

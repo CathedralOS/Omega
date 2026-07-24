@@ -68,7 +68,7 @@ pub(crate) fn check_checked_facts_recording(
     }
 
     if let Err(mut host_call_diagnostics) =
-        capabilities::check_host_call_authorization(program, facts)
+        capabilities::check_boundary_provider_approval(program, facts)
     {
         diagnostics.append(&mut host_call_diagnostics);
     }
