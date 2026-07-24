@@ -386,6 +386,24 @@ fn fingerprint_checked_operand_loader(
             fingerprint_into(fingerprint, &element_byte_size.to_le_bytes());
             fingerprint_into(fingerprint, &field_byte_offset.to_le_bytes());
         }
+        Kind::FrameIndexed {
+            descriptor_byte_offset,
+            index_from_machine,
+            index_byte_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        } => {
+            fingerprint_into(
+                fingerprint,
+                &[6, u8::from(index_from_machine), index_byte_size, byte_size],
+            );
+            fingerprint_into(fingerprint, &descriptor_byte_offset.to_le_bytes());
+            fingerprint_into(fingerprint, &index_byte_offset.to_le_bytes());
+            fingerprint_into(fingerprint, &element_byte_size.to_le_bytes());
+            fingerprint_into(fingerprint, &field_byte_offset.to_le_bytes());
+        }
     }
 }
 
@@ -558,6 +576,139 @@ fn validate_checked_operand_loader(
                 selected_instruction_index,
             )?;
         }
+        Kind::FrameIndexed {
+            descriptor_byte_offset,
+            index_from_machine,
+            index_byte_offset,
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        } => {
+            validate_checked_frame_indexed_operand_loader(
+                loader.register,
+                descriptor_byte_offset,
+                index_from_machine,
+                index_byte_offset,
+                index_byte_size,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+                width,
+                encoded,
+                final_bytes,
+                selected_instruction_index,
+            )?;
+            require_checked_operand_storage_relocation(
+                relocations,
+                instruction_byte_offset + start + 2,
+                selected_instruction_index,
+            )?;
+            if index_from_machine {
+                require_checked_operand_storage_relocation(
+                    relocations,
+                    instruction_byte_offset + start + 17 + 2,
+                    selected_instruction_index,
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_checked_frame_indexed_operand_loader(
+    register: omega_machine_bytes::CheckedOperandLoaderRegister,
+    descriptor_byte_offset: u32,
+    index_from_machine: bool,
+    index_byte_offset: u32,
+    index_byte_size: u8,
+    element_byte_size: u32,
+    field_byte_offset: u32,
+    byte_size: u8,
+    width: usize,
+    encoded: &[u8],
+    final_bytes: &[u8],
+    selected_instruction_index: u32,
+) -> Result<(), Diagnostic> {
+    use omega_machine_bytes::CheckedOperandLoaderRegister as Register;
+
+    let descriptor_displacement = i32::try_from(descriptor_byte_offset).map_err(|_| {
+        Diagnostic::error(format!(
+            "checked-assembly instruction #{selected_instruction_index} frame-indexed descriptor displacement does not fit x86 disp32"
+        ))
+    })?;
+    let index_displacement = i32::try_from(index_byte_offset).map_err(|_| {
+        Diagnostic::error(format!(
+            "checked-assembly instruction #{selected_instruction_index} frame-indexed index displacement does not fit x86 disp32"
+        ))
+    })?;
+    let element_scale = i32::try_from(element_byte_size).map_err(|_| {
+        Diagnostic::error(format!(
+            "checked-assembly instruction #{selected_instruction_index} frame-indexed element scale does not fit x86 imm32"
+        ))
+    })?;
+    let value_displacement = i32::try_from(field_byte_offset).map_err(|_| {
+        Diagnostic::error(format!(
+            "checked-assembly instruction #{selected_instruction_index} frame-indexed value displacement does not fit x86 disp32"
+        ))
+    })?;
+    let index_opcode: &[u8] = match index_byte_size {
+        1 => &[0x45, 0x0f, 0xb6, 0x9f],
+        2 => &[0x45, 0x0f, 0xb7, 0x9f],
+        4 => &[0x45, 0x8b, 0x9f],
+        8 => &[0x4d, 0x8b, 0x9f],
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "checked-assembly instruction #{selected_instruction_index} retains unsupported {index_byte_size}-byte frame-index semantics"
+            )));
+        }
+    };
+    let value_opcode: &[u8] = match (register, byte_size) {
+        (Register::R10, 1) => &[0x44, 0x8a, 0x90],
+        (Register::R10, 2) => &[0x66, 0x44, 0x8b, 0x90],
+        (Register::R10, 4) => &[0x44, 0x8b, 0x90],
+        (Register::R10, 8) => &[0x4c, 0x8b, 0x90],
+        (Register::R11, 1) => &[0x44, 0x8a, 0x98],
+        (Register::R11, 2) => &[0x66, 0x44, 0x8b, 0x98],
+        (Register::R11, 4) => &[0x44, 0x8b, 0x98],
+        (Register::R11, 8) => &[0x4c, 0x8b, 0x98],
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "checked-assembly instruction #{selected_instruction_index} retains unsupported {byte_size}-byte frame-indexed value semantics"
+            )));
+        }
+    };
+    let mut expected = Vec::with_capacity(width);
+    expected.extend([0x49, 0xbf]);
+    expected.extend(0u64.to_le_bytes());
+    expected.extend([0x49, 0x8b, 0x87]);
+    expected.extend(descriptor_displacement.to_le_bytes());
+    if index_from_machine {
+        expected.extend([0x49, 0xbf]);
+        expected.extend(0u64.to_le_bytes());
+    }
+    expected.extend(index_opcode);
+    expected.extend(index_displacement.to_le_bytes());
+    expected.extend([0x4d, 0x69, 0xdb]);
+    expected.extend(element_scale.to_le_bytes());
+    expected.extend([0x4c, 0x01, 0xd8]);
+    expected.extend(value_opcode);
+    expected.extend(value_displacement.to_le_bytes());
+    if width != expected.len() || encoded != expected {
+        return Err(Diagnostic::error(format!(
+            "encoded checked-assembly instruction #{selected_instruction_index} frame-indexed operand loader does not match its retained descriptor/index/scale/value semantics"
+        )));
+    }
+    let mut expected_final = expected;
+    expected_final[2..10].copy_from_slice(&final_bytes[2..10]);
+    if index_from_machine {
+        expected_final[19..27].copy_from_slice(&final_bytes[19..27]);
+    }
+    if final_bytes != expected_final {
+        return Err(Diagnostic::error(format!(
+            "final checked-assembly instruction #{selected_instruction_index} changed its frame-indexed operand loader semantics"
+        )));
     }
     Ok(())
 }
@@ -2011,6 +2162,115 @@ mod tests {
                 .message
                 .contains("frame-base-indexed operand loader")
         );
+    }
+
+    #[test]
+    fn validates_cross_region_frame_indexed_operand_loader_semantics() {
+        use omega_core::arena::Arena;
+        use omega_core::inline_assembly::AsmControlRegister;
+        use omega_machine_bytes::{
+            CheckedInstructionValidationKind, CheckedOperandLoaderKind,
+            CheckedOperandLoaderRegister, CheckedOperandLoaderValidation, EncodedMachineCode,
+            EncodedMachineInstruction,
+        };
+
+        let mut encoded = Vec::new();
+        encoded.extend([0x49, 0xbf]);
+        encoded.extend(0u64.to_le_bytes());
+        encoded.extend([0x49, 0x8b, 0x87]);
+        encoded.extend(24u32.to_le_bytes());
+        encoded.extend([0x49, 0xbf]);
+        encoded.extend(0u64.to_le_bytes());
+        encoded.extend([0x45, 0x0f, 0xb6, 0x9f]);
+        encoded.extend(12u32.to_le_bytes());
+        encoded.extend([0x4d, 0x69, 0xdb]);
+        encoded.extend(32u32.to_le_bytes());
+        encoded.extend([0x4c, 0x01, 0xd8]);
+        encoded.extend([0x4c, 0x8b, 0x90]);
+        encoded.extend(8u32.to_le_bytes());
+        encoded.extend([0x41, 0x0f, 0x22, 0xda]);
+
+        let mut bytes = Arena::with_capacity(encoded.len());
+        let span = bytes.insert_many(encoded.iter().copied());
+        let mut instructions = Arena::with_capacity(1);
+        instructions.insert(EncodedMachineInstruction {
+            selected_instruction_index: 14,
+            bytes: span,
+            checked_validation_kind: Some(CheckedInstructionValidationKind::ControlRegisterWrite {
+                register: AsmControlRegister::Cr3,
+                source_operand_byte_width: 52,
+            }),
+            checked_operand_loaders: [
+                Some(CheckedOperandLoaderValidation {
+                    byte_offset: 0,
+                    byte_width: 52,
+                    register: CheckedOperandLoaderRegister::R10,
+                    kind: CheckedOperandLoaderKind::FrameIndexed {
+                        descriptor_byte_offset: 24,
+                        index_from_machine: true,
+                        index_byte_offset: 12,
+                        index_byte_size: 1,
+                        element_byte_size: 32,
+                        field_byte_offset: 8,
+                        byte_size: 8,
+                    },
+                }),
+                None,
+            ],
+        });
+        let code = EncodedMachineCode {
+            functions: Arena::new(),
+            instructions,
+            bytes,
+            byte_count: encoded.len(),
+        };
+
+        let mut final_bytes = encoded;
+        final_bytes[2..10].copy_from_slice(&0x1234_5678_9abc_def0u64.to_le_bytes());
+        final_bytes[19..27].copy_from_slice(&0x0fed_cba9_8765_4321u64.to_le_bytes());
+        let mut relocations = RelocationPlan::with_target(NativeTarget::linux_x64());
+        for offset in [2, 19] {
+            relocations.push_record(RelocationRecord {
+                origin: RelocationOrigin::Instruction {
+                    function_symbol_handle: Handle::invalid(),
+                    selected_instruction_index: 14,
+                },
+                section: SectionKind::Text,
+                offset,
+                byte_width: 8,
+                symbol_handle: Handle::invalid(),
+                kind: RelocationKind::Absolute64,
+            });
+        }
+
+        validate_checked_instruction_bytes(
+            omega_target::Architecture::X86_64,
+            &code,
+            &final_bytes,
+            &relocations,
+        )
+        .expect("cross-region frame-indexed semantics and both relocations should validate");
+
+        let mut missing_second = RelocationPlan::with_target(NativeTarget::linux_x64());
+        missing_second.push_record(RelocationRecord {
+            origin: RelocationOrigin::Instruction {
+                function_symbol_handle: Handle::invalid(),
+                selected_instruction_index: 14,
+            },
+            section: SectionKind::Text,
+            offset: 2,
+            byte_width: 8,
+            symbol_handle: Handle::invalid(),
+            kind: RelocationKind::Absolute64,
+        });
+        let diagnostic = validate_checked_instruction_bytes(
+            omega_target::Architecture::X86_64,
+            &code,
+            &final_bytes,
+            &missing_second,
+        )
+        .expect_err("a cross-region operand without its index-base relocation must reject");
+        assert!(diagnostic.message.contains("source-storage relocation"));
     }
 
     #[test]

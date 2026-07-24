@@ -199,6 +199,26 @@ fn checked_operand_loader(
             field_byte_offset: u32::try_from(field_byte_offset).ok()?,
             byte_size: u8::try_from(byte_size).ok()?,
         }
+    } else if let Some((
+        descriptor_byte_offset,
+        index_region,
+        index_byte_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+    )) = source.frame_indexed(operand)
+    {
+        CheckedOperandLoaderKind::FrameIndexed {
+            descriptor_byte_offset: u32::try_from(descriptor_byte_offset).ok()?,
+            index_from_machine: index_region
+                == omega_target_operations::RuntimeStorageRegion::Machine,
+            index_byte_offset: u32::try_from(index_byte_offset).ok()?,
+            index_byte_size: u8::try_from(index_byte_size).ok()?,
+            element_byte_size: u32::try_from(element_byte_size).ok()?,
+            field_byte_offset: u32::try_from(field_byte_offset).ok()?,
+            byte_size: u8::try_from(byte_size).ok()?,
+        }
     } else {
         return None;
     };
