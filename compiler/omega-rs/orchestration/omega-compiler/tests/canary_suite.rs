@@ -17,6 +17,10 @@ use std::process::Stdio;
 
 #[path = "canary_suite/inline_asm.rs"]
 mod inline_asm;
+#[path = "canary_suite/relational_invariants.rs"]
+mod relational_invariants;
+#[path = "canary_suite/task_runtime.rs"]
+mod task_runtime;
 
 #[test]
 fn retired_domain_when_surface_is_absent_from_authored_corpus() {
@@ -34135,135 +34139,6 @@ fn sysv_wrapped_float_entry_uses_xmm0_in_both_directions() {
         "expected terminal wrapped f64 loaded into xmm0"
     );
     let _ = fs::remove_dir_all(&build_dir);
-}
-
-#[test]
-fn task_lifecycle_operations_conserve_the_linear_claim() {
-    let pass = pass_canary("core/task_lifecycle_operations");
-    compile_canary_without_output(&pass).unwrap_or_else(|diagnostics| {
-        panic!(
-            "task lifecycle operations should conserve the claim:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
-
-    let fail = fail_canary("core/task_core_scope_loss");
-    let diagnostics = compile_canary_without_output(&fail)
-        .expect_err("request_cancel must not settle the task claim");
-    let rendered = diagnostics
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        rendered.contains(
-            "linear value `task` reaches scope exit without being consumed or transferred"
-        ),
-        "request_cancel should preserve the original live claim:\n{rendered}"
-    );
-}
-
-#[test]
-fn parked_continuation_is_not_source_addressable_through_task_claims() {
-    for operation in ["projection", "recast", "address", "mutation"] {
-        let name = format!("core/task_parked_continuation_{operation}_rejected");
-        let diagnostics = compile_canary_without_output(&fail_canary(&name))
-            .expect_err("parked continuation access must reject");
-        let rendered = diagnostics
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join("\n");
-        assert!(
-            rendered.contains("has no field `continuation`"),
-            "expected compiler-owned continuation opacity for {operation}, got:\n{rendered}"
-        );
-    }
-}
-
-#[test]
-fn relational_loop_invariant_canaries_pin_symbolic_head_fact() {
-    let pass = pass_canary("dependent/relational_loop_invariant_dynamic_length_compile");
-    compile_canary_without_output(&pass).unwrap_or_else(|diagnostics| {
-        panic!(
-            "relational loop invariant should prove the indexed access:\n{}",
-            diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    });
-
-    let fail = fail_canary("dependent/relational_loop_invariant_reassigned_index_rejected");
-    let diagnostics = compile_canary_without_output(&fail)
-        .expect_err("reassigning the index must invalidate the relational loop fact");
-    let rendered = diagnostics
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        rendered.contains("cannot prove index `self.i` is within length 8"),
-        "expected stale relational index rejection:\n{rendered}"
-    );
-
-    let fail = fail_canary("dependent/relational_loop_invariant_collection_call_rejected");
-    let diagnostics = compile_canary_without_output(&fail)
-        .expect_err("a collection-overlapping call must block the relational loop fact");
-    let rendered = diagnostics
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        rendered.contains("cannot prove index `self.i` is within length 8"),
-        "expected collection-frame overlap rejection:\n{rendered}"
-    );
-}
-
-#[test]
-fn relational_loop_invariant_canaries_pin_stable_limit_composition() {
-    for canary_name in [
-        "dependent/relational_loop_invariant_stable_limit_compile",
-        "dependent/relational_loop_invariant_mixed_strictness_compile",
-    ] {
-        let pass = pass_canary(canary_name);
-        compile_canary_without_output(&pass).unwrap_or_else(|diagnostics| {
-            panic!(
-                "stable relational bounds should compose at the loop head for {canary_name}:\n{}",
-                diagnostics
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            )
-        });
-    }
-
-    for canary_name in [
-        "dependent/relational_loop_invariant_limit_bridge_absent_rejected",
-        "dependent/relational_loop_invariant_limit_call_rejected",
-        "dependent/relational_loop_invariant_limit_preheader_write_rejected",
-        "dependent/relational_loop_invariant_fully_nonstrict_rejected",
-    ] {
-        let fail = fail_canary(canary_name);
-        let diagnostics = compile_canary_without_output(&fail)
-            .expect_err("missing or stale limit bridge must reject the indexed access");
-        let rendered = diagnostics
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join("\n");
-        assert!(
-            rendered.contains("cannot prove index `self.i` is within length 8"),
-            "expected stable-limit composition rejection for {canary_name}:\n{rendered}"
-        );
-    }
 }
 
 #[test]
