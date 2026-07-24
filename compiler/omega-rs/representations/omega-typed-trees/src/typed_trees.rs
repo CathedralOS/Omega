@@ -12,9 +12,6 @@ pub struct TypedTrees {
     pub roots: TypedTreeRoots,
     pub tables: TypedTreeTables,
     pub symbols: SymbolTable,
-    /// STR4 (decision 22): the effect-row interner, copied verbatim from
-    /// the resolved trees (machines' `effect_row` ids index it).
-    pub effect_rows: omega_core::semantics::EffectRowTable,
     /// EFX: normalized boundary-service declarations and rows, copied from
     /// symbol-resolved trees. All durable service consumers migrate here.
     pub service_reaches: omega_core::semantics::ServiceReachTable,
@@ -183,7 +180,6 @@ impl TypedTrees {
             roots,
             tables,
             symbols,
-            effect_rows: omega_core::semantics::EffectRowTable::default(),
             service_reaches: omega_core::semantics::ServiceReachTable::default(),
             service_reach_rows: omega_core::semantics::ServiceReachRowTable::default(),
             semantic_domains: omega_core::semantics::SemanticDomainTable::default(),

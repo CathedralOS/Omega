@@ -12,13 +12,8 @@ pub struct SymbolResolvedTrees {
     pub roots: SymbolResolvedRoots,
     pub tables: SymbolResolvedTableStorage,
     pub symbols: SymbolTable,
-    /// STR4 (decision 22): the deterministic effect-row interner --
-    /// machines carry `effect_row` ids into THIS table. Populated at the
-    /// syntax->resolved lowering, copied verbatim downstream.
-    pub effect_rows: omega_core::semantics::EffectRowTable,
     /// EFX: boundary-trait symbols normalized into service identities after
-    /// symbol assignment. This is the source of truth for service reach; the
-    /// legacy effect table remains only as a migration projection.
+    /// symbol assignment. This is the source of truth for service reach.
     pub service_reaches: omega_core::semantics::ServiceReachTable,
     pub service_reach_rows: omega_core::semantics::ServiceReachRowTable,
     /// STR4 checked plans, slice 1: the deterministic semantic-domain
@@ -118,7 +113,6 @@ impl SymbolResolvedTrees {
             roots,
             tables,
             symbols,
-            effect_rows: omega_core::semantics::EffectRowTable::default(),
             service_reaches: omega_core::semantics::ServiceReachTable::default(),
             service_reach_rows: omega_core::semantics::ServiceReachRowTable::default(),
             semantic_domains: omega_core::semantics::SemanticDomainTable::default(),

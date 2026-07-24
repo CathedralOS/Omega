@@ -492,8 +492,11 @@ authority from service names. Static-machine refinement compares normalized
 service rows directly. Checked trees now expose grouped `ServiceReachFacts` as
 a first-class root; their duplicate `EffectRowFacts` carrier and the legacy
 effect-row field/input in machine contract artifacts and fingerprints are
-deleted. The legacy flat `EffectSet` remains only for general
-validation/build-policy compatibility and lowercase-fixture consumers.
+deleted. The obsolete `EffectRowId`/`EffectRowTable` carrier is also gone from
+core, resolved trees, and typed trees; those stages retain only
+symbol-resolved `ServiceReachRowId` values. The legacy flat `EffectSet`
+remains only for general-validation compatibility and lowercase-fixture
+consumers.
 Normalized inference now retains machine/state/call structure as shared-row
 identities in grouped arenas. Checked-flow, state-graph, and control-flow
 records carry those identities alongside independent suspension/blocking
@@ -506,11 +509,11 @@ likewise retain only canonical service names and independent
 `may_suspend`/`may_block` ceilings; the duplicate lowercase method surface and
 plan-wide compatibility bitset are gone.
 Dedicated may-axis fixed points never depend on operational bits. Migrating the
-remaining general validation/fixture consumers and resolved/typed
-compatibility rows, then deleting the compatibility engine, is the next EFX
-slice. Build-script admission consumes exact service reach and admits only the
-pinned canonical `FilesystemHost` and `Console` staging slots; a custom
-boundary wrapper remains a distinct, rejected service.
+remaining general-validation/fixture consumers, then deleting the
+compatibility engine, is the next EFX slice. Build-script admission consumes
+exact service reach and admits only the pinned canonical `FilesystemHost` and
+`Console` staging slots; a custom boundary wrapper remains a distinct,
+rejected service.
 
 Authority possession, provider trust receipts, resource bounds, failure
 outcomes, and mutation remain separate fields/analyses. Do not manufacture a

@@ -94,7 +94,6 @@ mod catalog_consistency {
                 Some(omega_core::semantics::EffectMemberKind::ServiceReach),
                 "{name} is not a service-reach member"
             );
-            assert!(omega_core::semantics::effect_member_id(name).is_some());
         }
         for retired in ["Suspend", "Block", "thread_block", "sync_wait"] {
             assert!(EffectSet::from_name(retired).is_none());

@@ -138,7 +138,6 @@ impl Lowerer {
             roots,
             tables,
             symbols,
-            effect_rows,
             service_reaches,
             service_reach_rows,
             semantic_domains,
@@ -146,9 +145,8 @@ impl Lowerer {
         } = self.symbol_resolved_trees;
 
         let mut trees = SymbolResolvedTrees::with_roots(roots, tables, symbols);
-        // STR4: the interned rows/domains built during lowering survive the
-        // rebuild.
-        trees.effect_rows = effect_rows;
+        // The interned semantic rows/domains built during lowering survive
+        // the rebuild.
         trees.service_reaches = service_reaches;
         trees.service_reach_rows = service_reach_rows;
         trees.semantic_domains = semantic_domains;

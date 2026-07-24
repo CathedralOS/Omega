@@ -80,8 +80,8 @@ fn machine_record_carries_the_termination_plan_beside_the_compat_bools() {
             supply_mode: _,
             // TPR2 (2026-07-16): the normalized guarantee/witness split.
             termination_plan: _,
-            // STR4 (2026-07-16): the normalized kinded effect-row identity.
-            effect_row: _,
+            // EFX: the normalized, symbol-resolved service row is the only
+            // durable reach identity on the machine record.
             service_reach_row: _,
             lifetime_parameters: _,
             type_parameters: _,
@@ -163,17 +163,13 @@ fn data_properties_carries_first_class_multiplicity() {
     assert!(!copy);
 }
 
-/// LOSS 4 -- PARTIALLY RE-PINNED (STR4 slice 1, 2026-07-16): machines now
-/// carry the NORMALIZED kinded row identity (`effect_row: EffectRowId`
-/// into the tree's `EffectRowTable`; members kinded ServiceReach vs
-/// OperationalMay via the canonical omega-core catalog; row identity
-/// order/duplicate-blind and independent of the legacy bits). STILL LOST:
-/// the flat `EffectSet` below remains an INDEPENDENTLY-BUILT compatibility
-/// carrier (not yet a derived projection of the row -- STR6/7 flip that,
-/// and this pin then asserts the derivation), and the published-ceiling vs
-/// checked-inferred split has no carrier yet.
+/// LOSS 4 -- RE-PINNED (EFX, 2026-07-24): the obsolete kinded
+/// `EffectRowId`/`EffectRowTable` carrier is gone. Machines carry only the
+/// symbol-resolved `ServiceReachRowId`, while suspension and blocking have
+/// independent plans. The flat `EffectSet` below remains solely as the
+/// compatibility engine for consumers not yet migrated to those plans.
 #[test]
-fn effect_set_is_still_a_flat_bitset() {
+fn legacy_effect_set_remains_only_as_a_flat_compatibility_engine() {
     use omega_effects::EffectSet;
     let mut set = EffectSet::empty();
     // The flat surface: emptiness is bit-emptiness; union is bit-or over

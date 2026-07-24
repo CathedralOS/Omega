@@ -77,6 +77,7 @@ mod tests {
                 Architecture::X86_64,
                 4,
                 8,
+                4,
                 12,
                 0
             ),

@@ -221,6 +221,7 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                         syntax_trees,
                         &omega_syntax_trees::item::StateSignature {
                             name: signature.name.clone(),
+                            lifetime_parameters: signature.lifetime_parameters.clone(),
                             type_parameters: signature.type_parameters,
                             is_default: signature.is_default,
                             parameters: signature.parameters,
@@ -379,6 +380,7 @@ fn collect_type_reference(
         TypeReferenceNode::Generic {
             base_name,
             arguments,
+            ..
         } => {
             insert_reference(report, base_name.as_str(), kind, owner);
 
@@ -548,6 +550,7 @@ mod tests {
         syntax_trees.push_root_item(Item::Operator(OperatorDefinition {
             is_boundary: false,
             name,
+            lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::from_parts(type_parameter, 1),
             parameters: HandleSpan::from_parts(items_parameter, 2),
             return_type: generic_type,
@@ -596,6 +599,7 @@ mod tests {
         let operator = syntax_trees.items.append_operator(OperatorDefinition {
             is_boundary: false,
             name: operator_name,
+            lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
             parameters: HandleSpan::from_parts(parameter, 1),
             return_type: target_type,
@@ -695,6 +699,7 @@ mod tests {
             target: None,
             boundary: false,
             bodyless: false,
+            lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
             terminates: false,
