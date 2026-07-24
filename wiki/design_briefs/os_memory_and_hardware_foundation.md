@@ -926,6 +926,11 @@ interrupt machine species.
   gate, keeps IF clear for the complete handler, forbids body-authored `sti`,
   and returns only through the deriver-owned exit. Maskable roots therefore do
   not nest on the shared stack.
+- Cathedral authors the WCSU analysis class and hardware IST index as one pure
+  policy record so the ledger and IDT/TSS materializer cannot drift. Its first
+  profile assigns double fault, NMI, and machine check to dedicated classes and
+  ISTs 1/2/3, and the shared maskable-IRQ class to 4. This record grants neither
+  stack storage nor installation authority.
 - Synchronous faults remain possible with IF clear. In v1, a fault raised while
   a hard external root is live is fatal; ordinary current-stack fault handlers
   contribute their bounded frame demand to the external-IRQ stack peak.
