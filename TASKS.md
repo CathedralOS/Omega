@@ -854,7 +854,13 @@ schemas recover the same instance without publishing policy type identity.
      gated by the exception-IDT publication path; do not enable IF before that
      path is live.
    - Add LAPIC one-shot timing as the production multicore/tickless provider
-     without changing the root requirement.
+     without changing the root requirement. Cathedral now carries one pure,
+     zero-authority `local_apic` fact package for the architectural xAPIC MMIO
+     offsets, x2APIC MSRs, EOI value, LVT timer fields, divider encodings, and
+     optional TSC-deadline identities. The package intentionally asserts no
+     universal LAPIC frequency. Concrete MMIO/MSR providers, platform
+     enumeration/calibration, one-shot programming, and installed-root
+     acknowledgement remain.
    - Report ticks over the owned serial line and `hlt` between ticks under QEMU.
      Negative rails: direct assembly cannot launder reach; user `iretq` rejects;
      incomplete fragment tiling rejects; forbidden final-artifact clobbers

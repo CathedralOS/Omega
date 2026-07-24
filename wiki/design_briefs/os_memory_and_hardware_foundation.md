@@ -1024,8 +1024,13 @@ interrupt machine species.
   task reads the clock, drains due deadlines in batches, wakes their endpoints,
   and reprograms the next one-shot deadline.
 - PIT plus remapped 8259 PIC is the first QEMU/PC bring-up provider. LAPIC
-  one-shot timing is the production multicore/tickless provider. That migration
-  changes provider realization, not the root contract.
+  one-shot timing is the production multicore/tickless provider. Cathedral's
+  pure `local_apic` facts now name the architectural xAPIC MMIO offsets,
+  x2APIC MSRs, EOI value, LVT timer fields, divider encodings, and optional
+  TSC-deadline identities without granting MMIO/MSR authority or inventing a
+  universal timer frequency. Concrete access providers and platform
+  enumeration/calibration remain. The provider migration does not change the
+  root contract.
 
 The shared external-IRQ stack is backed by statically reserved storage, which
 may itself be provisioned from an Arena at boot. Its bound is the maximum
