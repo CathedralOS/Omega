@@ -199,7 +199,13 @@ fn subslice_grants_domain(
                 | FactPayload::ContractDomainMembership { domain_symbol, .. } => domain_symbol,
                 _ => return false,
             };
-            if !facts.semantic.domain_implies(fact_domain, domain_symbol) {
+            if !facts.semantic.domain_implies(fact_domain, domain_symbol)
+                && !crate::field_domain::declared_domain_implies(
+                    program,
+                    fact_domain,
+                    domain_symbol,
+                )
+            {
                 return false;
             }
             let FactPlace::Place(fact_place) = fact.place else {
@@ -267,7 +273,14 @@ fn parameter_domain_grants(
     }
     crate::field_domain::predicate_domain_constraint_symbols(program, parameter.type_reference)
         .into_iter()
-        .any(|param_domain| facts.semantic.domain_implies(param_domain, domain_symbol))
+        .any(|param_domain| {
+            facts.semantic.domain_implies(param_domain, domain_symbol)
+                || crate::field_domain::declared_domain_implies(
+                    program,
+                    param_domain,
+                    domain_symbol,
+                )
+        })
 }
 
 fn string_literal_grants_domain(
@@ -331,7 +344,14 @@ fn value_call_return_domain_grants(
     }
     crate::field_domain::predicate_domain_constraint_symbols(program, target.return_type)
         .into_iter()
-        .any(|return_domain| semantic.domain_implies(return_domain, domain_symbol))
+        .any(|return_domain| {
+            semantic.domain_implies(return_domain, domain_symbol)
+                || crate::field_domain::declared_domain_implies(
+                    program,
+                    return_domain,
+                    domain_symbol,
+                )
+        })
 }
 
 /// Clear "needs fact X here" guidance for a proof-backed operator/contract that
@@ -377,7 +397,8 @@ fn explain_domain_requirement_failure(
             _ => continue,
         };
 
-        if !facts.semantic.domain_implies(fact_domain, required_domain)
+        if (!facts.semantic.domain_implies(fact_domain, required_domain)
+            && !crate::field_domain::declared_domain_implies(program, fact_domain, required_domain))
             || !facts
                 .semantic
                 .places_match(program, fact_place, required_place)

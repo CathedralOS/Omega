@@ -1718,7 +1718,12 @@ stronger operations it needs instead of citing machine parameters generally.
   scratch writers preserve their carrier qualification with explicit `Utf8`
   postconditions, and the mirror incorporates the already-settled in-machine inventory
   scan. No sample or lattice-corpus source now declares builtin `String` or
-  `string`. Calling-policy rejection data now uses a bounded UTF-8 carrier, and
+  `string`. Proof discharge now follows the normalized semantic identity across
+  carrier-specific declarations: equal-fact `[u8; N]::Utf8` specializations
+  retain distinct operator symbols but imply one another at writes, calls, and
+  operator contracts. The concat and dungeon carrier canary families pin that
+  capacity changes do not fracture the semantic domain. Calling-policy
+  rejection data now uses a bounded UTF-8 carrier, and
   the unimported `omega/host` scaffold was deleted rather than cosmetically
   migrating its retired `capability`/`entry` architecture; live portable and
   target-provider homes are recorded in `omega/host/README.md`. The two

@@ -299,6 +299,68 @@ pub(crate) fn predicate_domain_constraint_symbols(
     }
 }
 
+/// Whether one declared domain implies another by normalized semantic identity
+/// or by an explicit domain-membership chain.
+///
+/// Capacity-specialized declarations keep distinct carrier-specific symbols so
+/// operator lookup can still select the declaration for `[u8; 8]` versus
+/// `[u8; 16]`. Their shared `semantic_id`, however, is the proof identity:
+/// validation requires repeated declarations with that identity to have equal
+/// facets and normalized fact sets. Consequently a value established in one
+/// carrier specialization satisfies the same semantic domain on another
+/// carrier. Comparing only symbols would make the documented
+/// `[u8; N]::Utf8` family fracture at every borrow, concat, or call boundary.
+pub(crate) fn declared_domain_implies(
+    program: &omega_typed_trees::TypedTrees,
+    source_domain: SymbolHandle,
+    target_domain: SymbolHandle,
+) -> bool {
+    fn inner(
+        program: &omega_typed_trees::TypedTrees,
+        source_domain: SymbolHandle,
+        target_domain: SymbolHandle,
+        visited: &mut Vec<SymbolHandle>,
+    ) -> bool {
+        if !source_domain.is_valid() || !target_domain.is_valid() {
+            return false;
+        }
+        if source_domain == target_domain {
+            return true;
+        }
+        if visited.contains(&source_domain) {
+            return false;
+        }
+        visited.push(source_domain);
+
+        let Some(source) = program
+            .domain_definitions()
+            .iter()
+            .find(|domain| domain.symbol == source_domain)
+        else {
+            return false;
+        };
+        let Some(target) = program
+            .domain_definitions()
+            .iter()
+            .find(|domain| domain.symbol == target_domain)
+        else {
+            return false;
+        };
+        if source.semantic_id.is_valid() && source.semantic_id == target.semantic_id {
+            return true;
+        }
+
+        program.proof_facts(source).iter().any(|fact| match fact {
+            omega_typed_trees::domain::ProofFact::Membership(membership) => {
+                inner(program, membership.domain_symbol, target_domain, visited)
+            }
+            omega_typed_trees::domain::ProofFact::Expression(_) => false,
+        })
+    }
+
+    inner(program, source_domain, target_domain, &mut Vec::new())
+}
+
 // --- comptime byte-predicate machinery (moved here from
 // `checks::contracts::grants` so the `semantic` fact-producer can reuse it) ---
 

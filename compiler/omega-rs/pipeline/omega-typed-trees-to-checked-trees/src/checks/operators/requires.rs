@@ -393,7 +393,9 @@ fn context_proves_membership_label(
             } => (domain_symbol, value),
             _ => return false,
         };
-        if !semantic.domain_implies(fact_domain, required_domain) {
+        if !semantic.domain_implies(fact_domain, required_domain)
+            && !crate::field_domain::declared_domain_implies(program, fact_domain, required_domain)
+        {
             return false;
         }
         let place_matches = matches!(fact.place, FactPlace::Place(place)

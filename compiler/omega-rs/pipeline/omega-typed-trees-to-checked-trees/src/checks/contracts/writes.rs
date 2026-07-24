@@ -859,7 +859,13 @@ fn value_proves_domain(
                     | FactPayload::ContractDomainMembership { domain_symbol, .. } => domain_symbol,
                     _ => return false,
                 };
-                if !facts.semantic.domain_implies(fact_domain, domain_symbol) {
+                if !facts.semantic.domain_implies(fact_domain, domain_symbol)
+                    && !crate::field_domain::declared_domain_implies(
+                        program,
+                        fact_domain,
+                        domain_symbol,
+                    )
+                {
                     return false;
                 }
                 // Match the fact's subject against the assigned value, by the
@@ -929,7 +935,9 @@ fn declared_value_domain_implies(
         .filter(|value_domain| {
             crate::field_domain::domain_admits_empty_byte_sequence(program, *value_domain)
         })
-        .any(|value_domain| program_domain_implies(program, value_domain, domain_symbol))
+        .any(|value_domain| {
+            crate::field_domain::declared_domain_implies(program, value_domain, domain_symbol)
+        })
 }
 
 /// Whether `value` is a value-position call whose resolved target state declares
@@ -950,31 +958,7 @@ fn value_call_return_domain_implies(
     }
     crate::field_domain::predicate_domain_constraint_symbols(program, target.return_type)
         .into_iter()
-        .any(|return_domain| program_domain_implies(program, return_domain, domain_symbol))
-}
-
-/// Whether `source_domain` is or imports `target_domain` (a declared
-/// domain-membership chain). The `FactPlan::domain_implies` analog over the typed
-/// program, for resolving signature-declared domains without a fact context.
-fn program_domain_implies(
-    program: &omega_typed_trees::TypedTrees,
-    source_domain: SymbolHandle,
-    target_domain: SymbolHandle,
-) -> bool {
-    if source_domain == target_domain {
-        return true;
-    }
-    let Some(domain) = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == source_domain)
-    else {
-        return false;
-    };
-    program.proof_facts(domain).iter().any(|fact| match fact {
-        omega_typed_trees::domain::ProofFact::Membership(membership) => {
-            program_domain_implies(program, membership.domain_symbol, target_domain)
-        }
-        omega_typed_trees::domain::ProofFact::Expression(_) => false,
-    })
+        .any(|return_domain| {
+            crate::field_domain::declared_domain_implies(program, return_domain, domain_symbol)
+        })
 }
