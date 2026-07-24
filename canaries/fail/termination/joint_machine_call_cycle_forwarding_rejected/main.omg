@@ -1,6 +1,6 @@
-// COMPILE CANARY. Same-shaped mutually recursive machines share one natural
-// ranking. The forwarding edge is non-increasing and the return edge is
-// strict, so every traversal of the SCC lowers the joint rank.
+// Frozen decision 23 requires every edge of a mutually recursive cycle to
+// strictly decrease its joint rank. scan_a -> scan_b forwards `remaining`
+// unchanged, so scan_b -> scan_a decreasing later cannot admit the cycle.
 data Main {}
 
 machine Main::main(&mut self) -> u64 {
