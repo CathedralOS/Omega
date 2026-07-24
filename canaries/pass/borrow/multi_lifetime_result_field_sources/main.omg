@@ -24,9 +24,8 @@ machine exercise<'left, 'right>(
     right: &'right mut i32
 ) {
     let result: Pair<'left, 'right> = pair(left, right);
-    let selected: &mut i32 = result.right;
     left = 1;
-    selected = 2;
+    result.right = 2;
 }
 
 data Main {

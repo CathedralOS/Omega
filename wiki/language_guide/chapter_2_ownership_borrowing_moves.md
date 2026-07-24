@@ -293,7 +293,9 @@ machine pair<'left, 'right>(
 The mapping follows nested records, sum payloads, fixed arrays, and concrete
 generic arguments, preserving each carried field's projection and polarity.
 Here `result.left` retains only `left`, while `result.right` retains only
-`right`.
+`right`. Last-use accounting compares the canonical field/index path, so a
+later use of `result.right` does not artificially keep `result.left`'s loan
+active.
 General outlives constraints and the remaining aggregate expression forms
 remain implementation work; they are not new language-design questions.
 

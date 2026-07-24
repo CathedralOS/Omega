@@ -1552,7 +1552,9 @@ stronger operations it needs instead of citing machine parameters generally.
   Multi-lifetime aggregate results now derive a field-specific result contract
   from the data declaration and instantiated lifetime arguments, retaining
   each field's named input independently through nested records, payloads,
-  fixed arrays, and concrete generic arguments. Finish general outlives
+  fixed arrays, and concrete generic arguments. Canonical last-use accounting
+  now compares the actual field/index path, so using one result field does not
+  artificially retain an unrelated sibling's loan. Finish general outlives
   constraints and loan propagation through the remaining aggregate expression
   forms. These are settled implementation work needed by placed views and task
   storage, not owner-design blockers.

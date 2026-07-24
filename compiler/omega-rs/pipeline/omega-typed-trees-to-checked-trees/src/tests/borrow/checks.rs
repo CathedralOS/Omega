@@ -2015,9 +2015,8 @@ fn accepts_field_specific_sources_for_multi_lifetime_result() {
             right: &'right mut i32
         ) {
             let result: Pair<'left, 'right> = pair(left, right);
-            let selected: &mut i32 = result.right;
             write(left);
-            write(selected);
+            write(result.right);
         }
     "#;
 

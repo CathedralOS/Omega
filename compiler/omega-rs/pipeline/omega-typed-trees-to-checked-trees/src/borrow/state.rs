@@ -90,8 +90,10 @@ pub(super) fn append_state_borrow_facts(
 
     update_state_loan_last_uses(
         program,
+        state.symbol,
         state.statement_nodes,
         arenas.calls.span_or_empty(calls_span),
+        arenas.access_segments,
         arenas.argument_accesses,
         state_loan_trackers,
         arenas.loans,
