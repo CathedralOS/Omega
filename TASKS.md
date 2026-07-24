@@ -1440,12 +1440,13 @@ stronger operations it needs instead of citing machine parameters generally.
   including arrays of nested records, now participate in recursively fact-free
   mutable record views; runtime-indexed projections preserve live backing-byte
   identity in the interpreter and native x86-64/AArch64 lowering. Indexed value
-  operands now carry the index slot's declared width through selection,
-  assignment, reporting, and both ISA encoders, preventing a narrow index load
-  from consuming adjacent frame bytes. The broader indexed-`Place` materializer
-  still canonicalizes dynamic indices to 32 bits; carry selected index widths
-  through `PlaceStep::ScaledIndex` and add high-bit/out-of-bounds negative rails
-  before claiming general width-correct indexed writes. Fact-bearing array
+  operands and the general indexed-`Place` materializer now carry the index
+  slot's declared width through selection, assignment, reporting, relocation
+  planning, and both ISA encoders. Exact 1/2/4/8-byte zero-extending loads cover
+  ordinary indexed reads/writes and the independent runtime-text paths, so a
+  narrow index cannot consume adjacent frame bytes and a wide index cannot lose
+  its high half. Backend exact-encoding tests and a high-bit-capable `u64`
+  out-of-bounds fail canary hold those rails. Fact-bearing array
   elements reject at the same bidirectional-fact gate. Mutable scalar
   views now admit normalized declared-domain conjunctions only when the shared
   domain graph proves implication in both directions; the implication relation

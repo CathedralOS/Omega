@@ -91,12 +91,14 @@ pub(super) fn encode_machine_instruction_bytes(
                 omega_instruction_selection::WritePlaceShape::FrameIndexed {
                     descriptor_offset,
                     index_offset,
+                    index_byte_size,
                     element_byte_size,
                     field_byte_offset,
                 } => runtime_text::encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
                     input,
                     descriptor_offset,
                     index_offset,
+                    index_byte_size,
                     element_byte_size,
                     field_byte_offset,
                 ),
@@ -130,6 +132,7 @@ pub(super) fn encode_machine_instruction_bytes(
             omega_instruction_selection::WritePlaceShape::FrameIndexed {
                 descriptor_offset,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
             } => runtime_text::encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
@@ -137,6 +140,7 @@ pub(super) fn encode_machine_instruction_bytes(
                 *source_offset,
                 descriptor_offset,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
             ),
@@ -163,12 +167,14 @@ pub(super) fn encode_machine_instruction_bytes(
             omega_instruction_selection::WritePlaceShape::FrameIndexed {
                 descriptor_offset,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
             } => runtime_text::encode_runtime_text_literal_append_to_runtime_frame_indexed(
                 input,
                 descriptor_offset,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
                 literal,

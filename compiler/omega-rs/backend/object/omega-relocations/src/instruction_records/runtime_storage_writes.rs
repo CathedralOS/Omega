@@ -97,23 +97,27 @@ pub(super) fn collect_runtime_storage_write_relocations(
                             field_byte_offset,
                         ),
                         omega_instruction_selection::WritePlaceShape::FrameIndexed {
+                            index_byte_size,
                             element_byte_size,
                             field_byte_offset,
                             ..
                         } => runtime_frame_indexed_binary_left_operand_offset(
                             context.input.target.architecture,
+                            index_byte_size,
                             element_byte_size,
                             field_byte_offset,
                         ),
                         omega_instruction_selection::WritePlaceShape::FrameBaseIndexed {
                             base_byte_offset,
                             index_offset,
+                            index_byte_size,
                             element_byte_size,
                             field_byte_offset,
                         } => runtime_frame_base_indexed_binary_left_operand_offset(
                             context.input.target.architecture,
                             base_byte_offset,
                             index_offset,
+                            index_byte_size,
                             element_byte_size,
                             field_byte_offset,
                         ),
@@ -121,6 +125,7 @@ pub(super) fn collect_runtime_storage_write_relocations(
                             base_byte_offset,
                             index_region,
                             index_offset,
+                            index_byte_size,
                             element_byte_size,
                             field_byte_offset,
                         } => {
@@ -128,6 +133,7 @@ pub(super) fn collect_runtime_storage_write_relocations(
                                 context.input.target.architecture,
                                 base_byte_offset,
                                 index_offset,
+                                index_byte_size,
                                 element_byte_size,
                                 field_byte_offset,
                             );
@@ -145,7 +151,9 @@ pub(super) fn collect_runtime_storage_write_relocations(
                         }
                         omega_instruction_selection::WritePlaceShape::MachineDoubleIndexed {
                             outer_index_region,
+                            outer_index_byte_size,
                             inner_index_region,
+                            inner_index_byte_size,
                             ..
                         } => {
                             if outer_index_region == frame || inner_index_region == frame {
@@ -159,7 +167,9 @@ pub(super) fn collect_runtime_storage_write_relocations(
                             omega_instruction_selection::runtime_machine_double_indexed_binary_left_operand_offset(
                                 context.input.target.architecture,
                                 outer_index_region,
+                                outer_index_byte_size,
                                 inner_index_region,
+                                inner_index_byte_size,
                             )
                         }
                         omega_instruction_selection::WritePlaceShape::FrameIndexedByRegion {
@@ -260,6 +270,7 @@ pub(super) fn collect_runtime_storage_write_relocations(
                         base_byte_offset,
                         index_region,
                         index_offset,
+                        index_byte_size,
                         element_byte_size,
                         field_byte_offset,
                     } = omega_instruction_selection::classify_write_place_shape(target)
@@ -280,6 +291,7 @@ pub(super) fn collect_runtime_storage_write_relocations(
                         base_byte_offset,
                         index_region,
                         index_offset,
+                        index_byte_size,
                         element_byte_size,
                         field_byte_offset,
                         0,

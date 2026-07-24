@@ -693,6 +693,7 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
                     indexed_target.descriptor_offset,
                     indexed_target.index_region,
                     indexed_target.index_offset,
+                    indexed_target.index_byte_size,
                     indexed_target.element_byte_size,
                     indexed_target.field_byte_offset,
                     indexed_target.byte_count,
@@ -1295,6 +1296,7 @@ fn runtime_indexed_convert_target_place(
         .with_step(PlaceStep::ScaledIndex {
             index_region: indexed.index_region,
             index_offset: indexed.index_offset,
+            index_byte_size: indexed.index_byte_size,
             element_byte_size: indexed.element_byte_size,
         })
         .and_then(|place| place.with_step(PlaceStep::ConstOffset(indexed.field_byte_offset)))

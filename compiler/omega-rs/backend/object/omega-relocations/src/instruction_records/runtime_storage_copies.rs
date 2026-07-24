@@ -120,6 +120,7 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                             // relocation above is the only site.
                         }
                         omega_instruction_selection::CopyPlacesShape::FromIndexed {
+                            index_byte_size,
                             element_byte_size,
                             field_byte_offset,
                             ..
@@ -133,6 +134,7 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                                 context.insert_data_address_at_relative_offset(
                                     runtime_storage_copy_from_runtime_frame_indexed_target_address_offset(
                                         context.input.target.architecture,
+                                        index_byte_size,
                                         element_byte_size,
                                         field_byte_offset,
                                     ),
@@ -262,6 +264,7 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                             base_byte_offset,
                             index_region,
                             index_offset,
+                            index_byte_size,
                             element_byte_size,
                             field_byte_offset,
                             ..
@@ -286,6 +289,7 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                                     base_byte_offset,
                                     index_region,
                                     index_offset,
+                                    index_byte_size,
                                     element_byte_size,
                                     field_byte_offset,
                                     *byte_count,
@@ -297,6 +301,7 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                             base_byte_offset,
                             index_region,
                             index_offset,
+                            index_byte_size,
                             element_byte_size,
                             field_byte_offset,
                             ..
@@ -322,6 +327,7 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                                     base_byte_offset,
                                     index_region,
                                     index_offset,
+                                    index_byte_size,
                                     element_byte_size,
                                     field_byte_offset,
                                 ),

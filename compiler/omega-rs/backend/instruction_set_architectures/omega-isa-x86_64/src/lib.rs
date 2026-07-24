@@ -7594,48 +7594,57 @@ pub fn runtime_text_storage_compare_width_x86(literal_len: usize) -> usize {
 //
 // The String descriptor lives at `*(frame+descriptor_offset) + index*elem +
 // field` (a slice element reached through the slice's data pointer). Both
-// encoders share a fixed 34-byte address-computation prefix that leaves the
-// element address in rax:
+// encoders share an address-computation prefix whose selected-width index load
+// leaves the element address in rax:
 //   mov r14,imm64(frame) (10, reloc@+2) ; mov rax,[r14+descriptor] (7)
-//   mov r11,[r14+index] (7) ; imul r11,r11,elem (7) ; add rax,r11 (3)
-// so the second relocated immediate (data/buffer) always sits at offset 36.
-const FRAME_INDEXED_STRING_PREFIX_WIDTH: usize = 34;
-pub const RUNTIME_FRAME_INDEXED_STRING_DATA_IMM_OFFSET: usize = FRAME_INDEXED_STRING_PREFIX_WIDTH;
+//   load-zx r11,[r14+index] ; imul r11,r11,elem (7) ; add rax,r11 (3)
+// The second relocated immediate follows this width-aware prefix.
+fn frame_indexed_string_prefix_width(index_byte_size: usize) -> usize {
+    27 + unsigned_load_width(index_byte_size)
+}
 
 fn append_frame_indexed_element_address_into_rax(
     bytes: &mut Vec<u8>,
     descriptor_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
 ) -> Result<(), Diagnostic> {
     append_mov_r14_imm64(bytes, 0); // frame base (reloc @ +2)
     append_load_rax_from_r14(bytes, descriptor_offset, 8)?; // rax = slice data ptr
-    append_load_r11_from_r14(bytes, index_offset)?; // r11 = index
+    append_load_unsigned_reg_from_r14(bytes, Reg64::R11, index_offset, index_byte_size)?;
     append_imul_r11_imm32(bytes, element_scale(element_byte_size)?);
     append_add_rax_r11(bytes); // rax = element address
-    debug_assert_eq!(bytes.len(), FRAME_INDEXED_STRING_PREFIX_WIDTH);
+    debug_assert_eq!(
+        bytes.len(),
+        frame_indexed_string_prefix_width(index_byte_size)
+    );
     Ok(())
 }
 
 pub fn runtime_text_literal_append_to_runtime_frame_indexed_width(
+    index_byte_size: usize,
     _element_byte_size: usize,
     _field_byte_offset: usize,
     literal: &str,
 ) -> usize {
-    // prefix (34) + mov r15,imm64 buffer (10) + mov r11,[rax+field+8] len (7)
+    // width-aware prefix + mov r15,imm64 buffer (10)
+    // + mov r11,[rax+field+8] len (7)
     // + per byte: mov cl,imm8 (2) + mov [r15+r11],cl (4) + inc r11 (3) = 9
     // + store r15->[rax+field] ptr (7) + store r11->[rax+field+8] len (7)
-    FRAME_INDEXED_STRING_PREFIX_WIDTH + 17 + literal.len() * 9 + 14
+    frame_indexed_string_prefix_width(index_byte_size) + 17 + literal.len() * 9 + 14
 }
 
 pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
     descriptor_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_text_literal_append_to_runtime_frame_indexed_width(
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         literal,
@@ -7644,6 +7653,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
         &mut bytes,
         descriptor_offset,
         index_offset,
+        index_byte_size,
         element_byte_size,
     )?;
     // r15 = buffer (reloc @ prefix+2); r11 = current len from the indexed descriptor.
@@ -7661,6 +7671,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
     debug_assert_eq!(
         bytes.len(),
         runtime_text_literal_append_to_runtime_frame_indexed_width(
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
             literal
@@ -7793,15 +7804,17 @@ pub fn encode_runtime_machine_integer_write(
 
 pub fn runtime_machine_indexed_integer_write_width(
     index_region: omega_target_operations::RuntimeStorageRegion,
+    index_byte_size: usize,
     _element_byte_size: usize,
     _byte_size: usize,
 ) -> usize {
     // mov r15,imm64 (10) [+ mov r10,imm64 (10) for RuntimeFrame index]
     // + mov rax,[base+index_off] (7) + imul rax,rax,imm32 (7)
     // + add r15,rax (3) + mov rax,imm64 (10) + store [r15+disp] (7).
+    let index_load_width = unsigned_load_width(index_byte_size);
     match index_region {
-        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => 54,
-        omega_target_operations::RuntimeStorageRegion::Machine => 44,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => 47 + index_load_width,
+        omega_target_operations::RuntimeStorageRegion::Machine => 37 + index_load_width,
     }
 }
 
@@ -7816,6 +7829,7 @@ pub fn encode_runtime_machine_indexed_integer_write(
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -7847,6 +7861,7 @@ pub fn encode_runtime_machine_indexed_integer_write(
                 place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
                     index_region,
                     index_offset,
+                    index_byte_size,
                     element_byte_size,
                 })
             })
@@ -7859,7 +7874,12 @@ pub fn encode_runtime_machine_indexed_integer_write(
     let (bytes, _) = place_copy::encode_place_integer_write(&target, value, byte_size)?;
     debug_assert_eq!(
         bytes.len(),
-        runtime_machine_indexed_integer_write_width(index_region, element_byte_size, byte_size)
+        runtime_machine_indexed_integer_write_width(
+            index_region,
+            index_byte_size,
+            element_byte_size,
+            byte_size,
+        )
     );
     Ok(bytes)
 }
@@ -8014,7 +8034,9 @@ fn double_indexed_write_any_frame(
 /// Width of [`encode_runtime_machine_double_indexed_integer_write`].
 pub fn runtime_machine_double_indexed_integer_write_width(
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_byte_size: usize,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_byte_size: usize,
 ) -> usize {
     // Canonicalized by the place materializer (Write rung 1c): mov r15,imm64
     // (10) + per-index [cross-region: mov reg,imm64 (10) + load (7) | same-
@@ -8022,7 +8044,9 @@ pub fn runtime_machine_double_indexed_integer_write_width(
     // + mov rax,imm64 (10) + store (7). Each FRAME index adds its OWN base
     // (r11 for the outer, r10 for the inner) -- no shared r10 anymore.
     let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
-    61 + if outer_index_region == frame { 10 } else { 0 }
+    47 + unsigned_load_width(outer_index_byte_size)
+        + unsigned_load_width(inner_index_byte_size)
+        + if outer_index_region == frame { 10 } else { 0 }
         + if inner_index_region == frame { 10 } else { 0 }
 }
 
@@ -8033,9 +8057,11 @@ pub fn encode_runtime_machine_double_indexed_integer_write(
     base_byte_offset: usize,
     outer_index_offset: usize,
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_byte_size: usize,
     outer_stride: usize,
     inner_index_offset: usize,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_byte_size: usize,
     inner_stride: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -8072,6 +8098,7 @@ pub fn encode_runtime_machine_double_indexed_integer_write(
                 place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
                     index_region: outer_index_region,
                     index_offset: outer_index_offset,
+                    index_byte_size: outer_index_byte_size,
                     element_byte_size: outer_stride,
                 })
             })
@@ -8079,6 +8106,7 @@ pub fn encode_runtime_machine_double_indexed_integer_write(
                 place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
                     index_region: inner_index_region,
                     index_offset: inner_index_offset,
+                    index_byte_size: inner_index_byte_size,
                     element_byte_size: inner_stride,
                 })
             })
@@ -8091,7 +8119,12 @@ pub fn encode_runtime_machine_double_indexed_integer_write(
     let (bytes, _) = place_copy::encode_place_integer_write(&target, value, byte_size)?;
     debug_assert_eq!(
         bytes.len(),
-        runtime_machine_double_indexed_integer_write_width(outer_index_region, inner_index_region,)
+        runtime_machine_double_indexed_integer_write_width(
+            outer_index_region,
+            outer_index_byte_size,
+            inner_index_region,
+            inner_index_byte_size,
+        )
     );
     Ok(bytes)
 }
@@ -8135,18 +8168,20 @@ pub fn encode_runtime_pointee_integer_write(
 }
 
 pub fn runtime_frame_indexed_integer_write_width(
+    index_byte_size: usize,
     _element_byte_size: usize,
     _field_byte_offset: usize,
     _byte_size: usize,
 ) -> usize {
     // mov r14,imm64 (10) + mov r15,[r14+desc] (7) + mov r11,[r14+idx] (7)
     // + imul r11,r11,elem (7) + add r15,r11 (3) + mov rax,imm64 (10) + store [r15+field] (7)
-    51
+    44 + unsigned_load_width(index_byte_size)
 }
 
 pub fn encode_runtime_frame_indexed_integer_write(
     descriptor_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -8173,6 +8208,7 @@ pub fn encode_runtime_frame_indexed_integer_write(
                 place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
                     index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
                     index_offset,
+                    index_byte_size,
                     element_byte_size,
                 })
             })
@@ -8185,27 +8221,34 @@ pub fn encode_runtime_frame_indexed_integer_write(
     let (bytes, _) = place_copy::encode_place_integer_write(&target, value, byte_size)?;
     debug_assert_eq!(
         bytes.len(),
-        runtime_frame_indexed_integer_write_width(element_byte_size, field_byte_offset, byte_size)
+        runtime_frame_indexed_integer_write_width(
+            index_byte_size,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        )
     );
     Ok(bytes)
 }
 
 pub fn runtime_frame_base_indexed_integer_write_width(
     _base_byte_offset: usize,
+    index_byte_size: usize,
     _element_byte_size: usize,
     _field_byte_offset: usize,
     _byte_size: usize,
 ) -> usize {
     // Canonicalized by the place materializer (Write rung 1c): mov r15,imm64
-    // (10) + mov r11d,[r15+idx] (7) + imul r11,r11,elem (7) + add r15,r11 (3)
-    // + mov rax,imm64 (10) + store [r15+base+field] (7). The retired layout's
-    // redundant `mov r15,r14` is gone.
-    44
+    // (10) + exact-width load-zx r11,[r15+idx] + imul r11,r11,elem (7)
+    // + add r15,r11 (3) + mov rax,imm64 (10) + store [r15+base+field] (7).
+    // The retired layout's redundant `mov r15,r14` is gone.
+    37 + unsigned_load_width(index_byte_size)
 }
 
 pub fn encode_runtime_frame_base_indexed_integer_write(
     base_byte_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -8230,6 +8273,7 @@ pub fn encode_runtime_frame_base_indexed_integer_write(
                 place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
                     index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
                     index_offset,
+                    index_byte_size,
                     element_byte_size,
                 })
             })
@@ -8244,6 +8288,7 @@ pub fn encode_runtime_frame_base_indexed_integer_write(
         bytes.len(),
         runtime_frame_base_indexed_integer_write_width(
             base_byte_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
             byte_size
@@ -12381,30 +12426,31 @@ pub fn encode_runtime_pointee_binary_write(
 /// Length of the address-computation prefix that precedes the value operands
 /// in a frame-base-indexed binary write -- CANONICALIZED by the place
 /// materializer (Binary rung 1b): `mov r15,imm64(frame)` (10) +
-/// `mov r11d,[r15+idx]` (7, 32-bit ZX) + `imul r11,r11,elem` (7) +
+/// exact-width `load-zx r11,[r15+idx]` + `imul r11,r11,elem` (7) +
 /// `add r15,r11` (3) + `mov r14,r15` (3).
-pub fn runtime_frame_base_indexed_binary_left_operand_offset() -> usize {
-    30
+pub fn runtime_frame_base_indexed_binary_left_operand_offset(index_byte_size: usize) -> usize {
+    23 + unsigned_load_width(index_byte_size)
 }
 
 /// Length of the address-computation prefix that precedes the value operands
 /// in a frame-INDEXED (slice-descriptor) binary write -- CANONICALIZED by
 /// the place materializer (Binary rung 1b): `mov r15,imm64(frame)` (10) +
-/// `mov r11d,[r15+idx]` (7) + `imul r11,r11,elem` (7) + `mov r15,[r15+desc]`
-/// (7) + `add r15,r11` (3) + `mov r14,r15` (3). The element address ends in
-/// r14, which operand evaluation never clobbers.
-pub fn runtime_frame_indexed_binary_left_operand_offset() -> usize {
-    37
+/// exact-width `load-zx r11,[r15+idx]` + `imul r11,r11,elem` (7) +
+/// `mov r15,[r15+desc]` (7) + `add r15,r11` (3) + `mov r14,r15` (3).
+/// The element address ends in r14, which operand evaluation never clobbers.
+pub fn runtime_frame_indexed_binary_left_operand_offset(index_byte_size: usize) -> usize {
+    30 + unsigned_load_width(index_byte_size)
 }
 
 pub fn runtime_frame_indexed_binary_write_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
+    index_byte_size: usize,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> usize {
-    runtime_frame_indexed_binary_left_operand_offset()
+    runtime_frame_indexed_binary_left_operand_offset(index_byte_size)
         + runtime_value_operand_width(runtime_value_operands, left)
         + 2 // push r10
         + runtime_value_operand_width(runtime_value_operands, right)
@@ -12423,6 +12469,7 @@ pub fn encode_runtime_frame_indexed_binary_write(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     descriptor_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -12430,9 +12477,9 @@ pub fn encode_runtime_frame_indexed_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
-    // Binary rung 1b: DELEGATES through the place materializer -- prefix
-    // 34 -> 37 (the same multiset reordered + the r14 hop; the index still
-    // 32-bit ZX in r11, the descriptor deref hops r15 in place).
+    // Binary rung 1b: DELEGATES through the place materializer. The
+    // selected-width index is zero-extended into r11, the descriptor deref
+    // hops r15 in place, and the r14 hop preserves the computed address.
     let target =
         place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
             .with_step(omega_target_operations::PlaceStep::ConstOffset(
@@ -12443,6 +12490,7 @@ pub fn encode_runtime_frame_indexed_binary_write(
                 place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
                     index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
                     index_offset,
+                    index_byte_size,
                     element_byte_size,
                 })
             })
@@ -12467,6 +12515,7 @@ pub fn encode_runtime_frame_indexed_binary_write(
         bytes.len(),
         runtime_frame_indexed_binary_write_width(
             runtime_value_operands,
+            index_byte_size,
             byte_size,
             left,
             operator,
@@ -12478,12 +12527,13 @@ pub fn encode_runtime_frame_indexed_binary_write(
 
 pub fn runtime_frame_base_indexed_binary_write_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
+    index_byte_size: usize,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> usize {
-    runtime_frame_base_indexed_binary_left_operand_offset()
+    runtime_frame_base_indexed_binary_left_operand_offset(index_byte_size)
         + runtime_value_operand_width(runtime_value_operands, left)
         + 2 // push r10
         + runtime_value_operand_width(runtime_value_operands, right)
@@ -12498,6 +12548,7 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     base_byte_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -12505,11 +12556,10 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
-    // Binary rung 1b: DELEGATES through the place materializer -- prefix
-    // 27 -> 30 (the r14 hop), and the index load CANONICALIZES to the
-    // 32-bit zero-extended discipline (the retired 64-bit index load could
-    // splice a neighboring slot's bytes into the high half; the
-    // materializer's ZX read is the correct one).
+    // Binary rung 1b: DELEGATES through the place materializer. The r14 hop
+    // preserves the computed address and the exact-width zero-extending load
+    // cannot splice neighboring bytes into a narrow index or truncate a wide
+    // index.
     let target =
         place_copy::transitional_place(omega_target_operations::RuntimeStorageRegion::RuntimeFrame)
             .with_step(omega_target_operations::PlaceStep::ConstOffset(
@@ -12519,6 +12569,7 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
                 place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
                     index_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
                     index_offset,
+                    index_byte_size,
                     element_byte_size,
                 })
             })
@@ -12543,6 +12594,7 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
         bytes.len(),
         runtime_frame_base_indexed_binary_write_width(
             runtime_value_operands,
+            index_byte_size,
             byte_size,
             left,
             operator,
@@ -12555,6 +12607,7 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
 pub fn runtime_machine_indexed_binary_write_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     index_region: omega_target_operations::RuntimeStorageRegion,
+    index_byte_size: usize,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
@@ -12572,6 +12625,7 @@ pub fn runtime_machine_indexed_binary_write_width(
         };
     runtime_frame_base_indexed_binary_write_width(
         runtime_value_operands,
+        index_byte_size,
         byte_size,
         left,
         operator,
@@ -12585,6 +12639,7 @@ pub fn encode_runtime_machine_indexed_binary_write(
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -12607,6 +12662,7 @@ pub fn encode_runtime_machine_indexed_binary_write(
                 place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
                     index_region,
                     index_offset,
+                    index_byte_size,
                     element_byte_size,
                 })
             })
@@ -12632,6 +12688,7 @@ pub fn encode_runtime_machine_indexed_binary_write(
         runtime_machine_indexed_binary_write_width(
             runtime_value_operands,
             index_region,
+            index_byte_size,
             byte_size,
             left,
             operator,
@@ -12642,26 +12699,32 @@ pub fn encode_runtime_machine_indexed_binary_write(
 }
 
 /// Prologue width of the double-indexed binary write (the left operand starts
-/// here): mov r14,imm64 (10) [+ mov r10,imm64 (10) if any frame index]
-/// + mov r15d (7) + mov r11d (7) + imul r15 (7) + imul r11 (7)
+/// here): mov r14,imm64 (10) [+ mov index-base,imm64 (10) for each frame
+/// index] + two exact-width zero-extending index loads + two imuls (7 each)
 /// + add r14,r15 (3) + add r14,r11 (3).
 pub fn runtime_machine_double_indexed_binary_left_operand_offset(
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_byte_size: usize,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_byte_size: usize,
 ) -> usize {
     // Canonicalized by the place materializer (Binary rung 1b): mov r15,
     // imm64 (10) + per-index [cross-region mov+load (17) | same-region
     // load (7)] + imul (7) each + add r15,r11 (3) + add r15,r10 (3) +
     // mov r14,r15 (3). Each frame index adds its OWN base.
     let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
-    47 + if outer_index_region == frame { 10 } else { 0 }
+    33 + unsigned_load_width(outer_index_byte_size)
+        + unsigned_load_width(inner_index_byte_size)
+        + if outer_index_region == frame { 10 } else { 0 }
         + if inner_index_region == frame { 10 } else { 0 }
 }
 
 pub fn runtime_machine_double_indexed_binary_write_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_byte_size: usize,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_byte_size: usize,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
@@ -12669,7 +12732,9 @@ pub fn runtime_machine_double_indexed_binary_write_width(
 ) -> usize {
     runtime_machine_double_indexed_binary_left_operand_offset(
         outer_index_region,
+        outer_index_byte_size,
         inner_index_region,
+        inner_index_byte_size,
     ) + runtime_value_operand_width(runtime_value_operands, left)
         + 2 // push r10
         + runtime_value_operand_width(runtime_value_operands, right)
@@ -12690,9 +12755,11 @@ pub fn encode_runtime_machine_double_indexed_binary_write(
     base_byte_offset: usize,
     outer_index_offset: usize,
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_byte_size: usize,
     outer_stride: usize,
     inner_index_offset: usize,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_byte_size: usize,
     inner_stride: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -12726,6 +12793,7 @@ pub fn encode_runtime_machine_double_indexed_binary_write(
                 place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
                     index_region: outer_index_region,
                     index_offset: outer_index_offset,
+                    index_byte_size: outer_index_byte_size,
                     element_byte_size: outer_stride,
                 })
             })
@@ -12733,6 +12801,7 @@ pub fn encode_runtime_machine_double_indexed_binary_write(
                 place.with_step(omega_target_operations::PlaceStep::ScaledIndex {
                     index_region: inner_index_region,
                     index_offset: inner_index_offset,
+                    index_byte_size: inner_index_byte_size,
                     element_byte_size: inner_stride,
                 })
             })
@@ -12758,7 +12827,9 @@ pub fn encode_runtime_machine_double_indexed_binary_write(
         runtime_machine_double_indexed_binary_write_width(
             runtime_value_operands,
             outer_index_region,
+            outer_index_byte_size,
             inner_index_region,
+            inner_index_byte_size,
             byte_size,
             left,
             operator,
@@ -14595,12 +14666,25 @@ fn append_mov_r11_imm64(bytes: &mut Vec<u8>, value: u64) {
     bytes.extend(value.to_le_bytes());
 }
 
-/// 32-bit zero-extended index load through r11's own value (the
-/// cross-region index base pattern; see `append_load_r11_from_r14`'s
-/// width rationale).
-fn append_load_r11_from_r11(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+/// Exact-width unsigned index load through r11's own value (the
+/// cross-region index base pattern).
+fn append_load_unsigned_r11_from_r11(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
-    bytes.extend([0x45, 0x8b, 0x9b]); // mov r11d, [r11 + disp32]
+    match byte_size {
+        1 => bytes.extend([0x45, 0x0f, 0xb6, 0x9b]),
+        2 => bytes.extend([0x45, 0x0f, 0xb7, 0x9b]),
+        4 => bytes.extend([0x45, 0x8b, 0x9b]),
+        8 => bytes.extend([0x4d, 0x8b, 0x9b]),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 MVP encoder cannot load {byte_size}-byte runtime indexes yet"
+            )));
+        }
+    }
     bytes.extend(displacement.to_le_bytes());
     Ok(())
 }
@@ -14685,22 +14769,6 @@ fn append_mov_r11_rcx(bytes: &mut Vec<u8>) {
 fn append_load_r11_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
     bytes.extend([0x4d, 0x8b, 0x9f]); // mov r11, [r15 + disp32]
-    bytes.extend(displacement.to_le_bytes());
-    Ok(())
-}
-
-/// Load an array INDEX into r11 from `[r15 + disp32]` as a 32-bit zero-extended
-/// value (`mov r11d`). An index always fits in 32 bits and is non-negative, but
-/// its frame slot may be a 4-byte `i32` whose adjacent bytes hold an unrelated
-/// value; a 64-bit load would splice that garbage into the high half of the index
-/// and compute a wild element address. (Same rationale as the r14-based index
-/// load; the length/pointer r15 loads stay 64-bit.)
-fn append_load_index_r11_from_r15(
-    bytes: &mut Vec<u8>,
-    byte_offset: usize,
-) -> Result<(), Diagnostic> {
-    let displacement = disp32(byte_offset)?;
-    bytes.extend([0x45, 0x8b, 0x9f]); // mov r11d, [r15 + disp32]
     bytes.extend(displacement.to_le_bytes());
     Ok(())
 }
@@ -14794,20 +14862,6 @@ fn append_load_r10_from_r14(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(
     Ok(())
 }
 
-fn append_load_r11_from_r14(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
-    let displacement = disp32(byte_offset)?;
-    // 32-bit load (`mov r11d`), which zero-extends into the full r11. This is the
-    // array-INDEX load (every caller follows it with `imul r11, element_scale`).
-    // An index is a non-negative array offset that always fits in 32 bits, but its
-    // frame slot may be a 4-byte `i32` whose adjacent 4 bytes hold an unrelated
-    // value; a 64-bit load would splice that garbage into the high half of the
-    // index and compute a wild element address. Reading exactly 4 zero-extended
-    // bytes is correct for both `i32` and (small) `usize` indices.
-    bytes.extend([0x45, 0x8b, 0x9e]); // mov r11d, [r14 + disp32]
-    bytes.extend(displacement.to_le_bytes());
-    Ok(())
-}
-
 fn append_mov_r14_r15(bytes: &mut Vec<u8>) {
     bytes.extend([0x4d, 0x89, 0xfe]); // mov r14, r15
 }
@@ -14870,36 +14924,23 @@ fn append_imul_r11_imm32(bytes: &mut Vec<u8>, value: i32) {
     bytes.extend(value.to_le_bytes());
 }
 
-// r10 = the SECOND index scratch (the double-index rung): same 32-bit
-// zero-extended load + scale discipline as r11's family.
-// (append_mov_r10_imm64 already exists above.)
-
-fn append_load_index_r10_from_r14(
+fn append_load_unsigned_r10_from_r10(
     bytes: &mut Vec<u8>,
     byte_offset: usize,
+    byte_size: usize,
 ) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
-    bytes.extend([0x45, 0x8b, 0x96]); // mov r10d, [r14 + disp32]
-    bytes.extend(displacement.to_le_bytes());
-    Ok(())
-}
-
-fn append_load_index_r10_from_r15(
-    bytes: &mut Vec<u8>,
-    byte_offset: usize,
-) -> Result<(), Diagnostic> {
-    let displacement = disp32(byte_offset)?;
-    bytes.extend([0x45, 0x8b, 0x97]); // mov r10d, [r15 + disp32]
-    bytes.extend(displacement.to_le_bytes());
-    Ok(())
-}
-
-fn append_load_index_r10_from_r10(
-    bytes: &mut Vec<u8>,
-    byte_offset: usize,
-) -> Result<(), Diagnostic> {
-    let displacement = disp32(byte_offset)?;
-    bytes.extend([0x45, 0x8b, 0x92]); // mov r10d, [r10 + disp32]
+    match byte_size {
+        1 => bytes.extend([0x45, 0x0f, 0xb6, 0x92]),
+        2 => bytes.extend([0x45, 0x0f, 0xb7, 0x92]),
+        4 => bytes.extend([0x45, 0x8b, 0x92]),
+        8 => bytes.extend([0x4d, 0x8b, 0x92]),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 MVP encoder cannot load {byte_size}-byte runtime indexes yet"
+            )));
+        }
+    }
     bytes.extend(displacement.to_le_bytes());
     Ok(())
 }
@@ -15090,6 +15131,31 @@ fn append_load_unsigned_reg_from_r15(
         (Reg64::R11, 2) => bytes.extend([0x45, 0x0f, 0xb7, 0x9f]),
         (_, 4 | 8) => {
             return append_load_reg_from_r15(bytes, destination, byte_offset, byte_size);
+        }
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 MVP encoder cannot load {byte_size}-byte runtime indexes yet"
+            )));
+        }
+    }
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_load_unsigned_reg_from_r14(
+    bytes: &mut Vec<u8>,
+    destination: Reg64,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    match (destination, byte_size) {
+        (Reg64::R10, 1) => bytes.extend([0x45, 0x0f, 0xb6, 0x96]),
+        (Reg64::R10, 2) => bytes.extend([0x45, 0x0f, 0xb7, 0x96]),
+        (Reg64::R11, 1) => bytes.extend([0x45, 0x0f, 0xb6, 0x9e]),
+        (Reg64::R11, 2) => bytes.extend([0x45, 0x0f, 0xb7, 0x9e]),
+        (_, 4 | 8) => {
+            return append_load_reg_from_r14(bytes, destination, byte_offset, byte_size);
         }
         _ => {
             return Err(Diagnostic::error(format!(

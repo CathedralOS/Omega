@@ -501,6 +501,7 @@ fn select_runtime_frame_slot_value_write_in_table_with_source_anchor_and_call_or
                 indexed_source.descriptor_offset,
                 indexed_source.index_region,
                 indexed_source.index_offset,
+                indexed_source.index_byte_size,
                 indexed_source.element_byte_size,
                 indexed_source.field_byte_offset,
                 RuntimeStorageRegion::RuntimeFrame,
@@ -531,6 +532,7 @@ fn select_runtime_frame_slot_value_write_in_table_with_source_anchor_and_call_or
                 machine_source.base_byte_offset,
                 machine_source.index_region,
                 machine_source.index_offset,
+                machine_source.index_byte_size,
                 machine_source.element_byte_size,
                 machine_source.field_byte_offset,
                 RuntimeStorageRegion::RuntimeFrame,
@@ -556,9 +558,11 @@ fn select_runtime_frame_slot_value_write_in_table_with_source_anchor_and_call_or
                 double_source.base_byte_offset,
                 double_source.outer_index_region,
                 double_source.outer_index_offset,
+                double_source.outer_index_byte_size,
                 double_source.outer_stride,
                 double_source.inner_index_region,
                 double_source.inner_index_offset,
+                double_source.inner_index_byte_size,
                 double_source.inner_stride,
                 double_source.field_byte_offset,
                 RuntimeStorageRegion::RuntimeFrame,
@@ -583,8 +587,10 @@ fn select_runtime_frame_slot_value_write_in_table_with_source_anchor_and_call_or
             crate::selection::runtime_dispatch::copy_places_from_frame_base_double_indexed(
                 double_source.base_byte_offset,
                 double_source.outer_index_offset,
+                double_source.outer_index_byte_size,
                 double_source.outer_stride,
                 double_source.inner_index_offset,
+                double_source.inner_index_byte_size,
                 double_source.inner_stride,
                 double_source.field_byte_offset,
                 RuntimeStorageRegion::RuntimeFrame,
@@ -623,6 +629,7 @@ fn select_runtime_frame_slot_value_write_in_table_with_source_anchor_and_call_or
             .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
                 index_region: RuntimeStorageRegion::RuntimeFrame,
                 index_offset: frame_source.index_offset,
+                index_byte_size: frame_source.index_byte_size,
                 element_byte_size: frame_source.element_byte_size,
             })
             .and_then(|place| {
@@ -728,6 +735,7 @@ fn select_runtime_frame_slot_address_write_in_table(
                     indexed_target.descriptor_offset,
                     RuntimeStorageRegion::RuntimeFrame,
                     indexed_target.index_offset,
+                    indexed_target.index_byte_size,
                     indexed_target.element_byte_size,
                     indexed_target.field_byte_offset,
                     slot.byte_offset,
@@ -746,6 +754,7 @@ fn select_runtime_frame_slot_address_write_in_table(
                 crate::selection::runtime_dispatch::write_place_address_base_indexed(
                     indexed_target.base_byte_offset,
                     indexed_target.index_offset,
+                    indexed_target.index_byte_size,
                     indexed_target.element_byte_size,
                     indexed_target.field_byte_offset,
                     slot.byte_offset,
@@ -839,6 +848,7 @@ fn select_runtime_frame_slot_place_address_write_in_table(
                 target.descriptor_offset,
                 RuntimeStorageRegion::RuntimeFrame,
                 target.index_offset,
+                target.index_byte_size,
                 target.element_byte_size,
                 target.field_byte_offset,
                 slot.byte_offset,
@@ -857,6 +867,7 @@ fn select_runtime_frame_slot_place_address_write_in_table(
             crate::selection::runtime_dispatch::write_place_address_base_indexed(
                 target.base_byte_offset,
                 target.index_offset,
+                target.index_byte_size,
                 target.element_byte_size,
                 target.field_byte_offset,
                 slot.byte_offset,
