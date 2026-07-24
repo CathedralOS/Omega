@@ -119,7 +119,12 @@ Current ownership is:
   in later operands keep a place live across an earlier nested call.
   Call-argument policy derivation uses the target declaration's generic bounds;
   unrelated caller type parameters cannot qualify the target by name.
-  CPU/thread/address demands remain provider-admission work.
+  `facts/carry.rs` derives the canonical contained-machine field topology into
+  grouped machine/field/target arenas. `checks/carry/preemption.rs` joins each
+  machine's direct all-instruction envelope across that cycle-safe subtree;
+  task-plan safe-point policy likewise joins descendant crossing facts.
+  CPU/thread/address compatibility with a selected runtime remains
+  provider-admission work.
 - `omega-checked-trees/src/flow.rs` owns the published checked-flow fact model
   export surface. The model is split by semantic noun under
   `omega-checked-trees/src/flow/`: `contexts.rs` owns semantic/borrow

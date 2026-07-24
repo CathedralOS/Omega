@@ -11,6 +11,8 @@ use omega_effects::OperationalPlan;
 use omega_proof::obligations::ProofPlan;
 use omega_typed_trees::TypedTrees;
 
+mod carry;
+
 pub(crate) fn build_check_facts(
     program: &TypedTrees,
     proof_plan: &ProofPlan<'_>,
@@ -52,7 +54,7 @@ pub(crate) fn build_check_facts(
     let contract_plans = build_contract_plans(program, &service_reaches, &operations);
     // CRY1: materialize the effective structural policy once in the checked
     // fact layer; authored clauses remain minimum promises on typed data.
-    let carry = build_carry_facts(program);
+    let carry = carry::build_carry_facts(program);
 
     CheckFacts::with_roots(
         semantic,
@@ -71,23 +73,6 @@ pub(crate) fn build_check_facts(
         contract_plans,
         carry,
     )
-}
-
-fn build_carry_facts(program: &TypedTrees) -> omega_checked_trees::CarryFacts {
-    let data = program
-        .data_definitions()
-        .iter()
-        .map(|definition| omega_checked_trees::DataCarryFact {
-            data: definition.symbol,
-            declared: definition.properties.carry,
-            effective: omega_validation::effective_data_carry_policy(program, definition),
-        })
-        .collect();
-    omega_checked_trees::CarryFacts {
-        data,
-        suspension_crossings: Vec::new(),
-        asynchronous_preemption: Vec::new(),
-    }
 }
 
 /// STR4 checked plans (machine_taxonomy.md): assemble each machine's

@@ -2,6 +2,10 @@ use super::*;
 use omega_checked_trees::data::{DataDefinition, DataField, DataMember};
 use omega_checked_trees::name::Identifier;
 use omega_checked_trees::types::TypeReferenceNode;
+use omega_checked_trees::{
+    ContainedMachineFieldFact, ContainedMachineTargetFact, MachineCarryTopologyFact,
+};
+use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 
 #[test]
@@ -76,6 +80,40 @@ fn contained_topology_is_derived_only_from_fields_with_attached_machines() {
         ..Default::default()
     };
     program.typed.push_machine(main_machine.clone());
+
+    let targets = program
+        .facts
+        .carry
+        .contained_targets
+        .insert_many([ContainedMachineTargetFact {
+            machine: worker_machine_symbol,
+        }]);
+    let fields = program
+        .facts
+        .carry
+        .contained_fields
+        .insert_many([ContainedMachineFieldFact {
+            field: worker_field_symbol,
+            data: worker_data_symbol,
+            type_reference: worker_type,
+            targets,
+        }]);
+    program
+        .facts
+        .carry
+        .machine_topologies
+        .insert(MachineCarryTopologyFact {
+            machine: worker_machine_symbol,
+            fields: HandleSpan::empty(),
+        });
+    program
+        .facts
+        .carry
+        .machine_topologies
+        .insert(MachineCarryTopologyFact {
+            machine: main_machine_symbol,
+            fields,
+        });
 
     let mut graph = StateGraph::default();
     let contains = machine_contains(&mut graph, &program, &main_machine);

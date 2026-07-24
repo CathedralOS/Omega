@@ -129,24 +129,38 @@ pub(crate) fn machine_contains(
     machine: &Machine,
 ) -> HandleSpan<ContainedGraph> {
     let mut contains = HandleSpan::empty();
-    let Some(data_definition) = program
-        .data_definitions()
-        .iter()
-        .find(|data_definition| Some(&data_definition.name) == machine.attached_data.as_ref())
-    else {
-        return contains;
-    };
-
-    for member in program.data_members(data_definition) {
-        let omega_checked_trees::data::DataMember::Field(field) = member else {
+    for contained in program
+        .facts
+        .carry
+        .contained_fields_for_machine(machine.symbol)
+    {
+        let Some(field) = program.data_definitions().iter().find_map(|definition| {
+            program
+                .data_members(definition)
+                .iter()
+                .find_map(|member| match member {
+                    omega_checked_trees::data::DataMember::Field(field)
+                        if field.symbol == contained.field =>
+                    {
+                        Some(field)
+                    }
+                    _ => None,
+                })
+        }) else {
             continue;
         };
-
-        let field_type_name = type_reference_name_handle(program, field.type_reference);
-        let Some(target_machine) = program
-            .machines()
+        let Some(field_data) = program
+            .data_definitions()
             .iter()
-            .find(|candidate| candidate.attached_data.as_ref() == Some(&field_type_name))
+            .find(|definition| definition.symbol == contained.data)
+        else {
+            continue;
+        };
+        let Some(target) = program
+            .facts
+            .carry
+            .contained_targets_for_field(contained)
+            .first()
         else {
             continue;
         };
@@ -161,41 +175,13 @@ pub(crate) fn machine_contains(
             ContainedGraph {
                 symbol: contained_symbol,
                 name: field.name.clone(),
-                type_symbol: target_machine.symbol,
-                type_name: field_type_name,
+                type_symbol: target.machine,
+                type_name: field_data.name.clone(),
             },
         );
     }
 
     contains
-}
-
-fn type_reference_name_handle(
-    program: &CheckedTrees,
-    type_reference: omega_checked_trees::types::TypeReferenceHandle,
-) -> omega_checked_trees::name::Identifier {
-    match program.type_reference_table.type_reference(type_reference) {
-        omega_checked_trees::types::TypeReferenceNode::Reference { referee, .. } => {
-            type_reference_name_handle(program, *referee)
-        }
-        omega_checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_name_handle(program, *base_type)
-        }
-        omega_checked_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
-            type_reference_name_handle(program, *element_type)
-        }
-        omega_checked_trees::types::TypeReferenceNode::Slice { element_type } => {
-            type_reference_name_handle(program, *element_type)
-        }
-        omega_checked_trees::types::TypeReferenceNode::Generic { base_name, .. } => {
-            base_name.clone()
-        }
-        omega_checked_trees::types::TypeReferenceNode::DynamicTrait { name, .. } => name.clone(),
-        omega_checked_trees::types::TypeReferenceNode::Named { name, .. } => name.clone(),
-        omega_checked_trees::types::TypeReferenceNode::Unit => {
-            omega_checked_trees::name::Identifier::default()
-        }
-    }
 }
 
 #[cfg(test)]

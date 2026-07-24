@@ -128,26 +128,14 @@ pub(super) fn elaborate_task_activation_plans(
 
         let may_suspend = contract.suspension.checked_may_suspend;
         let may_block = contract.blocking.checked_may_block;
-        let crossings = program
-            .facts
-            .carry
-            .suspension_crossings
-            .iter()
-            .filter(|crossing| crossing.machine == target_machine.symbol)
-            .collect::<Vec<_>>();
+        let crossings = activation_carry_crossings(program, target_machine.symbol);
         // A transparent target that reaches Suspend must have canonical facts
-        // for its possible park sites. Missing facts are not evidence of
-        // safety: keep the plan validator fail-closed.
-        let suspension_crossings_safe = !may_suspend
-            || (!crossings.is_empty()
-                && crossings
-                    .iter()
-                    .all(|crossing| crossing.effective.suspension == CarrySuspension::Allowed));
-        let safe_point_policy = crossings
-            .iter()
-            .fold(CarryPolicy::PERMISSIVE, |policy, crossing| {
-                policy.intersect(crossing.effective)
-            });
+        // for its possible park sites, including contained-machine frames.
+        // Missing facts are not evidence of safety: keep the plan validator
+        // fail-closed.
+        let suspension_crossings_safe =
+            !may_suspend || (!crossings.subtree.is_empty() && crossings.all_allow_suspension());
+        let safe_point_policy = crossings.safe_point_policy();
         let asynchronous_migration = program
             .facts
             .carry
@@ -155,7 +143,7 @@ pub(super) fn elaborate_task_activation_plans(
             .filter(|fact| fact.analysis_complete)
             .map(|fact| migration_demand(fact.effective));
         let (continuation_bytes, continuation_alignment) =
-            continuation_layout(program, target, &layouts, target_machine, &crossings)?;
+            continuation_layout(program, target, &layouts, target_machine, &crossings.root)?;
 
         let plan = validate_activation_plan(ActivationPlanCandidate {
             machine_contract,
@@ -195,6 +183,47 @@ pub(super) fn elaborate_task_activation_plans(
 
     program.facts.contract_plans.task_activations = activations;
     Ok(())
+}
+
+struct ActivationCarryCrossings<'program> {
+    root: Vec<&'program omega_checked_trees::SuspensionCrossingCarryFact>,
+    subtree: Vec<&'program omega_checked_trees::SuspensionCrossingCarryFact>,
+}
+
+impl ActivationCarryCrossings<'_> {
+    fn all_allow_suspension(&self) -> bool {
+        self.subtree
+            .iter()
+            .all(|crossing| crossing.effective.suspension == CarrySuspension::Allowed)
+    }
+
+    fn safe_point_policy(&self) -> CarryPolicy {
+        self.subtree
+            .iter()
+            .fold(CarryPolicy::PERMISSIVE, |policy, crossing| {
+                policy.intersect(crossing.effective)
+            })
+    }
+}
+
+fn activation_carry_crossings(
+    program: &CheckedTrees,
+    root: omega_core::symbols::SymbolHandle,
+) -> ActivationCarryCrossings<'_> {
+    let subtree_machines = program.facts.carry.machine_subtree_symbols(root);
+    let subtree = program
+        .facts
+        .carry
+        .suspension_crossings
+        .iter()
+        .filter(|crossing| subtree_machines.contains(&crossing.machine))
+        .collect::<Vec<_>>();
+    let root = subtree
+        .iter()
+        .copied()
+        .filter(|crossing| crossing.machine == root)
+        .collect();
+    ActivationCarryCrossings { root, subtree }
 }
 
 fn task_start_operation(
@@ -451,6 +480,64 @@ mod tests {
     }
 
     #[test]
+    fn activation_safe_point_policy_joins_contained_machine_crossings() {
+        let root = omega_core::symbols::SymbolHandle::from_arena_index(1);
+        let child = omega_core::symbols::SymbolHandle::from_arena_index(2);
+        let field = omega_core::symbols::SymbolHandle::from_arena_index(3);
+        let data = omega_core::symbols::SymbolHandle::from_arena_index(4);
+        let mut program = CheckedTrees::default();
+        let targets = program
+            .facts
+            .carry
+            .contained_targets
+            .insert_many([omega_checked_trees::ContainedMachineTargetFact { machine: child }]);
+        let fields = program.facts.carry.contained_fields.insert_many([
+            omega_checked_trees::ContainedMachineFieldFact {
+                field,
+                data,
+                type_reference: omega_checked_trees::types::TypeReferenceHandle::invalid(),
+                targets,
+            },
+        ]);
+        program.facts.carry.machine_topologies.insert(
+            omega_checked_trees::MachineCarryTopologyFact {
+                machine: root,
+                fields,
+            },
+        );
+        program.facts.carry.machine_topologies.insert(
+            omega_checked_trees::MachineCarryTopologyFact {
+                machine: child,
+                fields: omega_core::arena::HandleSpan::empty(),
+            },
+        );
+        let child_policy = CarryPolicy {
+            suspension: CarrySuspension::Allowed,
+            cpu: CarryCpu::Origin,
+            host_thread: CarryHostThread::Any,
+            address: CarryAddress::Movable,
+        };
+        program.facts.carry.suspension_crossings.push(
+            omega_checked_trees::SuspensionCrossingCarryFact {
+                machine: child,
+                state: omega_core::symbols::SymbolHandle::invalid(),
+                statement_index: 0,
+                call_ordinal: 0,
+                target: omega_core::symbols::SymbolHandle::invalid(),
+                effective: child_policy,
+                live_values: Vec::new(),
+            },
+        );
+
+        let crossings = activation_carry_crossings(&program, root);
+
+        assert!(crossings.root.is_empty());
+        assert_eq!(crossings.subtree.len(), 1);
+        assert!(crossings.all_allow_suspension());
+        assert_eq!(crossings.safe_point_policy(), child_policy);
+    }
+
+    #[test]
     fn concrete_task_start_specialization_elaborates_a_validated_plan() {
         let source = r#"
             data Task<T> [linear] { provider: u64; activation: u64; }
@@ -531,6 +618,7 @@ mod tests {
         assert_eq!(plan.continuation_alignment, 8);
         assert!(plan.may_suspend);
         assert!(!plan.may_block);
+        assert_eq!(plan.safe_point_migration, MigrationDemand::unconstrained());
         assert_eq!(
             plan.asynchronous_migration,
             Some(MigrationDemand::unconstrained())

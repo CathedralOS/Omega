@@ -27,7 +27,9 @@ pub(super) fn check_suspension_carry(
     program: &omega_typed_trees::TypedTrees,
     facts: &mut omega_checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
-    facts.carry.asynchronous_preemption = preemption::build_machine_preemption_carry_facts(program);
+    let asynchronous_preemption =
+        preemption::build_machine_preemption_carry_facts(program, &facts.carry);
+    facts.carry.asynchronous_preemption = asynchronous_preemption;
     let mut diagnostics = Vec::new();
     let mut suspension_crossings = Vec::new();
 

@@ -89,38 +89,32 @@ fn branch_call_target_with_visited<'program>(
     let target_machine = if receiver.is_empty() || call.receiver_symbol == current_machine.symbol {
         current_machine
     } else {
-        let contained_symbol = program
-            .data_definitions()
-            .iter()
-            .find(|data_definition| {
-                Some(&data_definition.name) == current_machine.attached_data.as_ref()
-            })
-            .and_then(|data_definition| {
-                program
-                    .data_members(data_definition)
-                    .iter()
-                    .find_map(|member| {
-                        let omega_checked_trees::data::DataMember::Field(field) = member else {
-                            return None;
-                        };
-                        if field.symbol != call.receiver_symbol {
-                            return None;
-                        }
-                        let field_type_name =
-                            type_reference_name_handle(program, field.type_reference);
-                        program
-                            .machines()
-                            .iter()
-                            .find(|candidate| {
-                                candidate.attached_data.as_ref() == Some(&field_type_name)
-                            })
-                            .map(|candidate| candidate.symbol)
-                    })
-            })?;
         program
-            .machines()
+            .facts
+            .carry
+            .contained_fields_for_machine(current_machine.symbol)
             .iter()
-            .find(|machine| machine.symbol == contained_symbol)?
+            .find(|field| field.field == call.receiver_symbol)
+            .into_iter()
+            .flat_map(|field| {
+                program
+                    .facts
+                    .carry
+                    .contained_targets_for_field(field)
+                    .iter()
+            })
+            .filter_map(|target| {
+                program
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == target.machine)
+            })
+            .find(|machine| {
+                program.machine_states(machine).iter().any(|state| {
+                    (call.target_symbol.is_valid() && state.symbol == call.target_symbol)
+                        || (!call.target_symbol.is_valid() && state.name == call.target)
+                })
+            })?
     };
 
     let target_state = if call.target_symbol.is_valid() {
@@ -137,34 +131,6 @@ fn branch_call_target_with_visited<'program>(
 
     state_has_branching_flow(program, target_machine, target_state, visiting)
         .then_some(target_state)
-}
-
-fn type_reference_name_handle(
-    program: &CheckedTrees,
-    type_reference: omega_checked_trees::types::TypeReferenceHandle,
-) -> omega_checked_trees::name::Identifier {
-    match program.type_reference_table.type_reference(type_reference) {
-        omega_checked_trees::types::TypeReferenceNode::Reference { referee, .. } => {
-            type_reference_name_handle(program, *referee)
-        }
-        omega_checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_name_handle(program, *base_type)
-        }
-        omega_checked_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
-            type_reference_name_handle(program, *element_type)
-        }
-        omega_checked_trees::types::TypeReferenceNode::Slice { element_type } => {
-            type_reference_name_handle(program, *element_type)
-        }
-        omega_checked_trees::types::TypeReferenceNode::Generic { base_name, .. } => {
-            base_name.clone()
-        }
-        omega_checked_trees::types::TypeReferenceNode::DynamicTrait { name, .. } => name.clone(),
-        omega_checked_trees::types::TypeReferenceNode::Named { name, .. } => name.clone(),
-        omega_checked_trees::types::TypeReferenceNode::Unit => {
-            omega_checked_trees::name::Identifier::default()
-        }
-    }
 }
 
 fn state_has_branching_flow(
