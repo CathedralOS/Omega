@@ -189,6 +189,11 @@ record facts from unchecked storage; that path remains gated on validation or
 materialization minting the established value. Domain predicates over different
 carriers and float ranges remain fenced until their representation sets can be
 proved rather than guessed. General non-record tiling remains staged.
+Top-level array and slice recast targets require the expression pipeline to
+carry a full type reference: the current cast node retains only a name path even
+though the settled `as &[T]` / `as &[T; N]` spelling is structural. This is an
+engineering prerequisite, not a second recast syntax; structural types must not
+be smuggled through compiler-generated names.
 
 ## Policy selection
 

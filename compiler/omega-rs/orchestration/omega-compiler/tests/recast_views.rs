@@ -253,6 +253,16 @@ fn mutable_recast_rejects_different_range_bit_sets() {
 }
 
 #[test]
+fn mutable_recast_does_not_treat_float_ranges_as_bit_pattern_sets() {
+    let diagnostics = fail_diagnostics("recast/recast_mut_float_range_fenced");
+    assert!(
+        diagnostics
+            .contains("source and target constraints are not proven representation-equivalent"),
+        "wrong float-range representation diagnostic:\n{diagnostics}"
+    );
+}
+
+#[test]
 fn mutable_recast_rejects_different_record_leaf_sets() {
     let diagnostics = fail_diagnostics("recast/recast_mut_record_leaf_sets_differ");
     assert!(

@@ -336,9 +336,12 @@ such regions. Those record shapes may contain literal-length fixed arrays,
 including arrays of nested records. Record fields and statically or dynamically
 indexed array elements follow ordinary or validated plan-laid offsets
 recursively; reads and writes preserve the complete scalar footprints in both
-native backends and the interpreter. Fact-bearing record, array-element, or
-scalar targets remain rejected until their bidirectional implication can be
-proved.
+native backends and the interpreter. Typed record-to-record mutable aliases may
+also retain scalar leaf facts when normalized size/alignment, leaf geometry, and
+representation sets are equivalent in both directions. Raw bytes still cannot
+mint those facts. Top-level array/slice targets await the engineering migration
+from name-path-only cast targets to full type references; float ranges remain
+fenced until their exact representation sets can be proved.
 
 See [`Programmable Layouts`](../design_briefs/programmable_layouts.md) and the
 [`OS Memory And Hardware Foundation`](../design_briefs/os_memory_and_hardware_foundation.md)
