@@ -297,7 +297,11 @@ alignment, and mapped address space. Construction owns the concrete table
 storage plus sealed pending mappings; it rejects duplicate identities,
 overlapping virtual ranges, and mappings into the wrong space without losing
 their authority. The normalized plan identity binds the exact storage and
-canonical mapping set.
+canonical mapping set. For every mapping that identity includes the concrete
+source range and custody mode, its space/provenance/era/lineage/rights, the
+mapped destination, and the destination authority that teardown will restore.
+A caller-chosen mapping name therefore cannot make two different physical
+frames—or two different reclamation outcomes—look like one plan.
 
 Cathedral's first concrete x86-64 entry schema now uses the same programmable
 layout path as every other dictated structure. Ordinary `bool` and

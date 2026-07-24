@@ -460,6 +460,13 @@ impl<'a> ExtentLoan<'a> {
             LoanBacking::Exclusive(extent) => extent.era,
         }
     }
+
+    pub const fn lineage_root(&self) -> ExtentLineageId {
+        match &self.backing {
+            LoanBacking::Shared(extent) => extent.lineage.root,
+            LoanBacking::Exclusive(extent) => extent.lineage.root,
+        }
+    }
 }
 
 impl std::fmt::Debug for ExtentLoan<'_> {

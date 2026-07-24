@@ -157,6 +157,13 @@ enum MappingSource<'source> {
 }
 
 impl MappingSource<'_> {
+    fn base(&self) -> u64 {
+        match self {
+            Self::Owned(extent) => extent.base(),
+            Self::Borrowed(loan) => loan.base(),
+        }
+    }
+
     fn length(&self) -> u64 {
         match self {
             Self::Owned(extent) => extent.length(),
@@ -175,6 +182,27 @@ impl MappingSource<'_> {
         match self {
             Self::Owned(extent) => extent.rights(),
             Self::Borrowed(loan) => loan.rights(),
+        }
+    }
+
+    fn provenance(&self) -> ExtentProvenanceId {
+        match self {
+            Self::Owned(extent) => extent.provenance(),
+            Self::Borrowed(loan) => loan.provenance(),
+        }
+    }
+
+    fn era(&self) -> MappingEraId {
+        match self {
+            Self::Owned(extent) => extent.era(),
+            Self::Borrowed(loan) => loan.era(),
+        }
+    }
+
+    fn lineage_root(&self) -> ExtentLineageId {
+        match self {
+            Self::Owned(extent) => extent.lineage_root(),
+            Self::Borrowed(loan) => loan.lineage_root(),
         }
     }
 
@@ -232,6 +260,50 @@ impl<'source> PendingMap<'source> {
 
     pub(crate) const fn mapped_extent(&self) -> &Extent {
         &self.mapping.mapped
+    }
+
+    pub(crate) fn source_base(&self) -> u64 {
+        self.mapping.source.base()
+    }
+
+    pub(crate) fn source_length(&self) -> u64 {
+        self.mapping.source.length()
+    }
+
+    pub(crate) fn source_address_space(&self) -> AddressSpaceId {
+        self.mapping.source.address_space()
+    }
+
+    pub(crate) fn source_rights(&self) -> &ExtentRights {
+        self.mapping.source.rights()
+    }
+
+    pub(crate) fn source_provenance(&self) -> ExtentProvenanceId {
+        self.mapping.source.provenance()
+    }
+
+    pub(crate) fn source_era(&self) -> MappingEraId {
+        self.mapping.source.era()
+    }
+
+    pub(crate) fn source_lineage_root(&self) -> ExtentLineageId {
+        self.mapping.source.lineage_root()
+    }
+
+    pub(crate) fn source_mode(&self) -> MappingSourceMode {
+        self.mapping.source.mode()
+    }
+
+    pub(crate) fn destination_restoration_rights(&self) -> &ExtentRights {
+        &self.mapping.destination.rights
+    }
+
+    pub(crate) fn destination_restoration_provenance(&self) -> ExtentProvenanceId {
+        self.mapping.destination.provenance
+    }
+
+    pub(crate) fn destination_restoration_era(&self) -> MappingEraId {
+        self.mapping.destination.era
     }
 
     pub(crate) fn validate_activation_receipt(

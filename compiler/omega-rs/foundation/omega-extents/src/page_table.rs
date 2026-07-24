@@ -785,6 +785,33 @@ fn normalized_plan_identity(draft: &PageTableDraft<'_>) -> u64 {
         let mapped = pending.mapped_extent();
         mix(&mut hash, identity.normalized_identity());
         mix(&mut hash, pending.grant().normalized_identity());
+        mix(
+            &mut hash,
+            match pending.source_mode() {
+                MappingSourceMode::Owned => 1,
+                MappingSourceMode::BorrowedShared => 2,
+                MappingSourceMode::BorrowedExclusive => 3,
+            },
+        );
+        mix(
+            &mut hash,
+            pending.source_address_space().normalized_identity(),
+        );
+        mix(&mut hash, pending.source_provenance().normalized_identity());
+        mix(&mut hash, pending.source_era().normalized_identity());
+        mix(
+            &mut hash,
+            pending.source_lineage_root().normalized_identity(),
+        );
+        mix(&mut hash, pending.source_base());
+        mix(&mut hash, pending.source_length());
+        mix(
+            &mut hash,
+            pending.source_rights().identities().count() as u64,
+        );
+        for right in pending.source_rights().identities() {
+            mix(&mut hash, right.normalized_identity());
+        }
         mix(&mut hash, mapped.address_space().normalized_identity());
         mix(&mut hash, mapped.provenance().normalized_identity());
         mix(&mut hash, mapped.era().normalized_identity());
@@ -793,6 +820,26 @@ fn normalized_plan_identity(draft: &PageTableDraft<'_>) -> u64 {
         mix(&mut hash, mapped.length());
         mix(&mut hash, mapped.rights().identities().count() as u64);
         for right in mapped.rights().identities() {
+            mix(&mut hash, right.normalized_identity());
+        }
+        mix(
+            &mut hash,
+            pending
+                .destination_restoration_provenance()
+                .normalized_identity(),
+        );
+        mix(
+            &mut hash,
+            pending.destination_restoration_era().normalized_identity(),
+        );
+        mix(
+            &mut hash,
+            pending
+                .destination_restoration_rights()
+                .identities()
+                .count() as u64,
+        );
+        for right in pending.destination_restoration_rights().identities() {
             mix(&mut hash, right.normalized_identity());
         }
     }
@@ -882,6 +929,28 @@ mod tests {
             &mapping_grant(MappingSourceMode::Owned),
         )
         .expect("pending mapping")
+    }
+
+    fn pending_mapping_with_authority(
+        identity: u64,
+        source_base: u64,
+        destination_base: u64,
+        destination_rights: &[u64],
+    ) -> PendingMap<'static> {
+        map_owned(
+            extent(100 + identity, source_base, 4096, 30, 32, &[31]),
+            extent(
+                200 + identity,
+                destination_base,
+                4096,
+                20,
+                33,
+                destination_rights,
+            ),
+            id(identity, MappingId::from_normalized_identity),
+            &mapping_grant(MappingSourceMode::Owned),
+        )
+        .expect("pending mapping with exact authority")
     }
 
     fn activation(identity: u64) -> TranslationActivationReceipt {
@@ -1082,6 +1151,49 @@ mod tests {
             .add_mapping(pending_mapping(52, 0x9000))
             .expect("second mapping");
         assert_ne!(left.plan_identity(), different_storage.plan_identity());
+    }
+
+    #[test]
+    fn normalized_plan_identity_binds_source_and_restored_destination_authority() {
+        let mut baseline = draft();
+        baseline
+            .add_mapping(pending_mapping_with_authority(
+                51,
+                0x1000_8000,
+                0x8000,
+                &[21],
+            ))
+            .expect("baseline mapping");
+
+        let mut different_source = draft();
+        different_source
+            .add_mapping(pending_mapping_with_authority(
+                51,
+                0x2000_8000,
+                0x8000,
+                &[21],
+            ))
+            .expect("different physical source");
+        assert_ne!(
+            baseline.plan_identity(),
+            different_source.plan_identity(),
+            "mapping a different physical source must change normalized plan identity"
+        );
+
+        let mut different_restoration = draft();
+        different_restoration
+            .add_mapping(pending_mapping_with_authority(
+                51,
+                0x1000_8000,
+                0x8000,
+                &[21, 99],
+            ))
+            .expect("destination with additional restorable authority");
+        assert_ne!(
+            baseline.plan_identity(),
+            different_restoration.plan_identity(),
+            "authority returned by teardown must participate in plan identity"
+        );
     }
 
     #[test]
