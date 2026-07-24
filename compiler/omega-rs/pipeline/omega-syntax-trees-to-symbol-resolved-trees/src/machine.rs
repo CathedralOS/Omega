@@ -30,11 +30,7 @@ pub(crate) fn lower_machine_into(
     // ceiling equal to the argumented view's own bound) and fails
     // compilation otherwise -- consumed, never silently dropped.
     let decrease_range = if machine.decrease_range.is_valid() {
-        lower_expression_into_table(
-            lowerer,
-            syntax_trees,
-            machine.decrease_range,
-        )?
+        lower_expression_into_table(lowerer, syntax_trees, machine.decrease_range)?
     } else {
         omega_symbol_resolved_trees::expression::ExpressionHandle::invalid()
     };
@@ -146,13 +142,19 @@ fn build_termination_plan(
     machine: &syntax::item::Machine,
     states: HandleSpan<Handle<State>>,
 ) -> omega_core::semantics::MachineTerminationPlan {
-    use omega_core::semantics::{MachineTerminationPlan, RankingWitness, TerminationGuarantee};
+    use omega_core::semantics::{
+        MachineTerminationPlan, RankingWitness, TerminationGuarantee, TerminationInterface,
+    };
 
-    let published = machine
-        .terminates_guarantee
-        .then(|| TerminationGuarantee::EventualTerminal {
+    let interface = if machine.terminates_guarantee {
+        TerminationInterface::Published(TerminationGuarantee::EventualTerminal {
             premises: Vec::new(),
-        });
+        })
+    } else if machine.boundary || machine.bodyless {
+        TerminationInterface::Published(TerminationGuarantee::NoGuarantee)
+    } else {
+        TerminationInterface::InternalDerived
+    };
 
     let subjects = syntax_trees
         .expressions
@@ -194,7 +196,7 @@ fn build_termination_plan(
     });
 
     MachineTerminationPlan {
-        published,
+        interface,
         checked_summary: TerminationGuarantee::NoGuarantee,
         implementation_witness,
     }
@@ -384,11 +386,7 @@ fn lower_machine_decreases(
     let mut expressions = Vec::new();
 
     for expression in syntax_trees.expressions.expression_handles(decreases) {
-        let expression = lower_expression_into_table(
-            lowerer,
-            syntax_trees,
-            *expression,
-        )?;
+        let expression = lower_expression_into_table(lowerer, syntax_trees, *expression)?;
         expressions.push(expression);
     }
 

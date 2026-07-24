@@ -224,7 +224,9 @@ mod tests {
                     interface: BlockingInterface::InternalInferred,
                     checked_may_block: false,
                 },
-                published_termination: TerminationGuarantee::NoGuarantee,
+                termination: omega_core::semantics::TerminationInterface::Published(
+                    TerminationGuarantee::NoGuarantee,
+                ),
                 inferred_write_frames: Vec::<StateWriteFramePlan>::new(),
                 fingerprint: 0,
             });

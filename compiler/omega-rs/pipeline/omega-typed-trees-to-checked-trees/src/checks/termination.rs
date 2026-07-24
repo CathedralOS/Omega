@@ -29,7 +29,12 @@ pub(crate) fn check_machine_termination(
         // compatibility bool is populated from the same authorship and
         // agrees by construction until TPR6 retires it.
         let plan = &machine.termination_plan;
-        plan.published.is_some() || plan.implementation_witness.is_some()
+        matches!(
+            &plan.interface,
+            omega_core::semantics::TerminationInterface::Published(
+                omega_core::semantics::TerminationGuarantee::EventualTerminal { .. }
+            )
+        ) || plan.implementation_witness.is_some()
     }) {
         // A retired-spelling machine already has its directed diagnostic; the
         // ranking checks below would only stack a misleading "cannot prove".
@@ -108,7 +113,7 @@ pub(crate) fn check_machine_termination(
 /// claim. Every ACYCLIC checked body derives eventual termination without a
 /// witness (the brief: "an acyclic checked body derives termination without
 /// source annotation"). This local summary never publishes a promise: the
-/// contract plan continues to read only `termination_plan.published`.
+/// contract plan continues to read only `termination_plan.interface`.
 pub(crate) fn build_termination_facts(
     program: &omega_typed_trees::TypedTrees,
 ) -> omega_checked_trees::TerminationFacts {

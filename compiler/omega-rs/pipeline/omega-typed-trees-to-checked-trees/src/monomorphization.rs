@@ -2042,10 +2042,14 @@ fn template_contract_fingerprint(program: &TypedTrees, machine_index: usize) -> 
         bytes.extend(contract);
         bytes.push(0xfc);
     }
-    match machine.termination_plan.published.as_ref() {
-        None => bytes.push(0),
-        Some(omega_core::semantics::TerminationGuarantee::NoGuarantee) => bytes.push(1),
-        Some(omega_core::semantics::TerminationGuarantee::EventualTerminal { premises }) => {
+    match &machine.termination_plan.interface {
+        omega_core::semantics::TerminationInterface::InternalDerived => bytes.push(0),
+        omega_core::semantics::TerminationInterface::Published(
+            omega_core::semantics::TerminationGuarantee::NoGuarantee,
+        ) => bytes.push(1),
+        omega_core::semantics::TerminationInterface::Published(
+            omega_core::semantics::TerminationGuarantee::EventualTerminal { premises },
+        ) => {
             bytes.push(2);
             let mut premises = premises.clone();
             premises.sort_unstable_by_key(|premise| premise.0);

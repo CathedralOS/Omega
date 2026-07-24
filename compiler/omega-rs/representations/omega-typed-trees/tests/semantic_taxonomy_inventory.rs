@@ -110,9 +110,10 @@ fn machine_record_carries_the_termination_plan_beside_the_compat_bools() {
 fn termination_plan_witness_swap_is_contract_invisible() {
     use omega_core::semantics::{
         MachineTerminationPlan, RankingViewId, RankingWitness, TerminationGuarantee,
+        TerminationInterface,
     };
     let descending = MachineTerminationPlan {
-        published: Some(TerminationGuarantee::EventualTerminal {
+        interface: TerminationInterface::Published(TerminationGuarantee::EventualTerminal {
             premises: Vec::new(),
         }),
         checked_summary: TerminationGuarantee::NoGuarantee,
@@ -135,7 +136,7 @@ fn termination_plan_witness_swap_is_contract_invisible() {
         ..descending.clone()
     };
     assert_ne!(descending, swapped);
-    assert_eq!(descending.published, swapped.published);
+    assert_eq!(descending.interface, swapped.interface);
 }
 
 /// LOSS 3 -- RE-PINNED (STR3 first slice, 2026-07-16): `DataProperties`

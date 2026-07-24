@@ -12,7 +12,7 @@
 
 use omega_core::semantics::{
     BlockingInterface, BlockingPlan, MachineSupplyMode, ServiceReachPlan, SuspensionInterface,
-    SuspensionPlan, TerminationGuarantee,
+    SuspensionPlan, TerminationGuarantee, TerminationInterface,
 };
 use omega_core::symbols::SymbolHandle;
 
@@ -58,9 +58,9 @@ pub struct MachineContractPlan {
     /// Independent authored/inferred operational axes.
     pub suspension: SuspensionPlan,
     pub blocking: BlockingPlan,
-    /// The published termination guarantee (never the witness -- the
-    /// firewall is the shape).
-    pub published_termination: TerminationGuarantee,
+    /// Public omission and private derivation stay distinct. The ranking
+    /// witness remains outside this interface carrier.
+    pub termination: TerminationInterface,
     /// Body-derived, state-relative write frames. These are implementation
     /// evidence, not authored contract material, and therefore never enter
     /// `fingerprint` or specialization identity.
@@ -87,7 +87,7 @@ pub fn contract_fingerprint(
     published_service_names: &[String],
     suspension_interface: SuspensionInterface,
     blocking_interface: BlockingInterface,
-    published_termination: &TerminationGuarantee,
+    termination: &TerminationInterface,
     canonical_facts: &[Vec<u8>],
 ) -> u64 {
     const OFFSET: u64 = 0xcbf29ce484222325;
@@ -134,9 +134,10 @@ pub fn contract_fingerprint(
         BlockingInterface::PublishedMayBlock(true) => 3,
     });
     fold(0xff);
-    match published_termination {
-        TerminationGuarantee::NoGuarantee => fold(1),
-        TerminationGuarantee::EventualTerminal { premises } => {
+    match termination {
+        TerminationInterface::InternalDerived => fold(0),
+        TerminationInterface::Published(TerminationGuarantee::NoGuarantee) => fold(1),
+        TerminationInterface::Published(TerminationGuarantee::EventualTerminal { premises }) => {
             fold(2);
             for premise in premises {
                 for byte in premise.0.to_le_bytes() {
@@ -169,7 +170,7 @@ mod tests {
                 &[],
                 suspension,
                 blocking,
-                &TerminationGuarantee::NoGuarantee,
+                &TerminationInterface::Published(TerminationGuarantee::NoGuarantee),
                 &[],
             )
         };
@@ -198,7 +199,7 @@ mod tests {
                 services,
                 SuspensionInterface::PublishedMaySuspend(false),
                 BlockingInterface::PublishedMayBlock(false),
-                &TerminationGuarantee::NoGuarantee,
+                &TerminationInterface::Published(TerminationGuarantee::NoGuarantee),
                 &[],
             )
         };
@@ -210,5 +211,25 @@ mod tests {
         assert_ne!(empty, readable);
         assert_ne!(readable, queryable);
         assert_eq!(composite, reordered);
+    }
+
+    #[test]
+    fn internal_derivation_differs_from_published_omission() {
+        let fingerprint = |termination| {
+            contract_fingerprint(
+                MachineSupplyMode::CheckedBody,
+                &[],
+                SuspensionInterface::InternalInferred,
+                BlockingInterface::InternalInferred,
+                termination,
+                &[],
+            )
+        };
+        assert_ne!(
+            fingerprint(&TerminationInterface::InternalDerived),
+            fingerprint(&TerminationInterface::Published(
+                TerminationGuarantee::NoGuarantee
+            ))
+        );
     }
 }

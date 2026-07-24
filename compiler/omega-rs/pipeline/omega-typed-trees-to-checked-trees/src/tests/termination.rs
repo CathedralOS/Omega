@@ -860,17 +860,22 @@ fn termination_plan_splits_guarantee_from_witness_with_elaborated_defaults() {
     // Bare `terminates;`: the authored public promise, no witness.
     let promise = plan_of("Main::promise");
     assert_eq!(
-        promise.published,
-        Some(TerminationGuarantee::EventualTerminal {
-            premises: Vec::new()
-        })
+        &promise.interface,
+        &omega_core::semantics::TerminationInterface::Published(
+            TerminationGuarantee::EventualTerminal {
+                premises: Vec::new()
+            }
+        )
     );
     assert!(promise.implementation_witness.is_none());
 
     // `terminates by remaining;`: witness only (publishes nothing); the
     // single u64 subject's canonical default elaborates immediately.
     let countdown = plan_of("Main::countdown");
-    assert_eq!(countdown.published, None);
+    assert_eq!(
+        &countdown.interface,
+        &omega_core::semantics::TerminationInterface::InternalDerived
+    );
     let witness = countdown
         .implementation_witness
         .as_ref()
@@ -881,7 +886,10 @@ fn termination_plan_splits_guarantee_from_witness_with_elaborated_defaults() {
 
     // Two-subject short form: the only builtin two-subject view.
     let walk = plan_of("Main::walk");
-    assert_eq!(walk.published, None);
+    assert_eq!(
+        &walk.interface,
+        &omega_core::semantics::TerminationInterface::InternalDerived
+    );
     let witness = walk.implementation_witness.as_ref().expect("walk witness");
     assert_eq!(
         witness.subjects,
@@ -1458,8 +1466,8 @@ fn inferred_completion_never_publishes_a_promise() {
             .contract_plans
             .for_machine(inferred)
             .expect("inferred contract plan")
-            .published_termination,
-        TerminationGuarantee::NoGuarantee,
+            .termination,
+        omega_core::semantics::TerminationInterface::InternalDerived,
         "body inference must never redefine the published contract"
     );
     assert_eq!(
@@ -1468,10 +1476,12 @@ fn inferred_completion_never_publishes_a_promise() {
             .contract_plans
             .for_machine(promised)
             .expect("promised contract plan")
-            .published_termination,
-        TerminationGuarantee::EventualTerminal {
-            premises: Vec::new()
-        }
+            .termination,
+        omega_core::semantics::TerminationInterface::Published(
+            TerminationGuarantee::EventualTerminal {
+                premises: Vec::new()
+            }
+        )
     );
 }
 
@@ -1553,15 +1563,71 @@ fn implementation_inherits_requirement_guarantee() {
         .find(|machine| machine.name.as_str() == "Main::run")
         .expect("run machine");
     assert_eq!(
-        run.termination_plan.published,
-        Some(TerminationGuarantee::EventualTerminal {
-            premises: Vec::new()
-        }),
+        &run.termination_plan.interface,
+        &omega_core::semantics::TerminationInterface::Published(
+            TerminationGuarantee::EventualTerminal {
+                premises: Vec::new()
+            }
+        ),
         "the implementation inherits the requirement's published guarantee"
     );
     assert!(run.termination_plan.implementation_witness.is_none());
 
     lower_typed_trees(typed).expect("an acyclic inheritor discharges the claim for free");
+}
+
+/// TPR4: omission has different normalized meaning on a private body and a
+/// public requirement. The implementation inherits the requirement's
+/// published `NoGuarantee`; its locally inferred completion remains
+/// implementation evidence rather than silently strengthening that contract.
+#[test]
+fn public_termination_omission_is_distinct_from_private_derivation() {
+    let source = r#"
+    trait Worker {
+        machine run(&self) -> u64;
+    }
+
+    data Main {}
+
+    machine Main::run(&self) -> u64 satisfies Worker {
+        1
+    }
+
+    machine Main::local(&self) -> u64 {
+        2
+    }
+
+    machine Main::main(&mut self) -> u64 {
+        0
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let plan_of = |name: &str| {
+        &typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+            .termination_plan
+            .interface
+    };
+    assert_eq!(
+        plan_of("Main::run"),
+        &omega_core::semantics::TerminationInterface::Published(
+            omega_core::semantics::TerminationGuarantee::NoGuarantee,
+        )
+    );
+    assert_eq!(
+        plan_of("Main::local"),
+        &omega_core::semantics::TerminationInterface::InternalDerived
+    );
 }
 
 /// TPR4 slice 3: a CYCLIC implementation inheriting the guarantee without a

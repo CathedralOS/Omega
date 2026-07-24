@@ -116,11 +116,7 @@ fn build_contract_plans(
                 .map(|fact| fact.inferred_transitive)
                 .unwrap_or(omega_core::semantics::ServiceReachRowTable::EMPTY_ROW),
         };
-        let published_termination = machine
-            .termination_plan
-            .published
-            .clone()
-            .unwrap_or_default();
+        let termination = machine.termination_plan.interface.clone();
         // Slice 2: the declared requires/ensures facts in a CANONICAL,
         // clause-order-independent encoding (each fact serializes to a
         // stable byte form; the set sorts before folding). Parameter
@@ -289,7 +285,7 @@ fn build_contract_plans(
             &published_service_names,
             suspension.interface,
             blocking.interface,
-            &published_termination,
+            &termination,
             &canonical_facts,
         );
         let inferred_write_frames = program
@@ -310,7 +306,7 @@ fn build_contract_plans(
             service_reach,
             suspension,
             blocking,
-            published_termination,
+            termination,
             inferred_write_frames,
             fingerprint,
         });

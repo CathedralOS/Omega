@@ -477,8 +477,8 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
             push_suspension_plan_json(&mut json, contract.suspension);
             json.push_str(",\n        \"blocking\": ");
             push_blocking_plan_json(&mut json, contract.blocking);
-            json.push_str(",\n        \"published_termination\": ");
-            push_termination_json(&mut json, &contract.published_termination);
+            json.push_str(",\n        \"termination\": ");
+            push_termination_interface_json(&mut json, &contract.termination);
             json.push_str("\n      }");
         } else {
             json.push_str("}");
@@ -720,6 +720,23 @@ fn push_termination_json(
                 json.push_str(&premise.0.to_string());
             }
             json.push_str("]}");
+        }
+    }
+}
+
+fn push_termination_interface_json(
+    json: &mut String,
+    interface: &omega_core::semantics::TerminationInterface,
+) {
+    use omega_core::semantics::TerminationInterface;
+    match interface {
+        TerminationInterface::InternalDerived => {
+            json.push_str("{\"interface\": \"internal_derived\"}");
+        }
+        TerminationInterface::Published(guarantee) => {
+            json.push_str("{\"interface\": \"published\", \"guarantee\": ");
+            push_termination_json(json, guarantee);
+            json.push('}');
         }
     }
 }
@@ -1424,7 +1441,9 @@ fn push_json_string(output: &mut String, value: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::{carry_manifest_json, machine_contract_manifest_json};
+    use super::{
+        carry_manifest_json, machine_contract_manifest_json, push_termination_interface_json,
+    };
     use omega_checked_trees::{
         CheckedTrees, DataCarryFact, MachineContractPlan, MachinePreemptionCarryFact,
         MachineTerminationFact,
@@ -1432,7 +1451,7 @@ mod tests {
     use omega_core::semantics::{
         BlockingInterface, BlockingPlan, CarryAddress, CarryCpu, CarryHostThread, CarryPolicy,
         CarrySuspension, MachineSupplyMode, MachineTerminationPlan, RankingViewId, RankingWitness,
-        SuspensionInterface, SuspensionPlan, TerminationGuarantee,
+        SuspensionInterface, SuspensionPlan, TerminationGuarantee, TerminationInterface,
     };
     use omega_core::symbols::SymbolHandle;
     use omega_typed_trees::machine::Machine;
@@ -1541,7 +1560,9 @@ mod tests {
                     interface: BlockingInterface::PublishedMayBlock(true),
                     checked_may_block: true,
                 },
-                published_termination: TerminationGuarantee::NoGuarantee,
+                termination: omega_core::semantics::TerminationInterface::Published(
+                    TerminationGuarantee::NoGuarantee,
+                ),
                 inferred_write_frames: Vec::new(),
                 fingerprint: 0x1234,
             });
@@ -1576,7 +1597,9 @@ mod tests {
                 "\"blocking\": {\"interface\": \"published_ceiling\", \"may_block\": true}"
             )
         );
-        assert!(contract.contains("\"kind\": \"no_guarantee\""));
+        assert!(contract.contains(
+            "\"termination\": {\"interface\": \"published\", \"guarantee\": {\"kind\": \"no_guarantee\"}}"
+        ));
         assert!(!contract.contains("inferred_write_frames"));
         assert!(!contract.contains("remaining"));
         assert!(json[implementation_start..].contains("\"inferred_write_frames\": []"));
@@ -1586,6 +1609,23 @@ mod tests {
         assert!(json[implementation_start..].contains("\"kind\": \"eventual_terminal\""));
         assert!(json[implementation_start..].contains("\"subjects\": [\"remaining\"]"));
         assert!(json[implementation_start..].contains("\"view\": \"Nat::Descending\""));
+    }
+
+    #[test]
+    fn termination_manifest_distinguishes_private_derivation_from_public_omission() {
+        let mut internal = String::new();
+        push_termination_interface_json(&mut internal, &TerminationInterface::InternalDerived);
+        assert_eq!(internal, "{\"interface\": \"internal_derived\"}");
+
+        let mut omitted = String::new();
+        push_termination_interface_json(
+            &mut omitted,
+            &TerminationInterface::Published(TerminationGuarantee::NoGuarantee),
+        );
+        assert_eq!(
+            omitted,
+            "{\"interface\": \"published\", \"guarantee\": {\"kind\": \"no_guarantee\"}}"
+        );
     }
 
     #[test]

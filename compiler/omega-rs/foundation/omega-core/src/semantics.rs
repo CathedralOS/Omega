@@ -319,10 +319,28 @@ pub struct RankRange {
 /// (record §Machines): the published guarantee is contract identity, the
 /// checked summary serves local consumers, the witness stays private.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum TerminationInterface {
+    /// A private checked body publishes no external progress promise. Local
+    /// checked consumers may still use its derived summary.
+    #[default]
+    InternalDerived,
+    /// A requirement/export/provider-facing machine publishes this exact
+    /// promise. Omission on that public surface is `Published(NoGuarantee)`.
+    Published(TerminationGuarantee),
+}
+
+impl TerminationInterface {
+    pub fn published(&self) -> Option<&TerminationGuarantee> {
+        match self {
+            Self::InternalDerived => None,
+            Self::Published(guarantee) => Some(guarantee),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct MachineTerminationPlan {
-    /// `None` = internal/derived (not serialized as an authored external
-    /// promise); `Some` = published, participating in contract identity.
-    pub published: Option<TerminationGuarantee>,
+    pub interface: TerminationInterface,
     /// What the checker established for THIS body (local consumers only).
     pub checked_summary: TerminationGuarantee,
     /// The private proof material, if a ranked body carried one.
@@ -772,7 +790,7 @@ mod tests {
         // the published guarantee, never inside it — equality of two plans'
         // published halves is witness-blind by construction.
         let with_witness = MachineTerminationPlan {
-            published: Some(TerminationGuarantee::NoGuarantee),
+            interface: TerminationInterface::Published(TerminationGuarantee::NoGuarantee),
             checked_summary: TerminationGuarantee::NoGuarantee,
             implementation_witness: Some(RankingWitness::default()),
         };
@@ -780,7 +798,7 @@ mod tests {
             implementation_witness: None,
             ..with_witness.clone()
         };
-        assert_eq!(with_witness.published, without_witness.published);
+        assert_eq!(with_witness.interface, without_witness.interface);
     }
 
     #[test]
