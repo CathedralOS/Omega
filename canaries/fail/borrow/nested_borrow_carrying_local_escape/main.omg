@@ -1,0 +1,32 @@
+// FAIL canary (decision 15): nested checked aggregates cannot launder a local
+// loan through a machine result. `Envelope.retained` validly borrows the input,
+// but its nested `Message.body` borrows `owned`; the valid first source must not
+// hide the dangling second source when the outer value is returned.
+
+data Message {
+    body: &i32;
+}
+
+data Envelope {
+    retained: &i32;
+    message: Message;
+}
+
+data Main {
+    seed: i32;
+}
+
+machine bad(seed: &i32) -> Envelope {
+    let owned: i32 = 9;
+    let envelope: Envelope = Envelope {
+        retained: seed,
+        message: Message { body: &owned }
+    };
+    transition {
+        _ -> envelope
+    }
+}
+
+machine Main::main(&mut self) {
+    let envelope: Envelope = bad(&self.seed);
+}

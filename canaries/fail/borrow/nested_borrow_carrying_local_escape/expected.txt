@@ -1,0 +1,1 @@
+returns a view borrowing the local `envelope`

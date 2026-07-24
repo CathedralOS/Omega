@@ -1527,8 +1527,20 @@ stronger operations it needs instead of citing machine parameters generally.
 
 ## Remaining language surfaces
 
-- **Lifetimes.** Implement the decision-15 `'name` lifetime arc and borrow-
-  carrying data needed by placed views and task storage.
+- **Lifetimes.** Decision 15's reference-side arc is live: explicit lifetime
+  tags survive the frontend, single-reference and `self` elision link returned
+  views to their input loans, and ambiguous multi-reference results reject.
+  Borrow-carrying detection is structural and cycle-safe through nested
+  records, active sum payloads, fixed arrays, constraints, and concrete
+  generic arguments. Literal construction records every carried source,
+  return escape requires all sources to outlive the call, and named-field
+  projection rebases through only that field, so a valid first field cannot
+  hide a dangling sibling. Finish declaration and validation of lifetime
+  parameters, result contracts relating different fields to different input
+  lifetimes, exact fixed-array projection, outlives constraints, and loan
+  propagation through non-literal aggregate construction. These are settled
+  implementation work needed by placed views and task storage, not
+  owner-design blockers.
 - **Const data parameters.** Literal and scoped named-integer-const arguments
   now parse in generic type position, validate against the declared integer
   kind/range, and substitute into fixed-array layout, descriptors, runtime

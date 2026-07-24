@@ -20,6 +20,7 @@
 //!   rule 1); zero ref inputs leaves the output unlinked (historical behavior);
 //!   two or more are ambiguous and must be disambiguated with a lifetime.
 
+use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::state::State;
 use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -156,41 +157,117 @@ pub(crate) fn returns_borrow(program: &TypedTrees, type_reference: TypeReference
     is_reference_type(program, type_reference) || is_borrow_carrying_data(program, type_reference)
 }
 
-/// Whether a type reference names a `data` definition that has at least one
-/// reference-typed field (directly). Nested borrow-carrying fields are NOT yet
-/// counted — a first-cut limitation; no corpus relies on it.
+/// Whether a type reference names a `data` definition that structurally carries
+/// at least one reference. The walk follows nested records, live sum payloads,
+/// fixed arrays, constraints, and concrete generic arguments. Recursive data
+/// definitions terminate through a symbol stack.
 pub(crate) fn is_borrow_carrying_data(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    let symbol = program.type_reference_symbol(type_reference);
-    if !symbol.is_valid() {
-        return false;
+    type_structurally_carries_borrow(program, type_reference, &[], &mut Vec::new())
+}
+
+fn type_structurally_carries_borrow(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    visiting: &mut Vec<SymbolHandle>,
+) -> bool {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { .. } => true,
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_structurally_carries_borrow(program, *base_type, substitutions, visiting)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            type_structurally_carries_borrow(program, *element_type, substitutions, visiting)
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } => {
+            let Some(definition) = data_definition(program, *base_symbol) else {
+                return false;
+            };
+            let arguments = program
+                .type_reference_table
+                .type_reference_handles(*arguments);
+            let mut nested_substitutions = substitutions.to_vec();
+            nested_substitutions.extend(
+                program
+                    .data_type_parameters(definition)
+                    .iter()
+                    .zip(arguments.iter())
+                    .map(|(parameter, argument)| (parameter.symbol, *argument)),
+            );
+            data_definition_carries_borrow(program, definition, &nested_substitutions, visiting)
+        }
+        TypeReferenceNode::Named { symbol, .. } => {
+            if let Some((_, concrete)) = substitutions
+                .iter()
+                .rev()
+                .find(|(parameter, _)| parameter == symbol)
+            {
+                return type_structurally_carries_borrow(
+                    program,
+                    *concrete,
+                    substitutions,
+                    visiting,
+                );
+            }
+            let Some(definition) = data_definition(program, *symbol) else {
+                return false;
+            };
+            data_definition_carries_borrow(program, definition, substitutions, visiting)
+        }
+        TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Unit => false,
     }
-    let Some(definition) = program
+}
+
+fn data_definition<'a>(
+    program: &'a TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<&'a omega_typed_trees::data::DataDefinition> {
+    program
         .data_definitions()
         .iter()
         .find(|definition| definition.symbol == symbol)
-    else {
-        return false;
-    };
-    program
-        .data_members(definition)
-        .iter()
-        .any(|member| data_member_has_reference_field(program, member))
 }
 
-fn data_member_has_reference_field(
+fn data_definition_carries_borrow(
     program: &TypedTrees,
-    member: &omega_typed_trees::data::DataMember,
+    definition: &omega_typed_trees::data::DataDefinition,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    visiting: &mut Vec<SymbolHandle>,
 ) -> bool {
-    match member {
-        omega_typed_trees::data::DataMember::Field(field) => {
-            is_reference_type(program, field.type_reference)
-        }
-        omega_typed_trees::data::DataMember::Variant(variant) => program
-            .data_payload_fields(variant)
-            .iter()
-            .any(|field| is_reference_type(program, field.type_reference)),
+    if visiting.contains(&definition.symbol) {
+        return false;
     }
+    visiting.push(definition.symbol);
+    let carries = program
+        .data_members(definition)
+        .iter()
+        .any(|member| match member {
+            omega_typed_trees::data::DataMember::Field(field) => type_structurally_carries_borrow(
+                program,
+                field.type_reference,
+                substitutions,
+                visiting,
+            ),
+            omega_typed_trees::data::DataMember::Variant(variant) => {
+                program.data_payload_fields(variant).iter().any(|field| {
+                    type_structurally_carries_borrow(
+                        program,
+                        field.type_reference,
+                        substitutions,
+                        visiting,
+                    )
+                })
+            }
+        });
+    visiting.pop();
+    carries
 }

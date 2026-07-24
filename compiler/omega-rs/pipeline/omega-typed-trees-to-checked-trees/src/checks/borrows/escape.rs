@@ -73,11 +73,19 @@ pub(super) fn check_view_return_escape(
                     // Rooted in a parameter, `self`, or a field thereof — outlives the call.
                     continue;
                 }
-                // A body-local: sound only if it holds a loan reaching outside the locals.
-                let escapes_through_loan = loans
+                // A body-local: sound only if it holds at least one loan and
+                // every carried loan reaches outside the body. Accepting when
+                // merely one field reached an input would let a sibling field
+                // retain a dangling local borrow.
+                let owner_loans: Vec<SymbolHandle> = loans
                     .iter()
-                    .any(|(owner, loan_root)| *owner == root && !locals.contains(loan_root));
-                if escapes_through_loan {
+                    .filter_map(|(owner, loan_root)| (*owner == root).then_some(*loan_root))
+                    .collect();
+                let escapes_through_loans = !owner_loans.is_empty()
+                    && owner_loans
+                        .iter()
+                        .all(|loan_root| !locals.contains(loan_root));
+                if escapes_through_loans {
                     continue;
                 }
 
