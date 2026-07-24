@@ -71,6 +71,31 @@ impl ScalarFieldValue {
     }
 }
 
+/// Declared scalar shape used when decoding bytes through a validated layout.
+/// The width comes from the compiler-materialized schema, not from the bytes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScalarFieldSchema {
+    pub field: String,
+    pub width_bits: u16,
+}
+
+impl ScalarFieldSchema {
+    pub fn new(
+        field: impl Into<String>,
+        width_bits: u16,
+    ) -> Result<Self, MaterializationDiagnostic> {
+        if width_bits == 0 || width_bits > 64 {
+            return Err(MaterializationDiagnostic(format!(
+                "scalar field width {width_bits} is outside 1..=64 bits"
+            )));
+        }
+        Ok(Self {
+            field: field.into(),
+            width_bits,
+        })
+    }
+}
+
 /// Compiler-issued identity of an inbound entry stub. The numeric identity is
 /// never a callable address and cannot be used for arithmetic or control flow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -694,6 +719,113 @@ pub fn materialize_scalar_layout_into(
     Ok(())
 }
 
+/// Decodes one complete fixed scalar layout without establishing any semantic
+/// domain or authority fact. Callers receive ordinary named values; a separate
+/// validator decides whether those values establish an imported-table claim.
+pub fn decode_scalar_layout(
+    layout: &LayoutPlanReport,
+    fields: &[ScalarFieldSchema],
+    byte_order: ByteOrder,
+    source: &[u8],
+) -> Result<Vec<ScalarFieldValue>, MaterializationDiagnostic> {
+    let byte_len = layout
+        .size
+        .ok_or_else(|| {
+            MaterializationDiagnostic("scalar decoding requires a fixed-size layout plan".into())
+        })
+        .and_then(|size| {
+            usize::try_from(size).map_err(|_| {
+                MaterializationDiagnostic(format!(
+                    "fixed layout size {size} cannot be represented on this compiler host"
+                ))
+            })
+        })?;
+    if source.len() < byte_len {
+        return Err(MaterializationDiagnostic(format!(
+            "scalar decoding needs {byte_len} bytes, source has {}",
+            source.len()
+        )));
+    }
+
+    let mut decoded = std::collections::BTreeMap::new();
+    for field in fields {
+        if decoded
+            .insert(field.field.as_str(), (field.width_bits, 0_u64, 0_u64))
+            .is_some()
+        {
+            return Err(MaterializationDiagnostic(format!(
+                "scalar field `{}` is declared more than once",
+                field.field
+            )));
+        }
+    }
+    let planned = layout
+        .entries
+        .iter()
+        .map(|entry| entry.field.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    if let Some(field) = planned.iter().find(|field| !decoded.contains_key(**field)) {
+        return Err(MaterializationDiagnostic(format!(
+            "layout field `{field}` has no scalar decode schema"
+        )));
+    }
+    if let Some(field) = decoded.keys().find(|field| !planned.contains(**field)) {
+        return Err(MaterializationDiagnostic(format!(
+            "scalar decode field `{field}` has no entry in the validated layout plan"
+        )));
+    }
+
+    for entry in &layout.entries {
+        let (width_bits, value, covered) = decoded
+            .get_mut(entry.field.as_str())
+            .expect("complete field set validated above");
+        let fragment = scalar_fragment(entry, *width_bits)?;
+        validate_fragment(
+            byte_len,
+            &entry.field,
+            fragment.container_byte_offset,
+            fragment.container_width_bits,
+            fragment.destination_lsb,
+            fragment.source_lsb,
+            fragment.width,
+        )?;
+        let source_mask = low_mask(fragment.width) << fragment.source_lsb;
+        if *covered & source_mask != 0 {
+            return Err(MaterializationDiagnostic(format!(
+                "scalar field `{}` decode fragments overlap in the logical source",
+                entry.field
+            )));
+        }
+        let container_bytes = usize::from(fragment.container_width_bits / 8);
+        let start = usize::try_from(fragment.container_byte_offset).map_err(|_| {
+            MaterializationDiagnostic("container offset cannot be represented on this host".into())
+        })?;
+        let end = start
+            .checked_add(container_bytes)
+            .ok_or_else(|| MaterializationDiagnostic("container byte range overflows".into()))?;
+        let container = read_container(&source[start..end], byte_order);
+        let value_fragment = (container >> fragment.destination_lsb) & low_mask(fragment.width);
+        *value |= value_fragment << fragment.source_lsb;
+        *covered |= source_mask;
+    }
+
+    decoded
+        .into_iter()
+        .map(|(field, (width_bits, value, covered))| {
+            if covered != low_mask(width_bits) {
+                return Err(MaterializationDiagnostic(format!(
+                    "scalar field `{field}` decode fragments do not tile its complete {width_bits}-bit source"
+                )));
+            }
+            Ok(ScalarFieldValue {
+                field: field.into(),
+                width_bits,
+                value,
+            })
+        })
+        .collect()
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MaterializationDiagnostic(pub String);
 
@@ -880,13 +1012,49 @@ fn apply_scalar_entry(
     entry: &LayoutFieldEntryReport,
     value: &ScalarFieldValue,
 ) -> Result<(), MaterializationDiagnostic> {
+    let fragment = scalar_fragment(entry, value.width_bits)?;
+    validate_fragment(
+        bytes.len(),
+        &value.field,
+        fragment.container_byte_offset,
+        fragment.container_width_bits,
+        fragment.destination_lsb,
+        fragment.source_lsb,
+        fragment.width,
+    )?;
+    apply_fragment(
+        bytes,
+        byte_order,
+        &value.field,
+        fragment.container_byte_offset,
+        fragment.container_width_bits,
+        fragment.destination_lsb,
+        fragment.source_lsb,
+        fragment.width,
+        value.value,
+    )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ScalarFragment {
+    container_byte_offset: u64,
+    container_width_bits: u16,
+    destination_lsb: u16,
+    source_lsb: u16,
+    width: u16,
+}
+
+fn scalar_fragment(
+    entry: &LayoutFieldEntryReport,
+    source_width_bits: u16,
+) -> Result<ScalarFragment, MaterializationDiagnostic> {
     let (container, container_width, destination_lsb, source_lsb, width) = match entry.placement {
         LayoutPlacementReport::At { offset } => (
             offset,
-            i64::from(value.width_bits),
+            i64::from(source_width_bits),
             0,
             0,
-            i64::from(value.width_bits),
+            i64::from(source_width_bits),
         ),
         LayoutPlacementReport::Bits {
             container,
@@ -912,16 +1080,16 @@ fn apply_scalar_entry(
     {
         return Err(MaterializationDiagnostic(format!(
             "scalar field `{}` uses a materializer-incompatible placement",
-            value.field
+            entry.field
         )));
     }
     let source_end = source_lsb
         .checked_add(width)
         .ok_or_else(|| MaterializationDiagnostic("scalar source bit range overflows".into()))?;
-    if source_end > i64::from(value.width_bits) {
+    if source_end > i64::from(source_width_bits) {
         return Err(MaterializationDiagnostic(format!(
             "scalar field `{}` placement reads through bit {source_end}, past its {}-bit source",
-            value.field, value.width_bits
+            entry.field, source_width_bits
         )));
     }
     let destination_end = destination_lsb.checked_add(width).ok_or_else(|| {
@@ -930,41 +1098,23 @@ fn apply_scalar_entry(
     if destination_end > container_width {
         return Err(MaterializationDiagnostic(format!(
             "scalar field `{}` placement writes through bit {destination_end}, past its {container_width}-bit container",
-            value.field
+            entry.field
         )));
     }
 
-    let container_byte_offset = u64::try_from(container).expect("non-negative container");
-    let container_width_bits =
-        u16::try_from(container_width).expect("validated materializer container width");
-    let destination_lsb = u16::try_from(destination_lsb).expect("validated destination bit index");
-    let source_lsb = u16::try_from(source_lsb).expect("validated source bit index");
-    let width = u16::try_from(width).map_err(|_| {
-        MaterializationDiagnostic(format!(
-            "scalar field `{}` fragment width {width} is too large",
-            value.field
-        ))
-    })?;
-    validate_fragment(
-        bytes.len(),
-        &value.field,
-        container_byte_offset,
-        container_width_bits,
-        destination_lsb,
-        source_lsb,
-        width,
-    )?;
-    apply_fragment(
-        bytes,
-        byte_order,
-        &value.field,
-        container_byte_offset,
-        container_width_bits,
-        destination_lsb,
-        source_lsb,
-        width,
-        value.value,
-    )
+    Ok(ScalarFragment {
+        container_byte_offset: u64::try_from(container).expect("non-negative container"),
+        container_width_bits: u16::try_from(container_width)
+            .expect("validated materializer container width"),
+        destination_lsb: u16::try_from(destination_lsb).expect("validated destination bit index"),
+        source_lsb: u16::try_from(source_lsb).expect("validated source bit index"),
+        width: u16::try_from(width).map_err(|_| {
+            MaterializationDiagnostic(format!(
+                "scalar field `{}` fragment width {width} is too large",
+                entry.field
+            ))
+        })?,
+    })
 }
 
 fn apply_write(
@@ -1252,6 +1402,27 @@ mod tests {
             u64::from_le_bytes(bytes),
             (1_u64 << 63) | (0x12345_u64 << 12) | 0b11
         );
+
+        let decoded = decode_scalar_layout(
+            &layout,
+            &[
+                ScalarFieldSchema::new("present", 1).expect("present"),
+                ScalarFieldSchema::new("writable", 1).expect("writable"),
+                ScalarFieldSchema::new("frame_number", 40).expect("frame"),
+                ScalarFieldSchema::new("no_execute", 1).expect("NX"),
+            ],
+            ByteOrder::LittleEndian,
+            &bytes,
+        )
+        .expect("the same plan decodes imported table bytes");
+        let values = decoded
+            .iter()
+            .map(|field| (field.field.as_str(), field.value))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        assert_eq!(values["present"], 1);
+        assert_eq!(values["writable"], 1);
+        assert_eq!(values["frame_number"], 0x12345);
+        assert_eq!(values["no_execute"], 1);
     }
 
     #[test]
@@ -1304,6 +1475,15 @@ mod tests {
         .expect_err("duplicate supplied fields reject");
         assert!(error.0.contains("more than once"));
         assert_eq!(bytes, [0xa5]);
+
+        let error = decode_scalar_layout(
+            &layout,
+            &[ScalarFieldSchema::new("low", 4).expect("low")],
+            ByteOrder::LittleEndian,
+            &bytes,
+        )
+        .expect_err("an imported scan also requires the complete schema");
+        assert!(error.0.contains("`high`"));
     }
 
     #[test]

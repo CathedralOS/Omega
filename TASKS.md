@@ -1630,7 +1630,11 @@ stronger operations it needs instead of citing machine parameters generally.
   zeroes padding/reserved bits, and commits to the destination only after all
   entries validate. Unit coverage pins an x86-64 page-table word, while the
   compiler integration rail materializes a build-time-evaluated compact-bit
-  policy rather than a hand-authored Rust layout.
+  policy rather than a hand-authored Rust layout. The inverse scalar decoder
+  now drives imported-table scans through the identical named geometry and
+  compiler-materialized field widths; it reconstructs complete logical fields,
+  rejects missing/extra/overlapping source fragments, and establishes no
+  semantic or authority fact by itself.
   Constant integer ranges now normalize to exact two's-complement bit-pattern
   sets, including split intervals across signed zero. Adjacent and overlapping
   intervals canonicalize, so a signed range covering its complete carrier is
@@ -1706,8 +1710,10 @@ stronger operations it needs instead of citing machine parameters generally.
   to derive entries, including the draft's exact table-storage destination;
   the projections expose inert data and cannot borrow, consume, split, complete
   a mapping, or release authority. Target-specific entry writers, imported-table
-  scanners, page-table-control execution/effects, and further normalized
-  mapping work remain ordinary engineering. Connecting
+  entry writers and imported scanners can now share the same ordinary scalar
+  materialize/decode consumer; target-specific field-policy mapping,
+  page-table-control execution/effects, and further normalized mapping work
+  remain ordinary engineering. Connecting
   this model to the source-visible opaque Omega `[linear]` carrier, sealed fact
   establishment, storage, calling conventions, and source APIs is
   **OWNER-BLOCKED (#8)** on the runtime representation plan for opaque

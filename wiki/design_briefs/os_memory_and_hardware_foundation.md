@@ -314,6 +314,10 @@ translation. The target-neutral scalar materializer can now turn the complete
 named field set into the packed word through that validated geometry. It has no
 raw-offset input, zeros reserved/padding bits, validates all fragments before
 committing bytes, and still grants no frame, mapping, or installation authority.
+The inverse scalar decoder lets a one-time imported-table scanner recover those
+same named logical values without a target-private offset parser. Its result is
+ordinary data only; the scanner must still validate mapping provenance and mint
+the exact construction receipt before the table becomes `Installable`.
 
 Generated construction and a one-time imported-table scan are two evidence
 routes to the same `InstallablePageTable` state. In either case an exact receipt

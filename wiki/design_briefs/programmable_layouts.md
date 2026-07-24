@@ -282,7 +282,11 @@ there is no caller-supplied offset, every planned field must be supplied
 exactly once, widths and fragments are rechecked, padding/reserved bits start
 at zero, and the destination changes only after complete validation. A packed
 x86-64 page-table word and a compiler-evaluated compact-bit policy pin the
-foundation path; source establishment and target writer integration remain.
+foundation path. The inverse scalar decoder consumes compiler-materialized
+field widths and the same named geometry, reconstructs complete logical
+fields, and rejects incomplete or overlapping source fragments. Decoding
+establishes no domain, trust, or authority fact; source establishment and
+target writer/scanner integration remain separate validators.
 Step 8 now also has a normalized symbolic foundation: sealed
 `Data(DataSymbolId) | Entry(EntryStubId)` source
 identities derive resolved writes, native whole-pointer relocations, or
