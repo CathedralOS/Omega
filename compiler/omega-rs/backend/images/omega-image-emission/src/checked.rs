@@ -277,6 +277,17 @@ fn validate_checked_instruction_bytes(
             final_bytes,
             relocations,
         )?;
+        for loader in instruction.checked_operand_loaders.into_iter().flatten() {
+            validate_checked_operand_loader(
+                loader,
+                instruction.selected_instruction_index,
+                byte_offset,
+                encoded_bytes,
+                final_bytes,
+                relocations,
+            )?;
+            fingerprint_checked_operand_loader(&mut fingerprint, loader);
+        }
 
         let kind_tag = match kind {
             CheckedInstructionValidationKind::MachineHalt => 1,
@@ -308,6 +319,155 @@ fn validate_checked_instruction_bytes(
         count += 1;
     }
     Ok((count, fingerprint))
+}
+
+fn fingerprint_checked_operand_loader(
+    fingerprint: &mut u64,
+    loader: omega_machine_bytes::CheckedOperandLoaderValidation,
+) {
+    use omega_machine_bytes::{
+        CheckedOperandLoaderKind as Kind, CheckedOperandLoaderRegister as Register,
+    };
+
+    fingerprint_into(
+        fingerprint,
+        &[match loader.register {
+            Register::R10 => 1,
+            Register::R11 => 2,
+        }],
+    );
+    fingerprint_into(fingerprint, &loader.byte_offset.to_le_bytes());
+    fingerprint_into(fingerprint, &loader.byte_width.to_le_bytes());
+    match loader.kind {
+        Kind::Immediate { value } => {
+            fingerprint_into(fingerprint, &[1]);
+            fingerprint_into(fingerprint, &value.to_le_bytes());
+        }
+        Kind::Storage {
+            byte_offset,
+            byte_size,
+        } => {
+            fingerprint_into(fingerprint, &[2, byte_size]);
+            fingerprint_into(fingerprint, &byte_offset.to_le_bytes());
+        }
+    }
+}
+
+fn validate_checked_operand_loader(
+    loader: omega_machine_bytes::CheckedOperandLoaderValidation,
+    selected_instruction_index: u32,
+    instruction_byte_offset: usize,
+    encoded_instruction: &[u8],
+    final_instruction: &[u8],
+    relocations: &RelocationPlan,
+) -> Result<(), Diagnostic> {
+    use omega_machine_bytes::{
+        CheckedOperandLoaderKind as Kind, CheckedOperandLoaderRegister as Register,
+    };
+
+    let start = usize::try_from(loader.byte_offset).expect("u32 loader offset fits usize");
+    let width = usize::try_from(loader.byte_width).expect("u32 loader width fits usize");
+    let end = start
+        .checked_add(width)
+        .filter(|end| *end <= encoded_instruction.len() && *end <= final_instruction.len())
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "checked-assembly instruction #{selected_instruction_index} operand loader exceeds its retained byte span"
+            ))
+        })?;
+    let encoded = &encoded_instruction[start..end];
+    let final_bytes = &final_instruction[start..end];
+
+    match loader.kind {
+        Kind::Immediate { value } => {
+            let mut expected = Vec::with_capacity(10);
+            expected.extend(match loader.register {
+                Register::R10 => [0x49, 0xba],
+                Register::R11 => [0x49, 0xbb],
+            });
+            expected.extend(value.to_le_bytes());
+            if width != expected.len() || encoded != expected || final_bytes != expected {
+                return Err(Diagnostic::error(format!(
+                    "checked-assembly instruction #{selected_instruction_index} immediate operand loader does not match its retained value/register semantics"
+                )));
+            }
+        }
+        Kind::Storage {
+            byte_offset,
+            byte_size,
+        } => {
+            let displacement = i32::try_from(byte_offset).map_err(|_| {
+                Diagnostic::error(format!(
+                    "checked-assembly instruction #{selected_instruction_index} storage operand displacement does not fit x86 disp32"
+                ))
+            })?;
+            let opcode: &[u8] = match (loader.register, byte_size) {
+                (Register::R10, 1) => &[0x45, 0x8a, 0x97],
+                (Register::R10, 2) => &[0x66, 0x45, 0x8b, 0x97],
+                (Register::R10, 4) => &[0x45, 0x8b, 0x97],
+                (Register::R10, 8) => &[0x4d, 0x8b, 0x97],
+                (Register::R11, 1) => &[0x45, 0x8a, 0x9f],
+                (Register::R11, 2) => &[0x66, 0x45, 0x8b, 0x9f],
+                (Register::R11, 4) => &[0x45, 0x8b, 0x9f],
+                (Register::R11, 8) => &[0x4d, 0x8b, 0x9f],
+                _ => {
+                    return Err(Diagnostic::error(format!(
+                        "checked-assembly instruction #{selected_instruction_index} retains unsupported {byte_size}-byte storage operand semantics"
+                    )));
+                }
+            };
+            let mut suffix = Vec::with_capacity(opcode.len() + 4);
+            suffix.extend(opcode);
+            suffix.extend(displacement.to_le_bytes());
+            let expected_width = 10 + suffix.len();
+            if width != expected_width
+                || encoded.get(..2) != Some(&[0x49, 0xbf])
+                || encoded.get(2..10) != Some(&[0; 8])
+                || encoded.get(10..) != Some(suffix.as_slice())
+            {
+                return Err(Diagnostic::error(format!(
+                    "encoded checked-assembly instruction #{selected_instruction_index} storage operand loader does not match its retained offset/width/register semantics"
+                )));
+            }
+            if final_bytes.get(..2) != Some(&[0x49, 0xbf])
+                || final_bytes.get(10..) != Some(suffix.as_slice())
+            {
+                return Err(Diagnostic::error(format!(
+                    "final checked-assembly instruction #{selected_instruction_index} changed its storage operand loader semantics"
+                )));
+            }
+            require_checked_operand_storage_relocation(
+                relocations,
+                instruction_byte_offset + start + 2,
+                selected_instruction_index,
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn require_checked_operand_storage_relocation(
+    relocations: &RelocationPlan,
+    expected_offset: usize,
+    selected_instruction_index: u32,
+) -> Result<(), Diagnostic> {
+    let matching_relocations = relocations
+        .records()
+        .filter(|(_, relocation)| {
+            relocation.section == SectionKind::Text
+                && relocation.kind == RelocationKind::Absolute64
+                && relocation.offset == expected_offset
+                && relocation.byte_width == 8
+                && relocation.origin.selected_instruction_index()
+                    == Some(selected_instruction_index)
+        })
+        .count();
+    if matching_relocations != 1 {
+        return Err(Diagnostic::error(format!(
+            "checked-assembly instruction #{selected_instruction_index} requires exactly one source-storage relocation at final text byte {expected_offset}; found {matching_relocations}"
+        )));
+    }
+    Ok(())
 }
 
 fn validate_checked_instruction_kind(
@@ -1087,16 +1247,19 @@ mod tests {
             selected_instruction_index: 4,
             bytes: halt,
             checked_validation_kind: Some(CheckedInstructionValidationKind::MachineHalt),
+            checked_operand_loaders: [None, None],
         });
         instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 5,
             bytes: fence,
             checked_validation_kind: Some(CheckedInstructionValidationKind::FullFence),
+            checked_operand_loaders: [None, None],
         });
         instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 6,
             bytes: cli,
             checked_validation_kind: Some(CheckedInstructionValidationKind::InterruptDisable),
+            checked_operand_loaders: [None, None],
         });
         let code = EncodedMachineCode {
             functions: Arena::new(),
@@ -1130,7 +1293,9 @@ mod tests {
     fn validates_immediate_port_identity_and_privileged_io_envelopes() {
         use omega_core::arena::Arena;
         use omega_machine_bytes::{
-            CheckedInstructionValidationKind, EncodedMachineCode, EncodedMachineInstruction,
+            CheckedInstructionValidationKind, CheckedOperandLoaderKind,
+            CheckedOperandLoaderRegister, CheckedOperandLoaderValidation, EncodedMachineCode,
+            EncodedMachineInstruction,
         };
 
         let mut out_bytes = Vec::new();
@@ -1161,6 +1326,20 @@ mod tests {
                     value_operand_byte_width: 10,
                 },
             ),
+            checked_operand_loaders: [
+                Some(CheckedOperandLoaderValidation {
+                    byte_offset: 0,
+                    byte_width: 10,
+                    register: CheckedOperandLoaderRegister::R10,
+                    kind: CheckedOperandLoaderKind::Immediate { value: 0x3f8 },
+                }),
+                Some(CheckedOperandLoaderValidation {
+                    byte_offset: 13,
+                    byte_width: 10,
+                    register: CheckedOperandLoaderRegister::R11,
+                    kind: CheckedOperandLoaderKind::Immediate { value: 0x41 },
+                }),
+            ],
         });
         instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 9,
@@ -1171,6 +1350,15 @@ mod tests {
                     destination_byte_offset: 4,
                 },
             ),
+            checked_operand_loaders: [
+                Some(CheckedOperandLoaderValidation {
+                    byte_offset: 0,
+                    byte_width: 10,
+                    register: CheckedOperandLoaderRegister::R10,
+                    kind: CheckedOperandLoaderKind::Immediate { value: 0x3fd },
+                }),
+                None,
+            ],
         });
         let code = EncodedMachineCode {
             functions: Arena::new(),
@@ -1217,6 +1405,17 @@ mod tests {
         .expect_err("changing a final port identity must reject");
         assert!(diagnostic.message.contains("changed its port"));
 
+        let mut wrong_value = final_bytes.clone();
+        wrong_value[15] ^= 1;
+        let diagnostic = validate_checked_instruction_bytes(
+            omega_target::Architecture::X86_64,
+            &code,
+            &wrong_value,
+            &relocations,
+        )
+        .expect_err("changing a final immediate operand value must reject");
+        assert!(diagnostic.message.contains("immediate operand loader"));
+
         let mut wrong_opcode = final_bytes;
         wrong_opcode[out_span.len() - 1] = 0x90;
         let diagnostic = validate_checked_instruction_bytes(
@@ -1230,10 +1429,104 @@ mod tests {
     }
 
     #[test]
+    fn validates_direct_storage_operand_loader_semantics() {
+        use omega_core::arena::{Arena, Handle};
+        use omega_core::inline_assembly::AsmControlRegister;
+        use omega_machine_bytes::{
+            CheckedInstructionValidationKind, CheckedOperandLoaderKind,
+            CheckedOperandLoaderRegister, CheckedOperandLoaderValidation, EncodedMachineCode,
+            EncodedMachineInstruction,
+        };
+
+        let mut encoded = Vec::new();
+        encoded.extend([0x49, 0xbf]);
+        encoded.extend(0u64.to_le_bytes());
+        encoded.extend([0x4d, 0x8b, 0x97]);
+        encoded.extend(32u32.to_le_bytes());
+        encoded.extend([0x41, 0x0f, 0x22, 0xda]);
+
+        let mut bytes = Arena::with_capacity(encoded.len());
+        let span = bytes.insert_many(encoded.iter().copied());
+        let mut instructions = Arena::with_capacity(1);
+        instructions.insert(EncodedMachineInstruction {
+            selected_instruction_index: 11,
+            bytes: span,
+            checked_validation_kind: Some(CheckedInstructionValidationKind::ControlRegisterWrite {
+                register: AsmControlRegister::Cr3,
+                source_operand_byte_width: 17,
+            }),
+            checked_operand_loaders: [
+                Some(CheckedOperandLoaderValidation {
+                    byte_offset: 0,
+                    byte_width: 17,
+                    register: CheckedOperandLoaderRegister::R10,
+                    kind: CheckedOperandLoaderKind::Storage {
+                        byte_offset: 32,
+                        byte_size: 8,
+                    },
+                }),
+                None,
+            ],
+        });
+        let code = EncodedMachineCode {
+            functions: Arena::new(),
+            instructions,
+            bytes,
+            byte_count: encoded.len(),
+        };
+
+        let mut final_bytes = encoded;
+        final_bytes[2..10].copy_from_slice(&0x1234_5678_9abc_def0u64.to_le_bytes());
+        let mut relocations = RelocationPlan::with_target(NativeTarget::linux_x64());
+        relocations.push_record(RelocationRecord {
+            origin: RelocationOrigin::Instruction {
+                function_symbol_handle: Handle::invalid(),
+                selected_instruction_index: 11,
+            },
+            section: SectionKind::Text,
+            offset: 2,
+            byte_width: 8,
+            symbol_handle: Handle::invalid(),
+            kind: RelocationKind::Absolute64,
+        });
+
+        validate_checked_instruction_bytes(
+            omega_target::Architecture::X86_64,
+            &code,
+            &final_bytes,
+            &relocations,
+        )
+        .expect("direct storage loader semantics and relocation should validate");
+
+        let mut wrong_load = final_bytes.clone();
+        wrong_load[10] ^= 1;
+        let diagnostic = validate_checked_instruction_bytes(
+            omega_target::Architecture::X86_64,
+            &code,
+            &wrong_load,
+            &relocations,
+        )
+        .expect_err("changing the retained source load must reject");
+        assert!(diagnostic.message.contains("storage operand loader"));
+
+        let missing_relocation = RelocationPlan::with_target(NativeTarget::linux_x64());
+        let diagnostic = validate_checked_instruction_bytes(
+            omega_target::Architecture::X86_64,
+            &code,
+            &final_bytes,
+            &missing_relocation,
+        )
+        .expect_err("a storage loader without its exact relocation must reject");
+        assert!(diagnostic.message.contains("source-storage relocation"));
+    }
+
+    #[test]
     fn rejects_mutated_final_wrmsr_opcode_after_index_binding() {
         use omega_core::arena::Arena;
         use omega_machine_bytes::{
-            CheckedInstructionValidationKind, EncodedMachineCode, EncodedMachineInstruction,
+            CheckedInstructionValidationKind, CheckedOperandLoaderKind,
+            CheckedOperandLoaderRegister, CheckedOperandLoaderValidation, EncodedMachineCode,
+            EncodedMachineInstruction,
         };
 
         let mut encoded = Vec::new();
@@ -1258,6 +1551,22 @@ mod tests {
                     value_operand_byte_width: 10,
                 },
             ),
+            checked_operand_loaders: [
+                Some(CheckedOperandLoaderValidation {
+                    byte_offset: 0,
+                    byte_width: 10,
+                    register: CheckedOperandLoaderRegister::R10,
+                    kind: CheckedOperandLoaderKind::Immediate { value: 0xc000_0080 },
+                }),
+                Some(CheckedOperandLoaderValidation {
+                    byte_offset: 12,
+                    byte_width: 10,
+                    register: CheckedOperandLoaderRegister::R11,
+                    kind: CheckedOperandLoaderKind::Immediate {
+                        value: 0x1122_3344_5566_7788,
+                    },
+                }),
+            ],
         });
         let code = EncodedMachineCode {
             functions: Arena::new(),

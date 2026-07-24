@@ -8,7 +8,8 @@ use omega_assigned_target_operations::{
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_machine_bytes::{
-    CheckedInstructionValidationKind, EncodedMachineCode, EncodedMachineInstruction,
+    CheckedInstructionValidationKind, CheckedOperandLoaderKind, CheckedOperandLoaderRegister,
+    CheckedOperandLoaderValidation, EncodedMachineCode, EncodedMachineInstruction,
 };
 use omega_machine_instructions::{MachineInstruction, MachineInstructionPlan};
 use omega_target_operations::RuntimeValueOperandSource;
@@ -73,6 +74,7 @@ pub(crate) fn emit_function_bytes(
                 selected_instruction_index: machine_instruction.selected_instruction_index,
                 bytes: HandleSpan::empty(),
                 checked_validation_kind: None,
+                checked_operand_loaders: [None, None],
             });
             continue;
         }
@@ -113,6 +115,8 @@ pub(crate) fn emit_function_bytes(
         }
         let checked_validation_kind =
             checked_instruction_validation_kind(emission_context, &machine_instruction.source_kind);
+        let checked_operand_loaders =
+            checked_operand_loaders(emission_context, &machine_instruction.source_kind);
         if machine_instruction
             .kind
             .requires_checked_assembly_validation()
@@ -127,10 +131,89 @@ pub(crate) fn emit_function_bytes(
             selected_instruction_index: machine_instruction.selected_instruction_index,
             bytes: byte_span,
             checked_validation_kind,
+            checked_operand_loaders,
         });
     }
 
     Ok(())
+}
+
+fn checked_operand_loader(
+    emission_context: MachineEmissionContext<'_>,
+    operand: omega_target_operations::RuntimeValueOperandHandle,
+    byte_offset: usize,
+    register: CheckedOperandLoaderRegister,
+) -> Option<CheckedOperandLoaderValidation> {
+    let source = emission_context.assigned_target_operations;
+    let byte_width = omega_instruction_selection::runtime_value_operand_width(
+        omega_target::Architecture::X86_64,
+        source,
+        operand,
+    );
+    let kind = if let Some(value) = source.immediate_integer(operand) {
+        CheckedOperandLoaderKind::Immediate {
+            value: value as u64,
+        }
+    } else if let Some((_region, storage_offset, byte_size)) = source.storage(operand) {
+        CheckedOperandLoaderKind::Storage {
+            byte_offset: u32::try_from(storage_offset).ok()?,
+            byte_size: u8::try_from(byte_size).ok()?,
+        }
+    } else {
+        return None;
+    };
+    Some(CheckedOperandLoaderValidation {
+        byte_offset: u32::try_from(byte_offset).ok()?,
+        byte_width: u32::try_from(byte_width).ok()?,
+        register,
+        kind,
+    })
+}
+
+fn checked_operand_loaders(
+    emission_context: MachineEmissionContext<'_>,
+    kind: &SelectedInstructionKind,
+) -> [Option<CheckedOperandLoaderValidation>; 2] {
+    use CheckedOperandLoaderRegister::{R10, R11};
+
+    let mut loaders = [None, None];
+    match kind {
+        SelectedInstructionKind::PortWrite { port, value } => {
+            let port_width = omega_instruction_selection::runtime_value_operand_width(
+                omega_target::Architecture::X86_64,
+                emission_context.assigned_target_operations,
+                *port,
+            );
+            loaders[0] = checked_operand_loader(emission_context, *port, 0, R10);
+            loaders[1] = checked_operand_loader(
+                emission_context,
+                *value,
+                port_width + omega_isa_x86_64::PORT_OPERAND_REGISTER_MOVE_WIDTH,
+                R11,
+            );
+        }
+        SelectedInstructionKind::PortRead { port, .. } => {
+            loaders[0] = checked_operand_loader(emission_context, *port, 0, R10);
+        }
+        SelectedInstructionKind::MsrRead { index, .. } => {
+            loaders[0] = checked_operand_loader(emission_context, *index, 0, R10);
+        }
+        SelectedInstructionKind::MsrWrite { index, value } => {
+            let index_width = omega_instruction_selection::runtime_value_operand_width(
+                omega_target::Architecture::X86_64,
+                emission_context.assigned_target_operations,
+                *index,
+            );
+            loaders[0] = checked_operand_loader(emission_context, *index, 0, R10);
+            loaders[1] = checked_operand_loader(emission_context, *value, index_width + 2, R11);
+        }
+        SelectedInstructionKind::ControlRegisterWrite { source, .. }
+        | SelectedInstructionKind::FlagsRestore { source } => {
+            loaders[0] = checked_operand_loader(emission_context, *source, 0, R10);
+        }
+        _ => {}
+    }
+    loaders
 }
 
 fn checked_instruction_validation_kind(
