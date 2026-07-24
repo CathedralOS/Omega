@@ -83,8 +83,8 @@ fn bool_representation_recasts_preserve_aliasing_and_facts() {
 
 #[test]
 fn shared_domain_weakening_preserves_the_source_value() {
-    let main =
-        repo_root().join("canaries/pass/recast/runtime_shared_domain_weakening_recast_exit/main.omg");
+    let main = repo_root()
+        .join("canaries/pass/recast/runtime_shared_domain_weakening_recast_exit/main.omg");
     let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
         panic!(
             "shared domain weakening should compile:\n{}",
@@ -99,6 +99,29 @@ fn shared_domain_weakening_preserves_the_source_value() {
     assert!(
         !outcome.is_error(),
         "interpreter declined shared domain weakening: {:?}",
+        outcome.error
+    );
+    assert_eq!(outcome.exit_code, 70);
+}
+
+#[test]
+fn float_range_recasts_preserve_aliasing_and_interval_facts() {
+    let main = repo_root()
+        .join("canaries/pass/recast/runtime_float_range_representation_recast_exit/main.omg");
+    let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "same-carrier float range recasts should compile:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "interpreter declined float-range recasts: {:?}",
         outcome.error
     );
     assert_eq!(outcome.exit_code, 70);

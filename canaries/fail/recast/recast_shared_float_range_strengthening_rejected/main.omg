@@ -1,0 +1,10 @@
+// FAIL CANARY: same-carrier float intervals compose in the safe direction
+// only. A value known merely to be in 0..=2 cannot establish 0..=1 through a
+// shared alias.
+data Main {
+    value: f32 [0..=2];
+}
+
+machine Main::main(&mut self) {
+    let narrow: &f32 [0..=1] = &self.value as &f32;
+}

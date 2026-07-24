@@ -196,8 +196,10 @@ live canary covers range-bearing signed/unsigned leaves and `bool` in native and
 interpreter execution. Raw bytes are different. `recast` never establishes
 record facts from unchecked storage; that path remains gated on validation or
 materialization minting the established value. Domain predicates over different
-carriers and float ranges remain fenced until their representation sets can be
-proved rather than guessed.
+carriers remain fenced until their representation sets can be proved rather
+than guessed. Float ranges compose by numeric interval inclusion on the same
+float carrier, with exact interval equality required for mutable aliases; they
+never justify cross-carrier bit-pattern equivalence.
 
 Top-level structural targets are live on the same full-type-reference spine.
 Literal-length fixed arrays apply the recursive element judgment directly.
