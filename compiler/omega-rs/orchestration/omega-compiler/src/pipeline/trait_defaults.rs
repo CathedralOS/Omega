@@ -589,6 +589,7 @@ fn synthesize_machine_named(
         bodyless: false,
         target: None,
         boundary: false,
+        lifetime_parameters: signature.lifetime_parameters.clone(),
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
         terminates: signature.terminates_guarantee,

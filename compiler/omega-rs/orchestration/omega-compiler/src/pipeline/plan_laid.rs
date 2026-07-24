@@ -50,6 +50,7 @@ pub(crate) struct PlanLaidRecord {
 struct IndexedData {
     has_type_parameters: bool,
     supply_mode: omega_core::semantics::DataSupplyMode,
+    lifetime_parameters: Vec<Identifier>,
     members: HandleSpan<DataMember>,
     properties: DataProperties,
 }
@@ -77,8 +78,10 @@ pub(crate) fn desugar_plan_laid_value_types(
                 data_index.insert(
                     definition.name.as_str().to_string(),
                     IndexedData {
-                        has_type_parameters: !definition.type_parameters.is_empty(),
+                        has_type_parameters: !definition.type_parameters.is_empty()
+                            || !definition.lifetime_parameters.is_empty(),
                         supply_mode: definition.supply_mode,
+                        lifetime_parameters: definition.lifetime_parameters.clone(),
                         members: definition.members,
                         properties: definition.properties,
                     },
@@ -231,6 +234,7 @@ pub(crate) fn desugar_plan_laid_value_types(
         syntax.push_root_item(Item::Data(DataDefinition {
             name: Identifier::generated(record.synthetic_name.as_str()),
             supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
+            lifetime_parameters: schema_info.lifetime_parameters.clone(),
             type_parameters: HandleSpan::default(),
             properties: schema_info.properties,
             where_facts: omega_core::arena::HandleSpan::empty(),

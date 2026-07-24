@@ -226,18 +226,23 @@ bracket origins): it is lexically self-identifying at use sites, collides
 with none of Omega's bracket meanings (slices, properties, invariant
 parameters), and elision makes it rare.
 
-Implementation is staged. The frontend preserves explicit lifetime tags,
-applies the single-reference and `self` elision rules, rejects ambiguous
-multi-reference results, and links a returned view to the one input it names.
+Implementation is staged. The frontend preserves explicit lifetime tags and
+their declaration binders through every semantic tree phase. Binders are
+erased regions stored separately from type/const/machine parameters, so they
+do not change runtime generic arity or monomorphization; duplicate declarations
+and undeclared tags reject. The checker applies the single-reference and
+`self` elision rules, rejects ambiguous multi-reference results, and links a
+returned view to the one input it names.
 Borrow carrying is structural: nested records, active sum payloads, fixed
 arrays, constraints, and concrete generic arguments cannot hide an inner
 loan, and recursive data is walked cycle-safely. Literal construction records
 every carried source; a returned aggregate is valid only when all of those
 sources outlive the call, and projecting a named field retains only that
-field's loans. Declared lifetime parameters, result contracts relating
-different fields to different input lifetimes, general outlives constraints,
-and non-literal aggregate construction remain implementation work; they are
-not new language-design questions.
+field's loans. Explicit lifetime arguments on named borrow-carrying data,
+result contracts relating different fields to different input lifetimes,
+general outlives constraints, exact fixed-array projection, and non-literal
+aggregate construction remain implementation work; they are not new
+language-design questions.
 
 ## Relationship To Drops
 

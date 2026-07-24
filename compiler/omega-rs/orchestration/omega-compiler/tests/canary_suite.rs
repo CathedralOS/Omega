@@ -39301,6 +39301,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "borrow/free_machine_view_invalidated_by_linked_input_write",
     "borrow/view_return_ambiguous_ref_inputs",
     "borrow/nested_borrow_carrying_local_escape",
+    "borrow/undeclared_lifetime_tag",
     "concurrency/barrier_wait_contract",
     "concurrency/mutex_lock_guard",
     "concurrency/spawn_retired",

@@ -13,6 +13,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
     let data = Item::Data(DataDefinition {
         name: Identifier::generated("Example"),
         supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
+        lifetime_parameters: Vec::new(),
         type_parameters: omega_core::arena::HandleSpan::empty(),
         properties: crate::item::DataProperties::default(),
         quotient: None,
@@ -44,6 +45,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
                     source_backed: false,
                 },
                 supply: "checked_shape",
+                lifetime_parameters: Vec::new(),
                 type_parameters: Vec::new(),
                 properties: super::DataPropertiesSnapshot {
                     multiplicity: "affine",

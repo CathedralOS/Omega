@@ -58,6 +58,7 @@ pub(crate) fn validate_trait_requirements(
                         generic_depth: 0,
                     },
                     program.trait_type_parameters(trait_definition),
+                    &trait_definition.lifetime_parameters,
                 );
             }
 

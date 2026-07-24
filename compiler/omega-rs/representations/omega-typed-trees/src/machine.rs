@@ -30,6 +30,7 @@ pub struct Machine {
     pub effect_row: omega_core::semantics::EffectRowId,
     /// EFX: normalized symbol-resolved boundary-service row.
     pub service_reach_row: omega_core::semantics::ServiceReachRowId,
+    pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub contains: HandleSpan<ContainedObject>,
     pub owned_data: HandleSpan<OwnedData>,
@@ -60,6 +61,7 @@ impl Default for Machine {
             termination_plan: omega_core::semantics::MachineTerminationPlan::default(),
             effect_row: omega_core::semantics::EffectRowId::NULL,
             service_reach_row: omega_core::semantics::ServiceReachRowId::NULL,
+            lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),

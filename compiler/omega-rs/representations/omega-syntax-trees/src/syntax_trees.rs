@@ -170,6 +170,7 @@ impl SyntaxTrees {
         let copied = self.copy_state_signature_node(other, signature);
         crate::item::StateSignatureNode {
             name: copied.name,
+            lifetime_parameters: copied.lifetime_parameters,
             type_parameters: copied.type_parameters,
             is_default: copied.is_default,
             parameters: copied.parameters,
@@ -264,6 +265,7 @@ impl SyntaxTrees {
         DataDefinition {
             name: data.name.clone(),
             supply_mode: data.supply_mode,
+            lifetime_parameters: data.lifetime_parameters.clone(),
             type_parameters: self.copy_type_parameter_span(other, data.type_parameters),
             properties: data.properties,
             quotient: data
@@ -299,6 +301,7 @@ impl SyntaxTrees {
         OperatorDefinition {
             is_boundary: operator.is_boundary,
             name: self.copy_item_identifier_span(other, operator.name),
+            lifetime_parameters: operator.lifetime_parameters.clone(),
             type_parameters: self.copy_type_parameter_span(other, operator.type_parameters),
             parameters: self.copy_state_parameter_handle_span(other, operator.parameters),
             return_type: self.copy_type_reference_handle(other, operator.return_type),
@@ -360,6 +363,7 @@ impl SyntaxTrees {
             target: machine.target.clone(),
             boundary: machine.boundary,
             bodyless: machine.bodyless,
+            lifetime_parameters: machine.lifetime_parameters.clone(),
             type_parameters: self.copy_type_parameter_span(other, machine.type_parameters),
             satisfies: self.copy_mapped_span(
                 other.items.satisfies_clauses(machine.satisfies).to_vec(),
@@ -393,6 +397,7 @@ impl SyntaxTrees {
         TraitDefinition {
             is_boundary: trait_definition.is_boundary,
             name: trait_definition.name.clone(),
+            lifetime_parameters: trait_definition.lifetime_parameters.clone(),
             type_parameters: self.copy_type_parameter_span(other, trait_definition.type_parameters),
             parents: self.copy_type_reference_handle_span(other, trait_definition.parents),
             invariants: self.copy_domain_fact_span(other, trait_definition.invariants),
@@ -730,6 +735,7 @@ impl SyntaxTrees {
     ) -> StateSignature {
         StateSignature {
             name: signature.name.clone(),
+            lifetime_parameters: signature.lifetime_parameters.clone(),
             type_parameters: self.copy_type_parameter_span(other, signature.type_parameters),
             is_default: signature.is_default,
             parameters: self.copy_state_parameter_handle_span(other, signature.parameters),
@@ -750,6 +756,7 @@ impl SyntaxTrees {
     ) -> StateSignature {
         StateSignature {
             name: signature.name.clone(),
+            lifetime_parameters: signature.lifetime_parameters.clone(),
             type_parameters: self.copy_type_parameter_span(other, signature.type_parameters),
             is_default: signature.is_default,
             parameters: self.copy_state_parameter_handle_span(other, signature.parameters),

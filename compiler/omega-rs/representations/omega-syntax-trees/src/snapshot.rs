@@ -63,6 +63,8 @@ pub enum ItemSnapshot {
     Data {
         name: IdentifierSnapshot,
         supply: &'static str,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        lifetime_parameters: Vec<IdentifierSnapshot>,
         type_parameters: Vec<TypeParameterSnapshot>,
         properties: DataPropertiesSnapshot,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -117,6 +119,8 @@ pub enum ItemSnapshot {
     Machine {
         name: IdentifierSnapshot,
         attached_data: Option<IdentifierSnapshot>,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        lifetime_parameters: Vec<IdentifierSnapshot>,
         type_parameters: Vec<TypeParameterSnapshot>,
         terminates: bool,
         decreases: Vec<ExpressionSnapshot>,
@@ -134,6 +138,8 @@ pub enum ItemSnapshot {
     Trait {
         name: IdentifierSnapshot,
         is_boundary: bool,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        lifetime_parameters: Vec<IdentifierSnapshot>,
         type_parameters: Vec<TypeParameterSnapshot>,
         parents: Vec<TypeReferenceSnapshot>,
         invariants: Vec<ProofFactSnapshot>,
@@ -188,6 +194,8 @@ pub struct CarryPolicySnapshot {
 pub struct OperatorSnapshot {
     pub is_boundary: bool,
     pub name: Vec<IdentifierSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub lifetime_parameters: Vec<IdentifierSnapshot>,
     pub type_parameters: Vec<TypeParameterSnapshot>,
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: TypeReferenceSnapshot,
@@ -323,6 +331,8 @@ pub struct StateSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct StateSignatureSnapshot {
     pub name: IdentifierSnapshot,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub lifetime_parameters: Vec<IdentifierSnapshot>,
     pub type_parameters: Vec<TypeParameterSnapshot>,
     pub is_default: bool,
     pub parameters: Vec<StateParameterSnapshot>,
@@ -604,6 +614,11 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 omega_core::semantics::DataSupplyMode::CheckedShape => "checked_shape",
                 omega_core::semantics::DataSupplyMode::BoundaryOpaque => "boundary_opaque",
             },
+            lifetime_parameters: value
+                .lifetime_parameters
+                .iter()
+                .map(snapshot_identifier)
+                .collect(),
             type_parameters: syntax_trees
                 .items
                 .type_parameters(value.type_parameters)
@@ -699,6 +714,11 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         Item::Machine(value) => ItemSnapshot::Machine {
             name: snapshot_identifier(&value.name),
             attached_data: value.attached_data.as_ref().map(snapshot_identifier),
+            lifetime_parameters: value
+                .lifetime_parameters
+                .iter()
+                .map(snapshot_identifier)
+                .collect(),
             type_parameters: syntax_trees
                 .items
                 .type_parameters(value.type_parameters)
@@ -733,6 +753,11 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         Item::Trait(value) => ItemSnapshot::Trait {
             name: snapshot_identifier(&value.name),
             is_boundary: value.is_boundary,
+            lifetime_parameters: value
+                .lifetime_parameters
+                .iter()
+                .map(snapshot_identifier)
+                .collect(),
             type_parameters: syntax_trees
                 .items
                 .type_parameters(value.type_parameters)
@@ -845,6 +870,11 @@ fn snapshot_operator(
     OperatorSnapshot {
         is_boundary: operator.is_boundary,
         name: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(operator.name)),
+        lifetime_parameters: operator
+            .lifetime_parameters
+            .iter()
+            .map(snapshot_identifier)
+            .collect(),
         type_parameters: syntax_trees
             .items
             .type_parameters(operator.type_parameters)
@@ -1084,6 +1114,11 @@ fn snapshot_state_signature(
 ) -> StateSignatureSnapshot {
     StateSignatureSnapshot {
         name: snapshot_identifier(&signature.name),
+        lifetime_parameters: signature
+            .lifetime_parameters
+            .iter()
+            .map(snapshot_identifier)
+            .collect(),
         type_parameters: syntax_trees
             .items
             .type_parameters(signature.type_parameters)
@@ -1125,6 +1160,11 @@ fn snapshot_state_signature_node(
 ) -> StateSignatureSnapshot {
     StateSignatureSnapshot {
         name: snapshot_identifier(&signature.name),
+        lifetime_parameters: signature
+            .lifetime_parameters
+            .iter()
+            .map(snapshot_identifier)
+            .collect(),
         type_parameters: syntax_trees
             .items
             .type_parameters(signature.type_parameters)

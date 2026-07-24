@@ -422,6 +422,7 @@ mod tests {
             effect_row: Default::default(),
             service_reach_row: Default::default(),
             storage: MachineStorage {
+                lifetime_parameters: Vec::new(),
                 type_parameters: HandleSpan::empty(),
                 contains: HandleSpan::empty(),
                 owned_data: HandleSpan::empty(),

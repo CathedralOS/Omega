@@ -1,15 +1,23 @@
 mod signatures;
 
+use crate::symbols::TopLevelSymbols;
+use crate::type_references::{
+    TypeReferenceOwner, validate_type_reference_handle_with_type_parameters,
+};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use signatures::{operator_name, operator_operand_key, operator_signature_key};
 
 pub(super) fn validate_operator_declarations(
     program: &TypedTrees,
+    symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     validate_duplicate_operator_signatures(program, "root", program.operators(), diagnostics);
     validate_spelling_overlap(program, program.operators(), diagnostics);
+    for operator in program.operators() {
+        validate_operator_types(program, symbols, operator, diagnostics);
+    }
 
     for domain in program.domain_definitions() {
         validate_duplicate_operator_signatures(
@@ -19,6 +27,48 @@ pub(super) fn validate_operator_declarations(
             diagnostics,
         );
         validate_spelling_overlap(program, program.domain_operators(domain), diagnostics);
+        for operator in program.domain_operators(domain) {
+            validate_operator_types(program, symbols, operator, diagnostics);
+        }
+    }
+}
+
+fn validate_operator_types(
+    program: &TypedTrees,
+    symbols: &TopLevelSymbols<'_>,
+    operator: &omega_typed_trees::operator::OperatorDefinition,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let name = operator_name(program, operator);
+    let type_parameters = program.operator_type_parameters(operator);
+    for parameter in program.operator_parameters(operator) {
+        validate_type_reference_handle_with_type_parameters(
+            program,
+            parameter.type_reference,
+            symbols,
+            diagnostics,
+            TypeReferenceOwner::OperatorParameter {
+                operator: &name,
+                parameter: parameter.name.as_str(),
+                generic_depth: 0,
+            },
+            type_parameters,
+            &operator.lifetime_parameters,
+        );
+    }
+    if operator.return_type.is_valid() {
+        validate_type_reference_handle_with_type_parameters(
+            program,
+            operator.return_type,
+            symbols,
+            diagnostics,
+            TypeReferenceOwner::OperatorReturn {
+                operator: &name,
+                generic_depth: 0,
+            },
+            type_parameters,
+            &operator.lifetime_parameters,
+        );
     }
 }
 

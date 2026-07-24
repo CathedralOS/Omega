@@ -48,6 +48,7 @@ use omega_syntax_trees::types::{
 use std::collections::{HashMap, HashSet};
 
 struct GenericData {
+    lifetime_parameters: Vec<Identifier>,
     parameter_names: Vec<String>,
     const_parameter_types: Vec<Option<TypeReferenceHandle>>,
     where_facts: HandleSpan<ProofFact>,
@@ -196,6 +197,7 @@ pub(crate) fn desugar_generic_data_instances(
         generic_data.insert(
             definition.name.as_str().to_string(),
             GenericData {
+                lifetime_parameters: definition.lifetime_parameters.clone(),
                 parameter_names,
                 const_parameter_types,
                 where_facts: definition.where_facts,
@@ -394,6 +396,7 @@ pub(crate) fn desugar_generic_data_instances(
             syntax.push_root_item(Item::Data(DataDefinition {
                 name: Identifier::generated(instance.synthetic_name.as_str()),
                 supply_mode: base_info.supply_mode,
+                lifetime_parameters: base_info.lifetime_parameters.clone(),
                 type_parameters: HandleSpan::default(),
                 properties,
                 where_facts,

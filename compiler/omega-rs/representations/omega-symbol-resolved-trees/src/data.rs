@@ -14,6 +14,7 @@ pub struct DataDefinition {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataDefinitionStorage {
     pub supply_mode: omega_core::semantics::DataSupplyMode,
+    pub lifetime_parameters: Vec<DiagnosticName>,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub properties: DataProperties,
     /// N6 proof-only quotient metadata. The carrier is resolved like an

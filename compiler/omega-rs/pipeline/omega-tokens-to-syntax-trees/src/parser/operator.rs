@@ -17,7 +17,8 @@ pub(super) fn parse_operator_definition<'tokens, 'source>(
     let (name, input) = parse_path_handle_span(input, |member| {
         syntax_trees.items.append_identifier_path_member(member)
     })?;
-    let (type_parameters, input) = parse_type_parameters(syntax_trees, input)?;
+    let (generic_parameters, input) = parse_type_parameters(syntax_trees, input)?;
+    let type_parameters = generic_parameters.type_parameters;
     let (parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
 
@@ -79,6 +80,7 @@ pub(super) fn parse_operator_definition<'tokens, 'source>(
         OperatorDefinition {
             is_boundary,
             name,
+            lifetime_parameters: generic_parameters.lifetime_parameters,
             type_parameters,
             parameters,
             return_type,

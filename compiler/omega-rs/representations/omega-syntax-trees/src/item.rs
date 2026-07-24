@@ -257,6 +257,7 @@ impl Default for LibraryFunction {
         Self {
             signature: StateSignature {
                 name: Identifier::default(),
+                lifetime_parameters: Vec::new(),
                 type_parameters: HandleSpan::empty(),
                 is_default: false,
                 parameters: HandleSpan::empty(),
@@ -308,6 +309,8 @@ impl Default for MeasureDefinition {
 pub struct OperatorDefinition {
     pub is_boundary: bool,
     pub name: HandleSpan<Identifier>,
+    /// Erased borrow-region parameters declared in the shared `<>` list.
+    pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
@@ -466,6 +469,8 @@ impl Default for BoundaryMode {
 pub struct DataDefinition {
     pub name: Identifier,
     pub supply_mode: omega_core::semantics::DataSupplyMode,
+    /// Erased borrow-region parameters declared in the shared `<>` list.
+    pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub properties: DataProperties,
     /// N6: a proof-only quotient declaration (`data Q = Carrier % relation;`).
@@ -660,6 +665,8 @@ pub struct Machine {
     /// is a callable surface the platform (or a foreign caller) invokes; its
     /// parameters are the boundary-trusted shape over the arrival bytes.
     pub boundary: bool,
+    /// Erased borrow-region parameters declared in the shared `<>` list.
+    pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub satisfies: HandleSpan<SatisfiesClause>,
     pub terminates: bool,
@@ -703,6 +710,8 @@ pub struct State {
 pub struct TraitDefinition {
     pub is_boundary: bool,
     pub name: Identifier,
+    /// Erased borrow-region parameters declared in the shared `<>` list.
+    pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<TypeParameter>,
     /// Header composition (`trait X: A + Policy<C>`). These normalize to the
     /// same requirement graph as body-level `requires A;`, while preserving
@@ -716,6 +725,8 @@ pub struct TraitDefinition {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateSignature {
     pub name: Identifier,
+    /// Erased borrow-region parameters owned by this callable requirement.
+    pub lifetime_parameters: Vec<Identifier>,
     /// Generic parameters owned by this callable requirement. N7 uses this
     /// on a `where machine` signature so a required machine may itself accept
     /// compile-time machine symbols.
@@ -1076,6 +1087,7 @@ impl ItemTable {
     pub fn insert_state_signature(&mut self, signature: &StateSignature) -> StateSignatureHandle {
         self.state_storage.signatures.append(StateSignatureNode {
             name: signature.name.clone(),
+            lifetime_parameters: signature.lifetime_parameters.clone(),
             type_parameters: signature.type_parameters,
             is_default: signature.is_default,
             parameters: signature.parameters,
@@ -1178,6 +1190,7 @@ pub struct StateParameterNode {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateSignatureNode {
     pub name: Identifier,
+    pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameterHandle>,

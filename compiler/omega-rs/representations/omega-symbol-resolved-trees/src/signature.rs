@@ -13,6 +13,7 @@ pub struct StateSignature {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateSignatureStorage {
+    pub lifetime_parameters: Vec<DiagnosticName>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameter>,

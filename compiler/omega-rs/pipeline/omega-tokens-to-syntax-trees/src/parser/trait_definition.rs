@@ -19,8 +19,9 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, TraitDefinition> {
     let input = input.take_contextual("trait")?;
     let (name, mut input) = input.take_identifier()?;
-    let (type_parameters, next) = parse_type_parameters(syntax_trees, input)?;
+    let (generic_parameters, next) = parse_type_parameters(syntax_trees, input)?;
     input = next;
+    let type_parameters = generic_parameters.type_parameters;
     let (parents, next) = parse_trait_parents(syntax_trees, input)?;
     input = next;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
@@ -116,6 +117,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         TraitDefinition {
             is_boundary,
             name,
+            lifetime_parameters: generic_parameters.lifetime_parameters,
             type_parameters,
             parents,
             invariants,
@@ -164,6 +166,7 @@ fn parse_trait_machine_signature<'tokens, 'source>(
     Ok((
         StateSignature {
             name,
+            lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
             is_default: false,
             parameters,

@@ -122,6 +122,11 @@ pub(crate) fn lower_machine_into(
         effect_row,
         service_reach_row: omega_core::semantics::ServiceReachRowId::NULL,
         storage: MachineStorage {
+            lifetime_parameters: machine
+                .lifetime_parameters
+                .iter()
+                .map(crate::name::lower_name)
+                .collect(),
             type_parameters,
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),

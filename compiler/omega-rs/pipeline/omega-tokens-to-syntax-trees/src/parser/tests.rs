@@ -5,6 +5,60 @@ use omega_syntax_trees::statement::StatementNode;
 use omega_syntax_trees::types::TypeReferenceNode;
 
 #[test]
+fn preserves_erased_lifetime_parameters_separately_from_runtime_generics() {
+    let source = r#"
+        data View<'buf, T> {
+            body: &'buf T;
+        }
+
+        machine borrow<'call>(value: &'call i32) -> &'call i32 {
+            value
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+
+    let data = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Data(data) => Some(data),
+            _ => None,
+        })
+        .expect("data declaration");
+    assert_eq!(data.lifetime_parameters.len(), 1);
+    assert_eq!(data.lifetime_parameters[0].as_str(), "buf");
+    assert_eq!(data.type_parameters.count(), 1);
+
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine declaration");
+    assert_eq!(machine.lifetime_parameters.len(), 1);
+    assert_eq!(machine.lifetime_parameters[0].as_str(), "call");
+    assert!(machine.type_parameters.is_empty());
+}
+
+#[test]
+fn rejects_duplicate_names_across_lifetime_and_runtime_generic_parameters() {
+    let source = "data View<'value, value> { body: &'value i32; }";
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let diagnostic = parse_syntax_trees(&tokens).expect_err("duplicate generic must reject");
+    assert!(
+        diagnostic
+            .message
+            .contains("duplicate generic parameter `value`")
+    );
+}
+
+#[test]
 fn parses_dungeon_machine_surface() {
     let source = r#"
         machine Game::new() -> Game {

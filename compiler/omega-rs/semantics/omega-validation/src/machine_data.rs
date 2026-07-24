@@ -46,6 +46,7 @@ pub(crate) fn validate_owned_data(
                 generic_depth: 0,
             },
             program.machine_type_parameters(machine),
+            &machine.lifetime_parameters,
         );
 
         if owned_data.initial_value.is_valid() {

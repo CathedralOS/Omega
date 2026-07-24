@@ -108,6 +108,7 @@ pub(crate) fn lower_state_signature_node(
         lowerer,
         syntax_trees,
         &signature.name,
+        &signature.lifetime_parameters,
         signature.type_parameters,
         signature.parameters,
         signature.return_type,
@@ -125,6 +126,7 @@ pub(crate) fn lower_state_signature_parts(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     name: &syntax::identifier::Identifier,
+    lifetime_parameters: &[syntax::identifier::Identifier],
     type_parameters: HandleSpan<syntax::item::TypeParameter>,
     parameters: HandleSpan<syntax::item::StateParameterHandle>,
     return_type_handle: syntax::types::TypeReferenceHandle,
@@ -149,6 +151,10 @@ pub(crate) fn lower_state_signature_parts(
         symbol: SymbolHandle::invalid(),
         name: crate::name::lower_name(name),
         storage: StateSignatureStorage {
+            lifetime_parameters: lifetime_parameters
+                .iter()
+                .map(crate::name::lower_name)
+                .collect(),
             type_parameters,
             is_default,
             parameters,

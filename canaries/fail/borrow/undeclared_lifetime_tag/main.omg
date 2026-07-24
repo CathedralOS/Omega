@@ -1,0 +1,13 @@
+// FAIL canary (lifetimes stage 2): an explicit reference lifetime is an
+// erased declaration binder, not a free-form label. A use without a matching
+// declaration on its data/machine/requirement owner rejects.
+
+data Bad {
+    body: &'ghost i32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

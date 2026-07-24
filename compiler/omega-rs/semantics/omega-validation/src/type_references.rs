@@ -41,6 +41,15 @@ pub(crate) enum TypeReferenceOwner<'program> {
         state: &'program str,
         generic_depth: usize,
     },
+    OperatorParameter {
+        operator: &'program str,
+        parameter: &'program str,
+        generic_depth: usize,
+    },
+    OperatorReturn {
+        operator: &'program str,
+        generic_depth: usize,
+    },
     TraitParent {
         trait_name: &'program str,
         parent: &'program str,
@@ -123,6 +132,22 @@ impl TypeReferenceOwner<'_> {
                 state,
                 generic_depth: generic_depth + 1,
             },
+            Self::OperatorParameter {
+                operator,
+                parameter,
+                generic_depth,
+            } => Self::OperatorParameter {
+                operator,
+                parameter,
+                generic_depth: generic_depth + 1,
+            },
+            Self::OperatorReturn {
+                operator,
+                generic_depth,
+            } => Self::OperatorReturn {
+                operator,
+                generic_depth: generic_depth + 1,
+            },
             Self::TraitParent {
                 trait_name,
                 parent,
@@ -191,6 +216,21 @@ impl fmt::Display for TypeReferenceOwner<'_> {
                 write!(formatter, "{owner} state `{state}` return type")?;
                 *generic_depth
             }
+            Self::OperatorParameter {
+                operator,
+                parameter,
+                generic_depth,
+            } => {
+                write!(formatter, "operator `{operator}` parameter `{parameter}`")?;
+                *generic_depth
+            }
+            Self::OperatorReturn {
+                operator,
+                generic_depth,
+            } => {
+                write!(formatter, "operator `{operator}` return type")?;
+                *generic_depth
+            }
             Self::TraitParent {
                 trait_name,
                 parent,
@@ -244,6 +284,7 @@ pub(crate) fn validate_type_reference_handle_with_type_parameters(
     diagnostics: &mut Vec<Diagnostic>,
     owner: TypeReferenceOwner<'_>,
     type_parameters: &[TypeParameter],
+    lifetime_parameters: &[omega_typed_trees::name::Identifier],
 ) {
     // Q9 ruling: a range constraint under a non-Exact domain is ill-formed
     // (checked once per declared handle; the accessors walk nested
@@ -261,7 +302,10 @@ pub(crate) fn validate_type_reference_handle_with_type_parameters(
         diagnostics,
         owner,
         false,
-        TypeParameterScope { type_parameters },
+        TypeParameterScope {
+            type_parameters,
+            lifetime_parameters,
+        },
     );
 }
 
@@ -275,7 +319,17 @@ fn validate_type_reference_handle_with_context(
     type_parameter_scope: TypeParameterScope<'_>,
 ) {
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => {
+        TypeReferenceNode::Reference {
+            referee, lifetime, ..
+        } => {
+            if let Some(lifetime) = lifetime
+                && !type_parameter_scope.contains_lifetime(lifetime.as_str())
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} uses undeclared lifetime `'{}'; declare it in the owner's generic parameter list",
+                    lifetime.as_str()
+                )));
+            }
             validate_type_reference_handle_with_context(
                 program,
                 *referee,
@@ -771,12 +825,14 @@ fn validate_generic_argument_bounds(
 #[derive(Debug, Clone, Copy)]
 struct TypeParameterScope<'program> {
     type_parameters: &'program [TypeParameter],
+    lifetime_parameters: &'program [omega_typed_trees::name::Identifier],
 }
 
 impl<'program> TypeParameterScope<'program> {
     fn empty() -> Self {
         Self {
             type_parameters: &[],
+            lifetime_parameters: &[],
         }
     }
 
@@ -784,6 +840,12 @@ impl<'program> TypeParameterScope<'program> {
         self.type_parameters
             .iter()
             .any(|parameter| parameter.name.as_str() == name)
+    }
+
+    fn contains_lifetime(self, name: &str) -> bool {
+        self.lifetime_parameters
+            .iter()
+            .any(|parameter| parameter.as_str() == name)
     }
 
     fn machine_parameter(

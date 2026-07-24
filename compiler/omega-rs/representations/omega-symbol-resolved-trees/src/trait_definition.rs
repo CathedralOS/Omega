@@ -14,6 +14,7 @@ pub struct TraitDefinition {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TraitStorage {
+    pub lifetime_parameters: Vec<DiagnosticName>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub invariants: HandleSpan<crate::domain::ProofFact>,
     pub requires: HandleSpan<TraitRequirement>,
