@@ -699,7 +699,13 @@ schemas recover the same instance without publishing policy type identity.
    consumes mapped/pinned/writable unpublished storage, executes only through
    the exact installed-artifact entry resolver, computes identity from the
    resulting bytes, and requires an exact code/artifact/destination/final-byte
-   receipt plus the software-fault-free bootstrap verdict. Failure returns the
+   receipt plus the software-fault-free bootstrap verdict. That receipt retains
+   the complete resulting table bytes rather than treating their FNV fingerprint
+   as authority. Publication likewise carries an exact materialized-table
+   evidence snapshot (destination/site, bytes, writer, roots, and construction
+   receipt) from preparation through the provider receipt; a compact
+   content/ledger fingerprint collision cannot publish substituted policy.
+   Failure returns the
    still-unpublished destination and all consumed inputs. The checked
    publication-operation carrier is now live: `prepare_idt_load` first proves
    the exact live handles and ledger records, binds the unpublished descriptor

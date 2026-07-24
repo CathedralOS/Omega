@@ -920,8 +920,13 @@ ledger-bound success receipt; and the installed table retains the handles. Its
 materialization path now validates and resolves every symbolic write before
 writing the mapped/pinned/writable unpublished destination directly, computes
 the resulting content identity, and checks an exact code/artifact/destination/
-final-byte receipt plus the software-fault-free verdict. It returns every
-linear input on failure and never exposes the resolved entry address. The
+final-byte receipt plus the software-fault-free verdict. The receipt retains
+the complete resulting bytes instead of authorizing through their FNV
+fingerprint. Publication preparation and its receipt likewise retain an exact
+snapshot of the materialized destination/site, bytes, writer, root bindings,
+and construction receipt; compact content or ledger fingerprints remain report
+keys and cannot hide substituted table policy. It returns every linear input
+on failure and never exposes the resolved entry address. The
 writer now has its own sealed pre-lowering gate: `PreparedIdtWriter` owns the
 exact unpublished destination, normalized plan, and root set after checking
 the installed-artifact resolver, placement phase, mapped/pinned/writable

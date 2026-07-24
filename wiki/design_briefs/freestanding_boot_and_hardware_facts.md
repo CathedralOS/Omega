@@ -192,8 +192,10 @@ handles, ledger fingerprint, and `IdtControl`. Compiler lowering from that
 carrier produces the generated-only target/machine `lidt [r10]` operation with
 its retained identities and exact R10 + control-state footprint. The
 materialization receipt binds the writer, plan, artifact, entries, destination,
-and final content; the installation receipt separately binds the granted
-CPU/table scope, prepared roots, visibility, and `lidt` operation.
+and exact final content bytes; the installation receipt separately binds the
+granted CPU/table scope, prepared roots, visibility, and `lidt` operation while
+retaining the exact materialized table evidence prepared for publication.
+Compact FNV fingerprints remain audit/report identities, not authorization.
 
 The earliest writer's software-fault-free claim is an admitted conjunction, not
 an absolute promise that hardware cannot fail. Its destination and stack are

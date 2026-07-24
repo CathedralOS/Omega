@@ -2498,28 +2498,30 @@ pub struct IdtMaterializationReceipt {
     installed_code: InstalledCodeId,
     artifact: ArtifactId,
     destination: IdtDestinationId,
+    content: Vec<u8>,
     content_fingerprint: u64,
     software_fault_free: bool,
     remains_unpublished: bool,
 }
 
 impl IdtMaterializationReceipt {
-    #[allow(clippy::too_many_arguments)]
-    pub const fn from_provider(
+    pub fn from_provider(
         identity: IdtMaterializationReceiptId,
         installed_code: InstalledCodeId,
         artifact: ArtifactId,
         destination: IdtDestinationId,
-        content_fingerprint: u64,
+        content: impl Into<Vec<u8>>,
         software_fault_free: bool,
         remains_unpublished: bool,
     ) -> Self {
+        let content = content.into();
         Self {
             identity,
             installed_code,
             artifact,
             destination,
-            content_fingerprint,
+            content_fingerprint: fingerprint_bytes(&content),
+            content,
             software_fault_free,
             remains_unpublished,
         }
@@ -2563,6 +2565,29 @@ impl MaterializedIdt {
     pub const fn materialization_receipt(&self) -> IdtMaterializationReceiptId {
         self.materialization_receipt
     }
+
+    fn exact_evidence(&self) -> MaterializedIdtEvidence {
+        MaterializedIdtEvidence {
+            identity: self.identity,
+            destination: self.destination.identity,
+            site: self.destination.site,
+            content: self.destination.bytes[..self.writer.byte_len].to_vec(),
+            writer: self.writer.clone(),
+            roots: self.roots.clone(),
+            materialization_receipt: self.materialization_receipt,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct MaterializedIdtEvidence {
+    identity: MaterializedIdtId,
+    destination: IdtDestinationId,
+    site: PlacementSite,
+    content: Vec<u8>,
+    writer: PostHandoffWriterPlan,
+    roots: BTreeMap<u8, IdtRootBinding>,
+    materialization_receipt: IdtMaterializationReceiptId,
 }
 
 #[derive(Debug)]
@@ -2637,7 +2662,11 @@ pub fn materialize_idt(
     let content_fingerprint = fingerprint_bytes(
         &populated.prepared.destination.bytes[..populated.prepared.writer.byte_len],
     );
-    if content_fingerprint == 0 || receipt.content_fingerprint != content_fingerprint {
+    if content_fingerprint == 0
+        || receipt.content_fingerprint != content_fingerprint
+        || receipt.content
+            != populated.prepared.destination.bytes[..populated.prepared.writer.byte_len]
+    {
         return reject(
             ExternalRootDiagnostic(
                 "IDT materialization receipt does not bind the exact completed bytes".into(),
@@ -2883,6 +2912,7 @@ impl IdtControl {
 #[derive(PartialEq, Eq)]
 pub struct PreparedIdtLoad {
     materialized: MaterializedIdtId,
+    materialized_evidence: MaterializedIdtEvidence,
     destination: IdtDestinationId,
     descriptor: PreparedX86IdtDescriptor,
     content_fingerprint: u64,
@@ -2978,6 +3008,7 @@ pub fn prepare_idt_load(
     );
     Ok(PreparedIdtLoad {
         materialized: materialized.identity,
+        materialized_evidence: materialized.exact_evidence(),
         destination: materialized.destination.identity,
         descriptor: PreparedX86IdtDescriptor {
             packed,
@@ -2996,6 +3027,7 @@ pub struct IdtInstallationReceipt {
     identity: IdtInstallationReceiptId,
     installed: InstalledIdtId,
     materialized: MaterializedIdtId,
+    materialized_evidence: MaterializedIdtEvidence,
     content_fingerprint: u64,
     root_ledger_fingerprint: u64,
     roots: BTreeSet<ExternalRootId>,
@@ -3014,6 +3046,7 @@ impl IdtInstallationReceipt {
             identity,
             installed,
             materialized: prepared.materialized,
+            materialized_evidence: prepared.materialized_evidence.clone(),
             content_fingerprint: prepared.content_fingerprint,
             root_ledger_fingerprint: prepared.root_ledger_fingerprint,
             roots: prepared.roots.clone(),
@@ -3109,6 +3142,7 @@ pub fn install_materialized_idt<'code>(
         }
     };
     if receipt.materialized != materialized.identity
+        || receipt.materialized_evidence != materialized.exact_evidence()
         || receipt.content_fingerprint != materialized.content_fingerprint
         || receipt.root_ledger_fingerprint != ledger.report_fingerprint()
         || receipt.roots != expected_roots
@@ -4484,12 +4518,14 @@ mod tests {
 
         let mut expected = vec![0_u8; 16];
         expected[..8].copy_from_slice(&0x1010_u64.to_le_bytes());
+        let mut wrong_expected = expected.clone();
+        wrong_expected[0] ^= 1;
         let bad_materialization_receipt = IdtMaterializationReceipt::from_provider(
             root_id(201, IdtMaterializationReceiptId::from_normalized_identity),
             code.identity(),
             code.artifact(),
             destination_id,
-            fingerprint_bytes(&expected) ^ 1,
+            wrong_expected,
             true,
             true,
         );
@@ -4553,7 +4589,7 @@ mod tests {
             code.identity(),
             code.artifact(),
             destination_id,
-            fingerprint_bytes(&expected),
+            expected.clone(),
             true,
             true,
         );
@@ -4610,6 +4646,19 @@ mod tests {
         let (materialized, roots, control, _) = error.into_parts();
         let prepared = prepare_idt_load(&ledger, &materialized, &roots, &control)
             .expect("recovered inputs permit checked IDT-load preparation");
+        let mut substituted = IdtInstallationReceipt::from_provider(
+            root_id(214, IdtInstallationReceiptId::from_normalized_identity),
+            root_id(215, InstalledIdtId::from_normalized_identity),
+            &prepared,
+            true,
+        );
+        substituted.materialized_evidence.content[0] ^= 1;
+        let error = install_materialized_idt(&ledger, materialized, roots, control, substituted)
+            .expect_err("compact fingerprints cannot hide exact materialized-table drift");
+        assert!(error.diagnostic().0.contains("record-before-publish"));
+        let (materialized, roots, control, _) = error.into_parts();
+        let prepared = prepare_idt_load(&ledger, &materialized, &roots, &control)
+            .expect("exact materialized table remains publishable");
         let wrong_control_receipt = IdtInstallationReceipt::from_provider(
             root_id(211, IdtInstallationReceiptId::from_normalized_identity),
             root_id(212, InstalledIdtId::from_normalized_identity),
