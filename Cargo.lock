@@ -722,6 +722,7 @@ dependencies = [
  "omega-assigned-target-operations",
  "omega-calling-conventions",
  "omega-core",
+ "omega-executable-installation",
  "omega-instruction-selection",
  "omega-isa-x86_64",
  "omega-layout-plans",
