@@ -1339,6 +1339,18 @@ fn boundary_trait_canary_reports_capability_use() {
         manifest
     );
     assert!(
+        manifest.contains("\"service_reach\": [\"Console\"]")
+            && manifest.contains("\"may_suspend\": false")
+            && manifest.contains("\"may_block\": false"),
+        "capability manifest should report canonical service reach and independent operational axes\n{}",
+        manifest
+    );
+    assert!(
+        !manifest.contains("\"effect_bits\"") && !manifest.contains("\"effects\""),
+        "capability manifest must not expose the retired compatibility effect set\n{}",
+        manifest
+    );
+    assert!(
         carry_manifest.contains("\"effective\":")
             && carry_manifest.contains("\"suspension\":")
             && carry_manifest.contains("\"address\":")
