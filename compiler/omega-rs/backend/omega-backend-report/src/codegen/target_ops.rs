@@ -504,7 +504,7 @@ fn selected_instruction_name(
             let target_symbol =
                 storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
             format!(
-                "wire read byte-slice view {target_symbol}@{target_offset} <- {buffer_symbol}@{buffer_offset} (len {buffer_length}) + cursor {read_symbol}@{read_offset}, ok {ok_symbol}@{ok_offset}"
+                "wire read byte-slice view {target_symbol}@{target_offset} <- {buffer_symbol}@{buffer_offset} (len {buffer_length}) + cursor {read_symbol}@{read_offset}, ok {ok_symbol}@{ok_offset}, predicate mask {predicate_mask:#x}"
             )
         }
         SelectedInstructionKind::ReadWireNestedOpen {

@@ -4,8 +4,8 @@ use crate::selection::storage_places::{
     resolve_runtime_frame_indexed_target, resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_storage_place, resolve_runtime_storage_place_is_bounded_byte_buffer,
 };
+use omega_abstract_operations::SelectedInstruction;
 use omega_abstract_operations::TargetDataObjectHandle;
-use omega_abstract_operations::{SelectedInstruction, SelectedInstructionKind};
 use omega_checked_trees::expression::Expression;
 use omega_control_flow::StateKey;
 

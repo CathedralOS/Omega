@@ -1307,35 +1307,6 @@ pub(crate) fn check_value_narrowing(
     }
 }
 
-/// Narrowing check for a data field DEFAULT (`b: i8 = 300`), which is always a
-/// literal/const. Machine-free: an integer literal contributes its exact interval,
-/// checked against the field's target type via the shared `check_narrowing_assignment`
-/// core. A non-integer-literal default (a `const` name, a computed expression) is left
-/// to the value's own analysis and skipped here -- so this only ever rejects the
-/// unambiguous literal-out-of-range case.
-pub(crate) fn check_literal_default_narrowing(
-    program: &TypedTrees,
-    value: ExpressionHandle,
-    target: PrimitiveType,
-    owner: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let mut node = program.expression_table.expression(value);
-    while let ExpressionNode::Mutable(inner) = node {
-        node = program.expression_table.expression(*inner);
-    }
-    let ExpressionNode::Integer(literal) = node else {
-        return;
-    };
-    check_narrowing_assignment(
-        Some(target),
-        literal_interval(literal),
-        None,
-        owner,
-        diagnostics,
-    );
-}
-
 /// The interval of an anonymous literal (D14). A literal that fits i64 is a
 /// point; an oversize u64-magnitude literal is honestly over-approximated as
 /// "above i64::MAX" (or "below i64::MIN" for its folded negation), so

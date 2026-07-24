@@ -3346,7 +3346,7 @@ fn intake_citation_for_edge(
         .collect();
     map.push((RESULT_BINDER.to_owned(), call_term.clone()));
 
-    let mut facts = |kind: omega_typed_trees::signature::SignatureContractKind| {
+    let facts = |kind: omega_typed_trees::signature::SignatureContractKind| {
         program
             .machine_contracts(callee)
             .iter()
@@ -3463,7 +3463,7 @@ fn intake_statement_citation_for_edge(
         .map(|(parameter, term)| (parameter.name.as_str().to_owned(), term))
         .collect();
     map.push((RESULT_BINDER.to_owned(), call_term));
-    let mut collect = |kind: omega_typed_trees::signature::SignatureContractKind| {
+    let collect = |kind: omega_typed_trees::signature::SignatureContractKind| {
         program
             .machine_contracts(callee)
             .iter()

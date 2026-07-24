@@ -2970,7 +2970,7 @@ fn collect_self_entry_call_arguments(
     if !expression.is_valid() {
         return;
     }
-    let mut recurse = |handle: ExpressionHandle, found: &mut Vec<HandleSpan<ExpressionHandle>>| {
+    let recurse = |handle: ExpressionHandle, found: &mut Vec<HandleSpan<ExpressionHandle>>| {
         collect_self_entry_call_arguments(program, entry_name, handle, found);
     };
     match program.expression_table.expression(expression) {

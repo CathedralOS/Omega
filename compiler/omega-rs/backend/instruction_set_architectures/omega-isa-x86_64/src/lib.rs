@@ -7019,6 +7019,7 @@ pub fn win64_table_function_call_relocation_sites_with_plan<T: InstructionOperan
     sites
 }
 
+#[cfg(test)]
 fn host_call_relocation_sites<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     operands: &[T],
@@ -10666,11 +10667,6 @@ pub(crate) fn append_binary_operands_op_and_store(
     domain: ArithmeticDomain,
     target_signed: bool,
 ) -> Result<(), Diagnostic> {
-    let saturating_or_trapping = !is_float
-        && matches!(
-            domain,
-            ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
-        );
     // Each operand's evaluation accumulates in r10, so the right operand would
     // clobber the left result. Stash left on the stack across the right eval.
     append_runtime_value_operand(runtime_value_operands, bytes, Reg64::R10, left)?;
@@ -10964,9 +10960,6 @@ fn append_saturating_trapping_multiply(
         }
     }
     bytes.extend([0x4d, 0x0f, 0xaf, 0xd3]); // imul r10, r11 (64-bit)
-    let unsigned_max: u64 = (1u64 << (8 * byte_size)) - 1;
-    let signed_min = (-(1i128 << (8 * byte_size - 1))) as i64 as u64;
-    let signed_max = ((1i128 << (8 * byte_size - 1)) - 1) as u64;
     append_narrow_range_clamp_or_trap(
         bytes,
         domain,
@@ -14476,10 +14469,6 @@ fn append_runtime_float_binary_operation(
 /// setcc (3) or the equality branch pattern (8) + movzx (4). Identical for
 /// f32 and f64 at every operator (the relocation-offset invariant). MUST
 /// stay in lockstep with the emission.
-fn runtime_float_binary_operation_width(operator: StateGuardOperator) -> usize {
-    runtime_float_binary_operation_width_with_domain(operator, 8, ArithmeticDomain::Exact)
-}
-
 fn runtime_float_binary_operation_width_with_domain(
     operator: StateGuardOperator,
     byte_size: usize,

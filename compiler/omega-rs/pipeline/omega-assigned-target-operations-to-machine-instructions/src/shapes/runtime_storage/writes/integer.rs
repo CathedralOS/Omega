@@ -1,4 +1,4 @@
-use omega_assigned_target_operations::{RuntimeStorageRegion, SelectedInstructionKind};
+use omega_assigned_target_operations::SelectedInstructionKind;
 use omega_machine_instructions::MachineInstructionKind;
 
 pub(super) fn selected_integer_write_kind(
