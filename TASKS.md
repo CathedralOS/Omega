@@ -1604,6 +1604,14 @@ stronger operations it needs instead of citing machine parameters generally.
   views now admit normalized declared-domain conjunctions only when the shared
   domain graph proves implication in both directions; the implication relation
   is owned once by typed domains and reused by validation and flow checking.
+  Fragment-source validation now uses the field's declared representation width
+  rather than its rounded byte carrier: `bool` tiles as one bit and a
+  non-negative constant range tiles through the highest representable bit.
+  Exact source tiling still rejects gaps. This keeps bit-packed hardware fields
+  on ordinary carriers and range facts instead of adding `u1`/`u3` primitives.
+  Cathedral's first x86-64 page-table-entry policy now exercises the complete
+  64-bit word, including nine one-bit flags, 3/7/4-bit policy fields, and the
+  40-bit page-frame number for the architectural 52-bit physical envelope.
   Constant integer ranges now normalize to exact two's-complement bit-pattern
   sets, including split intervals across signed zero. Adjacent and overlapping
   intervals canonicalize, so a signed range covering its complete carrier is

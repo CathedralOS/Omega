@@ -159,6 +159,15 @@ placement. Packed layout is a policy/plan, not a `[packed]` escape hatch.
 Bit-addressable fields use ordinary integer carriers plus range contracts and
 bit placements; Omega does not need `u3`/`u17` primitive types.
 
+For `Bits`, exact source tiling is measured against the declaration's
+representation width, not blindly against the carrier's byte width. `bool`
+therefore contributes one bit; a non-negative constant integer range
+contributes the bits required by its maximum value; unconstrained and
+negative-capable integers retain their full carrier width. Omitting a
+representable bit remains an invalid plan. This is packing, not truncation:
+the validator derives the width from checked type facts, while the policy only
+chooses where those bits go.
+
 ## Recast views
 
 A checked recast borrows the same bytes under another stated shape when the

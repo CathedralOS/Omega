@@ -299,6 +299,15 @@ overlapping virtual ranges, and mappings into the wrong space without losing
 their authority. The normalized plan identity binds the exact storage and
 canonical mapping set.
 
+Cathedral's first concrete x86-64 entry schema now uses the same programmable
+layout path as every other dictated structure. Ordinary `bool` and
+range-constrained integer fields tile the complete 64-bit paging word; the
+40-bit page-frame number represents address bits 12 through 51 under the
+52-bit architectural envelope. The provider derives that number from an
+aligned physical `addr` while holding frame/mapping authority. The layout
+describes bits only and cannot turn an address into authority or install a
+translation.
+
 Generated construction and a one-time imported-table scan are two evidence
 routes to the same `InstallablePageTable` state. In either case an exact receipt
 must bind the table, grant, normalized plan, final content identity, and complete

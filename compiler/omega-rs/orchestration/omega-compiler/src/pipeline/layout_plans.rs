@@ -22,6 +22,7 @@ struct SchemaFieldInfo {
     key: i64,
     size: i64,
     align: i64,
+    source_bits: i64,
 }
 
 pub fn compute_layout_plan(
@@ -75,6 +76,7 @@ fn schema_fields(typed: &TypedTrees, schema_data: &str) -> Result<Vec<SchemaFiel
                 primitive.name()
             )
         })?;
+        let source_bits = declared_source_bits(typed, field.type_reference, primitive, size);
         let key = field_key(schema_data, field.name.as_str());
         if fields
             .iter()
@@ -90,6 +92,7 @@ fn schema_fields(typed: &TypedTrees, schema_data: &str) -> Result<Vec<SchemaFiel
             key,
             size,
             align: size,
+            source_bits,
         });
     }
     if fields.is_empty() {
@@ -103,6 +106,26 @@ fn schema_fields(typed: &TypedTrees, schema_data: &str) -> Result<Vec<SchemaFiel
         ));
     }
     Ok(fields)
+}
+
+fn declared_source_bits(
+    typed: &TypedTrees,
+    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    primitive: PrimitiveType,
+    byte_size: i64,
+) -> i64 {
+    if primitive == PrimitiveType::Bool {
+        return 1;
+    }
+    let Some(range) = omega_typed_trees::wire::scalar_representation_range(typed, type_reference)
+    else {
+        return byte_size * 8;
+    };
+    if range.minimum < 0 {
+        return byte_size * 8;
+    }
+    let maximum = range.maximum as u64;
+    i64::from((u64::BITS - maximum.leading_zeros()).max(1))
 }
 
 fn primitive_byte_size(primitive: PrimitiveType) -> Option<i64> {
@@ -338,13 +361,10 @@ fn validate_plan(
                         schema_field.name, destination_lsb, destination_end
                     )));
                 }
-                if source_end > schema_field.size * 8 {
+                if source_end > schema_field.source_bits {
                     return Err(fail(format!(
                         "field `{}` fragment source {}..{} exceeds its {}-bit value",
-                        schema_field.name,
-                        source_lsb,
-                        source_end,
-                        schema_field.size * 8
+                        schema_field.name, source_lsb, source_end, schema_field.source_bits
                     )));
                 }
                 let absolute_start = container
@@ -397,11 +417,10 @@ fn validate_plan(
                     }
                     cursor = end;
                 }
-                if cursor != schema_field.size * 8 {
+                if cursor != schema_field.source_bits {
                     return Err(fail(format!(
                         "field `{}` source fragments end at bit {cursor}, expected {}",
-                        schema_field.name,
-                        schema_field.size * 8
+                        schema_field.name, schema_field.source_bits
                     )));
                 }
             }
