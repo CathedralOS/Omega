@@ -1621,8 +1621,14 @@ stronger operations it needs instead of citing machine parameters generally.
   artifact identity. Validation checks fixed
   layout geometry, rejects multi-container one-access laundering and public
   external RMW, and enforces borrow polarity at operation authorization. Add
-  the Omega-authored policy surface, source-level borrow-carrying access
-  values, and exact external/atomic lowering. Provider-admitted placed-view
+  the Omega-authored policy surface and source-level borrow-carrying access
+  values, then connect target-specific external/atomic emission. The normalized
+  lowering seam is live: consuming one sealed field authorization produces an
+  exact request bound to plan identity, admitted grant, field, address, width,
+  observation, loan-derived borrow polarity/lifetime, operation-specific atomic
+  ordering, and static reach; malformed load/store/compare-exchange ordering
+  rejects before target lowering.
+  Provider-admitted placed-view
   grants now check an actual Extent loan's space, provenance, open-set rights,
   size, and permitted static reaches; field authorization derives polarity
   from that loan and mints the only token primitive lowering may accept. Never

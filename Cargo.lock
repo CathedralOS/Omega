@@ -110,6 +110,7 @@ dependencies = [
 name = "omega-access-plans"
 version = "0.1.0"
 dependencies = [
+ "omega-core",
  "omega-extents",
  "omega-layout-plans",
 ]

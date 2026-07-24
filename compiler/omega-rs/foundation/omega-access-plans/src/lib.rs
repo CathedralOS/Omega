@@ -7,6 +7,7 @@
 
 use std::collections::BTreeSet;
 
+use omega_core::atomic::AtomicOrderingPlan;
 use omega_extents::{AddressSpaceId, ExtentLoan, ExtentProvenanceId, ExtentRights, LoanPolarity};
 use omega_layout_plans::{LayoutPlacementReport, LayoutPlanReport};
 
@@ -239,15 +240,16 @@ pub enum BorrowPolarity {
     Exclusive,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AccessOperation {
     Read,
     Write,
     ReadModifyWrite,
-    AtomicLoad,
-    AtomicStore,
-    AtomicCompareExchange,
-    AtomicReadModifyWrite,
+    /// One atomic operation carrying the exact source-selected ordering plan.
+    ///
+    /// The operation family is retained inside `AtomicOrderingPlan`; lowering
+    /// never has to reconstruct it from permissions or expression shape.
+    Atomic(AtomicOrderingPlan),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -481,6 +483,8 @@ impl<'extent, 'plan> PlacedView<'extent, 'plan> {
         Ok(PlacedFieldAccess {
             access,
             primitive_address,
+            plan: self.plan.identity(),
+            grant: self.grant,
             _loan: &self.loan,
         })
     }
@@ -492,16 +496,101 @@ impl<'extent, 'plan> PlacedView<'extent, 'plan> {
 pub struct PlacedFieldAccess<'view, 'extent> {
     access: AuthorizedFieldAccess,
     primitive_address: u64,
+    plan: AccessPlanId,
+    grant: PlacedViewGrantId,
     _loan: &'view ExtentLoan<'extent>,
 }
 
-impl PlacedFieldAccess<'_, '_> {
+impl<'view, 'extent> PlacedFieldAccess<'view, 'extent> {
     pub const fn access(&self) -> &AuthorizedFieldAccess {
         &self.access
     }
 
     pub const fn primitive_address(&self) -> u64 {
         self.primitive_address
+    }
+
+    /// Consume one authorized access event into the only request primitive
+    /// lowering accepts.
+    ///
+    /// The request remains bound to the normalized plan, admitted grant,
+    /// exact address, width, observation model, operation ordering, and static
+    /// service reach that produced it. It contains no author-supplied offset.
+    pub fn into_primitive_request(self) -> PrimitiveAccessRequest<'view, 'extent> {
+        let AuthorizedFieldAccess {
+            descriptor,
+            borrow,
+            operation,
+        } = self.access;
+        PrimitiveAccessRequest {
+            plan: self.plan,
+            grant: self.grant,
+            primitive_address: self.primitive_address,
+            field: descriptor.field,
+            transfer_width_bits: descriptor.transfer_width_bits,
+            observation: descriptor.observation,
+            borrow,
+            operation,
+            service_reach: descriptor.service_reach,
+            _loan: self._loan,
+        }
+    }
+}
+
+/// Canonical input to target-specific placed-memory lowering.
+///
+/// Construction is sealed behind `PlacedFieldAccess::into_primitive_request`.
+/// Target lowering may choose a stronger instruction where architecture law
+/// requires it, but may not weaken the exact event recorded here.
+#[derive(Debug)]
+pub struct PrimitiveAccessRequest<'view, 'extent> {
+    plan: AccessPlanId,
+    grant: PlacedViewGrantId,
+    primitive_address: u64,
+    field: String,
+    transfer_width_bits: u16,
+    observation: ObservationModel,
+    borrow: BorrowPolarity,
+    operation: AccessOperation,
+    service_reach: Option<BoundaryServiceReachId>,
+    _loan: &'view ExtentLoan<'extent>,
+}
+
+impl PrimitiveAccessRequest<'_, '_> {
+    pub const fn plan(&self) -> AccessPlanId {
+        self.plan
+    }
+
+    pub const fn grant(&self) -> PlacedViewGrantId {
+        self.grant
+    }
+
+    pub const fn primitive_address(&self) -> u64 {
+        self.primitive_address
+    }
+
+    pub fn field(&self) -> &str {
+        &self.field
+    }
+
+    pub const fn transfer_width_bits(&self) -> u16 {
+        self.transfer_width_bits
+    }
+
+    pub const fn observation(&self) -> ObservationModel {
+        self.observation
+    }
+
+    pub const fn borrow(&self) -> BorrowPolarity {
+        self.borrow
+    }
+
+    pub const fn operation(&self) -> AccessOperation {
+        self.operation
+    }
+
+    pub const fn service_reach(&self) -> Option<BoundaryServiceReachId> {
+        self.service_reach
     }
 }
 
@@ -726,6 +815,7 @@ fn authorize_descriptor(
     borrow: BorrowPolarity,
     operation: AccessOperation,
 ) -> Result<(), AccessPlanDiagnostic> {
+    validate_operation_ordering(operation)?;
     let permitted = match operation {
         AccessOperation::Read => descriptor.permissions.read,
         AccessOperation::Write => {
@@ -734,10 +824,16 @@ fn authorize_descriptor(
         AccessOperation::ReadModifyWrite => {
             descriptor.permissions.read_modify_write && borrow == BorrowPolarity::Exclusive
         }
-        AccessOperation::AtomicLoad => descriptor.permissions.atomic.load,
-        AccessOperation::AtomicStore => descriptor.permissions.atomic.store,
-        AccessOperation::AtomicCompareExchange => descriptor.permissions.atomic.compare_exchange,
-        AccessOperation::AtomicReadModifyWrite => descriptor.permissions.atomic.read_modify_write,
+        AccessOperation::Atomic(AtomicOrderingPlan::Load(_)) => descriptor.permissions.atomic.load,
+        AccessOperation::Atomic(AtomicOrderingPlan::Store(_)) => {
+            descriptor.permissions.atomic.store
+        }
+        AccessOperation::Atomic(AtomicOrderingPlan::CompareExchange { .. }) => {
+            descriptor.permissions.atomic.compare_exchange
+        }
+        AccessOperation::Atomic(
+            AtomicOrderingPlan::ReadModifyWrite(_) | AtomicOrderingPlan::Swap(_),
+        ) => descriptor.permissions.atomic.read_modify_write,
     };
     if permitted {
         Ok(())
@@ -745,6 +841,27 @@ fn authorize_descriptor(
         Err(AccessPlanDiagnostic(format!(
             "field `{}` does not permit {operation:?} through a {borrow:?} borrow",
             descriptor.field
+        )))
+    }
+}
+
+fn validate_operation_ordering(operation: AccessOperation) -> Result<(), AccessPlanDiagnostic> {
+    let AccessOperation::Atomic(ordering) = operation else {
+        return Ok(());
+    };
+    let legal = match ordering {
+        AtomicOrderingPlan::Load(ordering) => ordering.valid_for_load(),
+        AtomicOrderingPlan::Store(ordering) => ordering.valid_for_store(),
+        AtomicOrderingPlan::ReadModifyWrite(_) | AtomicOrderingPlan::Swap(_) => true,
+        AtomicOrderingPlan::CompareExchange { success, failure } => {
+            failure.valid_compare_exchange_failure(success)
+        }
+    };
+    if legal {
+        Ok(())
+    } else {
+        Err(AccessPlanDiagnostic(format!(
+            "atomic access carries an invalid ordering plan: {ordering:?}"
         )))
     }
 }
@@ -1015,12 +1132,58 @@ mod tests {
         )
         .expect("atomic IPC plan");
 
-        plan.authorize("head", BorrowPolarity::Shared, AccessOperation::AtomicStore)
+        let store = AccessOperation::Atomic(AtomicOrderingPlan::Store(
+            omega_core::atomic::MemoryOrdering::Release,
+        ));
+        plan.authorize("head", BorrowPolarity::Shared, store)
             .expect("shared mutation is explicitly atomic");
+        let invalid_load = AccessOperation::Atomic(AtomicOrderingPlan::Load(
+            omega_core::atomic::MemoryOrdering::Release,
+        ));
+        let error = plan
+            .authorize("head", BorrowPolarity::Shared, invalid_load)
+            .expect_err("release cannot order an atomic load");
+        assert!(error.0.contains("invalid ordering"));
         assert!(
             plan.authorize("head", BorrowPolarity::Exclusive, AccessOperation::Write)
                 .is_err()
         );
+
+        let grant = PlacedViewGrant::from_admitted_provider(
+            PlacedViewGrantId::from_normalized_identity(10).expect("atomic view grant"),
+            extent_id(2, AddressSpaceId::from_normalized_identity),
+            extent_id(5, ExtentProvenanceId::from_normalized_identity),
+            extent_rights(&[3]),
+            [],
+        );
+        let extent = uart_extent(0x2000, 4);
+        let loan = extent.loan(0, 4).expect("shared atomic loan");
+        let view = derive_placed_view(loan, &plan, &grant).expect("admitted atomic view");
+        let request = view
+            .authorize(
+                "head",
+                AccessOperation::Atomic(AtomicOrderingPlan::CompareExchange {
+                    success: omega_core::atomic::MemoryOrdering::AcqRel,
+                    failure: omega_core::atomic::MemoryOrdering::Acquire,
+                }),
+            )
+            .expect("authorized compare-exchange")
+            .into_primitive_request();
+        assert_eq!(request.plan(), plan.identity());
+        assert_eq!(request.grant(), grant.identity());
+        assert_eq!(request.primitive_address(), 0x2000);
+        assert_eq!(request.field(), "head");
+        assert_eq!(request.transfer_width_bits(), 32);
+        assert_eq!(request.observation(), ObservationModel::Atomic);
+        assert_eq!(request.borrow(), BorrowPolarity::Shared);
+        assert_eq!(
+            request.operation(),
+            AccessOperation::Atomic(AtomicOrderingPlan::CompareExchange {
+                success: omega_core::atomic::MemoryOrdering::AcqRel,
+                failure: omega_core::atomic::MemoryOrdering::Acquire,
+            })
+        );
+        assert_eq!(request.service_reach(), None);
     }
 
     #[test]
@@ -1162,7 +1325,16 @@ mod tests {
                 .authorize("transmit", AccessOperation::Write)
                 .is_err()
         );
-        drop(status);
+        let request = status.into_primitive_request();
+        assert_eq!(request.plan(), plan.identity());
+        assert_eq!(request.grant(), grant.identity());
+        assert_eq!(request.primitive_address(), 0x1000);
+        assert_eq!(request.field(), "status");
+        assert_eq!(request.transfer_width_bits(), 32);
+        assert_eq!(request.observation(), ObservationModel::External);
+        assert_eq!(request.borrow(), BorrowPolarity::Shared);
+        assert_eq!(request.operation(), AccessOperation::Read);
+        assert_eq!(request.service_reach(), Some(reach()));
         drop(shared_view);
 
         let exclusive_loan = shared_extent.loan_mut(4, 12).expect("exclusive UART loan");

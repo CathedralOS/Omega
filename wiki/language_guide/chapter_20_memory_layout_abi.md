@@ -307,6 +307,15 @@ is no public arbitrary-offset
 occurs exactly once at its declared width. It does not imply device ordering;
 fences and device contracts remain separate.
 
+Each primitive event consumes one sealed authorization into a normalized
+lowering request. That request binds the validated access-plan identity,
+provider-admitted view grant, field identity, exact address and width,
+observation model, loan-derived borrow polarity and lifetime, static service
+reach, and the operation-specific atomic ordering where applicable. Illegal
+load, store, or compare-exchange orderings reject before target lowering.
+Target emission may strengthen an ordering where required by the architecture,
+but may not weaken or reconstruct these facts from syntax.
+
 Hardware-shaped structures use the same programmable layout mechanism as
 Omega-native and protocol formats. Name-keyed fragmented bit placements are
 needed for structures such as x86 IDT gates. Device behaviors such as W1C or
