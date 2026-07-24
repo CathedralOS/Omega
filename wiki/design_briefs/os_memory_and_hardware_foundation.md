@@ -379,14 +379,17 @@ needed). Starting a transfer accepts an actual Extent loan and
 derives CPU exclusion from its polarity. It also requires a per-transfer reach
 receipt proving either an admitted borrower contract or hardware isolation
 confines that exact loan ID and borrower/direction to the lent range in the
-same address space, provenance, and mapping era. Missing, stale, or overbroad
-reach fails before transfer. The non-clonable proxy holds that borrow until a
+same address space, provenance, mapping era, authority lineage, and attenuated
+rights. That evidence is derived from the actual loan plus its admitted grant
+rather than restating those facts. Missing, stale, or overbroad reach fails
+before transfer. The non-clonable proxy holds that borrow until a
 matching provider receipt establishes completion and every required
 ordering/coherence fact. Completion evidence is derived from the exact live
 proxy rather than restating its authority: it binds the confinement receipt,
-direction, address space, provenance, mapping era, and lent range. Reusing a
-loan identity after any of those facts drift therefore cannot replay an old
-completion. Failed starts and completions return their borrow-carrying inputs.
+direction, address space, provenance, mapping era, authority lineage,
+attenuated rights, and lent range. Reusing a loan identity after any of those
+facts drift therefore cannot replay an old completion. Failed starts and
+completions return their borrow-carrying inputs.
 Omega `[linear]` integration, permission-context events, provider execution,
 and the DMA vertical slice remain.
 
