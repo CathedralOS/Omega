@@ -1814,6 +1814,11 @@ stronger operations it needs instead of citing machine parameters generally.
   a private copy, validates AArch64 instruction shapes, and derives a
   placement/content-bound final-byte identity. Its inert output can bind the
   materialization receipt but grants neither destination writes nor execution.
+  The write/freeze transition now consumes that exact canonical output rather
+  than accepting only a restated hash: artifact, admission, placement, base,
+  plan, byte length, and final identity must all match. `FrozenPlacement`
+  retains the immutable final-byte snapshot so the later footprint/PCC
+  validator can inspect precisely the bytes whose write authority was frozen.
   Entry/section order, proof evidence, and informational sections remain identity-invisible.
   Implement
   admission/PCC and final-footprint validators, destination write/freeze and

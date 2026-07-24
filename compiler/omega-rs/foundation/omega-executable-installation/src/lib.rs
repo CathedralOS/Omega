@@ -526,9 +526,22 @@ impl MaterializationReceipt {
 pub fn materialize_and_freeze(
     artifact: &AdmittedArtifact,
     placement: CodePlacement,
+    materialized: MaterializedArtifactBytes,
     receipt: MaterializationReceipt,
 ) -> Result<FrozenPlacement, Box<MaterializationError>> {
-    let mismatch = if receipt.artifact != artifact.artifact.0.identity
+    let mismatch = if materialized.artifact() != artifact.artifact.0.identity
+        || materialized.admission() != artifact.admission
+    {
+        Some("canonical materializer output names a different admitted artifact")
+    } else if materialized.placement() != placement.placement {
+        Some("canonical materializer output names a different code placement")
+    } else if materialized.base_address() != placement.extent.base() {
+        Some("canonical materializer output names a different placement base")
+    } else if materialized.placement_plan() != artifact.artifact.0.placement_plan {
+        Some("canonical materializer output did not use the admitted placement plan")
+    } else if materialized.bytes().len() as u64 != artifact.artifact.0.byte_length {
+        Some("canonical materializer output has the wrong executable byte length")
+    } else if receipt.artifact != artifact.artifact.0.identity
         || receipt.admission != artifact.admission
     {
         Some("materialization receipt names a different admitted artifact")
@@ -540,6 +553,8 @@ pub fn materialize_and_freeze(
         Some("materialization did not use the admitted placement plan")
     } else if placement.constraints != artifact.artifact.0.placement_constraints {
         Some("code placement constraints do not match the admitted artifact")
+    } else if receipt.final_bytes != materialized.final_bytes() {
+        Some("materialization receipt does not bind the canonical final bytes")
     } else if !receipt.writes_frozen {
         Some("materialization did not freeze write authority over final bytes")
     } else {
@@ -548,6 +563,7 @@ pub fn materialize_and_freeze(
     if let Some(message) = mismatch {
         return Err(Box::new(MaterializationError {
             placement,
+            materialized,
             receipt,
             diagnostic: InstallationDiagnostic(message.into()),
         }));
@@ -555,7 +571,7 @@ pub fn materialize_and_freeze(
     Ok(FrozenPlacement {
         artifact: artifact.clone(),
         placement,
-        final_bytes: receipt.final_bytes,
+        materialized,
         realized_footprint: receipt.realized_footprint,
     })
 }
@@ -563,6 +579,7 @@ pub fn materialize_and_freeze(
 #[derive(Debug)]
 pub struct MaterializationError {
     placement: CodePlacement,
+    materialized: MaterializedArtifactBytes,
     receipt: MaterializationReceipt,
     diagnostic: InstallationDiagnostic,
 }
@@ -572,8 +589,14 @@ impl MaterializationError {
         &self.diagnostic
     }
 
-    pub fn into_parts(self) -> (CodePlacement, MaterializationReceipt) {
-        (self.placement, self.receipt)
+    pub fn into_parts(
+        self,
+    ) -> (
+        CodePlacement,
+        MaterializedArtifactBytes,
+        MaterializationReceipt,
+    ) {
+        (self.placement, self.materialized, self.receipt)
     }
 }
 
@@ -582,8 +605,21 @@ impl MaterializationError {
 pub struct FrozenPlacement {
     artifact: AdmittedArtifact,
     placement: CodePlacement,
-    final_bytes: FinalBytesId,
+    materialized: MaterializedArtifactBytes,
     realized_footprint: MachineFootprintId,
+}
+
+impl FrozenPlacement {
+    /// Exact immutable byte snapshot whose write authority the provider froze.
+    /// Final footprint/PCC validators inspect this provider-side view; it is
+    /// not an Omega source-visible byte-to-code escape hatch.
+    pub fn bytes(&self) -> &[u8] {
+        self.materialized.bytes()
+    }
+
+    pub const fn final_bytes(&self) -> FinalBytesId {
+        self.materialized.final_bytes()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -628,7 +664,7 @@ pub fn validate_final_placement(
         && certificate.artifact == frozen.artifact.artifact.0.identity
         && certificate.admission == frozen.artifact.admission
         && certificate.placement == frozen.placement.placement
-        && certificate.final_bytes == frozen.final_bytes
+        && certificate.final_bytes == frozen.materialized.final_bytes()
         && certificate.realized_footprint == frozen.realized_footprint;
     if !matches {
         return Err(Box::new(FrozenPlacementError {
@@ -1419,21 +1455,14 @@ mod tests {
         let placement = placement_authority(placement_identity, base)
             .claim(placement_extent(placement_identity, base, 4096))
             .expect("placement");
+        let materialized = materialize_admitted_artifact(admitted, &placement, |_| None)
+            .expect("artifact without relocations materializes");
         materialize_and_freeze(
             admitted,
             placement,
-            MaterializationReceipt::from_provider(
-                admitted.artifact().identity(),
-                admitted.admission(),
-                id(
-                    placement_identity,
-                    CodePlacementId::from_normalized_identity,
-                ),
-                id(32, PlacementPlanId::from_normalized_identity),
-                id(
-                    70 + placement_identity,
-                    FinalBytesId::from_normalized_identity,
-                ),
+            materialized.clone(),
+            MaterializationReceipt::from_materialized(
+                &materialized,
                 id(71, MachineFootprintId::from_normalized_identity),
                 true,
             ),
@@ -1441,13 +1470,22 @@ mod tests {
         .expect("frozen placement")
     }
 
-    fn certificate(admitted: &AdmittedArtifact, placement: u64) -> FinalValidationCertificate {
+    fn certificate(
+        admitted: &AdmittedArtifact,
+        placement: u64,
+        base: u64,
+    ) -> FinalValidationCertificate {
+        let claimed = placement_authority(placement, base)
+            .claim(placement_extent(placement, base, 4096))
+            .expect("certificate placement");
+        let materialized = materialize_admitted_artifact(admitted, &claimed, |_| None)
+            .expect("artifact without relocations materializes");
         FinalValidationCertificate::from_validator(
             id(80 + placement, FinalValidationId::from_normalized_identity),
             admitted.artifact().identity(),
             admitted.admission(),
             id(placement, CodePlacementId::from_normalized_identity),
-            id(70 + placement, FinalBytesId::from_normalized_identity),
+            materialized.final_bytes(),
             id(71, MachineFootprintId::from_normalized_identity),
             true,
         )
@@ -1456,7 +1494,7 @@ mod tests {
     fn installed_code(admitted: &AdmittedArtifact, placement: u64, base: u64) -> InstalledCode {
         let validated = validate_final_placement(
             frozen(admitted, placement, base),
-            &certificate(admitted, placement),
+            &certificate(admitted, placement, base),
         )
         .expect("validated placement");
         install_validated(
@@ -1513,9 +1551,10 @@ mod tests {
             0x1b
         );
 
-        materialize_and_freeze(
+        let frozen = materialize_and_freeze(
             &admitted,
             placement,
+            materialized.clone(),
             MaterializationReceipt::from_materialized(
                 &materialized,
                 id(31, MachineFootprintId::from_normalized_identity),
@@ -1523,6 +1562,8 @@ mod tests {
             ),
         )
         .expect("receipt is bound to canonical materializer output");
+        assert_eq!(frozen.bytes(), materialized.bytes());
+        assert_eq!(frozen.final_bytes(), materialized.final_bytes());
     }
 
     #[test]
@@ -1627,9 +1668,11 @@ mod tests {
         let admitted = admit(&candidate);
         let second_reference = admitted.clone();
 
-        let validated =
-            validate_final_placement(frozen(&admitted, 100, 0x1000), &certificate(&admitted, 100))
-                .expect("validated placement");
+        let validated = validate_final_placement(
+            frozen(&admitted, 100, 0x1000),
+            &certificate(&admitted, 100, 0x1000),
+        )
+        .expect("validated placement");
         let authority = InstallAuthority::from_admitted_provider(
             admitted.artifact().identity(),
             admitted.admission(),
@@ -1663,22 +1706,50 @@ mod tests {
         let placement = placement_authority(101, 0x2000)
             .claim(placement_extent(101, 0x2000, 4096))
             .expect("placement");
+        let materialized = materialize_admitted_artifact(&first, &placement, |_| None)
+            .expect("first artifact materialization");
         let error = materialize_and_freeze(
             &first,
             placement,
+            materialized.clone(),
             MaterializationReceipt::from_provider(
                 second.artifact().identity(),
                 second.admission(),
                 id(101, CodePlacementId::from_normalized_identity),
                 id(32, PlacementPlanId::from_normalized_identity),
-                id(171, FinalBytesId::from_normalized_identity),
+                materialized.final_bytes(),
                 id(71, MachineFootprintId::from_normalized_identity),
                 true,
             ),
         )
         .expect_err("artifact substitution rejects");
         assert!(error.diagnostic().0.contains("different admitted artifact"));
-        let (_placement, _receipt) = (*error).into_parts();
+        let (_placement, _materialized, _receipt) = (*error).into_parts();
+    }
+
+    #[test]
+    fn canonical_materializer_output_cannot_substitute_another_artifact() {
+        let first = admit(&artifact(1));
+        let second = admit(&artifact(2));
+        let placement = placement_authority(111, 0x9000)
+            .claim(placement_extent(111, 0x9000, 4096))
+            .expect("placement");
+        let materialized = materialize_admitted_artifact(&second, &placement, |_| None)
+            .expect("second artifact materialization");
+        let receipt = MaterializationReceipt::from_materialized(
+            &materialized,
+            id(71, MachineFootprintId::from_normalized_identity),
+            true,
+        );
+        let error = materialize_and_freeze(&first, placement, materialized, receipt)
+            .expect_err("canonical output substitution rejects");
+        assert!(
+            error
+                .diagnostic()
+                .0
+                .contains("materializer output names a different admitted artifact")
+        );
+        let (_placement, _materialized, _receipt) = (*error).into_parts();
     }
 
     #[test]
@@ -1845,7 +1916,7 @@ mod tests {
     fn final_certificate_is_bound_to_one_placement_and_final_bytes() {
         let admitted = admit(&artifact(1));
         let frozen = frozen(&admitted, 102, 0x3000);
-        let error = validate_final_placement(frozen, &certificate(&admitted, 103))
+        let error = validate_final_placement(frozen, &certificate(&admitted, 103, 0x3000))
             .expect_err("certificate transplant rejects");
         assert!(error.diagnostic().0.contains("does not match"));
     }
@@ -1853,9 +1924,11 @@ mod tests {
     #[test]
     fn unsupported_execute_transition_preserves_all_linear_inputs() {
         let admitted = admit(&artifact(1));
-        let validated =
-            validate_final_placement(frozen(&admitted, 104, 0x4000), &certificate(&admitted, 104))
-                .expect("validated placement");
+        let validated = validate_final_placement(
+            frozen(&admitted, 104, 0x4000),
+            &certificate(&admitted, 104, 0x4000),
+        )
+        .expect("validated placement");
         let authority = InstallAuthority::from_admitted_provider(
             admitted.artifact().identity(),
             admitted.admission(),
@@ -1888,21 +1961,9 @@ mod tests {
         let placement = placement_authority(105, 0x5000)
             .claim(placement_extent(105, 0x5000, 32))
             .expect("qualified but undersized destination");
-        let error = materialize_and_freeze(
-            &admitted,
-            placement,
-            MaterializationReceipt::from_provider(
-                admitted.artifact().identity(),
-                admitted.admission(),
-                id(105, CodePlacementId::from_normalized_identity),
-                id(32, PlacementPlanId::from_normalized_identity),
-                id(175, FinalBytesId::from_normalized_identity),
-                id(71, MachineFootprintId::from_normalized_identity),
-                true,
-            ),
-        )
-        .expect_err("artifact cannot fit");
-        assert!(error.diagnostic().0.contains("smaller"));
+        let error = materialize_admitted_artifact(&admitted, &placement, |_| None)
+            .expect_err("artifact cannot fit");
+        assert!(error.0.contains("smaller"));
     }
 
     #[test]
@@ -1914,22 +1975,9 @@ mod tests {
         let placement = placement_authority_with_constraints(109, 0x8000, substituted)
             .claim(placement_extent(109, 0x8000, 4096))
             .expect("substituted constraints independently accept the site");
-        let error = materialize_and_freeze(
-            &admitted,
-            placement,
-            MaterializationReceipt::from_provider(
-                admitted.artifact().identity(),
-                admitted.admission(),
-                id(109, CodePlacementId::from_normalized_identity),
-                id(32, PlacementPlanId::from_normalized_identity),
-                id(179, FinalBytesId::from_normalized_identity),
-                id(71, MachineFootprintId::from_normalized_identity),
-                true,
-            ),
-        )
-        .expect_err("provider cannot substitute weaker placement constraints");
-        assert!(error.diagnostic().0.contains("constraints do not match"));
-        let (_placement, _receipt) = (*error).into_parts();
+        let error = materialize_admitted_artifact(&admitted, &placement, |_| None)
+            .expect_err("provider cannot substitute weaker placement constraints");
+        assert!(error.0.contains("constraints do not match"));
     }
 
     #[test]
@@ -2002,15 +2050,15 @@ mod tests {
         );
 
         let replacement = admit(&artifact(2));
+        let placement = retired.into_placement();
+        let materialized = materialize_admitted_artifact(&replacement, &placement, |_| None)
+            .expect("replacement materialization");
         materialize_and_freeze(
             &replacement,
-            retired.into_placement(),
-            MaterializationReceipt::from_provider(
-                replacement.artifact().identity(),
-                replacement.admission(),
-                id(107, CodePlacementId::from_normalized_identity),
-                id(32, PlacementPlanId::from_normalized_identity),
-                id(177, FinalBytesId::from_normalized_identity),
+            placement,
+            materialized.clone(),
+            MaterializationReceipt::from_materialized(
+                &materialized,
                 id(71, MachineFootprintId::from_normalized_identity),
                 true,
             ),
