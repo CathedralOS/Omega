@@ -1,0 +1,20 @@
+// FAIL canary (lifetimes stage 2): moving a borrow-carrying aggregate through
+// another local transfers its source loan; ordinary data assignment cannot
+// launder the borrow.
+
+data View<'buf> {
+    body: &'buf mut i32;
+}
+
+machine exercise<'source>(source: &'source mut i32) {
+    let first: View<'source> = View { body: source };
+    let second: View<'source> = first;
+    source = 1;
+    second.body = 2;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

@@ -39302,6 +39302,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "borrow/free_machine_view_invalidated_by_linked_input_write",
     "borrow/view_return_ambiguous_ref_inputs",
     "borrow/nested_borrow_carrying_local_escape",
+    "borrow/borrow_carrying_local_transfer_invalidated",
     "borrow/undeclared_lifetime_tag",
     "borrow/undeclared_lifetime_argument",
     "borrow/lifetime_argument_arity",

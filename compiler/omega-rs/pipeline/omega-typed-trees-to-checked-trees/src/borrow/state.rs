@@ -61,13 +61,14 @@ pub(super) fn append_state_borrow_facts(
                     source_owner_symbol: pending.source_owner_symbol,
                     root_symbol: pending.place.root_symbol,
                     segments: loan_segments,
-                    kind: pending.kind,
+                    kind: pending.kind.clone(),
                 },
             );
             state_loan_trackers.push(StateLoanTracker {
                 handle,
                 owner_symbol: pending.owner_symbol,
                 owner_name: pending.owner_name,
+                kind: pending.kind,
                 owner_path: pending.owner_path,
                 place: pending.place,
             });

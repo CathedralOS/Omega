@@ -262,10 +262,13 @@ against the data declaration's lifetime arity and the lexical owner's declared
 binders, and remain separate from runtime generic arity, layout, and
 monomorphization identity. A call-produced aggregate governed by one explicit
 result lifetime keeps the corresponding input loan active while unrelated
-inputs such as `second` remain independently usable. Result contracts
-relating different fields to different input lifetimes, general outlives
-constraints, and the remaining non-literal aggregate construction forms remain
-implementation work; they are not new language-design questions.
+inputs such as `second` remain independently usable. Moving a borrow-carrying
+local—or projecting and moving one of its nested fields—transfers the contained
+loan paths and their read/mutable polarity to the destination local; ordinary
+data assignment cannot erase a borrow. Result contracts relating different
+fields to different input lifetimes, general outlives constraints, and the
+remaining aggregate expression forms remain implementation work; they are not
+new language-design questions.
 
 ## Relationship To Drops
 
