@@ -291,6 +291,8 @@ fn validate_checked_instruction_bytes(
             CheckedInstructionValidationKind::MsrWriteImmediateIndex { .. } => 10,
             CheckedInstructionValidationKind::ControlRegisterRead { .. } => 11,
             CheckedInstructionValidationKind::ControlRegisterWrite { .. } => 12,
+            CheckedInstructionValidationKind::FlagsSnapshot { .. } => 13,
+            CheckedInstructionValidationKind::FlagsRestore => 14,
         };
         fingerprint_into(&mut fingerprint, &[kind_tag]);
         fingerprint_into(
@@ -326,7 +328,9 @@ fn validate_checked_instruction_kind(
         | CheckedInstructionValidationKind::MsrReadImmediateIndex { .. }
         | CheckedInstructionValidationKind::MsrWriteImmediateIndex { .. }
         | CheckedInstructionValidationKind::ControlRegisterRead { .. }
-        | CheckedInstructionValidationKind::ControlRegisterWrite { .. } => None,
+        | CheckedInstructionValidationKind::ControlRegisterWrite { .. }
+        | CheckedInstructionValidationKind::FlagsSnapshot { .. }
+        | CheckedInstructionValidationKind::FlagsRestore => None,
     };
     if let Some(expected) = fixed_expected {
         if encoded_bytes != expected {
@@ -503,6 +507,50 @@ fn validate_checked_instruction_kind(
             if !final_bytes.ends_with(&suffix) {
                 return Err(Diagnostic::error(format!(
                     "final checked control-register write #{selected_instruction_index} changed its register or privileged opcode envelope"
+                )));
+            }
+        }
+        CheckedInstructionValidationKind::FlagsSnapshot {
+            destination_byte_offset,
+        } => {
+            let prefix = [0x9c, 0x41, 0x5a, 0x49, 0xbf];
+            let mut suffix = Vec::with_capacity(7);
+            suffix.extend([0x4d, 0x89, 0x97]);
+            suffix.extend(destination_byte_offset.to_le_bytes());
+            if encoded_bytes.len() != 20
+                || !encoded_bytes.starts_with(&prefix)
+                || encoded_bytes[5..13] != [0; 8]
+                || !encoded_bytes.ends_with(&suffix)
+            {
+                return Err(Diagnostic::error(format!(
+                    "encoded checked `pushfq` snapshot #{selected_instruction_index} does not match its balanced destination envelope"
+                )));
+            }
+            if final_bytes.len() != 20
+                || !final_bytes.starts_with(&prefix)
+                || !final_bytes.ends_with(&suffix)
+            {
+                return Err(Diagnostic::error(format!(
+                    "final checked `pushfq` snapshot #{selected_instruction_index} changed its flags operation or destination envelope"
+                )));
+            }
+            require_absolute64_text_relocation(
+                relocations,
+                byte_offset + 5,
+                selected_instruction_index,
+                "pushfq",
+            )?;
+        }
+        CheckedInstructionValidationKind::FlagsRestore => {
+            let suffix = [0x41, 0x52, 0x9d];
+            if encoded_bytes.len() <= suffix.len() || !encoded_bytes.ends_with(&suffix) {
+                return Err(Diagnostic::error(format!(
+                    "encoded checked `popfq` restore #{selected_instruction_index} does not match its balanced source envelope"
+                )));
+            }
+            if !final_bytes.ends_with(&suffix) {
+                return Err(Diagnostic::error(format!(
+                    "final checked `popfq` restore #{selected_instruction_index} changed its flags-restore envelope"
                 )));
             }
         }

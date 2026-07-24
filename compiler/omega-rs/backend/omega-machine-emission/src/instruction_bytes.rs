@@ -198,6 +198,17 @@ fn checked_instruction_validation_kind(
                 register: *register,
             })
         }
+        SelectedInstructionKind::FlagsSnapshot {
+            dest_byte_offset, ..
+        } => {
+            let destination_byte_offset = u32::try_from(*dest_byte_offset).ok()?;
+            Some(CheckedInstructionValidationKind::FlagsSnapshot {
+                destination_byte_offset,
+            })
+        }
+        SelectedInstructionKind::FlagsRestore { .. } => {
+            Some(CheckedInstructionValidationKind::FlagsRestore)
+        }
         _ => None,
     }
 }
