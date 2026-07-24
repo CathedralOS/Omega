@@ -67,6 +67,7 @@ pub(crate) fn data_definition_from_wire_schema(
         name: schema.name.clone(),
         storage: DataDefinitionStorage {
             supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
+            lifetime_parameters: Vec::new(),
             type_parameters: omega_core::arena::HandleSpan::empty(),
             quotient: None,
             where_facts: omega_core::arena::HandleSpan::empty(),

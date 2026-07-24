@@ -4,6 +4,7 @@ use crate::parser::type_reference::{
 };
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
+use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{
     DataDefinition, DataField, DataMember, DataProperties, DataVariant, QuotientDefinition,
     TypeParameter, TypeParameterKind,
@@ -35,8 +36,10 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     // N7: proof-data families may be indexed by static machine symbols using
     // the same parameter/contract pair as generic machines. The selected
     // symbol is metadata only; no field stores a callable value.
-    let (type_parameters, next) = parse_machine_type_parameters(syntax_trees, input)?;
+    let (generic_parameters, next) = parse_machine_type_parameters(syntax_trees, input)?;
     input = next;
+    let type_parameters = generic_parameters.type_parameters;
+    let lifetime_parameters = generic_parameters.lifetime_parameters;
     let (properties, next) = parse_property_brackets(input)?;
     input = next;
     let ((), next) = crate::parser::machine::parse_machine_parameter_contracts(
@@ -66,6 +69,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             ParsedDataDefinition::Plain(DataDefinition {
                 name,
                 supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
+                lifetime_parameters,
                 type_parameters,
                 properties,
                 quotient: Some(QuotientDefinition { carrier, relation }),
@@ -106,9 +110,9 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             .and_then(|(_, after)| after.take_punctuation(PunctuationKind::LeftBrace, "{").ok())
             .is_some_and(|inner| inner.at_integer() || inner.at_contextual("retired"));
     if input.at_integer() || input.at_contextual("retired") || leading_version_is_numbered {
-        if !type_parameters.is_empty() {
+        if !type_parameters.is_empty() || !lifetime_parameters.is_empty() {
             return Err(input.error_here(
-                "identity-numbered data does not take type parameters yet (the schema the \
+                "identity-numbered data does not take generic parameters yet (the schema the \
                  tagged grammar consumes is concrete)",
             ));
         }
@@ -129,6 +133,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
         ParsedDataDefinition::Plain(DataDefinition {
             name,
             supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
+            lifetime_parameters,
             type_parameters,
             properties,
             quotient: None,
@@ -153,7 +158,9 @@ pub(super) fn parse_boundary_data_definition<'tokens, 'source>(
             "data name `Slice` is reserved: `Slice<T>` is the slice type (alias of `[T]`)",
         ));
     }
-    let (type_parameters, input) = parse_machine_type_parameters(syntax_trees, input)?;
+    let (generic_parameters, input) = parse_machine_type_parameters(syntax_trees, input)?;
+    let type_parameters = generic_parameters.type_parameters;
+    let lifetime_parameters = generic_parameters.lifetime_parameters;
     let (properties, input) = parse_property_brackets(input)?;
     let ((), input) = crate::parser::machine::parse_machine_parameter_contracts(
         syntax_trees,
@@ -170,6 +177,7 @@ pub(super) fn parse_boundary_data_definition<'tokens, 'source>(
         DataDefinition {
             name,
             supply_mode: omega_core::semantics::DataSupplyMode::BoundaryOpaque,
+            lifetime_parameters,
             type_parameters,
             properties,
             quotient: None,
@@ -562,17 +570,23 @@ fn parse_case_payload_fields<'tokens, 'source>(
     Ok((payload, input))
 }
 
+#[derive(Default)]
+pub(super) struct ParsedGenericParameters {
+    pub(super) lifetime_parameters: Vec<Identifier>,
+    pub(super) type_parameters: HandleSpan<TypeParameter>,
+}
+
 pub(super) fn parse_type_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, HandleSpan<TypeParameter>> {
+) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
     parse_type_parameters_in(syntax_trees, input, false)
 }
 
 pub(super) fn parse_machine_type_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, HandleSpan<TypeParameter>> {
+) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
     parse_type_parameters_in(syntax_trees, input, true)
 }
 
@@ -580,14 +594,16 @@ fn parse_type_parameters_in<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
     allow_machine_parameters: bool,
-) -> ParseResult<'tokens, 'source, HandleSpan<TypeParameter>> {
+) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
     if !input.at_punctuation(PunctuationKind::Less) {
-        return Ok((HandleSpan::empty(), input));
+        return Ok((ParsedGenericParameters::default(), input));
     }
 
     input = input.take_punctuation(PunctuationKind::Less, "<")?;
     let mut type_parameter_start = Handle::invalid();
     let mut type_parameter_count = 0u32;
+    let mut lifetime_parameters = Vec::new();
+    let mut declared_names = Vec::<String>::new();
 
     loop {
         // A leading bracket is the attribute-prefix spelling, which decision
@@ -598,14 +614,24 @@ fn parse_type_parameters_in<'tokens, 'source>(
             ));
         }
 
-        // A lifetime parameter (`<'buf>`); frozen decision 15 stage 2. Accepted
-        // and consumed here. Uses are linked to it by NAME through the
-        // reference-type lifetime tag, so the declaration is not yet recorded
-        // downstream — undeclared-lifetime validation is a stage-2 hardening
-        // follow-on, not a correctness requirement for the borrow linkage.
+        // A lifetime parameter (`<'buf>`); frozen decision 15 stage 2. It is
+        // an erased borrow-region binder, stored separately from ordinary
+        // type/const/machine parameters so runtime generic arity and
+        // monomorphization never count it.
         if input.at_punctuation(PunctuationKind::Apostrophe) {
             let after_tick = input.take_punctuation(PunctuationKind::Apostrophe, "'")?;
-            let (_lifetime_name, next) = after_tick.take_identifier()?;
+            let (lifetime_name, next) = after_tick.take_identifier()?;
+            if declared_names
+                .iter()
+                .any(|declared| declared == lifetime_name.as_str())
+            {
+                return Err(next.error_here(format!(
+                    "duplicate generic parameter `{}`",
+                    lifetime_name.as_str()
+                )));
+            }
+            declared_names.push(lifetime_name.as_str().to_owned());
+            lifetime_parameters.push(lifetime_name);
             input = next;
 
             if input.at_punctuation(PunctuationKind::Comma) {
@@ -619,7 +645,13 @@ fn parse_type_parameters_in<'tokens, 'source>(
             } else {
                 HandleSpan::from_parts(type_parameter_start, type_parameter_count)
             };
-            return Ok((type_parameters, input));
+            return Ok((
+                ParsedGenericParameters {
+                    lifetime_parameters,
+                    type_parameters,
+                },
+                input,
+            ));
         }
 
         let (name, kind, next) = if input.at_contextual("const") {
@@ -642,6 +674,15 @@ fn parse_type_parameters_in<'tokens, 'source>(
             (name, TypeParameterKind::Type, input)
         };
         input = next;
+        if declared_names
+            .iter()
+            .any(|declared| declared == name.as_str())
+        {
+            return Err(
+                input.error_here(format!("duplicate generic parameter `{}`", name.as_str()))
+            );
+        }
+        declared_names.push(name.as_str().to_owned());
 
         // Rust-style `<T: copy>` is rejected with the bracket spelling
         // suggested: a colon bound would split the property spelling system.
@@ -695,6 +736,12 @@ fn parse_type_parameters_in<'tokens, 'source>(
         } else {
             HandleSpan::from_parts(type_parameter_start, type_parameter_count)
         };
-        return Ok((type_parameters, input));
+        return Ok((
+            ParsedGenericParameters {
+                lifetime_parameters,
+                type_parameters,
+            },
+            input,
+        ));
     }
 }

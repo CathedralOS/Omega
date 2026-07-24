@@ -44,6 +44,7 @@ pub struct Machine {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineStorage {
+    pub lifetime_parameters: Vec<DiagnosticName>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub contains: HandleSpan<ContainedObject>,
     pub owned_data: HandleSpan<OwnedData>,

@@ -12,6 +12,7 @@ pub struct OperatorDefinition {
     pub is_boundary: bool,
     pub symbol: SymbolHandle,
     pub name: HandleSpan<crate::name::Identifier>,
+    pub lifetime_parameters: Vec<crate::name::Identifier>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub parameters: HandleSpan<crate::signature::StateParameter>,
     pub return_type: crate::types::TypeReferenceHandle,

@@ -60,6 +60,7 @@ pub(crate) fn validate_data_field_types(
                         generic_depth: 0,
                     },
                     type_parameters,
+                    &data_definition.lifetime_parameters,
                 );
             }
         }

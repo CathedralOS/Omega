@@ -14,6 +14,11 @@ pub(crate) fn lower_trait_definition(
         symbol: trait_definition.symbol,
         is_boundary: trait_definition.is_boundary,
         name: crate::name::lower_name(&trait_definition.name),
+        lifetime_parameters: trait_definition
+            .lifetime_parameters
+            .iter()
+            .map(crate::name::lower_name)
+            .collect(),
         type_parameters: omega_core::arena::HandleSpan::empty(),
         invariants: omega_core::arena::HandleSpan::empty(),
         requires: omega_core::arena::HandleSpan::empty(),

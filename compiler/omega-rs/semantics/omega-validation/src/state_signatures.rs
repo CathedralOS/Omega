@@ -18,6 +18,7 @@ pub(crate) fn validate_callable_state_signatures(
 ) {
     for machine in program.machines() {
         let mut type_parameters = program.machine_type_parameters(machine).to_vec();
+        let mut lifetime_parameters = machine.lifetime_parameters.clone();
         if let Some(attached_data) = &machine.attached_data
             && let Some(definition) = program
                 .data_definitions()
@@ -32,6 +33,14 @@ pub(crate) fn validate_callable_state_signatures(
                     type_parameters.push(parameter.clone());
                 }
             }
+            for parameter in &definition.lifetime_parameters {
+                if !lifetime_parameters
+                    .iter()
+                    .any(|existing| existing == parameter)
+                {
+                    lifetime_parameters.push(parameter.clone());
+                }
+            }
         }
         validate_state_signature_types(
             program
@@ -39,6 +48,7 @@ pub(crate) fn validate_callable_state_signatures(
                 .iter()
                 .map(|state| StateSignatureView {
                     name: state.name.as_str(),
+                    lifetime_parameters: &[],
                     parameters: program.state_parameters(state),
                     return_type: state.return_type,
                     effects: &[],
@@ -49,6 +59,7 @@ pub(crate) fn validate_callable_state_signatures(
             diagnostics,
             StateSignatureOwner::Machine(machine.name.as_str()),
             &type_parameters,
+            &lifetime_parameters,
         );
         validate_machine_parameter_signatures(
             program,
@@ -56,6 +67,7 @@ pub(crate) fn validate_callable_state_signatures(
             diagnostics,
             program.machine_type_parameters(machine),
             &type_parameters,
+            &lifetime_parameters,
             machine.name.as_str(),
         );
     }
@@ -68,6 +80,7 @@ pub(crate) fn validate_callable_state_signatures(
             diagnostics,
             type_parameters,
             type_parameters,
+            &definition.lifetime_parameters,
             definition.name.as_str(),
         );
     }
@@ -87,6 +100,7 @@ pub(crate) fn validate_callable_state_signatures(
                 .iter()
                 .map(|machine| StateSignatureView {
                     name: machine.name.as_str(),
+                    lifetime_parameters: &machine.lifetime_parameters,
                     parameters: program.state_signature_parameters(machine),
                     return_type: machine.return_type,
                     effects: program.state_signature_effects(machine),
@@ -97,6 +111,7 @@ pub(crate) fn validate_callable_state_signatures(
             diagnostics,
             StateSignatureOwner::Trait(trait_definition.name.as_str()),
             program.trait_type_parameters(trait_definition),
+            &trait_definition.lifetime_parameters,
         );
     }
 }
@@ -104,6 +119,7 @@ pub(crate) fn validate_callable_state_signatures(
 #[derive(Debug, Clone, Copy)]
 struct StateSignatureView<'program> {
     name: &'program str,
+    lifetime_parameters: &'program [Identifier],
     parameters: &'program [StateParameter],
     return_type: TypeReferenceHandle,
     effects: &'program [Identifier],
@@ -135,6 +151,7 @@ fn validate_machine_parameter_signatures<'program>(
     diagnostics: &mut Vec<Diagnostic>,
     parameters: &'program [omega_typed_trees::data::TypeParameter],
     inherited_type_parameters: &[omega_typed_trees::data::TypeParameter],
+    inherited_lifetime_parameters: &[Identifier],
     declaration: &'program str,
 ) {
     for parameter in parameters {
@@ -156,6 +173,7 @@ fn validate_machine_parameter_signatures<'program>(
         }
 
         let mut local_type_parameters = inherited_type_parameters.to_vec();
+        let mut local_lifetime_parameters = inherited_lifetime_parameters.to_vec();
         for nested_parameter in nested {
             if !local_type_parameters
                 .iter()
@@ -164,9 +182,18 @@ fn validate_machine_parameter_signatures<'program>(
                 local_type_parameters.push(nested_parameter.clone());
             }
         }
+        for nested_parameter in &contract.lifetime_parameters {
+            if !local_lifetime_parameters
+                .iter()
+                .any(|existing| existing == nested_parameter)
+            {
+                local_lifetime_parameters.push(nested_parameter.clone());
+            }
+        }
         validate_state_signature_types(
             std::iter::once(StateSignatureView {
                 name: contract.name.as_str(),
+                lifetime_parameters: &contract.lifetime_parameters,
                 parameters: program.state_signature_parameters(contract),
                 return_type: contract.return_type,
                 effects: program.state_signature_effects(contract),
@@ -177,6 +204,7 @@ fn validate_machine_parameter_signatures<'program>(
             diagnostics,
             StateSignatureOwner::Requirement(parameter.name.as_str()),
             &local_type_parameters,
+            &local_lifetime_parameters,
         );
         validate_machine_parameter_signatures(
             program,
@@ -184,6 +212,7 @@ fn validate_machine_parameter_signatures<'program>(
             diagnostics,
             nested,
             &local_type_parameters,
+            &local_lifetime_parameters,
             declaration,
         );
     }
@@ -196,8 +225,18 @@ fn validate_state_signature_types<'program>(
     diagnostics: &mut Vec<Diagnostic>,
     owner: StateSignatureOwner<'program>,
     type_parameters: &[omega_typed_trees::data::TypeParameter],
+    inherited_lifetime_parameters: &[Identifier],
 ) {
     for signature in signatures {
+        let mut lifetime_parameters = inherited_lifetime_parameters.to_vec();
+        for parameter in signature.lifetime_parameters {
+            if !lifetime_parameters
+                .iter()
+                .any(|existing| existing == parameter)
+            {
+                lifetime_parameters.push(parameter.clone());
+            }
+        }
         validate_state_parameter_names(signature, owner, diagnostics);
         validate_state_signature_effects(program, signature, owner, diagnostics);
         validate_state_signature_contracts(program, signature, owner, diagnostics);
@@ -219,6 +258,7 @@ fn validate_state_signature_types<'program>(
                     generic_depth: 0,
                 },
                 type_parameters,
+                &lifetime_parameters,
             );
         }
 
@@ -234,6 +274,7 @@ fn validate_state_signature_types<'program>(
                     generic_depth: 0,
                 },
                 type_parameters,
+                &lifetime_parameters,
             );
         }
     }

@@ -28,6 +28,11 @@ pub(crate) fn lower_machine(
         // the tree level, so ids stay valid).
         effect_row: machine.effect_row,
         service_reach_row: machine.service_reach_row,
+        lifetime_parameters: machine
+            .lifetime_parameters
+            .iter()
+            .map(crate::name::lower_name)
+            .collect(),
         type_parameters: omega_core::arena::HandleSpan::empty(),
         contains: omega_core::arena::HandleSpan::empty(),
         owned_data: omega_core::arena::HandleSpan::empty(),

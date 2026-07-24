@@ -15,6 +15,55 @@ fn typed_program_from_source(source: &str) -> omega_typed_trees::TypedTrees {
 }
 
 #[test]
+fn declared_lifetime_parameters_survive_lowering_and_validate() {
+    let typed = typed_program_from_source(
+        r#"
+        data View<'buf> {
+            body: &'buf i32;
+        }
+
+        machine borrow<'call>(value: &'call i32) -> &'call i32 {
+            value
+        }
+        "#,
+    );
+
+    let view = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "View")
+        .expect("View");
+    assert_eq!(view.lifetime_parameters.len(), 1);
+    assert_eq!(view.lifetime_parameters[0].as_str(), "buf");
+
+    let borrow = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "borrow")
+        .expect("borrow");
+    assert_eq!(borrow.lifetime_parameters.len(), 1);
+    assert_eq!(borrow.lifetime_parameters[0].as_str(), "call");
+    validate_program(&typed).expect("declared lifetime tags should validate");
+}
+
+#[test]
+fn undeclared_lifetime_tag_rejects() {
+    let typed = typed_program_from_source(
+        r#"
+        data Bad {
+            body: &'ghost i32;
+        }
+        "#,
+    );
+    let diagnostics = validate_program(&typed).expect_err("undeclared lifetime tag must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("uses undeclared lifetime `'ghost'")
+    }));
+}
+
+#[test]
 fn carry_policy_survives_lowering_and_derives_through_transparent_data() {
     let typed = typed_program_from_source(
         r#"

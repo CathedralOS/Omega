@@ -80,6 +80,11 @@ pub(crate) fn lower_data_definition(
         name: crate::name::lower_name(&data_definition.name),
         storage: DataDefinitionStorage {
             supply_mode: data_definition.supply_mode,
+            lifetime_parameters: data_definition
+                .lifetime_parameters
+                .iter()
+                .map(crate::name::lower_name)
+                .collect(),
             type_parameters,
             properties: DataProperties {
                 copy: data_definition.properties.multiplicity
@@ -162,6 +167,7 @@ pub(crate) fn lower_type_parameters(
                         lowerer,
                         syntax_trees,
                         &contract.name,
+                        &contract.lifetime_parameters,
                         contract.type_parameters,
                         contract.parameters,
                         contract.return_type,

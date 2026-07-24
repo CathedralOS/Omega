@@ -185,6 +185,8 @@ pub struct OperatorDefinitionSnapshot {
     pub is_boundary: bool,
     pub has_symbol: bool,
     pub name: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub lifetime_parameters: Vec<String>,
     pub type_parameters: Vec<String>,
     pub parameter_count: usize,
     pub has_return_type: bool,
@@ -205,6 +207,11 @@ fn operator_snapshot(
             .iter()
             .map(ToString::to_string)
             .collect(),
+        lifetime_parameters: operator
+            .lifetime_parameters
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
         type_parameters: program
             .data_type_parameters(operator.type_parameters)
             .iter()
@@ -222,6 +229,8 @@ fn operator_snapshot(
 pub struct DataDefinitionSnapshot {
     pub name: String,
     pub supply: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub lifetime_parameters: Vec<String>,
     pub type_parameters: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quotient: Option<QuotientDefinitionSnapshot>,
@@ -287,6 +296,8 @@ pub struct InvariantDefinitionSnapshot {
 pub struct MachineSnapshot {
     pub name: String,
     pub attached_data: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub lifetime_parameters: Vec<String>,
     pub type_parameters: Vec<String>,
     pub terminates: bool,
     pub decreases: Vec<ExpressionSnapshot>,
@@ -318,6 +329,8 @@ pub struct OwnedDataSnapshot {
 pub struct TraitSnapshot {
     pub name: String,
     pub is_boundary: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub lifetime_parameters: Vec<String>,
     pub type_parameters: Vec<String>,
     pub invariants: Vec<ProofFactSnapshot>,
     pub requires: Vec<String>,
@@ -337,6 +350,8 @@ pub struct StateSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct StateSignatureSnapshot {
     pub name: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub lifetime_parameters: Vec<String>,
     pub type_parameters: Vec<String>,
     pub is_default: bool,
     pub parameters: Vec<StateParameterSnapshot>,
@@ -553,6 +568,11 @@ fn data_definition_snapshot(
             omega_core::semantics::DataSupplyMode::BoundaryOpaque => "boundary_opaque",
         }
         .to_owned(),
+        lifetime_parameters: data
+            .lifetime_parameters
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
         type_parameters: program
             .data_type_parameters(data.type_parameters)
             .iter()
@@ -653,6 +673,11 @@ fn machine_snapshot(program: &SymbolResolvedTrees, machine: &Machine) -> Machine
     MachineSnapshot {
         name: machine.name.to_string(),
         attached_data: machine.attached_data.as_ref().map(ToString::to_string),
+        lifetime_parameters: machine
+            .lifetime_parameters
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
         type_parameters: program
             .machine_type_parameters(machine)
             .iter()
@@ -725,6 +750,11 @@ fn trait_definition_snapshot(
     TraitSnapshot {
         name: trait_definition.name.to_string(),
         is_boundary: trait_definition.is_boundary,
+        lifetime_parameters: trait_definition
+            .lifetime_parameters
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
         type_parameters: program
             .trait_type_parameters(trait_definition)
             .iter()
@@ -791,6 +821,11 @@ fn state_signature_snapshot(
 ) -> StateSignatureSnapshot {
     StateSignatureSnapshot {
         name: signature.name.to_string(),
+        lifetime_parameters: signature
+            .lifetime_parameters
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
         type_parameters: program
             .data_type_parameters(signature.type_parameters)
             .iter()

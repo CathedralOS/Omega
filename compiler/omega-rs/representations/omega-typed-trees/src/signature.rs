@@ -7,6 +7,7 @@ use omega_core::symbols::SymbolHandle;
 pub struct StateSignature {
     pub symbol: SymbolHandle,
     pub name: Identifier,
+    pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameter>,
@@ -29,6 +30,7 @@ impl Default for StateSignature {
         Self {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
+            lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
             is_default: false,
             parameters: HandleSpan::empty(),

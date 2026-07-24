@@ -12,6 +12,11 @@ pub(crate) fn lower_operator_definition(
         is_boundary: operator.is_boundary,
         symbol: operator.symbol,
         name: Default::default(),
+        lifetime_parameters: operator
+            .lifetime_parameters
+            .iter()
+            .map(crate::name::lower_name)
+            .collect(),
         type_parameters: Default::default(),
         parameters: Default::default(),
         return_type: operator

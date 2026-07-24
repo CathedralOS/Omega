@@ -31,7 +31,9 @@ pub(super) fn parse_machine<'tokens, 'source>(
             .expressions
             .append_identifier_path_member(member)
     })?;
-    let (type_parameters, input) = parse_machine_type_parameters(syntax_trees, input)?;
+    let (generic_parameters, input) = parse_machine_type_parameters(syntax_trees, input)?;
+    let type_parameters = generic_parameters.type_parameters;
+    let lifetime_parameters = generic_parameters.lifetime_parameters;
     let (machine_parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (machine_return_type, input) = parse_optional_return_type(syntax_trees, input)?;
     let ((), mut input) = parse_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
@@ -103,6 +105,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
                 target: None,
                 boundary: false,
                 bodyless: true,
+                lifetime_parameters,
                 type_parameters,
                 satisfies,
                 terminates,
@@ -214,6 +217,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
             target: None,
             boundary: false,
             bodyless: false,
+            lifetime_parameters,
             type_parameters,
             satisfies,
             terminates,
@@ -307,8 +311,9 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             }
         }
 
-        let (nested_type_parameters, after_type_parameters) =
+        let (nested_generic_parameters, after_type_parameters) =
             parse_machine_type_parameters(syntax_trees, after_name)?;
+        let nested_type_parameters = nested_generic_parameters.type_parameters;
         let (parameters, after_parameters) =
             parse_optional_state_parameters(syntax_trees, after_type_parameters)?;
         let (return_type, after_return) =
@@ -333,6 +338,7 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
 
         let contract = omega_syntax_trees::item::StateSignature {
             name: name.clone(),
+            lifetime_parameters: nested_generic_parameters.lifetime_parameters,
             type_parameters: nested_type_parameters,
             is_default: false,
             parameters,

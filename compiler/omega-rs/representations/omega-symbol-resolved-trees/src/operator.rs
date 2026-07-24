@@ -9,6 +9,7 @@ pub struct OperatorDefinition {
     pub is_boundary: bool,
     pub symbol: SymbolHandle,
     pub name: HandleSpan<DiagnosticName>,
+    pub lifetime_parameters: Vec<DiagnosticName>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub parameters: HandleSpan<crate::signature::StateParameter>,
     pub return_type: Option<TypeReference>,

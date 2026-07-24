@@ -56,7 +56,9 @@ use crate::traits::{
     validate_machine_trait_conformances, validate_trait_requirements,
 };
 use crate::transitions::validate_transition_target_node;
-use crate::type_references::{TypeReferenceOwner, validate_type_reference_handle};
+use crate::type_references::{
+    TypeReferenceOwner, validate_type_reference_handle_with_type_parameters,
+};
 pub use effects::{validate_asm_discharge, validate_effect_plan};
 /// The declared type of a simple place argument (bare name / `self.field`,
 /// through the `&mut` marker), WITH its Constrained shells -- exposed for the
@@ -151,7 +153,7 @@ fn validate_program_internal(
     default_domains::validate_default_domain_writes(program, &mut diagnostics);
     recasts::validate_recasts(program, &mut diagnostics);
     wire::validate_wire_schemas(program, &symbols, &mut diagnostics);
-    operators::validate_operator_declarations(program, &mut diagnostics);
+    operators::validate_operator_declarations(program, &symbols, &mut diagnostics);
     validate_entry_point(program, &mut diagnostics);
     machine_parameters::validate_static_machine_arguments(program, &mut diagnostics);
 
@@ -793,7 +795,32 @@ fn validate_state_statement_node(
             );
         }
         StatementNode::LocalData(local_data) => {
-            validate_type_reference_handle(
+            let mut type_parameters = program.machine_type_parameters(machine).to_vec();
+            let mut lifetime_parameters = machine.lifetime_parameters.clone();
+            if let Some(attached_data) = &machine.attached_data
+                && let Some(definition) = program
+                    .data_definitions()
+                    .iter()
+                    .find(|definition| definition.name == *attached_data)
+            {
+                for parameter in program.data_type_parameters(definition) {
+                    if !type_parameters
+                        .iter()
+                        .any(|existing| existing.symbol == parameter.symbol)
+                    {
+                        type_parameters.push(parameter.clone());
+                    }
+                }
+                for parameter in &definition.lifetime_parameters {
+                    if !lifetime_parameters
+                        .iter()
+                        .any(|existing| existing == parameter)
+                    {
+                        lifetime_parameters.push(parameter.clone());
+                    }
+                }
+            }
+            validate_type_reference_handle_with_type_parameters(
                 program,
                 local_data.type_reference,
                 symbols,
@@ -804,6 +831,8 @@ fn validate_state_statement_node(
                     local: local_data.name.as_str(),
                     generic_depth: 0,
                 },
+                &type_parameters,
+                &lifetime_parameters,
             );
             let local_target_primitive =
                 program.primitive_type_reference(local_data.type_reference);

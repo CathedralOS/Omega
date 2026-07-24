@@ -8,6 +8,7 @@ pub struct DataDefinition {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub supply_mode: omega_core::semantics::DataSupplyMode,
+    pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub properties: DataProperties,
     /// N6 proof-only quotient metadata, retained through typing so proof and
@@ -29,6 +30,7 @@ impl Default for DataDefinition {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
+            lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
             properties: DataProperties::default(),
             quotient: None,

@@ -12,6 +12,11 @@ pub(crate) fn lower_data_definition(
         symbol: data_definition.symbol,
         name: crate::name::lower_name(&data_definition.name),
         supply_mode: data_definition.supply_mode,
+        lifetime_parameters: data_definition
+            .lifetime_parameters
+            .iter()
+            .map(crate::name::lower_name)
+            .collect(),
         type_parameters: omega_core::arena::HandleSpan::empty(),
         properties: typed::data::DataProperties {
             copy: data_definition.properties.copy,
