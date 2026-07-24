@@ -1491,10 +1491,7 @@ fn resolve_runtime_value_operand_in_table(
         // ZII read downstream (the cast-in-payload face; bare `x % 10` never
         // hit it because the Binary arm recurses fine over non-cast leaves).
         ExpressionNode::Cast(cast) => {
-            let target_primitive = expressions
-                .name_path_members(cast.target_type)
-                .last()
-                .and_then(|name| PrimitiveType::from_name(name.as_str()))?;
+            let target_primitive = input.program.primitive_type_reference(cast.target_type)?;
             let source_primitive = classify_scalar_value_type_in_table(
                 input,
                 dispatch_index,

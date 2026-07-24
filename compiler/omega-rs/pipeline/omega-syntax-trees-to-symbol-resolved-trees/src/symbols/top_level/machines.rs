@@ -101,6 +101,7 @@ pub(super) fn assign_machine_symbols(
                     symbols,
                     &MachineScope {
                         symbol: machine_symbol,
+                        type_parameters: &local_type_parameters,
                         attached_data: machine.attached_data.as_ref(),
                         owned_data: &[],
                         inherited_data_members: None,

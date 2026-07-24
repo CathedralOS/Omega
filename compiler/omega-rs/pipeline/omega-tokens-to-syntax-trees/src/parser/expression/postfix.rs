@@ -1,6 +1,7 @@
 use crate::parse_error::ParseError;
 use crate::parser::context::ExpressionContext;
-use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
+use crate::parser::input::{Input, ParseResult};
+use crate::parser::type_reference::parse_cast_target_type_reference_handle;
 use omega_core::arena::HandleSpan;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{
@@ -276,11 +277,24 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                     omega_core::cast_form::CastForm::RecastShared
                 };
             }
-            let (target_type, rest) = parse_path_handle_span(input, |member| {
-                syntax_trees
-                    .expressions
-                    .append_identifier_path_member(member)
-            })?;
+            let target_start = input;
+            let (target_type, rest) =
+                parse_cast_target_type_reference_handle(syntax_trees, input)?;
+            let consumed = target_start
+                .tokens
+                .len()
+                .saturating_sub(rest.tokens.len());
+            let target_label_text = target_start.tokens[..consumed]
+                .iter()
+                .map(|token| token.lexeme.as_str())
+                .collect::<String>();
+            let mut target_label = HandleSpan::empty();
+            syntax_trees
+                .expressions
+                .append_identifier_path_member_to_span(
+                    &mut target_label,
+                    omega_syntax_trees::identifier::Identifier::generated(target_label_text),
+                );
             input = rest;
             // Optional arithmetic DOMAIN cast suffix (`x as u8 in Saturating`),
             // decision 17 S2: re-tags the value's arithmetic domain so it can
@@ -319,6 +333,7 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                     .insert(ExpressionNode::Cast(TableCastExpression {
                         value: expression,
                         target_type,
+                        target_label,
                         domain,
                         semantic_domain,
                         form,

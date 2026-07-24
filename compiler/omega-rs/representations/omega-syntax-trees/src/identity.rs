@@ -514,12 +514,7 @@ fn count_expression_handle(
         | crate::expression::ExpressionNode::Integer(_) => {}
         crate::expression::ExpressionNode::Cast(cast) => {
             count_expression_handle(syntax_trees, cast.value, counts);
-            for member in syntax_trees
-                .expressions
-                .identifier_path_members(cast.target_type)
-            {
-                count_identifier(member, counts);
-            }
+            count_type_reference_handle(syntax_trees, cast.target_type, counts);
         }
         crate::expression::ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {

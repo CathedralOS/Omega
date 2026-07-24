@@ -18,6 +18,7 @@ pub(super) fn assign_contract_reference_symbols(
     let SymbolResolvedTrees { roots, tables, .. } = program;
     let data_definitions = &roots.data_definitions;
     let data_members = &tables.declarations.data_members;
+    let data_type_parameters = &tables.declarations.data_type_parameters;
     let machine_owned_data = &tables.declarations.machine_owned_data;
     let machine_state_handles = &tables.declarations.machine_state_handles;
     let machine_states = &tables.declarations.machine_states;
@@ -35,6 +36,7 @@ pub(super) fn assign_contract_reference_symbols(
         });
         let scope = MachineScope {
             symbol: machine.symbol,
+            type_parameters: data_type_parameters.span_or_empty(machine.type_parameters),
             attached_data: machine.attached_data.as_ref(),
             inherited_data_members: data_definition
                 .map(|definition| data_members.span_or_empty(definition.members)),
@@ -170,15 +172,26 @@ fn assign_contract_call_symbols(
                 );
             }
         }
-        ExpressionNode::Cast(cast) => assign_contract_call_symbols(
-            symbols,
-            machine,
-            parameters,
-            state_symbol,
-            expression_table,
-            child_type_references,
-            cast.value,
-        ),
+        ExpressionNode::Cast(cast) => {
+            assign_contract_call_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expression_table,
+                child_type_references,
+                cast.value,
+            );
+            let mut target_type = child_type_references.get(cast.target_type).clone();
+            crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
+                symbols,
+                child_type_references,
+                machine.type_parameters,
+                machine.symbol,
+                &mut target_type,
+            );
+            *child_type_references.get_mut(cast.target_type) = target_type;
+        }
         ExpressionNode::Call(call) => {
             assign_contract_call_symbols(
                 symbols,

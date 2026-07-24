@@ -69,6 +69,60 @@ fn lowers_slice_range_surface_into_typed_trees() {
 }
 
 #[test]
+fn preserves_structural_recast_targets_through_typed_lowering() {
+    let source = r#"
+    machine inspect(bytes: [u8; 4]) {
+        let fixed: &[u8; 4] = &bytes as &[u8; 4];
+        let slice: &[u8] = &bytes as &[u8];
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved_program = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+    let typed_trees =
+        lower_symbol_resolved_trees(&resolved_program).expect("typed lowering should succeed");
+    let machine = &typed_trees.machines()[0];
+    let state = &typed_trees.machine_states(machine)[0];
+    let locals = typed_trees
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .filter_map(|statement| match statement {
+            omega_typed_trees::statement::StatementNode::LocalData(local) => Some(local),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    let omega_typed_trees::expression::ExpressionNode::Cast(fixed) = typed_trees
+        .expression_table
+        .expression(locals[0].initial_value)
+    else {
+        panic!("fixed-array initializer should remain a cast");
+    };
+    assert!(matches!(
+        typed_trees.type_reference_table.type_reference(fixed.target_type),
+        omega_typed_trees::types::TypeReferenceNode::FixedArray {
+            length: omega_typed_trees::types::FixedArrayLength::Literal(4),
+            ..
+        }
+    ));
+
+    let omega_typed_trees::expression::ExpressionNode::Cast(slice) = typed_trees
+        .expression_table
+        .expression(locals[1].initial_value)
+    else {
+        panic!("slice initializer should remain a cast");
+    };
+    assert!(matches!(
+        typed_trees.type_reference_table.type_reference(slice.target_type),
+        omega_typed_trees::types::TypeReferenceNode::Slice { .. }
+    ));
+}
+
+#[test]
 fn lowers_domain_definitions() {
     let source = r#"
     domain Player::Valid {

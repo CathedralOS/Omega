@@ -1088,6 +1088,7 @@ fn resolve_leaf_caller_local_initializer_names(
                 omega_checked_trees::expression::TableCastExpression {
                     value,
                     target_type: cast.target_type,
+                    target_label: cast.target_label,
                     domain: cast.domain,
                     semantic_domain: cast.semantic_domain,
                     form: cast.form,

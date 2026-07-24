@@ -30,7 +30,6 @@ use super::writes::resolve_runtime_text_equals_operand_in_table;
 use omega_abstract_operations::{
     RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstructionKind, TargetDataObjectHandle,
 };
-use omega_checked_trees::types::PrimitiveType;
 use omega_runtime_text::places::{
     expression_place_eq_across_tables, expression_place_eq_table_tree,
 };
@@ -1865,10 +1864,7 @@ fn resolve_runtime_value_operand_in_table(
     // width then derives from the Convert's target byte size.
     if let ExpressionNode::Cast(cast) = expressions.expression(expression) {
         let source_expression = cast.value;
-        let target_primitive = expressions
-            .name_path_members(cast.target_type)
-            .last()
-            .and_then(|name| PrimitiveType::from_name(name.as_str()))?;
+        let target_primitive = input.program.primitive_type_reference(cast.target_type)?;
         let source_primitive = classify_scalar_value_type_in_table(
             input,
             dispatch_index,

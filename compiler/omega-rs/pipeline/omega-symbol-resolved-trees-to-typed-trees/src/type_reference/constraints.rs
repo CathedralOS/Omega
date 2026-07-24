@@ -33,12 +33,12 @@ pub(super) fn lower_type_constraint_node_span_from_table(
                 typed::types::TypeConstraintNode::Range {
                     minimum: lower_expression_handle_from_table(
                         &source_trees.tables.bodies.expressions,
-                        &mut typed_trees.expression_table,
+                        typed_trees,
                         *minimum,
                     )?,
                     maximum: lower_expression_handle_from_table(
                         &source_trees.tables.bodies.expressions,
-                        &mut typed_trees.expression_table,
+                        typed_trees,
                         *maximum,
                     )?,
                 }
@@ -159,12 +159,12 @@ fn lower_type_constraint_node_with_context(
             Ok(typed::types::TypeConstraintNode::Range {
                 minimum: lower_expression_handle_from_table(
                     &source_trees.tables.bodies.expressions,
-                    &mut typed_trees.expression_table,
+                    typed_trees,
                     *minimum,
                 )?,
                 maximum: lower_expression_handle_from_table(
                     &source_trees.tables.bodies.expressions,
-                    &mut typed_trees.expression_table,
+                    typed_trees,
                     *maximum,
                 )?,
             })

@@ -172,14 +172,14 @@ impl CastExpression {
         format!(
             "{} as {}",
             self.value.display_name(),
-            display_name_path(&self.target_type, "::")
+            display_name_path(&self.target_label, "::")
         )
     }
 }
 
 impl TableCastExpression {
     pub fn display_name(&self, table: &ExpressionTable) -> String {
-        let target_type = display_name_path(table.name_path_members(self.target_type), "::");
+        let target_type = display_name_path(table.name_path_members(self.target_label), "::");
         format!("{} as {}", table.display_name(self.value), target_type)
     }
 }

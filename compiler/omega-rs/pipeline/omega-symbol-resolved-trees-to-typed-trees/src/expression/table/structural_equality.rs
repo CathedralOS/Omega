@@ -79,7 +79,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         // argument is content-spilled into a pointer-sized parameter slot.
         let left = self.lower(equality.left)?;
         let right = self.lower(equality.right)?;
-        Ok(Some(self.target.insert(
+        Ok(Some(self.target().insert(
             typed::expression::ExpressionNode::Binary(typed::expression::TableBinaryExpression {
                 left,
                 operator: typed::expression::BinaryOperator::Equal,
@@ -193,8 +193,8 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         if let Some(equals_state) = written_equals_state_symbol(program, &type_name) {
             let receiver = self.lower(binary.left)?;
             let argument = self.lower(binary.right)?;
-            let arguments = self.target.insert_expression_handles(vec![argument]);
-            let call = self.target.insert(typed::expression::ExpressionNode::Call(
+            let arguments = self.target().insert_expression_handles(vec![argument]);
+            let call = self.target().insert(typed::expression::ExpressionNode::Call(
                 typed::expression::TableCallExpression {
                     receiver,
                     target_symbol: equals_state,
@@ -224,9 +224,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         match operator {
             resolved::expression::BinaryOperator::NotEqual => {
                 let negated = self
-                    .target
+                    .target()
                     .insert(typed::expression::ExpressionNode::Boolean(false));
-                self.target
+                self.target()
                     .insert(typed::expression::ExpressionNode::Binary(
                         typed::expression::TableBinaryExpression {
                             left: equality,
@@ -481,7 +481,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             ) => {
                 if left_case != right_case {
                     return Ok(self
-                        .target
+                        .target()
                         .insert(typed::expression::ExpressionNode::Boolean(false)));
                 }
                 let variant = self.sum_variant(data, variants, left_case)?;
@@ -605,7 +605,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 let left_value = self.operand_field_value(field, case_variant, left)?;
                 let right_value = self.operand_field_value(field, case_variant, right)?;
                 Ok(self
-                    .target
+                    .target()
                     .insert(typed::expression::ExpressionNode::Binary(
                         typed::expression::TableBinaryExpression {
                             left: left_value,
@@ -631,7 +631,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 let left_value = self.operand_field_value(field, case_variant, left)?;
                 let right_value = self.operand_field_value(field, case_variant, right)?;
                 Ok(self
-                    .target
+                    .target()
                     .insert(typed::expression::ExpressionNode::Binary(
                         typed::expression::TableBinaryExpression {
                             left: left_value,
@@ -730,7 +730,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         field: &DataField,
         case_variant: Option<&DataVariant>,
     ) -> typed::expression::ExpressionHandle {
-        self.target
+        self.target()
             .insert(typed::expression::ExpressionNode::Member(
                 typed::expression::TableMemberExpression {
                     receiver: place,
@@ -750,16 +750,16 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         place: typed::expression::ExpressionHandle,
     ) -> typed::expression::ExpressionHandle {
         let mut members = HandleSpan::empty();
-        self.target
+        self.target()
             .push_name_path_member(&mut members, lower_name(&data.name));
-        self.target
+        self.target()
             .push_name_path_member(&mut members, lower_name(&variant.name));
         let mut member_symbols = HandleSpan::empty();
-        self.target
+        self.target()
             .push_name_path_member_symbol(&mut member_symbols, data.symbol);
-        self.target
+        self.target()
             .push_name_path_member_symbol(&mut member_symbols, variant.symbol);
-        let case_reference = self.target.insert(typed::expression::ExpressionNode::Name(
+        let case_reference = self.target().insert(typed::expression::ExpressionNode::Name(
             typed::expression::TableNamePath {
                 members,
                 member_symbols,
@@ -767,7 +767,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 symbol: variant.symbol,
             },
         ));
-        self.target
+        self.target()
             .insert(typed::expression::ExpressionNode::Binary(
                 typed::expression::TableBinaryExpression {
                     left: place,
@@ -802,12 +802,12 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         let mut parts = parts.into_iter();
         let Some(mut combined) = parts.next() else {
             return self
-                .target
+                .target()
                 .insert(typed::expression::ExpressionNode::Boolean(empty_value));
         };
         for part in parts {
             combined = self
-                .target
+                .target()
                 .insert(typed::expression::ExpressionNode::Binary(
                     typed::expression::TableBinaryExpression {
                         left: combined,

@@ -400,10 +400,7 @@ pub(in crate::selection) fn select_computed_host_argument_write(
             )?
         }
         ExpressionNode::Cast(cast) if !cast.form.is_recast() => {
-            let target_primitive = expressions
-                .name_path_members(cast.target_type)
-                .last()
-                .and_then(|name| PrimitiveType::from_name(name.as_str()))?;
+            let target_primitive = input.program.primitive_type_reference(cast.target_type)?;
             writes::mutation::build_runtime_convert_write(
                 input,
                 dispatch_index,
@@ -495,10 +492,9 @@ pub(in crate::selection) fn computed_host_argument_byte_size(
             binary.left,
             binary.right,
         )),
-        ExpressionNode::Cast(cast) if !cast.form.is_recast() => expressions
-            .name_path_members(cast.target_type)
-            .last()
-            .and_then(|name| PrimitiveType::from_name(name.as_str()))
+        ExpressionNode::Cast(cast) if !cast.form.is_recast() => input
+            .program
+            .primitive_type_reference(cast.target_type)
             .and_then(|primitive| primitive.scalar_byte_size()),
         ExpressionNode::Call(call) => {
             let (left, right) = computed_host_builtin_operands(input, expressions, call)?;
@@ -565,10 +561,9 @@ pub(in crate::selection) fn computed_host_argument_is_float(
             ),
             Some(PrimitiveType::F32 | PrimitiveType::F64)
         ),
-        ExpressionNode::Cast(cast) if !cast.form.is_recast() => expressions
-            .name_path_members(cast.target_type)
-            .last()
-            .and_then(|name| PrimitiveType::from_name(name.as_str()))
+        ExpressionNode::Cast(cast) if !cast.form.is_recast() => input
+            .program
+            .primitive_type_reference(cast.target_type)
             .is_some_and(|primitive| matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)),
         ExpressionNode::Call(call) => computed_host_builtin_operands(input, expressions, call)
             .is_some_and(|(left, right)| {
@@ -3115,21 +3110,19 @@ fn select_runtime_dispatch_local_initializer_write(
                 return;
             }
         }
-        let target_size = expressions
-            .name_path_members(cast.target_type)
-            .last()
-            .and_then(|name| {
-                omega_checked_trees::types::PrimitiveType::from_name(name.as_str())
-                    .and_then(|primitive| primitive.scalar_byte_size())
-                    .or_else(|| {
-                        // Rung C2: a RECORD target sizes by its data layout.
-                        input
-                            .layouts
-                            .data_layouts
-                            .iter()
-                            .find(|(_, data)| data.name.as_str() == name.as_str())
-                            .map(|(_, data)| data.layout.size)
-                    })
+        let target_size = input
+            .program
+            .primitive_type_reference(cast.target_type)
+            .and_then(|primitive| primitive.scalar_byte_size())
+            .or_else(|| {
+                let name = input.program.named_type_reference(cast.target_type)?;
+                // Rung C2: a RECORD target sizes by its data layout.
+                input
+                    .layouts
+                    .data_layouts
+                    .iter()
+                    .find(|(_, data)| data.name.as_str() == name.as_str())
+                    .map(|(_, data)| data.layout.size)
             });
         let source = cast.value;
         if let Some(size) = target_size

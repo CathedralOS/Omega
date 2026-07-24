@@ -1,6 +1,6 @@
 use crate::{
-    data, domain, expression, invariant, machine, measure, signature, snapshot, trait_definition,
-    types, wire,
+    data, domain, expression, invariant, machine, measure, name, signature, snapshot,
+    trait_definition, types, wire,
 };
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::PhaseSnapshot;
@@ -1107,6 +1107,13 @@ impl TypedTrees {
         type_reference: types::TypeReferenceHandle,
     ) -> Option<types::PrimitiveType> {
         self.type_reference_table.primitive_type(type_reference)
+    }
+
+    pub fn named_type_reference(
+        &self,
+        type_reference: types::TypeReferenceHandle,
+    ) -> Option<&name::Identifier> {
+        self.type_reference_table.named_type(type_reference)
     }
 
     /// True when the type is a borrowed byte slice `&[u8]` -- the honest

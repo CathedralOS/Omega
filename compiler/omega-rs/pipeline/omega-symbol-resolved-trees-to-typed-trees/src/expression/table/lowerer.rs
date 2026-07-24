@@ -14,7 +14,7 @@ use omega_typed_trees as typed;
 pub(super) struct ExpressionTableLowerer<'program, 'target, 'scope> {
     pub(super) program: Option<&'program resolved::SymbolResolvedTrees>,
     pub(super) source: &'program resolved::expression::ExpressionTable,
-    pub(super) target: &'target mut typed::expression::ExpressionTable,
+    pub(super) target_trees: &'target mut typed::TypedTrees,
     self_substitution: Option<typed::expression::ExpressionHandle>,
     pub(super) equality_scope: Option<&'scope EqualityScope>,
     /// PROOF-FACT position (contract/domain facts): equality over RECURSIVE
@@ -27,18 +27,22 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
     pub(super) fn new(
         program: Option<&'program resolved::SymbolResolvedTrees>,
         source: &'program resolved::expression::ExpressionTable,
-        target: &'target mut typed::expression::ExpressionTable,
+        target_trees: &'target mut typed::TypedTrees,
         self_substitution: Option<typed::expression::ExpressionHandle>,
         equality_scope: Option<&'scope EqualityScope>,
     ) -> Self {
         Self {
             program,
             source,
-            target,
+            target_trees,
             self_substitution,
             equality_scope,
             fact_position: false,
         }
+    }
+
+    pub(super) fn target(&mut self) -> &mut typed::expression::ExpressionTable {
+        &mut self.target_trees.expression_table
     }
 
     pub(super) fn in_fact_position(mut self) -> Self {
@@ -54,7 +58,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             resolved::expression::ExpressionNode::ArrayLiteral(values) => {
                 let values = self.lower_expression_handle_span(*values)?;
                 Ok(self
-                    .target
+                    .target()
                     .insert(typed::expression::ExpressionNode::ArrayLiteral(values)))
             }
             resolved::expression::ExpressionNode::Atomic(atomic) => {
@@ -65,7 +69,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     typed::expression::ExpressionHandle::invalid()
                 };
                 Ok(self
-                    .target
+                    .target()
                     .insert(typed::expression::ExpressionNode::Atomic(
                         typed::expression::TableAtomicExpression {
                             value,
@@ -88,7 +92,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 let left = self.lower(binary.left)?;
                 let right = self.lower(binary.right)?;
                 Ok(self
-                    .target
+                    .target()
                     .insert(typed::expression::ExpressionNode::Binary(
                         typed::expression::TableBinaryExpression {
                             left,
@@ -98,21 +102,35 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     )))
             }
             resolved::expression::ExpressionNode::Boolean(value) => Ok(self
-                .target
+                .target()
                 .insert(typed::expression::ExpressionNode::Boolean(*value))),
             resolved::expression::ExpressionNode::Cast(cast) => {
                 let value = self.lower(cast.value)?;
-                let target_type =
-                    lower_name_path_members_into_table(self.source, self.target, cast.target_type);
+                let program = self.program.ok_or_else(|| {
+                    Diagnostic::error(
+                        "cast target type lowering requires the enclosing resolved program",
+                    )
+                })?;
+                let target_type = crate::type_reference::lower_type_reference_into_trees(
+                    program,
+                    self.target_trees,
+                    program.child_type_reference(cast.target_type),
+                )?;
+                let target_label = lower_name_path_members_into_table(
+                    self.source,
+                    self.target(),
+                    cast.target_label,
+                );
                 let semantic_domain = lower_name_path_members_into_table(
                     self.source,
-                    self.target,
+                    self.target(),
                     cast.semantic_domain,
                 );
-                Ok(self.target.insert(typed::expression::ExpressionNode::Cast(
+                Ok(self.target().insert(typed::expression::ExpressionNode::Cast(
                     typed::expression::TableCastExpression {
                         value,
                         target_type,
+                        target_label,
                         domain: cast.domain,
                         semantic_domain,
                         form: cast.form,
@@ -125,7 +143,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 }
                 let receiver = self.lower_optional(call.receiver)?;
                 let arguments = self.lower_expression_handle_span(call.arguments)?;
-                Ok(self.target.insert(typed::expression::ExpressionNode::Call(
+                Ok(self.target().insert(typed::expression::ExpressionNode::Call(
                     typed::expression::TableCallExpression {
                         receiver,
                         target_symbol: call.target_symbol,
@@ -153,20 +171,20 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 // rebuilding from the f64 value was the strip-on-lowering
                 // disease the shared payload exists to kill.
                 Ok(self
-                    .target
+                    .target()
                     .insert(typed::expression::ExpressionNode::Float(value.clone())))
             }
             resolved::expression::ExpressionNode::Indexed(indexed) => {
                 let collection = self.lower(indexed.collection)?;
                 let index = self.lower(indexed.index)?;
                 Ok(self
-                    .target
+                    .target()
                     .insert(typed::expression::ExpressionNode::Indexed(
                         typed::expression::TableIndexedExpression { collection, index },
                     )))
             }
             resolved::expression::ExpressionNode::Integer(value) => Ok(self
-                .target
+                .target()
                 .insert(typed::expression::ExpressionNode::Integer(value.clone()))),
             resolved::expression::ExpressionNode::Membership(membership) => {
                 self.lower_membership_expression(membership)
@@ -174,7 +192,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             resolved::expression::ExpressionNode::Member(member) => {
                 let receiver = self.lower(member.receiver)?;
                 Ok(self
-                    .target
+                    .target()
                     .insert(typed::expression::ExpressionNode::Member(
                         typed::expression::TableMemberExpression {
                             receiver,
@@ -187,7 +205,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             resolved::expression::ExpressionNode::Mutable(expression) => {
                 let expression = self.lower(*expression)?;
                 Ok(self
-                    .target
+                    .target()
                     .insert(typed::expression::ExpressionNode::Mutable(expression)))
             }
             resolved::expression::ExpressionNode::Name(path) => {
@@ -197,15 +215,15 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 {
                     return Ok(substitution);
                 }
-                let path = lower_table_name_path_node_into_table(self.source, self.target, path);
+                let path = lower_table_name_path_node_into_table(self.source, self.target(), path);
                 Ok(self
-                    .target
+                    .target()
                     .insert(typed::expression::ExpressionNode::Name(path)))
             }
             resolved::expression::ExpressionNode::Range(range) => {
                 let start = self.lower_optional(range.start)?;
                 let end = self.lower_optional(range.end)?;
-                Ok(self.target.insert(typed::expression::ExpressionNode::Range(
+                Ok(self.target().insert(typed::expression::ExpressionNode::Range(
                     typed::expression::TableRangeExpression {
                         start,
                         end,
@@ -216,7 +234,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             resolved::expression::ExpressionNode::StructLiteral(struct_literal) => {
                 let fields = self.lower_struct_literal_field_span(struct_literal.fields)?;
                 Ok(self
-                    .target
+                    .target()
                     .insert(typed::expression::ExpressionNode::StructLiteral(
                         typed::expression::TableStructLiteral {
                             type_name: lower_name(&struct_literal.type_name),
@@ -227,14 +245,14 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             }
             resolved::expression::ExpressionNode::String(value) => {
                 Ok(self
-                    .target
+                    .target()
                     .insert(typed::expression::ExpressionNode::String(
                         value.shared_text(),
                     )))
             }
             resolved::expression::ExpressionNode::Unary(unary) => {
                 let operand = self.lower(unary.operand)?;
-                Ok(self.target.insert(typed::expression::ExpressionNode::Unary(
+                Ok(self.target().insert(typed::expression::ExpressionNode::Unary(
                     typed::expression::TableUnaryExpression {
                         operator: lower_unary_operator(unary.operator),
                         operand,
@@ -268,7 +286,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             .map(|expression| self.lower(expression))
             .collect::<Result<Vec<_>, _>>()?;
 
-        Ok(self.target.insert_expression_handles(lowered))
+        Ok(self.target().insert_expression_handles(lowered))
     }
 
     fn lower_struct_literal_field_span(
@@ -289,7 +307,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
 
-        Ok(self.target.insert_struct_fields(lowered))
+        Ok(self.target().insert_struct_fields(lowered))
     }
 
     fn lower_membership_expression(
@@ -305,7 +323,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             let value = self.lower(membership.value)?;
             return lower_domain_membership_expression(
                 program,
-                self.target,
+                self.target_trees,
                 value,
                 membership.domain_symbol,
             );
@@ -321,7 +339,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         if let Some(lowered) = lower_case_membership_expression(
             program,
             self.source,
-            self.target,
+            self.target_trees,
             value,
             membership.domain,
         ) {

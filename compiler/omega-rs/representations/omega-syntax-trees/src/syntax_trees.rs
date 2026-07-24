@@ -1035,7 +1035,8 @@ impl SyntaxTrees {
             ExpressionNode::Boolean(value) => ExpressionNode::Boolean(*value),
             ExpressionNode::Cast(cast) => ExpressionNode::Cast(TableCastExpression {
                 value: self.copy_expression_handle(other, cast.value),
-                target_type: self.copy_expression_identifier_span(other, cast.target_type),
+                target_type: self.copy_type_reference_handle(other, cast.target_type),
+                target_label: self.copy_expression_identifier_span(other, cast.target_label),
                 domain: cast.domain,
                 semantic_domain: self.copy_expression_identifier_span(other, cast.semantic_domain),
                 form: cast.form,

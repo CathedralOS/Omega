@@ -445,7 +445,7 @@ pub enum ExpressionSnapshot {
     },
     Cast {
         value: Box<ExpressionSnapshot>,
-        target_type: Vec<String>,
+        target_type: Box<TypeReferenceSnapshot>,
     },
     Call {
         receiver: Option<Box<ExpressionSnapshot>>,
@@ -1022,11 +1022,10 @@ fn table_expression_snapshot(
         ExpressionNode::Boolean(value) => ExpressionSnapshot::Boolean { value: *value },
         ExpressionNode::Cast(cast) => ExpressionSnapshot::Cast {
             value: Box::new(table_expression_snapshot(program, cast.value)),
-            target_type: table
-                .name_path_members(cast.target_type)
-                .iter()
-                .map(ToString::to_string)
-                .collect(),
+            target_type: Box::new(type_reference_snapshot_from_program(
+                program,
+                program.child_type_reference(cast.target_type),
+            )),
         },
         ExpressionNode::Call(call) => ExpressionSnapshot::Call {
             receiver: call

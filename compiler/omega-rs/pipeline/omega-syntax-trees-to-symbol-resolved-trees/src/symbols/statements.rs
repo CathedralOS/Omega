@@ -21,6 +21,7 @@ pub(super) fn assign_statement_reference_symbols(
         ..
     } = program;
     let data_members = &tables.declarations.data_members;
+    let data_type_parameters = &tables.declarations.data_type_parameters;
     let machine_owned_data = &tables.declarations.machine_owned_data;
     let machine_state_handles = &tables.declarations.machine_state_handles;
     let machine_states = &mut tables.declarations.machine_states;
@@ -31,6 +32,7 @@ pub(super) fn assign_statement_reference_symbols(
     let child_type_references = &mut tables.declarations.child_type_references;
     machines.for_each_mut(|machine| {
         let machine_symbol = machine.symbol;
+        let machine_type_parameters = machine.type_parameters;
         let data_definition = machine.attached_data.as_ref().and_then(|attached_data| {
             data_definitions
                 .iter()
@@ -51,6 +53,7 @@ pub(super) fn assign_statement_reference_symbols(
         } = &mut machine.storage;
         let machine_scope = MachineScope {
             symbol: machine_symbol,
+            type_parameters: data_type_parameters.span_or_empty(machine_type_parameters),
             attached_data: machine.attached_data.as_ref(),
             inherited_data_members,
             owned_data: machine_owned_data.span_or_empty(*owned_data),

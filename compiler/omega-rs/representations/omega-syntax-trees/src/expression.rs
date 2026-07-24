@@ -186,14 +186,17 @@ pub struct TableUnaryExpression {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TableCastExpression {
     pub value: ExpressionHandle,
-    pub target_type: HandleSpan<Identifier>,
+    pub target_type: crate::types::TypeReferenceHandle,
+    /// Diagnostic spelling only. Semantic identity and checking use
+    /// `target_type`; this cached label keeps expression-only diagnostics
+    /// independent of the separate type-reference arena.
+    pub target_label: HandleSpan<Identifier>,
     /// Arithmetic domain cast (`x as u8 in Saturating`), decision 17 S2. `Exact`
     /// when the cast has no `in <Domain>` suffix.
     pub domain: omega_core::arithmetic::ArithmeticDomain,
     /// A NON-policy `in <Name>` suffix (`x as i64 in Km`) -- a semantic-
     /// domain qualification spelling (decision 19). Carried for the checked
-    /// layers to judge; EMPTY for policy/no-suffix casts (the target_type
-    /// span pattern keeps the node Copy).
+    /// layers to judge; EMPTY for policy/no-suffix casts.
     pub semantic_domain: HandleSpan<Identifier>,
     /// Value conversion vs §5b borrow recast (`&x as &T`).
     pub form: omega_core::cast_form::CastForm,

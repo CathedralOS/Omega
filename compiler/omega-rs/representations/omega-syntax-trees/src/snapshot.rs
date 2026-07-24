@@ -494,7 +494,7 @@ pub enum ExpressionSnapshot {
     },
     Cast {
         value: Box<ExpressionSnapshot>,
-        target_type: Vec<IdentifierSnapshot>,
+        target_type: Box<TypeReferenceSnapshot>,
     },
     Call {
         receiver: Option<Box<ExpressionSnapshot>>,
@@ -1434,11 +1434,10 @@ fn snapshot_expression_handle(
         ExpressionNode::Boolean(value) => ExpressionSnapshot::Boolean { value: *value },
         ExpressionNode::Cast(cast) => ExpressionSnapshot::Cast {
             value: Box::new(snapshot_expression_handle(syntax_trees, cast.value)),
-            target_type: snapshot_identifier_slice(
-                syntax_trees
-                    .expressions
-                    .identifier_path_members(cast.target_type),
-            ),
+            target_type: Box::new(snapshot_type_reference_handle(
+                syntax_trees,
+                cast.target_type,
+            )),
         },
         ExpressionNode::Call(call) => snapshot_call_expression(syntax_trees, call),
         ExpressionNode::Float(value) => ExpressionSnapshot::Float {

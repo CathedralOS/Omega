@@ -869,11 +869,7 @@ fn asm_operand_primitive_type(
         ExpressionNode::Mutable(inner) => {
             asm_operand_primitive_type(program, machine, state, *inner)
         }
-        ExpressionNode::Cast(cast) => program
-            .expression_table
-            .name_path_members(cast.target_type)
-            .last()
-            .and_then(|name| PrimitiveType::from_name(name.as_str())),
+        ExpressionNode::Cast(cast) => program.primitive_type_reference(cast.target_type),
         _ => crate::places::declared_place_type(program, machine, state, operand)
             .and_then(|type_reference| program.primitive_type_reference(type_reference)),
     }

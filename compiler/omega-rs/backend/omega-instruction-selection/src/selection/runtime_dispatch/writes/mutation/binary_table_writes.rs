@@ -1220,10 +1220,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_convert_mutation_wr
     // it. The cast result carries the exact primitive type that the checked
     // assignment stores.
     .or_else(|| {
-        expressions
-            .name_path_members(cast.target_type)
-            .last()
-            .and_then(|name| PrimitiveType::from_name(name.as_str()))
+            input.program.primitive_type_reference(cast.target_type)
     })?;
 
     if let Some(target_place) = runtime_indexed_convert_target_place(

@@ -1472,7 +1472,12 @@ stronger operations it needs instead of citing machine parameters generally.
   `FloatFormat::BINARY64` now live in `omega::core` as ordinary semantic data.
   Replace the hardcoded IEEE lowering bootstrap with checked target
   conformances, derived provider plans, and checked assembly; there is no
-  instruction-binding compatibility path.
+  instruction-binding compatibility path. The exact source requirement family
+  for primitive float spellings is **OWNER-BLOCKED** on
+  `OWNER_QUESTIONS.md` under "primitive float operations": the current corpus
+  does not decide whether concrete boundary operators, a format-policy family,
+  or another existing requirement form owns those public contracts. Encoding
+  work remains staged until that identity is settled.
 
 ## Layout, memory, and artifact foundation
 
@@ -1526,12 +1531,13 @@ stronger operations it needs instead of citing machine parameters generally.
   leaves and `bool`, with native/interpreter execution and x86-64/AArch64 compile
   rails. Raw bytes still cannot acquire record facts through `recast` and remain
   fenced until a validate/materialize mint supplies evidence. Continue general
-  non-record tiling and float/domain representation-set reasoning. Top-level
-  array/slice targets first require the cast/recast AST to carry a full type
-  reference rather than its current name-path-only target; the source spelling
-  is already settled (`as &[T]` / `as &[T; N]`), so this is an engineering
-  prerequisite, not an owner decision. Do not encode structural types as
-  generated names to bypass it.
+  non-record tiling and float/domain representation-set reasoning. Cast/recast
+  targets now carry full type references through syntax, resolution, typed and
+  checked trees, while a separate spelling cache remains diagnostic-only.
+  Parser coverage pins the settled `as &[T]` / `as &[T; N]` surface without
+  encoding structural types as generated semantic names. Complete the
+  array/slice representation judgment, interpreter behavior, native lowering,
+  and differential canaries on that real structural identity.
 - **L6a — Extent.** The normalized conservation foundation is live in
   `omega-extents`: admitted one-shot root grants mint nonempty ranges;
   move-split preserves exact geometry; only compatible siblings from one

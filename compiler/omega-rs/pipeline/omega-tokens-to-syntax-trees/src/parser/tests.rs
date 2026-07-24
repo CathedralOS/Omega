@@ -1026,6 +1026,71 @@ fn parses_slice_range_indexing_into_range_expression() {
 }
 
 #[test]
+fn parses_structural_recast_targets_as_type_references() {
+    let source = r#"
+        machine inspect(bytes: [u8; 4]) {
+            let fixed: &[u8; 4] = &bytes as &[u8; 4];
+            let slice: &[u8] = &bytes as &[u8];
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed =
+        parse_syntax_trees(&tokens).expect("array and slice recast targets should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+    let state = parsed.items.state(parsed.items.state_handles(machine.states)[0]);
+    let locals = parsed
+        .items
+        .statements(state.statements)
+        .iter()
+        .filter_map(|handle| match parsed.statements.statement(*handle) {
+            StatementNode::LocalData(local) => Some(local),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    let ExpressionNode::Cast(fixed) =
+        parsed.expressions.expression(locals[0].initial_value)
+    else {
+        panic!("fixed-array initializer should be a recast");
+    };
+    let TypeReferenceNode::FixedArray {
+        element_type,
+        length: omega_syntax_trees::types::FixedArrayLength::Literal(4),
+    } = parsed.type_references.type_reference(fixed.target_type)
+    else {
+        panic!("fixed-array target should retain its structural type");
+    };
+    assert!(matches!(
+        parsed.type_references.type_reference(*element_type),
+        TypeReferenceNode::Named(name) if name.as_str() == "u8"
+    ));
+
+    let ExpressionNode::Cast(slice) =
+        parsed.expressions.expression(locals[1].initial_value)
+    else {
+        panic!("slice initializer should be a recast");
+    };
+    let TypeReferenceNode::Slice { element_type } =
+        parsed.type_references.type_reference(slice.target_type)
+    else {
+        panic!("slice target should retain its structural type");
+    };
+    assert!(matches!(
+        parsed.type_references.type_reference(*element_type),
+        TypeReferenceNode::Named(name) if name.as_str() == "u8"
+    ));
+}
+
+#[test]
 fn parses_trait_machine_contract_clauses() {
     let source = r#"
         boundary trait Filesystem {

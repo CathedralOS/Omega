@@ -49,7 +49,7 @@ pub(crate) fn lower_proof_facts(
                 let expression = lower_expression_handle_from_table_in_fact_position(
                     lowerer.source_trees,
                     &lowerer.source_trees.tables.bodies.expressions,
-                    &mut lowerer.typed_trees.expression_table,
+                    &mut lowerer.typed_trees,
                     *expression,
                 )?;
                 typed::domain::ProofFact::Expression(expression)
@@ -57,7 +57,7 @@ pub(crate) fn lower_proof_facts(
             resolved::domain::ProofFact::Membership(membership) => {
                 let value = lower_expression_handle_from_table(
                     &lowerer.source_trees.tables.bodies.expressions,
-                    &mut lowerer.typed_trees.expression_table,
+                    &mut lowerer.typed_trees,
                     membership.value,
                 )?;
                 let mut domain = HandleSpan::empty();

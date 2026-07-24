@@ -440,7 +440,7 @@ pub enum ExpressionSnapshot {
     },
     Cast {
         value: Box<ExpressionSnapshot>,
-        target_type: Vec<String>,
+        target_type: Box<TypeReferenceSnapshot>,
     },
     Call {
         receiver: Option<Box<ExpressionSnapshot>>,
@@ -1011,9 +1011,7 @@ fn expression_snapshot(program: &TypedTrees, expression: ExpressionHandle) -> Ex
         ExpressionNode::Boolean(value) => ExpressionSnapshot::Boolean { value: *value },
         ExpressionNode::Cast(cast) => ExpressionSnapshot::Cast {
             value: Box::new(expression_snapshot(program, cast.value)),
-            target_type: path_snapshot(
-                program.expression_table.name_path_members(cast.target_type),
-            ),
+            target_type: Box::new(type_reference_snapshot(program, cast.target_type)),
         },
         ExpressionNode::Call(call) => ExpressionSnapshot::Call {
             receiver: call

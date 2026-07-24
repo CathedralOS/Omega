@@ -227,6 +227,7 @@ fn simplify_expression_with_bindings(
                     None,
                 ),
                 target_type: cast.target_type.clone(),
+                target_label: cast.target_label.clone(),
                 domain: cast.domain,
                 form: cast.form,
             }))
@@ -559,9 +560,7 @@ fn derive_integer_landing(
             landing_from_type_reference(program, type_reference)
         }
         Expression::Cast(cast) => {
-            let primitive = omega_checked_trees::types::PrimitiveType::from_name(
-                cast.target_type.last()?.as_str(),
-            )?;
+            let primitive = program.primitive_type_reference(cast.target_type)?;
             if !primitive.accepts_integer_literal() {
                 return None;
             }

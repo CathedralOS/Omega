@@ -16,11 +16,19 @@ pub(crate) fn lower_type_reference_into_table(
     lowerer: &mut Lowerer,
     type_reference: &resolved::types::TypeReference,
 ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
-    lower_type_reference_handle_with_context(
+    lower_type_reference_into_trees(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         type_reference,
     )
+}
+
+pub(crate) fn lower_type_reference_into_trees(
+    source_trees: &resolved::SymbolResolvedTrees,
+    typed_trees: &mut typed::TypedTrees,
+    type_reference: &resolved::types::TypeReference,
+) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
+    lower_type_reference_handle_with_context(source_trees, typed_trees, type_reference)
 }
 
 pub(crate) fn lower_type_reference_handle_from_table(

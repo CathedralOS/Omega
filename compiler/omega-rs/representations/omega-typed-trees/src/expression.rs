@@ -286,11 +286,13 @@ impl ExpressionTable {
             ExpressionNode::Boolean(value) => self.insert(ExpressionNode::Boolean(*value)),
             ExpressionNode::Cast(cast) => {
                 let value = self.copy_from(source, cast.value);
-                let target_type = self.copy_name_path_members(source, cast.target_type);
+                let target_type = cast.target_type;
+                let target_label = self.copy_name_path_members(source, cast.target_label);
                 let semantic_domain = self.copy_name_path_members(source, cast.semantic_domain);
                 self.insert(ExpressionNode::Cast(TableCastExpression {
                     value,
                     target_type,
+                    target_label,
                     domain: cast.domain,
                     semantic_domain,
                     form: cast.form,
@@ -1195,11 +1197,13 @@ impl ExpressionTable {
             ExpressionNode::Boolean(value) => self.insert(ExpressionNode::Boolean(value)),
             ExpressionNode::Cast(cast) => {
                 let value = self.insert_copy(cast.value);
-                let target_type = self.copy_own_name_path_members(cast.target_type);
+                let target_type = cast.target_type;
+                let target_label = self.copy_own_name_path_members(cast.target_label);
                 let semantic_domain = self.copy_own_name_path_members(cast.semantic_domain);
                 self.insert(ExpressionNode::Cast(TableCastExpression {
                     value,
                     target_type,
+                    target_label,
                     domain: cast.domain,
                     semantic_domain,
                     form: cast.form,
@@ -1391,10 +1395,11 @@ impl ExpressionTable {
             Expression::Boolean(value) => self.insert(ExpressionNode::Boolean(*value)),
             Expression::Cast(cast) => {
                 let value = self.insert_tree(&cast.value);
-                let target_type = self.insert_name_path_members(&cast.target_type);
+                let target_label = self.insert_name_path_members(&cast.target_label);
                 self.insert(ExpressionNode::Cast(TableCastExpression {
                     value,
-                    target_type,
+                    target_type: cast.target_type,
+                    target_label,
                     domain: cast.domain,
                     // Tree-built casts are compiler-internal (tests/builders)
                     // and never carry the qualification suffix.
@@ -1510,8 +1515,9 @@ impl ExpressionTable {
             ExpressionNode::Boolean(value) => Expression::Boolean(*value),
             ExpressionNode::Cast(cast) => Expression::Cast(Box::new(CastExpression {
                 value: self.to_tree(cast.value),
-                target_type: NamePath::unresolved_from_iter(
-                    self.name_path_members(cast.target_type).iter().cloned(),
+                target_type: cast.target_type,
+                target_label: NamePath::unresolved_from_iter(
+                    self.name_path_members(cast.target_label).iter().cloned(),
                 ),
                 domain: cast.domain,
                 form: cast.form,
@@ -1784,7 +1790,9 @@ pub struct TableUnaryExpression {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TableCastExpression {
     pub value: ExpressionHandle,
-    pub target_type: HandleSpan<Identifier>,
+    pub target_type: crate::types::TypeReferenceHandle,
+    /// Diagnostic spelling only; semantic identity uses `target_type`.
+    pub target_label: HandleSpan<Identifier>,
     /// Arithmetic domain cast (`x as u8 in Saturating`), decision 17 S2.
     pub domain: omega_core::arithmetic::ArithmeticDomain,
     /// A NON-policy `in <Name>` suffix -- the semantic-domain qualification
@@ -2149,7 +2157,9 @@ pub enum UnaryOperator {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CastExpression {
     pub value: Expression,
-    pub target_type: NamePath,
+    pub target_type: crate::types::TypeReferenceHandle,
+    /// Diagnostic spelling only; semantic identity uses `target_type`.
+    pub target_label: NamePath,
     /// Arithmetic domain cast (`x as u8 in Saturating`), decision 17 S2.
     pub domain: omega_core::arithmetic::ArithmeticDomain,
     /// Value conversion vs §5b borrow recast (`&x as &T`).

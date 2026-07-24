@@ -381,3 +381,46 @@ argument/lease return. Keep the current provider-independent activation demand
 and join unchanged. Do not infer behavior from target names, manufacture a
 compiler-only default provider, or add a parallel task-specific selection or
 grant table.
+
+## 10. What requirement family supplies primitive float operations?
+
+`FloatFormat::BINARY32` and `FloatFormat::BINARY64` now state the permanent
+semantic identities of `f32` and `f64`. The remaining F7 migration says target
+packages provide checked conformances whose selected provider plans replace the
+compiler's hardcoded IEEE instruction lowering. The corpus does not yet define
+the requirements those conformances satisfy, however, or how primitive
+spellings such as `+`, `-`, `*`, and `/` resolve to them.
+
+This is public language architecture rather than an encoding task. One
+requirement per concrete format and operation gives explicit identities but
+duplicates the surface. One generic format-policy requirement is compact, but
+must still distinguish each operation's contract, domain policy, result format,
+and target availability without turning the format record into a dispatch tag.
+Declaring the current built-in arithmetic path to be the requirement implicitly
+would leave no browsable source contract for provider derivation.
+
+Decide:
+
+- whether primitive float arithmetic is governed by named boundary operators,
+  a boundary trait family, or another existing requirement form;
+- whether the format is selected by concrete carrier (`f32`, `f64`), a static
+  format-policy parameter, or a requirement family derived from the carrier;
+- which operations belong to the first contract family (arithmetic,
+  comparisons, conversions, fused operations, and classification);
+- how arithmetic-policy domains such as `Trapping` and `Saturating` refine the
+  selected requirement without ambient modes or provider-dependent source
+  meaning;
+- which part of the result is the public semantic promise and provider-plan
+  identity, versus accepted hardware evidence or proven software evidence; and
+- how checked `asm` catalog entries satisfy the requirements while preserving
+  the interpreter's exact-format semantics and allowing a software provider on
+  targets without matching hardware.
+
+Recommendation: use ordinary named boundary-operator requirements in
+`omega::core`, selected by the complete static operand carrier/domain tuple.
+Keep the semantic contract tied to the carrier's permanent `FloatFormat`
+constant; derive provider plans from explicit target-package satisfiers.
+Checked target assembly realizes those requirements, while checked software
+machines may satisfy the same requirements. Begin with binary arithmetic and
+comparisons; keep conversions, classification, and fused operations separate
+named requirements rather than one open-ended `FloatOperations` grab bag.

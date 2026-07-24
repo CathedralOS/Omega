@@ -60,7 +60,7 @@ pub(in crate::identity) fn count_control_flow_expression_strings(
         }
         ExpressionNode::Cast(cast) => {
             count_control_flow_expression_strings(table, cast.value, storage);
-            for name in table.name_path_members(cast.target_type) {
+            for name in table.name_path_members(cast.target_label) {
                 storage.count_program_name_identity(name);
             }
         }
