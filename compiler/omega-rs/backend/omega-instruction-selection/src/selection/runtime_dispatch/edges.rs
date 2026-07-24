@@ -1518,7 +1518,19 @@ fn select_dispatch_guard_instructions(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    if !guard_can_emit_directly(edge) {
+    // The flattened edge records a pointer-bearing reference local as the
+    // pointer slot's bytes, which looks directly encodable but is not the
+    // guard's value. Force expression selection so the Place/operand walk
+    // keeps the required dereference.
+    let has_pointee_operand = edge.guard_has_expression
+        && guard_contains_pointee_operand(
+            input,
+            source_dispatch_index,
+            source_key,
+            &input.state_guards.expressions,
+            edge.guard_expression,
+        );
+    if !guard_can_emit_directly(edge) || has_pointee_operand {
         let clauses = lower_guard_conjunction(
             input.state_guards,
             input.layouts,
@@ -1554,14 +1566,6 @@ fn select_dispatch_guard_instructions(
                 matches!(clause.lowering, StateGuardLowering::CompareRuntimeValue)
                     && !(clause.has_storage && clause.has_right_storage)
             });
-            let has_pointee_operand = edge.guard_has_expression
-                && guard_contains_pointee_operand(
-                    input,
-                    source_dispatch_index,
-                    source_key,
-                    &input.state_guards.expressions,
-                    edge.guard_expression,
-                );
             if edge.guard_has_expression
                 && (has_unresolved_runtime_compare
                     || has_pointee_operand
@@ -1641,7 +1645,7 @@ fn select_dispatch_guard_instructions(
         }
     }
 
-    if !guard_can_emit_directly(edge) {
+    if !guard_can_emit_directly(edge) || has_pointee_operand {
         if edge.guard_has_expression {
             let guards = select_runtime_dispatch_expression_guard_conjuncts_in_table(
                 input,

@@ -17,7 +17,7 @@ machine Main::main(&mut self) {
 
     state mutate(&mut self) {
         let exact: &mut f32 [0..=1] = &mut self.value as &mut f32;
-        transition exact == 0.0f32 {
+        transition exact == self.value {
             true -> good()
             _ -> bad()
         }
