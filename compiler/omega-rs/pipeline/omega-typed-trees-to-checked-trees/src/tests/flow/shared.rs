@@ -705,13 +705,13 @@ fn drops_local_borrow_loans_after_local_reassignment() {
         .borrow_lifetimes
         .weakenings
         .span_or_empty(state_flow.borrow_weakenings);
-    assert_eq!(weakenings.len(), 1);
-    assert_eq!(
-        weakenings[0].reason,
-        omega_checked_trees::FlowBorrowWeakeningReason::LocalReassigned
-    );
-    assert_eq!(
-        weakenings[0].source,
-        omega_checked_trees::FlowInvalidationSource::Statement { statement_index: 1 }
-    );
+    // Reassignment now creates the replacement loan as well as ending the old
+    // one. The unused replacement expires by last-use before the following
+    // call; the old source still has the precise reassignment weakening.
+    assert_eq!(weakenings.len(), 2);
+    assert!(weakenings.iter().any(|weakening| {
+        weakening.reason == omega_checked_trees::FlowBorrowWeakeningReason::LocalReassigned
+            && weakening.source
+                == omega_checked_trees::FlowInvalidationSource::Statement { statement_index: 1 }
+    }));
 }

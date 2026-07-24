@@ -17,6 +17,7 @@ use moves::{
     append_move_events_for_expression, append_move_events_for_operator_statement_call,
     initializer_produces_owned_value,
 };
+pub(crate) use place_types::expression_type_reference_in_state;
 use type_references::type_requires_ownership;
 
 pub(super) fn append_statement_ownership_events(

@@ -43,7 +43,7 @@ pub(super) fn filter_reassigned_borrow_loans(
     statement_index: usize,
     statement: &StatementNode,
 ) -> omega_core::arena::HandleSpan<FlowConstraintRef> {
-    let reassigned_symbol = match statement {
+    let (reassigned_symbol, reassigned_segments) = match statement {
         StatementNode::Assignment(assignment) => {
             let Some(place) = crate::flow::canonical_place_from_expression_in_state(
                 program,
@@ -53,8 +53,8 @@ pub(super) fn filter_reassigned_borrow_loans(
             ) else {
                 return source;
             };
-            match (place.root, place.segments.is_empty()) {
-                (omega_facts::PlaceRoot::Symbol(symbol), true) => symbol,
+            match place.root {
+                omega_facts::PlaceRoot::Symbol(symbol) => (symbol, place.segments),
                 _ => return source,
             }
         }
@@ -70,7 +70,17 @@ pub(super) fn filter_reassigned_borrow_loans(
         source,
         |constraint_ref| match constraint_ref.kind {
             FlowConstraintKind::BorrowLoan { loan } => {
-                let keep = borrow.loans.get(loan).owner_symbol != reassigned_symbol;
+                let active = borrow.loans.get(loan);
+                // Loans established by this assignment describe the replacement
+                // value and must survive it. Older loans carried by the
+                // overwritten whole/place are invalidated precisely.
+                let keep = active.owner_symbol != reassigned_symbol
+                    || active.statement_index == statement_index
+                    || !borrow_owner_path_overlaps_place(
+                        program,
+                        &active.owner_path,
+                        &reassigned_segments,
+                    );
                 if !keep {
                     borrow_weakenings.append(FlowBorrowWeakeningFact {
                         source: FlowInvalidationSource::Statement { statement_index },
@@ -88,4 +98,40 @@ pub(super) fn filter_reassigned_borrow_loans(
             | FlowConstraintKind::BorrowAccess { .. } => true,
         },
     )
+}
+
+fn borrow_owner_path_overlaps_place(
+    program: &omega_typed_trees::TypedTrees,
+    owner_path: &[omega_checked_trees::BorrowLoanOwnerSegment],
+    place_segments: &[omega_facts::PlaceSegment],
+) -> bool {
+    // An assignment retires loans carried by the exact target or anything
+    // nested inside it. A loan carried by the whole owner (empty path) is not
+    // retired by assigning through that owner's pointee/field; only replacing
+    // the whole owner does that.
+    place_segments.len() <= owner_path.len()
+        && owner_path
+            .iter()
+            .zip(place_segments)
+            .all(|(owner, place)| match (owner, place) {
+                (
+                    omega_checked_trees::BorrowLoanOwnerSegment::Field(owner_symbol),
+                    omega_facts::PlaceSegment::Field {
+                        symbol: place_symbol,
+                    },
+                ) => !place_symbol.is_valid() || owner_symbol == place_symbol,
+                (
+                    omega_checked_trees::BorrowLoanOwnerSegment::FixedIndex(owner_index),
+                    omega_facts::PlaceSegment::Index { expression },
+                ) => program
+                    .expression_table
+                    .constant_integer_value(*expression)
+                    .and_then(|value| usize::try_from(value).ok())
+                    .is_none_or(|place_index| *owner_index == place_index),
+                (
+                    omega_checked_trees::BorrowLoanOwnerSegment::DynamicIndex,
+                    omega_facts::PlaceSegment::Index { .. },
+                ) => true,
+                _ => false,
+            })
 }

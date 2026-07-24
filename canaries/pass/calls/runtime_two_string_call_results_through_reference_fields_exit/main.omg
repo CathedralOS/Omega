@@ -51,8 +51,8 @@ machine Main::main(&mut self) {
 
 machine Main::fill(&mut self, bag: &mut Bag, cell_id: CellId) {
     let cell: &mut Cell = self.pick(bag, cell_id);
-    cell.label = self.label_for(cell_id);
-    cell.description = self.description_for(cell_id);
+    cell.label = identity_text("Gate");
+    cell.description = identity_text("Deep room");
 }
 
 machine Main::pick(&mut self, bag: &mut Bag, cell_id: CellId) -> &mut Cell {
@@ -65,16 +65,8 @@ machine Main::pick(&mut self, bag: &mut Bag, cell_id: CellId) -> &mut Cell {
     }
 }
 
-machine Main::label_for(&mut self, cell_id: CellId) -> &[u8] in Utf8 {
+machine identity_text<'text>(text: &'text [u8] in Utf8) -> &'text [u8] in Utf8 {
     transition {
-        cell_id == CellId::C0 -> "Gate"
-        _ -> "Branch Room"
-    }
-}
-
-machine Main::description_for(&mut self, cell_id: CellId) -> &[u8] in Utf8 {
-    transition {
-        cell_id == CellId::C0 -> "Deep room"
-        _ -> "Other room"
+        _ -> text
     }
 }

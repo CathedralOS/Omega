@@ -1,0 +1,26 @@
+// FAIL canary (lifetimes stage 2): assignment into a borrow-carrying field
+// activates the replacement source loan.
+
+data View<'buf> {
+    body: &'buf mut i32;
+}
+
+machine write(value: &mut i32) {
+    value = 1;
+}
+
+machine exercise<'source>(
+    first: &'source mut i32,
+    second: &'source mut i32
+) {
+    let mut selected: View<'source> = View { body: first };
+    selected.body = second;
+    write(second);
+    selected.body = 2;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

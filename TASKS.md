@@ -1554,8 +1554,13 @@ stronger operations it needs instead of citing machine parameters generally.
   each field's named input independently through nested records, payloads,
   fixed arrays, and concrete generic arguments. Canonical last-use accounting
   now compares the actual field/index path, so using one result field does not
-  artificially retain an unrelated sibling's loan. Finish general outlives
-  constraints and loan propagation through the remaining aggregate expression
+  artificially retain an unrelated sibling's loan. Assignment into an existing
+  local or its nested fields now evaluates the right-hand side under the old
+  loans, retires only the overwritten owner path, and activates the
+  replacement's reference/call/literal/transferred-aggregate loans; fixed
+  indexes remain exact and dynamic indexes conservative. Finish general
+  outlives constraints, persistent-storage assignment across state
+  transitions, and loan propagation through the remaining aggregate expression
   forms. These are settled implementation work needed by placed views and task
   storage, not owner-design blockers.
 - **Const data parameters.** Literal and scoped named-integer-const arguments

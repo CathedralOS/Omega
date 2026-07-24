@@ -2073,3 +2073,92 @@ fn rejects_linked_field_source_for_multi_lifetime_result() {
         "expected the multi-lifetime field conflict, got:\n{combined}"
     );
 }
+
+/// Replacing a borrow-carrying field releases the source carried by the old
+/// field and makes the replacement source the field's active loan.
+#[test]
+fn accepts_precise_borrow_carrying_field_reassignment() {
+    let source = r#"
+        data View<'buf> {
+            body: &'buf mut i32;
+        }
+
+        machine write(value: &mut i32) {
+            value = 1;
+        }
+
+        machine exercise<'source>(
+            first: &'source mut i32,
+            second: &'source mut i32
+        ) {
+            let mut selected: View<'source> = View { body: first };
+            selected.body = second;
+            write(first);
+            selected.body = 2;
+        }
+    "#;
+
+    check_program(source)
+        .expect("field replacement should release the old source and retain the new source");
+}
+
+/// The replacement source cannot be mutated while the reassigned aggregate
+/// field remains live.
+#[test]
+fn rejects_replacement_source_of_borrow_carrying_field_reassignment() {
+    let source = r#"
+        data View<'buf> {
+            body: &'buf mut i32;
+        }
+
+        machine write(value: &mut i32) {
+            value = 1;
+        }
+
+        machine exercise<'source>(
+            first: &'source mut i32,
+            second: &'source mut i32
+        ) {
+            let mut selected: View<'source> = View { body: first };
+            selected.body = second;
+            write(second);
+            selected.body = 2;
+        }
+    "#;
+
+    let diagnostics =
+        check_program(source).expect_err("the reassigned field must retain its replacement source");
+    let combined = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("mutates `second` while local borrow `selected` is still active"),
+        "expected the reassigned field's source conflict, got:\n{combined}"
+    );
+}
+
+/// The same replacement rule applies to a direct reference local: its old
+/// source is released and its new source remains borrowed through later use.
+#[test]
+fn accepts_precise_reference_local_reassignment() {
+    let source = r#"
+        machine write(value: &mut i32) {
+            value = 1;
+        }
+
+        machine exercise<'source>(
+            first: &'source mut i32,
+            second: &'source mut i32
+        ) {
+            let mut selected: &'source mut i32 = first;
+            selected = second;
+            write(first);
+            write(selected);
+        }
+    "#;
+
+    check_program(source)
+        .expect("reference replacement should release the old source and retain the new source");
+}

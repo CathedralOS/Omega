@@ -29,6 +29,14 @@ pub(super) fn statement_borrow_loans(
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
     match statement {
+        StatementNode::Assignment(assignment) => assignment_borrow_loans(
+            program,
+            state,
+            statement_index,
+            machine_symbol,
+            assignment,
+            loan_trackers,
+        ),
         StatementNode::LocalData(local_data) => {
             // Borrow-carrying data local (`let msg: Message = Message { body: input }`):
             // the value borrows whatever its reference field is initialized from,
@@ -49,68 +57,186 @@ pub(super) fn statement_borrow_loans(
                 return Vec::new();
             }
 
-            let local_is_mutable_reference =
-                is_mutable_reference_type(program, local_data.type_reference);
-            let Some(place) = (match program
-                .expression_table
-                .expression(local_data.initial_value)
-            {
-                omega_checked_trees::expression::ExpressionNode::Mutable(inner_expression)
-                    if local_is_mutable_reference =>
-                {
-                    borrow_access_place(
-                        program,
-                        state.symbol,
-                        statement_index,
-                        *inner_expression,
-                        machine_symbol,
-                    )
-                }
-                omega_checked_trees::expression::ExpressionNode::Call(call) => {
-                    helper_call_borrow_loan_place(
-                        program,
-                        state.symbol,
-                        statement_index,
-                        machine_symbol,
-                        call,
-                    )
-                }
-                omega_checked_trees::expression::ExpressionNode::Indexed(_)
-                | omega_checked_trees::expression::ExpressionNode::Member(_)
-                | omega_checked_trees::expression::ExpressionNode::Name(_) => borrow_access_place(
-                    program,
-                    state.symbol,
-                    statement_index,
-                    local_data.initial_value,
-                    machine_symbol,
-                ),
-                _ => None,
-            }) else {
-                return Vec::new();
-            };
-
-            rebase_borrow_places_through_local_loans(program, place, loan_trackers)
-                .into_iter()
-                .map(|(place, source_owner_symbol)| StatementBorrowLoan {
-                    owner_symbol: local_data.symbol,
-                    owner_name: local_data.name.clone(),
-                    owner_path: Vec::new(),
-                    place,
-                    source_owner_symbol,
-                    kind: if local_is_mutable_reference {
-                        omega_checked_trees::BorrowAccessKind::Mutable
-                    } else {
-                        omega_checked_trees::BorrowAccessKind::Read
-                    },
-                })
-                .collect()
+            reference_local_borrow_loans(
+                program,
+                state,
+                statement_index,
+                machine_symbol,
+                local_data,
+                loan_trackers,
+            )
         }
         StatementNode::AssemblyFact(_)
-        | StatementNode::Assignment(_)
         | StatementNode::Call(_)
         | StatementNode::Expression(_)
         | StatementNode::Transition(_) => Vec::new(),
     }
+}
+
+/// Replacing an existing local or one of its fields must establish the same
+/// loans as an equivalent `let` initializer. Persistent machine storage is
+/// deliberately excluded here: loans that survive state transitions require
+/// the separate outlives/persistent-storage contract rather than a state-local
+/// tracker.
+fn assignment_borrow_loans(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    statement_index: usize,
+    machine_symbol: SymbolHandle,
+    assignment: &omega_checked_trees::statement::TableAssignment,
+    loan_trackers: &[StateLoanTracker],
+) -> Vec<StatementBorrowLoan> {
+    let Some(target) = borrow_access_place(
+        program,
+        state.symbol,
+        statement_index,
+        assignment.target,
+        machine_symbol,
+    ) else {
+        return Vec::new();
+    };
+    let Some(local) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(statement_index)
+        .find_map(|statement| {
+            let StatementNode::LocalData(local) = statement else {
+                return None;
+            };
+            (local.symbol == target.root_symbol).then_some(local)
+        })
+    else {
+        return Vec::new();
+    };
+    let Some(target_type) = crate::flow::expression_type_reference_in_state(
+        program,
+        state.symbol,
+        statement_index,
+        assignment.target,
+    ) else {
+        return Vec::new();
+    };
+    if !is_reference_type(program, target_type) && !is_borrow_carrying_data(program, target_type) {
+        return Vec::new();
+    }
+
+    let target_owner_path = owner_path_from_place_segments(program, &target.segments);
+    let synthetic_local = omega_checked_trees::statement::TableLocalData {
+        symbol: local.symbol,
+        name: local.name.clone(),
+        type_reference: target_type,
+        initial_value: assignment.value,
+        is_mutable: true,
+    };
+
+    let mut loans = if is_reference_type(program, target_type) {
+        reference_local_borrow_loans(
+            program,
+            state,
+            statement_index,
+            machine_symbol,
+            &synthetic_local,
+            loan_trackers,
+        )
+    } else {
+        borrow_carrying_data_loans(
+            program,
+            state,
+            statement_index,
+            machine_symbol,
+            &synthetic_local,
+            loan_trackers,
+        )
+    };
+    for loan in &mut loans {
+        let mut path = target_owner_path.clone();
+        path.append(&mut loan.owner_path);
+        loan.owner_path = path;
+    }
+    loans
+}
+
+fn owner_path_from_place_segments(
+    program: &omega_typed_trees::TypedTrees,
+    segments: &[omega_facts::PlaceSegment],
+) -> Vec<BorrowOwnerSegment> {
+    segments
+        .iter()
+        .map(|segment| match segment {
+            omega_facts::PlaceSegment::Field { symbol } => BorrowOwnerSegment::Field(*symbol),
+            omega_facts::PlaceSegment::Index { expression } => program
+                .expression_table
+                .constant_integer_value(*expression)
+                .and_then(|value| usize::try_from(value).ok())
+                .map(BorrowOwnerSegment::FixedIndex)
+                .unwrap_or(BorrowOwnerSegment::DynamicIndex),
+        })
+        .collect()
+}
+
+fn reference_local_borrow_loans(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    statement_index: usize,
+    machine_symbol: SymbolHandle,
+    local_data: &omega_checked_trees::statement::TableLocalData,
+    loan_trackers: &[StateLoanTracker],
+) -> Vec<StatementBorrowLoan> {
+    let local_is_mutable_reference = is_mutable_reference_type(program, local_data.type_reference);
+    let Some(place) = (match program
+        .expression_table
+        .expression(local_data.initial_value)
+    {
+        omega_checked_trees::expression::ExpressionNode::Mutable(inner_expression)
+            if local_is_mutable_reference =>
+        {
+            borrow_access_place(
+                program,
+                state.symbol,
+                statement_index,
+                *inner_expression,
+                machine_symbol,
+            )
+        }
+        omega_checked_trees::expression::ExpressionNode::Call(call) => {
+            helper_call_borrow_loan_place(
+                program,
+                state.symbol,
+                statement_index,
+                machine_symbol,
+                call,
+            )
+        }
+        omega_checked_trees::expression::ExpressionNode::Indexed(_)
+        | omega_checked_trees::expression::ExpressionNode::Member(_)
+        | omega_checked_trees::expression::ExpressionNode::Name(_) => borrow_access_place(
+            program,
+            state.symbol,
+            statement_index,
+            local_data.initial_value,
+            machine_symbol,
+        ),
+        _ => None,
+    }) else {
+        return Vec::new();
+    };
+
+    rebase_borrow_places_through_local_loans(program, place, loan_trackers)
+        .into_iter()
+        .map(|(place, source_owner_symbol)| StatementBorrowLoan {
+            owner_symbol: local_data.symbol,
+            owner_name: local_data.name.clone(),
+            owner_path: Vec::new(),
+            place,
+            source_owner_symbol,
+            kind: if local_is_mutable_reference {
+                omega_checked_trees::BorrowAccessKind::Mutable
+            } else {
+                omega_checked_trees::BorrowAccessKind::Read
+            },
+        })
+        .collect()
 }
 
 /// The loan created by constructing a borrow-carrying `data` value in a `let`:
@@ -675,6 +801,7 @@ fn owner_path_matches(
                     .constant_integer_value(*expression)
                     .and_then(|value| usize::try_from(value).ok())
                     .is_none_or(|place_index| *owner_index == place_index),
+                (BorrowOwnerSegment::DynamicIndex, omega_facts::PlaceSegment::Index { .. }) => true,
                 _ => false,
             })
 }

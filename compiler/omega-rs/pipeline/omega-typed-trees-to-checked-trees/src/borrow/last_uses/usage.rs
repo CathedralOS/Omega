@@ -234,6 +234,7 @@ pub(super) fn owner_path_overlaps_place_segments(
                 .constant_integer_value(*expression)
                 .and_then(|value| usize::try_from(value).ok())
                 .is_none_or(|place_index| *owner_index == place_index),
+            (BorrowOwnerSegment::DynamicIndex, omega_facts::PlaceSegment::Index { .. }) => true,
             _ => false,
         })
 }

@@ -2,11 +2,7 @@ use crate::context::*;
 
 use super::accesses::BorrowAccessPlace;
 
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum BorrowOwnerSegment {
-    Field(SymbolHandle),
-    FixedIndex(usize),
-}
+pub(crate) use omega_checked_trees::BorrowLoanOwnerSegment as BorrowOwnerSegment;
 
 #[derive(Clone)]
 pub(super) struct StateLoanTracker {

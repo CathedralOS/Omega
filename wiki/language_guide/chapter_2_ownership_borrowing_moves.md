@@ -265,7 +265,12 @@ result lifetime keeps the corresponding input loan active while unrelated
 inputs such as `second` remain independently usable. Moving a borrow-carrying
 local—or projecting and moving one of its nested fields—transfers the contained
 loan paths and their read/mutable polarity to the destination local; ordinary
-data assignment cannot erase a borrow.
+data assignment cannot erase a borrow. Reassigning an existing local or one of
+its aggregate fields follows the same rule: the right-hand side is evaluated
+while the old loans remain active, the overwritten field's carried loans end,
+and the replacement value's exact field/index loans become active. Replacing
+one field neither retains its old source nor releases loans carried by an
+unrelated sibling. Dynamic indexes remain conservative.
 
 For an explicitly multi-lifetime result, the checker derives the result
 contract structurally from the data declaration:
@@ -296,8 +301,9 @@ Here `result.left` retains only `left`, while `result.right` retains only
 `right`. Last-use accounting compares the canonical field/index path, so a
 later use of `result.right` does not artificially keep `result.left`'s loan
 active.
-General outlives constraints and the remaining aggregate expression forms
-remain implementation work; they are not new language-design questions.
+General outlives constraints, persistent-storage assignment across state
+transitions, and the remaining aggregate expression forms remain
+implementation work; they are not new language-design questions.
 
 ## Relationship To Drops
 

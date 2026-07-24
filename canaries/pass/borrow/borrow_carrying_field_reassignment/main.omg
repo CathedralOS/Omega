@@ -1,0 +1,26 @@
+// PASS canary (lifetimes stage 2): replacing a borrow-carrying local field
+// releases the overwritten source and retains the replacement source.
+
+data View<'buf> {
+    body: &'buf mut i32;
+}
+
+machine write(value: &mut i32) {
+    value = 1;
+}
+
+machine exercise<'source>(
+    first: &'source mut i32,
+    second: &'source mut i32
+) {
+    let mut selected: View<'source> = View { body: first };
+    selected.body = second;
+    write(first);
+    selected.body = 2;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
