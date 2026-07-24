@@ -284,6 +284,8 @@ pub fn admit_task_runtime(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TaskRuntimeAdmission {
     identity: ActivationAdmissionId,
+    plan: ValidatedActivationPlan,
+    runtime_evidence: AdmittedTaskRuntimeContract,
     runtime: TaskRuntimeId,
     machine_contract: MachineContractId,
     selected_migration_demand: MigrationDemand,
@@ -376,6 +378,8 @@ pub fn admit_activation(
 
     Ok(TaskRuntimeAdmission {
         identity: ActivationAdmissionId(fingerprint_admission(plan, runtime)),
+        plan: plan.clone(),
+        runtime_evidence: runtime.clone(),
         runtime: runtime.runtime,
         machine_contract: candidate.machine_contract,
         selected_migration_demand: demand,
@@ -419,25 +423,36 @@ pub struct TaskDependencyRecord {
 /// property by withholding `Clone`/`Copy` and exposing no public constructor.
 #[derive(Debug, PartialEq, Eq)]
 pub struct TaskLifecycleClaim {
-    record: TaskDependencyRecord,
+    dependency: LiveTaskDependency,
 }
 
 impl TaskLifecycleClaim {
     pub const fn identity(&self) -> TaskLifecycleClaimId {
-        self.record.claim
+        self.dependency.record.claim
     }
 
     pub const fn runtime_instance(&self) -> TaskRuntimeInstanceId {
-        self.record.runtime_instance
+        self.dependency.record.runtime_instance
     }
 
     pub const fn activation(&self) -> ActivationInstanceId {
-        self.record.activation
+        self.dependency.record.activation
     }
 
     pub const fn storage(&self) -> TaskStorageBinding {
-        self.record.storage
+        self.dependency.record.storage
     }
+}
+
+/// Exact admission evidence retained behind one live lifecycle claim.
+///
+/// `TaskDependencyRecord` remains the compact report form. Custody and
+/// settlement compare this carrier so compact identity collisions cannot move
+/// a claim between distinct activation plans or runtime contracts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LiveTaskDependency {
+    record: TaskDependencyRecord,
+    admission: TaskRuntimeAdmission,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -515,9 +530,10 @@ impl TaskRuntimeCloseError {
 /// storage reclamation fail while any matching child claim remains live.
 #[derive(Debug)]
 pub struct TaskLifecycleLedger {
+    runtime_evidence: AdmittedTaskRuntimeContract,
     runtime: TaskRuntimeId,
     instance: TaskRuntimeInstanceId,
-    live: BTreeMap<TaskLifecycleClaimId, TaskDependencyRecord>,
+    live: BTreeMap<TaskLifecycleClaimId, LiveTaskDependency>,
     used_activations: BTreeSet<ActivationInstanceId>,
     used_storage_leases: BTreeSet<TaskStorageProvenance>,
 }
@@ -525,6 +541,7 @@ pub struct TaskLifecycleLedger {
 impl TaskLifecycleLedger {
     pub fn new(runtime: &AdmittedTaskRuntimeContract, instance: TaskRuntimeInstanceId) -> Self {
         Self {
+            runtime_evidence: runtime.clone(),
             runtime: runtime.runtime(),
             instance,
             live: BTreeMap::new(),
@@ -534,7 +551,7 @@ impl TaskLifecycleLedger {
     }
 
     pub fn records(&self) -> impl Iterator<Item = &TaskDependencyRecord> {
-        self.live.values()
+        self.live.values().map(|dependency| &dependency.record)
     }
 
     pub fn accept_activation(
@@ -543,9 +560,13 @@ impl TaskLifecycleLedger {
         activation: ActivationInstanceId,
         storage: TaskStorageBinding,
     ) -> Result<TaskLifecycleClaim, TaskPlanDiagnostic> {
-        if admission.runtime != self.runtime {
+        if admission.runtime != self.runtime
+            || admission.runtime_evidence != self.runtime_evidence
+            || admission.plan.candidate().machine_contract != admission.machine_contract
+        {
             return Err(TaskPlanDiagnostic(
-                "task claim admission belongs to a different runtime provider".into(),
+                "task claim admission belongs to a different exact runtime or activation plan"
+                    .into(),
             ));
         }
         if self.used_activations.contains(&activation) {
@@ -597,8 +618,12 @@ impl TaskLifecycleLedger {
         if let TaskStorageBinding::Persistent(provenance) = storage {
             self.used_storage_leases.insert(provenance);
         }
-        self.live.insert(claim, record);
-        Ok(TaskLifecycleClaim { record })
+        let dependency = LiveTaskDependency {
+            record,
+            admission: admission.clone(),
+        };
+        self.live.insert(claim, dependency.clone());
+        Ok(TaskLifecycleClaim { dependency })
     }
 
     /// Cancellation requests preserve the lifecycle obligation. This check is
@@ -607,7 +632,7 @@ impl TaskLifecycleLedger {
         &self,
         claim: &TaskLifecycleClaim,
     ) -> Result<(), TaskPlanDiagnostic> {
-        if self.live.get(&claim.record.claim) == Some(&claim.record) {
+        if self.live.get(&claim.dependency.record.claim) == Some(&claim.dependency) {
             Ok(())
         } else {
             Err(TaskPlanDiagnostic(
@@ -620,7 +645,7 @@ impl TaskLifecycleLedger {
         &mut self,
         claim: TaskLifecycleClaim,
     ) -> Result<SettledTaskLifecycle, TaskSettlementError> {
-        if self.live.get(&claim.record.claim) != Some(&claim.record) {
+        if self.live.get(&claim.dependency.record.claim) != Some(&claim.dependency) {
             return Err(TaskSettlementError {
                 claim,
                 diagnostic: TaskPlanDiagnostic(
@@ -629,9 +654,9 @@ impl TaskLifecycleLedger {
                 ),
             });
         }
-        self.live.remove(&claim.record.claim);
+        self.live.remove(&claim.dependency.record.claim);
         Ok(SettledTaskLifecycle {
-            record: claim.record,
+            record: claim.dependency.record,
         })
     }
 
@@ -644,7 +669,7 @@ impl TaskLifecycleLedger {
         if self
             .live
             .values()
-            .any(|record| record.storage == TaskStorageBinding::Persistent(storage))
+            .any(|dependency| dependency.record.storage == TaskStorageBinding::Persistent(storage))
         {
             return Err(TaskPlanDiagnostic(
                 "task storage cannot be reclaimed while a dependent lifecycle claim is live".into(),
@@ -1029,6 +1054,76 @@ mod tests {
         let changed_admission =
             admit_activation(&plan, &changed_runtime).expect("changed runtime admission");
         assert_ne!(admission.identity(), changed_admission.identity());
+    }
+
+    #[test]
+    fn lifecycle_admission_retains_exact_runtime_beyond_compact_identity() {
+        let admitted = runtime();
+        let mut drifted_claim = runtime_claim();
+        drifted_claim.max_continuation_bytes += 1;
+        let mut drifted = admitted_runtime(drifted_claim);
+        drifted.runtime = admitted.runtime;
+
+        let plan = validate_activation_plan(candidate()).expect("activation plan");
+        let drifted_admission =
+            admit_activation(&plan, &drifted).expect("collided runtime admission");
+        let mut ledger = TaskLifecycleLedger::new(
+            &admitted,
+            id(90, TaskRuntimeInstanceId::from_normalized_identity),
+        );
+        let error = ledger
+            .accept_activation(
+                &drifted_admission,
+                id(91, ActivationInstanceId::from_normalized_identity),
+                TaskStorageBinding::Persistent(TaskStorageProvenance {
+                    owner: id(92, TaskStorageOwnerId::from_normalized_identity),
+                    lease: id(93, TaskStorageLeaseId::from_normalized_identity),
+                }),
+            )
+            .expect_err("compact runtime collision cannot substitute exact behavior");
+        assert!(error.0.contains("different exact runtime"));
+    }
+
+    #[test]
+    fn lifecycle_claim_retains_exact_activation_beyond_compact_identity() {
+        let runtime = runtime();
+        let first_plan = validate_activation_plan(candidate()).expect("first activation plan");
+        let first_admission =
+            admit_activation(&first_plan, &runtime).expect("first runtime admission");
+
+        let mut drifted_candidate = candidate();
+        drifted_candidate.entry = id(94, MachineEntryId::from_normalized_identity);
+        let drifted_plan =
+            validate_activation_plan(drifted_candidate).expect("drifted activation plan");
+        let mut drifted_admission =
+            admit_activation(&drifted_plan, &runtime).expect("drifted runtime admission");
+        drifted_admission.identity = first_admission.identity;
+
+        let instance = id(95, TaskRuntimeInstanceId::from_normalized_identity);
+        let activation = id(96, ActivationInstanceId::from_normalized_identity);
+        let storage = TaskStorageBinding::Persistent(TaskStorageProvenance {
+            owner: id(97, TaskStorageOwnerId::from_normalized_identity),
+            lease: id(98, TaskStorageLeaseId::from_normalized_identity),
+        });
+        let mut first_ledger = TaskLifecycleLedger::new(&runtime, instance);
+        let mut drifted_ledger = TaskLifecycleLedger::new(&runtime, instance);
+        let first_claim = first_ledger
+            .accept_activation(&first_admission, activation, storage)
+            .expect("first exact claim");
+        let drifted_claim = drifted_ledger
+            .accept_activation(&drifted_admission, activation, storage)
+            .expect("drifted exact claim");
+
+        let error = drifted_ledger
+            .settle(first_claim)
+            .expect_err("compact admission collision cannot substitute exact activation");
+        assert!(error.diagnostic().0.contains("exact live"));
+        first_ledger
+            .settle(error.into_claim())
+            .expect("failed substitution preserves the original claim");
+        drifted_ledger
+            .settle(drifted_claim)
+            .expect("the exact drifted claim remains live");
     }
 
     #[test]

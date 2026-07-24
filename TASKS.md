@@ -1416,7 +1416,11 @@ stronger operations it needs instead of citing machine parameters generally.
   receipt provenance remains evidence and stays outside the normalizer-owned
   runtime identity. The activation artifact records `pending_provider` until a
   real selected provider supplies that exact receipt. Core lifecycle
-  conservation is now pinned
+  admission and custody now retain the complete validated activation demand
+  and admitted runtime behavior behind their compact report identities.
+  Lifecycle settlement compares that exact evidence, so a compact runtime or
+  admission collision cannot move a task claim between different contracts.
+  Core lifecycle conservation is now pinned
   end to end: receiver types retain `&self` versus consuming `self`,
   `request_cancel` leaves the linear claim live, and `finish` transfers it into
   the conditional terminal outcome. Compiler provider-plan selection/receipt
@@ -1429,8 +1433,9 @@ stronger operations it needs instead of citing machine parameters generally.
   `omega-task-plans` lifecycle ledger now separates the admitted runtime
   contract, one concrete runtime instance, one activation instance, persistent
   storage owner/lease provenance, and the linear lifecycle claim. Accepting an
-  activation records that complete dependency before issuing the non-clonable
-  claim. Cancellation preserves it; exact terminal settlement releases the
+  activation records that complete dependency plus its exact runtime/admission
+  evidence before issuing the non-clonable claim. Cancellation preserves it;
+  exact terminal settlement releases the
   storage relationship; failed cross-instance settlement returns the claim
   unchanged. Provider close and storage reclaim reject while a matching child
   remains live, and activation or lease-era replay rejects even after
