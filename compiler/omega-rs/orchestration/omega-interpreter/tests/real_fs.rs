@@ -504,7 +504,7 @@ fn granted_build_serves_console_and_rejects_other_boundaries() {
 // 2026-07-11k -- the compile-time effect gate verifies the declared rows;
 // this direct-entry probe exercises the evaluator's own behavior); every
 // OTHER non-filesystem boundary still trips the backstop.
-boundary trait Console { machine write(text: String); }
+boundary trait Console { machine write(text: &[u8]); }
 boundary trait Beeper { machine beep(count: i32); }
 
 data Build { target_index: i64; }

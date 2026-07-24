@@ -881,6 +881,9 @@ slot owner may override by type. The migration order remains load-bearing.
    and empty-line cases run differentially; the checked-tree canary pins both
    calls to their adapters, and the lossless built-in plan oracle remains green.
    The obsolete adapter-internal `String -> &string -> bytes` chain is gone.
+   The granted-build Console backstop and the inherited mutable-output
+   host-call-plan unit now use borrowed byte views backed by explicit fixed
+   carriers as well; neither test preserves a private `String` ABI fossil.
    Mutable `Console::read_line` now accepts a mutable byte view; a concrete
    `[u8; N] in D` carrier at the call site supplies the explicit bound, and
    backend planning derives `N` from that destination rather than reusing the
