@@ -97,7 +97,11 @@ The normalized validator is live in `omega-access-plans`: entries are keyed by
 layout field name; exact-width accesses must fit one fixed placement/container;
 external access must pin reach; exported external RMW rejects; atomic and
 ordinary permissions cannot be conflated; and operation authorization preserves
-shared-read/exclusive-write polarity. Validation now produces sealed,
+shared-read/exclusive-write polarity. Validation canonicalizes authored entry
+order by field identity and assigns one deterministic plan identity over every
+operation, observation, transfer-width, exposure, and service-reach fact.
+Equivalent name-keyed policies therefore share identity even when their source
+entry order differs. Validation now produces sealed,
 offset-bearing field descriptors, and borrow-specific authorization produces
 the only values primitive lowering may accept. Omega source records,
 source-level borrow-carrying access values, and the exact primitive lowering

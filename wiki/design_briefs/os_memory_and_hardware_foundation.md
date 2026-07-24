@@ -246,6 +246,11 @@ The normalized `AccessPlan` foundation is now implemented independently of its
 future source spelling. It validates name-keyed entries against fixed
 `LayoutPlan` geometry, exact whole-byte transfer width, observation/operation
 compatibility, provider-private external RMW, and statically pinned reach. Its
+normalizer erases authored entry order, sorts by field identity, and assigns a
+deterministic plan identity over every permission, observation, width,
+exposure, and reach fact. Thus source reorderings that preserve the name-keyed
+policy preserve identity, while any lowering-relevant policy change does not.
+Its
 operation gate already enforces shared-read/exclusive-write polarity while
 allowing explicitly atomic shared mutation. Successful geometry validation
 mints a sealed field descriptor containing the plan-derived container offset;
