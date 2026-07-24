@@ -133,6 +133,19 @@ fn borrow_carrying_data_loans(
         .expression_table
         .expression(local_data.initial_value)
     {
+        let field_loans = helper_call_aggregate_borrow_loans(
+            program,
+            state.symbol,
+            statement_index,
+            machine_symbol,
+            local_data,
+            call,
+            loan_trackers,
+        );
+        if !field_loans.is_empty() {
+            return field_loans;
+        }
+
         let Some(place) = helper_call_borrow_loan_place(
             program,
             state.symbol,
@@ -219,6 +232,54 @@ fn borrow_carrying_data_loans(
                     } else {
                         omega_checked_trees::BorrowAccessKind::Read
                     },
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+fn helper_call_aggregate_borrow_loans(
+    program: &omega_typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    machine_symbol: SymbolHandle,
+    local_data: &omega_checked_trees::statement::TableLocalData,
+    call: &omega_checked_trees::expression::TableCallExpression,
+    loan_trackers: &[StateLoanTracker],
+) -> Vec<StatementBorrowLoan> {
+    let Some(target_state) = find_state(program, call.target_symbol) else {
+        return Vec::new();
+    };
+    let ViewReturnSource::Fields { fields } = resolve_view_return_source(program, target_state)
+    else {
+        return Vec::new();
+    };
+    let arguments = program.expression_table.expression_handles(call.arguments);
+
+    fields
+        .into_iter()
+        .flat_map(|field| {
+            let Some(argument) = arguments.get(field.non_self_index).copied() else {
+                return Vec::new();
+            };
+            let Some(place) = argument_borrow_loan_place(
+                program,
+                state_symbol,
+                statement_index,
+                machine_symbol,
+                argument,
+            ) else {
+                return Vec::new();
+            };
+            rebase_borrow_places_through_local_loans(program, place, loan_trackers)
+                .into_iter()
+                .map(|(place, source_owner_symbol)| StatementBorrowLoan {
+                    owner_symbol: local_data.symbol,
+                    owner_name: local_data.name.clone(),
+                    owner_path: field.owner_path.clone(),
+                    place,
+                    source_owner_symbol,
+                    kind: field.kind.clone(),
                 })
                 .collect::<Vec<_>>()
         })
@@ -469,7 +530,9 @@ fn helper_call_borrow_loan_place(
     // track here always matches what the elision check accepted. Elision rules
     // 1/3 and stage-2 explicit lifetimes all flow through there.
     match resolve_view_return_source(program, target_state) {
-        ViewReturnSource::NotApplicable | ViewReturnSource::Ambiguous(_) => None,
+        ViewReturnSource::NotApplicable
+        | ViewReturnSource::Ambiguous(_)
+        | ViewReturnSource::Fields { .. } => None,
         ViewReturnSource::SelfReceiver => {
             // Elision rule 3: a `&self`/`&mut self` method's returned view
             // borrows self (the call receiver).
