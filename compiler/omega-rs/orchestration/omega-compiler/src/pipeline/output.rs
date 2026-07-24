@@ -147,15 +147,15 @@ fn write_executable_region_inventory(
         json.push_str("null");
     }
     json.push_str(&format!(
-        ",\n  \"implementation_evidence_fingerprint\": \"0x{implementation_evidence_fingerprint:016x}\",\n  \"implementation_fragment_count\": {},\n  \"compiler_text_validation\": {{\"encoded_text_fingerprint\": \"0x{:016x}\", \"final_compiler_text_fingerprint\": \"0x{:016x}\", \"relocation_envelope_fingerprint\": \"0x{:016x}\", \"fixed_checked_instruction_fingerprint\": \"0x{:016x}\", \"derivation_fingerprint\": \"0x{:016x}\", \"text_relocation_count\": {}, \"fixed_checked_instruction_count\": {}}},\n  \"inventory_fingerprint\": \"0x{:016x}\",\n  \"boundary_placement_binding_fingerprint\": \"0x{binding_fingerprint:016x}\",\n",
+        ",\n  \"implementation_evidence_fingerprint\": \"0x{implementation_evidence_fingerprint:016x}\",\n  \"implementation_fragment_count\": {},\n  \"compiler_text_validation\": {{\"encoded_text_fingerprint\": \"0x{:016x}\", \"final_compiler_text_fingerprint\": \"0x{:016x}\", \"relocation_envelope_fingerprint\": \"0x{:016x}\", \"checked_instruction_validation_fingerprint\": \"0x{:016x}\", \"derivation_fingerprint\": \"0x{:016x}\", \"text_relocation_count\": {}, \"checked_instruction_validation_count\": {}}},\n  \"inventory_fingerprint\": \"0x{:016x}\",\n  \"boundary_placement_binding_fingerprint\": \"0x{binding_fingerprint:016x}\",\n",
         footprints.fragments.len(),
         compiler_text_validation.encoded_text_fingerprint,
         compiler_text_validation.final_compiler_text_fingerprint,
         compiler_text_validation.relocation_envelope_fingerprint,
-        compiler_text_validation.fixed_checked_instruction_fingerprint,
+        compiler_text_validation.checked_instruction_validation_fingerprint,
         compiler_text_validation.derivation_fingerprint,
         compiler_text_validation.text_relocation_count,
-        compiler_text_validation.fixed_checked_instruction_count,
+        compiler_text_validation.checked_instruction_validation_count,
         inventory.inventory_fingerprint
     ));
     json.push_str(&format!(

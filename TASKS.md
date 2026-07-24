@@ -593,13 +593,17 @@ schemas recover the same instance without publishing policy type identity.
    The encoded, final-prefix, and canonical relocation-envelope identities now
    compose into published compiler-text derivation evidence, and that identity
    participates in the boundary/placement binding fingerprint.
-   Relocation-free checked-assembly instructions with closed encoder-owned
-   encodings (`hlt`, x86 fences, and `cli`/`sti`) now retain typed instruction
-   boundaries through encoded machine code. Direct-image emission validates
-   those exact bytes after relocation and binds their count plus fingerprint
-   into the compiler-text derivation evidence. This is a deliberately narrow
-   first body-footprint slice; operand-bearing checked assembly and general
-   compiler-function body decoding remain incomplete.
+   Checked-assembly instructions with closed encoder-owned encodings (`hlt`,
+   x86 fences, and `cli`/`sti`) now retain typed instruction boundaries
+   through encoded machine code. Immediate-port x86 `in`/`out` now retain the
+   normalized port identity as well: direct-image emission independently
+   validates the final DX/AL privileged-opcode envelope, and `in` additionally
+   requires the exact compiler-owned destination relocation and store shape.
+   The compiler-text derivation evidence binds the validated instruction count
+   and final-byte fingerprint. This is a deliberately narrow first
+   body-footprint slice; dynamic-port forms, complete value-operand decoding,
+   other operand-bearing checked assembly, and general compiler-function body
+   decoding remain incomplete.
    Checked direct-image emission now rejects any unclassified executable gap,
    so the current closed emitter has complete region enumeration. Relaxation
    products, veneers, and general generated stubs are recorded as absent by
