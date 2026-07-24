@@ -1,5 +1,31 @@
 use omega_core::arena::HandleSpan;
 
+/// The only registers the x86 checked-assembly operand evaluator may target.
+/// This is retained as semantic validation input rather than rediscovered from
+/// arbitrary final bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedOperandLoaderRegister {
+    R10,
+    R11,
+}
+
+/// A closed leaf of the checked-assembly runtime-value operand vocabulary that
+/// final-image validation can decode independently from the encoder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedOperandLoaderKind {
+    Immediate { value: u64 },
+    Storage { byte_offset: u32, byte_size: u8 },
+}
+
+/// One operand loader's exact subspan and expected semantic meaning.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedOperandLoaderValidation {
+    pub byte_offset: u32,
+    pub byte_width: u32,
+    pub register: CheckedOperandLoaderRegister,
+    pub kind: CheckedOperandLoaderKind,
+}
+
 /// Checked-assembly instructions whose privilege-bearing final encoding can be
 /// validated independently from the encoder.
 ///
@@ -76,4 +102,8 @@ pub struct EncodedMachineInstruction {
     pub selected_instruction_index: u32,
     pub bytes: HandleSpan<u8>,
     pub checked_validation_kind: Option<CheckedInstructionValidationKind>,
+    /// Semantic loader checks known independently from the privileged-opcode
+    /// envelope. `None` entries are unused; complex operand trees remain
+    /// outside the completed final-byte certificate until their decoder lands.
+    pub checked_operand_loaders: [Option<CheckedOperandLoaderValidation>; 2],
 }

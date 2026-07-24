@@ -626,9 +626,16 @@ schemas recover the same instance without publishing policy type identity.
    operand and privileged opcode. Machine emission now fails closed if any
    user-checked catalog instruction lacks that final-image validation evidence;
    an unsupported operand shape cannot silently fall back to ordinary bytes.
-   Complete semantic decoding of the retained value-operand loaders, other
-   operand-bearing checked assembly, and general compiler-function body
-   decoding remain incomplete.
+   Checked-assembly value operands now retain independent leaf-loader
+   semantics for immediate and direct-storage forms: exact operand subspans,
+   R10/R11 destination, constant value or storage displacement/width, and the
+   source-storage relocation enter final-image validation and its fingerprint.
+   Mutating an immediate, load opcode, displacement/register form, or exact
+   relocation rejects even when the surrounding privileged opcode envelope
+   remains intact. Complete semantic decoding of pointee/indexed, text,
+   conversion, and recursive binary value operands, other operand-bearing
+   checked assembly, and general compiler-function body decoding remain
+   incomplete.
    Checked direct-image emission now rejects any unclassified executable gap,
    so the current closed emitter has complete region enumeration. Relaxation
    products, veneers, and general generated stubs are recorded as absent by
