@@ -248,7 +248,11 @@ transition returns its authority inputs. The reusable artifact retains exact
 code and canonical relocations. Its pure provider materializer resolves only
 sealed targets, patches a private copy with checked target semantics, validates
 AArch64 instruction shapes, and derives a placement/content-bound final-byte
-identity without acquiring destination-write or execute authority. The
+identity without acquiring destination-write or execute authority.
+Materialization receipts retain that complete canonical output, while final
+validation evidence is minted from and retains the exact frozen artifact and
+byte snapshot; compact normalized identities remain report keys rather than
+collision-resistant authority. The
 schema-driven native-container decoder, real PCC and final-code validators,
 destination write/freeze and installer operations, Omega linearity, and live
 replacement remain implementation work.

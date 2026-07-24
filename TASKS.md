@@ -1835,10 +1835,15 @@ stronger operations it needs instead of citing machine parameters generally.
   placement/content-bound final-byte identity. Its inert output can bind the
   materialization receipt but grants neither destination writes nor execution.
   The write/freeze transition now consumes that exact canonical output rather
-  than accepting only a restated hash: artifact, admission, placement, base,
-  plan, byte length, and final identity must all match. `FrozenPlacement`
+  than accepting only a restated hash, and the provider receipt retains and
+  compares the complete canonical output rather than authorizing through its
+  compact FNV identity. Artifact, admission, placement, base, plan, exact bytes,
+  byte length, and final identity must all match. `FrozenPlacement`
   retains the immutable final-byte snapshot so the later footprint/PCC
   validator can inspect precisely the bytes whose write authority was frozen.
+  Final validation evidence is constructed from that exact frozen carrier and
+  retains the complete artifact and byte snapshot; compact artifact/final-byte
+  IDs remain reporting keys and cannot replay acceptance across a collision.
   The checked-container admission gate now retains the exact immutable
   validated artifact rather than treating compact FNV identities as collision-
   resistant evidence, and separately binds its identity-invisible proof
