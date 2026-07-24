@@ -1,13 +1,13 @@
 //! The GRANTED build.omg round trip (owner answers #2/#4, OWNER_QUESTIONS
-//! 2026-07-11i; gate landed 2026-07-11j): a build machine with a DECLARED
-//! `filesystem_io` effect runs at compile time through the granted
+//! 2026-07-11i; gate landed 2026-07-11j): a build machine with a declared
+//! `FilesystemHost` service ceiling runs at compile time through the granted
 //! interpreter entry (real filesystem, unscoped -- permissions explicitly
 //! de-scoped by the owner) and stages an asset itself, while the augmented
 //! Build's image facts flow into the pipeline. Console rows (#5) are
-//! SERVED: a declared `stdout_io` boundary write passes the gate, the
+//! served: a declared `Console` boundary write passes the gate, the
 //! granted evaluator serves it, and the bytes flush to the compiler's
 //! real streams. The fail halves live in canaries/fail/build
-//! (undeclared effects; row-less boundary).
+//! (undeclared services; unpinned custom boundary).
 
 use omega_compiler::{CompileOptions, compile};
 use std::path::PathBuf;
@@ -32,27 +32,22 @@ fn declared_filesystem_build_machine_stages_at_compile_time() {
     std::fs::write(
         project.join("build.omg"),
         format!(
-            r#"use omega::language::std::filesystem_host;
+            r#"use omega::language::std::console;
+use omega::language::std::filesystem_host;
 
 data Subsystem {{ case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }}
 data Build {{ subsystem: Subsystem; freestanding: bool; }}
 
-boundary trait BuildLog {{
-    machine write_line(text: &[u8])
-    effects
-        stdout_io;
-}}
-
 data Stager {{
     fs: FilesystemHost;
-    log: BuildLog;
+    log: Console;
     fd: i32;
     n: i64;
 }}
 
 machine Stager::build(&mut self, b: &mut Build)
 effects
-    filesystem_io, stdout_io
+    FilesystemHost + Console
 {{
     self.log.write_line("build: staging");
     self.fd = self.fs.create("{stage}/asset.bin", 438);
@@ -76,7 +71,7 @@ effects
     .expect("write build.omg");
     std::fs::write(
         project.join("main.omg"),
-        r#"boundary trait Console { machine exit_process(return_code: i32); }
+        r#"use omega::language::std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) { self.console.exit_process(70); }
 "#,

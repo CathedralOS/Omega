@@ -110,7 +110,7 @@ fn entry_capability_manifest(program: &CheckedTrees) -> EntryCapabilityManifest 
     let service_reach = contract
         .map(|contract| contract.service_reach.checked_inferred)
         .map(|row| {
-            let reaches = &program.facts.effect_rows.service_reaches;
+            let reaches = &program.facts.service_reaches;
             reaches
                 .rows
                 .services(row)
@@ -167,7 +167,7 @@ mod tests {
     use super::{capability_manifest_json, capability_manifest_text};
     use omega_checked_trees::{CheckedTrees, MachineContractPlan, StateWriteFramePlan};
     use omega_core::semantics::{
-        BlockingInterface, BlockingPlan, EffectRowId, MachineSupplyMode, ServiceReachInterface,
+        BlockingInterface, BlockingPlan, MachineSupplyMode, ServiceReachInterface,
         ServiceReachPlan, SuspensionInterface, SuspensionPlan, TerminationGuarantee,
     };
     use omega_core::symbols::SymbolHandle;
@@ -196,7 +196,7 @@ mod tests {
         );
         program.typed.push_machine(machine);
 
-        let services = &mut program.facts.effect_rows.service_reaches;
+        let services = &mut program.facts.service_reaches;
         let machine_control = services
             .services
             .intern(SymbolHandle::from_arena_index(20), "MachineControl");
@@ -212,7 +212,6 @@ mod tests {
             .push(MachineContractPlan {
                 machine: machine_symbol,
                 supply_mode: MachineSupplyMode::CheckedBody,
-                published_effect_row: EffectRowId::NULL,
                 service_reach: ServiceReachPlan {
                     interface: ServiceReachInterface::InternalInferred,
                     checked_inferred: service_row,

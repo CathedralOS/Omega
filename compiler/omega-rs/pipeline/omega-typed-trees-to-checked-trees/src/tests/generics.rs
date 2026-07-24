@@ -221,15 +221,14 @@ fn higher_order_machine_schema_specializes_nested_selection_to_fixed_point() {
 
     for name in ["forward_schema", "identity_schema"] {
         assert!(
-            checked.machine_specializations.iter().any(|specialization| {
-                checked
-                    .machines()
-                    .iter()
-                    .any(|machine| {
-                        machine.symbol == specialization.template
-                            && machine.name.as_str() == name
+            checked
+                .machine_specializations
+                .iter()
+                .any(|specialization| {
+                    checked.machines().iter().any(|machine| {
+                        machine.symbol == specialization.template && machine.name.as_str() == name
                     })
-            }),
+                }),
             "{name} should have a concrete specialization"
         );
     }
@@ -323,14 +322,18 @@ fn generic_body_can_discharge_machine_parameter_precondition_from_call_value() {
 }
 
 #[test]
-fn generic_body_inherits_machine_parameter_effect_ceiling() {
+fn generic_body_inherits_machine_parameter_service_ceiling() {
     let source = r#"
+        boundary trait DeviceIo {
+            machine touch();
+        }
+
         data Main {}
         machine Main::run(&mut self) {}
 
         machine apply<machine F>()
         where machine F()
-            effects device_io
+            effects DeviceIo
         {
             F();
         }
@@ -348,13 +351,19 @@ fn generic_body_inherits_machine_parameter_effect_ceiling() {
         .find(|machine| machine.name.as_str() == "apply")
         .expect("apply machine");
     let effects = omega_effects::infer_effects(&typed);
-    let apply_effects = effects
-        .machines()
-        .iter()
-        .find(|entry| entry.symbol == apply.symbol)
-        .expect("apply effect summary");
-    let device_io = omega_effects::EffectSet::from_name("device_io").expect("known effect");
-    assert!(apply_effects.body_transitive.intersects(device_io));
+    let service_reaches = omega_effects::infer_service_reaches(&typed, &effects);
+    let apply_reach = service_reaches
+        .for_machine(apply.symbol)
+        .expect("apply service-reach summary");
+    let device_io = typed
+        .service_reaches
+        .id_for_name("DeviceIo")
+        .expect("DeviceIo service identity");
+    assert!(
+        service_reaches
+            .services(apply_reach.effective)
+            .contains(&device_io)
+    );
 }
 
 #[test]
@@ -873,10 +882,7 @@ fn generic_template_identity_pins_independent_operational_interfaces() {
     let slot_base = slot_fingerprint(";");
     assert_ne!(slot_base, slot_fingerprint("suspends;"));
     assert_ne!(slot_base, slot_fingerprint("blocks;"));
-    assert_ne!(
-        slot_fingerprint("suspends;"),
-        slot_fingerprint("blocks;")
-    );
+    assert_ne!(slot_fingerprint("suspends;"), slot_fingerprint("blocks;"));
 }
 
 #[test]

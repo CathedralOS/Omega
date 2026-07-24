@@ -32,8 +32,8 @@ pub fn checked_trees_html(program: &CheckedTrees) -> String {
         diagram.node_service_reaches(
             &machine_id,
             service_names(
-                &program.facts.effect_rows.service_reaches.services,
-                &program.facts.effect_rows.service_reaches.rows,
+                &program.facts.service_reaches.services,
+                &program.facts.service_reaches.rows,
                 reach.transitive,
             ),
         );
@@ -50,8 +50,8 @@ pub fn checked_trees_html(program: &CheckedTrees) -> String {
                 diagram.node_service_reaches(
                     &state_id,
                     service_names(
-                        &program.facts.effect_rows.service_reaches.services,
-                        &program.facts.effect_rows.service_reaches.rows,
+                        &program.facts.service_reaches.services,
+                        &program.facts.service_reaches.rows,
                         flow_state.service_reach.transitive,
                     ),
                 );
@@ -462,8 +462,6 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
             json.push_str(&format!("{:016x}", contract.fingerprint));
             json.push_str("\",\n        \"supply\": ");
             push_json_string(&mut json, supply_mode_name(contract.supply_mode));
-            json.push_str(",\n        \"published_effect_row\": ");
-            json.push_str(&contract.published_effect_row.0.to_string());
             json.push_str(",\n        \"service_reach\": ");
             push_service_reach_plan_json(&mut json, program, contract.service_reach);
             json.push_str(",\n        \"suspension\": ");
@@ -667,7 +665,7 @@ fn push_service_row_json(
     program: &CheckedTrees,
     row: omega_core::semantics::ServiceReachRowId,
 ) {
-    let reaches = &program.facts.effect_rows.service_reaches;
+    let reaches = &program.facts.service_reaches;
     json.push('[');
     for (index, service) in reaches.rows.services(row).iter().enumerate() {
         if index > 0 {
@@ -741,8 +739,8 @@ fn machine_label(program: &CheckedTrees, machine: &Machine) -> String {
     );
     append_reach_and_operation_lines(
         &mut label,
-        &program.facts.effect_rows.service_reaches.services,
-        &program.facts.effect_rows.service_reaches.rows,
+        &program.facts.service_reaches.services,
+        &program.facts.service_reaches.rows,
         machine_service_reach(program, machine.symbol),
         machine_operational_summary(program, machine.symbol),
     );
@@ -786,8 +784,8 @@ fn state_label(program: &CheckedTrees, machine: &Machine, state: &State) -> Stri
     );
     append_reach_and_operation_lines(
         &mut label,
-        &program.facts.effect_rows.service_reaches.services,
-        &program.facts.effect_rows.service_reaches.rows,
+        &program.facts.service_reaches.services,
+        &program.facts.service_reaches.rows,
         service_reach,
         operational,
     );
@@ -967,8 +965,8 @@ fn append_checked_call_nodes(
         diagram.node_service_reaches(
             &rendered_id,
             service_names(
-                &program.facts.effect_rows.service_reaches.services,
-                &program.facts.effect_rows.service_reaches.rows,
+                &program.facts.service_reaches.services,
+                &program.facts.service_reaches.rows,
                 call.service_reach.transitive,
             ),
         );
@@ -1003,8 +1001,8 @@ fn checked_call_label(
     );
     append_reach_and_operation_lines(
         &mut label,
-        &program.facts.effect_rows.service_reaches.services,
-        &program.facts.effect_rows.service_reaches.rows,
+        &program.facts.service_reaches.services,
+        &program.facts.service_reaches.rows,
         call.service_reach,
         call.operational,
     );
@@ -1236,7 +1234,6 @@ fn machine_service_reach(
 ) -> omega_core::semantics::ServiceReachSummary {
     program
         .facts
-        .effect_rows
         .service_reaches
         .for_machine(symbol)
         .map(|reach| omega_core::semantics::ServiceReachSummary {
@@ -1438,8 +1435,8 @@ mod tests {
     };
     use omega_core::semantics::{
         BlockingInterface, BlockingPlan, CarryAddress, CarryCpu, CarryHostThread, CarryPolicy,
-        CarrySuspension, EffectRowId, MachineSupplyMode, MachineTerminationPlan, RankingViewId,
-        RankingWitness, SuspensionInterface, SuspensionPlan, TerminationGuarantee,
+        CarrySuspension, MachineSupplyMode, MachineTerminationPlan, RankingViewId, RankingWitness,
+        SuspensionInterface, SuspensionPlan, TerminationGuarantee,
     };
     use omega_core::symbols::SymbolHandle;
     use omega_typed_trees::machine::Machine;
@@ -1507,16 +1504,10 @@ mod tests {
         let mut program = CheckedTrees::default();
         let service = program
             .facts
-            .effect_rows
             .service_reaches
             .services
             .intern(service_symbol, "Readable");
-        let service_row = program
-            .facts
-            .effect_rows
-            .service_reaches
-            .rows
-            .intern(vec![service]);
+        let service_row = program.facts.service_reaches.rows.intern(vec![service]);
         program.typed.push_machine(Machine {
             symbol,
             name: Identifier::generated("Worker::run"),
@@ -1539,7 +1530,6 @@ mod tests {
             .push(MachineContractPlan {
                 machine: symbol,
                 supply_mode: MachineSupplyMode::CheckedBody,
-                published_effect_row: EffectRowId::NULL,
                 service_reach: omega_core::semantics::ServiceReachPlan {
                     interface: omega_core::semantics::ServiceReachInterface::PublishedCeiling(
                         service_row,

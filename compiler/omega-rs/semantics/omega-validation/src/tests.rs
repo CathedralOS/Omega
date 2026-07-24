@@ -2376,33 +2376,25 @@ fn accepts_machine_effects_below_trait_ceiling() {
 }
 
 #[test]
-fn rejects_declared_machine_effects_below_reached_effects() {
+fn rejects_published_service_ceiling_below_reached_services() {
     let source = r#"
-    boundary trait Console {
-        machine read_line(out: &mut [u8; 32])
-        effects
-            stdin_io;
+    boundary trait Input {
+        machine read_line(out: &mut [u8; 32]);
     }
 
-    data ConsoleImpl {
-    }
-
-    machine ConsoleImpl::read_line(out: &mut [u8; 32]) satisfies Console
-    effects
-        stdin_io
-    {
+    boundary trait Output {
     }
 
     data Main {
-        console: ConsoleImpl;
+        input: Input;
     }
 
     machine Main::main(&mut self)
     effects
-        stdout_io
+        Output
     {
         let line: [u8; 32];
-        self.console.read_line(&mut line);
+        self.input.read_line(&mut line);
     }
     "#;
 
@@ -2413,21 +2405,20 @@ fn rejects_declared_machine_effects_below_reached_effects() {
     let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
-    validate_program(&typed).expect("direct effect validation should pass");
     let effect_plan = omega_effects::infer_effects(&typed);
     let diagnostics =
-        validate_effect_plan(&typed, &effect_plan).expect_err("effect ceiling should fail");
+        validate_effect_plan(&typed, &effect_plan).expect_err("service ceiling should fail");
 
     assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("reaches undeclared effects `stdin_io`")
-            && diagnostic.message.contains("call path for `stdin_io`")
-            && diagnostic.message.contains("Main::main statement")
-            && diagnostic
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
                 .message
-                .contains("source: machine `ConsoleImpl::read_line` directly declares the effect")),
-        "expected transitive effect ceiling diagnostic, got {diagnostics:#?}"
+                .contains("publishes service reach `Output`")
+                && diagnostic
+                    .message
+                    .contains("reaches undeclared service `Input`")
+        }),
+        "expected normalized service ceiling diagnostic, got {diagnostics:#?}"
     );
 }
 

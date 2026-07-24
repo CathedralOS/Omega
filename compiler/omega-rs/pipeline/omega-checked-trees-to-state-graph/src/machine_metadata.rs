@@ -29,7 +29,6 @@ pub(crate) fn machine_service_reach(
 ) -> ServiceReachSummary {
     program
         .facts
-        .effect_rows
         .service_reaches
         .for_machine(machine_symbol)
         .map(|reach| ServiceReachSummary {
@@ -45,7 +44,6 @@ pub(crate) fn state_service_reach(
 ) -> ServiceReachSummary {
     program
         .facts
-        .effect_rows
         .service_reaches
         .for_state(state_symbol)
         .map(|reach| ServiceReachSummary {

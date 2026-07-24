@@ -45,7 +45,6 @@ pub(super) fn behavior_evidence_count(
     operational: omega_core::semantics::OperationalMaySummary,
 ) -> usize {
     facts
-        .effect_rows
         .service_reaches
         .rows
         .services(service_reach.transitive)

@@ -1,1 +1,1 @@
-declare rows
+reaches boundary service `BuildLog`

@@ -2,16 +2,17 @@
 //! SEMANTIC CONTRACT, independent of syntax and lowering -- component
 //! manifests, proof artifacts, provider admission, and hot-swap checks
 //! reference this identity, never re-derived booleans. Slice 1 carries the
-//! published halves that exist today (supply mode, effect-row ceiling,
-//! termination guarantee) plus a deterministic fingerprint over them;
+//! published halves that exist today (supply mode, canonical service reach,
+//! operational ceilings, and termination guarantee) plus a deterministic
+//! fingerprint over them;
 //! requires/ensures fact canonicalization is the recorded follow-up.
 //! Prover-independence (acceptance 8: a stronger prover cannot change an
 //! exported contract ID) holds BY CONSTRUCTION: only declared/published
 //! halves enter the fingerprint, never inferred rows or witnesses.
 
 use omega_core::semantics::{
-    BlockingInterface, BlockingPlan, EffectRowId, MachineSupplyMode, ServiceReachPlan,
-    SuspensionInterface, SuspensionPlan, TerminationGuarantee,
+    BlockingInterface, BlockingPlan, MachineSupplyMode, ServiceReachPlan, SuspensionInterface,
+    SuspensionPlan, TerminationGuarantee,
 };
 use omega_core::symbols::SymbolHandle;
 
@@ -52,14 +53,9 @@ pub struct MachineContractPlan {
     pub machine: SymbolHandle,
     /// How the machine is supplied (checked body / requirement / boundary).
     pub supply_mode: MachineSupplyMode,
-    /// The authored `effects` clause's normalized row (the published
-    /// ceiling; the EMPTY row when no clause).
-    pub published_effect_row: EffectRowId,
-    /// EFX: the durable symbol-resolved service contract. The legacy effect
-    /// row above remains only while downstream compatibility consumers move.
+    /// EFX: the durable symbol-resolved service contract.
     pub service_reach: ServiceReachPlan,
-    /// Independent authored/inferred operational axes. These are never
-    /// reconstructed from `published_effect_row`.
+    /// Independent authored/inferred operational axes.
     pub suspension: SuspensionPlan,
     pub blocking: BlockingPlan,
     /// The published termination guarantee (never the witness -- the
@@ -84,12 +80,10 @@ pub struct StateWriteFramePlan {
 
 /// The slice-1 fingerprint: an FNV-1a fold over the published halves'
 /// normalized encodings. Deterministic across programs for the same
-/// declared surface (effect-row identity is the sorted member-id set; the
+/// declared surface (canonical service names are sorted/deduplicated; the
 /// termination guarantee and supply mode are closed enums).
 pub fn contract_fingerprint(
     supply_mode: MachineSupplyMode,
-    published_effect_row: EffectRowId,
-    published_effect_members: &[omega_core::semantics::EffectMemberId],
     published_service_names: &[String],
     suspension_interface: SuspensionInterface,
     blocking_interface: BlockingInterface,
@@ -114,14 +108,6 @@ pub fn contract_fingerprint(
     });
     if let MachineSupplyMode::ExternalRealization { binding } = supply_mode {
         for byte in binding.0.to_le_bytes() {
-            fold(byte);
-        }
-    }
-    // The row's MEMBERS, not its table index -- table indices are
-    // program-local; member ids are catalog-fixed.
-    let _ = published_effect_row;
-    for member in published_effect_members {
-        for byte in member.0.to_le_bytes() {
             fold(byte);
         }
     }
@@ -180,8 +166,6 @@ mod tests {
         let fingerprint = |suspension, blocking| {
             contract_fingerprint(
                 MachineSupplyMode::Boundary,
-                EffectRowId::NULL,
-                &[],
                 &[],
                 suspension,
                 blocking,
@@ -211,8 +195,6 @@ mod tests {
         let fingerprint = |services: &[String]| {
             contract_fingerprint(
                 MachineSupplyMode::Boundary,
-                EffectRowId::NULL,
-                &[],
                 services,
                 SuspensionInterface::PublishedMaySuspend(false),
                 BlockingInterface::PublishedMayBlock(false),

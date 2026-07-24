@@ -1,6 +1,6 @@
 use crate::{
-    BorrowFacts, CarryFacts, CheckedOperatorFacts, CheckedValueFacts, DomainFacts, EffectRowFacts,
-    FlowFacts, InvariantFacts, MachineContractPlans, ProofFacts, QualificationFacts,
+    BorrowFacts, CarryFacts, CheckedOperatorFacts, CheckedValueFacts, DomainFacts, FlowFacts,
+    InvariantFacts, MachineContractPlans, ProofFacts, QualificationFacts, ServiceReachFacts,
     TerminationFacts,
 };
 
@@ -19,9 +19,9 @@ pub struct CheckFacts {
     /// TPR3 slice 4 (decision 23): the checker-established termination
     /// summaries + completed witness elaborations.
     pub termination: TerminationFacts,
-    /// STR4 slice 2 (decision 22): kinded effect rows -- published ceiling
-    /// vs inferred direct/transitive summaries.
-    pub effect_rows: EffectRowFacts,
+    /// EFX: symbol-resolved boundary-service declarations plus grouped
+    /// machine/state/call reach summaries.
+    pub service_reaches: ServiceReachFacts,
     /// STR4 checked plans, slice 2 (decision 19): the semantic-domain
     /// commitments each machine's body makes (arithmetic-policy casts v1).
     pub qualifications: QualificationFacts,
@@ -47,7 +47,7 @@ impl CheckFacts {
         capabilities: omega_effects::CapabilityFlowPlan,
         flow: FlowFacts,
         termination: TerminationFacts,
-        effect_rows: EffectRowFacts,
+        service_reaches: ServiceReachFacts,
         qualifications: QualificationFacts,
         contract_plans: MachineContractPlans,
         carry: CarryFacts,
@@ -64,7 +64,7 @@ impl CheckFacts {
             capabilities,
             flow,
             termination,
-            effect_rows,
+            service_reaches,
             qualifications,
             contract_plans,
             carry,
