@@ -1749,8 +1749,12 @@ stronger operations it needs instead of citing machine parameters generally.
   branch relocations: it applies a configured count bound, canonicalizes
   destination order, checks exact relocation widths against the code section,
   and rejects overlapping or overflowing fields while retaining only symbolic
-  entry/data targets. Connect the validated set to target object translation
-  and content identity; implement
+  entry/data targets. The object-layer adapter now consumes only that validated
+  carrier, maps it to the existing target relocation vocabulary, resolves
+  symbols through a sealed compiler/provider callback, and rejects
+  architecture mismatch, missing symbols, unsupported explicit addends, or
+  section-offset overflow before appending any record. Connect the canonical
+  set to content identity; implement
   admission/PCC and final-footprint validators, materializer/installer
   providers, Omega linear integration, and provider-backed
   quiescence/replacement execution. Code-placement claims already validate the

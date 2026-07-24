@@ -739,8 +739,11 @@ validator: only the current absolute-64, x86 relative-32, and AArch64
 page/page-offset/branch meanings enter the canonical set; configured count,
 exact destination width, code bounds, overlap, and arithmetic overflow are
 checked while targets remain sealed entry/data identities. Actual byte
-decoding through LayoutPlan/schema machinery, content-identity computation,
-and target object-format translation remain.
+decoding through LayoutPlan/schema machinery and content-identity computation
+remain. A backend adapter translates only the validated canonical carrier into
+the existing object-relocation plan, resolves each sealed target through
+compiler/provider infrastructure, and fails atomically on target-architecture
+mismatch, missing symbols, unsupported explicit addends, or offset overflow.
 
 The boot base case preserves the same discipline:
 
