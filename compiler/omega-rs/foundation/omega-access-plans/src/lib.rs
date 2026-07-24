@@ -418,11 +418,13 @@ impl PlacedViewGrantId {
 
 /// Provider-admitted agreement between an extent provenance and a static
 /// access policy. It is reusable; the borrow-carrying extent loan supplies the
-/// per-view lifetime and polarity.
+/// per-view lifetime and polarity. The complete canonical plan is retained:
+/// its compact identity is useful for reports and caches, but is never the sole
+/// authorization check.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlacedViewGrant {
     identity: PlacedViewGrantId,
-    access_plan: AccessPlanId,
+    access_plan: ValidatedAccessPlan,
     address_space: AddressSpaceId,
     provenance: ExtentProvenanceId,
     required_rights: ExtentRights,
@@ -432,7 +434,7 @@ pub struct PlacedViewGrant {
 impl PlacedViewGrant {
     pub fn from_admitted_provider(
         identity: PlacedViewGrantId,
-        access_plan: AccessPlanId,
+        access_plan: &ValidatedAccessPlan,
         address_space: AddressSpaceId,
         provenance: ExtentProvenanceId,
         required_rights: ExtentRights,
@@ -440,7 +442,7 @@ impl PlacedViewGrant {
     ) -> Self {
         Self {
             identity,
-            access_plan,
+            access_plan: access_plan.clone(),
             address_space,
             provenance,
             required_rights,
@@ -612,7 +614,7 @@ pub fn derive_placed_view<'extent, 'plan>(
     plan: &'plan ValidatedAccessPlan,
     grant: &PlacedViewGrant,
 ) -> Result<PlacedView<'extent, 'plan>, AccessPlanDiagnostic> {
-    if plan.identity() != grant.access_plan {
+    if plan != &grant.access_plan {
         return Err(AccessPlanDiagnostic(
             "placed-view grant does not bind the exact validated access plan".into(),
         ));
@@ -1169,7 +1171,7 @@ mod tests {
 
         let grant = PlacedViewGrant::from_admitted_provider(
             PlacedViewGrantId::from_normalized_identity(10).expect("atomic view grant"),
-            plan.identity(),
+            &plan,
             extent_id(2, AddressSpaceId::from_normalized_identity),
             extent_id(5, ExtentProvenanceId::from_normalized_identity),
             extent_rights(&[3]),
@@ -1318,7 +1320,7 @@ mod tests {
     fn uart_view_grant(plan: &ValidatedAccessPlan) -> PlacedViewGrant {
         PlacedViewGrant::from_admitted_provider(
             PlacedViewGrantId::from_normalized_identity(8).expect("view grant"),
-            plan.identity(),
+            plan,
             extent_id(2, AddressSpaceId::from_normalized_identity),
             extent_id(5, ExtentProvenanceId::from_normalized_identity),
             extent_rights(&[3]),
@@ -1381,7 +1383,7 @@ mod tests {
         let loan = extent.loan(0, 12).expect("UART loan");
         let wrong_reach = PlacedViewGrant::from_admitted_provider(
             PlacedViewGrantId::from_normalized_identity(9).expect("view grant"),
-            plan.identity(),
+            &plan,
             extent_id(2, AddressSpaceId::from_normalized_identity),
             extent_id(5, ExtentProvenanceId::from_normalized_identity),
             extent_rights(&[3]),

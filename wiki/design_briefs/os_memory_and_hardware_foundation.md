@@ -271,13 +271,16 @@ borrow-carrying access values, and target-specific external/atomic emission
 remain.
 
 The normalized Extent/AccessPlan join is also live. A reusable
-provider-admitted placed-view grant pins the exact geometry-bound access-plan
-identity, address space, provenance, required open-set rights, and permitted
-static reaches. Derivation checks those facts and layout size against an actual
-borrow-carrying Extent loan. Field operation authorization then derives
-shared/exclusive polarity from that loan rather than accepting a caller claim,
-and its sealed lowering value remains borrowed from the view. Omega source
-projection and target-specific primitive emission remain.
+provider-admitted placed-view grant retains the exact canonical geometry-bound
+access plan plus address space, provenance, required open-set rights, and
+permitted static reaches. The compact plan fingerprint remains useful for
+reports and caches but is not treated as collision-resistant authority.
+Derivation compares the exact plan and checks the remaining facts and layout
+size against an actual borrow-carrying Extent loan. Field operation
+authorization then derives shared/exclusive polarity from that loan rather
+than accepting a caller claim, and its sealed lowering value remains borrowed
+from the view. Omega source projection and target-specific primitive emission
+remain.
 
 The extent's provenance gates construction of an access capability. The
 accessor's normalized contract statically pins service reach. Runtime
