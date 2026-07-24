@@ -1421,9 +1421,13 @@ stronger operations it needs instead of citing machine parameters generally.
   can now size and project a nested plan-laid record recursively, with a native
   and interpreter differential canary; widening and explicit narrowing
   conversions from projected plan-laid scalar places lower natively and
-  cross-compile on both backend families. Fact-free equal-width mutable scalar
-  recasts now preserve address identity and bit-exact write-through in native
-  and interpreter execution, cross-compile on x86-64 and AArch64, and reject a
+  cross-compile on both backend families. A plan-laid application now rewrites
+  to one synthesized record identity across every type position instead of
+  relying on field and parameter spellings sharing an arena handle; the
+  policy's exact placement therefore survives by-value state parameters and
+  further forwarding. Fact-free equal-width mutable scalar recasts now
+  preserve address identity and bit-exact write-through in native and
+  interpreter execution, cross-compile on x86-64 and AArch64, and reject a
   fact-bearing source unless the required bidirectional implication can be
   proved. Fact-free mutable scalar views now also preserve full-footprint
   little-endian write-through at a statically or dynamically bounded offset in
