@@ -1,0 +1,73 @@
+// NARROW SCALAR REPRESENTATION ESTABLISHMENT. Hostile varints wider than the
+// declared u32/i32 carriers must not become valid by truncating at the store.
+
+use omega::language::std::console;
+
+data NarrowScalars {
+    0: count: u32;
+    1: delta: i32;
+}
+
+data NarrowValues {
+    count: u32;
+    delta: i32;
+}
+
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+
+data Main {
+    console: Console;
+    bad_read: u64;
+    bad_verdict: WireVerdict;
+    good_read: u64;
+    good_verdict: WireVerdict;
+}
+
+machine Main::main(&mut self) {
+    // 0x1_0000_0000 is one beyond u32::MAX and also zigzag-decodes to the
+    // positive value one beyond i32::MAX. Both use the same LEB128 bytes.
+    let bad_payload: [u8; 13] = [
+        0,
+        0, 128, 128, 128, 128, 16,
+        1, 128, 128, 128, 128, 16
+    ];
+    let bad: NarrowValues = NarrowValues {
+        count: 7,
+        delta: 0 - 7
+    };
+    NarrowScalars::decode(
+        &mut bad,
+        &bad_payload,
+        &mut self.bad_read,
+        &mut self.bad_verdict,
+    );
+
+    let good_payload: [u8; 6] = [0, 0, 172, 2, 1, 3];
+    let good: NarrowValues = NarrowValues {
+        count: 0,
+        delta: 0
+    };
+    NarrowScalars::decode(
+        &mut good,
+        &good_payload,
+        &mut self.good_read,
+        &mut self.good_verdict,
+    );
+
+    transition {
+        self.bad_verdict == WireVerdict::Sound -> accepted_hostile()
+        bad.count != 7 || bad.delta != 0 - 7 -> corrupted_on_reject()
+        self.good_verdict == WireVerdict::Sound
+            && good.count == 300
+            && good.delta == 0 - 2 -> proven()
+        _ -> broken()
+    }
+
+    state accepted_hostile(&mut self)    { self.console.exit_process(66); }
+    state corrupted_on_reject(&mut self) { self.console.exit_process(67); }
+    state proven(&mut self)              { self.console.exit_process(70); }
+    state broken(&mut self)              { self.console.exit_process(71); }
+}

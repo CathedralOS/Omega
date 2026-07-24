@@ -9306,6 +9306,76 @@ fn runtime_wire_decode_ranged_repeated_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_wire_decode_rejects_noncanonical_bool_exit_canary_runs() {
+    // Plain and repeated bool decodes must accept only canonical 0/1
+    // representations, preserving prior values when a hostile 2 arrives.
+    let canary = pass_canary("wire/runtime_wire_decode_rejects_noncanonical_bool_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-wire-noncanonical-bool-decode-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("noncanonical bool wire decode canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("noncanonical bool wire decode canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected canonical bool enforcement (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_wire_decode_rejects_scalar_width_overflow_exit_canary_runs() {
+    // Wider hostile varints must not become valid i32/u32 values merely
+    // because the final destination store truncates their high bits.
+    let canary = pass_canary("wire/runtime_wire_decode_rejects_scalar_width_overflow_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-wire-scalar-width-overflow-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("scalar width overflow wire decode canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("scalar width overflow wire decode canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected scalar carrier-width enforcement (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_wire_roundtrip_nested_exit_canary_runs() {
     // Wire nested message fields: encode { header: { room_id: 300, kind: -2 },
     // depth: -64 } into [0x00, 0x00, 0x05, 0x00, 0xAC, 0x02, 0x01, 0x03,
@@ -38062,6 +38132,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "wire/runtime_wire_roundtrip_primitive_exit",
     "wire/runtime_wire_decode_ranged_field_exit",
     "wire/runtime_wire_decode_ranged_repeated_exit",
+    "wire/runtime_wire_decode_rejects_noncanonical_bool_exit",
+    "wire/runtime_wire_decode_rejects_scalar_width_overflow_exit",
     "wire/runtime_wire_decode_rejects_wrong_era_exit",
     "wire/runtime_wire_encode_string_exit",
     "wire/runtime_wire_encode_byte_slice_exit",

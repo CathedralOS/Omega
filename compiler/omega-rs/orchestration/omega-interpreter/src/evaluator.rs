@@ -2770,7 +2770,9 @@ impl<'program> Evaluator<'program> {
                 WireInterpScalarField::Scalar { encoding, range } => {
                     let raw = read_varint(&mut cursor, &mut ok);
                     let decoded = wire_decoded_scalar_value(raw, *encoding)?;
-                    if range.is_none_or(|range| wire_scalar_in_range(&decoded, range)) {
+                    if range
+                        .is_none_or(|range| wire_scalar_in_range(raw, *encoding, &decoded, range))
+                    {
                         *field_cell.borrow_mut() = decoded;
                     } else {
                         ok = false;
@@ -2843,7 +2845,9 @@ impl<'program> Evaluator<'program> {
                             }
                         };
                         let child_cell = self.deref_cell(child_cell);
-                        if range.is_none_or(|range| wire_scalar_in_range(&decoded, range)) {
+                        if range.is_none_or(|range| {
+                            wire_scalar_in_range(raw, *encoding, &decoded, range)
+                        }) {
                             *child_cell.borrow_mut() = decoded;
                         } else {
                             ok = false;
@@ -2912,7 +2916,9 @@ impl<'program> Evaluator<'program> {
                             }
                         };
                         let element_cell = self.deref_cell(element_cell);
-                        if range.is_none_or(|range| wire_scalar_in_range(&decoded_value, range)) {
+                        if range.is_none_or(|range| {
+                            wire_scalar_in_range(raw_value, encoding.element, &decoded_value, range)
+                        }) {
                             *element_cell.borrow_mut() = decoded_value;
                         } else {
                             ok = false;
@@ -8321,15 +8327,24 @@ fn wire_argument_declared_type(
     }
 }
 
-fn wire_scalar_in_range(value: &Value, range: omega_core::wire::WireScalarRange) -> bool {
-    let Some(value) = value.as_int() else {
-        return false;
-    };
+fn wire_scalar_in_range(
+    raw: u64,
+    encoding: omega_typed_trees::wire::WireScalarEncoding,
+    value: &Value,
+    range: omega_core::wire::WireScalarRange,
+) -> bool {
     if range.signed {
+        let value = if encoding.zigzag {
+            unzigzag64(raw)
+        } else {
+            let Some(value) = value.as_int() else {
+                return false;
+            };
+            value
+        };
         value >= range.minimum && value <= range.maximum
     } else {
-        let value = value as u64;
-        value >= range.minimum as u64 && value <= range.maximum as u64
+        raw >= range.minimum as u64 && raw <= range.maximum as u64
     }
 }
 

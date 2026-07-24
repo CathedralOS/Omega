@@ -318,6 +318,17 @@ element declaration. An invalid packed element is consumed so framing and the
 decoded count stay deterministic, but that element's prior valid slot is not
 overwritten and the verdict is `Invalid`.
 
+`bool` has the same boundary rule without an authored range: its only valid
+wire representations are the canonical varints `0` and `1`. Any other decoded
+value makes the verdict `Invalid` and leaves the prior destination value
+untouched, including for nested and repeated boolean fields. Decoding never
+silently normalizes a hostile nonzero integer to `true`.
+
+Finite scalar carriers are established before truncation as well. A varint
+outside `u32`'s range, or a zigzag value outside `i32`'s range, is `Invalid`;
+the decoder cannot turn an out-of-carrier hostile number into an apparently
+valid value by discarding high bits at the destination store.
+
 The length prefix is the interesting part: the sub-message's field SET is
 compile-time-known, so its WORST-CASE size is static, but its actual size is
 runtime (varints shrink with their values). Of the honest mechanisms —

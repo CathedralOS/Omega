@@ -144,11 +144,14 @@ pub fn type_reference_carries_range(
     }
 }
 
-/// Normalize every inclusive range shell on a stage-2 wire scalar into the
-/// one interval the decode boundary must establish. Validation has already
-/// rejected non-constant or contradictory ranges; `None` therefore means the
-/// type carries no range (or is not a supported integer scalar), never "skip a
-/// range we failed to understand".
+/// Normalize every representation invariant that a stage-2 wire scalar decode
+/// must establish into one inclusive interval. This includes authored integer
+/// range shells, `bool`'s intrinsic `{0, 1}` representation, and the finite
+/// carrier bounds of `i32`/`u32`. The latter prevent a hostile wider varint
+/// from becoming valid merely because the eventual store truncates it.
+/// Validation has already rejected non-constant or contradictory authored
+/// ranges; `None` therefore means the scalar spans the full decoder value
+/// width (`i64`/`u64`), never "skip an invariant we failed to understand".
 pub fn scalar_decode_range(
     program: &crate::TypedTrees,
     handle: TypeReferenceHandle,
@@ -188,12 +191,21 @@ pub fn scalar_decode_range(
     }
 
     let primitive = program.primitive_type_reference(handle)?;
+    if primitive == crate::types::PrimitiveType::Bool {
+        return Some(omega_core::wire::WireScalarRange {
+            minimum: 0,
+            maximum: 1,
+            signed: false,
+        });
+    }
     if !primitive.accepts_range_constraint() {
         return None;
     }
-    let mut minimum = i64::MIN;
-    let mut maximum = i64::MAX;
-    let mut found = false;
+    let (mut minimum, mut maximum, mut found) = match primitive {
+        crate::types::PrimitiveType::I32 => (i64::from(i32::MIN), i64::from(i32::MAX), true),
+        crate::types::PrimitiveType::U32 => (0, i64::from(u32::MAX), true),
+        _ => (i64::MIN, i64::MAX, false),
+    };
     collect(program, handle, &mut minimum, &mut maximum, &mut found)?;
     (found && minimum <= maximum).then_some(omega_core::wire::WireScalarRange {
         minimum,
