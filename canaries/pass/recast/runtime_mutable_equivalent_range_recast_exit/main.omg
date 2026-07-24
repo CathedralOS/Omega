@@ -1,17 +1,24 @@
 // RUN CANARY (exit 70) + interpreter differential. Mutable aliases may cross
 // integer carriers when their declared ranges denote exactly the same stored
-// bit patterns. Both views admit only 0..=100, so every write through either
-// remains established through the other.
+// bit patterns. The second pair pins canonicalization: a signed range covering
+// its complete carrier is one contiguous bit set even though crossing signed
+// zero initially describes it as two adjacent intervals.
 use omega::language::std::console;
 
 data Main {
     console: Console;
     value: i32 [0..=100];
+    whole: i8 [-128..=127];
 }
 
 machine Main::main(&mut self) {
     let view: &mut u32 [0..=100] = &mut self.value as &mut u32;
-    transition self.value == 0 && view == 0 {
+    let whole_bits: &mut u8 = &mut self.whole as &mut u8;
+    whole_bits = 70;
+    transition self.value == 0
+        && view == 0
+        && self.whole == 70
+        && whole_bits == 70 {
         true -> good()
         _ -> bad()
     }
