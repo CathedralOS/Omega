@@ -182,6 +182,7 @@ pub(super) fn collect_wire_decode_relocations(
             target_offset,
             byte_size,
             zigzag,
+            range,
             ..
         } => {
             context.insert_data_address_at_instruction_start(
@@ -228,6 +229,7 @@ pub(super) fn collect_wire_decode_relocations(
                     *target_offset,
                     *byte_size,
                     *zigzag,
+                    *range,
                 ),
                 context.storage_region_symbol_handle(*count_region),
             );

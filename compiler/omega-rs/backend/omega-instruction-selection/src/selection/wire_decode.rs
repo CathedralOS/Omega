@@ -73,6 +73,7 @@ enum WireReadContent {
         base: RuntimeStoragePlace,
         count: RuntimeStoragePlace,
         max_count: usize,
+        range: Option<omega_core::wire::WireScalarRange>,
     },
 }
 
@@ -417,6 +418,7 @@ pub(super) fn select_wire_decode_call(
                 base,
                 count,
                 max_count,
+                range,
             } => {
                 // Byte-LENGTH varint into the end-bound slot, OPEN bounds it
                 // against the buffer (a hostile length cannot wrap the
@@ -477,6 +479,7 @@ pub(super) fn select_wire_decode_call(
                         target_offset: base.byte_offset + index * element.byte_size,
                         byte_size: element.byte_size,
                         zigzag: element.zigzag,
+                        range: *range,
                     });
                 }
                 push(SelectedInstructionKind::ReadWireNestedClose {
@@ -579,6 +582,13 @@ fn collect_field_reads(
                     base,
                     count,
                     max_count: repeated.max_count,
+                    range: omega_checked_trees::wire::fixed_array_element_type(
+                        input.program,
+                        member_type,
+                    )
+                    .and_then(|element| {
+                        omega_checked_trees::wire::scalar_decode_range(input.program, element)
+                    }),
                 },
             });
             continue;

@@ -1,0 +1,74 @@
+// RANGE ESTABLISHMENT FOR REPEATED WIRE ELEMENTS. The schema carries plain
+// i32 elements, while the destination narrows each element to [-2..=2].
+// Hostile 5 must not overwrite the prior first element; a later valid payload
+// must establish and store both elements.
+
+use omega::language::std::console;
+
+data Samples {
+    0: values: [i32; 2];
+}
+
+data RangedSamples {
+    values: [i32 [-2..=2]; 2];
+    values_count: u64;
+}
+
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+
+data Main {
+    console: Console;
+    bad_read: u64;
+    bad_verdict: WireVerdict;
+    good_read: u64;
+    good_verdict: WireVerdict;
+}
+
+machine Main::main(&mut self) {
+    // era 0, tag 0, packed byte length 2, then zigzag(5)=10 and
+    // zigzag(-1)=1. The first element is outside [-2..=2].
+    let bad_payload: [u8; 5] = [0, 0, 2, 10, 1];
+    let bad: RangedSamples = RangedSamples {
+        values: [1, 2],
+        values_count: 0
+    };
+    Samples::decode(
+        &mut bad,
+        &bad_payload,
+        &mut self.bad_read,
+        &mut self.bad_verdict,
+    );
+
+    // Same envelope with 2 and -2 (zigzag 4 and 3).
+    let good_payload: [u8; 5] = [0, 0, 2, 4, 3];
+    let good: RangedSamples = RangedSamples {
+        values: [0, 0],
+        values_count: 0
+    };
+    Samples::decode(
+        &mut good,
+        &good_payload,
+        &mut self.good_read,
+        &mut self.good_verdict,
+    );
+
+    transition {
+        self.bad_verdict == WireVerdict::Sound -> accepted_hostile()
+        bad.values[0] != 1 -> corrupted_on_reject()
+        bad.values[1] != 0 - 1 || bad.values_count != 2 -> partial_decode_broken()
+        self.good_verdict == WireVerdict::Sound
+            && good.values[0] == 2
+            && good.values[1] == 0 - 2
+            && good.values_count == 2 -> proven()
+        _ -> broken()
+    }
+
+    state accepted_hostile(&mut self)    { self.console.exit_process(66); }
+    state corrupted_on_reject(&mut self) { self.console.exit_process(67); }
+    state partial_decode_broken(&mut self) { self.console.exit_process(68); }
+    state proven(&mut self)              { self.console.exit_process(70); }
+    state broken(&mut self)              { self.console.exit_process(71); }
+}

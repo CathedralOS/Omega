@@ -313,6 +313,10 @@ and leaves that field's prior valid value untouched; `Sound` therefore
 establishes the declared range from the untrusted bytes. This check comes from
 the actual destination declaration, not merely the wire schema's unconstrained
 carrier type, and applies equally inside the supported one-level nested body.
+Repeated scalar fields apply the same rule to the actual destination array's
+element declaration. An invalid packed element is consumed so framing and the
+decoded count stay deterministic, but that element's prior valid slot is not
+overwritten and the verdict is `Invalid`.
 
 The length prefix is the interesting part: the sub-message's field SET is
 compile-time-known, so its WORST-CASE size is static, but its actual size is

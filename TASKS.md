@@ -1713,10 +1713,11 @@ stronger operations it needs instead of citing machine parameters generally.
   envelope; no arbitrary byte-to-code path exists.
 - **Wire runtime.** Scalar decode now establishes destination range facts
   instead of rejecting ranged fields: each call binds the normalized inclusive
-  interval from the actual value declaration, native x86-64/AArch64 and the
-  interpreter reject hostile out-of-range values before writing the field, and
-  the sticky `WireVerdict` becomes `Invalid` while the prior valid value stays
-  intact. Implement runtime layout for remaining wire values, additional
+  interval from the actual value declaration across plain, nested, and repeated
+  scalar destinations. Native x86-64/AArch64 and the interpreter reject hostile
+  out-of-range values before writing the field or array element, and the sticky
+  `WireVerdict` becomes `Invalid` while the prior valid value stays intact.
+  Implement runtime layout for remaining wire values, additional
   encoding families, compatibility reports, and version negotiation.
 
 ## Remaining language surfaces

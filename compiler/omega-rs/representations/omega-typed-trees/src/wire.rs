@@ -235,6 +235,25 @@ pub fn data_field_type(
     }
 }
 
+/// Resolve a fixed array's declared element type through reference and
+/// constraint shells. Decode uses the destination declaration's element
+/// rather than the schema carrier so element-level facts cannot disappear.
+pub fn fixed_array_element_type(
+    program: &crate::TypedTrees,
+    mut handle: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    loop {
+        handle = match program.type_reference_table.type_reference(handle) {
+            crate::types::TypeReferenceNode::Reference { referee, .. } => *referee,
+            crate::types::TypeReferenceNode::Constrained { base_type, .. } => *base_type,
+            crate::types::TypeReferenceNode::FixedArray { element_type, .. } => {
+                return Some(*element_type);
+            }
+            _ => return None,
+        };
+    }
+}
+
 impl WireScalarEncoding {
     /// The stage 2a scalar set: i32/i64/u32/u64/bool. Everything else is
     /// rejected by validation with a clear diagnostic.

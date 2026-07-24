@@ -2589,10 +2589,18 @@ impl<'program> Evaluator<'program> {
                 ))
             })?;
             if let Some(repeated) = self.program.wire_field_repeated_encoding(field) {
+                let range =
+                    omega_typed_trees::wire::fixed_array_element_type(self.program, target_type)
+                        .and_then(|element| {
+                            omega_typed_trees::wire::scalar_decode_range(self.program, element)
+                        });
                 fields.push((
                     field.name.as_str().to_owned(),
                     field.number,
-                    WireInterpScalarField::Repeated(repeated),
+                    WireInterpScalarField::Repeated {
+                        encoding: repeated,
+                        range,
+                    },
                 ));
                 continue;
             }
@@ -2845,7 +2853,7 @@ impl<'program> Evaluator<'program> {
                         ok = false;
                     }
                 }
-                WireInterpScalarField::Repeated(repeated) => {
+                WireInterpScalarField::Repeated { encoding, range } => {
                     // Byte-LENGTH varint, the same OPEN bound checks as a
                     // nested message, the count companion zeroed, then up to
                     // `max_count` guarded element reads -- each runs only
@@ -2883,12 +2891,12 @@ impl<'program> Evaluator<'program> {
                     };
                     let mut decoded = 0i64;
                     *count_cell.borrow_mut() = Value::Int(0);
-                    for index in 0..repeated.max_count {
+                    for index in 0..encoding.max_count {
                         if cursor >= end {
                             continue;
                         }
                         let raw_value = read_varint(&mut cursor, &mut ok);
-                        let decoded_value = wire_decoded_scalar_value(raw_value, repeated.element)?;
+                        let decoded_value = wire_decoded_scalar_value(raw_value, encoding.element)?;
                         let element_cell = match &*field_cell.borrow() {
                             Value::Array(elements) => {
                                 elements.get(index).map(Rc::clone).ok_or_else(|| {
@@ -2904,7 +2912,11 @@ impl<'program> Evaluator<'program> {
                             }
                         };
                         let element_cell = self.deref_cell(element_cell);
-                        *element_cell.borrow_mut() = decoded_value;
+                        if range.is_none_or(|range| wire_scalar_in_range(&decoded_value, range)) {
+                            *element_cell.borrow_mut() = decoded_value;
+                        } else {
+                            ok = false;
+                        }
                         decoded += 1;
                         *count_cell.borrow_mut() = Value::Int(decoded);
                     }
@@ -8192,7 +8204,10 @@ enum WireInterpScalarField {
             Option<omega_core::wire::WireScalarRange>,
         )>,
     ),
-    Repeated(omega_typed_trees::wire::WireRepeatedEncoding),
+    Repeated {
+        encoding: omega_typed_trees::wire::WireRepeatedEncoding,
+        range: Option<omega_core::wire::WireScalarRange>,
+    },
     /// A borrowed `&[u8]` field: read a byte-length varint then that many bytes
     /// from the buffer. Stored as an owned `Array` of byte values --
     /// observationally identical to a zero-copy view for any read. The

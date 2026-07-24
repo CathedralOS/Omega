@@ -591,6 +591,7 @@ pub fn encode_read_wire_repeated_scalar_varint(
     target_offset: usize,
     byte_size: usize,
     zigzag: bool,
+    range: Option<omega_core::wire::WireScalarRange>,
 ) -> Result<Vec<u8>, Diagnostic> {
     if !matches!(byte_size, 1 | 4 | 8) {
         return Err(Diagnostic::error(format!(
@@ -611,6 +612,7 @@ pub fn encode_read_wire_repeated_scalar_varint(
         target_offset,
         byte_size,
         zigzag,
+        range,
     ));
     append_wire_decode_prologue(&mut bytes, buffer_offset, read_offset)?;
 
@@ -626,6 +628,11 @@ pub fn encode_read_wire_repeated_scalar_varint(
         + wire_varint_read_loop_width()
         + zigzag_width
         + 8
+        + range.map_or(0, |range| {
+            super::widths::unsigned_immediate_width(range.minimum as u64)
+                + super::widths::unsigned_immediate_width(range.maximum as u64)
+                + 24
+        })
         + super::widths::store_data_offset_width(target_offset, byte_size)
         + 8
         + super::widths::load_data_offset_width(count_offset, 8)
@@ -674,14 +681,38 @@ pub fn encode_read_wire_repeated_scalar_varint(
     // x25 = the target page, then the truncating store at the field width.
     bytes.extend(encode_adrp_placeholder(25));
     bytes.extend(encode_add_page_offset_placeholder(25));
+    let mut store = Vec::new();
     super::runtime_storage::append_store_data_to_x_offset(
-        &mut bytes,
+        &mut store,
         26,
         25,
         target_offset,
         byte_size,
         19,
     )?;
+    if let Some(range) = range {
+        // Preserve the old element when hostile bytes violate its declared
+        // range. The consumed element still advances the cursor and count;
+        // x23 makes the overall verdict sticky-invalid.
+        append_unsigned_immediate(&mut bytes, 19, range.minimum as u64);
+        bytes.extend(encode_compare_x_register(26, 19));
+        let maximum_width = super::widths::unsigned_immediate_width(range.maximum as u64);
+        bytes.extend(if range.signed {
+            encode_conditional_branch_less((maximum_width + 12) as isize)?
+        } else {
+            encode_conditional_branch_lower((maximum_width + 12) as isize)?
+        });
+        append_unsigned_immediate(&mut bytes, 19, range.maximum as u64);
+        bytes.extend(encode_compare_x_register(26, 19));
+        bytes.extend(if range.signed {
+            encode_conditional_branch_less_or_equal(12)?
+        } else {
+            encode_conditional_branch_lower_or_same(12)?
+        });
+        bytes.extend(encode_movz(23, 0)); // fail
+        bytes.extend(encode_unconditional_branch((store.len() + 4) as isize)?);
+    }
+    bytes.extend(store);
 
     // Count bump: x25 = the count page, x19 = count + 1 (x22 is free -- the
     // read loop's shift use ended above).
@@ -710,7 +741,8 @@ pub fn encode_read_wire_repeated_scalar_varint(
             count_offset,
             target_offset,
             byte_size,
-            zigzag
+            zigzag,
+            range,
         )
     );
     Ok(bytes)

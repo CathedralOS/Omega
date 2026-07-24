@@ -1384,6 +1384,23 @@ fn validate_repeated_value_field(
                     program.display_type_reference(field.type_reference)
                 )));
             }
+            if machine_name == "decode"
+                && let Some(element_type) = omega_typed_trees::wire::fixed_array_element_type(
+                    program,
+                    value_field.type_reference,
+                )
+                && omega_typed_trees::wire::type_reference_carries_range(program, element_type)
+                && omega_typed_trees::wire::scalar_decode_range(program, element_type).is_none()
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}::decode` repeated value field `{}.{}` declares an element range fact \
+                     (`{}`) that cannot be normalized into a constant scalar interval",
+                    schema.name,
+                    value_data.name,
+                    field.name,
+                    program.display_type_reference(element_type)
+                )));
+            }
         }
     }
 

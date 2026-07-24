@@ -2677,6 +2677,7 @@ pub fn read_wire_repeated_scalar_varint_width(
     target_offset: usize,
     byte_size: usize,
     zigzag: bool,
+    range: Option<omega_core::wire::WireScalarRange>,
 ) -> usize {
     // Prologue + end page pair + end load + cmp/b.hs guard + length
     // materialization + success/value/shift movz triple + read loop +
@@ -2691,6 +2692,11 @@ pub fn read_wire_repeated_scalar_varint_width(
         + wire_varint_read_loop_width()
         + if zigzag { wire_unzigzag_width() } else { 0 }
         + 8
+        + range.map_or(0, |range| {
+            unsigned_immediate_width(range.minimum as u64)
+                + unsigned_immediate_width(range.maximum as u64)
+                + 24
+        })
         + store_data_offset_width(target_offset, byte_size)
         + 8
         + load_data_offset_width(count_offset, 8)
@@ -2729,6 +2735,7 @@ pub fn wire_decode_repeated_count_page_offset(
     target_offset: usize,
     byte_size: usize,
     zigzag: bool,
+    range: Option<omega_core::wire::WireScalarRange>,
 ) -> usize {
     wire_decode_repeated_target_page_offset(
         buffer_offset,
@@ -2737,5 +2744,10 @@ pub fn wire_decode_repeated_count_page_offset(
         end_offset,
         zigzag,
     ) + 8
+        + range.map_or(0, |range| {
+            unsigned_immediate_width(range.minimum as u64)
+                + unsigned_immediate_width(range.maximum as u64)
+                + 24
+        })
         + store_data_offset_width(target_offset, byte_size)
 }

@@ -530,6 +530,7 @@ pub(super) fn encode_machine_instruction_bytes(
             target_offset,
             byte_size,
             zigzag,
+            range,
             ..
         } => omega_instruction_selection::encode_read_wire_repeated_scalar_varint(
             input.target.architecture,
@@ -544,6 +545,7 @@ pub(super) fn encode_machine_instruction_bytes(
             *target_offset,
             *byte_size,
             *zigzag,
+            *range,
         ),
         SelectedInstructionKind::AppendPlaceBoundedBufferSource { target, source } => {
             omega_instruction_selection::encode_append_place_bounded_buffer_source(
