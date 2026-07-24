@@ -704,6 +704,18 @@ impl<'extent> ExternalLoan<'extent> {
             Some("completion receipt names a different external loan")
         } else if receipt.borrower != self.borrower {
             Some("completion receipt names a different external borrower")
+        } else if receipt.direction != self.direction {
+            Some("completion receipt names a different transfer direction")
+        } else if receipt.reach_receipt != self.reach_receipt {
+            Some("completion receipt names different confinement evidence")
+        } else if receipt.address_space != self.loan.address_space() {
+            Some("completion receipt names a different address space")
+        } else if receipt.provenance != self.loan.provenance() {
+            Some("completion receipt names different extent provenance")
+        } else if receipt.era != self.loan.era() {
+            Some("completion receipt names a stale mapping era")
+        } else if receipt.base != self.loan.base() || receipt.length != self.loan.length() {
+            Some("completion receipt names a different lent extent range")
         } else if !receipt.borrow_released {
             Some("completion receipt does not establish external-borrow release")
         } else if !self.completion.0.is_subset(&receipt.established_facts) {
@@ -816,20 +828,35 @@ pub fn begin_external_loan<'extent>(
 pub struct ExternalCompletionReceipt {
     loan: ExternalLoanId,
     borrower: ExternalBorrowerId,
+    direction: ExternalLoanDirection,
+    reach_receipt: ExternalReachReceiptId,
+    address_space: AddressSpaceId,
+    provenance: ExtentProvenanceId,
+    era: MappingEraId,
+    base: u64,
+    length: u64,
     borrow_released: bool,
     established_facts: BTreeSet<ExternalCompletionFactId>,
 }
 
 impl ExternalCompletionReceipt {
+    /// Bind completion evidence to the exact live external loan instead of
+    /// asking the provider to restate its replay-sensitive authority facts.
     pub fn from_admitted_provider(
-        loan: ExternalLoanId,
-        borrower: ExternalBorrowerId,
+        loan: &ExternalLoan<'_>,
         borrow_released: bool,
         established_facts: impl IntoIterator<Item = ExternalCompletionFactId>,
     ) -> Self {
         Self {
-            loan,
-            borrower,
+            loan: loan.identity,
+            borrower: loan.borrower,
+            direction: loan.direction,
+            reach_receipt: loan.reach_receipt,
+            address_space: loan.loan.address_space(),
+            provenance: loan.loan.provenance(),
+            era: loan.loan.era(),
+            base: loan.loan.base(),
+            length: loan.loan.length(),
             borrow_released,
             established_facts: established_facts.into_iter().collect(),
         }
@@ -1187,8 +1214,7 @@ mod tests {
         assert_eq!(transfer.direction(), ExternalLoanDirection::DeviceReads);
 
         let incomplete = ExternalCompletionReceipt::from_admitted_provider(
-            loan_id(600),
-            id(500, ExternalBorrowerId::from_normalized_identity),
+            &transfer,
             true,
             [completion_fact(701)],
         );
@@ -1199,8 +1225,7 @@ mod tests {
         let (transfer, _) = (*error).into_parts();
 
         let complete = ExternalCompletionReceipt::from_admitted_provider(
-            loan_id(600),
-            id(500, ExternalBorrowerId::from_normalized_identity),
+            &transfer,
             true,
             [completion_fact(700), completion_fact(701)],
         );
@@ -1248,14 +1273,8 @@ mod tests {
             )),
         )
         .expect("admitted external write");
-        let completion = transfer
-            .complete(ExternalCompletionReceipt::from_admitted_provider(
-                loan_id(602),
-                id(500, ExternalBorrowerId::from_normalized_identity),
-                true,
-                [],
-            ))
-            .expect("completed DMA write");
+        let receipt = ExternalCompletionReceipt::from_admitted_provider(&transfer, true, []);
+        let completion = transfer.complete(receipt).expect("completed DMA write");
         assert_eq!(completion.borrower.normalized_identity(), 500);
         assert_eq!(completion.reach_receipt.normalized_identity(), 800);
     }
@@ -1317,5 +1336,50 @@ mod tests {
             transfer.reach_mechanism(),
             ExternalReachMechanism::HardwareIsolation
         );
+    }
+
+    #[test]
+    fn external_completion_cannot_replay_after_lent_authority_drift() {
+        let first_extent = grant(1, 0x4000, 64);
+        let first = begin_external_loan(
+            first_extent.loan(0, 16).expect("first DMA range"),
+            loan_id(604),
+            &external_grant(
+                ExternalLoanDirection::DeviceReads,
+                CompletionObligations::default(),
+            ),
+            Some(reach_receipt(
+                loan_id(604),
+                ExternalLoanDirection::DeviceReads,
+                0x4000,
+                16,
+                ExternalReachMechanism::HardwareIsolation,
+            )),
+        )
+        .expect("first external loan");
+        let stale = ExternalCompletionReceipt::from_admitted_provider(&first, true, []);
+
+        let second_extent = grant(2, 0x5000, 64);
+        let second = begin_external_loan(
+            second_extent.loan(0, 16).expect("second DMA range"),
+            loan_id(604),
+            &external_grant(
+                ExternalLoanDirection::DeviceReads,
+                CompletionObligations::default(),
+            ),
+            Some(reach_receipt(
+                loan_id(604),
+                ExternalLoanDirection::DeviceReads,
+                0x5000,
+                16,
+                ExternalReachMechanism::HardwareIsolation,
+            )),
+        )
+        .expect("second external loan");
+
+        let error = second
+            .complete(stale)
+            .expect_err("completion for the prior range must not replay");
+        assert!(error.diagnostic().0.contains("lent extent range"));
     }
 }
