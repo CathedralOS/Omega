@@ -325,7 +325,7 @@ impl Compiler {
         write_resolved_snapshot(&self.options, &resolved)?;
 
         let mut typed = symbol_resolved_trees_to_typed_trees(resolved, &mut timings)?;
-        // COMPTIME STAGE 1: evaluate effect-free machine calls in fixed-array
+        // COMPTIME STAGE 1: evaluate build-time-admissible machine calls in fixed-array
         // length position and substitute concrete literals BEFORE checking,
         // proof facts, and layout consume the lengths.
         crate::pipeline::const_lengths::evaluate_const_array_lengths(&mut typed)?;

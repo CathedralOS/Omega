@@ -1,14 +1,17 @@
 //! Programmable-layout evaluation and validation.
 //!
-//! The compiler materializes `Schema`, invokes an effect-free policy machine
-//! at build time, and validates the returned `Plan` before any consumer trusts
-//! it. Plans are keyed by compiler-issued field identities rather than array
-//! position, so policies may reorder entries or fragment one logical field.
+//! The compiler materializes `Schema`, invokes a build-time-admissible policy
+//! machine at build time, and validates the returned `Plan` before any consumer
+//! trusts it. Plans are keyed by compiler-issued field identities rather than
+//! array position, so policies may reorder entries or fragment one logical
+//! field.
 
 use omega_interpreter::BuildTimeValue;
 pub use omega_layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::types::PrimitiveType;
+
+use super::build_time_admission::BuildTimeAdmissionPlan;
 
 const SCHEMA_FIELD_CAPACITY: usize = 32;
 const PLAN_ENTRY_CAPACITY: usize = 64;
@@ -29,25 +32,12 @@ pub fn compute_layout_plan(
     let schema_fields = schema_fields(typed, schema_data)?;
     let schema_value = build_schema_value(&schema_fields);
 
-    let effect_plan = omega_effects::infer_effects(typed);
     let machine = typed
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == policy_machine)
         .ok_or_else(|| format!("no machine named `{policy_machine}` exists"))?;
-    let transitive = effect_plan
-        .machines()
-        .iter()
-        .find(|entry| entry.symbol == machine.symbol)
-        .map(|entry| entry.transitive)
-        .unwrap_or_else(omega_effects::EffectSet::empty);
-    if !transitive.is_empty() {
-        return Err(format!(
-            "policy machine `{policy_machine}` is not effect-free: it reaches effects `{}`; \
-             only effect-free machines run at build time",
-            transitive.names().collect::<Vec<_>>().join(", ")
-        ));
-    }
+    BuildTimeAdmissionPlan::infer(typed).require_service_and_operational_floor(typed, machine)?;
 
     let plan =
         omega_interpreter::evaluate_build_time_machine(typed, policy_machine, vec![schema_value])

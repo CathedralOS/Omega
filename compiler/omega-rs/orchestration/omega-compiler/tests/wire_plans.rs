@@ -24,7 +24,7 @@ fn numbered_schemas_get_tag_ordered_placement_plans() {
         "mixed",
         r#"
 data Packet {
-    3: label: String;
+    3: label: &[u8];
     1: seed: u64;
     2: flag: bool;
 }
@@ -45,7 +45,7 @@ machine Main::main(&mut self) { }
         .expect("Packet should carry a derived wire plan");
     // Placements are TAG-ORDERED (the codec emits in field-number order),
     // regardless of declaration order: 1=seed (scalar varint), 2=flag
-    // (scalar varint), 3=label (String, length-prefixed).
+    // (scalar varint), 3=label (borrowed bytes, length-prefixed).
     assert_eq!(
         plan,
         [

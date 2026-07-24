@@ -1,9 +1,10 @@
 //! COMPTIME STAGE 1 -- const evaluation of FIXED-ARRAY LENGTHS.
 //!
-//! `[T; table_size()]` puts an effect-free, zero-argument machine call in a
-//! constant position: the position makes it comptime, the effect system makes
-//! it legal (no keyword, no macro -- chapter 13's frozen direction). This pass
-//! runs in the ORCHESTRATION layer between typed-tree lowering and checking:
+//! `[T; table_size()]` puts a build-time-admissible, zero-argument machine call
+//! in a constant position: the position makes it comptime, the contract system
+//! makes it legal (no keyword, no macro -- chapter 13's frozen direction).
+//! This pass runs in the ORCHESTRATION layer between typed-tree lowering and
+//! checking:
 //!
 //! - EARLY enough that range checking (`typed-trees-to-checked-trees`), proof
 //!   facts, layout, and codegen all see an ordinary `FixedArrayLength::Literal`
@@ -14,12 +15,11 @@
 //!   acyclic: the interpreter depends only on `omega-core`/`omega-typed-trees`
 //!   /`omega-checked-trees` (its `omega-compiler` edge is dev-only).
 //!
-//! LEGALITY GATE (frozen decision 12's purity predicate, reused, not
-//! reinvented): the callee's INFERRED TRANSITIVE effect surface must be empty
-//! -- read from `omega_effects::infer_effects`, the same plan
-//! `validate_pure_discards` consults -- and the callee must take no
-//! parameters at all (stage 1 is zero-arg, which also discharges the
-//! "no `&mut`/out params" half of the predicate).
+//! LEGALITY GATE: the callee's normalized effective service reach must be empty
+//! and its modular operational summary must neither suspend nor block. The
+//! callee must also take no parameters at all (stage 1 is zero-arg, which
+//! discharges the "no `&mut`/out params" half of the predicate). The remaining
+//! build-time contract axes are staged in the shared admission plan.
 //!
 //! TERMINATION: no new rule -- the language's existing discipline (no general
 //! recursion, loops carry decreases) covers const callees. The interpreter
@@ -36,6 +36,8 @@ use omega_typed_trees::TypedTrees;
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::types::{FixedArrayLength, TypeReferenceHandle};
 use std::collections::BTreeMap;
+
+use super::build_time_admission::BuildTimeAdmissionPlan;
 
 /// Evaluate every `FixedArrayLength::ConstCall` in the program and substitute
 /// the concrete `Literal` length in place. Errors name the array-length
@@ -54,9 +56,7 @@ pub(super) fn evaluate_const_array_lengths(typed: &mut TypedTrees) -> Result<(),
         return Ok(());
     }
 
-    // The purity gate reads the same inferred TRANSITIVE effect plan that
-    // decision 12's pure-discard validation consults.
-    let effect_plan = omega_effects::infer_effects(typed);
+    let admission = BuildTimeAdmissionPlan::infer(typed);
 
     let mut diagnostics = Vec::new();
     let mut evaluated: BTreeMap<String, Result<usize, ()>> = BTreeMap::new();
@@ -64,7 +64,7 @@ pub(super) fn evaluate_const_array_lengths(typed: &mut TypedTrees) -> Result<(),
 
     for (handle, machine_name) in &pending {
         let result = evaluated.entry(machine_name.clone()).or_insert_with(|| {
-            match evaluate_one(typed, &effect_plan, machine_name) {
+            match evaluate_one(typed, &admission, machine_name) {
                 Ok(value) => Ok(value),
                 Err(reason) => {
                     diagnostics.push(Diagnostic::error(format!(
@@ -95,10 +95,10 @@ pub(super) fn evaluate_const_array_lengths(typed: &mut TypedTrees) -> Result<(),
 
 fn evaluate_one(
     typed: &TypedTrees,
-    effect_plan: &omega_effects::EffectPlan,
+    admission: &BuildTimeAdmissionPlan,
     machine_name: &str,
 ) -> Result<usize, String> {
-    let value = evaluate_zero_argument_machine(typed, effect_plan, machine_name, "array length")?;
+    let value = evaluate_zero_argument_machine(typed, admission, machine_name, "array length")?;
     if value < 0 {
         return Err(format!(
             "the call returned {value}, but an array length must be a non-negative integer"
@@ -110,7 +110,7 @@ fn evaluate_one(
 
 pub(super) fn evaluate_zero_argument_machine(
     typed: &TypedTrees,
-    effect_plan: &omega_effects::EffectPlan,
+    admission: &BuildTimeAdmissionPlan,
     machine_name: &str,
     position: &str,
 ) -> Result<i64, String> {
@@ -121,7 +121,7 @@ pub(super) fn evaluate_zero_argument_machine(
         .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
 
     // Stage 1 scope: a zero-argument machine. (This also discharges the
-    // "no `&mut`/out parameters" half of decision 12's purity predicate.)
+    // "no `&mut`/out parameters" portion of the build-time contract.)
     let parameter_count = entry_state_parameter_count(typed, machine);
     if parameter_count > 0 {
         return Err(format!(
@@ -130,20 +130,7 @@ pub(super) fn evaluate_zero_argument_machine(
         ));
     }
 
-    // Purity gate: the INFERRED TRANSITIVE effect surface must be empty.
-    let transitive = effect_plan
-        .machines()
-        .iter()
-        .find(|entry| entry.symbol == machine.symbol)
-        .map(|entry| entry.transitive)
-        .unwrap_or_else(omega_effects::EffectSet::empty);
-    if !transitive.is_empty() {
-        return Err(format!(
-            "machine `{machine_name}` is not effect-free: it reaches effects `{}`; only \
-             effect-free machines may be evaluated at compile time",
-            transitive.names().collect::<Vec<_>>().join(", ")
-        ));
-    }
+    admission.require_service_and_operational_floor(typed, machine)?;
 
     omega_interpreter::evaluate_const_machine(typed, machine_name)
 }

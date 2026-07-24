@@ -1,7 +1,7 @@
 # Design Brief: Build-Time Evaluation — Const Evaluation + Trait Generators
 
-Current design as of 2026-07-18. Omega uses **build-time evaluation**, with no
-`comptime`, macro, or `#run` keyword. Staging items M1-M6 in `TASKS.md` are the
+Current design as of 2026-07-23. Omega uses **build-time evaluation**, with no
+`comptime`, macro, or `#run` keyword. The staging section below records the
 remaining engineering sequence.
 
 ## The settled model (2026-07-02)
@@ -38,20 +38,28 @@ remaining engineering sequence.
 - Landed precedent: Equatable synthesis (equatable.rs +
   structural_equality.rs) — hand-rolled inline expansion at resolved→typed
   lowering. Trait generators would GENERALIZE and eventually replace it.
-- The reference interpreter is the candidate engine: contract-gated,
-  deterministic, differential-oracle-proven; no new evaluation machinery
-  needed.
-- Const positions today are parse/literal-only — nothing evaluates.
+- The reference interpreter is the landed engine: contract-gated,
+  deterministic, and differential-oracle-proven; no second evaluation
+  machinery was introduced.
+- Fixed-array lengths and const-generic call leaves evaluate zero-argument
+  machines. Machine-backed const-domain facts evaluate one checked integer
+  operand. Layout, wire, and calling-policy derivation invoke their selected
+  policy machines against compiler-materialized values.
 - Decision 22's normalized row plus the other machine-contract axes supply the
   admission check; empty reach alone is not the whole gate.
-- First heavyweight client: programmable layouts
+- The shared admission floor now consumes canonical effective service reach
+  and independent recursive suspension/blocking summaries; these six clients
+  no longer consult the legacy global `EffectSet`. Authority, trust, resource,
+  failure/control, termination, and escaping-mutation checks remain to complete
+  the contract.
+- First heavyweight client landed: programmable layouts
   ([`programmable_layouts.md`](programmable_layouts.md)) — the compiler
   invokes `Layout::plan(schema)` at build time and derives codecs,
   projections, and value types from the validated Plan.
 
 ## Recommendations
 
-1. **First position: fixed-array lengths** (`[T; N]` where N is an
+1. **First position: fixed-array lengths** (`[T; N]` where N is a
    build-time-admissible machine call). Lowest coupling, biggest proof leverage
    (lengths drive index facts). Const type params follow in stage 3. Data field
    defaults are forbidden; constructor machines may still be evaluated in
@@ -63,7 +71,7 @@ remaining engineering sequence.
   build-time-evaluable(callee) requires empty service reach, no possible
   suspension or blocking, build-time-valid authority/trust/resource/failure
   behavior, termination, and no escaping runtime mutation. No annotation; the
-   position makes it build-time, the effect system makes it legal.
+   position makes it build-time, the contract system makes it legal.
 3. **Termination and evaluator budget**: every compiler-run invocation must
   have an `EventualTerminal` guarantee available from its visible contract or
   checked local summary. Recursive calls carry checked decreasing measures;
@@ -89,7 +97,7 @@ remaining engineering sequence.
    mechanism, no special cases.
 7. **Failure UX**: compile error at the const site naming the position and
    the failing machine (no silent fallback), with the call chain to the
-   offending effect.
+   offending contract axis.
 
 ## Touches
 
@@ -100,8 +108,10 @@ evaluation entry point + error reporting), resolved→typed lowering
 
 ## Staging
 
-1. Build-time evaluation entry point + contract gate + target-width audit +
-   failure diagnostics; the layouts `plan()` call site as the pilot client
+1. Build-time evaluation entry point + normalized service/operational gate +
+   target-width audit + failure diagnostics are landed for the current const
+   and policy clients. Complete the remaining contract axes; the layouts
+   `plan()` call site is the pilot client
    (see programmable_layouts.md) alongside or ahead of array lengths;
    Equatable-via-generator as a hand-wired pilot.
 2. General generator expansion framework; Hashable; retire equatable.rs.

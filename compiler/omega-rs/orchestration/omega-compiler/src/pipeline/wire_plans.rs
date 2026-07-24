@@ -8,7 +8,7 @@
 //! `CompactBinary::plan(schema: Schema) -> Plan` machine (the Grammar law:
 //! policies author plan(), everything else is derived), the compiler
 //! MATERIALIZES each schema's facts (size/align/number/KIND), evaluates the
-//! policy at build time (the L0 engine, purity-gated), and extracts the
+//! policy at build time (the L0 engine, contract-gated), and extracts the
 //! placements from the returned Plan's FieldPlan cases. The Rust-side
 //! classification below stays as the AGREEMENT ORACLE during the transition:
 //! a policy whose placements diverge from the codec's walk is a compile
@@ -103,6 +103,8 @@ pub(crate) fn compute_wire_plans(typed: &mut TypedTrees) -> Result<(), Vec<Diagn
         .machines()
         .iter()
         .any(|machine| machine.name.as_str() == WIRE_GRAMMAR_POLICY);
+    let admission =
+        policy_exists.then(|| super::build_time_admission::BuildTimeAdmissionPlan::infer(typed));
 
     let mut plans = Vec::with_capacity(classified.len());
     for (symbol, schema_name, fields) in classified {
@@ -122,8 +124,15 @@ pub(crate) fn compute_wire_plans(typed: &mut TypedTrees) -> Result<(), Vec<Diagn
         if policy_exists {
             // THE POLICY AUTHORS THE PLAN: evaluate it against the schema's
             // materialized facts and require agreement with the codec walk.
-            let authored = evaluate_wire_policy(typed, &schema_name, &fields)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            let authored = evaluate_wire_policy(
+                typed,
+                admission
+                    .as_ref()
+                    .expect("a policy admission plan exists with the policy"),
+                &schema_name,
+                &fields,
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
             if authored != derived {
                 return Err(vec![Diagnostic::error(format!(
                     "wire grammar policy `{WIRE_GRAMMAR_POLICY}` disagrees with the schema \
@@ -142,34 +151,20 @@ pub(crate) fn compute_wire_plans(typed: &mut TypedTrees) -> Result<(), Vec<Diagn
     Ok(())
 }
 
-/// Evaluate `CompactBinary::plan` (purity-gated, build-time) against the
+/// Evaluate `CompactBinary::plan` (contract-gated, build-time) against the
 /// schema's facts and extract the authored placements, TAG-SORTED.
 fn evaluate_wire_policy(
     typed: &TypedTrees,
+    admission: &super::build_time_admission::BuildTimeAdmissionPlan,
     schema_name: &str,
     fields: &[(i64, FieldShape)],
 ) -> Result<Vec<WirePlacement>, String> {
-    // The purity gate: same discipline as compute_layout_plan (decision 12's
-    // transitive effect surface must be empty).
-    let effect_plan = omega_effects::infer_effects(typed);
     let machine = typed
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == WIRE_GRAMMAR_POLICY)
         .expect("caller checked the policy exists");
-    let transitive = effect_plan
-        .machines()
-        .iter()
-        .find(|entry| entry.symbol == machine.symbol)
-        .map(|entry| entry.transitive)
-        .unwrap_or_else(omega_effects::EffectSet::empty);
-    if !transitive.is_empty() {
-        return Err(format!(
-            "wire grammar policy `{WIRE_GRAMMAR_POLICY}` is not effect-free: it reaches \
-             effects `{}`; only effect-free machines run at build time",
-            transitive.names().collect::<Vec<_>>().join(", ")
-        ));
-    }
+    admission.require_service_and_operational_floor(typed, machine)?;
 
     let schema_value = build_wire_schema_value(fields);
     let plan = omega_interpreter::evaluate_build_time_machine(

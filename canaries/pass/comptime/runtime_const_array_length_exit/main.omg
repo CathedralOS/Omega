@@ -1,8 +1,8 @@
 // COMPTIME STAGE 1 -- CONST EVALUATION OF FIXED-ARRAY LENGTHS: `[i64;
-// table_size()]` calls an EFFECT-FREE machine in a constant position; the
+// table_size()]` calls a BUILD-TIME-ADMISSIBLE machine in a constant position; the
 // compiler evaluates it via the reference interpreter at compile time and the
 // array lays out exactly as `[i64; 16]` would (chapter 13: the position makes
-// it comptime, the effect system makes it legal -- no keyword). The callee
+// it comptime, the contract system makes it legal -- no keyword). The callee
 // returns arithmetic (12 + 4), not a bare literal, so the canary pins actual
 // EVALUATION, not literal forwarding. At runtime both ends of the array are
 // written and read back through a guard ladder: index 15 only type-checks if

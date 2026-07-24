@@ -1125,11 +1125,18 @@ stronger operations it needs instead of citing machine parameters generally.
   admission, provider schema identity, contract fingerprints, tree snapshots,
   and machine/capability manifests. Ordinary policy traits cannot enter these
   rows, and artifact identity renders canonical service names rather than
-  program-local row or numeric-bit IDs. Remaining work is to migrate the
-  legacy capability/authority, flow/graph, build-time purity, inline-assembly,
-  and component-report consumers to these normalized rows, migrate remaining
-  lowercase fixtures, derive any required compatibility projection from the
-  rows, and then delete the global service-name/u64 engine entirely. The direct-call
+  program-local row or numeric-bit IDs. Pure build-time clients now share one
+  necessary admission gate over canonical effective service reach and the
+  independent suspension/blocking summaries: fixed-array lengths,
+  const-generic call leaves, machine-backed const-domain facts, layout plans,
+  wire plans, and calling-policy plans no longer consult `EffectSet`. The
+  complete build-time contract still needs its separately tracked authority,
+  trust, resource, failure/control, termination, and escaping-mutation axes.
+  Remaining EFX work is to migrate the legacy capability/authority,
+  flow/graph, inline-assembly, and component-report consumers to these
+  normalized rows, migrate remaining lowercase fixtures, derive any required
+  compatibility projection from the rows, and then delete the global
+  service-name/u64 engine entirely. The direct-call
   acknowledgement keyword is a separate owner decision and must consume the
   normalized suspension/blocking plans rather than source-token presence.
 - **TPR4/TPR6 — publication and progress profiles.** Serialize public
@@ -1538,7 +1545,8 @@ stronger operations it needs instead of citing machine parameters generally.
   evaluate for each concrete clone while the surviving generic template keeps
   a validated const-parameter dependency placeholder for its ordinary kind/type
   checks. Zero-argument machine calls in const-generic position now reuse the
-  fixed-array const evaluator's typed transitive-purity gate, interpreter fuel,
+  fixed-array const evaluator's normalized service/operational gate,
+  interpreter fuel,
   and target integer semantics before instance synthesis; call leaves compose
   with the checked arithmetic expression fold, while parameterized and
   effectful calls reject loudly. Boolean `where` facts whose operands are all
@@ -1550,7 +1558,7 @@ stronger operations it needs instead of citing machine parameters generally.
   shifts and bitwise operations now wait for the parameter declaration and use
   its exact signed/unsigned width, including arithmetic signed right shift and
   overflow/range rejection. Const membership now evaluates the ordinary
-  domain-body fact list directly, retaining inferred transitive-effect and
+  domain-body fact list directly, retaining normalized build-time-contract and
   signature checks, checked integer operands, logical negation, nested
   memberships, nested direct machine-backed facts, and conservative cycle
   handling. Continue with arithmetic-domain semantics and richer build-time
@@ -1576,8 +1584,11 @@ stronger operations it needs instead of citing machine parameters generally.
   compiler-owned `Type::equals` wrapper over the same structural expansion as
   `==`/`!=`; a written implementation still wins. Generalize this closed core
   privilege through build-time trait generators below.
-- **Build-time evaluation.** Add compile-time evaluation and trait generators
-  for effect-free machines in value/refinement position.
+- **Build-time evaluation.** Extend the landed build-time evaluator from fixed
+  arrays, const-generic calls, machine-backed domain facts, and compiler-owned
+  policy plans into richer value/refinement positions; complete the remaining
+  authority/trust/resource/failure/termination/mutation admission axes, then
+  add reflection-driven trait generators.
 - **Separate compilation and component artifacts.** Normalize imports, pinned
   contracts, provider selections, artifact identities, and replacement
   certificates without hashing private implementation witnesses into public

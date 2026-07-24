@@ -8888,9 +8888,9 @@ fn runtime_wire_roundtrip_nested_and_repeated_exit_canary_runs() {
 
 #[test]
 fn runtime_const_array_length_transitive_exit_canary_runs() {
-    // Comptime stage 1, transitive purity: the const-position callee CALLS
-    // another effect-free machine (base() * 3 + 1 = 16), pinning that const
-    // evaluation runs the call machinery, not just expression folding.
+    // Comptime stage 1, transitive admission: the const-position callee CALLS
+    // another build-time-admissible machine (base() * 3 + 1 = 16), pinning
+    // that const evaluation runs the call machinery, not just expression folding.
     let canary = pass_canary("comptime/runtime_const_array_length_transitive_exit");
     let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
@@ -9779,7 +9779,7 @@ fn runtime_value_transition_unsigned_guard_exit_canary_runs() {
 #[test]
 fn runtime_const_array_length_exit_canary_runs() {
     // COMPTIME STAGE 1: `slots: [i64; table_size()]` sizes a data field by an
-    // effect-free machine call, const-evaluated by the reference interpreter
+    // build-time-admissible machine call, evaluated by the reference interpreter
     // before checking/layout (the callee computes 12 + 4, pinning evaluation,
     // not literal forwarding). Indexing slots[15] only type-checks if the
     // substituted Literal(16) reached the range checker, and the values only
