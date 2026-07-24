@@ -812,8 +812,10 @@ schemas recover the same instance without publishing policy type identity.
      profile-qualified AMD #HV/#VC/#SX identities and the three v1 IST vector
      selections. A second pure fact record binds the double-fault, NMI,
      machine-check, and shared maskable-IRQ analysis classes to hardware IST
-     indices from one source of truth. Entry contracts, stubs, stack
-     provisioning, and publication remain.
+     indices from one source of truth. Cathedral's core profile now composes
+     the double-fault, NMI, machine-check, and remapped legacy-timer vectors
+     with those exact records rather than restating stack numbers. Entry
+     contracts, stubs, stack provisioning, and publication remain.
    - Provision one shared per-CPU IST stack class for all maskable external
      roots. Use interrupt gates, keep IF clear until deriver-owned exit, and
      include the maximum current-stack fatal-fault term in its WCSU.

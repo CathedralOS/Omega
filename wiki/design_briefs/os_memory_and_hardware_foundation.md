@@ -930,7 +930,10 @@ interrupt machine species.
   policy record so the ledger and IDT/TSS materializer cannot drift. Its first
   profile assigns double fault, NMI, and machine check to dedicated classes and
   ISTs 1/2/3, and the shared maskable-IRQ class to 4. This record grants neither
-  stack storage nor installation authority.
+  stack storage nor installation authority. Cathedral's core policy composes
+  the three fault vectors and remapped legacy-timer vector with those exact
+  records; root admission and gate materialization must consume that
+  composition rather than pairing vectors and ISTs independently.
 - Synchronous faults remain possible with IF clear. In v1, a fault raised while
   a hard external root is live is fatal; ordinary current-stack fault handlers
   contribute their bounded frame demand to the external-IRQ stack peak.
