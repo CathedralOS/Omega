@@ -5,6 +5,7 @@
 //! runtime's preemption granularity.
 
 use omega_core::trust::{TrustCommitment, TrustReceipt};
+use std::collections::{BTreeMap, BTreeSet};
 
 macro_rules! normalized_id {
     ($name:ident, $label:literal) => {
@@ -34,8 +35,13 @@ normalized_id!(MachineEntryId, "machine-entry");
 normalized_id!(ValueLayoutId, "value-layout");
 normalized_id!(CallingPlanId, "calling-plan");
 normalized_id!(TaskRuntimeId, "task-runtime");
+normalized_id!(TaskRuntimeInstanceId, "task-runtime-instance");
 normalized_id!(ActivationPlanId, "activation-plan");
 normalized_id!(ActivationAdmissionId, "activation-admission");
+normalized_id!(ActivationInstanceId, "activation-instance");
+normalized_id!(TaskStorageOwnerId, "task-storage-owner");
+normalized_id!(TaskStorageLeaseId, "task-storage-lease");
+normalized_id!(TaskLifecycleClaimId, "task-lifecycle-claim");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SameCpuDemand {
@@ -281,6 +287,7 @@ pub struct TaskRuntimeAdmission {
     runtime: TaskRuntimeId,
     machine_contract: MachineContractId,
     selected_migration_demand: MigrationDemand,
+    inline_completion: InlineCompletionBehavior,
 }
 
 impl TaskRuntimeAdmission {
@@ -294,6 +301,10 @@ impl TaskRuntimeAdmission {
 
     pub const fn selected_migration_demand(&self) -> MigrationDemand {
         self.selected_migration_demand
+    }
+
+    pub const fn inline_completion(&self) -> InlineCompletionBehavior {
+        self.inline_completion
     }
 }
 
@@ -368,7 +379,298 @@ pub fn admit_activation(
         runtime: runtime.runtime,
         machine_contract: candidate.machine_contract,
         selected_migration_demand: demand,
+        inline_completion: contract.inline_completion,
     })
+}
+
+/// Provider-normalized identity of one persistent activation-storage lease.
+///
+/// This record is provenance, not the source-visible lease authority. The
+/// provider owns minting and transfers the corresponding linear lease through
+/// the task-start outcome; the lifecycle ledger retains only the exact
+/// owner/lease edge needed to reject premature reclamation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TaskStorageProvenance {
+    pub owner: TaskStorageOwnerId,
+    pub lease: TaskStorageLeaseId,
+}
+
+/// Physical-storage relationship selected for one accepted activation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskStorageBinding {
+    Persistent(TaskStorageProvenance),
+    /// The activation completed during start and retained no persistent
+    /// activation storage. Its lifecycle claim still requires settlement.
+    InlineCompletion,
+}
+
+/// Auditable dependency retained for every live task claim.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TaskDependencyRecord {
+    pub claim: TaskLifecycleClaimId,
+    pub runtime: TaskRuntimeId,
+    pub runtime_instance: TaskRuntimeInstanceId,
+    pub admission: ActivationAdmissionId,
+    pub activation: ActivationInstanceId,
+    pub storage: TaskStorageBinding,
+}
+
+/// Source-level `Task<T>` is linear. This normalized carrier mirrors that
+/// property by withholding `Clone`/`Copy` and exposing no public constructor.
+#[derive(Debug, PartialEq, Eq)]
+pub struct TaskLifecycleClaim {
+    record: TaskDependencyRecord,
+}
+
+impl TaskLifecycleClaim {
+    pub const fn identity(&self) -> TaskLifecycleClaimId {
+        self.record.claim
+    }
+
+    pub const fn runtime_instance(&self) -> TaskRuntimeInstanceId {
+        self.record.runtime_instance
+    }
+
+    pub const fn activation(&self) -> ActivationInstanceId {
+        self.record.activation
+    }
+
+    pub const fn storage(&self) -> TaskStorageBinding {
+        self.record.storage
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct SettledTaskLifecycle {
+    record: TaskDependencyRecord,
+}
+
+impl SettledTaskLifecycle {
+    pub const fn identity(&self) -> TaskLifecycleClaimId {
+        self.record.claim
+    }
+
+    /// Returns the exact storage relationship released by terminal task
+    /// settlement. A provider may reclaim/recycle persistent storage only
+    /// after receiving this result.
+    pub const fn released_storage(&self) -> TaskStorageBinding {
+        self.record.storage
+    }
+}
+
+#[derive(Debug)]
+pub struct TaskSettlementError {
+    claim: TaskLifecycleClaim,
+    diagnostic: TaskPlanDiagnostic,
+}
+
+impl TaskSettlementError {
+    pub const fn diagnostic(&self) -> &TaskPlanDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_claim(self) -> TaskLifecycleClaim {
+        self.claim
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct ClosedTaskRuntime {
+    runtime: TaskRuntimeId,
+    instance: TaskRuntimeInstanceId,
+}
+
+impl ClosedTaskRuntime {
+    pub const fn runtime(&self) -> TaskRuntimeId {
+        self.runtime
+    }
+
+    pub const fn instance(&self) -> TaskRuntimeInstanceId {
+        self.instance
+    }
+}
+
+#[derive(Debug)]
+pub struct TaskRuntimeCloseError {
+    ledger: TaskLifecycleLedger,
+    diagnostic: TaskPlanDiagnostic,
+}
+
+impl TaskRuntimeCloseError {
+    pub const fn diagnostic(&self) -> &TaskPlanDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_ledger(self) -> TaskLifecycleLedger {
+        self.ledger
+    }
+}
+
+/// Provider-local accounting for operational custody, physical storage, and
+/// the independently held lifecycle claim.
+///
+/// A runtime instance has one ledger. Accepting an activation records the
+/// exact admitted provider and storage dependency before a `Task<T>` claim is
+/// issued. Terminal settlement removes that dependency. Runtime close and
+/// storage reclamation fail while any matching child claim remains live.
+#[derive(Debug)]
+pub struct TaskLifecycleLedger {
+    runtime: TaskRuntimeId,
+    instance: TaskRuntimeInstanceId,
+    live: BTreeMap<TaskLifecycleClaimId, TaskDependencyRecord>,
+    used_activations: BTreeSet<ActivationInstanceId>,
+    used_storage_leases: BTreeSet<TaskStorageProvenance>,
+}
+
+impl TaskLifecycleLedger {
+    pub fn new(runtime: &AdmittedTaskRuntimeContract, instance: TaskRuntimeInstanceId) -> Self {
+        Self {
+            runtime: runtime.runtime(),
+            instance,
+            live: BTreeMap::new(),
+            used_activations: BTreeSet::new(),
+            used_storage_leases: BTreeSet::new(),
+        }
+    }
+
+    pub fn records(&self) -> impl Iterator<Item = &TaskDependencyRecord> {
+        self.live.values()
+    }
+
+    pub fn accept_activation(
+        &mut self,
+        admission: &TaskRuntimeAdmission,
+        activation: ActivationInstanceId,
+        storage: TaskStorageBinding,
+    ) -> Result<TaskLifecycleClaim, TaskPlanDiagnostic> {
+        if admission.runtime != self.runtime {
+            return Err(TaskPlanDiagnostic(
+                "task claim admission belongs to a different runtime provider".into(),
+            ));
+        }
+        if self.used_activations.contains(&activation) {
+            return Err(TaskPlanDiagnostic(
+                "task activation identity has already been accepted by this runtime instance"
+                    .into(),
+            ));
+        }
+        match storage {
+            TaskStorageBinding::Persistent(provenance) => {
+                if self.used_storage_leases.contains(&provenance) {
+                    return Err(TaskPlanDiagnostic(
+                        "task storage lease identity has already been used; storage reuse requires a new lease era"
+                            .into(),
+                    ));
+                }
+            }
+            TaskStorageBinding::InlineCompletion
+                if admission.inline_completion != InlineCompletionBehavior::MayCompleteInline =>
+            {
+                return Err(TaskPlanDiagnostic(
+                    "runtime admission does not permit inline completion without persistent activation storage"
+                        .into(),
+                ));
+            }
+            TaskStorageBinding::InlineCompletion => {}
+        }
+
+        let claim = TaskLifecycleClaimId(fingerprint_task_claim(
+            admission,
+            self.instance,
+            activation,
+            storage,
+        ));
+        if self.live.contains_key(&claim) {
+            return Err(TaskPlanDiagnostic(
+                "normalized task lifecycle claim identity collides with a live claim".into(),
+            ));
+        }
+        let record = TaskDependencyRecord {
+            claim,
+            runtime: self.runtime,
+            runtime_instance: self.instance,
+            admission: admission.identity,
+            activation,
+            storage,
+        };
+        self.used_activations.insert(activation);
+        if let TaskStorageBinding::Persistent(provenance) = storage {
+            self.used_storage_leases.insert(provenance);
+        }
+        self.live.insert(claim, record);
+        Ok(TaskLifecycleClaim { record })
+    }
+
+    /// Cancellation requests preserve the lifecycle obligation. This check is
+    /// intentionally read-only: only terminal settlement removes the record.
+    pub fn validate_cancellation_request(
+        &self,
+        claim: &TaskLifecycleClaim,
+    ) -> Result<(), TaskPlanDiagnostic> {
+        if self.live.get(&claim.record.claim) == Some(&claim.record) {
+            Ok(())
+        } else {
+            Err(TaskPlanDiagnostic(
+                "cancellation requires the exact live task lifecycle claim".into(),
+            ))
+        }
+    }
+
+    pub fn settle(
+        &mut self,
+        claim: TaskLifecycleClaim,
+    ) -> Result<SettledTaskLifecycle, TaskSettlementError> {
+        if self.live.get(&claim.record.claim) != Some(&claim.record) {
+            return Err(TaskSettlementError {
+                claim,
+                diagnostic: TaskPlanDiagnostic(
+                    "task settlement requires the exact live runtime/activation/storage claim"
+                        .into(),
+                ),
+            });
+        }
+        self.live.remove(&claim.record.claim);
+        Ok(SettledTaskLifecycle {
+            record: claim.record,
+        })
+    }
+
+    /// Validate the provider's storage-reclaim precondition. The storage
+    /// authority itself remains outside this normalized ledger.
+    pub fn validate_storage_reclaim(
+        &self,
+        storage: TaskStorageProvenance,
+    ) -> Result<(), TaskPlanDiagnostic> {
+        if self
+            .live
+            .values()
+            .any(|record| record.storage == TaskStorageBinding::Persistent(storage))
+        {
+            return Err(TaskPlanDiagnostic(
+                "task storage cannot be reclaimed while a dependent lifecycle claim is live".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Close consumes the provider-local ledger only when every child task
+    /// claim has been terminally settled or transferred out through a future
+    /// explicitly accounted operation.
+    pub fn close(self) -> Result<ClosedTaskRuntime, TaskRuntimeCloseError> {
+        if !self.live.is_empty() {
+            return Err(TaskRuntimeCloseError {
+                diagnostic: TaskPlanDiagnostic(format!(
+                    "task runtime cannot close while {} dependent lifecycle claim(s) remain live",
+                    self.live.len()
+                )),
+                ledger: self,
+            });
+        }
+        Ok(ClosedTaskRuntime {
+            runtime: self.runtime,
+            instance: self.instance,
+        })
+    }
 }
 
 fn fingerprint_activation_plan(plan: &ActivationPlanCandidate) -> u64 {
@@ -435,6 +737,28 @@ fn fingerprint_admission(
     let mut fingerprint = Fingerprint::new();
     fingerprint.word(plan.normalized_identity().normalized_identity());
     fingerprint.word(runtime.runtime.normalized_identity());
+    fingerprint.finish()
+}
+
+fn fingerprint_task_claim(
+    admission: &TaskRuntimeAdmission,
+    runtime_instance: TaskRuntimeInstanceId,
+    activation: ActivationInstanceId,
+    storage: TaskStorageBinding,
+) -> u64 {
+    let mut fingerprint = Fingerprint::new();
+    fingerprint.word(admission.identity.normalized_identity());
+    fingerprint.word(admission.runtime.normalized_identity());
+    fingerprint.word(runtime_instance.normalized_identity());
+    fingerprint.word(activation.normalized_identity());
+    match storage {
+        TaskStorageBinding::Persistent(provenance) => {
+            fingerprint.byte(1);
+            fingerprint.word(provenance.owner.normalized_identity());
+            fingerprint.word(provenance.lease.normalized_identity());
+        }
+        TaskStorageBinding::InlineCompletion => fingerprint.byte(2),
+    }
     fingerprint.finish()
 }
 
@@ -705,5 +1029,182 @@ mod tests {
         let changed_admission =
             admit_activation(&plan, &changed_runtime).expect("changed runtime admission");
         assert_ne!(admission.identity(), changed_admission.identity());
+    }
+
+    #[test]
+    fn lifecycle_claim_pins_provider_and_storage_until_terminal_settlement() {
+        let runtime = runtime();
+        let plan = validate_activation_plan(candidate()).expect("activation plan");
+        let admission = admit_activation(&plan, &runtime).expect("runtime admission");
+        let instance = id(100, TaskRuntimeInstanceId::from_normalized_identity);
+        let activation = id(101, ActivationInstanceId::from_normalized_identity);
+        let storage = TaskStorageProvenance {
+            owner: id(102, TaskStorageOwnerId::from_normalized_identity),
+            lease: id(103, TaskStorageLeaseId::from_normalized_identity),
+        };
+        let mut ledger = TaskLifecycleLedger::new(&runtime, instance);
+        let claim = ledger
+            .accept_activation(
+                &admission,
+                activation,
+                TaskStorageBinding::Persistent(storage),
+            )
+            .expect("accepted activation");
+
+        assert_eq!(ledger.records().count(), 1);
+        ledger
+            .validate_cancellation_request(&claim)
+            .expect("cancellation preserves the live claim");
+        let reclaim = ledger
+            .validate_storage_reclaim(storage)
+            .expect_err("live task pins its child storage");
+        assert!(reclaim.0.contains("dependent lifecycle claim"));
+
+        let close = ledger.close().expect_err("live child blocks runtime close");
+        assert!(close.diagnostic().0.contains("1 dependent"));
+        let mut ledger = close.into_ledger();
+        let settled = ledger.settle(claim).expect("terminal settlement");
+        assert_eq!(
+            settled.released_storage(),
+            TaskStorageBinding::Persistent(storage)
+        );
+        ledger
+            .validate_storage_reclaim(storage)
+            .expect("settlement releases the storage dependency");
+        let closed = ledger.close().expect("settled runtime closes");
+        assert_eq!(closed.instance(), instance);
+        assert_eq!(closed.runtime(), runtime.runtime());
+    }
+
+    #[test]
+    fn lifecycle_rejects_replayed_activation_and_storage_eras() {
+        let runtime = runtime();
+        let plan = validate_activation_plan(candidate()).expect("activation plan");
+        let admission = admit_activation(&plan, &runtime).expect("runtime admission");
+        let instance = id(110, TaskRuntimeInstanceId::from_normalized_identity);
+        let first_activation = id(111, ActivationInstanceId::from_normalized_identity);
+        let second_activation = id(112, ActivationInstanceId::from_normalized_identity);
+        let storage = TaskStorageProvenance {
+            owner: id(113, TaskStorageOwnerId::from_normalized_identity),
+            lease: id(114, TaskStorageLeaseId::from_normalized_identity),
+        };
+        let alternate_storage = TaskStorageProvenance {
+            owner: storage.owner,
+            lease: id(115, TaskStorageLeaseId::from_normalized_identity),
+        };
+        let mut ledger = TaskLifecycleLedger::new(&runtime, instance);
+        let claim = ledger
+            .accept_activation(
+                &admission,
+                first_activation,
+                TaskStorageBinding::Persistent(storage),
+            )
+            .expect("first activation");
+
+        let replayed_activation = ledger
+            .accept_activation(
+                &admission,
+                first_activation,
+                TaskStorageBinding::Persistent(alternate_storage),
+            )
+            .expect_err("activation identity cannot replay");
+        assert!(replayed_activation.0.contains("already been accepted"));
+
+        let replayed_lease = ledger
+            .accept_activation(
+                &admission,
+                second_activation,
+                TaskStorageBinding::Persistent(storage),
+            )
+            .expect_err("storage lease era cannot back two claims");
+        assert!(replayed_lease.0.contains("new lease era"));
+
+        ledger.settle(claim).expect("settle first activation");
+        let replay_after_settlement = ledger
+            .accept_activation(
+                &admission,
+                second_activation,
+                TaskStorageBinding::Persistent(storage),
+            )
+            .expect_err("settlement does not make an old lease identity fresh");
+        assert!(replay_after_settlement.0.contains("new lease era"));
+    }
+
+    #[test]
+    fn failed_cross_runtime_settlement_returns_the_linear_claim() {
+        let runtime = runtime();
+        let plan = validate_activation_plan(candidate()).expect("activation plan");
+        let admission = admit_activation(&plan, &runtime).expect("runtime admission");
+        let mut owner = TaskLifecycleLedger::new(
+            &runtime,
+            id(120, TaskRuntimeInstanceId::from_normalized_identity),
+        );
+        let mut wrong_instance = TaskLifecycleLedger::new(
+            &runtime,
+            id(121, TaskRuntimeInstanceId::from_normalized_identity),
+        );
+        let claim = owner
+            .accept_activation(
+                &admission,
+                id(122, ActivationInstanceId::from_normalized_identity),
+                TaskStorageBinding::Persistent(TaskStorageProvenance {
+                    owner: id(123, TaskStorageOwnerId::from_normalized_identity),
+                    lease: id(124, TaskStorageLeaseId::from_normalized_identity),
+                }),
+            )
+            .expect("accepted activation");
+
+        let error = wrong_instance
+            .settle(claim)
+            .expect_err("another runtime instance cannot settle this claim");
+        assert!(error.diagnostic().0.contains("exact live"));
+        let claim = error.into_claim();
+        owner
+            .settle(claim)
+            .expect("failed settlement preserved the claim");
+    }
+
+    #[test]
+    fn no_storage_binding_requires_admitted_inline_completion() {
+        let runtime = runtime();
+        let plan = validate_activation_plan(candidate()).expect("activation plan");
+        let admission = admit_activation(&plan, &runtime).expect("runtime admission");
+        let mut ledger = TaskLifecycleLedger::new(
+            &runtime,
+            id(130, TaskRuntimeInstanceId::from_normalized_identity),
+        );
+        let error = ledger
+            .accept_activation(
+                &admission,
+                id(131, ActivationInstanceId::from_normalized_identity),
+                TaskStorageBinding::InlineCompletion,
+            )
+            .expect_err("non-inline runtime cannot omit persistent storage");
+        assert!(error.0.contains("does not permit inline completion"));
+
+        let mut inline_candidate = candidate();
+        inline_candidate.activation = DistinctActivationRequirement::InlineCompletionAllowed;
+        let inline_plan =
+            validate_activation_plan(inline_candidate).expect("inline-capable activation");
+        let mut inline_runtime_claim = runtime_claim();
+        inline_runtime_claim.inline_completion = InlineCompletionBehavior::MayCompleteInline;
+        let inline_runtime = admitted_runtime(inline_runtime_claim);
+        let inline_admission =
+            admit_activation(&inline_plan, &inline_runtime).expect("inline admission");
+        let mut inline_ledger = TaskLifecycleLedger::new(
+            &inline_runtime,
+            id(132, TaskRuntimeInstanceId::from_normalized_identity),
+        );
+        let claim = inline_ledger
+            .accept_activation(
+                &inline_admission,
+                id(133, ActivationInstanceId::from_normalized_identity),
+                TaskStorageBinding::InlineCompletion,
+            )
+            .expect("inline completion still returns a live lifecycle claim");
+        assert_eq!(claim.storage(), TaskStorageBinding::InlineCompletion);
+        inline_ledger
+            .settle(claim)
+            .expect("completed inline claim still requires settlement");
     }
 }
