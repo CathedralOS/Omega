@@ -1727,8 +1727,12 @@ stronger operations it needs instead of citing machine parameters generally.
   wider hostile varints cannot wrap into an apparently valid destination.
   Varint readers now require canonical minimal LEB128, reject payload bits
   beyond `u64`, and retain the legal ten-group encoding of `u64::MAX`.
-  Implement runtime layout for remaining wire values, additional
-  encoding families, compatibility reports, and version negotiation.
+  Compatibility reports are complete: `04_wire_protocols.txt` records the
+  current schema and adjacent-era compatible, reserved, and migration verdicts.
+  **Design-blocked (OWNER #11):** remaining wire values, additional encoding
+  families, unknown-field policy, and version negotiation depend on unsettled
+  presence/default/migration and publication rules. Do not invent runtime
+  encodings before that contract is settled.
 
 ## Remaining language surfaces
 
