@@ -568,6 +568,8 @@ pub struct ExternalReachReceipt {
     address_space: AddressSpaceId,
     provenance: ExtentProvenanceId,
     era: MappingEraId,
+    lineage: ExtentLineageId,
+    rights: ExtentRights,
     base: u64,
     length: u64,
     mechanism: ExternalReachMechanism,
@@ -575,30 +577,26 @@ pub struct ExternalReachReceipt {
 }
 
 impl ExternalReachReceipt {
-    #[allow(clippy::too_many_arguments)]
     pub fn from_admitted_provider(
         identity: ExternalReachReceiptId,
-        loan: ExternalLoanId,
-        borrower: ExternalBorrowerId,
-        direction: ExternalLoanDirection,
-        address_space: AddressSpaceId,
-        provenance: ExtentProvenanceId,
-        era: MappingEraId,
-        base: u64,
-        length: u64,
+        loan_identity: ExternalLoanId,
+        grant: &ExternalLoanGrant,
+        loan: &ExtentLoan<'_>,
         mechanism: ExternalReachMechanism,
         confined_to_range: bool,
     ) -> Self {
         Self {
             identity,
-            loan,
-            borrower,
-            direction,
-            address_space,
-            provenance,
-            era,
-            base,
-            length,
+            loan: loan_identity,
+            borrower: grant.borrower,
+            direction: grant.direction,
+            address_space: loan.address_space(),
+            provenance: loan.provenance(),
+            era: loan.era(),
+            lineage: loan.lineage_root(),
+            rights: loan.rights().clone(),
+            base: loan.base(),
+            length: loan.length(),
             mechanism,
             confined_to_range,
         }
@@ -714,6 +712,10 @@ impl<'extent> ExternalLoan<'extent> {
             Some("completion receipt names different extent provenance")
         } else if receipt.era != self.loan.era() {
             Some("completion receipt names a stale mapping era")
+        } else if receipt.lineage != self.loan.lineage_root() {
+            Some("completion receipt names a different extent authority lineage")
+        } else if receipt.rights != *self.loan.rights() {
+            Some("completion receipt names different attenuated extent rights")
         } else if receipt.base != self.loan.base() || receipt.length != self.loan.length() {
             Some("completion receipt names a different lent extent range")
         } else if !receipt.borrow_released {
@@ -794,6 +796,12 @@ pub fn begin_external_loan<'extent>(
         Some(receipt) if receipt.era != loan.era() => {
             Some("external-reach receipt names a stale mapping era")
         }
+        Some(receipt) if receipt.lineage != loan.lineage_root() => {
+            Some("external-reach receipt names a different extent authority lineage")
+        }
+        Some(receipt) if receipt.rights != *loan.rights() => {
+            Some("external-reach receipt names different attenuated extent rights")
+        }
         Some(receipt) if receipt.base != loan.base() || receipt.length != loan.length() => {
             Some("external borrower reach is not the exact lent extent range")
         }
@@ -833,6 +841,8 @@ pub struct ExternalCompletionReceipt {
     address_space: AddressSpaceId,
     provenance: ExtentProvenanceId,
     era: MappingEraId,
+    lineage: ExtentLineageId,
+    rights: ExtentRights,
     base: u64,
     length: u64,
     borrow_released: bool,
@@ -855,6 +865,8 @@ impl ExternalCompletionReceipt {
             address_space: loan.loan.address_space(),
             provenance: loan.loan.provenance(),
             era: loan.loan.era(),
+            lineage: loan.loan.lineage_root(),
+            rights: loan.loan.rights().clone(),
             base: loan.loan.base(),
             length: loan.loan.length(),
             borrow_released,
@@ -1167,22 +1179,16 @@ mod tests {
     }
 
     fn reach_receipt(
-        loan: ExternalLoanId,
-        direction: ExternalLoanDirection,
-        base: u64,
-        length: u64,
+        identity: ExternalLoanId,
+        grant: &ExternalLoanGrant,
+        loan: &ExtentLoan<'_>,
         mechanism: ExternalReachMechanism,
     ) -> ExternalReachReceipt {
         ExternalReachReceipt::from_admitted_provider(
             id(800, ExternalReachReceiptId::from_normalized_identity),
+            identity,
+            grant,
             loan,
-            id(500, ExternalBorrowerId::from_normalized_identity),
-            direction,
-            id(10, AddressSpaceId::from_normalized_identity),
-            id(20, ExtentProvenanceId::from_normalized_identity),
-            id(30, MappingEraId::from_normalized_identity),
-            base,
-            length,
             mechanism,
             true,
         )
@@ -1192,25 +1198,21 @@ mod tests {
     fn external_read_loan_requires_completion_facts_before_releasing_borrow() {
         let extent = grant(1, 0x1000, 64);
         let loan = extent.loan(0, 32).expect("shared DMA source");
-        let transfer = begin_external_loan(
-            loan,
+        let grant = external_grant(
+            ExternalLoanDirection::DeviceReads,
+            CompletionObligations::from_normalized_facts([
+                completion_fact(700),
+                completion_fact(701),
+            ]),
+        );
+        let reach = reach_receipt(
             loan_id(600),
-            &external_grant(
-                ExternalLoanDirection::DeviceReads,
-                CompletionObligations::from_normalized_facts([
-                    completion_fact(700),
-                    completion_fact(701),
-                ]),
-            ),
-            Some(reach_receipt(
-                loan_id(600),
-                ExternalLoanDirection::DeviceReads,
-                0x1000,
-                32,
-                ExternalReachMechanism::AdmittedBorrowerContract,
-            )),
-        )
-        .expect("admitted external read");
+            &grant,
+            &loan,
+            ExternalReachMechanism::AdmittedBorrowerContract,
+        );
+        let transfer = begin_external_loan(loan, loan_id(600), &grant, Some(reach))
+            .expect("admitted external read");
         assert_eq!(transfer.direction(), ExternalLoanDirection::DeviceReads);
 
         let incomplete = ExternalCompletionReceipt::from_admitted_provider(
@@ -1237,42 +1239,31 @@ mod tests {
     fn external_write_loan_derives_exclusive_cpu_exclusion() {
         let mut extent = grant(1, 0x2000, 64);
         let shared = extent.loan(0, 16).expect("shared loan");
-        let error = begin_external_loan(
-            shared,
+        let write_grant = external_grant(
+            ExternalLoanDirection::DeviceWrites,
+            CompletionObligations::default(),
+        );
+        let shared_reach = reach_receipt(
             loan_id(601),
-            &external_grant(
-                ExternalLoanDirection::DeviceWrites,
-                CompletionObligations::default(),
-            ),
-            Some(reach_receipt(
-                loan_id(601),
-                ExternalLoanDirection::DeviceWrites,
-                0x2000,
-                16,
-                ExternalReachMechanism::HardwareIsolation,
-            )),
-        )
-        .expect_err("device mutation needs exclusive custody");
+            &write_grant,
+            &shared,
+            ExternalReachMechanism::HardwareIsolation,
+        );
+        let error = begin_external_loan(shared, loan_id(601), &write_grant, Some(shared_reach))
+            .expect_err("device mutation needs exclusive custody");
         assert!(error.diagnostic().0.contains("exclusive"));
         drop((*error).into_loan());
 
         let exclusive = extent.loan_mut(0, 16).expect("exclusive loan");
-        let transfer = begin_external_loan(
-            exclusive,
+        let exclusive_reach = reach_receipt(
             loan_id(602),
-            &external_grant(
-                ExternalLoanDirection::DeviceWrites,
-                CompletionObligations::default(),
-            ),
-            Some(reach_receipt(
-                loan_id(602),
-                ExternalLoanDirection::DeviceWrites,
-                0x2000,
-                16,
-                ExternalReachMechanism::HardwareIsolation,
-            )),
-        )
-        .expect("admitted external write");
+            &write_grant,
+            &exclusive,
+            ExternalReachMechanism::HardwareIsolation,
+        );
+        let transfer =
+            begin_external_loan(exclusive, loan_id(602), &write_grant, Some(exclusive_reach))
+                .expect("admitted external write");
         let receipt = ExternalCompletionReceipt::from_admitted_provider(&transfer, true, []);
         let completion = transfer.complete(receipt).expect("completed DMA write");
         assert_eq!(completion.borrower.normalized_identity(), 500);
@@ -1283,54 +1274,36 @@ mod tests {
     fn external_agent_reach_must_equal_the_lent_extent_and_fail_closed() {
         let extent = grant(1, 0x3000, 128);
         let loan = extent.loan(32, 32).expect("DMA subrange");
-        let missing = begin_external_loan(
-            loan,
-            loan_id(603),
-            &external_grant(
-                ExternalLoanDirection::DeviceReads,
-                CompletionObligations::default(),
-            ),
-            None,
-        )
-        .expect_err("an invisible borrower without reach evidence must reject");
+        let read_grant = external_grant(
+            ExternalLoanDirection::DeviceReads,
+            CompletionObligations::default(),
+        );
+        let missing = begin_external_loan(loan, loan_id(603), &read_grant, None)
+            .expect_err("an invisible borrower without reach evidence must reject");
         assert!(missing.diagnostic().0.contains("reach evidence"));
         let loan = (*missing).into_loan();
 
-        let overbroad = begin_external_loan(
-            loan,
+        let mut overbroad_reach = reach_receipt(
             loan_id(603),
-            &external_grant(
-                ExternalLoanDirection::DeviceReads,
-                CompletionObligations::default(),
-            ),
-            Some(reach_receipt(
-                loan_id(603),
-                ExternalLoanDirection::DeviceReads,
-                0x3000,
-                128,
-                ExternalReachMechanism::HardwareIsolation,
-            )),
-        )
-        .expect_err("whole-parent reach exceeds the exact lent subrange");
+            &read_grant,
+            &loan,
+            ExternalReachMechanism::HardwareIsolation,
+        );
+        overbroad_reach.base = 0x3000;
+        overbroad_reach.length = 128;
+        let overbroad = begin_external_loan(loan, loan_id(603), &read_grant, Some(overbroad_reach))
+            .expect_err("whole-parent reach exceeds the exact lent subrange");
         assert!(overbroad.diagnostic().0.contains("exact lent extent range"));
         let loan = (*overbroad).into_loan();
 
-        let transfer = begin_external_loan(
-            loan,
+        let exact_reach = reach_receipt(
             loan_id(603),
-            &external_grant(
-                ExternalLoanDirection::DeviceReads,
-                CompletionObligations::default(),
-            ),
-            Some(reach_receipt(
-                loan_id(603),
-                ExternalLoanDirection::DeviceReads,
-                0x3020,
-                32,
-                ExternalReachMechanism::HardwareIsolation,
-            )),
-        )
-        .expect("exact subrange isolation");
+            &read_grant,
+            &loan,
+            ExternalReachMechanism::HardwareIsolation,
+        );
+        let transfer = begin_external_loan(loan, loan_id(603), &read_grant, Some(exact_reach))
+            .expect("exact subrange isolation");
         assert_eq!((transfer.base(), transfer.length()), (0x3020, 32));
         assert_eq!(
             transfer.reach_mechanism(),
@@ -1341,45 +1314,36 @@ mod tests {
     #[test]
     fn external_completion_cannot_replay_after_lent_authority_drift() {
         let first_extent = grant(1, 0x4000, 64);
-        let first = begin_external_loan(
-            first_extent.loan(0, 16).expect("first DMA range"),
+        let read_grant = external_grant(
+            ExternalLoanDirection::DeviceReads,
+            CompletionObligations::default(),
+        );
+        let first_loan = first_extent.loan(0, 16).expect("first DMA range");
+        let first_reach = reach_receipt(
             loan_id(604),
-            &external_grant(
-                ExternalLoanDirection::DeviceReads,
-                CompletionObligations::default(),
-            ),
-            Some(reach_receipt(
-                loan_id(604),
-                ExternalLoanDirection::DeviceReads,
-                0x4000,
-                16,
-                ExternalReachMechanism::HardwareIsolation,
-            )),
-        )
-        .expect("first external loan");
+            &read_grant,
+            &first_loan,
+            ExternalReachMechanism::HardwareIsolation,
+        );
+        let first = begin_external_loan(first_loan, loan_id(604), &read_grant, Some(first_reach))
+            .expect("first external loan");
         let stale = ExternalCompletionReceipt::from_admitted_provider(&first, true, []);
 
-        let second_extent = grant(2, 0x5000, 64);
-        let second = begin_external_loan(
-            second_extent.loan(0, 16).expect("second DMA range"),
+        let second_extent = grant(2, 0x4000, 64);
+        let second_loan = second_extent.loan(0, 16).expect("second DMA range");
+        let second_reach = reach_receipt(
             loan_id(604),
-            &external_grant(
-                ExternalLoanDirection::DeviceReads,
-                CompletionObligations::default(),
-            ),
-            Some(reach_receipt(
-                loan_id(604),
-                ExternalLoanDirection::DeviceReads,
-                0x5000,
-                16,
-                ExternalReachMechanism::HardwareIsolation,
-            )),
-        )
-        .expect("second external loan");
+            &read_grant,
+            &second_loan,
+            ExternalReachMechanism::HardwareIsolation,
+        );
+        let second =
+            begin_external_loan(second_loan, loan_id(604), &read_grant, Some(second_reach))
+                .expect("second external loan");
 
         let error = second
             .complete(stale)
-            .expect_err("completion for the prior range must not replay");
-        assert!(error.diagnostic().0.contains("lent extent range"));
+            .expect_err("completion for another authority lineage must not replay");
+        assert!(error.diagnostic().0.contains("authority lineage"));
     }
 }
