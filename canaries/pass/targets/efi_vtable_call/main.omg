@@ -18,7 +18,9 @@ data EfiSystemTable {
     console_in_handle: addr; con_in: addr; console_out_handle: addr; con_out: addr;
 }
 data Main { out: TextOutput; msg: [u16; 19]; }
-boundary machine Main::run(&self, handle: addr, table: &EfiSystemTable) -> i32 {
+boundary machine Main::run(&self, handle: addr, table: &EfiSystemTable) -> i32
+effects TextOutput
+{
     self.msg = utf16"Hello from Omega\r\n\0";
     let con_out: addr = table.con_out;
     self.out.output_string(con_out, &self.msg);
