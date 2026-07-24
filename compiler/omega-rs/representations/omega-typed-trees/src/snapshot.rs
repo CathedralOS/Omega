@@ -526,6 +526,7 @@ pub enum TypeReferenceSnapshot {
     },
     Generic {
         base_name: String,
+        lifetime_arguments: Vec<String>,
         arguments: Vec<TypeReferenceSnapshot>,
     },
     DynamicTrait {
@@ -1222,10 +1223,12 @@ fn type_reference_snapshot(
         },
         TypeReferenceNode::Generic {
             base_name,
+            lifetime_arguments,
             arguments,
             ..
         } => TypeReferenceSnapshot::Generic {
             base_name: base_name.to_string(),
+            lifetime_arguments: lifetime_arguments.iter().map(ToString::to_string).collect(),
             arguments: program
                 .type_reference_table
                 .type_reference_handles(*arguments)

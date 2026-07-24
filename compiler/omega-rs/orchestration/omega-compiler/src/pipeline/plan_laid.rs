@@ -113,6 +113,7 @@ pub(crate) fn desugar_plan_laid_value_types(
             };
             let TypeReferenceNode::Generic {
                 base_name,
+                lifetime_arguments,
                 arguments,
             } = syntax
                 .tables
@@ -121,6 +122,9 @@ pub(crate) fn desugar_plan_laid_value_types(
             else {
                 continue;
             };
+            if !lifetime_arguments.is_empty() {
+                continue;
+            }
             let base = base_name.as_str();
             let Some(base_info) = data_index.get(base) else {
                 continue; // unknown base: existing generic-type paths diagnose

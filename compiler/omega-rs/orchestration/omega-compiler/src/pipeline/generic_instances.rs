@@ -60,6 +60,7 @@ struct GenericData {
 struct PendingRewrite {
     type_reference: TypeReferenceHandle,
     synthetic_name: String,
+    lifetime_arguments: Vec<Identifier>,
 }
 
 /// One discovered instantiation: the base generic definition and the argument
@@ -489,10 +490,19 @@ pub(crate) fn desugar_generic_data_instances(
 
         // Rewrite this round's spellings to the synthesized instances' plain names.
         for rewrite in rewrites {
-            syntax.tables.type_references.replace_type_reference(
-                rewrite.type_reference,
-                TypeReferenceNode::Named(Identifier::generated(rewrite.synthetic_name)),
-            );
+            let rewritten = if rewrite.lifetime_arguments.is_empty() {
+                TypeReferenceNode::Named(Identifier::generated(rewrite.synthetic_name))
+            } else {
+                TypeReferenceNode::Generic {
+                    base_name: Identifier::generated(rewrite.synthetic_name),
+                    lifetime_arguments: rewrite.lifetime_arguments,
+                    arguments: HandleSpan::empty(),
+                }
+            };
+            syntax
+                .tables
+                .type_references
+                .replace_type_reference(rewrite.type_reference, rewritten);
         }
     }
 
@@ -975,6 +985,7 @@ fn normalize_template_type_reference(
         TypeReferenceNode::Generic {
             base_name,
             arguments,
+            ..
         } => {
             let arguments = syntax
                 .tables
@@ -1104,13 +1115,15 @@ fn consider_generic_spelling(
     rewrites: &mut Vec<PendingRewrite>,
     instantiations: &mut Vec<Instantiation>,
 ) -> Result<(), Diagnostic> {
-    let TypeReferenceNode::Generic {
-        base_name,
-        arguments,
-    } = syntax.tables.type_references.type_reference(type_reference)
-    else {
-        return Ok(());
-    };
+    let (base_name, lifetime_arguments, arguments) =
+        match syntax.tables.type_references.type_reference(type_reference) {
+            TypeReferenceNode::Generic {
+                base_name,
+                lifetime_arguments,
+                arguments,
+            } => (base_name.clone(), lifetime_arguments.clone(), *arguments),
+            _ => return Ok(()),
+        };
     let base = base_name.as_str().to_string();
     let Some(base_info) = generic_data.get(&base) else {
         return Ok(()); // non-generic base: plan-laid / existing error paths
@@ -1119,7 +1132,7 @@ fn consider_generic_spelling(
     let argument_handles: Vec<TypeReferenceHandle> = syntax
         .tables
         .type_references
-        .type_reference_handles(*arguments)
+        .type_reference_handles(arguments)
         .to_vec();
     if argument_handles.len() != base_info.parameter_names.len() {
         return Ok(());
@@ -1190,6 +1203,7 @@ fn consider_generic_spelling(
     rewrites.push(PendingRewrite {
         type_reference,
         synthetic_name: synthetic_name.clone(),
+        lifetime_arguments,
     });
     if !instantiations
         .iter()
@@ -1679,6 +1693,7 @@ fn base_is_fully_monomorphizable(
                 TypeReferenceNode::Generic {
                     base_name,
                     arguments,
+                    ..
                 } => {
                     generic_data.contains_key(base_name.as_str())
                         && syntax
@@ -1754,6 +1769,7 @@ fn substitute_member(
         }
         TypeReferenceNode::Generic {
             base_name,
+            lifetime_arguments,
             arguments,
         } => {
             let argument_handles: Vec<TypeReferenceHandle> = syntax
@@ -1816,6 +1832,7 @@ fn substitute_member(
                     .type_references
                     .insert(TypeReferenceNode::Generic {
                         base_name,
+                        lifetime_arguments,
                         arguments: new_span,
                     });
         }
@@ -1894,5 +1911,64 @@ fn type_reference_mentions_parameter(
         // Anything else: conservative -- possibly parameter-bearing, refuse
         // rather than share a wrong type.
         _ => true,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::desugar_generic_data_instances;
+    use omega_source_files_to_tokens::Lexer;
+    use omega_syntax_trees::item::{DataMember, Item};
+    use omega_syntax_trees::types::TypeReferenceNode;
+    use omega_tokens_to_syntax_trees::parse_syntax_trees;
+
+    #[test]
+    fn runtime_monomorphization_preserves_erased_lifetime_application() {
+        let source = r#"
+            data View<'buf, T> {
+                body: &'buf i32;
+                value: T;
+            }
+
+            data Holder<'call> {
+                view: View<'call, i32>;
+            }
+        "#;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let mut syntax = parse_syntax_trees(&tokens).expect("parse");
+
+        desugar_generic_data_instances(&mut syntax).expect("monomorphize");
+
+        let holder = syntax
+            .root_items()
+            .find_map(|item| match item {
+                Item::Data(data) if data.name.as_str() == "Holder" => Some(data),
+                _ => None,
+            })
+            .expect("Holder");
+        let DataMember::Field(view) = &syntax.items.data_members(holder.members)[0] else {
+            panic!("Holder.view");
+        };
+        let TypeReferenceNode::Generic {
+            base_name,
+            lifetime_arguments,
+            arguments,
+        } = syntax.type_references.type_reference(view.type_reference)
+        else {
+            panic!("lifetime application should survive as an erased generic shell");
+        };
+        assert!(base_name.as_str().starts_with("View<"));
+        assert_eq!(lifetime_arguments[0].as_str(), "call");
+        assert!(arguments.is_empty());
+
+        let instance = syntax
+            .root_items()
+            .find_map(|item| match item {
+                Item::Data(data) if data.name.as_str() == base_name.as_str() => Some(data),
+                _ => None,
+            })
+            .expect("synthesized View instance");
+        assert_eq!(instance.lifetime_parameters[0].as_str(), "buf");
+        assert!(instance.type_parameters.is_empty());
     }
 }

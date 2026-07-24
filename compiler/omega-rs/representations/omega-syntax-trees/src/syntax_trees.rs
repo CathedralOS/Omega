@@ -941,11 +941,15 @@ impl SyntaxTrees {
             }
             TypeReferenceNode::Generic {
                 base_name,
+                lifetime_arguments,
                 arguments,
             } => {
                 let arguments = self.copy_type_reference_handle_span(other, *arguments);
-                self.type_references
-                    .insert_generic(base_name.clone(), arguments)
+                self.type_references.insert(TypeReferenceNode::Generic {
+                    base_name: base_name.clone(),
+                    lifetime_arguments: lifetime_arguments.clone(),
+                    arguments,
+                })
             }
             TypeReferenceNode::ConstExpression(expression) => {
                 let expression = self.copy_expression_handle(other, *expression);

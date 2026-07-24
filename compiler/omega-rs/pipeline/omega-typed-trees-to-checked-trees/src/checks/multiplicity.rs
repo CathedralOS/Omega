@@ -1207,6 +1207,7 @@ fn conditional_linear_payload_inner(
             base_symbol,
             base_name,
             arguments,
+            ..
         } => conditional_linear_payload_generic(
             program,
             *base_symbol,
@@ -1333,6 +1334,7 @@ fn substitutions_for_instantiated_data(
         base_symbol,
         base_name,
         arguments,
+        ..
     } = program.type_reference_table.type_reference(type_reference)
     else {
         return Vec::new();

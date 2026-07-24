@@ -1046,6 +1046,7 @@ impl<'program> Evaluator<'program> {
                 base_symbol,
                 base_name,
                 arguments,
+                ..
             } = self
                 .program
                 .type_reference_table

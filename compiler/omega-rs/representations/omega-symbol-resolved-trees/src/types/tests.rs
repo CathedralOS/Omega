@@ -32,6 +32,7 @@ fn type_reference_table_stores_nested_typed_references_as_handles() {
         storage: GenericTypeReferenceStorage {
             base_symbol: SymbolHandle::invalid(),
             base_name: DiagnosticName::generated("Result"),
+            lifetime_arguments: Vec::new(),
             arguments,
         },
     });

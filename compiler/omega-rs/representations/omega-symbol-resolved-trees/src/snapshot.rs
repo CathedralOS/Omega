@@ -530,6 +530,7 @@ pub enum TypeReferenceSnapshot {
     },
     Generic {
         base_name: String,
+        lifetime_arguments: Vec<String>,
         arguments: Vec<TypeReferenceSnapshot>,
     },
     DynamicTrait {
@@ -1210,6 +1211,11 @@ fn type_reference_snapshot_from_program(
         },
         TypeReference::Generic(generic) => TypeReferenceSnapshot::Generic {
             base_name: generic.base_name.to_string(),
+            lifetime_arguments: generic
+                .lifetime_arguments
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
             arguments: program
                 .child_type_references(generic.arguments)
                 .iter()

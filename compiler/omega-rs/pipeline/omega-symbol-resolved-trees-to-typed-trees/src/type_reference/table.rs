@@ -86,6 +86,7 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
         resolved::types::TypeReferenceNode::Generic {
             base_symbol,
             base_name,
+            lifetime_arguments,
             arguments,
         } => {
             let mut lowered_arguments = HandleSpan::empty();
@@ -110,6 +111,10 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
                 .insert(typed::types::TypeReferenceNode::Generic {
                     base_symbol: *base_symbol,
                     base_name: crate::name::lower_name(base_name),
+                    lifetime_arguments: lifetime_arguments
+                        .iter()
+                        .map(crate::name::lower_name)
+                        .collect(),
                     arguments: lowered_arguments,
                 }))
         }

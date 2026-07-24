@@ -45,6 +45,54 @@ fn preserves_erased_lifetime_parameters_separately_from_runtime_generics() {
 }
 
 #[test]
+fn preserves_erased_lifetime_arguments_separately_from_runtime_generic_arguments() {
+    let source = r#"
+        data View<'buf, T> {
+            body: &'buf T;
+        }
+
+        machine borrow<'call>(value: &'call i32) -> View<'call, i32> {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine declaration");
+    let state = parsed
+        .items
+        .state(parsed.items.state_handles(machine.states)[0]);
+    let TypeReferenceNode::Generic {
+        lifetime_arguments,
+        arguments,
+        ..
+    } = parsed.type_references.type_reference(state.return_type)
+    else {
+        panic!("return type should retain the generic application");
+    };
+    assert_eq!(
+        lifetime_arguments
+            .iter()
+            .map(|argument| argument.as_str())
+            .collect::<Vec<_>>(),
+        ["call"]
+    );
+    assert_eq!(
+        parsed
+            .type_references
+            .type_reference_handles(*arguments)
+            .len(),
+        1
+    );
+}
+
+#[test]
 fn rejects_duplicate_names_across_lifetime_and_runtime_generic_parameters() {
     let source = "data View<'value, value> { body: &'value i32; }";
     let tokens = Lexer::new(source)
@@ -56,6 +104,28 @@ fn rejects_duplicate_names_across_lifetime_and_runtime_generic_parameters() {
             .message
             .contains("duplicate generic parameter `value`")
     );
+}
+
+#[test]
+fn rejects_lifetime_parameters_and_arguments_after_runtime_generics() {
+    for source in [
+        "data Bad<T, 'buf> { body: &'buf T; }",
+        "data View<'buf, T> { body: &'buf T; } machine bad<'call>(value: &'call i32) -> View<i32, 'call> {}",
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let diagnostic =
+            parse_syntax_trees(&tokens).expect_err("late lifetime generic must reject");
+        assert!(
+            diagnostic.message.contains("lifetime")
+                && diagnostic
+                    .message
+                    .contains("precede type, const, and machine"),
+            "unexpected diagnostic: {}",
+            diagnostic.message
+        );
+    }
 }
 
 #[test]

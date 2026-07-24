@@ -47,6 +47,74 @@ fn declared_lifetime_parameters_survive_lowering_and_validate() {
 }
 
 #[test]
+fn explicit_lifetime_arguments_survive_typed_lowering_and_validate() {
+    let typed = typed_program_from_source(
+        r#"
+        data View<'buf, T> {
+            body: &'buf T;
+        }
+
+        machine consume<'call>(value: View<'call, i32>) {}
+        "#,
+    );
+
+    let consume = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "consume")
+        .expect("consume");
+    let entry = &typed.machine_states(consume)[0];
+    let parameter = &typed.state_parameters(entry)[0];
+    let omega_typed_trees::types::TypeReferenceNode::Generic {
+        base_name,
+        lifetime_arguments,
+        arguments,
+        ..
+    } = typed
+        .type_reference_table
+        .type_reference(parameter.type_reference)
+    else {
+        panic!("data should retain an erased lifetime application");
+    };
+    assert_eq!(base_name.as_str(), "View");
+    assert_eq!(lifetime_arguments[0].as_str(), "call");
+    assert_eq!(
+        typed
+            .type_reference_table
+            .type_reference_handles(*arguments)
+            .len(),
+        1
+    );
+    validate_program(&typed).expect("declared lifetime application should validate");
+}
+
+#[test]
+fn undeclared_and_wrong_arity_lifetime_arguments_reject() {
+    let typed = typed_program_from_source(
+        r#"
+        data Pair<'left, 'right> {
+            left: &'left i32;
+            right: &'right i32;
+        }
+
+        machine bad<'call>(value: Pair<'ghost>) {}
+        "#,
+    );
+    let diagnostics =
+        validate_program(&typed).expect_err("invalid lifetime application must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("uses undeclared lifetime argument `'ghost'")
+    }));
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("expected 2 lifetime arguments but got 1")
+    }));
+}
+
+#[test]
 fn undeclared_lifetime_tag_rejects() {
     let typed = typed_program_from_source(
         r#"

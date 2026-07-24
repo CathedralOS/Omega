@@ -1542,11 +1542,15 @@ stronger operations it needs instead of citing machine parameters generally.
   hide a dangling sibling. Fixed-array literal positions likewise retain exact
   element ordinals: constant indexing keeps only the selected element's loans,
   while dynamic indexing conservatively retains every candidate element.
-  Finish explicit lifetime arguments on named borrow-carrying data, result
-  contracts relating different fields to different input lifetimes, outlives
-  constraints, and loan propagation through non-literal aggregate
-  construction. These are settled implementation work needed by placed views
-  and task storage, not owner-design blockers.
+  Explicit applications such as `View<'call, T>` now preserve their lifetime
+  arguments separately from runtime generic arguments, validate lexical scope
+  and arity, survive generic-data specialization without entering runtime
+  identity/layout, and let a single-lifetime aggregate result retain precisely
+  the named input through a call-produced local. Finish result contracts
+  relating different fields to different input lifetimes, general outlives
+  constraints, and loan propagation through the remaining non-literal
+  aggregate construction forms. These are settled implementation work needed
+  by placed views and task storage, not owner-design blockers.
 - **Const data parameters.** Literal and scoped named-integer-const arguments
   now parse in generic type position, validate against the declared integer
   kind/range, and substitute into fixed-array layout, descriptors, runtime
