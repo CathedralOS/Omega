@@ -12819,15 +12819,19 @@ pub fn runtime_text_equals_literal_operand_width(
     } else if runtime_value_operands.pointee(place).is_some() {
         // mov r15,imm64 (10) + mov rax,[r15+ptr_off] (7)
         17
-    } else if let Some((_, index_region, _, _, _, _)) = runtime_value_operands.frame_indexed(place)
+    } else if let Some((_, index_region, _, index_byte_size, _, _, _)) =
+        runtime_value_operands.frame_indexed(place)
     {
-        // mov r15,imm64 (10) + mov rax,[r15+desc] (7) + mov r11,[r15+idx] (7)
+        // mov r15,imm64 (10) + mov rax,[r15+desc] (7) + index load
         // + imul r11,r11,elem (7) + add rax,r11 (3)
-        34 + usize::from(index_region == RuntimeStorageRegion::Machine) * 10
-    } else if runtime_value_operands.frame_base_indexed(place).is_some() {
-        // mov r15,imm64 (10) + mov r11,[r15+idx] (7) + imul r11,r11,elem (7)
+        27 + unsigned_load_width(index_byte_size)
+            + usize::from(index_region == RuntimeStorageRegion::Machine) * 10
+    } else if let Some((_, _, index_byte_size, _, _, _)) =
+        runtime_value_operands.frame_base_indexed(place)
+    {
+        // mov r15,imm64 (10) + index load + imul r11,r11,elem (7)
         // + mov rax,r15 (3) + add rax,r11 (3)
-        30
+        23 + unsigned_load_width(index_byte_size)
     } else if runtime_value_operands.frame_fixed_indexed(place).is_some() {
         // Constant element index folds into the descriptor displacement:
         // mov r15,imm64 (10) + mov rax,[r15+desc] (7)
@@ -12854,17 +12858,20 @@ pub fn runtime_value_operand_width(
         // mov r15,imm64 (10) + mov rax,[r15+ptr_off] (7) + load dest,[rax+field].
         // A 16-bit load has the extra 0x66 operand-size prefix.
         17 + load_width(byte_size)
-    } else if let Some((_, index_region, _, _, _, byte_size)) =
+    } else if let Some((_, index_region, _, index_byte_size, _, _, byte_size)) =
         runtime_value_operands.frame_indexed(operand)
     {
-        // mov r15,imm64 (10) + mov rax,[r15+desc] (7) + mov r11,[r15+idx] (7)
+        // mov r15,imm64 (10) + mov rax,[r15+desc] (7) + index load
         // + imul r11,r11,elem (7) + add rax,r11 (3) + load dest,[rax+field].
-        34 + usize::from(index_region == RuntimeStorageRegion::Machine) * 10 + load_width(byte_size)
-    } else if let Some((_, _, _, _, byte_size)) = runtime_value_operands.frame_base_indexed(operand)
+        27 + unsigned_load_width(index_byte_size)
+            + usize::from(index_region == RuntimeStorageRegion::Machine) * 10
+            + load_width(byte_size)
+    } else if let Some((_, _, index_byte_size, _, _, byte_size)) =
+        runtime_value_operands.frame_base_indexed(operand)
     {
-        // mov r15,imm64 (10) + mov r11,[r15+idx] (7) + imul r11,r11,elem (7)
+        // mov r15,imm64 (10) + index load + imul r11,r11,elem (7)
         // + mov rax,r15 (3) + add rax,r11 (3) + load dest,[rax+base+field].
-        30 + load_width(byte_size)
+        23 + unsigned_load_width(index_byte_size) + load_width(byte_size)
     } else if let Some((_, _, _, _, byte_size)) =
         runtime_value_operands.frame_fixed_indexed(operand)
     {
@@ -12872,7 +12879,7 @@ pub fn runtime_value_operand_width(
         // matches the pointee case: mov r15,imm64 (10) + mov rax,[r15+desc] (7)
         // + load dest,[rax+const].
         17 + load_width(byte_size)
-    } else if let Some((_, index_region, _, _, _, byte_size)) =
+    } else if let Some((_, index_region, _, index_byte_size, _, _, byte_size)) =
         runtime_value_operands.machine_indexed(operand)
     {
         // MUST mirror the machine-indexed emission arm: mov r15,imm64 (10)
@@ -12884,7 +12891,7 @@ pub fn runtime_value_operand_width(
             } else {
                 0
             };
-        10 + 3 + frame_base + 7 + 7 + 3 + load_width(byte_size)
+        10 + 3 + frame_base + unsigned_load_width(index_byte_size) + 7 + 3 + load_width(byte_size)
     } else if runtime_value_operands.text_equals(operand).is_some() {
         runtime_text_equals_operand_width()
     } else if let Some((place, literal, _is_bounded_buffer)) =
@@ -13042,6 +13049,7 @@ fn append_runtime_value_operand(
         descriptor_offset,
         index_region,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         byte_size,
@@ -13054,13 +13062,14 @@ fn append_runtime_value_operand(
         if index_region == RuntimeStorageRegion::Machine {
             append_mov_r15_imm64(bytes, 0);
         }
-        append_load_reg_from_r15(bytes, Reg64::R11, index_offset, 8)?;
+        append_load_unsigned_reg_from_r15(bytes, Reg64::R11, index_offset, index_byte_size)?;
         append_imul_r11_imm32(bytes, element_scale(element_byte_size)?);
         append_add_rax_r11(bytes);
         append_load_reg_from_rax(bytes, destination, field_byte_offset, byte_size)
     } else if let Some((
         base_byte_offset,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         byte_size,
@@ -13069,7 +13078,7 @@ fn append_runtime_value_operand(
         // r15 = frame base (relocated). The base lives inline in the frame at
         // base_byte_offset; rax = frame base, then add scaled index + base + field.
         append_mov_r15_imm64(bytes, 0);
-        append_load_reg_from_r15(bytes, Reg64::R11, index_offset, 8)?;
+        append_load_unsigned_reg_from_r15(bytes, Reg64::R11, index_offset, index_byte_size)?;
         append_imul_r11_imm32(bytes, element_scale(element_byte_size)?);
         append_mov_rax_r15(bytes);
         append_add_rax_r11(bytes);
@@ -13103,6 +13112,7 @@ fn append_runtime_value_operand(
         base_byte_offset,
         index_region,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         byte_size,
@@ -13121,9 +13131,9 @@ fn append_runtime_value_operand(
             index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
         if index_from_frame {
             append_mov_r15_imm64(bytes, 0);
-            append_load_reg_from_r15(bytes, Reg64::R11, index_offset, 4)?;
+            append_load_unsigned_reg_from_r15(bytes, Reg64::R11, index_offset, index_byte_size)?;
         } else {
-            append_load_reg_from_rax(bytes, Reg64::R11, index_offset, 4)?;
+            append_load_unsigned_reg_from_rax(bytes, Reg64::R11, index_offset, index_byte_size)?;
         }
         append_imul_r11_imm32(bytes, element_scale(element_byte_size)?);
         append_add_rax_r11(bytes);
@@ -13492,6 +13502,7 @@ fn append_runtime_text_equals_literal_operand(
         descriptor_offset,
         index_region,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         _,
@@ -13502,18 +13513,24 @@ fn append_runtime_text_equals_literal_operand(
         if index_region == RuntimeStorageRegion::Machine {
             append_mov_r15_imm64(bytes, 0);
         }
-        append_load_reg_from_r15(bytes, Reg64::R11, index_offset, 8)?;
+        append_load_unsigned_reg_from_r15(bytes, Reg64::R11, index_offset, index_byte_size)?;
         append_imul_r11_imm32(bytes, element_scale(element_byte_size)?);
         append_add_rax_r11(bytes);
         descriptor_disp = field_byte_offset;
-    } else if let Some((base_byte_offset, index_offset, element_byte_size, field_byte_offset, _)) =
-        runtime_value_operands.frame_base_indexed(place)
+    } else if let Some((
+        base_byte_offset,
+        index_offset,
+        index_byte_size,
+        element_byte_size,
+        field_byte_offset,
+        _,
+    )) = runtime_value_operands.frame_base_indexed(place)
     {
         // Inline frame fixed array: the elements live in the frame itself at
         // base_byte_offset; rax = frame base + index*element (same shape as
         // the frame-base-indexed load operand above).
         append_mov_r15_imm64(bytes, 0);
-        append_load_reg_from_r15(bytes, Reg64::R11, index_offset, 8)?;
+        append_load_unsigned_reg_from_r15(bytes, Reg64::R11, index_offset, index_byte_size)?;
         append_imul_r11_imm32(bytes, element_scale(element_byte_size)?);
         append_mov_rax_r15(bytes);
         append_add_rax_r11(bytes);
@@ -13608,10 +13625,10 @@ fn runtime_value_operand_value_byte_size(
     if let Some((_, _, byte_size)) = operands.pointee(operand) {
         return Some(byte_size);
     }
-    if let Some((_, _, _, _, _, byte_size)) = operands.frame_indexed(operand) {
+    if let Some((_, _, _, _, _, _, byte_size)) = operands.frame_indexed(operand) {
         return Some(byte_size);
     }
-    if let Some((_, _, _, _, byte_size)) = operands.frame_base_indexed(operand) {
+    if let Some((_, _, _, _, _, byte_size)) = operands.frame_base_indexed(operand) {
         return Some(byte_size);
     }
     if let Some((_, _, _, _, byte_size)) = operands.frame_fixed_indexed(operand) {
@@ -14975,6 +14992,35 @@ fn append_load_reg_from_rax(
     Ok(())
 }
 
+/// Load an unsigned integer into a full address-calculation register.
+///
+/// Unlike ordinary narrow value loads, byte and word indexes must clear the
+/// destination's upper bits before scaling.
+fn append_load_unsigned_reg_from_rax(
+    bytes: &mut Vec<u8>,
+    destination: Reg64,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    match (destination, byte_size) {
+        (Reg64::R10, 1) => bytes.extend([0x44, 0x0f, 0xb6, 0x90]),
+        (Reg64::R10, 2) => bytes.extend([0x44, 0x0f, 0xb7, 0x90]),
+        (Reg64::R11, 1) => bytes.extend([0x44, 0x0f, 0xb6, 0x98]),
+        (Reg64::R11, 2) => bytes.extend([0x44, 0x0f, 0xb7, 0x98]),
+        (_, 4 | 8) => {
+            return append_load_reg_from_rax(bytes, destination, byte_offset, byte_size);
+        }
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 MVP encoder cannot load {byte_size}-byte runtime indexes yet"
+            )));
+        }
+    }
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
 fn append_load_rax_from_r14(
     bytes: &mut Vec<u8>,
     byte_offset: usize,
@@ -15023,6 +15069,31 @@ fn append_load_reg_from_r15(
         _ => {
             return Err(Diagnostic::error(format!(
                 "X86_64 MVP encoder cannot load {byte_size}-byte runtime operands yet"
+            )));
+        }
+    }
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_load_unsigned_reg_from_r15(
+    bytes: &mut Vec<u8>,
+    destination: Reg64,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    match (destination, byte_size) {
+        (Reg64::R10, 1) => bytes.extend([0x45, 0x0f, 0xb6, 0x97]),
+        (Reg64::R10, 2) => bytes.extend([0x45, 0x0f, 0xb7, 0x97]),
+        (Reg64::R11, 1) => bytes.extend([0x45, 0x0f, 0xb6, 0x9f]),
+        (Reg64::R11, 2) => bytes.extend([0x45, 0x0f, 0xb7, 0x9f]),
+        (_, 4 | 8) => {
+            return append_load_reg_from_r15(bytes, destination, byte_offset, byte_size);
+        }
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 MVP encoder cannot load {byte_size}-byte runtime indexes yet"
             )));
         }
     }
@@ -15211,6 +15282,14 @@ fn load_width(byte_size: usize) -> usize {
         1 | 4 | 8 => 7,
         // The 2-byte form is the 4-byte form plus the 0x66 operand-size prefix.
         2 => 8,
+        _ => 0,
+    }
+}
+
+fn unsigned_load_width(byte_size: usize) -> usize {
+    match byte_size {
+        1 | 2 => 8,
+        4 | 8 => 7,
         _ => 0,
     }
 }
@@ -16406,6 +16485,23 @@ mod machine_control_tests {
         assert_eq!(FLAGS_SNAPSHOT_DESTINATION_BASE_OFFSET, 3);
     }
 
+    #[test]
+    fn unsigned_index_loads_use_exact_zero_extending_widths() {
+        let expected_prefixes: &[(usize, &[u8])] = &[
+            (1, &[0x45, 0x0f, 0xb6, 0x9f]),
+            (2, &[0x45, 0x0f, 0xb7, 0x9f]),
+            (4, &[0x45, 0x8b, 0x9f]),
+            (8, &[0x4d, 0x8b, 0x9f]),
+        ];
+        for &(byte_size, prefix) in expected_prefixes {
+            let mut bytes = Vec::new();
+            append_load_unsigned_reg_from_r15(&mut bytes, Reg64::R11, 24, byte_size)
+                .expect("supported index width");
+            assert_eq!(&bytes[..prefix.len()], prefix);
+            assert_eq!(bytes.len(), unsigned_load_width(byte_size));
+        }
+    }
+
     /// A RuntimeValueOperandSource where every handle is an immediate integer
     /// (handle arena index -> value). Immediates emit no relocation, so the
     /// port-encoder byte layout is fully deterministic.
@@ -16427,13 +16523,21 @@ mod machine_control_tests {
         fn frame_indexed(
             &self,
             _: RuntimeValueOperandHandle,
-        ) -> Option<(usize, RuntimeStorageRegion, usize, usize, usize, usize)> {
+        ) -> Option<(
+            usize,
+            RuntimeStorageRegion,
+            usize,
+            usize,
+            usize,
+            usize,
+            usize,
+        )> {
             None
         }
         fn frame_base_indexed(
             &self,
             _: RuntimeValueOperandHandle,
-        ) -> Option<(usize, usize, usize, usize, usize)> {
+        ) -> Option<(usize, usize, usize, usize, usize, usize)> {
             None
         }
         fn frame_fixed_indexed(
@@ -16445,7 +16549,15 @@ mod machine_control_tests {
         fn machine_indexed(
             &self,
             _: RuntimeValueOperandHandle,
-        ) -> Option<(usize, RuntimeStorageRegion, usize, usize, usize, usize)> {
+        ) -> Option<(
+            usize,
+            RuntimeStorageRegion,
+            usize,
+            usize,
+            usize,
+            usize,
+            usize,
+        )> {
             None
         }
         fn binary(

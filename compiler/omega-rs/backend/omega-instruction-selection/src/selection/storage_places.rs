@@ -1786,6 +1786,7 @@ pub(super) fn resolve_runtime_frame_indexed_target_in_table(
         descriptor_offset: descriptor_place.byte_offset,
         index_region: index_place.region,
         index_offset: index_place.byte_offset,
+        index_byte_size: index_place.byte_count,
         element_byte_size: element_layout.size,
         field_byte_offset,
         byte_count: field_layout.size,
@@ -1889,6 +1890,7 @@ fn resolve_runtime_pointee_indexed_target_from_path(
         descriptor_offset: slot.byte_offset,
         index_region: index_place.region,
         index_offset: index_place.byte_offset,
+        index_byte_size: index_place.byte_count,
         element_byte_size: element_layout.size,
         field_byte_offset: collection_cursor
             .byte_offset()
@@ -2008,6 +2010,7 @@ pub(super) fn resolve_runtime_frame_indexed_target_near_slot_in_table(
         descriptor_offset: collection_slot.byte_offset,
         index_region: index_place.region,
         index_offset: index_place.byte_offset,
+        index_byte_size: index_place.byte_count,
         element_byte_size: element_layout.size,
         field_byte_offset,
         byte_count: field_layout.size,
@@ -2159,6 +2162,7 @@ pub(super) fn resolve_runtime_frame_base_indexed_target_in_table(
     Some(RuntimeFrameBaseIndexedTarget {
         base_byte_offset: collection_slot.byte_offset + array_prefix_offset,
         index_offset: index_place.byte_offset,
+        index_byte_size: index_place.byte_count,
         element_byte_size: element_layout.size,
         field_byte_offset,
         byte_count: field_layout.size,
@@ -2259,6 +2263,7 @@ pub(super) struct RuntimeMachineIndexedTarget {
     pub(super) base_byte_offset: usize,
     pub(super) index_region: RuntimeStorageRegion,
     pub(super) index_offset: usize,
+    pub(super) index_byte_size: usize,
     pub(super) element_byte_size: usize,
     pub(super) field_byte_offset: usize,
     pub(super) byte_count: usize,
@@ -2531,6 +2536,7 @@ pub(super) fn resolve_runtime_machine_indexed_target_in_table(
         base_byte_offset: collection.byte_offset + carrier_byte_prefix,
         index_region: index_place.region,
         index_offset: index_place.byte_offset,
+        index_byte_size: index_place.byte_count,
         element_byte_size: element_layout.size,
         field_byte_offset,
         byte_count: field_layout.size,

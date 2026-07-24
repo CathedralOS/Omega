@@ -46,6 +46,7 @@ pub enum AssignedValueHomeKind {
         descriptor_offset: usize,
         index_region: RuntimeStorageRegion,
         index_offset: usize,
+        index_byte_size: usize,
         element_byte_size: usize,
         field_byte_offset: usize,
         byte_size: usize,
@@ -53,6 +54,7 @@ pub enum AssignedValueHomeKind {
     RuntimeFrameBaseIndexed {
         base_byte_offset: usize,
         index_offset: usize,
+        index_byte_size: usize,
         element_byte_size: usize,
         field_byte_offset: usize,
         byte_size: usize,

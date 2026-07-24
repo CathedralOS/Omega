@@ -1538,6 +1538,7 @@ fn resolve_runtime_value_operand_in_table(
                 descriptor_offset: indexed_target.descriptor_offset,
                 index_region: indexed_target.index_region,
                 index_offset: indexed_target.index_offset,
+                index_byte_size: indexed_target.index_byte_size,
                 element_byte_size: indexed_target.element_byte_size,
                 field_byte_offset: indexed_target.field_byte_offset,
                 byte_size: indexed_target.byte_count,
@@ -1556,6 +1557,7 @@ fn resolve_runtime_value_operand_in_table(
             runtime_value_operands.insert(RuntimeValueOperand::FrameBaseIndexed {
                 base_byte_offset: indexed_target.base_byte_offset,
                 index_offset: indexed_target.index_offset,
+                index_byte_size: indexed_target.index_byte_size,
                 element_byte_size: indexed_target.element_byte_size,
                 field_byte_offset: indexed_target.field_byte_offset,
                 byte_size: indexed_target.byte_count,
@@ -1575,6 +1577,7 @@ fn resolve_runtime_value_operand_in_table(
                 base_byte_offset: indexed_target.base_byte_offset,
                 index_region: indexed_target.index_region,
                 index_offset: indexed_target.index_offset,
+                index_byte_size: indexed_target.index_byte_size,
                 element_byte_size: indexed_target.element_byte_size,
                 field_byte_offset: indexed_target.field_byte_offset,
                 byte_size: indexed_target.byte_count,

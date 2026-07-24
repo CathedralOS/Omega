@@ -23,21 +23,38 @@ pub trait RuntimeValueOperandSource {
     fn frame_indexed(
         &self,
         handle: RuntimeValueOperandHandle,
-    ) -> Option<(usize, RuntimeStorageRegion, usize, usize, usize, usize)>;
+    ) -> Option<(
+        usize,
+        RuntimeStorageRegion,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+    )>;
     fn frame_base_indexed(
         &self,
         handle: RuntimeValueOperandHandle,
-    ) -> Option<(usize, usize, usize, usize, usize)>;
+    ) -> Option<(usize, usize, usize, usize, usize, usize)>;
     fn frame_fixed_indexed(
         &self,
         handle: RuntimeValueOperandHandle,
     ) -> Option<(usize, usize, usize, usize, usize)>;
     /// A `MachineIndexed` operand: `(base_byte_offset, index_region,
-    /// index_offset, element_byte_size, field_byte_offset, byte_size)`.
+    /// index_offset, index_byte_size, element_byte_size, field_byte_offset,
+    /// byte_size)`.
     fn machine_indexed(
         &self,
         handle: RuntimeValueOperandHandle,
-    ) -> Option<(usize, RuntimeStorageRegion, usize, usize, usize, usize)>;
+    ) -> Option<(
+        usize,
+        RuntimeStorageRegion,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+    )>;
     fn binary(
         &self,
         handle: RuntimeValueOperandHandle,
@@ -141,12 +158,21 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
     fn frame_indexed(
         &self,
         handle: RuntimeValueOperandHandle,
-    ) -> Option<(usize, RuntimeStorageRegion, usize, usize, usize, usize)> {
+    ) -> Option<(
+        usize,
+        RuntimeStorageRegion,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+    )> {
         match self.get(handle) {
             RuntimeValueOperand::FrameIndexed {
                 descriptor_offset,
                 index_region,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
                 byte_size,
@@ -154,6 +180,7 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
                 *descriptor_offset,
                 *index_region,
                 *index_offset,
+                *index_byte_size,
                 *element_byte_size,
                 *field_byte_offset,
                 *byte_size,
@@ -165,17 +192,19 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
     fn frame_base_indexed(
         &self,
         handle: RuntimeValueOperandHandle,
-    ) -> Option<(usize, usize, usize, usize, usize)> {
+    ) -> Option<(usize, usize, usize, usize, usize, usize)> {
         match self.get(handle) {
             RuntimeValueOperand::FrameBaseIndexed {
                 base_byte_offset,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
                 byte_size,
             } => Some((
                 *base_byte_offset,
                 *index_offset,
+                *index_byte_size,
                 *element_byte_size,
                 *field_byte_offset,
                 *byte_size,
@@ -209,12 +238,21 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
     fn machine_indexed(
         &self,
         handle: RuntimeValueOperandHandle,
-    ) -> Option<(usize, RuntimeStorageRegion, usize, usize, usize, usize)> {
+    ) -> Option<(
+        usize,
+        RuntimeStorageRegion,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+    )> {
         match self.get(handle) {
             RuntimeValueOperand::MachineIndexed {
                 base_byte_offset,
                 index_region,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
                 byte_size,
@@ -222,6 +260,7 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
                 *base_byte_offset,
                 *index_region,
                 *index_offset,
+                *index_byte_size,
                 *element_byte_size,
                 *field_byte_offset,
                 *byte_size,

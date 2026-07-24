@@ -24,8 +24,8 @@ pub enum PlaceStep {
     /// one AFTER walks into the pointee.
     Deref,
     /// Advance by a runtime index times a constant element size. The index
-    /// is read as a zero-extended 8-byte load from
-    /// `index_region + index_offset` when the address is materialized.
+    /// is read from `index_region + index_offset` when the address is
+    /// materialized.
     ScaledIndex {
         index_region: RuntimeStorageRegion,
         index_offset: usize,
