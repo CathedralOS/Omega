@@ -79,6 +79,7 @@ The same normalized geometry may feed different compiler-owned consumers:
   (implemented with nested plan-laid field write-through in both native and
   interpreter execution, plus x86-64/AArch64 compile rails);
 - placed-view projection over an authorized external extent; or
+- ordinary scalar materialization into fixed dictated structures; or
 - a materializer that resolves symbolic data/entry identities into an artifact
   or post-load structure.
 
@@ -275,8 +276,15 @@ Implementation status: steps 1-3 are live for primitive record schemas. Step
 accepts repeated `Bits` placements, and rejects unknown/missing fields, mixed
 whole/fragment placement, destination overlap/out-of-bounds ranges, and source
 fragments that do not tile the logical field exactly. Ordinary plan-laid value
-types continue to require one fixed `At` entry per field. Step 8 now has a
-normalized foundation: sealed `Data(DataSymbolId) | Entry(EntryStubId)` source
+types continue to require one fixed `At` entry per field. A target-neutral
+ordinary-scalar consumer now takes only named values and this validated plan:
+there is no caller-supplied offset, every planned field must be supplied
+exactly once, widths and fragments are rechecked, padding/reserved bits start
+at zero, and the destination changes only after complete validation. A packed
+x86-64 page-table word and a compiler-evaluated compact-bit policy pin the
+foundation path; source establishment and target writer integration remain.
+Step 8 now also has a normalized symbolic foundation: sealed
+`Data(DataSymbolId) | Entry(EntryStubId)` source
 identities derive resolved writes, native whole-pointer relocations, or
 post-handoff writer records from the same validated plan. Loader-consumed
 unresolved fragments reject, while fixed addresses may constant-fold through

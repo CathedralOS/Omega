@@ -37,6 +37,40 @@ pub struct LayoutPlanReport {
     pub align: i64,
 }
 
+/// One ordinary scalar supplied to a validated dictated-layout materializer.
+/// The field name selects compiler-validated plan entries; callers never
+/// provide a byte offset or destination bit position.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScalarFieldValue {
+    pub field: String,
+    pub width_bits: u16,
+    pub value: u64,
+}
+
+impl ScalarFieldValue {
+    pub fn new(
+        field: impl Into<String>,
+        width_bits: u16,
+        value: u64,
+    ) -> Result<Self, MaterializationDiagnostic> {
+        if width_bits == 0 || width_bits > 64 {
+            return Err(MaterializationDiagnostic(format!(
+                "scalar field width {width_bits} is outside 1..=64 bits"
+            )));
+        }
+        if width_bits < 64 && value > low_mask(width_bits) {
+            return Err(MaterializationDiagnostic(format!(
+                "scalar value {value:#x} does not fit its {width_bits}-bit field"
+            )));
+        }
+        Ok(Self {
+            field: field.into(),
+            width_bits,
+            value,
+        })
+    }
+}
+
 /// Compiler-issued identity of an inbound entry stub. The numeric identity is
 /// never a callable address and cannot be used for arithmetic or control flow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -588,6 +622,78 @@ impl SymbolicMaterializationPlan {
     }
 }
 
+/// Materializes one complete ordinary scalar value through validated layout
+/// entries. Output starts from zero so padding and reserved bits stay
+/// deterministic. The destination is changed only after every field and
+/// fragment has validated.
+///
+/// This is the numeric sibling of symbolic materialization. It cannot resolve
+/// code/data symbols, install hardware state, or mint authority; it only turns
+/// named scalar values into bytes according to an already validated plan.
+pub fn materialize_scalar_layout_into(
+    layout: &LayoutPlanReport,
+    values: &[ScalarFieldValue],
+    byte_order: ByteOrder,
+    destination: &mut [u8],
+) -> Result<(), MaterializationDiagnostic> {
+    let byte_len = layout
+        .size
+        .ok_or_else(|| {
+            MaterializationDiagnostic(
+                "scalar materialization requires a fixed-size layout plan".into(),
+            )
+        })
+        .and_then(|size| {
+            usize::try_from(size).map_err(|_| {
+                MaterializationDiagnostic(format!(
+                    "fixed layout size {size} cannot be represented on this compiler host"
+                ))
+            })
+        })?;
+    if destination.len() < byte_len {
+        return Err(MaterializationDiagnostic(format!(
+            "scalar materialization needs {byte_len} bytes, destination has {}",
+            destination.len()
+        )));
+    }
+
+    let mut supplied = std::collections::BTreeMap::new();
+    for value in values {
+        if supplied.insert(value.field.as_str(), value).is_some() {
+            return Err(MaterializationDiagnostic(format!(
+                "scalar field `{}` is supplied more than once",
+                value.field
+            )));
+        }
+    }
+
+    let planned = layout
+        .entries
+        .iter()
+        .map(|entry| entry.field.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    if let Some(field) = planned.iter().find(|field| !supplied.contains_key(**field)) {
+        return Err(MaterializationDiagnostic(format!(
+            "layout field `{field}` has no supplied scalar value"
+        )));
+    }
+    if let Some(field) = supplied.keys().find(|field| !planned.contains(**field)) {
+        return Err(MaterializationDiagnostic(format!(
+            "supplied scalar field `{field}` has no entry in the validated layout plan"
+        )));
+    }
+
+    let mut staged = vec![0_u8; byte_len];
+    for entry in &layout.entries {
+        let value = supplied
+            .get(entry.field.as_str())
+            .expect("complete field set validated above");
+        apply_scalar_entry(&mut staged, byte_order, entry, value)?;
+    }
+    destination[..byte_len].copy_from_slice(&staged);
+    Ok(())
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MaterializationDiagnostic(pub String);
 
@@ -768,14 +874,132 @@ fn write_from_entry(
     })
 }
 
+fn apply_scalar_entry(
+    bytes: &mut [u8],
+    byte_order: ByteOrder,
+    entry: &LayoutFieldEntryReport,
+    value: &ScalarFieldValue,
+) -> Result<(), MaterializationDiagnostic> {
+    let (container, container_width, destination_lsb, source_lsb, width) = match entry.placement {
+        LayoutPlacementReport::At { offset } => (
+            offset,
+            i64::from(value.width_bits),
+            0,
+            0,
+            i64::from(value.width_bits),
+        ),
+        LayoutPlacementReport::Bits {
+            container,
+            container_width,
+            destination_lsb,
+            source_lsb,
+            width,
+        } => (
+            container,
+            container_width,
+            destination_lsb,
+            source_lsb,
+            width,
+        ),
+    };
+    if container < 0
+        || container_width <= 0
+        || container_width > 64
+        || container_width % 8 != 0
+        || destination_lsb < 0
+        || source_lsb < 0
+        || width <= 0
+    {
+        return Err(MaterializationDiagnostic(format!(
+            "scalar field `{}` uses a materializer-incompatible placement",
+            value.field
+        )));
+    }
+    let source_end = source_lsb
+        .checked_add(width)
+        .ok_or_else(|| MaterializationDiagnostic("scalar source bit range overflows".into()))?;
+    if source_end > i64::from(value.width_bits) {
+        return Err(MaterializationDiagnostic(format!(
+            "scalar field `{}` placement reads through bit {source_end}, past its {}-bit source",
+            value.field, value.width_bits
+        )));
+    }
+    let destination_end = destination_lsb.checked_add(width).ok_or_else(|| {
+        MaterializationDiagnostic("scalar destination bit range overflows".into())
+    })?;
+    if destination_end > container_width {
+        return Err(MaterializationDiagnostic(format!(
+            "scalar field `{}` placement writes through bit {destination_end}, past its {container_width}-bit container",
+            value.field
+        )));
+    }
+
+    let container_byte_offset = u64::try_from(container).expect("non-negative container");
+    let container_width_bits =
+        u16::try_from(container_width).expect("validated materializer container width");
+    let destination_lsb = u16::try_from(destination_lsb).expect("validated destination bit index");
+    let source_lsb = u16::try_from(source_lsb).expect("validated source bit index");
+    let width = u16::try_from(width).map_err(|_| {
+        MaterializationDiagnostic(format!(
+            "scalar field `{}` fragment width {width} is too large",
+            value.field
+        ))
+    })?;
+    validate_fragment(
+        bytes.len(),
+        &value.field,
+        container_byte_offset,
+        container_width_bits,
+        destination_lsb,
+        source_lsb,
+        width,
+    )?;
+    apply_fragment(
+        bytes,
+        byte_order,
+        &value.field,
+        container_byte_offset,
+        container_width_bits,
+        destination_lsb,
+        source_lsb,
+        width,
+        value.value,
+    )
+}
+
 fn apply_write(
     bytes: &mut [u8],
     byte_order: ByteOrder,
     write: &MaterializationWrite,
     source_value: u64,
 ) -> Result<(), MaterializationDiagnostic> {
-    let container_bytes = usize::from(write.container_width_bits / 8);
-    let start = usize::try_from(write.container_byte_offset).map_err(|_| {
+    apply_fragment(
+        bytes,
+        byte_order,
+        &write.field,
+        write.container_byte_offset,
+        write.container_width_bits,
+        write.destination_lsb,
+        write.source_lsb,
+        write.width,
+        source_value,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn apply_fragment(
+    bytes: &mut [u8],
+    byte_order: ByteOrder,
+    field: &str,
+    container_byte_offset: u64,
+    container_width_bits: u16,
+    destination_lsb: u16,
+    source_lsb: u16,
+    width: u16,
+    source_value: u64,
+) -> Result<(), MaterializationDiagnostic> {
+    let container_bytes = usize::from(container_width_bits / 8);
+    let start = usize::try_from(container_byte_offset).map_err(|_| {
         MaterializationDiagnostic("container offset cannot be represented on this host".into())
     })?;
     let end = start
@@ -785,15 +1009,15 @@ fn apply_write(
     let container_slice = bytes.get_mut(start..end).ok_or_else(|| {
         MaterializationDiagnostic(format!(
             "symbolic field `{}` writes outside the {}-byte materialization",
-            write.field, materialization_len
+            field, materialization_len
         ))
     })?;
     let mut container_value = read_container(container_slice, byte_order);
-    let fragment_mask = low_mask(write.width);
-    let fragment = (source_value >> write.source_lsb) & fragment_mask;
-    let destination_mask = fragment_mask << write.destination_lsb;
-    container_value = (container_value & !destination_mask)
-        | ((fragment << write.destination_lsb) & destination_mask);
+    let fragment_mask = low_mask(width);
+    let fragment = (source_value >> source_lsb) & fragment_mask;
+    let destination_mask = fragment_mask << destination_lsb;
+    container_value =
+        (container_value & !destination_mask) | ((fragment << destination_lsb) & destination_mask);
     write_container(container_slice, byte_order, container_value);
     Ok(())
 }
@@ -802,41 +1026,58 @@ fn validate_write(
     materialization_len: usize,
     write: &MaterializationWrite,
 ) -> Result<(), MaterializationDiagnostic> {
-    if write.container_width_bits == 0
-        || write.container_width_bits > 64
-        || !write.container_width_bits.is_multiple_of(8)
+    validate_fragment(
+        materialization_len,
+        &write.field,
+        write.container_byte_offset,
+        write.container_width_bits,
+        write.destination_lsb,
+        write.source_lsb,
+        write.width,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_fragment(
+    materialization_len: usize,
+    field: &str,
+    container_byte_offset: u64,
+    container_width_bits: u16,
+    destination_lsb: u16,
+    source_lsb: u16,
+    width: u16,
+) -> Result<(), MaterializationDiagnostic> {
+    if container_width_bits == 0
+        || container_width_bits > 64
+        || !container_width_bits.is_multiple_of(8)
     {
         return Err(MaterializationDiagnostic(format!(
             "symbolic field `{}` has invalid {}-bit container",
-            write.field, write.container_width_bits
+            field, container_width_bits
         )));
     }
-    if write.width == 0
-        || write.width > 64
-        || write
-            .source_lsb
-            .checked_add(write.width)
-            .is_none_or(|end| end > 64)
-        || write
-            .destination_lsb
-            .checked_add(write.width)
-            .is_none_or(|end| end > write.container_width_bits)
+    if width == 0
+        || width > 64
+        || source_lsb.checked_add(width).is_none_or(|end| end > 64)
+        || destination_lsb
+            .checked_add(width)
+            .is_none_or(|end| end > container_width_bits)
     {
         return Err(MaterializationDiagnostic(format!(
             "symbolic field `{}` has an invalid source or destination bit range",
-            write.field
+            field
         )));
     }
-    let start = usize::try_from(write.container_byte_offset).map_err(|_| {
+    let start = usize::try_from(container_byte_offset).map_err(|_| {
         MaterializationDiagnostic("container offset cannot be represented on this host".into())
     })?;
     let end = start
-        .checked_add(usize::from(write.container_width_bits / 8))
+        .checked_add(usize::from(container_width_bits / 8))
         .ok_or_else(|| MaterializationDiagnostic("container byte range overflows".into()))?;
     if end > materialization_len {
         return Err(MaterializationDiagnostic(format!(
             "symbolic field `{}` writes outside the {}-byte materialization",
-            write.field, materialization_len
+            field, materialization_len
         )));
     }
     Ok(())
@@ -946,6 +1187,123 @@ mod tests {
             size: Some(16),
             align: 1,
         }
+    }
+
+    #[test]
+    fn ordinary_scalar_materializer_packs_a_page_table_word() {
+        let layout = LayoutPlanReport {
+            entries: vec![
+                LayoutFieldEntryReport {
+                    field: "present".into(),
+                    placement: LayoutPlacementReport::Bits {
+                        container: 0,
+                        container_width: 64,
+                        destination_lsb: 0,
+                        source_lsb: 0,
+                        width: 1,
+                    },
+                },
+                LayoutFieldEntryReport {
+                    field: "writable".into(),
+                    placement: LayoutPlacementReport::Bits {
+                        container: 0,
+                        container_width: 64,
+                        destination_lsb: 1,
+                        source_lsb: 0,
+                        width: 1,
+                    },
+                },
+                LayoutFieldEntryReport {
+                    field: "frame_number".into(),
+                    placement: LayoutPlacementReport::Bits {
+                        container: 0,
+                        container_width: 64,
+                        destination_lsb: 12,
+                        source_lsb: 0,
+                        width: 40,
+                    },
+                },
+                LayoutFieldEntryReport {
+                    field: "no_execute".into(),
+                    placement: LayoutPlacementReport::Bits {
+                        container: 0,
+                        container_width: 64,
+                        destination_lsb: 63,
+                        source_lsb: 0,
+                        width: 1,
+                    },
+                },
+            ],
+            offsets: None,
+            size: Some(8),
+            align: 8,
+        };
+        let values = [
+            ScalarFieldValue::new("present", 1, 1).expect("present"),
+            ScalarFieldValue::new("writable", 1, 1).expect("writable"),
+            ScalarFieldValue::new("frame_number", 40, 0x12345).expect("frame"),
+            ScalarFieldValue::new("no_execute", 1, 1).expect("NX"),
+        ];
+        let mut bytes = [0xa5_u8; 8];
+        materialize_scalar_layout_into(&layout, &values, ByteOrder::LittleEndian, &mut bytes)
+            .expect("validated scalar layout materializes");
+
+        assert_eq!(
+            u64::from_le_bytes(bytes),
+            (1_u64 << 63) | (0x12345_u64 << 12) | 0b11
+        );
+    }
+
+    #[test]
+    fn scalar_materialization_is_complete_and_atomic() {
+        let layout = LayoutPlanReport {
+            entries: vec![
+                LayoutFieldEntryReport {
+                    field: "low".into(),
+                    placement: LayoutPlacementReport::Bits {
+                        container: 0,
+                        container_width: 8,
+                        destination_lsb: 0,
+                        source_lsb: 0,
+                        width: 4,
+                    },
+                },
+                LayoutFieldEntryReport {
+                    field: "high".into(),
+                    placement: LayoutPlacementReport::Bits {
+                        container: 0,
+                        container_width: 8,
+                        destination_lsb: 4,
+                        source_lsb: 0,
+                        width: 4,
+                    },
+                },
+            ],
+            offsets: None,
+            size: Some(1),
+            align: 1,
+        };
+        let mut bytes = [0xa5_u8];
+        let error = materialize_scalar_layout_into(
+            &layout,
+            &[ScalarFieldValue::new("low", 4, 3).expect("low")],
+            ByteOrder::LittleEndian,
+            &mut bytes,
+        )
+        .expect_err("missing planned fields reject");
+        assert!(error.0.contains("`high`"));
+        assert_eq!(bytes, [0xa5]);
+
+        let duplicate = ScalarFieldValue::new("low", 4, 3).expect("duplicate");
+        let error = materialize_scalar_layout_into(
+            &layout,
+            &[duplicate.clone(), duplicate],
+            ByteOrder::LittleEndian,
+            &mut bytes,
+        )
+        .expect_err("duplicate supplied fields reject");
+        assert!(error.0.contains("more than once"));
+        assert_eq!(bytes, [0xa5]);
     }
 
     #[test]

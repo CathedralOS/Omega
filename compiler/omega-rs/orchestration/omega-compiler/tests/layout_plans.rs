@@ -9,8 +9,9 @@
 
 use omega_compiler::{
     ByteOrder, ConsumptionInstant, EntryStubId, LayoutPlacementReport, MaterializationAction,
-    MaterializationContext, RelocationTarget, SymbolicFieldValue, compile_to_checked,
-    compute_layout_plan, derive_symbolic_materialization,
+    MaterializationContext, RelocationTarget, ScalarFieldValue, SymbolicFieldValue,
+    compile_to_checked, compute_layout_plan, derive_symbolic_materialization,
+    materialize_scalar_layout_into,
 };
 use omega_layout::{DataShape, build_layout_plan};
 use omega_target::NativeTarget;
@@ -371,6 +372,19 @@ machine Main::main(&mut self) { }
             ..
         }
     ));
+
+    let mut bytes = [0xa5_u8];
+    materialize_scalar_layout_into(
+        &report,
+        &[
+            ScalarFieldValue::new("present", 1, 1).expect("present"),
+            ScalarFieldValue::new("mode", 3, 5).expect("mode"),
+        ],
+        ByteOrder::LittleEndian,
+        &mut bytes,
+    )
+    .expect("compiler-validated plan should drive ordinary scalar materialization");
+    assert_eq!(bytes, [0b1011]);
 }
 
 #[test]

@@ -1624,6 +1624,13 @@ stronger operations it needs instead of citing machine parameters generally.
   Cathedral's first x86-64 page-table-entry policy now exercises the complete
   64-bit word, including nine one-bit flags, 3/7/4-bit policy fields, and the
   40-bit page-frame number for the architectural 52-bit physical envelope.
+  The target-neutral ordinary-scalar materializer now consumes only named
+  field values plus that same validated plan: it supplies no offset API,
+  requires the complete field set exactly once, rejects width/fragment drift,
+  zeroes padding/reserved bits, and commits to the destination only after all
+  entries validate. Unit coverage pins an x86-64 page-table word, while the
+  compiler integration rail materializes a build-time-evaluated compact-bit
+  policy rather than a hand-authored Rust layout.
   Constant integer ranges now normalize to exact two's-complement bit-pattern
   sets, including split intervals across signed zero. Adjacent and overlapping
   intervals canonicalize, so a signed range covering its complete carrier is
@@ -1664,9 +1671,10 @@ stronger operations it needs instead of citing machine parameters generally.
   descriptor length from the target element layout, preserve mutable indexed
   write-through across state forwarding in native and interpreter execution,
   and cross-compile on x86-64 and AArch64. Raw bytes remain unable to mint
-  slice-element facts. Continue the remaining validate/materialize mint,
-  codec-conformance and remaining representation-set work without adding a
-  second structural-view mechanism.
+  slice-element facts. Continue source-visible validate/materialize
+  establishment, codec conformance, target page-table writer integration, and
+  remaining representation-set work without adding a second structural-view
+  mechanism or a public raw-offset writer.
 - **L6a — Extent.** The normalized conservation foundation is live in
   `omega-extents`: admitted one-shot root grants mint nonempty ranges;
   move-split preserves exact geometry; only compatible siblings from one

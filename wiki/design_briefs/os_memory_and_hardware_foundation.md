@@ -310,7 +310,10 @@ range-constrained integer fields tile the complete 64-bit paging word; the
 52-bit architectural envelope. The provider derives that number from an
 aligned physical `addr` while holding frame/mapping authority. The layout
 describes bits only and cannot turn an address into authority or install a
-translation.
+translation. The target-neutral scalar materializer can now turn the complete
+named field set into the packed word through that validated geometry. It has no
+raw-offset input, zeros reserved/padding bits, validates all fragments before
+committing bytes, and still grants no frame, mapping, or installation authority.
 
 Generated construction and a one-time imported-table scan are two evidence
 routes to the same `InstallablePageTable` state. In either case an exact receipt
