@@ -364,9 +364,13 @@ confines that exact loan ID and borrower/direction to the lent range in the
 same address space, provenance, and mapping era. Missing, stale, or overbroad
 reach fails before transfer. The non-clonable proxy holds that borrow until a
 matching provider receipt establishes completion and every required
-ordering/coherence fact; failed starts and completions return their
-borrow-carrying inputs. Omega `[linear]` integration, permission-context events,
-provider execution, and the DMA vertical slice remain.
+ordering/coherence fact. Completion evidence is derived from the exact live
+proxy rather than restating its authority: it binds the confinement receipt,
+direction, address space, provenance, mapping era, and lent range. Reusing a
+loan identity after any of those facts drift therefore cannot replay an old
+completion. Failed starts and completions return their borrow-carrying inputs.
+Omega `[linear]` integration, permission-context events, provider execution,
+and the DMA vertical slice remain.
 
 ## Checked assembly is the low-level operation surface
 

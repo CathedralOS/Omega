@@ -1756,8 +1756,11 @@ stronger operations it needs instead of citing machine parameters generally.
   device-write requires exclusive polarity; admitted grants pin borrower,
   space, provenance, open-set rights, and an open set of completion facts; an
   exact provider receipt must establish borrower release plus every required
-  fence/cache/provider fact. Provider execution and the normalized DMA slice
-  may proceed independently. Connecting the token and its borrowed Extent to
+  fence/cache/provider fact. Completion evidence is now derived from the exact
+  live loan and binds its confinement receipt, direction, space, provenance,
+  mapping era, and lent range; reusing a loan ID cannot replay a stale
+  completion after authority drift. Provider execution and the normalized DMA
+  slice may proceed independently. Connecting the token and its borrowed Extent to
   Omega storage, calling conventions, linearity, and permission contexts is
   **OWNER-BLOCKED (#8)** on opaque runtime `boundary data` representation.
   Bidirectional sharing remains an explicit atomic/coherence protocol, not
