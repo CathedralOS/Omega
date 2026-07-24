@@ -1,0 +1,18 @@
+// FAIL CANARY: equal record size and alignment are not enough. The target leaf
+// admits bit pattern 101 while the source leaf admits bit pattern 0, so writes
+// through either mutable alias could invalidate the other's established range.
+data SourceRecord {
+    value: i16 [0..=100];
+}
+
+data TargetRecord {
+    value: u16 [1..=101];
+}
+
+data Main {
+    source: SourceRecord;
+}
+
+machine Main::main(&mut self) {
+    let view: &mut TargetRecord = &mut self.source as &mut TargetRecord;
+}

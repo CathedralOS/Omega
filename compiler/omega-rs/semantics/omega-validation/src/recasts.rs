@@ -12,9 +12,11 @@
 //!   fact-free types, normalized domain conjunctions that imply one another
 //!   in BOTH directions, or integer ranges that denote the same normalized
 //!   bit-pattern set. Merely equal-looking cross-carrier predicates and float
-//!   ranges remain fenced. Mutable record views require recursively
+//!   ranges remain fenced. Mutable byte-region record views require recursively
 //!   fact-free target shapes, including literal-length fixed arrays nested in
-//!   records. Lowering is address identity:
+//!   records. Mutable typed record aliases may retain facts when source and
+//!   target have identical geometry and representation-equivalent leaves.
+//!   Lowering is address identity:
 //!   native reads/writes the place through the stated type; the interpreter
 //!   bit-reinterprets both sides of the alias or assembles/writes the complete
 //!   little-endian byte-region footprint.
@@ -387,17 +389,6 @@ fn judge_scalar_recast(
     // size_of(record) live bytes from the region.
     if PrimitiveType::from_name(&target_name).is_none() {
         if let Some(record_size) = fixed_record_size(program, &target_name) {
-            if mutable_recast
-                && !record_view_is_fact_free(program, &target_name, &mut HashSet::new())
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{context}: mutable record recast target `{target_name}` must be \
-                     recursively fact-free; writable views require fact implication in \
-                     BOTH directions, so constrained fields, bool, and record invariants \
-                     remain fenced"
-                )));
-                return;
-            }
             let source = strip_mutable(program, cast.value);
             let interior = interior_byte_region_source(program, machine, state, source);
             if let InteriorByteRegion::OffsetUnproven {
@@ -413,6 +404,17 @@ fn judge_scalar_recast(
                 region_length,
             } = interior
             {
+                if mutable_recast
+                    && !record_view_is_fact_free(program, &target_name, &mut HashSet::new())
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{context}: mutable record recast target `{target_name}` must be \
+                         recursively fact-free over a raw byte region; writable views require \
+                         fact implication in BOTH directions, and unchecked bytes cannot \
+                         establish constrained fields, bool, or record invariants"
+                    )));
+                    return;
+                }
                 let Some(end) = offset.checked_add(record_size as i64) else {
                     return;
                 };
@@ -443,11 +445,49 @@ fn judge_scalar_recast(
                 }
                 return;
             }
+            if mutable_recast {
+                let source_type =
+                    crate::places::declared_place_type_raw(program, machine, Some(state), source);
+                let source_name = source_type.and_then(|source_type| {
+                    named_record_type(program, source_type).map(str::to_owned)
+                });
+                if let Some(source_name) = source_name {
+                    let source_representation =
+                        mutable_record_representation(program, &source_name);
+                    let target_representation =
+                        mutable_record_representation(program, &target_name);
+                    if source_representation
+                        .as_ref()
+                        .zip(target_representation.as_ref())
+                        .is_some_and(|(source, target)| {
+                            mutable_record_representations_equivalent(program, source, target)
+                        })
+                    {
+                        let let_names_target = matches!(
+                            program.type_reference_table.type_reference(let_referee),
+                            TypeReferenceNode::Named { name, .. } if name.as_str() == target_name
+                        );
+                        if !let_names_target {
+                            diagnostics.push(Diagnostic::error(format!(
+                                "{context}: the let's declared type must restate the recast target \
+                                 `&mut {target_name}`"
+                            )));
+                        }
+                        return;
+                    }
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{context}: mutable record aliases require identical layout geometry and \
+                         representation-equivalent leaf facts; source `{source_name}` and target \
+                         `{target_name}` do not prove fact implication in BOTH directions"
+                    )));
+                    return;
+                }
+            }
         }
         diagnostics.push(Diagnostic::error(format!(
             "{context}: recast target `{target_name}` is not a scalar primitive or an \
-             eligible fixed record over a byte region; deeper shapes land with the \
-             byte-view rung"
+             eligible fixed record over a byte region or typed record place; deeper shapes \
+             land with the byte-view rung"
         )));
         return;
     }
@@ -644,13 +684,14 @@ fn mutable_scalar_representation_facts(
                 type_reference = *base_type;
             }
             TypeReferenceNode::Named { name, .. }
-                if PrimitiveType::from_name(name.as_str())
-                    .is_some_and(|primitive| primitive != PrimitiveType::Bool) =>
+                if PrimitiveType::from_name(name.as_str()).is_some() =>
             {
                 let primitive = PrimitiveType::from_name(name.as_str())?;
-                let bit_patterns = match range {
-                    Some(range) => integer_range_bit_patterns(primitive, range)?,
-                    None => full_scalar_bit_patterns(primitive),
+                let bit_patterns = match (primitive, range) {
+                    (PrimitiveType::Bool, None) => vec![(0, 1)],
+                    (PrimitiveType::Bool, Some(_)) => return None,
+                    (_, Some(range)) => integer_range_bit_patterns(primitive, range)?,
+                    (_, None) => full_scalar_bit_patterns(primitive),
                 };
                 return Some(MutableScalarRepresentationFacts {
                     domains,
@@ -739,6 +780,199 @@ fn mutable_scalar_representation_facts_equivalent(
         })
     };
     implies(&source.domains, &target.domains) && implies(&target.domains, &source.domains)
+}
+
+#[derive(Debug, Clone)]
+struct MutableRecordRepresentation {
+    size: usize,
+    align: usize,
+    leaves: Vec<MutableRecordLeaf>,
+}
+
+#[derive(Debug, Clone)]
+struct MutableRecordLeaf {
+    offset: usize,
+    size: usize,
+    facts: MutableScalarRepresentationFacts,
+}
+
+fn named_record_type(program: &TypedTrees, type_reference: TypeReferenceHandle) -> Option<&str> {
+    let unwrapped = crate::places::unwrapped_type_reference(program, type_reference)?;
+    match program.type_reference_table.type_reference(unwrapped) {
+        TypeReferenceNode::Named { name, .. }
+            if PrimitiveType::from_name(name.as_str()).is_none() =>
+        {
+            Some(name.as_str())
+        }
+        _ => None,
+    }
+}
+
+/// Normalize one established record into the byte geometry and scalar
+/// representation facts a mutable alias may expose. Record-wide invariants and
+/// zero-gated establishment remain fenced: arbitrary field writes cannot prove
+/// those relational facts. Leaves may carry scalar domains/ranges (and bool's
+/// exact `{0,1}` set), because both alias directions are checked below.
+fn mutable_record_representation(
+    program: &TypedTrees,
+    name: &str,
+) -> Option<MutableRecordRepresentation> {
+    let mut representation =
+        mutable_record_representation_inner(program, name, &mut HashSet::new())?;
+    representation
+        .leaves
+        .sort_by_key(|leaf| (leaf.offset, leaf.size));
+    Some(representation)
+}
+
+fn mutable_record_representation_inner(
+    program: &TypedTrees,
+    name: &str,
+    visiting: &mut HashSet<String>,
+) -> Option<MutableRecordRepresentation> {
+    if !visiting.insert(name.to_owned()) {
+        return None;
+    }
+    let data = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == name)?;
+    if !data.where_facts.is_empty() || data.zero_gated {
+        visiting.remove(name);
+        return None;
+    }
+
+    let mut fields = Vec::new();
+    for member in program.data_members(data) {
+        let omega_typed_trees::data::DataMember::Field(field) = member else {
+            visiting.remove(name);
+            return None;
+        };
+        let Some(representation) =
+            mutable_record_type_representation(program, field.type_reference, visiting)
+        else {
+            visiting.remove(name);
+            return None;
+        };
+        fields.push(representation);
+    }
+
+    let (size, align, offsets) = if let Some(plan) = program
+        .plan_laid_layouts
+        .iter()
+        .find(|plan| plan.data_name == name)
+    {
+        if plan.offsets.len() != fields.len()
+            || fields.iter().zip(&plan.offsets).any(|(field, offset)| {
+                offset
+                    .checked_add(field.size)
+                    .is_none_or(|end| end > plan.size)
+            })
+        {
+            visiting.remove(name);
+            return None;
+        }
+        (plan.size, plan.align, plan.offsets.clone())
+    } else {
+        let mut offsets = Vec::with_capacity(fields.len());
+        let mut offset = 0usize;
+        let mut max_align = 1usize;
+        for field in &fields {
+            offset = offset.div_ceil(field.align) * field.align;
+            offsets.push(offset);
+            offset = offset.checked_add(field.size)?;
+            max_align = max_align.max(field.align);
+        }
+        (offset.div_ceil(max_align) * max_align, max_align, offsets)
+    };
+
+    let mut leaves = Vec::new();
+    for (field, field_offset) in fields.into_iter().zip(offsets) {
+        for mut leaf in field.leaves {
+            leaf.offset = leaf.offset.checked_add(field_offset)?;
+            leaves.push(leaf);
+        }
+    }
+    visiting.remove(name);
+    Some(MutableRecordRepresentation {
+        size,
+        align,
+        leaves,
+    })
+}
+
+fn mutable_record_type_representation(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    visiting: &mut HashSet<String>,
+) -> Option<MutableRecordRepresentation> {
+    if let Some(primitive) = program.primitive_type_reference(type_reference) {
+        let size = primitive.scalar_byte_size()?;
+        return Some(MutableRecordRepresentation {
+            size,
+            align: size,
+            leaves: vec![MutableRecordLeaf {
+                offset: 0,
+                size,
+                facts: mutable_scalar_representation_facts(program, type_reference)?,
+            }],
+        });
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(length),
+        } => {
+            let element = mutable_record_type_representation(program, *element_type, visiting)?;
+            let size = element.size.checked_mul(*length)?;
+            let mut leaves = Vec::with_capacity(element.leaves.len().checked_mul(*length)?);
+            for index in 0..*length {
+                let element_offset = element.size.checked_mul(index)?;
+                for leaf in &element.leaves {
+                    leaves.push(MutableRecordLeaf {
+                        offset: leaf.offset.checked_add(element_offset)?,
+                        size: leaf.size,
+                        facts: leaf.facts.clone(),
+                    });
+                }
+            }
+            Some(MutableRecordRepresentation {
+                size,
+                align: element.align,
+                leaves,
+            })
+        }
+        TypeReferenceNode::Named { name, .. } => {
+            mutable_record_representation_inner(program, name.as_str(), visiting)
+        }
+        // A non-scalar constraint is a fact over the aggregate rather than a
+        // leaf representation fact. It cannot be preserved by this rung.
+        TypeReferenceNode::Constrained { .. } | TypeReferenceNode::Reference { .. } => None,
+        _ => None,
+    }
+}
+
+fn mutable_record_representations_equivalent(
+    program: &TypedTrees,
+    source: &MutableRecordRepresentation,
+    target: &MutableRecordRepresentation,
+) -> bool {
+    source.size == target.size
+        && source.align == target.align
+        && source.leaves.len() == target.leaves.len()
+        && source
+            .leaves
+            .iter()
+            .zip(&target.leaves)
+            .all(|(source, target)| {
+                source.offset == target.offset
+                    && source.size == target.size
+                    && mutable_scalar_representation_facts_equivalent(
+                        program,
+                        &source.facts,
+                        &target.facts,
+                    )
+            })
 }
 
 #[cfg(test)]
