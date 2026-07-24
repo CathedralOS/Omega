@@ -105,16 +105,6 @@ impl TypedTrees {
     ) -> NormalizedDomainExpression {
         NormalizedDomainExpression::from_constraints(self, constraints)
     }
-
-    /// Canonical identity of one conjunction of type constraints. This is
-    /// public for identity consumers that normalize a larger binder-aware
-    /// structure (operator signatures and generic template contracts).
-    pub fn normalized_constraint_identity(
-        &self,
-        constraints: HandleSpan<TypeConstraintNode>,
-    ) -> String {
-        normalize_constraints(self, constraints)
-    }
 }
 
 #[derive(Default)]
@@ -239,19 +229,6 @@ fn normalize_constrained_base(
             Vec::new(),
         ),
     }
-}
-
-fn normalize_constraints(
-    program: &TypedTrees,
-    constraints: HandleSpan<TypeConstraintNode>,
-) -> String {
-    let mut constraints = normalized_constraints(program, constraints);
-    constraints.sort();
-    constraints.dedup();
-    compound(
-        "constraints",
-        constraints.into_iter().map(NormalizedConstraint::encode),
-    )
 }
 
 fn normalized_constraints(
