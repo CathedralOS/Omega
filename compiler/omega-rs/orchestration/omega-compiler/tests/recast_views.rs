@@ -305,6 +305,19 @@ fn scalar_bool_recasts_follow_representation_set_implication() {
 }
 
 #[test]
+fn shared_domain_recasts_require_one_way_implication() {
+    let canary = "recast/runtime_shared_domain_weakening_recast_exit";
+    assert_exit_70(canary, "shared-domain-weakening-recast");
+    compile_for_cross_targets(canary, "shared-domain-weakening-recast");
+
+    let diagnostics = fail_diagnostics("recast/recast_shared_domain_strengthening_rejected");
+    assert!(
+        diagnostics.contains("may weaken established facts but cannot strengthen them"),
+        "shared domain strengthening produced the wrong diagnostic:\n{diagnostics}"
+    );
+}
+
+#[test]
 fn mutable_recast_accepts_equivalent_typed_record_representations() {
     let canary = "recast/runtime_mutable_equivalent_record_recast_exit";
     assert_exit_70(canary, "mutable-equivalent-record-recast");
