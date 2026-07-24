@@ -296,10 +296,11 @@ grant pins the table-storage space, provenance, open-set rights, minimum bytes,
 alignment, and mapped address space. Construction owns the concrete table
 storage plus sealed pending mappings; it rejects duplicate identities,
 overlapping virtual ranges, and mappings into the wrong space without losing
-their authority. The normalized plan identity binds the exact storage and
-canonical mapping set. For every mapping that identity includes the concrete
-source range and custody mode, its space/provenance/era/lineage/rights, the
-mapped destination, and the destination authority that teardown will restore.
+their authority. The normalized plan identity binds the storage's space,
+provenance, mapping era, lineage, geometry, and rights plus the canonical
+mapping set. For every mapping that identity includes the concrete source
+range and custody mode, its space/provenance/era/lineage/rights, the mapped
+destination, and the destination authority that teardown will restore.
 A caller-chosen mapping name therefore cannot make two different physical
 frames—or two different reclamation outcomes—look like one plan.
 
