@@ -454,6 +454,25 @@ pub struct BlockingPlan {
     pub checked_may_block: bool,
 }
 
+/// Canonical service reach attached to one flow/graph scope. Rows index the
+/// representation root's shared `ServiceReachRowTable`; no spelling or numeric
+/// compatibility bit is stored on individual nodes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ServiceReachSummary {
+    pub direct: ServiceReachRowId,
+    pub transitive: ServiceReachRowId,
+}
+
+/// Independent operational possibilities attached to one flow/graph scope.
+/// These booleans are never reconstructed from service rows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct OperationalMaySummary {
+    pub direct_may_suspend: bool,
+    pub transitive_may_suspend: bool,
+    pub direct_may_block: bool,
+    pub transitive_may_block: bool,
+}
+
 /// The BUILTIN canonical ranking-view catalog (decision 23, TPR2). The ids
 /// are FIXED (deterministic across programs — they may enter proof-cache
 /// keys); user-declared measures are NOT here (they get per-program

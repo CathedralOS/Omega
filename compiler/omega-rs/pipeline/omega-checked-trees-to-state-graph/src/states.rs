@@ -8,7 +8,7 @@ use omega_state_graph::{
 use crate::borrows::state_borrow_summary;
 use crate::boundaries::state_boundary_summary;
 use crate::contracts::state_contract_summary;
-use crate::machine_metadata::state_effect_bits;
+use crate::machine_metadata::{state_operational_summary, state_service_reach};
 use crate::ownership::state_ownership_summary;
 use crate::segments::{SegmentTransition, StateSegment, segment_has_unconditional_transition};
 use crate::transitions::plan_transition;
@@ -23,7 +23,6 @@ pub(crate) fn append_machine_states(
     let mut states = HandleSpan::empty();
 
     for (index, segment) in segments.iter().enumerate() {
-        let (direct_effects, reached_effects) = state_effect_bits(program, segment.key.state);
         let transitions = append_segment_transitions(
             state_graph,
             program,
@@ -42,8 +41,8 @@ pub(crate) fn append_machine_states(
                 key: segment.key,
                 name: segment.name.clone(),
                 index,
-                direct_effects,
-                reached_effects,
+                service_reach: state_service_reach(program, segment.key.state),
+                operational: state_operational_summary(program, segment.key.state),
                 parameters: segment.parameters,
                 contracts,
                 values,

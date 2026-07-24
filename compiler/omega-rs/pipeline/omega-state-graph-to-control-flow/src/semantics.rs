@@ -1,13 +1,15 @@
 use omega_control_flow::{
     ControlFlowBorrowRoots, ControlFlowBoundaryRoots, ControlFlowContractRoots,
     ControlFlowFactRoots, ControlFlowOwnershipRoots, ControlFlowSemanticRoots,
-    ControlFlowValueRoots,
+    ControlFlowServiceReachRoots, ControlFlowValueRoots,
 };
 use omega_state_graph::{
     StateGraph, StateGraphBorrowRoots as SourceBorrowRoots,
     StateGraphBoundaryRoots as SourceBoundaryRoots, StateGraphContractRoots as SourceContractRoots,
     StateGraphFactRoots as SourceFactRoots, StateGraphOwnershipRoots as SourceOwnershipRoots,
-    StateGraphSemanticRoots as SourceSemanticRoots, StateGraphValueRoots as SourceValueRoots,
+    StateGraphSemanticRoots as SourceSemanticRoots,
+    StateGraphServiceReachRoots as SourceServiceReachRoots,
+    StateGraphValueRoots as SourceValueRoots,
 };
 
 use crate::borrows::{
@@ -32,6 +34,10 @@ use crate::values::{remap_value_owned, remap_values};
 
 pub(crate) fn remap_semantic_roots(state_graph: &StateGraph) -> ControlFlowSemanticRoots {
     ControlFlowSemanticRoots::with_roots(
+        ControlFlowServiceReachRoots::with_roots(
+            state_graph.semantics.service_reach.services.clone(),
+            state_graph.semantics.service_reach.rows.clone(),
+        ),
         remap_fact_roots(state_graph),
         remap_contract_roots(state_graph),
         remap_value_roots(state_graph),
@@ -45,6 +51,7 @@ pub(crate) fn remap_semantic_roots_owned(
     semantics: SourceSemanticRoots,
 ) -> ControlFlowSemanticRoots {
     let SourceSemanticRoots {
+        service_reach,
         facts,
         contracts,
         values,
@@ -54,6 +61,7 @@ pub(crate) fn remap_semantic_roots_owned(
     } = semantics;
 
     ControlFlowSemanticRoots::with_roots(
+        remap_service_reach_roots_owned(service_reach),
         remap_fact_roots_owned(facts),
         remap_contract_roots_owned(contracts),
         remap_value_roots_owned(values),
@@ -61,6 +69,12 @@ pub(crate) fn remap_semantic_roots_owned(
         remap_borrow_roots_owned(borrow),
         remap_ownership_roots_owned(ownership),
     )
+}
+
+fn remap_service_reach_roots_owned(
+    service_reach: SourceServiceReachRoots,
+) -> ControlFlowServiceReachRoots {
+    ControlFlowServiceReachRoots::with_roots(service_reach.services, service_reach.rows)
 }
 
 fn remap_fact_roots(state_graph: &StateGraph) -> ControlFlowFactRoots {

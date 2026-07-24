@@ -5,7 +5,7 @@ use crate::{
     ContractProofFactRef, FlowBoundaryEdgeFact, FlowCallFact, FlowConstraintRef,
     FlowInvalidationFact, FlowSemanticContextRef,
     admissibility::helpers::{
-        borrow_constraint_count, constraints, effect_evidence_count, semantic_contexts,
+        behavior_evidence_count, borrow_constraint_count, constraints, semantic_contexts,
     },
 };
 
@@ -17,7 +17,7 @@ impl<'facts> AcceptanceView for CallAcceptance<'facts> {
                 + borrow_constraint_count(&self.facts.flow, self.call.requires_constraints)
                 + borrow_constraint_count(&self.facts.flow, self.call.exit_constraints),
             self.call.requires.len() + self.call.ensures.len(),
-            effect_evidence_count(self.call.transitive_effects),
+            behavior_evidence_count(self.facts, self.call.service_reach, self.call.operational),
             self.call.boundary_edges.len(),
             0,
         )
@@ -99,11 +99,11 @@ impl<'facts> CallAcceptance<'facts> {
             .span_or_empty(self.call.ensures)
     }
 
-    pub fn direct_effects(&self) -> omega_effects::EffectSet {
-        self.call.direct_effects
+    pub fn service_reach(&self) -> omega_core::semantics::ServiceReachSummary {
+        self.call.service_reach
     }
 
-    pub fn transitive_effects(&self) -> omega_effects::EffectSet {
-        self.call.transitive_effects
+    pub fn operational(&self) -> omega_core::semantics::OperationalMaySummary {
+        self.call.operational
     }
 }

@@ -22,7 +22,8 @@ pub use capabilities::providers::{
 };
 pub use capabilities::{CapabilityFlowFact, CapabilityFlowKind, CapabilityFlowPlan};
 pub use service_reach::{
-    MachineServiceReachInference, ServiceReachInferencePlan, infer_service_reaches,
+    CallServiceReachInference, MachineServiceReachInference, ServiceReachInferencePlan,
+    StateServiceReachInference, infer_service_reaches,
 };
 
 pub type EffectBits = u64;

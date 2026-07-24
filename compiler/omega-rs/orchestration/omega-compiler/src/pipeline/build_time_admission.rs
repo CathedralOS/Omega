@@ -51,8 +51,9 @@ impl BuildTimeAdmissionPlan {
                 )
             })?;
 
-        let services = service_summary
-            .effective
+        let services = self
+            .service_reaches
+            .services(service_summary.effective)
             .iter()
             .map(|service| {
                 program

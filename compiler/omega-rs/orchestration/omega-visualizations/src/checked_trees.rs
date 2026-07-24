@@ -1,11 +1,11 @@
 use crate::phase_diagram::PhaseDiagramBuilder;
+use crate::service_reach::{append_reach_and_operation_lines, service_names};
 use omega_checked_trees::{
     BorrowAccessKind, BorrowArgumentAccessFact, BorrowLoanFact, CheckedTrees,
     FlowBorrowActivationFact, FlowBorrowWeakeningFact, FlowBorrowWeakeningReason, FlowCallFact,
     FlowInvalidationSource, FlowStateFact,
 };
 use omega_core::symbols::SymbolHandle;
-use omega_effects::EffectSet;
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{
@@ -28,9 +28,15 @@ pub fn checked_trees_html(program: &CheckedTrees) -> String {
             "machine",
             machine_index + 1,
         );
-        if let Some(effects) = machine_effects_for(program, machine.symbol) {
-            diagram.node_effects(&machine_id, effect_names_from_set(effects.transitive));
-        }
+        let reach = machine_service_reach(program, machine.symbol);
+        diagram.node_effects(
+            &machine_id,
+            service_names(
+                &program.facts.effect_rows.service_reaches.services,
+                &program.facts.effect_rows.service_reaches.rows,
+                reach.transitive,
+            ),
+        );
         machine_nodes.push((machine.symbol, machine_id.clone()));
 
         for state in program.machine_states(machine) {
@@ -43,7 +49,11 @@ pub fn checked_trees_html(program: &CheckedTrees) -> String {
             if let Some(flow_state) = flow_state_for(program, machine.symbol, state.symbol) {
                 diagram.node_effects(
                     &state_id,
-                    effect_names_from_set(flow_state.transitive_effects),
+                    service_names(
+                        &program.facts.effect_rows.service_reaches.services,
+                        &program.facts.effect_rows.service_reaches.rows,
+                        flow_state.service_reach.transitive,
+                    ),
                 );
             }
             diagram.containment_edge(&machine_id, &state_id);
@@ -729,9 +739,13 @@ fn machine_label(program: &CheckedTrees, machine: &Machine) -> String {
         machine.contracts.len(),
         machine.satisfies.len()
     );
-    if let Some(effects) = machine_effects_for(program, machine.symbol) {
-        append_effect_lines(&mut label, effects.direct, effects.transitive);
-    }
+    append_reach_and_operation_lines(
+        &mut label,
+        &program.facts.effect_rows.service_reaches.services,
+        &program.facts.effect_rows.service_reaches.rows,
+        machine_service_reach(program, machine.symbol),
+        machine_operational_summary(program, machine.symbol),
+    );
     label
 }
 
@@ -742,13 +756,13 @@ fn state_label(program: &CheckedTrees, machine: &Machine, state: &State) -> Stri
     let writable_root_count = borrow_state
         .map(|borrow| borrow.writable_roots.len())
         .unwrap_or(0);
-    let (invalidation_count, mutable_parameter_count, direct_effects, reached_effects) =
+    let (invalidation_count, mutable_parameter_count, service_reach, operational) =
         if let Some(flow) = flow_state {
             (
                 flow.invalidations.len(),
                 flow.mutable_parameter_count,
-                flow.direct_effects,
-                flow.transitive_effects,
+                flow.service_reach,
+                flow.operational,
             )
         } else {
             (
@@ -756,8 +770,8 @@ fn state_label(program: &CheckedTrees, machine: &Machine, state: &State) -> Stri
                 borrow_state
                     .map(|borrow| borrow.mutable_parameter_count)
                     .unwrap_or(0),
-                EffectSet::empty(),
-                EffectSet::empty(),
+                Default::default(),
+                Default::default(),
             )
         };
 
@@ -770,7 +784,13 @@ fn state_label(program: &CheckedTrees, machine: &Machine, state: &State) -> Stri
         writable_root_count,
         invalidation_count,
     );
-    append_effect_lines(&mut label, direct_effects, reached_effects);
+    append_reach_and_operation_lines(
+        &mut label,
+        &program.facts.effect_rows.service_reaches.services,
+        &program.facts.effect_rows.service_reaches.rows,
+        service_reach,
+        operational,
+    );
 
     if let Some(flow) = flow_state {
         append_loan_preview(&mut label, program, machine, state, flow.entry_constraints);
@@ -944,7 +964,14 @@ fn append_checked_call_nodes(
                 diagram.node(call_id, label, "external_call", machine_index + 1)
             };
 
-        diagram.node_effects(&rendered_id, effect_names_from_set(call.transitive_effects));
+        diagram.node_effects(
+            &rendered_id,
+            service_names(
+                &program.facts.effect_rows.service_reaches.services,
+                &program.facts.effect_rows.service_reaches.rows,
+                call.service_reach.transitive,
+            ),
+        );
         diagram.edge(source_id, &rendered_id, "call");
         diagram.containment_edge(source_id, &rendered_id);
     }
@@ -974,7 +1001,13 @@ fn checked_call_label(
         access_text,
         call.invalidations.len(),
     );
-    append_effect_lines(&mut label, call.direct_effects, call.transitive_effects);
+    append_reach_and_operation_lines(
+        &mut label,
+        &program.facts.effect_rows.service_reaches.services,
+        &program.facts.effect_rows.service_reaches.rows,
+        call.service_reach,
+        call.operational,
+    );
     label.push_str("\n\ndouble-click to scope target");
     label
 }
@@ -1197,16 +1230,50 @@ fn borrow_state_for(
     })
 }
 
-fn machine_effects_for(
+fn machine_service_reach(
     program: &CheckedTrees,
     symbol: SymbolHandle,
-) -> Option<&omega_effects::MachineEffects> {
+) -> omega_core::semantics::ServiceReachSummary {
     program
+        .facts
+        .effect_rows
+        .service_reaches
+        .for_machine(symbol)
+        .map(|reach| omega_core::semantics::ServiceReachSummary {
+            direct: reach.inferred_direct,
+            transitive: reach.inferred_transitive,
+        })
+        .unwrap_or_default()
+}
+
+fn machine_operational_summary(
+    program: &CheckedTrees,
+    symbol: SymbolHandle,
+) -> omega_core::semantics::OperationalMaySummary {
+    let mut summary = omega_core::semantics::OperationalMaySummary::default();
+    for flow in program
+        .facts
+        .flow
+        .control
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .filter(|state| state.machine_symbol == symbol)
+    {
+        summary.direct_may_suspend |= flow.operational.direct_may_suspend;
+        summary.direct_may_block |= flow.operational.direct_may_block;
+    }
+    if let Some(machine) = program
         .facts
         .effects
         .machines()
         .iter()
-        .find(|effects| effects.symbol == symbol)
+        .find(|machine| machine.symbol == symbol)
+    {
+        summary.transitive_may_suspend = machine.transitive_may_suspend;
+        summary.transitive_may_block = machine.transitive_may_block;
+    }
+    summary
 }
 
 fn state_id_for_symbol(
@@ -1247,33 +1314,6 @@ fn transition_target_symbol_in_states(
         | TransitionTargetNode::SelfTarget
         | TransitionTargetNode::Terminal => None,
     }
-}
-
-fn format_effect_set(effects: EffectSet) -> String {
-    if effects.is_empty() {
-        return "<none> [0x0000000000000000]".to_owned();
-    }
-
-    format!(
-        "{} [0x{:016x}]",
-        effects.names().collect::<Vec<_>>().join(", "),
-        effects.bits()
-    )
-}
-
-fn append_effect_lines(label: &mut String, direct: EffectSet, reached: EffectSet) {
-    if !direct.is_empty() {
-        label.push_str("\ndirect effects: ");
-        label.push_str(&format_effect_set(direct));
-    }
-    if !reached.is_empty() {
-        label.push_str("\nreached effects: ");
-        label.push_str(&format_effect_set(reached));
-    }
-}
-
-fn effect_names_from_set(effects: EffectSet) -> Vec<String> {
-    effects.names().map(str::to_owned).collect()
 }
 
 fn semantic_symbol_name(program: &CheckedTrees, symbol: SymbolHandle) -> String {

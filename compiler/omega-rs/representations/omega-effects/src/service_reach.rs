@@ -1,51 +1,100 @@
-use omega_core::semantics::ServiceReachId;
+use omega_core::arena::{Arena, HandleSpan};
+use omega_core::semantics::{ServiceReachId, ServiceReachRowId, ServiceReachRowTable};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
 
 use crate::EffectPlan;
 
-/// The symbol-resolved recursive service summary for one machine. Sets are
-/// sorted and deduplicated `ServiceReachId`s owned by the typed tree's
-/// `ServiceReachTable`; no global spelling catalog or numeric effect bit is
-/// consulted.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// The symbol-resolved recursive service summary for one machine. All sets
+/// are interned in the plan's shared row table; child state/call summaries are
+/// grouped in arenas instead of allocating one small `Vec` per parent.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineServiceReachInference {
     pub machine: SymbolHandle,
-    pub published: Vec<ServiceReachId>,
-    pub inferred_direct: Vec<ServiceReachId>,
-    pub inferred_transitive: Vec<ServiceReachId>,
+    pub published: ServiceReachRowId,
+    pub inferred_direct: ServiceReachRowId,
+    pub inferred_transitive: ServiceReachRowId,
     /// The modular summary callers consume: published for a pinned/authored
     /// interface, inferred for a private checked body.
-    pub effective: Vec<ServiceReachId>,
+    pub effective: ServiceReachRowId,
+    pub states: HandleSpan<StateServiceReachInference>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateServiceReachInference {
+    pub state: SymbolHandle,
+    pub inferred_direct: ServiceReachRowId,
+    pub inferred_transitive: ServiceReachRowId,
+    pub calls: HandleSpan<CallServiceReachInference>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CallServiceReachInference {
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+    pub target_state: SymbolHandle,
+    pub target_machine: SymbolHandle,
+    pub inferred_direct: ServiceReachRowId,
+    pub inferred_transitive: ServiceReachRowId,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ServiceReachInferencePlan {
-    pub machines: Vec<MachineServiceReachInference>,
+    pub rows: ServiceReachRowTable,
+    pub root_machines: HandleSpan<MachineServiceReachInference>,
+    pub machines: Arena<MachineServiceReachInference>,
+    pub states: Arena<StateServiceReachInference>,
+    pub calls: Arena<CallServiceReachInference>,
 }
 
 impl ServiceReachInferencePlan {
+    pub fn machines(&self) -> &[MachineServiceReachInference] {
+        self.machines.span_or_empty(self.root_machines)
+    }
+
     pub fn for_machine(&self, machine: SymbolHandle) -> Option<&MachineServiceReachInference> {
-        self.machines
+        self.machines()
             .iter()
             .find(|summary| summary.machine == machine)
     }
+
+    pub fn states_for(
+        &self,
+        machine: &MachineServiceReachInference,
+    ) -> &[StateServiceReachInference] {
+        self.states.span_or_empty(machine.states)
+    }
+
+    pub fn for_state(&self, state: SymbolHandle) -> Option<&StateServiceReachInference> {
+        self.states
+            .iter()
+            .map(|(_, summary)| summary)
+            .find(|summary| summary.state == state)
+    }
+
+    pub fn calls_for(&self, state: &StateServiceReachInference) -> &[CallServiceReachInference] {
+        self.calls.span_or_empty(state.calls)
+    }
+
+    pub fn services(&self, row: ServiceReachRowId) -> &[ServiceReachId] {
+        self.rows.services(row)
+    }
+}
+
+#[derive(Debug, Clone)]
+struct MachineReachWork {
+    symbol: SymbolHandle,
+    published: Vec<ServiceReachId>,
+    uses_published: bool,
+    direct: Vec<ServiceReachId>,
+    transitive: Vec<ServiceReachId>,
+    calls: Vec<(SymbolHandle, Vec<ServiceReachId>)>,
 }
 
 pub fn infer_service_reaches(
     program: &TypedTrees,
     effects: &EffectPlan,
 ) -> ServiceReachInferencePlan {
-    #[derive(Clone)]
-    struct Work {
-        symbol: SymbolHandle,
-        published: Vec<ServiceReachId>,
-        uses_published: bool,
-        direct: Vec<ServiceReachId>,
-        transitive: Vec<ServiceReachId>,
-        calls: Vec<(SymbolHandle, Vec<ServiceReachId>)>,
-    }
-
     let mut work = Vec::new();
     for machine in program.machines() {
         let published = program
@@ -68,7 +117,7 @@ pub fn infer_service_reaches(
                 }
             }
         }
-        work.push(Work {
+        work.push(MachineReachWork {
             symbol: machine.symbol,
             published: published.clone(),
             uses_published: machine.supply_mode
@@ -93,11 +142,7 @@ pub fn infer_service_reaches(
             for (target, direct) in work[machine_index].calls.clone() {
                 extend_service_set(&mut transitive, &direct);
                 if let Some(target) = work.iter().find(|machine| machine.symbol == target) {
-                    if target.uses_published {
-                        extend_service_set(&mut transitive, &target.published);
-                    } else {
-                        extend_service_set(&mut transitive, &target.transitive);
-                    }
+                    extend_service_set(&mut transitive, effective_services(target));
                 }
             }
             work[machine_index].transitive = transitive;
@@ -111,21 +156,89 @@ pub fn infer_service_reaches(
         }
     }
 
-    ServiceReachInferencePlan {
-        machines: work
-            .into_iter()
-            .map(|machine| MachineServiceReachInference {
+    let mut plan = ServiceReachInferencePlan {
+        rows: program.service_reach_rows.clone(),
+        ..Default::default()
+    };
+    for machine in program.machines() {
+        let Some(machine_work) = work.iter().find(|summary| summary.symbol == machine.symbol)
+        else {
+            continue;
+        };
+        let mut states = HandleSpan::empty();
+        if let Some(machine_effects) = effects
+            .machines()
+            .iter()
+            .find(|summary| summary.symbol == machine.symbol)
+        {
+            for state_effects in effects.states.span_or_empty(machine_effects.states) {
+                let mut calls = HandleSpan::empty();
+                let mut state_direct = Vec::new();
+                let mut state_transitive = Vec::new();
+                for call_effects in effects.calls.span_or_empty(state_effects.calls) {
+                    let call_direct =
+                        direct_service_reach_for_call(program, call_effects.target_state_symbol);
+                    let mut call_transitive = call_direct.clone();
+                    if let Some(target) = work
+                        .iter()
+                        .find(|summary| summary.symbol == call_effects.target_machine_symbol)
+                    {
+                        extend_service_set(&mut call_transitive, effective_services(target));
+                    }
+                    extend_service_set(&mut state_direct, &call_direct);
+                    extend_service_set(&mut state_transitive, &call_transitive);
+                    let inferred_direct = plan.rows.intern(call_direct);
+                    let inferred_transitive = plan.rows.intern(call_transitive);
+                    plan.calls.append_to_span(
+                        &mut calls,
+                        CallServiceReachInference {
+                            statement_index: call_effects.statement_index,
+                            call_ordinal: call_effects.call_ordinal,
+                            target_state: call_effects.target_state_symbol,
+                            target_machine: call_effects.target_machine_symbol,
+                            inferred_direct,
+                            inferred_transitive,
+                        },
+                    );
+                }
+                let inferred_direct = plan.rows.intern(state_direct);
+                let inferred_transitive = plan.rows.intern(state_transitive);
+                plan.states.append_to_span(
+                    &mut states,
+                    StateServiceReachInference {
+                        state: state_effects.symbol,
+                        inferred_direct,
+                        inferred_transitive,
+                        calls,
+                    },
+                );
+            }
+        }
+
+        let published = plan.rows.intern(machine_work.published.clone());
+        let inferred_direct = plan.rows.intern(machine_work.direct.clone());
+        let inferred_transitive = plan.rows.intern(machine_work.transitive.clone());
+        let effective = plan.rows.intern(effective_services(machine_work).to_vec());
+        plan.machines.append_to_span(
+            &mut plan.root_machines,
+            MachineServiceReachInference {
                 machine: machine.symbol,
-                published: machine.published.clone(),
-                inferred_direct: machine.direct,
-                inferred_transitive: machine.transitive.clone(),
-                effective: if machine.uses_published {
-                    machine.published
-                } else {
-                    machine.transitive
-                },
-            })
-            .collect(),
+                published,
+                inferred_direct,
+                inferred_transitive,
+                effective,
+                states,
+            },
+        );
+    }
+    plan
+}
+
+fn effective_services(machine: &MachineReachWork) -> &[ServiceReachId] {
+    if machine.uses_published {
+        &machine.published
+    } else {
+        &machine.transitive
     }
 }
 

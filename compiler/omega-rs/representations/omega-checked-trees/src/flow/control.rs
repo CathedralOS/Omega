@@ -1,4 +1,5 @@
 use omega_core::arena::HandleSpan;
+use omega_core::semantics::{OperationalMaySummary, ServiceReachSummary};
 use omega_core::symbols::SymbolHandle;
 
 use crate::{BorrowArgumentAccessFact, BorrowWritableRootFact, ContractProofFactRef};
@@ -26,8 +27,8 @@ pub struct FlowCallFact {
     pub boundary_edges: HandleSpan<FlowBoundaryEdgeFact>,
     pub requires: HandleSpan<ContractProofFactRef>,
     pub ensures: HandleSpan<ContractProofFactRef>,
-    pub direct_effects: omega_effects::EffectSet,
-    pub transitive_effects: omega_effects::EffectSet,
+    pub service_reach: ServiceReachSummary,
+    pub operational: OperationalMaySummary,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -66,6 +67,6 @@ pub struct FlowStateFact {
     pub statements: HandleSpan<FlowStatementFact>,
     pub calls: HandleSpan<FlowCallFact>,
     pub exits: HandleSpan<FlowExitFact>,
-    pub direct_effects: omega_effects::EffectSet,
-    pub transitive_effects: omega_effects::EffectSet,
+    pub service_reach: ServiceReachSummary,
+    pub operational: OperationalMaySummary,
 }

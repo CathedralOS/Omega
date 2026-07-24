@@ -6,11 +6,9 @@ pub(super) fn build_state_flow_fact(
     proof: &ProofFacts,
     semantic: &mut FactPlan,
     domains: &DomainFacts,
-    effects: &omega_effects::EffectPlan,
     ctx: &mut FlowBuildContext,
     machine: &omega_typed_trees::machine::Machine,
     state: &omega_typed_trees::state::State,
-    machine_effects: Option<&omega_effects::MachineEffects>,
 ) {
     let Some((borrow_state_handle, borrow_state)) =
         borrow_state_fact(borrow, machine.symbol, state.symbol)
@@ -18,7 +16,6 @@ pub(super) fn build_state_flow_fact(
         return;
     };
 
-    let state_effects = effects_state(effects, machine_effects, state.symbol);
     let mut state_contexts = omega_core::arena::HandleSpan::empty();
     let mut state_constraints = omega_core::arena::HandleSpan::empty();
     append_flow_contexts_for_points(
@@ -80,11 +77,9 @@ pub(super) fn build_state_flow_fact(
         proof,
         semantic,
         domains,
-        effects,
         ctx,
         machine,
         state,
-        state_effects,
         &mut active_contexts,
         &mut active_constraints,
         borrow_state,
@@ -133,11 +128,7 @@ pub(super) fn build_state_flow_fact(
         statements: appended_span_since(&ctx.control.statements, state_statements_start),
         calls: state_calls,
         exits: state_exits,
-        direct_effects: state_effects
-            .map(|state_effects| state_effects.direct)
-            .unwrap_or_else(omega_effects::EffectSet::empty),
-        transitive_effects: state_effects
-            .map(|state_effects| state_effects.transitive)
-            .unwrap_or_else(omega_effects::EffectSet::empty),
+        service_reach: Default::default(),
+        operational: Default::default(),
     });
 }

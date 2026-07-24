@@ -7,7 +7,7 @@ use crate::{
     ContractOperatorUseFact, ExitAcceptance, FlowCallFact, FlowExitFact, FlowStateFact,
     FlowStatementFact, OperatorAcceptance, StateAcceptance, StateOperationAcceptance,
     StatementAcceptance,
-    admissibility::helpers::{effect_evidence_count, machine_decrease_count},
+    admissibility::helpers::{behavior_evidence_count, machine_decrease_count},
 };
 
 use evidence::{
@@ -57,7 +57,7 @@ impl<'facts> AcceptanceView for StateAcceptance<'facts> {
         AcceptanceSummary::accepted(
             state_borrow_evidence_count(&self.facts.flow, self.state, statements, calls, exits),
             state_proof_evidence_count(calls, exits) + operator_proof_evidence,
-            effect_evidence_count(self.state.transitive_effects),
+            behavior_evidence_count(self.facts, self.state.service_reach, self.state.operational),
             state_boundary_evidence_count(self.state, calls) + operator_boundary_evidence,
             machine_decrease_count(self.facts, self.state.machine_symbol),
         )
@@ -81,12 +81,12 @@ impl<'facts> StateAcceptance<'facts> {
         self.state
     }
 
-    pub fn direct_effects(&self) -> omega_effects::EffectSet {
-        self.state.direct_effects
+    pub fn service_reach(&self) -> omega_core::semantics::ServiceReachSummary {
+        self.state.service_reach
     }
 
-    pub fn transitive_effects(&self) -> omega_effects::EffectSet {
-        self.state.transitive_effects
+    pub fn operational(&self) -> omega_core::semantics::OperationalMaySummary {
+        self.state.operational
     }
 
     pub fn statements(&self) -> &'facts [FlowStatementFact] {

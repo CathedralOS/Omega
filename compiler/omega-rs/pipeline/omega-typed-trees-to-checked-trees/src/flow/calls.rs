@@ -7,16 +7,13 @@ pub(super) fn build_call_flow_fact(
     proof: &ProofFacts,
     semantic: &FactPlan,
     domains: &DomainFacts,
-    effects: &omega_effects::EffectPlan,
     ctx: &mut FlowBuildContext,
     machine: &omega_typed_trees::machine::Machine,
     state: &omega_typed_trees::state::State,
-    state_effects: Option<&omega_effects::StateEffects>,
     active_contexts: &mut omega_core::arena::HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut omega_core::arena::HandleSpan<FlowConstraintRef>,
     borrow_call: &BorrowCallFact,
 ) -> FlowCallFact {
-    let effect_call = effects_call(effects, state_effects, borrow_call);
     let contract_call = proof_contract_call(
         proof,
         machine.symbol,
@@ -80,11 +77,7 @@ pub(super) fn build_call_flow_fact(
         ensures: contract_call
             .map(|call| call.ensures)
             .unwrap_or_else(HandleSpan::empty),
-        direct_effects: effect_call
-            .map(|call| call.direct)
-            .unwrap_or_else(omega_effects::EffectSet::empty),
-        transitive_effects: effect_call
-            .map(|call| call.transitive)
-            .unwrap_or_else(omega_effects::EffectSet::empty),
+        service_reach: Default::default(),
+        operational: Default::default(),
     }
 }

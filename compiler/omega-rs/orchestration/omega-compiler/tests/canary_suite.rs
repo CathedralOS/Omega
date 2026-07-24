@@ -1329,6 +1329,10 @@ fn boundary_trait_canary_reports_capability_use() {
 
     let manifest = fs::read_to_string(build_dir.join("05_capability_manifest.json"))
         .expect("capability manifest should be written");
+    let state_graph = fs::read_to_string(build_dir.join("06_state_graph.html"))
+        .expect("state graph report should be written");
+    let control_flow = fs::read_to_string(build_dir.join("07_control_flow.html"))
+        .expect("control-flow report should be written");
     let carry_manifest = fs::read_to_string(build_dir.join("05_carry_manifest.json"))
         .expect("carry manifest should be written");
     let task_manifest = fs::read_to_string(build_dir.join("05_task_activations.json"))
@@ -1350,6 +1354,21 @@ fn boundary_trait_canary_reports_capability_use() {
         "capability manifest must not expose the retired compatibility effect set\n{}",
         manifest
     );
+    for (name, report) in [
+        ("state graph", state_graph.as_str()),
+        ("control flow", control_flow.as_str()),
+    ] {
+        assert!(
+            report.contains("reached service reach: Console")
+                && report.contains("suspension: direct no, reached no")
+                && report.contains("blocking: direct no, reached no"),
+            "{name} report should retain canonical service reach and independent operational axes\n{report}"
+        );
+        assert!(
+            !report.contains("reached effects:") && !report.contains("[0x"),
+            "{name} report must not reconstruct legacy effect bits\n{report}"
+        );
+    }
     assert!(
         carry_manifest.contains("\"effective\":")
             && carry_manifest.contains("\"suspension\":")

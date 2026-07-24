@@ -1,6 +1,6 @@
 use crate::borrow::build_borrow_facts;
 use crate::capabilities::build_capability_facts;
-use crate::flow::{build_domain_facts, build_flow_facts};
+use crate::flow::{build_domain_facts, build_flow_facts_with_service_reaches};
 use crate::invariants::build_invariant_facts;
 use crate::operators::{build_operator_facts, select_pending_domain_operator_meanings};
 use crate::proof::build_proof_facts_with_operators;
@@ -23,7 +23,16 @@ pub(crate) fn build_check_facts(
     let invariants = build_invariant_facts(program);
     let mut semantic = build_semantic_facts(program, &proof);
     let domains = build_domain_facts(program, &semantic);
-    let flow = build_flow_facts(program, &borrow, &proof, &mut semantic, &domains, &effects);
+    let service_reach_inference = omega_effects::infer_service_reaches(program, &effects);
+    let flow = build_flow_facts_with_service_reaches(
+        program,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &effects,
+        &service_reach_inference,
+    );
     // Domain-owned meanings are selected only from declarations, mints, and
     // signature `requires`; the selector accepts no flow/fact environment.
     select_pending_domain_operator_meanings(program, &mut operators);
@@ -37,7 +46,7 @@ pub(crate) fn build_check_facts(
     // EFX: the durable service-reach fixed point is built independently from
     // resolved boundary-trait identities. The legacy effect rows remain only
     // for consumers not yet migrated.
-    let service_reaches = build_service_reach_facts(program, &effects);
+    let service_reaches = build_service_reach_facts(program, service_reach_inference);
     effect_rows.service_reaches = service_reaches;
     // STR4 checked plans, slice 2: semantic-domain commitments per machine.
     let qualifications = build_qualification_facts(program);
@@ -584,25 +593,51 @@ fn build_effect_row_facts(
 /// their published row.
 fn build_service_reach_facts(
     program: &TypedTrees,
-    effects: &EffectPlan,
+    inferred: omega_effects::ServiceReachInferencePlan,
 ) -> omega_checked_trees::ServiceReachFacts {
-    let inferred = omega_effects::infer_service_reaches(program, effects);
-    let mut rows = program.service_reach_rows.clone();
-    let machines = inferred
-        .machines
-        .into_iter()
-        .map(|machine| omega_checked_trees::MachineServiceReachRows {
-            machine: machine.machine,
-            published_ceiling: rows.intern(machine.published),
-            inferred_direct: rows.intern(machine.inferred_direct),
-            inferred_transitive: rows.intern(machine.inferred_transitive),
-        })
-        .collect();
     omega_checked_trees::ServiceReachFacts {
         services: program.service_reaches.clone(),
-        rows,
-        machines,
+        rows: inferred.rows,
+        root_machines: remap_service_reach_span(inferred.root_machines),
+        machines: inferred
+            .machines
+            .map(|machine| omega_checked_trees::MachineServiceReachRows {
+                machine: machine.machine,
+                published_ceiling: machine.published,
+                inferred_direct: machine.inferred_direct,
+                inferred_transitive: machine.inferred_transitive,
+                effective: machine.effective,
+                states: remap_service_reach_span(machine.states),
+            }),
+        states: inferred
+            .states
+            .map(|state| omega_checked_trees::StateServiceReachRows {
+                state: state.state,
+                inferred_direct: state.inferred_direct,
+                inferred_transitive: state.inferred_transitive,
+                calls: remap_service_reach_span(state.calls),
+            }),
+        calls: inferred
+            .calls
+            .map(|call| omega_checked_trees::CallServiceReachRows {
+                statement_index: call.statement_index,
+                call_ordinal: call.call_ordinal,
+                target_state: call.target_state,
+                target_machine: call.target_machine,
+                inferred_direct: call.inferred_direct,
+                inferred_transitive: call.inferred_transitive,
+            }),
     }
+}
+
+fn remap_service_reach_span<From, To>(
+    span: omega_core::arena::HandleSpan<From>,
+) -> omega_core::arena::HandleSpan<To> {
+    let start = span.start();
+    omega_core::arena::HandleSpan::from_parts(
+        omega_core::arena::Handle::from_parts(start.arena_index(), start.generation()),
+        span.count(),
+    )
 }
 
 /// A stable, spelling-independent byte encoding of a contract fact

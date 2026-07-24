@@ -1,6 +1,7 @@
 use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::machine::Machine;
 use omega_core::arena::HandleSpan;
+use omega_core::semantics::{OperationalMaySummary, ServiceReachSummary};
 use omega_state_graph::{ContainedGraph, MachineOwnedDataGraph, StateGraph};
 
 pub(crate) fn machine_owned_data(
@@ -22,33 +23,95 @@ pub(crate) fn machine_owned_data(
         )
 }
 
-pub(crate) fn machine_effect_bits(
+pub(crate) fn machine_service_reach(
     program: &CheckedTrees,
     machine_symbol: omega_core::symbols::SymbolHandle,
-) -> (omega_effects::EffectBits, omega_effects::EffectBits) {
+) -> ServiceReachSummary {
     program
+        .facts
+        .effect_rows
+        .service_reaches
+        .for_machine(machine_symbol)
+        .map(|reach| ServiceReachSummary {
+            direct: reach.inferred_direct,
+            transitive: reach.inferred_transitive,
+        })
+        .unwrap_or_default()
+}
+
+pub(crate) fn state_service_reach(
+    program: &CheckedTrees,
+    state_symbol: omega_core::symbols::SymbolHandle,
+) -> ServiceReachSummary {
+    program
+        .facts
+        .effect_rows
+        .service_reaches
+        .for_state(state_symbol)
+        .map(|reach| ServiceReachSummary {
+            direct: reach.inferred_direct,
+            transitive: reach.inferred_transitive,
+        })
+        .unwrap_or_default()
+}
+
+pub(crate) fn machine_operational_summary(
+    program: &CheckedTrees,
+    machine_symbol: omega_core::symbols::SymbolHandle,
+) -> OperationalMaySummary {
+    let Some(machine) = program
         .facts
         .effects
         .machines()
         .iter()
         .find(|effects| effects.symbol == machine_symbol)
-        .map(|effects| (effects.direct.bits(), effects.transitive.bits()))
-        .unwrap_or_default()
+    else {
+        return OperationalMaySummary::default();
+    };
+    let mut direct_may_suspend = false;
+    let mut direct_may_block = false;
+    for state in program.facts.effects.states.span_or_empty(machine.states) {
+        direct_may_suspend |= state.direct_may_suspend;
+        direct_may_block |= state.direct_may_block;
+        for call in program.facts.effects.calls.span_or_empty(state.calls) {
+            direct_may_suspend |= call.direct_may_suspend;
+            direct_may_block |= call.direct_may_block;
+        }
+    }
+    OperationalMaySummary {
+        direct_may_suspend,
+        transitive_may_suspend: machine.transitive_may_suspend,
+        direct_may_block,
+        transitive_may_block: machine.transitive_may_block,
+    }
 }
 
-pub(crate) fn state_effect_bits(
+pub(crate) fn state_operational_summary(
     program: &CheckedTrees,
     state_symbol: omega_core::symbols::SymbolHandle,
-) -> (omega_effects::EffectBits, omega_effects::EffectBits) {
-    program
+) -> OperationalMaySummary {
+    let Some(state) = program
         .facts
         .effects
         .machines()
         .iter()
         .flat_map(|machine| program.facts.effects.states.span_or_empty(machine.states))
         .find(|effects| effects.symbol == state_symbol)
-        .map(|effects| (effects.direct.bits(), effects.transitive.bits()))
-        .unwrap_or_default()
+    else {
+        return OperationalMaySummary::default();
+    };
+    let mut direct_may_suspend = state.direct_may_suspend;
+    let mut direct_may_block = state.direct_may_block;
+    for call in program.facts.effects.calls.span_or_empty(state.calls) {
+        direct_may_suspend |= call.direct_may_suspend;
+        direct_may_block |= call.direct_may_block;
+    }
+    OperationalMaySummary {
+        direct_may_suspend,
+        transitive_may_suspend: state.transitive_may_suspend,
+        direct_may_block,
+        transitive_may_block: state.transitive_may_block,
+    }
 }
 
 pub(crate) fn machine_contains(

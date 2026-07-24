@@ -206,14 +206,35 @@ fn canonical_asm_services_enter_normalized_reach_inference() {
     let summary = reaches
         .for_machine(machine.symbol)
         .expect("service summary");
+    let state = reaches
+        .states_for(summary)
+        .first()
+        .expect("main state service summary");
     for name in ["MachineControl", "PortIo"] {
         let service = typed
             .service_reaches
             .id_for_name(name)
             .expect("canonical asm service");
-        assert!(summary.inferred_direct.contains(&service));
-        assert!(summary.inferred_transitive.contains(&service));
+        assert!(reaches.services(summary.inferred_direct).contains(&service));
+        assert!(
+            reaches
+                .services(summary.inferred_transitive)
+                .contains(&service)
+        );
+        assert!(reaches.services(state.inferred_direct).contains(&service));
+        assert!(
+            reaches
+                .services(state.inferred_transitive)
+                .contains(&service)
+        );
     }
+    let calls = reaches.calls_for(state);
+    assert_eq!(calls.len(), 2);
+    assert!(
+        calls
+            .iter()
+            .all(|call| !reaches.services(call.inferred_direct).is_empty())
+    );
 }
 
 #[test]
