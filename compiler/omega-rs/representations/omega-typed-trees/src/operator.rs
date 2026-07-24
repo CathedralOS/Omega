@@ -401,106 +401,57 @@ pub fn operator_operand_signature(program: &TypedTrees, operator: &OperatorDefin
             .map(|parameter| parameter.symbol)
             .collect(),
     );
-    program
-        .operator_parameters(operator)
+    let parameters = program.operator_parameters(operator);
+    for parameter in parameters {
+        collect_type_parameter_occurrences(program, parameter.type_reference, &mut normalizer);
+    }
+    let binders = normalizer.bindings();
+    parameters
         .iter()
         .map(|parameter| {
-            canonical_type_reference(program, parameter.type_reference, &mut normalizer)
+            program
+                .normalized_type_identity_with_binders(parameter.type_reference, &binders)
+                .into_string()
         })
         .collect::<Vec<_>>()
         .join(", ")
 }
 
-fn canonical_type_reference(
+fn collect_type_parameter_occurrences(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
     normalizer: &mut TypeParameterNormalizer,
-) -> String {
+) {
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference {
-            referee,
-            is_mutable,
-            // Canonical form omits lifetimes (not part of type identity).
-            lifetime: _,
-        } => {
-            let qualifier = if *is_mutable { "mut " } else { "" };
-            format!(
-                "&{qualifier}{}",
-                canonical_type_reference(program, *referee, normalizer)
-            )
+        TypeReferenceNode::Reference { referee, .. } => {
+            collect_type_parameter_occurrences(program, *referee, normalizer);
         }
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            format!(
-                "{}[{}]",
-                canonical_type_reference(program, *base_type, normalizer),
-                program.normalized_constraint_identity(*constraints),
-            )
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            collect_type_parameter_occurrences(program, *base_type, normalizer);
         }
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length,
-        } => {
-            format!(
-                "[{}; {length}]",
-                canonical_type_reference(program, *element_type, normalizer)
-            )
-        }
-        TypeReferenceNode::Slice { element_type } => {
-            format!(
-                "[{}]",
-                canonical_type_reference(program, *element_type, normalizer)
-            )
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => {
+            collect_type_parameter_occurrences(program, *element_type, normalizer);
         }
         TypeReferenceNode::Generic {
             base_symbol,
-            base_name,
             arguments,
             ..
         } => {
-            let base = canonical_named_type(program, *base_symbol, base_name.as_str(), normalizer);
-            let arguments = program
+            normalizer.canonical_index(*base_symbol);
+            for argument in program
                 .type_reference_table
                 .type_reference_handles(*arguments)
-                .iter()
-                .map(|argument| canonical_type_reference(program, *argument, normalizer))
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!("{base}<{arguments}>")
-        }
-        TypeReferenceNode::Named { symbol, name } => {
-            canonical_named_type(program, *symbol, name.as_str(), normalizer)
-        }
-        TypeReferenceNode::DynamicTrait { symbol, name } => {
-            format!(
-                "dyn {}",
-                canonical_named_type(program, *symbol, name.as_str(), normalizer)
-            )
-        }
-        TypeReferenceNode::Unit => "()".to_owned(),
-    }
-}
-
-fn canonical_named_type(
-    program: &TypedTrees,
-    symbol: SymbolHandle,
-    name: &str,
-    normalizer: &mut TypeParameterNormalizer,
-) -> String {
-    normalizer
-        .canonical_index(symbol)
-        .map(|index| format!("${index}"))
-        .unwrap_or_else(|| {
-            if symbol.is_valid() {
-                let path = program.symbols.display_path(symbol, "::");
-                if !path.is_empty() {
-                    return path;
-                }
+            {
+                collect_type_parameter_occurrences(program, *argument, normalizer);
             }
-            name.to_owned()
-        })
+        }
+        TypeReferenceNode::Named { symbol, .. }
+        | TypeReferenceNode::DynamicTrait { symbol, .. } => {
+            normalizer.canonical_index(*symbol);
+        }
+        TypeReferenceNode::Unit => {}
+    }
 }
 
 struct TypeParameterNormalizer {
@@ -530,5 +481,12 @@ impl TypeParameterNormalizer {
         let index = self.canonical.len();
         self.canonical.push((symbol, index));
         Some(index)
+    }
+
+    fn bindings(&self) -> Vec<(SymbolHandle, String)> {
+        self.canonical
+            .iter()
+            .map(|(symbol, index)| (*symbol, format!("${index}")))
+            .collect()
     }
 }
