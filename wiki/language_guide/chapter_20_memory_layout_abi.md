@@ -307,7 +307,10 @@ state, but only by binding the canonical plan, final content, and complete
 mapping set. A separate page-table-control receipt must then activate that exact
 table and discharge every mapping's activation obligations before any mapped
 loan exists. `Installable` therefore means “validated table bytes,” not
-“authority to make arbitrary translations live.”
+“authority to make arbitrary translations live.” Removal is equally exact:
+table storage and mapped authority remain unavailable until the installed table
+is inactive, target retirement/quiescence facts hold, and every mapping's stale
+translation release receipt succeeds.
 
 The compiler derives sealed field-access values. Pure projection narrows the
 extent to a passable borrow-carrying field accessor without performing I/O.
