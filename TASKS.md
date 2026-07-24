@@ -1777,7 +1777,11 @@ stronger operations it needs instead of citing machine parameters generally.
   immutable artifact now retain the exact code bytes, so a later materializer
   needs no unmodeled byte side channel. Validation derives rather than trusts
   the normalizer-owned content identity over code, contract/footprint/
-  placement promises, canonical entries, and canonical relocations.
+  placement promises, instruction-set architecture, canonical entries, and
+  canonical relocations. Architecture-specific relocation meanings now reject
+  during candidate validation rather than surviving until object emission;
+  the object adapter independently rejects cross-architecture substitution
+  even for shared relocation forms.
   Entry/section order, proof evidence, and informational sections remain identity-invisible.
   Implement
   admission/PCC and final-footprint validators, materializer/installer
