@@ -1,6 +1,6 @@
-// FAIL CANARY: a numeric float range is not a bit-pattern set. In particular,
-// it does not account for NaNs, signed zero, infinities, or NaN payloads, so it
-// cannot justify a writable alias even when the other carrier has equal width.
+// FAIL CANARY: a numeric float range may compose with another interval on the
+// same float carrier, but it is not an integer bit-pattern set. In particular,
+// it cannot justify a writable alias through an equal-width integer carrier.
 data Main {
     value: f32 [0..=1];
 }

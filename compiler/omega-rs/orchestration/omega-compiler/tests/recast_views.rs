@@ -318,6 +318,26 @@ fn shared_domain_recasts_require_one_way_implication() {
 }
 
 #[test]
+fn float_range_recasts_require_same_carrier_interval_implication() {
+    let canary = "recast/runtime_float_range_representation_recast_exit";
+    assert_exit_70(canary, "float-range-representation-recast");
+    compile_for_cross_targets(canary, "float-range-representation-recast");
+
+    let diagnostics = fail_diagnostics("recast/recast_shared_float_range_strengthening_rejected");
+    assert!(
+        diagnostics.contains("may weaken established facts but cannot strengthen them"),
+        "shared float-range strengthening produced the wrong diagnostic:\n{diagnostics}"
+    );
+
+    let diagnostics = fail_diagnostics("recast/recast_mut_float_range_fenced");
+    assert!(
+        diagnostics
+            .contains("source and target constraints are not proven representation-equivalent"),
+        "cross-carrier mutable float range produced the wrong diagnostic:\n{diagnostics}"
+    );
+}
+
+#[test]
 fn mutable_recast_accepts_equivalent_typed_record_representations() {
     let canary = "recast/runtime_mutable_equivalent_record_recast_exit";
     assert_exit_70(canary, "mutable-equivalent-record-recast");

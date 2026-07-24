@@ -355,7 +355,9 @@ aliases require bidirectional representation equivalence. Raw bytes can target
 only recursively fact-free elements, so neither an array nor a slice recast can
 mint element facts. These structural views preserve indexed read/write identity
 through state forwarding in both native backends and the interpreter. Float
-ranges remain fenced until their exact representation sets can be proved.
+ranges compose by interval inclusion only when both views use the same float
+carrier; equal intervals may alias mutably. They remain fenced across carriers,
+because a numeric interval is not an enumeration of IEEE bit patterns.
 
 The same judgment applies to scalar aliases. `bool` has the exact established
 representation set `{0,1}`: it may be viewed through a shared unconstrained byte

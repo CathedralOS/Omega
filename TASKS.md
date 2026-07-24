@@ -1581,8 +1581,10 @@ stronger operations it needs instead of citing machine parameters generally.
   shifted sets reject. Range-refined reference binding is no longer mistaken
   for a numeric store into the referee. Equal-looking predicates over different
   primitive carriers remain fenced until their bit-pattern sets can be proved
-  equivalent, and float ranges remain fenced because numeric intervals do not
-  describe NaNs, signed zero, or payload bits. Typed record-to-record mutable
+  equivalent. Same-carrier float ranges now compose by numeric interval
+  inclusion for shared views and exact interval equality for mutable aliases;
+  they remain fenced across carriers because numeric intervals do not describe
+  IEEE bit-pattern sets. Typed record-to-record mutable
   aliases now admit when total size/alignment, leaf offsets/sizes, and every leaf
   representation set are equivalent; this includes range-bearing signed/unsigned
   leaves and `bool`, with native/interpreter execution and x86-64/AArch64 compile
@@ -1593,7 +1595,7 @@ stronger operations it needs instead of citing machine parameters generally.
   as `bool`, while an unconstrained byte or raw byte region cannot mint the
   invariant. Raw bytes still cannot acquire record facts through `recast` and
   remain fenced until a validate/materialize mint supplies evidence. Continue
-  general non-record tiling and float/domain representation-set reasoning. Cast/recast
+  general non-record tiling and richer representation-set reasoning. Cast/recast
   targets now carry full type references through syntax, resolution, typed and
   checked trees, while a separate spelling cache remains diagnostic-only.
   Parser coverage pins the settled `as &[T]` / `as &[T; N]` surface without
@@ -1610,7 +1612,7 @@ stronger operations it needs instead of citing machine parameters generally.
   write-through across state forwarding in native and interpreter execution,
   and cross-compile on x86-64 and AArch64. Raw bytes remain unable to mint
   slice-element facts. Continue the remaining validate/materialize mint,
-  codec-conformance, and float/domain representation-set work without adding a
+  codec-conformance and remaining representation-set work without adding a
   second structural-view mechanism.
 - **L6a — Extent.** The normalized conservation foundation is live in
   `omega-extents`: admitted one-shot root grants mint nonempty ranges;

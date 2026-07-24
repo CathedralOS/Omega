@@ -11,8 +11,10 @@
 //!   target. Shared views may weaken source facts. Mutable scalar views admit
 //!   fact-free types, normalized domain conjunctions that imply one another
 //!   in BOTH directions, or integer ranges that denote the same normalized
-//!   bit-pattern set. Merely equal-looking cross-carrier predicates and float
-//!   ranges remain fenced. Byte-region aggregate views require recursively
+//!   bit-pattern set. Same-carrier float ranges compose by numeric interval
+//!   inclusion; they never justify a cross-carrier bit-pattern claim. Merely
+//!   equal-looking cross-carrier predicates remain fenced. Byte-region aggregate
+//!   views require recursively
 //!   fact-free target shapes, including top-level and nested literal-length
 //!   fixed arrays. Mutable typed aggregate aliases may retain facts when source
 //!   and target have identical geometry and representation-equivalent leaves;
@@ -542,7 +544,7 @@ fn judge_scalar_recast(
         let target_facts = mutable_scalar_representation_facts(program, let_referee);
         let raw_facts = MutableScalarRepresentationFacts {
             domains: Vec::new(),
-            bit_patterns: full_scalar_bit_patterns(target),
+            values: ScalarRepresentationSet::ExactBitPatterns(full_scalar_bit_patterns(target)),
         };
         let compatible = target_facts.as_ref().is_some_and(|target_facts| {
             if mutable_recast {
@@ -609,7 +611,8 @@ fn judge_scalar_recast(
     let target_facts = mutable_scalar_representation_facts(program, let_referee);
     let target_is_fact_free = target_facts.as_ref().is_some_and(|target_facts| {
         target_facts.domains.is_empty()
-            && target_facts.bit_patterns == full_scalar_bit_patterns(target)
+            && target_facts.values
+                == ScalarRepresentationSet::ExactBitPatterns(full_scalar_bit_patterns(target))
     });
     let compatible = if !mutable_recast && target_is_fact_free {
         // A shared view may always forget source facts. This remains safe even
@@ -745,10 +748,23 @@ fn judge_slice_recast(
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct MutableScalarRepresentationFacts {
     domains: Vec<SymbolHandle>,
+    values: ScalarRepresentationSet,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ScalarRepresentationSet {
     /// Inclusive bit-pattern intervals in ascending unsigned order. Integer
-    /// ranges may split at signed zero; every other admitted scalar is the one
+    /// ranges may split at signed zero; an unconstrained scalar is the one
     /// full-width interval.
-    bit_patterns: Vec<(u64, u64)>,
+    ExactBitPatterns(Vec<(u64, u64)>),
+    /// A numeric interval over one exact float carrier. This deliberately does
+    /// not pretend that numeric endpoints enumerate IEEE bit patterns: it may
+    /// imply another interval only on the same primitive.
+    FloatInterval {
+        primitive: PrimitiveType,
+        minimum: i64,
+        maximum: i64,
+    },
 }
 
 /// The normalized representation facts carried by one scalar type reference.
@@ -756,8 +772,10 @@ struct MutableScalarRepresentationFacts {
 /// Arithmetic policy changes how expressions compute, not which bit patterns
 /// are established values, so it contributes no representation fact here. A
 /// constant integer range is normalized into its exact two's-complement
-/// bit-pattern set. Float ranges and legacy named constraints remain fenced:
-/// numeric float intervals do not describe NaNs, signed zero, or payload bits.
+/// bit-pattern set. Float ranges retain their primitive and numeric interval:
+/// same-carrier interval inclusion is sound, while cross-carrier relations
+/// remain fenced because numeric ranges do not enumerate IEEE representations.
+/// Legacy named constraints remain fenced.
 fn mutable_scalar_representation_facts(
     program: &TypedTrees,
     mut type_reference: TypeReferenceHandle,
@@ -810,16 +828,28 @@ fn mutable_scalar_representation_facts(
                 if PrimitiveType::from_name(name.as_str()).is_some() =>
             {
                 let primitive = PrimitiveType::from_name(name.as_str())?;
-                let bit_patterns = match (primitive, range) {
-                    (PrimitiveType::Bool, None) => vec![(0, 1)],
+                let values = match (primitive, range) {
+                    (PrimitiveType::Bool, None) => {
+                        ScalarRepresentationSet::ExactBitPatterns(vec![(0, 1)])
+                    }
                     (PrimitiveType::Bool, Some(_)) => return None,
-                    (_, Some(range)) => integer_range_bit_patterns(primitive, range)?,
-                    (_, None) => full_scalar_bit_patterns(primitive),
+                    (
+                        primitive @ (PrimitiveType::F32 | PrimitiveType::F64),
+                        Some((minimum, maximum)),
+                    ) if minimum <= maximum => ScalarRepresentationSet::FloatInterval {
+                        primitive,
+                        minimum,
+                        maximum,
+                    },
+                    (PrimitiveType::F32 | PrimitiveType::F64, Some(_)) => return None,
+                    (_, Some(range)) => ScalarRepresentationSet::ExactBitPatterns(
+                        integer_range_bit_patterns(primitive, range)?,
+                    ),
+                    (_, None) => ScalarRepresentationSet::ExactBitPatterns(
+                        full_scalar_bit_patterns(primitive),
+                    ),
                 };
-                return Some(MutableScalarRepresentationFacts {
-                    domains,
-                    bit_patterns,
-                });
+                return Some(MutableScalarRepresentationFacts { domains, values });
             }
             _ => return None,
         }
@@ -892,7 +922,7 @@ fn mutable_scalar_representation_facts_equivalent(
     source: &MutableScalarRepresentationFacts,
     target: &MutableScalarRepresentationFacts,
 ) -> bool {
-    if source.bit_patterns != target.bit_patterns {
+    if source.values != target.values {
         return false;
     }
     let implies = |sources: &[SymbolHandle], targets: &[SymbolHandle]| {
@@ -1152,19 +1182,50 @@ fn scalar_representation_facts_imply(
             omega_typed_trees::domain::declared_domain_implies(program, *source, *target)
         })
     });
-    let patterns_imply = source.bit_patterns.iter().all(|(source_low, source_high)| {
-        target
-            .bit_patterns
-            .iter()
-            .any(|(target_low, target_high)| target_low <= source_low && source_high <= target_high)
-    });
-    domains_imply && patterns_imply
+    domains_imply && scalar_representation_set_implies(&source.values, &target.values)
+}
+
+fn scalar_representation_set_implies(
+    source: &ScalarRepresentationSet,
+    target: &ScalarRepresentationSet,
+) -> bool {
+    match (source, target) {
+        (
+            ScalarRepresentationSet::ExactBitPatterns(source),
+            ScalarRepresentationSet::ExactBitPatterns(target),
+        ) => source.iter().all(|(source_low, source_high)| {
+            target.iter().any(|(target_low, target_high)| {
+                target_low <= source_low && source_high <= target_high
+            })
+        }),
+        (
+            ScalarRepresentationSet::FloatInterval {
+                primitive: source_primitive,
+                minimum: source_minimum,
+                maximum: source_maximum,
+            },
+            ScalarRepresentationSet::FloatInterval {
+                primitive: target_primitive,
+                minimum: target_minimum,
+                maximum: target_maximum,
+            },
+        ) => {
+            source_primitive == target_primitive
+                && target_minimum <= source_minimum
+                && source_maximum <= target_maximum
+        }
+        (
+            ScalarRepresentationSet::FloatInterval { primitive, .. },
+            ScalarRepresentationSet::ExactBitPatterns(target),
+        ) => target == &full_scalar_bit_patterns(*primitive),
+        _ => false,
+    }
 }
 
 #[cfg(test)]
 mod representation_set_tests {
     use super::{
-        MutableScalarRepresentationFacts, integer_range_bit_patterns,
+        MutableScalarRepresentationFacts, ScalarRepresentationSet, integer_range_bit_patterns,
         mutable_scalar_representation_facts_equivalent, scalar_representation_facts_imply,
     };
     use omega_typed_trees::types::PrimitiveType;
@@ -1194,12 +1255,12 @@ mod representation_set_tests {
         let program = omega_typed_trees::TypedTrees::default();
         let boolean = MutableScalarRepresentationFacts {
             domains: Vec::new(),
-            bit_patterns: vec![(0, 1)],
+            values: ScalarRepresentationSet::ExactBitPatterns(vec![(0, 1)]),
         };
         let bounded_byte = boolean.clone();
         let unconstrained_byte = MutableScalarRepresentationFacts {
             domains: Vec::new(),
-            bit_patterns: vec![(0, 255)],
+            values: ScalarRepresentationSet::ExactBitPatterns(vec![(0, 255)]),
         };
 
         assert!(scalar_representation_facts_imply(
@@ -1221,6 +1282,46 @@ mod representation_set_tests {
             &program,
             &boolean,
             &unconstrained_byte
+        ));
+    }
+
+    #[test]
+    fn float_intervals_imply_only_same_carrier_supersets() {
+        let program = omega_typed_trees::TypedTrees::default();
+        let narrow = MutableScalarRepresentationFacts {
+            domains: Vec::new(),
+            values: ScalarRepresentationSet::FloatInterval {
+                primitive: PrimitiveType::F32,
+                minimum: 0,
+                maximum: 1,
+            },
+        };
+        let wide = MutableScalarRepresentationFacts {
+            domains: Vec::new(),
+            values: ScalarRepresentationSet::FloatInterval {
+                primitive: PrimitiveType::F32,
+                minimum: -1,
+                maximum: 2,
+            },
+        };
+        let other_carrier = MutableScalarRepresentationFacts {
+            domains: Vec::new(),
+            values: ScalarRepresentationSet::FloatInterval {
+                primitive: PrimitiveType::F64,
+                minimum: -1,
+                maximum: 2,
+            },
+        };
+
+        assert!(scalar_representation_facts_imply(&program, &narrow, &wide));
+        assert!(!scalar_representation_facts_imply(&program, &wide, &narrow));
+        assert!(!scalar_representation_facts_imply(
+            &program,
+            &narrow,
+            &other_carrier
+        ));
+        assert!(mutable_scalar_representation_facts_equivalent(
+            &program, &narrow, &narrow
         ));
     }
 }

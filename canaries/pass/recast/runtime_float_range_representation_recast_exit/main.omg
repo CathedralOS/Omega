@@ -1,0 +1,28 @@
+// RUN CANARY (exit 70) + interpreter differential. Numeric range inclusion is
+// representation implication when both views use the same IEEE carrier. Equal
+// intervals may also alias mutably; neither fact licenses a cross-carrier pun.
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    value: f32 [0..=1];
+}
+
+machine Main::main(&mut self) {
+    let wide: &f32 [0..=2] = &self.value as &f32;
+    transition wide == 0.0f32 {
+        true -> mutate()
+        _ -> bad()
+    }
+
+    state mutate(&mut self) {
+        let exact: &mut f32 [0..=1] = &mut self.value as &mut f32;
+        transition exact == 0.0f32 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
