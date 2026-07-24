@@ -1,10 +1,12 @@
 // COMPILE CANARY (linux_x64 freestanding): control-register access uses
 // structured, exact-u64 value flow and exposes the realized scratch clobbers.
+use omega::language::core::assembly;
+
 data Main {
     value: u64;
 }
 
-machine Main::main(&mut self) effects machine_control {
+machine Main::main(&mut self) effects MachineControl {
     asm where clobbers rax, r10, r11, r15 {
         read_cr0 self.value;
         write_cr0 self.value;

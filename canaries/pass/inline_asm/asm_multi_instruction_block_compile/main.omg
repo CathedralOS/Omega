@@ -2,13 +2,15 @@
 // instructions. Each instruction remains an ordinary intrinsic statement, so
 // effects and operands are validated independently; `;` is the explicit
 // instruction separator because newlines are not grammar.
+use omega::language::core::assembly;
+
 data Main {
     port: u16;
     status: u8;
 }
 
 machine Main::main(&mut self)
-    effects device_io
+    effects PortIo
 {
     asm {
         out self.port, self.status;

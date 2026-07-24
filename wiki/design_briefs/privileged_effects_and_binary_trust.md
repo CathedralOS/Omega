@@ -107,6 +107,21 @@ provider-minted linear token. Its source contract is now live as the opaque
 `InterruptMaskControl`/`InterruptMaskGuard` pair in
 `omega::language::core::interrupt`; provider minting/lowering remains.
 
+`omega::language::core::assembly` now defines the canonical empty boundary
+traits `MachineControl` and `PortIo`. Compiler-known asm calls resolve those
+symbol-backed identities into the ordinary recursive service-reach fixed
+point. Direct emission sites must import and publish the matching service, and
+every known checked caller on a path to the instruction must publish it as
+well; diagnostics retain the normalized call path. This admission no longer
+consults the lowercase/u64 `EffectSet` catalog. The old lowercase projection
+remains explicitly isolated to still-unmigrated flow/graph carriers.
+
+Authority remains orthogonal: the same catalog entry independently carries
+`MachineOwner`, `IdtControl`, or no authority, and listing a service row cannot
+discharge it. Cathedral's UEFI source now names firmware boundary reach as
+`SimpleTextOutput`/`BootServices` and direct instruction reach as
+`PortIo`/`MachineControl`, rather than collapsing either into `device_io`.
+
 Structured `rdmsr <destination>, <index>` and `wrmsr <index>, <value>` now
 model the implicit ECX and EDX:EAX registers as explicit exact `u32`/`u64`
 value flow. Both carry `MachineControl`, require `MachineOwner`, enumerate the

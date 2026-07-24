@@ -1,7 +1,9 @@
+use omega::language::core::assembly;
+
 data Main {
     value: u64;
 }
 
-machine Main::main(&mut self) effects machine_control {
+machine Main::main(&mut self) effects MachineControl {
     asm { write_cr3 self.value }
 }

@@ -536,7 +536,7 @@ pub enum TargetOperationKind {
         operands: HandleSpan<InstructionOperand>,
     },
     /// The x86 `hlt` privileged instruction (`asm { hlt }`), emitting the
-    /// `machine_control` effect. Zero operands, no relocation. See the
+    /// `MachineControl` service. Zero operands, no relocation. See the
     /// privileged_effects_and_binary_trust brief.
     MachineHalt,
     /// An x86 load/store/full memory-ordering fence.
@@ -609,14 +609,14 @@ pub enum TargetOperationKind {
         source: TargetValueOperandHandle,
     },
     /// The x86 `out dx, al` port write (`asm { out <port>, <value> }`),
-    /// emitting `device_io`. `port` u16 + `value` u8 operands (immediate or
+    /// reaching `PortIo`. `port` u16 + `value` u8 operands (immediate or
     /// storage; storage operands relocate).
     PortWrite {
         port: TargetValueOperandHandle,
         value: TargetValueOperandHandle,
     },
     /// The x86 `in al, dx` port read (`asm { in <dest>, <port> }`), emitting
-    /// `device_io`. `port` u16 operand; the byte result stores to the
+    /// `PortIo`. `port` u16 operand; the byte result stores to the
     /// destination place.
     PortRead {
         port: TargetValueOperandHandle,

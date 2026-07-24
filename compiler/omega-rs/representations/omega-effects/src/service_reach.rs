@@ -138,6 +138,26 @@ fn direct_service_reach_for_call(
         return services;
     }
 
+    // Inline assembly is an unnameable builtin call whose instruction
+    // contract reaches a canonical boundary-service identity. Resolve that
+    // identity through the same symbol-backed table as authored `effects`
+    // rows; never consult the lowercase/u64 compatibility catalog here.
+    for function in omega_core::symbols::BuiltinFunction::asm_intrinsics() {
+        if program.symbols.builtin_function_symbol(function) != Some(target) {
+            continue;
+        }
+        if let Some(service_name) = function.asm_intrinsic_service_name()
+            && let Some(service) = program.service_reaches.id_for_name(service_name)
+        {
+            program
+                .service_reaches
+                .extend_closure(service, &mut services);
+            services.sort_by_key(|service| service.0);
+            services.dedup();
+        }
+        return services;
+    }
+
     if let Some((_, signature)) = program.machine_parameter_signature(target) {
         extend_service_set(
             &mut services,

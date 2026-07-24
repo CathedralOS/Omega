@@ -1,7 +1,9 @@
 // POPFQ consumes an explicit saved-flags place. A literal is not a saved
 // snapshot and cannot participate in the later linear mask-token protocol.
+use omega::language::core::assembly;
+
 data Main {}
 
-machine Main::main(&mut self) effects machine_control {
+machine Main::main(&mut self) effects MachineControl {
     asm { popfq 2 }
 }

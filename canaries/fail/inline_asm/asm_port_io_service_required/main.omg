@@ -1,0 +1,10 @@
+use omega::language::core::assembly;
+
+data Main {
+    port: u16;
+    value: u8;
+}
+
+machine Main::main(&mut self) {
+    asm { out self.port, self.value }
+}

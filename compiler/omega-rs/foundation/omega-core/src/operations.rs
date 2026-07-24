@@ -9,7 +9,7 @@ pub enum OperationDomain {
     RuntimeCopy,
     HostBoundary,
     /// Privileged CPU control instructions (`hlt`, `cli`/`sti`, port
-    /// I/O): raw target instructions with `machine_control`/`device_io`
+    /// I/O): raw target instructions with `MachineControl`/`PortIo` service
     /// contracts, touching neither runtime storage nor the host boundary.
     MachineControl,
 }

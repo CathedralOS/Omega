@@ -1,6 +1,8 @@
 // `out dx, al` requires an exact u16 port operand. A wider place is not an
 // implicit narrowing conversion at the assembly boundary.
+use omega::language::core::assembly;
+
 data Main { port: u32; value: u8; }
-machine Main::main(&mut self) effects device_io {
+machine Main::main(&mut self) effects PortIo {
     asm { out self.port, self.value }
 }

@@ -1,0 +1,1 @@
+asm instruction `hlt`, which reaches canonical service `MachineControl`, but that service identity is unavailable: add `use omega::language::core::assembly;`

@@ -666,6 +666,16 @@ impl ServiceReachTable {
             .map(|index| ServiceReachId(u32::try_from(index + 1).expect("service table fits u32")))
     }
 
+    /// Resolve a canonical authored service name to its symbol-backed
+    /// identity. This is intentionally an exact, case-sensitive lookup: the
+    /// table contains declarations, not the retired global effect catalog.
+    pub fn id_for_name(&self, name: &str) -> Option<ServiceReachId> {
+        self.definitions
+            .iter()
+            .position(|definition| definition.name == name)
+            .map(|index| ServiceReachId(u32::try_from(index + 1).expect("service table fits u32")))
+    }
+
     pub fn definition(&self, id: ServiceReachId) -> Option<&ServiceReachDefinition> {
         id.0.checked_sub(1)
             .and_then(|index| self.definitions.get(index as usize))
@@ -911,6 +921,21 @@ mod tests {
             rows.services(ServiceReachRowId::NULL),
             &[] as &[ServiceReachId]
         );
+    }
+
+    #[test]
+    fn service_table_resolves_exact_canonical_names() {
+        let mut services = ServiceReachTable::default();
+        let machine_control = services.intern(
+            crate::symbols::SymbolHandle::from_parts(7, 1),
+            "MachineControl",
+        );
+        assert_eq!(
+            services.id_for_name("MachineControl"),
+            Some(machine_control)
+        );
+        assert_eq!(services.id_for_name("machine_control"), None);
+        assert_eq!(services.id_for_name("PortIo"), None);
     }
 
     #[test]

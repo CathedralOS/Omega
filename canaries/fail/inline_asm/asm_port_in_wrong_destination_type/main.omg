@@ -1,6 +1,8 @@
 // `in al, dx` produces one byte. A wider destination would overwrite only its
 // low byte and leave stale neighboring bytes, so it is not a legal operand.
+use omega::language::core::assembly;
+
 data Main { port: u16; status: u16; }
-machine Main::main(&mut self) effects device_io {
+machine Main::main(&mut self) effects PortIo {
     asm { in self.status, self.port }
 }

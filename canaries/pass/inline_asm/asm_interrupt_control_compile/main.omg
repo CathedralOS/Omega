@@ -2,9 +2,11 @@
 // require the boot-root machine-owner discharge, record their distinct IF
 // transitions, and emit exact x86 opcodes. The suite also selects linux_arm64
 // for this source and pins the target-specific refusal.
+use omega::language::core::assembly;
+
 data Main {}
 
-machine Main::main(&mut self) effects machine_control {
+machine Main::main(&mut self) effects MachineControl {
     asm where clobbers none {
         cli;
         sti

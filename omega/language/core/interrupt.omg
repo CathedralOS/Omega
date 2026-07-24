@@ -9,6 +9,8 @@
 // Both carriers are opaque and linear. Ordinary code can receive, move, and
 // consume them, but zero-fill or record construction cannot mint either fact.
 
+use omega::language::core::assembly;
+
 boundary data InterruptMaskGuard [linear];
 
 // The capability that may change the current activation's interrupt mask.
@@ -16,15 +18,15 @@ boundary data InterruptMaskGuard [linear];
 boundary data InterruptMaskControl;
 
 boundary machine InterruptMaskControl::save_and_mask(&mut self) -> InterruptMaskGuard
-effects machine_control
+effects MachineControl
 ensures true;
 
 boundary machine InterruptMaskGuard::restore(self)
-effects machine_control
+effects MachineControl
 ensures true;
 
 boundary data InterruptAcknowledgement [linear];
 
 boundary machine InterruptAcknowledgement::complete(self)
-effects device_io
+effects PortIo
 ensures true;
