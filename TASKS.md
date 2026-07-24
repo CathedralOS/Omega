@@ -2058,7 +2058,7 @@ stronger operations it needs instead of citing machine parameters generally.
 - **Units.** Before broad generic work, implement two units in one dimension
   and pin: explicit conversion, scaled dimensionless results, distinct
   Energy/Torque kinds, generic preservation, no silent forgetting, and package
-  coherence for operator tuples. **Language-design blocker:** the honest slice
+  coherence for operator tuples. **OWNER-BLOCKED (#16):** the honest slice
   depends on the still-deferred authored domain-facet/introduction policy and
   open operator-family/dispatch-owner surface (DOM1/DOM2). A closed local
   encoding would not satisfy this acceptance contract; resume after those
