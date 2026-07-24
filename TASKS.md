@@ -2060,8 +2060,12 @@ stronger operations it needs instead of citing machine parameters generally.
   lowering before it can be verified.
 - **macOS/x86 and other unavailable hosts.** Keep target emission structurally
   pinned; do not claim runtime verification without the host.
-- **Windows GUI callback entry.** Implement WndProc inbound entry stubs and a
-  real title-bar close path using the general entry-plan work above.
+- **Windows GUI callback entry — OWNER-BLOCKED (#12).** Ordinary Microsoft-x64
+  inbound argument/result lowering already exists, but `RegisterClassEx`
+  requires a machine to become a stored, sealed callback reference. Implement
+  the WndProc stub and real title-bar close path after the source-visible entry
+  reference and registration/root-lifetime contract is settled. Do not pass a
+  raw code address or add a Win32-only callback escape hatch.
 
 ## Deferred until a real customer
 

@@ -459,3 +459,46 @@ machines selected by a boundary package. Publish the existing compatibility
 artifact as input to package policy; do not infer a universal optional/default
 representation, silently skip unknown fields, or manufacture runtime version
 dispatch before these choices are settled.
+
+## 12. How does checked source obtain and register a sealed external entry reference?
+
+`boundary machine` already declares an exported callable, and normalized
+`CallPlan + StatePlan` data already drives ordinary inbound ABI lowering.
+Static artifact derivation may retain an entry identity privately. The Windows
+WndProc customer requires the stronger operation that was previously deferred:
+`RegisterClassEx` stores a callback value and invokes it later. Omega cannot
+currently turn a selected machine into a runtime value, and exposing its code
+address would bypass requirement identity, forward-edge integrity, effects,
+and external-root accounting.
+
+Decide:
+
+- which existing requirement/satisfier relationship authorizes derivation of a
+  callback reference, and whether the source-visible carrier belongs to the
+  same sealed satisfier-reference family as dynamic dispatch while retaining a
+  distinct external-entry lowering;
+- how the carrier binds requirement identity, selected satisfier, evaluated
+  boundary-entry plan, artifact/version identity, and permitted audience
+  without exposing a numeric address or a public constructor;
+- whether registration borrows a reusable immutable entry reference or consumes
+  a scoped registration authority, and which linear receipt represents the
+  OS-held callback until unregistration/quiescence;
+- when registration adds the callback to the external-root ledger, how effects,
+  stack/work/state ceilings remain visible while the foreign caller owns the
+  edge, and how replacement or revocation removes that root safely;
+- how the private ABI lowering materializes the native callback pointer only
+  inside the admitted foreign binding, including callback-specific context,
+  lifetime, thread, and reentrancy contracts; and
+- which object-safety/descriptor machinery may be shared with question 1
+  without making an external callback merely a `dyn Trait` table slot or
+  erasing the internal-versus-external calling distinction.
+
+Recommendation: derive an opaque, non-forgeable entry reference only from an
+admitted selected `satisfies` edge whose requirement pins the evaluated
+`CallPlan + StatePlan`. Keep the artifact/entry value reusable and immutable;
+have the registration boundary consume separate scoped authority and return a
+linear registration receipt that owns the foreign-held root until explicit
+revocation and quiescence. Materialize a native code pointer only inside that
+admitted binding. Reuse sealed satisfier identity and root-ledger machinery,
+but do not add raw machine addresses, integer conversion, an arbitrary
+function-pointer type, or a Win32-specific callback construct.
