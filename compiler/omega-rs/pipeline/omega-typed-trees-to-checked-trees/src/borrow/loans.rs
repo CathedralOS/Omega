@@ -159,6 +159,33 @@ fn borrow_carrying_data_loans(
             .collect();
     }
 
+    // Moving or copying a borrow-carrying local/projection must transfer every
+    // loan contained by that value. The source local's tracked projection is
+    // rebased to the new owner's root; no initializer literal exists to
+    // rediscover the original borrowed expressions.
+    if matches!(
+        program
+            .expression_table
+            .expression(local_data.initial_value),
+        omega_checked_trees::expression::ExpressionNode::Name(_)
+            | omega_checked_trees::expression::ExpressionNode::Member(_)
+            | omega_checked_trees::expression::ExpressionNode::Indexed(_)
+    ) {
+        if let Some(source) = borrow_access_place(
+            program,
+            state.symbol,
+            statement_index,
+            local_data.initial_value,
+            machine_symbol,
+        ) {
+            let transferred =
+                transferred_aggregate_loans(program, local_data, &source, loan_trackers);
+            if !transferred.is_empty() {
+                return transferred;
+            }
+        }
+    }
+
     let initializers = borrowed_initializers(
         program,
         local_data.type_reference,
@@ -194,6 +221,43 @@ fn borrow_carrying_data_loans(
                     },
                 })
                 .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+fn transferred_aggregate_loans(
+    program: &omega_typed_trees::TypedTrees,
+    local_data: &omega_checked_trees::statement::TableLocalData,
+    source: &accesses::BorrowAccessPlace,
+    loan_trackers: &[StateLoanTracker],
+) -> Vec<StatementBorrowLoan> {
+    loan_trackers
+        .iter()
+        .rev()
+        .filter_map(|loan| {
+            if loan.owner_symbol != source.root_symbol {
+                return None;
+            }
+
+            let owner_path =
+                if place_path_matches_owner_prefix(program, &source.segments, &loan.owner_path) {
+                    loan.owner_path[source.segments.len()..].to_vec()
+                } else if owner_path_matches(program, &loan.owner_path, &source.segments) {
+                    // A whole-aggregate call loan has an empty owner path. Any
+                    // projection selected from that aggregate retains the loan.
+                    Vec::new()
+                } else {
+                    return None;
+                };
+
+            Some(StatementBorrowLoan {
+                owner_symbol: local_data.symbol,
+                owner_name: local_data.name.clone(),
+                owner_path,
+                place: loan.place.clone(),
+                source_owner_symbol: loan.owner_symbol,
+                kind: loan.kind.clone(),
+            })
         })
         .collect()
 }
@@ -550,4 +614,13 @@ fn owner_path_matches(
                     .is_none_or(|place_index| *owner_index == place_index),
                 _ => false,
             })
+}
+
+fn place_path_matches_owner_prefix(
+    program: &omega_typed_trees::TypedTrees,
+    place_segments: &[omega_facts::PlaceSegment],
+    owner_path: &[BorrowOwnerSegment],
+) -> bool {
+    place_segments.len() <= owner_path.len()
+        && owner_path_matches(program, &owner_path[..place_segments.len()], place_segments)
 }

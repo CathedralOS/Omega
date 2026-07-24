@@ -1546,11 +1546,13 @@ stronger operations it needs instead of citing machine parameters generally.
   arguments separately from runtime generic arguments, validate lexical scope
   and arity, survive generic-data specialization without entering runtime
   identity/layout, and let a single-lifetime aggregate result retain precisely
-  the named input through a call-produced local. Finish result contracts
-  relating different fields to different input lifetimes, general outlives
-  constraints, and loan propagation through the remaining non-literal
-  aggregate construction forms. These are settled implementation work needed
-  by placed views and task storage, not owner-design blockers.
+  the named input through a call-produced local. Moving a borrow-carrying local
+  or one of its fields now transfers its exact nested loan paths and polarity
+  instead of laundering the source through ordinary data assignment. Finish
+  result contracts relating different fields to different input lifetimes,
+  general outlives constraints, and loan propagation through the remaining
+  aggregate expression forms. These are settled implementation work needed by
+  placed views and task storage, not owner-design blockers.
 - **Const data parameters.** Literal and scoped named-integer-const arguments
   now parse in generic type position, validate against the declared integer
   kind/range, and substitute into fixed-array layout, descriptors, runtime
