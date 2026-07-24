@@ -429,10 +429,14 @@ fn canonical_type_reference(
                 canonical_type_reference(program, *referee, normalizer)
             )
         }
-        TypeReferenceNode::Constrained { base_type, .. } => {
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
             format!(
-                "{}[constraints]",
-                canonical_type_reference(program, *base_type, normalizer)
+                "{}[{}]",
+                canonical_type_reference(program, *base_type, normalizer),
+                program.normalized_constraint_identity(*constraints),
             )
         }
         TypeReferenceNode::FixedArray {
@@ -456,7 +460,7 @@ fn canonical_type_reference(
             arguments,
             ..
         } => {
-            let base = canonical_named_type(*base_symbol, base_name.as_str(), normalizer);
+            let base = canonical_named_type(program, *base_symbol, base_name.as_str(), normalizer);
             let arguments = program
                 .type_reference_table
                 .type_reference_handles(*arguments)
@@ -467,12 +471,12 @@ fn canonical_type_reference(
             format!("{base}<{arguments}>")
         }
         TypeReferenceNode::Named { symbol, name } => {
-            canonical_named_type(*symbol, name.as_str(), normalizer)
+            canonical_named_type(program, *symbol, name.as_str(), normalizer)
         }
         TypeReferenceNode::DynamicTrait { symbol, name } => {
             format!(
                 "dyn {}",
-                canonical_named_type(*symbol, name.as_str(), normalizer)
+                canonical_named_type(program, *symbol, name.as_str(), normalizer)
             )
         }
         TypeReferenceNode::Unit => "()".to_owned(),
@@ -480,6 +484,7 @@ fn canonical_type_reference(
 }
 
 fn canonical_named_type(
+    program: &TypedTrees,
     symbol: SymbolHandle,
     name: &str,
     normalizer: &mut TypeParameterNormalizer,
@@ -487,7 +492,15 @@ fn canonical_named_type(
     normalizer
         .canonical_index(symbol)
         .map(|index| format!("${index}"))
-        .unwrap_or_else(|| name.to_owned())
+        .unwrap_or_else(|| {
+            if symbol.is_valid() {
+                let path = program.symbols.display_path(symbol, "::");
+                if !path.is_empty() {
+                    return path;
+                }
+            }
+            name.to_owned()
+        })
 }
 
 struct TypeParameterNormalizer {

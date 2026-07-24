@@ -333,7 +333,7 @@ fn signature_layout_identity(
     for type_reference in types {
         let layout = omega_layout::layout_type_reference(program, target, type_reference)
             .map_err(|error| vec![error])?;
-        hash.string(&program.display_type_reference_with_constraints(type_reference));
+        hash.string(program.normalized_type_identity(type_reference).as_str());
         hash.usize(layout.size);
         hash.usize(layout.alignment);
         hash.byte(0xff);
@@ -353,10 +353,14 @@ fn entry_identity(
     for parameter in program.state_parameters(entry) {
         hash.byte(u8::from(parameter.is_self));
         hash.byte(u8::from(parameter.is_mutable));
-        hash.string(&program.display_type_reference_with_constraints(parameter.type_reference));
+        hash.string(
+            program
+                .normalized_type_identity(parameter.type_reference)
+                .as_str(),
+        );
     }
     hash.byte(0xfe);
-    hash.string(&program.display_type_reference_with_constraints(entry.return_type));
+    hash.string(program.normalized_type_identity(entry.return_type).as_str());
     hash.finish()
 }
 

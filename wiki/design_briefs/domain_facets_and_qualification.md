@@ -168,6 +168,16 @@ Two identities are distinguished: the physical calling-convention/ABI, which
 remains the **carrier's** ABI (representation erasure holds); and the
 **semantic interface identity**, which includes normalized domains.
 
+The compiler's first completed normalizer slice makes the current conjunction
+algebra explicit. It resolves declared terms to semantic-domain identities,
+uses canonical identities for the closed arithmetic policies, flattens nested
+constraint shells, then sorts and deduplicates conjunction terms. The resulting
+canonical type identity is the sole oracle for structural type matching,
+operator operand signatures, generic-specialization grouping/fingerprints, and
+task-plan type hashes. Diagnostic strings retain authored presentation and have
+no identity role. This makes conjunction commutativity and idempotence stable
+across source order while preserving distinct same-arity domain expressions.
+
 ## Units (the staged stress test)
 
 `Quantity = structural dimension x nominal kind x rational scale x
