@@ -1781,7 +1781,9 @@ stronger operations it needs instead of citing machine parameters generally.
   canonical relocations. Architecture-specific relocation meanings now reject
   during candidate validation rather than surviving until object emission;
   the object adapter independently rejects cross-architecture substitution
-  even for shared relocation forms.
+  even for shared relocation forms. Canonical AArch64 entry offsets must also
+  satisfy the ISA's four-byte instruction alignment; x86 entry offsets retain
+  their byte-granular rule.
   Entry/section order, proof evidence, and informational sections remain identity-invisible.
   Implement
   admission/PCC and final-footprint validators, materializer/installer
