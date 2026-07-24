@@ -2,6 +2,7 @@ mod backend;
 mod checked_trees;
 mod control_flow;
 mod phase_diagram;
+mod service_reach;
 mod state_graph;
 mod symbol_resolved_trees;
 mod syntax_trees;

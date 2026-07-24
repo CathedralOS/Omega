@@ -264,7 +264,7 @@ fn validate_callable_shape(
         .unwrap_or_else(|| machine_effect_set(program, actual_machine));
     let actual_services = service_reaches
         .for_machine(actual_machine.symbol)
-        .map(|summary| summary.effective.as_slice())
+        .map(|summary| service_reaches.services(summary.effective))
         .unwrap_or_else(|| {
             program
                 .service_reach_rows

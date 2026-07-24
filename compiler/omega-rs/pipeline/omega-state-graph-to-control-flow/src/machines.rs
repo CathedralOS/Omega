@@ -32,8 +32,8 @@ pub(crate) fn remap_machine_owned(machine: MachineGraph) -> MachineFlow {
         symbol: machine.symbol,
         name: machine.name,
         attached_data: machine.attached_data,
-        direct_effects: machine.direct_effects,
-        reached_effects: machine.reached_effects,
+        service_reach: machine.service_reach,
+        operational: machine.operational,
         contains: remap_contained_span(machine.contains),
         owned_data: remap_owned_data_span(machine.owned_data),
         states: remap_state_span(machine.states),
@@ -67,8 +67,8 @@ fn remap_machine(
         symbol: machine.symbol,
         name: machine.name.clone(),
         attached_data: machine.attached_data.clone(),
-        direct_effects: machine.direct_effects,
-        reached_effects: machine.reached_effects,
+        service_reach: machine.service_reach,
+        operational: machine.operational,
         contains: contained_machines.insert_many(
             state_graph
                 .machine_contains(machine)

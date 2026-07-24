@@ -28,8 +28,8 @@ pub(crate) fn remap_state_owned(state: StateNode) -> StateFlow {
         key: remap_state_key(state.key),
         name: state.name,
         index: state.index,
-        direct_effects: state.direct_effects,
-        reached_effects: state.reached_effects,
+        service_reach: state.service_reach,
+        operational: state.operational,
         parameters: remap_parameter_span(state.parameters),
         contracts: remap_contract_summary(&state.contracts),
         values: remap_value_summary(&state.values),
@@ -62,8 +62,8 @@ fn remap_state(
         key: remap_state_key(state.key),
         name: state.name.clone(),
         index: state.index,
-        direct_effects: state.direct_effects,
-        reached_effects: state.reached_effects,
+        service_reach: state.service_reach,
+        operational: state.operational,
         parameters: state_parameters.insert_many(
             state_graph
                 .state_parameters(state)

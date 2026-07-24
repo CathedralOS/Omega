@@ -3,6 +3,19 @@ use crate::{
     ControlFlowOwnershipRoots, ControlFlowValueRoots, InvariantFact, ProofObligationFact,
 };
 use omega_core::arena::Arena;
+use omega_core::semantics::{ServiceReachRowTable, ServiceReachTable};
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ControlFlowServiceReachRoots {
+    pub services: ServiceReachTable,
+    pub rows: ServiceReachRowTable,
+}
+
+impl ControlFlowServiceReachRoots {
+    pub fn with_roots(services: ServiceReachTable, rows: ServiceReachRowTable) -> Self {
+        Self { services, rows }
+    }
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ControlFlowFactRoots {
@@ -24,6 +37,7 @@ impl ControlFlowFactRoots {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ControlFlowSemanticRoots {
+    pub service_reach: ControlFlowServiceReachRoots,
     pub facts: ControlFlowFactRoots,
     pub contracts: ControlFlowContractRoots,
     pub values: ControlFlowValueRoots,
@@ -34,6 +48,7 @@ pub struct ControlFlowSemanticRoots {
 
 impl ControlFlowSemanticRoots {
     pub fn with_roots(
+        service_reach: ControlFlowServiceReachRoots,
         facts: ControlFlowFactRoots,
         contracts: ControlFlowContractRoots,
         values: ControlFlowValueRoots,
@@ -42,6 +57,7 @@ impl ControlFlowSemanticRoots {
         ownership: ControlFlowOwnershipRoots,
     ) -> Self {
         Self {
+            service_reach,
             facts,
             contracts,
             values,
@@ -57,12 +73,13 @@ mod tests {
     use crate::{
         ControlFlowBorrowRoots, ControlFlowBoundaryRoots, ControlFlowContractRoots,
         ControlFlowFactRoots, ControlFlowOwnershipRoots, ControlFlowSemanticRoots,
-        ControlFlowValueRoots,
+        ControlFlowServiceReachRoots, ControlFlowValueRoots,
     };
 
     #[test]
     fn semantic_constructor_keeps_noun_roots_explicit() {
         let facts = ControlFlowFactRoots::default();
+        let service_reach = ControlFlowServiceReachRoots::default();
         let contracts = ControlFlowContractRoots::default();
         let values = ControlFlowValueRoots::default();
         let boundaries = ControlFlowBoundaryRoots::default();
@@ -70,6 +87,7 @@ mod tests {
         let ownership = ControlFlowOwnershipRoots::default();
 
         let semantics = ControlFlowSemanticRoots::with_roots(
+            service_reach.clone(),
             facts.clone(),
             contracts.clone(),
             values.clone(),
@@ -78,6 +96,7 @@ mod tests {
             ownership.clone(),
         );
 
+        assert_eq!(semantics.service_reach, service_reach);
         assert_eq!(semantics.facts, facts);
         assert_eq!(semantics.contracts, contracts);
         assert_eq!(semantics.values, values);

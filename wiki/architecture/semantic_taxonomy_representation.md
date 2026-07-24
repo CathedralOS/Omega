@@ -486,9 +486,14 @@ Executable capability manifests now read the checked service, suspension, and
 blocking plans directly: they publish canonical service names and independent
 `may_suspend` / `may_block` values without a lowercase-name or numeric-bit
 projection. The legacy flat `EffectSet` remains only for capability/authority,
-flow/graph, and lowercase-fixture consumers; dedicated may-axis fixed points no
-longer depend on operational bits. Migrating those remaining service consumers
-and deleting the compatibility engine is the next EFX slice.
+the typed-tree compatibility visualization, and lowercase-fixture consumers.
+Normalized inference now retains machine/state/call structure as shared-row
+identities in grouped arenas. Checked-flow, state-graph, and control-flow
+records carry those identities alongside independent suspension/blocking
+summaries, and the persistent graph crates no longer depend on `omega-effects`.
+Dedicated may-axis fixed points never depend on operational bits. Migrating the
+remaining capability/fixture consumers and deleting the compatibility engine
+is the next EFX slice.
 
 Authority possession, provider trust receipts, resource bounds, failure
 outcomes, and mutation remain separate fields/analyses. Do not manufacture a

@@ -605,7 +605,7 @@ pub(crate) fn validate_provider_plan_candidates(
             let hidden_services = service_reach_plan
                 .for_machine(adapter.symbol)
                 .into_iter()
-                .flat_map(|summary| summary.effective.iter())
+                .flat_map(|summary| service_reach_plan.services(summary.effective).iter())
                 .filter_map(|service| typed.service_reaches.definition(*service))
                 .map(|definition| definition.name.as_str())
                 .filter(|name| {

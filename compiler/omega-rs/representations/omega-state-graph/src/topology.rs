@@ -1,4 +1,5 @@
 use omega_core::arena::HandleSpan;
+use omega_core::semantics::{OperationalMaySummary, ServiceReachSummary};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::name::Identifier;
 use omega_typed_trees::types::TypeReferenceHandle;
@@ -26,8 +27,8 @@ pub struct MachineGraph {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub attached_data: Option<Identifier>,
-    pub direct_effects: omega_effects::EffectBits,
-    pub reached_effects: omega_effects::EffectBits,
+    pub service_reach: ServiceReachSummary,
+    pub operational: OperationalMaySummary,
     pub contains: HandleSpan<ContainedGraph>,
     pub owned_data: HandleSpan<MachineOwnedDataGraph>,
     pub states: HandleSpan<StateNode>,
@@ -39,8 +40,8 @@ impl Default for MachineGraph {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             attached_data: None,
-            direct_effects: 0,
-            reached_effects: 0,
+            service_reach: ServiceReachSummary::default(),
+            operational: OperationalMaySummary::default(),
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             states: HandleSpan::empty(),
@@ -68,8 +69,8 @@ pub struct StateNode {
     pub key: StateKey,
     pub name: Identifier,
     pub index: usize,
-    pub direct_effects: omega_effects::EffectBits,
-    pub reached_effects: omega_effects::EffectBits,
+    pub service_reach: ServiceReachSummary,
+    pub operational: OperationalMaySummary,
     pub parameters: HandleSpan<StateParameterNode>,
     pub contracts: StateContractSummary,
     pub values: StateValueSummary,
@@ -86,8 +87,8 @@ impl Default for StateNode {
             key: StateKey::default(),
             name: Identifier::default(),
             index: 0,
-            direct_effects: 0,
-            reached_effects: 0,
+            service_reach: ServiceReachSummary::default(),
+            operational: OperationalMaySummary::default(),
             parameters: HandleSpan::empty(),
             contracts: StateContractSummary::default(),
             values: StateValueSummary::default(),

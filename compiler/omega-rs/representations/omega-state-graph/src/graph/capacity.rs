@@ -4,7 +4,7 @@ use omega_typed_trees::expression::{ExpressionTable, ExpressionTableCapacity};
 use crate::{
     StateGraph, StateGraphBorrowRoots, StateGraphBoundaryRoots, StateGraphCode,
     StateGraphContractRoots, StateGraphFactRoots, StateGraphOwnershipRoots,
-    StateGraphSemanticRoots, StateGraphValueRoots,
+    StateGraphSemanticRoots, StateGraphServiceReachRoots, StateGraphValueRoots,
 };
 
 impl StateGraph {
@@ -48,6 +48,7 @@ impl StateGraph {
                 Arena::with_capacity(transition_capacity),
             ),
             StateGraphSemanticRoots::with_roots(
+                StateGraphServiceReachRoots::default(),
                 StateGraphFactRoots::with_roots(
                     Arena::with_capacity(proof_obligation_capacity),
                     Arena::with_capacity(invariant_capacity),

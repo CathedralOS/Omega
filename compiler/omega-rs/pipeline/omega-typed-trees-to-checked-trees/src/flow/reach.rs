@@ -1,0 +1,83 @@
+use omega_checked_trees::{FlowControlFacts, FlowFacts};
+use omega_core::semantics::{OperationalMaySummary, ServiceReachSummary};
+
+pub(super) fn attach_reach_summaries(
+    flow: &mut FlowFacts,
+    service_reaches: &omega_effects::ServiceReachInferencePlan,
+    effects: &omega_effects::EffectPlan,
+) {
+    let FlowControlFacts { states, calls, .. } = &mut flow.control;
+    states.for_each_mut(|_, state| {
+        let service_state = service_reaches.for_state(state.state_symbol);
+        state.service_reach = service_state
+            .map(|summary| ServiceReachSummary {
+                direct: summary.inferred_direct,
+                transitive: summary.inferred_transitive,
+            })
+            .unwrap_or_default();
+
+        let effect_state = effects
+            .machines()
+            .iter()
+            .flat_map(|machine| effects.states.span_or_empty(machine.states))
+            .find(|summary| summary.symbol == state.state_symbol);
+        state.operational = effect_state
+            .map(|summary| {
+                let direct_may_suspend = summary.direct_may_suspend
+                    || effects
+                        .calls
+                        .span_or_empty(summary.calls)
+                        .iter()
+                        .any(|call| call.direct_may_suspend);
+                let direct_may_block = summary.direct_may_block
+                    || effects
+                        .calls
+                        .span_or_empty(summary.calls)
+                        .iter()
+                        .any(|call| call.direct_may_block);
+                OperationalMaySummary {
+                    direct_may_suspend,
+                    transitive_may_suspend: summary.transitive_may_suspend,
+                    direct_may_block,
+                    transitive_may_block: summary.transitive_may_block,
+                }
+            })
+            .unwrap_or_default();
+
+        for call in calls.span_mut_or_empty(state.calls) {
+            let service_call = service_state.and_then(|state| {
+                service_reaches.calls_for(state).iter().find(|summary| {
+                    summary.statement_index == call.statement_index
+                        && summary.call_ordinal == call.call_ordinal
+                        && summary.target_state == call.target_symbol
+                })
+            });
+            call.service_reach = service_call
+                .map(|summary| ServiceReachSummary {
+                    direct: summary.inferred_direct,
+                    transitive: summary.inferred_transitive,
+                })
+                .unwrap_or_default();
+
+            let effect_call = effect_state.and_then(|state| {
+                effects
+                    .calls
+                    .span_or_empty(state.calls)
+                    .iter()
+                    .find(|summary| {
+                        summary.statement_index == call.statement_index
+                            && summary.call_ordinal == call.call_ordinal
+                            && summary.target_state_symbol == call.target_symbol
+                    })
+            });
+            call.operational = effect_call
+                .map(|summary| OperationalMaySummary {
+                    direct_may_suspend: summary.direct_may_suspend,
+                    transitive_may_suspend: summary.transitive_may_suspend,
+                    direct_may_block: summary.direct_may_block,
+                    transitive_may_block: summary.transitive_may_block,
+                })
+                .unwrap_or_default();
+        }
+    });
+}

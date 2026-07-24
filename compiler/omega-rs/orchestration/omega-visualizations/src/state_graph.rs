@@ -1,4 +1,5 @@
 use crate::phase_diagram::PhaseDiagramBuilder;
+use crate::service_reach::{append_reach_and_operation_lines, service_names};
 use omega_core::symbols::SymbolHandle;
 use omega_state_graph::{
     MachineGraph, Operation, OperationExpressionRefs, OperationKind, PlannedTransitionTarget,
@@ -32,7 +33,14 @@ pub fn state_graph_html(graph: &StateGraph) -> String {
                 "machine",
                 machine_index.arena_index() as usize,
             );
-            diagram.node_effects(&machine_id, effect_names_from_bits(machine.reached_effects));
+            diagram.node_effects(
+                &machine_id,
+                service_names(
+                    &graph.semantics.service_reach.services,
+                    &graph.semantics.service_reach.rows,
+                    machine.service_reach.transitive,
+                ),
+            );
             machine_nodes.push((
                 machine.symbol,
                 machine.name.as_str().to_owned(),
@@ -60,7 +68,14 @@ pub fn state_graph_html(graph: &StateGraph) -> String {
                 "state_block",
                 machine_index.arena_index() as usize,
             );
-            diagram.node_effects(&state_id, effect_names_from_bits(state.reached_effects));
+            diagram.node_effects(
+                &state_id,
+                service_names(
+                    &graph.semantics.service_reach.services,
+                    &graph.semantics.service_reach.rows,
+                    state.service_reach.transitive,
+                ),
+            );
             diagram.containment_edge(machine_id, &state_id);
             state_nodes.push((state.key, state_id));
             state_scope_nodes.push((state.key, machine_id.to_owned()));
@@ -143,7 +158,13 @@ fn machine_label(
         attached_data,
         graph.machine_owned_data(machine).len(),
     );
-    append_effect_bit_lines(&mut label, machine.direct_effects, machine.reached_effects);
+    append_reach_and_operation_lines(
+        &mut label,
+        &graph.semantics.service_reach.services,
+        &graph.semantics.service_reach.rows,
+        machine.service_reach,
+        machine.operational,
+    );
     label
 }
 
@@ -157,7 +178,13 @@ fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) ->
         state.borrow.mutable_parameter_count,
         state.borrow.writable_roots.len(),
     );
-    append_effect_bit_lines(&mut label, state.direct_effects, state.reached_effects);
+    append_reach_and_operation_lines(
+        &mut label,
+        &graph.semantics.service_reach.services,
+        &graph.semantics.service_reach.rows,
+        state.service_reach,
+        state.operational,
+    );
 
     for call in graph
         .semantics
@@ -248,41 +275,6 @@ fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) ->
     }
 
     label
-}
-
-fn format_effect_bits(bits: omega_effects::EffectBits) -> String {
-    let effects = omega_effects::EffectSet::from_bits(bits);
-    if effects.is_empty() {
-        return "<none> [0x0000000000000000]".to_owned();
-    }
-
-    format!(
-        "{} [0x{:016x}]",
-        effects.names().collect::<Vec<_>>().join(", "),
-        effects.bits()
-    )
-}
-
-fn append_effect_bit_lines(
-    label: &mut String,
-    direct: omega_effects::EffectBits,
-    reached: omega_effects::EffectBits,
-) {
-    if direct != 0 {
-        label.push_str("\ndirect effects: ");
-        label.push_str(&format_effect_bits(direct));
-    }
-    if reached != 0 {
-        label.push_str("\nreached effects: ");
-        label.push_str(&format_effect_bits(reached));
-    }
-}
-
-fn effect_names_from_bits(bits: omega_effects::EffectBits) -> Vec<String> {
-    omega_effects::EffectSet::from_bits(bits)
-        .names()
-        .map(str::to_owned)
-        .collect()
 }
 
 fn borrow_call_label(

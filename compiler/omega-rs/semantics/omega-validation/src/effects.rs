@@ -184,7 +184,11 @@ fn validate_asm_intrinsic_declarations(
                 continue;
             };
             if direct_asm_services.contains(&service_name) {
-                debug_assert!(machine_services.inferred_transitive.contains(&service));
+                debug_assert!(
+                    service_reaches
+                        .services(machine_services.inferred_transitive)
+                        .contains(&service)
+                );
                 continue;
             }
             let Some(path) =
@@ -192,7 +196,11 @@ fn validate_asm_intrinsic_declarations(
             else {
                 continue;
             };
-            debug_assert!(machine_services.inferred_transitive.contains(&service));
+            debug_assert!(
+                service_reaches
+                    .services(machine_services.inferred_transitive)
+                    .contains(&service)
+            );
             if declared_services.contains(&service) {
                 continue;
             }
@@ -505,7 +513,7 @@ fn resolve_discard_callee(
             effects,
             has_service_reach: service_reaches
                 .for_machine(machine.symbol)
-                .is_some_and(|summary| !summary.effective.is_empty()),
+                .is_some_and(|summary| !service_reaches.services(summary.effective).is_empty()),
             has_mutable_parameter: program
                 .state_parameters(state)
                 .iter()

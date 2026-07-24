@@ -39,8 +39,19 @@ pub(super) fn borrow_constraint_count(
         .count()
 }
 
-pub(super) fn effect_evidence_count(effects: omega_effects::EffectSet) -> usize {
-    effects.bits().count_ones() as usize
+pub(super) fn behavior_evidence_count(
+    facts: &CheckFacts,
+    service_reach: omega_core::semantics::ServiceReachSummary,
+    operational: omega_core::semantics::OperationalMaySummary,
+) -> usize {
+    facts
+        .effect_rows
+        .service_reaches
+        .rows
+        .services(service_reach.transitive)
+        .len()
+        + usize::from(operational.transitive_may_suspend)
+        + usize::from(operational.transitive_may_block)
 }
 
 pub(super) fn machine_decrease_count(facts: &CheckFacts, machine_symbol: SymbolHandle) -> usize {

@@ -18,13 +18,16 @@ mod mutation;
 mod operator_calls;
 mod ownership;
 mod place;
+mod reach;
 mod state;
 mod statements;
 mod transfers;
 
 use borrow_lifetimes::{filter_expired_borrow_loans, filter_reassigned_borrow_loans};
 use boundaries::append_call_boundary_edges;
+#[cfg(test)]
 pub(crate) use builder::build_flow_facts;
+pub(crate) use builder::build_flow_facts_with_service_reaches;
 use call_phases::{
     apply_call_invalidations, build_call_entry_contexts, build_call_exit_contexts,
     build_call_requires_contexts,
@@ -33,8 +36,8 @@ use calls::build_call_flow_fact;
 use common::{
     append_constraint_ref, append_flow_contexts_for_points, append_place_segments,
     append_semantic_constraints_for_points, appended_span_since, borrow_state_fact,
-    clone_constraint_refs, clone_flow_contexts, effects_call, effects_machine, effects_state,
-    project_constraint_refs_to_active_contexts, proof_contract_call,
+    clone_constraint_refs, clone_flow_contexts, project_constraint_refs_to_active_contexts,
+    proof_contract_call,
 };
 use constraints::{
     append_contiguous_borrow_access_constraints, append_contiguous_borrow_root_constraints,
@@ -66,6 +69,7 @@ pub(crate) use place::{
     canonical_place_segments_may_overlap, effective_member_symbol, expression_type_symbol,
     resolve_member_symbol_from_type_symbol, symbol_type_symbol,
 };
+use reach::attach_reach_summaries;
 use state::build_state_flow_fact;
 use statements::append_state_statement_flow_facts;
 use transfers::propagate_statement_transfers;

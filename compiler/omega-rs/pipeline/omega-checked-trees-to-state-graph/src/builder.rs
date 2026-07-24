@@ -3,14 +3,16 @@ use omega_checked_trees::expression::ExpressionTableCapacity;
 use omega_checked_trees::machine::Machine;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPoolHandle;
-use omega_state_graph::{MachineGraph, StateGraph};
+use omega_state_graph::{MachineGraph, StateGraph, StateGraphServiceReachRoots};
 use std::sync::Arc;
 
 use crate::capacity::{
     StateGraphCapacity, estimated_machine_segment_capacity, machine_statement_count,
 };
 use crate::facts::{remap_invariants, remap_proof_obligations};
-use crate::machine_metadata::{machine_contains, machine_effect_bits, machine_owned_data};
+use crate::machine_metadata::{
+    machine_contains, machine_operational_summary, machine_owned_data, machine_service_reach,
+};
 use crate::merge::merge_machine_graph;
 use crate::segments::split_state_segments;
 use crate::states::append_machine_states;
@@ -20,7 +22,7 @@ pub(crate) fn build_state_graph_with_workers(
     workers: WorkerPoolHandle,
 ) -> Result<StateGraph, Diagnostic> {
     if program.machines().is_empty() {
-        return Ok(StateGraph::with_capacity(
+        let mut state_graph = StateGraph::with_capacity(
             ExpressionTableCapacity::default(),
             0,
             0,
@@ -47,7 +49,9 @@ pub(crate) fn build_state_graph_with_workers(
             0,
             0,
             0,
-        ));
+        );
+        install_service_reach_roots(&mut state_graph, &program);
+        return Ok(state_graph);
     }
 
     let machine_count = program.machines().len();
@@ -67,6 +71,7 @@ pub(crate) fn build_state_graph_with_workers(
     });
 
     let mut state_graph = graph_capacity.into_state_graph();
+    install_service_reach_roots(&mut state_graph, &program);
     for machine_graph in machine_graphs {
         let (local_state_graph, machine_graph) = machine_graph?;
         merge_machine_graph(&mut state_graph, local_state_graph, machine_graph);
@@ -87,6 +92,12 @@ pub(crate) fn build_state_graph_with_workers(
     );
 
     Ok(state_graph)
+}
+
+fn install_service_reach_roots(state_graph: &mut StateGraph, program: &CheckedTrees) {
+    let reach = &program.facts.effect_rows.service_reaches;
+    state_graph.semantics.service_reach =
+        StateGraphServiceReachRoots::with_roots(reach.services.clone(), reach.rows.clone());
 }
 
 fn build_machine_graph(
@@ -118,14 +129,12 @@ fn build_machine_graph(
 
     let states = append_machine_states(state_graph, program, &segments, &segment_transitions)?;
 
-    let (direct_effects, reached_effects) = machine_effect_bits(program, machine_symbol);
-
     Ok(MachineGraph {
         symbol: machine_symbol,
         name: machine.name.clone(),
         attached_data: machine.attached_data.clone(),
-        direct_effects,
-        reached_effects,
+        service_reach: machine_service_reach(program, machine_symbol),
+        operational: machine_operational_summary(program, machine_symbol),
         contains: machine_contains(state_graph, program, machine),
         owned_data: machine_owned_data(state_graph, program, machine),
         states,

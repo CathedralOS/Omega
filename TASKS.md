@@ -1142,16 +1142,20 @@ stronger operations it needs instead of citing machine parameters generally.
   contracts author those identities; missing imports, missing direct rows, and
   helper laundering reject with normalized diagnostics and call paths. Pure
   discard classification now also consults normalized effective service reach.
-  The remaining generic legacy ceiling and flow/graph carriers receive an
-  explicitly derived compatibility projection from canonical rows; lowercase
-  asm bits are no longer an authored semantic input. Executable capability
+  Lowercase asm bits are no longer an authored semantic input. Executable capability
   manifests now consume checked `ServiceReachPlan`, `SuspensionPlan`, and
   `BlockingPlan` values directly, publish canonical service names and the two
   independent operational booleans, and no longer expose legacy lowercase
-  names or numeric effect bits. Remaining EFX work is to migrate the legacy
-  capability/authority and flow/graph consumers to normalized rows, migrate
-  other lowercase fixtures, eliminate the compatibility projection, and then
-  delete the global service-name/u64 engine entirely. The direct-call
+  names or numeric effect bits. Normalized service inference now retains
+  machine/state/call structure in grouped arenas backed by one shared row
+  table. Checked-flow, state-graph, and control-flow nodes carry compact
+  direct/transitive service-row identities plus independent suspension and
+  blocking summaries; the persistent graph representations and their reports
+  no longer depend on `omega-effects` or reconstruct numeric bits. Remaining
+  EFX work is to migrate the legacy capability/authority consumers and the
+  typed-tree compatibility visualization, migrate other lowercase fixtures,
+  eliminate the remaining compatibility projection, and then delete the
+  global service-name/u64 engine entirely. The direct-call
   acknowledgement keyword is a separate owner decision and must consume the
   normalized suspension/blocking plans rather than source-token presence.
 - **TPR4/TPR6 — publication and progress profiles.** Serialize public

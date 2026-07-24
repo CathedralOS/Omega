@@ -3,6 +3,19 @@ use crate::{
     StateGraphContractRoots, StateGraphOwnershipRoots, StateGraphValueRoots,
 };
 use omega_core::arena::Arena;
+use omega_core::semantics::{ServiceReachRowTable, ServiceReachTable};
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateGraphServiceReachRoots {
+    pub services: ServiceReachTable,
+    pub rows: ServiceReachRowTable,
+}
+
+impl StateGraphServiceReachRoots {
+    pub fn with_roots(services: ServiceReachTable, rows: ServiceReachRowTable) -> Self {
+        Self { services, rows }
+    }
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateGraphFactRoots {
@@ -24,6 +37,7 @@ impl StateGraphFactRoots {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateGraphSemanticRoots {
+    pub service_reach: StateGraphServiceReachRoots,
     pub facts: StateGraphFactRoots,
     pub contracts: StateGraphContractRoots,
     pub values: StateGraphValueRoots,
@@ -34,6 +48,7 @@ pub struct StateGraphSemanticRoots {
 
 impl StateGraphSemanticRoots {
     pub fn with_roots(
+        service_reach: StateGraphServiceReachRoots,
         facts: StateGraphFactRoots,
         contracts: StateGraphContractRoots,
         values: StateGraphValueRoots,
@@ -42,6 +57,7 @@ impl StateGraphSemanticRoots {
         ownership: StateGraphOwnershipRoots,
     ) -> Self {
         Self {
+            service_reach,
             facts,
             contracts,
             values,
@@ -57,12 +73,13 @@ mod tests {
     use crate::{
         StateGraphBorrowRoots, StateGraphBoundaryRoots, StateGraphContractRoots,
         StateGraphFactRoots, StateGraphOwnershipRoots, StateGraphSemanticRoots,
-        StateGraphValueRoots,
+        StateGraphServiceReachRoots, StateGraphValueRoots,
     };
 
     #[test]
     fn semantic_constructor_keeps_noun_roots_explicit() {
         let facts = StateGraphFactRoots::default();
+        let service_reach = StateGraphServiceReachRoots::default();
         let contracts = StateGraphContractRoots::default();
         let values = StateGraphValueRoots::default();
         let boundaries = StateGraphBoundaryRoots::default();
@@ -70,6 +87,7 @@ mod tests {
         let ownership = StateGraphOwnershipRoots::default();
 
         let semantics = StateGraphSemanticRoots::with_roots(
+            service_reach.clone(),
             facts.clone(),
             contracts.clone(),
             values.clone(),
@@ -78,6 +96,7 @@ mod tests {
             ownership.clone(),
         );
 
+        assert_eq!(semantics.service_reach, service_reach);
         assert_eq!(semantics.facts, facts);
         assert_eq!(semantics.contracts, contracts);
         assert_eq!(semantics.values, values);
