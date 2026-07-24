@@ -147,8 +147,11 @@ states in LIFO order; and exit requires both the entry mask state and the exact
 completed acknowledgement. Cathedral now carries pure xAPIC/x2APIC register
 and timer encodings alongside its PIC/PIT facts. Those values grant no MMIO/MSR
 authority and deliberately leave frequency enumeration/calibration to the
-selected provider. The concrete PIC/LAPIC providers still owe execution of the
-normalized entry and acknowledgement transitions in their generated paths.
+selected provider. Cathedral's checked x2APIC helpers now program one-shot
+mode, arm/stop, and EOI with parsed `wrmsr` contracts retaining
+`MachineControl` reach. They cannot enable x2APIC/IF or publish a root. The
+concrete PIC/LAPIC providers still owe execution of the normalized entry and
+acknowledgement transitions in their generated paths.
 
 The selected provider plan may keep entry identity private for static tables;
 the program does not need a source-visible function pointer or numeric code
