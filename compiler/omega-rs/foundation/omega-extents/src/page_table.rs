@@ -805,6 +805,7 @@ fn normalized_plan_identity(draft: &PageTableDraft<'_>) -> u64 {
         draft.storage.address_space().normalized_identity(),
     );
     mix(&mut hash, draft.storage.provenance().normalized_identity());
+    mix(&mut hash, draft.storage.era().normalized_identity());
     mix(
         &mut hash,
         draft.storage.lineage_root().normalized_identity(),
@@ -1231,6 +1232,47 @@ mod tests {
             baseline.plan_identity(),
             different_restoration.plan_identity(),
             "authority returned by teardown must participate in plan identity"
+        );
+    }
+
+    #[test]
+    fn normalized_plan_identity_binds_table_storage_mapping_era() {
+        let storage = ExtentRootGrant::from_admitted_provider(
+            id(1, ExtentLineageId::from_normalized_identity),
+            id(1, AddressSpaceId::from_normalized_identity),
+            rights(&[3]),
+            id(2, ExtentProvenanceId::from_normalized_identity),
+            id(30, MappingEraId::from_normalized_identity),
+        )
+        .mint(0x8000, 4096)
+        .expect("first table storage");
+        let first = begin_page_table(
+            id(1, PageTableId::from_normalized_identity),
+            &table_grant(),
+            storage,
+        )
+        .expect("first page-table draft");
+
+        let storage = ExtentRootGrant::from_admitted_provider(
+            id(1, ExtentLineageId::from_normalized_identity),
+            id(1, AddressSpaceId::from_normalized_identity),
+            rights(&[3]),
+            id(2, ExtentProvenanceId::from_normalized_identity),
+            id(31, MappingEraId::from_normalized_identity),
+        )
+        .mint(0x8000, 4096)
+        .expect("replacement table storage");
+        let replacement = begin_page_table(
+            id(1, PageTableId::from_normalized_identity),
+            &table_grant(),
+            storage,
+        )
+        .expect("replacement page-table draft");
+
+        assert_ne!(
+            first.plan_identity(),
+            replacement.plan_identity(),
+            "construction evidence must not replay after table-storage era drift"
         );
     }
 

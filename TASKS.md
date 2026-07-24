@@ -1698,10 +1698,12 @@ stronger operations it needs instead of citing machine parameters generally.
   set before `InstallablePageTable` exists; and installation exposes mappings
   only after one receipt binds the same grant, plan, content, construction
   evidence, and every exact activation receipt. The plan fingerprint now binds
-  each mapping's actual source range, custody mode, space, provenance, era,
-  lineage, and rights as well as the destination authority that teardown must
-  restore; caller-chosen mapping IDs cannot hide physical-frame substitution
-  or different returned authority. Removal is now symmetric:
+  the table storage's space, provenance, mapping era, lineage, geometry, and
+  rights, plus each mapping's actual source range, custody mode, space,
+  provenance, era, lineage, and rights as well as the destination authority
+  that teardown must restore; caller-chosen mapping IDs cannot hide storage-
+  epoch drift, physical-frame substitution, or different returned authority.
+  Removal is now symmetric:
   installed storage and mappings remain captive until the exact installation
   is inactive, every open table-retirement fact holds, and every mapping
   supplies its own valid translation-release receipt. A target provider can
