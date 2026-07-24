@@ -313,9 +313,14 @@ Any change to capacity, preemption, affinity, continuation movement,
 cancellation, or inline completion changes that statement fingerprint and
 requires re-admission. Receipt provenance is evidence, not runtime identity,
 so switching from own-package development authority to a root grant does not
-change the normalized runtime contract. The activation artifact reports
-`pending_provider` until compiler provider selection supplies that exact
-receipt. `TaskRuntime` provider-plan selection/wiring is owner-blocked on the
+change the normalized runtime contract. The activation artifact uses compact
+identities for tooling, while the sealed admission and lifecycle
+carriers retain the complete validated demand and admitted runtime behavior.
+Custody and settlement compare that exact evidence; compact fingerprint
+collisions cannot substitute a different runtime contract or activation plan.
+The artifact reports `pending_provider` until compiler provider selection
+supplies that exact receipt. `TaskRuntime` provider-plan selection/wiring is
+owner-blocked on the
 provider-slot and checked behavior-publication decision recorded in
 `OWNER_QUESTIONS.md`; the current provider spine selects boundary-trait slots,
 while `TaskRuntime` is opaque boundary data and has no checked surface for the
