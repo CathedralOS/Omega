@@ -1,7 +1,10 @@
 use crate::context::*;
 
 use super::tracker::StateLoanTracker;
-use usage::{statement_uses_local_name, statement_uses_symbol};
+use usage::{
+    owner_path_overlaps_place_segments, statement_uses_local_name, statement_uses_owner_path,
+    statement_uses_symbol,
+};
 
 mod usage;
 
@@ -77,8 +80,10 @@ pub(crate) fn place_symbol_is_used_in_state(
 
 pub(super) fn update_state_loan_last_uses(
     program: &omega_typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
     statements: omega_core::arena::HandleSpan<StatementNode>,
     borrow_calls: &[BorrowCallFact],
+    access_segments: &omega_core::arena::Arena<omega_facts::PlaceSegment>,
     argument_accesses: &omega_core::arena::Arena<BorrowArgumentAccessFact>,
     loan_trackers: &[StateLoanTracker],
     loans: &mut omega_core::arena::Arena<omega_checked_trees::BorrowLoanFact>,
@@ -90,7 +95,13 @@ pub(super) fn update_state_loan_last_uses(
     for borrow_call in borrow_calls {
         for access in argument_accesses.span_or_empty(borrow_call.accesses) {
             for tracker in loan_trackers {
-                if tracker.owner_symbol == access.root_symbol {
+                if tracker.owner_symbol == access.root_symbol
+                    && owner_path_overlaps_place_segments(
+                        program,
+                        &tracker.owner_path,
+                        access_segments.span_or_empty(access.segments),
+                    )
+                {
                     loans.get_mut(tracker.handle).last_use_statement_index =
                         borrow_call.statement_index;
                 }
@@ -105,9 +116,21 @@ pub(super) fn update_state_loan_last_uses(
         .enumerate()
     {
         for tracker in loan_trackers {
-            if statement_uses_local_name(program, statement, tracker.owner_name.as_str())
-                || statement_uses_symbol(program, statement, tracker.owner_symbol)
-            {
+            let used = if tracker.owner_path.is_empty() {
+                statement_uses_local_name(program, statement, tracker.owner_name.as_str())
+                    || statement_uses_symbol(program, statement, tracker.owner_symbol)
+            } else {
+                statement_uses_owner_path(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    statement,
+                    tracker.owner_symbol,
+                    tracker.owner_name.as_str(),
+                    &tracker.owner_path,
+                )
+            };
+            if used {
                 loans.get_mut(tracker.handle).last_use_statement_index = statement_index;
             }
         }
