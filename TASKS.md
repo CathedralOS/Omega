@@ -1144,11 +1144,14 @@ stronger operations it needs instead of citing machine parameters generally.
   discard classification now also consults normalized effective service reach.
   The remaining generic legacy ceiling and flow/graph carriers receive an
   explicitly derived compatibility projection from canonical rows; lowercase
-  asm bits are no longer an authored semantic input. Remaining EFX work is to
-  migrate the legacy capability/authority, flow/graph, and component-report
-  consumers to normalized rows, migrate other lowercase fixtures, eliminate
-  the compatibility projection, and then delete the global service-name/u64
-  engine entirely. The direct-call
+  asm bits are no longer an authored semantic input. Executable capability
+  manifests now consume checked `ServiceReachPlan`, `SuspensionPlan`, and
+  `BlockingPlan` values directly, publish canonical service names and the two
+  independent operational booleans, and no longer expose legacy lowercase
+  names or numeric effect bits. Remaining EFX work is to migrate the legacy
+  capability/authority and flow/graph consumers to normalized rows, migrate
+  other lowercase fixtures, eliminate the compatibility projection, and then
+  delete the global service-name/u64 engine entirely. The direct-call
   acknowledgement keyword is a separate owner decision and must consume the
   normalized suspension/blocking plans rather than source-token presence.
 - **TPR4/TPR6 — publication and progress profiles.** Serialize public

@@ -482,11 +482,13 @@ rows resolve through the symbol table and include boundary-parent closure. A
 separate recursive service fixed point drives checked ceilings, static-machine
 and checked-provider admission, provider schemas, contract fingerprints,
 snapshots, and manifests. Ordinary policy traits never mint service identity.
-The legacy flat `EffectSet` remains only for capability/authority, flow/graph,
-build-time-purity, assembly, component-report, and lowercase-fixture consumers;
-dedicated may-axis fixed points no longer depend on operational bits. Migrating
-those remaining service consumers and deleting the compatibility engine is the
-next EFX slice.
+Executable capability manifests now read the checked service, suspension, and
+blocking plans directly: they publish canonical service names and independent
+`may_suspend` / `may_block` values without a lowercase-name or numeric-bit
+projection. The legacy flat `EffectSet` remains only for capability/authority,
+flow/graph, and lowercase-fixture consumers; dedicated may-axis fixed points no
+longer depend on operational bits. Migrating those remaining service consumers
+and deleting the compatibility engine is the next EFX slice.
 
 Authority possession, provider trust receipts, resource bounds, failure
 outcomes, and mutation remain separate fields/analyses. Do not manufacture a
