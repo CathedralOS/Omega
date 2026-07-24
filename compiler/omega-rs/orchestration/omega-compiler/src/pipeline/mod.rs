@@ -43,6 +43,7 @@ pub use omega_layout_plans::{
     MaterializationContext, MaterializationDiagnostic, MaterializationWrite, RelocationTarget,
     ScalarFieldSchema, ScalarFieldValue, SymbolicFieldValue, SymbolicMaterializationPlan,
     decode_scalar_layout, derive_symbolic_materialization, materialize_scalar_layout_into,
+    normalized_layout_plan_fingerprint,
 };
 pub use provider_plans::{
     GeneratedIdtLoadLowering, GeneratedIdtWriterLowering, lower_populated_idt_writer,

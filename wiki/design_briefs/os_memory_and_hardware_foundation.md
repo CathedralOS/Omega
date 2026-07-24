@@ -252,8 +252,9 @@ future source spelling. It validates name-keyed entries against fixed
 compatibility, provider-private external RMW, and statically pinned reach. Its
 normalizer erases authored entry order, sorts by field identity, and assigns a
 deterministic plan identity over every permission, observation, width,
-exposure, and reach fact. Thus source reorderings that preserve the name-keyed
-policy preserve identity, while any lowering-relevant policy change does not.
+exposure, reach, and exact normalized layout-geometry fact. Thus source
+reorderings that preserve the name-keyed policy and geometry preserve identity,
+while a shifted field or any other lowering-relevant policy change does not.
 Its
 operation gate already enforces shared-read/exclusive-write polarity while
 allowing explicitly atomic shared mutation. Successful geometry validation
@@ -270,13 +271,13 @@ borrow-carrying access values, and target-specific external/atomic emission
 remain.
 
 The normalized Extent/AccessPlan join is also live. A reusable
-provider-admitted placed-view grant pins address space, provenance, required
-open-set rights, and permitted static reaches. Derivation checks those facts
-and layout size against an actual borrow-carrying Extent loan. Field operation
-authorization then derives shared/exclusive polarity from that loan rather
-than accepting a caller claim, and its sealed lowering value remains borrowed
-from the view. Omega source projection and target-specific primitive emission
-remain.
+provider-admitted placed-view grant pins the exact geometry-bound access-plan
+identity, address space, provenance, required open-set rights, and permitted
+static reaches. Derivation checks those facts and layout size against an actual
+borrow-carrying Extent loan. Field operation authorization then derives
+shared/exclusive polarity from that loan rather than accepting a caller claim,
+and its sealed lowering value remains borrowed from the view. Omega source
+projection and target-specific primitive emission remain.
 
 The extent's provenance gates construction of an access capability. The
 accessor's normalized contract statically pins service reach. Runtime

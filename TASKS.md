@@ -1727,8 +1727,9 @@ stronger operations it needs instead of citing machine parameters generally.
   provider-private access, and static service reach. Authored entry order is
   erased: validation sorts by field identity and assigns a deterministic
   normalizer-owned plan identity covering every operation, observation, width,
-  exposure, and reach fact, so equivalent policy machines cannot fracture
-  artifact identity. Validation checks fixed
+  exposure, reach, and exact normalized layout-geometry fact, so equivalent
+  policy machines cannot fracture artifact identity and a shifted field cannot
+  reuse an access policy. Validation checks fixed
   layout geometry, rejects multi-container one-access laundering and public
   external RMW, and enforces borrow polarity at operation authorization. Add
   the Omega-authored policy surface and source-level borrow-carrying access
@@ -1738,11 +1739,12 @@ stronger operations it needs instead of citing machine parameters generally.
   observation, loan-derived borrow polarity/lifetime, operation-specific atomic
   ordering, and static reach; malformed load/store/compare-exchange ordering
   rejects before target lowering.
-  Provider-admitted placed-view
-  grants now check an actual Extent loan's space, provenance, open-set rights,
-  size, and permitted static reaches; field authorization derives polarity
-  from that loan and mints the only token primitive lowering may accept. Never
-  expose arbitrary-offset access or per-access revocation probes.
+  Provider-admitted placed-view grants now pin that exact geometry-bound
+  access-plan identity and check an actual Extent loan's space, provenance,
+  open-set rights, size, and permitted static reaches; field authorization
+  derives polarity from that loan and mints the only token primitive lowering
+  may accept. Never expose arbitrary-offset access or per-access revocation
+  probes.
   **OWNER-BLOCKED (#17):** the normalized plan and sealed lowering seam
   are settled, but the concrete Omega `AccessPlan` record/policy spelling is
   still explicitly open in the programmable-layouts brief. Do not invent that

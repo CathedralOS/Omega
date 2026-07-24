@@ -9,7 +9,9 @@ use std::collections::BTreeSet;
 
 use omega_core::atomic::AtomicOrderingPlan;
 use omega_extents::{AddressSpaceId, ExtentLoan, ExtentProvenanceId, ExtentRights, LoanPolarity};
-use omega_layout_plans::{LayoutPlacementReport, LayoutPlanReport};
+use omega_layout_plans::{
+    LayoutPlacementReport, LayoutPlanReport, normalized_layout_plan_fingerprint,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BoundaryServiceReachId(u64);
@@ -184,6 +186,7 @@ impl AuthorizedFieldAccess {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedAccessPlan {
     identity: AccessPlanId,
+    layout_fingerprint: u64,
     plan: AccessPlan,
     fields: Vec<FieldAccessDescriptor>,
     layout_size_bytes: u64,
@@ -192,6 +195,10 @@ pub struct ValidatedAccessPlan {
 impl ValidatedAccessPlan {
     pub const fn identity(&self) -> AccessPlanId {
         self.identity
+    }
+
+    pub const fn layout_fingerprint(&self) -> u64 {
+        self.layout_fingerprint
     }
 
     pub const fn plan(&self) -> &AccessPlan {
@@ -311,21 +318,24 @@ pub fn validate_access_plan(
         });
     }
 
-    let identity = normalized_access_plan_identity(&plan);
+    let layout_fingerprint = normalized_layout_plan_fingerprint(layout);
+    let identity = normalized_access_plan_identity(&plan, layout_fingerprint);
     Ok(ValidatedAccessPlan {
         identity,
+        layout_fingerprint,
         plan,
         fields: descriptors,
         layout_size_bytes: layout_size,
     })
 }
 
-fn normalized_access_plan_identity(plan: &AccessPlan) -> AccessPlanId {
+fn normalized_access_plan_identity(plan: &AccessPlan, layout_fingerprint: u64) -> AccessPlanId {
     // FNV-1a is used as a compact deterministic artifact identity here, never
     // as authorization or collision-resistant evidence. The versioned prefix
     // makes any future vocabulary change an explicit identity migration.
     let mut hash = 0xcbf29ce484222325u64;
-    hash_bytes(&mut hash, b"omega.access-plan.v1");
+    hash_bytes(&mut hash, b"omega.access-plan.v2");
+    hash_u64(&mut hash, layout_fingerprint);
     hash_u64(&mut hash, plan.entries.len() as u64);
     for entry in &plan.entries {
         hash_u64(&mut hash, entry.field.len() as u64);
@@ -412,6 +422,7 @@ impl PlacedViewGrantId {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlacedViewGrant {
     identity: PlacedViewGrantId,
+    access_plan: AccessPlanId,
     address_space: AddressSpaceId,
     provenance: ExtentProvenanceId,
     required_rights: ExtentRights,
@@ -421,6 +432,7 @@ pub struct PlacedViewGrant {
 impl PlacedViewGrant {
     pub fn from_admitted_provider(
         identity: PlacedViewGrantId,
+        access_plan: AccessPlanId,
         address_space: AddressSpaceId,
         provenance: ExtentProvenanceId,
         required_rights: ExtentRights,
@@ -428,6 +440,7 @@ impl PlacedViewGrant {
     ) -> Self {
         Self {
             identity,
+            access_plan,
             address_space,
             provenance,
             required_rights,
@@ -599,6 +612,11 @@ pub fn derive_placed_view<'extent, 'plan>(
     plan: &'plan ValidatedAccessPlan,
     grant: &PlacedViewGrant,
 ) -> Result<PlacedView<'extent, 'plan>, AccessPlanDiagnostic> {
+    if plan.identity() != grant.access_plan {
+        return Err(AccessPlanDiagnostic(
+            "placed-view grant does not bind the exact validated access plan".into(),
+        ));
+    }
     if loan.address_space() != grant.address_space {
         return Err(AccessPlanDiagnostic(
             "extent address space does not match placed-view grant".into(),
@@ -1151,6 +1169,7 @@ mod tests {
 
         let grant = PlacedViewGrant::from_admitted_provider(
             PlacedViewGrantId::from_normalized_identity(10).expect("atomic view grant"),
+            plan.identity(),
             extent_id(2, AddressSpaceId::from_normalized_identity),
             extent_id(5, ExtentProvenanceId::from_normalized_identity),
             extent_rights(&[3]),
@@ -1296,9 +1315,10 @@ mod tests {
         .expect("UART extent")
     }
 
-    fn uart_view_grant() -> PlacedViewGrant {
+    fn uart_view_grant(plan: &ValidatedAccessPlan) -> PlacedViewGrant {
         PlacedViewGrant::from_admitted_provider(
             PlacedViewGrantId::from_normalized_identity(8).expect("view grant"),
+            plan.identity(),
             extent_id(2, AddressSpaceId::from_normalized_identity),
             extent_id(5, ExtentProvenanceId::from_normalized_identity),
             extent_rights(&[3]),
@@ -1309,7 +1329,7 @@ mod tests {
     #[test]
     fn placed_view_derives_access_from_extent_provenance_and_actual_borrow() {
         let plan = uart_access_plan();
-        let grant = uart_view_grant();
+        let grant = uart_view_grant(&plan);
 
         let mut shared_extent = uart_extent(0x1000, 64);
         let shared_loan = shared_extent.loan(0, 12).expect("shared UART loan");
@@ -1350,7 +1370,7 @@ mod tests {
     #[test]
     fn placed_view_rejects_unqualified_extent_or_unadmitted_reach() {
         let plan = uart_access_plan();
-        let grant = uart_view_grant();
+        let grant = uart_view_grant(&plan);
         let short = uart_extent(0x1000, 8);
         let short_loan = short.loan(0, 8).expect("short loan");
         let error =
@@ -1361,6 +1381,7 @@ mod tests {
         let loan = extent.loan(0, 12).expect("UART loan");
         let wrong_reach = PlacedViewGrant::from_admitted_provider(
             PlacedViewGrantId::from_normalized_identity(9).expect("view grant"),
+            plan.identity(),
             extent_id(2, AddressSpaceId::from_normalized_identity),
             extent_id(5, ExtentProvenanceId::from_normalized_identity),
             extent_rights(&[3]),
@@ -1369,5 +1390,33 @@ mod tests {
         let error = derive_placed_view(loan, &plan, &wrong_reach)
             .expect_err("service reach must agree with provenance grant");
         assert!(error.0.contains("not admitted"));
+    }
+
+    #[test]
+    fn access_identity_and_grant_bind_exact_layout_geometry() {
+        let plan = uart_access_plan();
+        let mut alternate_layout = uart_layout();
+        alternate_layout
+            .entries
+            .iter_mut()
+            .find(|entry| entry.field == "status")
+            .expect("status layout entry")
+            .placement = LayoutPlacementReport::At { offset: 12 };
+        alternate_layout.size = Some(16);
+        let alternate = validate_access_plan(plan.plan().clone(), &alternate_layout)
+            .expect("non-overlapping alternate geometry");
+        assert_ne!(plan.identity(), alternate.identity());
+        assert_ne!(
+            plan.layout_fingerprint(),
+            alternate.layout_fingerprint(),
+            "layout geometry is part of access-policy identity"
+        );
+
+        let grant = uart_view_grant(&plan);
+        let extent = uart_extent(0x1000, 64);
+        let loan = extent.loan(0, 16).expect("alternate-layout loan");
+        let error = derive_placed_view(loan, &alternate, &grant)
+            .expect_err("grant for one geometry cannot authorize another");
+        assert!(error.0.contains("exact validated access plan"));
     }
 }

@@ -37,6 +37,96 @@ pub struct LayoutPlanReport {
     pub align: i64,
 }
 
+/// Deterministic semantic identity of one validated layout plan.
+///
+/// Compiler-issued field keys and authored entry order are deliberately absent.
+/// Repeated fragments are sorted by their complete normalized placement, while
+/// size and alignment remain identity-bearing geometry. The derived `offsets`
+/// convenience projection is excluded because it contains no fact beyond the
+/// named entries.
+pub fn normalized_layout_plan_fingerprint(layout: &LayoutPlanReport) -> u64 {
+    let mut entries = layout.entries.iter().collect::<Vec<_>>();
+    entries.sort_unstable_by(|left, right| {
+        left.field.cmp(&right.field).then_with(|| {
+            placement_sort_key(&left.placement).cmp(&placement_sort_key(&right.placement))
+        })
+    });
+
+    let mut hash = 0xcbf29ce484222325u64;
+    hash_fingerprint_bytes(&mut hash, b"omega.layout-plan.v1");
+    hash_fingerprint_i64(&mut hash, layout.size.unwrap_or(-1));
+    hash_fingerprint_i64(&mut hash, layout.align);
+    hash_fingerprint_u64(&mut hash, entries.len() as u64);
+    for entry in entries {
+        hash_fingerprint_u64(&mut hash, entry.field.len() as u64);
+        hash_fingerprint_bytes(&mut hash, entry.field.as_bytes());
+        match entry.placement {
+            LayoutPlacementReport::At { offset } => {
+                hash_fingerprint_byte(&mut hash, 0);
+                hash_fingerprint_i64(&mut hash, offset);
+            }
+            LayoutPlacementReport::Bits {
+                container,
+                container_width,
+                destination_lsb,
+                source_lsb,
+                width,
+            } => {
+                hash_fingerprint_byte(&mut hash, 1);
+                for value in [
+                    container,
+                    container_width,
+                    destination_lsb,
+                    source_lsb,
+                    width,
+                ] {
+                    hash_fingerprint_i64(&mut hash, value);
+                }
+            }
+        }
+    }
+    if hash == 0 { 1 } else { hash }
+}
+
+fn placement_sort_key(placement: &LayoutPlacementReport) -> (u8, i64, i64, i64, i64, i64) {
+    match *placement {
+        LayoutPlacementReport::At { offset } => (0, offset, 0, 0, 0, 0),
+        LayoutPlacementReport::Bits {
+            container,
+            container_width,
+            destination_lsb,
+            source_lsb,
+            width,
+        } => (
+            1,
+            container,
+            container_width,
+            destination_lsb,
+            source_lsb,
+            width,
+        ),
+    }
+}
+
+fn hash_fingerprint_i64(hash: &mut u64, value: i64) {
+    hash_fingerprint_bytes(hash, &value.to_le_bytes());
+}
+
+fn hash_fingerprint_u64(hash: &mut u64, value: u64) {
+    hash_fingerprint_bytes(hash, &value.to_le_bytes());
+}
+
+fn hash_fingerprint_bytes(hash: &mut u64, bytes: &[u8]) {
+    for byte in bytes {
+        hash_fingerprint_byte(hash, *byte);
+    }
+}
+
+fn hash_fingerprint_byte(hash: &mut u64, byte: u8) {
+    *hash ^= u64::from(byte);
+    *hash = hash.wrapping_mul(0x100000001b3);
+}
+
 /// One ordinary scalar supplied to a validated dictated-layout materializer.
 /// The field name selects compiler-validated plan entries; callers never
 /// provide a byte offset or destination bit position.
@@ -1337,6 +1427,28 @@ mod tests {
             size: Some(16),
             align: 1,
         }
+    }
+
+    #[test]
+    fn normalized_layout_identity_is_order_independent_and_geometry_bound() {
+        let forward = split_layout();
+        let mut reversed = forward.clone();
+        reversed.entries.reverse();
+        assert_eq!(
+            normalized_layout_plan_fingerprint(&forward),
+            normalized_layout_plan_fingerprint(&reversed)
+        );
+
+        let mut shifted = forward.clone();
+        let LayoutPlacementReport::Bits { container, .. } = &mut shifted.entries[0].placement
+        else {
+            unreachable!("split layout uses bit fragments")
+        };
+        *container = 4;
+        assert_ne!(
+            normalized_layout_plan_fingerprint(&forward),
+            normalized_layout_plan_fingerprint(&shifted)
+        );
     }
 
     #[test]
