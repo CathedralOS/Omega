@@ -147,3 +147,56 @@ pub enum MachineInstructionKind {
     PortRead,
     Return,
 }
+
+impl MachineInstructionKind {
+    /// Whether this instruction comes from the user-checked assembly catalog
+    /// and therefore must retain independent final-image validation evidence.
+    ///
+    /// Generated IDT helpers have their own exact whole-helper validators and
+    /// are deliberately not part of this per-instruction catalog.
+    pub const fn requires_checked_assembly_validation(self) -> bool {
+        matches!(
+            self,
+            Self::MachineHalt
+                | Self::MemoryFence(_)
+                | Self::InterruptControl(_)
+                | Self::FlagsSnapshot
+                | Self::FlagsRestore
+                | Self::MsrRead
+                | Self::MsrWrite
+                | Self::ControlRegisterRead(_)
+                | Self::ControlRegisterWrite(_)
+                | Self::PortWrite
+                | Self::PortRead
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::MachineInstructionKind;
+    use omega_core::inline_assembly::{AsmControlRegister, AsmFenceKind, AsmInterruptControlKind};
+
+    #[test]
+    fn checked_catalog_instruction_classes_fail_closed() {
+        for kind in [
+            MachineInstructionKind::MachineHalt,
+            MachineInstructionKind::MemoryFence(AsmFenceKind::Full),
+            MachineInstructionKind::InterruptControl(AsmInterruptControlKind::Disable),
+            MachineInstructionKind::FlagsSnapshot,
+            MachineInstructionKind::FlagsRestore,
+            MachineInstructionKind::MsrRead,
+            MachineInstructionKind::MsrWrite,
+            MachineInstructionKind::ControlRegisterRead(AsmControlRegister::Cr3),
+            MachineInstructionKind::ControlRegisterWrite(AsmControlRegister::Cr3),
+            MachineInstructionKind::PortWrite,
+            MachineInstructionKind::PortRead,
+        ] {
+            assert!(kind.requires_checked_assembly_validation(), "{kind:?}");
+        }
+
+        assert!(!MachineInstructionKind::NoOp.requires_checked_assembly_validation());
+        assert!(!MachineInstructionKind::GeneratedIdtLoad.requires_checked_assembly_validation());
+        assert!(!MachineInstructionKind::GeneratedIdtWriter.requires_checked_assembly_validation());
+    }
+}
