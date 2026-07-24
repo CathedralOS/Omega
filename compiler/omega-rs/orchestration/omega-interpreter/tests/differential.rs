@@ -435,7 +435,6 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_u64_guarded_cap_store_exit", 70),
     ("calls/runtime_measured_tail_recursion_exit", 70),
     ("calls/runtime_terminal_tail_recursion_exit", 70),
-    ("calls/runtime_two_state_tail_cycle_exit", 70),
     ("comptime/runtime_const_measured_recursion_exit", 70),
     ("collections/runtime_computed_index_match_subject_exit", 70),
     ("recast/runtime_multi_edge_offset_meet_exit", 70),

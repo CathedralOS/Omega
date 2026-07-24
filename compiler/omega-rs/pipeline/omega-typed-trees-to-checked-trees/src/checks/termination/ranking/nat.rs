@@ -225,57 +225,6 @@ fn declared_floor_at_least_one(
     }
 }
 
-/// The edge passes the measured parameter UNCHANGED (`step(n, acc)`
-/// forwarding `n`): non-increasing, legal in a cycle as long as some other
-/// edge strictly decreases (the non-strict subgraph must stay acyclic --
-/// see `component_has_proven_decrease`).
-pub(super) fn edge_nonincrease_proven(
-    program: &omega_typed_trees::TypedTrees,
-    source: &omega_typed_trees::state::State,
-    target: &omega_typed_trees::state::State,
-    arguments: &[ExpressionHandle],
-    measure: DecreaseMeasure,
-) -> bool {
-    let DecreaseMeasure::Single(decreases) = measure else {
-        return false;
-    };
-    let ExpressionNode::Name(decreases_path) = program.expression_table.expression(decreases)
-    else {
-        return false;
-    };
-    let decrease_name = program
-        .expression_table
-        .name_path_members(decreases_path.members)
-        .last()
-        .map(|member| member.as_str())
-        .unwrap_or_default();
-    let Some(parameter) = program
-        .state_parameters(source)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .find(|parameter| {
-            parameter.symbol == decreases_path.symbol || parameter.name.as_str() == decrease_name
-        })
-    else {
-        return false;
-    };
-    let Some(argument_index) = target_argument_index(program, target, parameter.name.as_str())
-    else {
-        return false;
-    };
-    let Some(argument) = arguments.get(argument_index).copied() else {
-        return false;
-    };
-    let ExpressionNode::Name(argument_path) = program.expression_table.expression(argument) else {
-        return false;
-    };
-    program
-        .expression_table
-        .name_path_members(argument_path.members)
-        .last()
-        .is_some_and(|member| member.as_str() == parameter.name.as_str())
-}
-
 fn member_countdown_edge(
     program: &omega_typed_trees::TypedTrees,
     source: &omega_typed_trees::state::State,

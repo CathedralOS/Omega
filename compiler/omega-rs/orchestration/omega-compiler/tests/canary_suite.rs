@@ -22869,34 +22869,6 @@ fn runtime_const_measured_recursion_exit_canary_runs() {
 }
 
 #[test]
-fn runtime_two_state_tail_cycle_exit_canary_runs() {
-    // MR4 in-machine sub-rung: forwarding edge + strict edge, non-strict
-    // subgraph acyclic.
-    let canary = pass_canary("calls/runtime_two_state_tail_cycle_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-two-state-cycle-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("two-state tail cycle canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("two-state tail cycle canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the two-state accumulator to sum 4+3+2+1=10 (exit 70), got {:?}\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-#[test]
 fn runtime_terminal_tail_recursion_exit_canary_runs() {
     // MR2 complete: the terminal tail call rewrites onto the loop-back and
     // the fall-through complement proves the decrease.
@@ -37820,7 +37792,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_u64_guarded_cap_store_exit",
     "calls/runtime_measured_tail_recursion_exit",
     "calls/runtime_terminal_tail_recursion_exit",
-    "calls/runtime_two_state_tail_cycle_exit",
     "comptime/runtime_const_measured_recursion_exit",
     "collections/runtime_computed_index_match_subject_exit",
     "recast/runtime_multi_edge_offset_meet_exit",
@@ -38210,6 +38181,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "capabilities/native_slice_external_leaf_rejected",
     "capabilities/native_bounded_text_external_leaf_rejected",
     "capabilities/native_vector_external_leaf_rejected",
+    "calls/runtime_two_state_tail_cycle_forwarding_rejected",
+    "termination/joint_machine_call_cycle_forwarding_rejected",
     "atomics/atomic_load_release_ordering_rejected",
     "atomics/atomic_store_acquire_ordering_rejected",
     "atomics/atomic_compare_exchange_failure_release_rejected",

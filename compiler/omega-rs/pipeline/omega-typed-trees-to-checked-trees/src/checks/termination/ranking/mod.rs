@@ -414,48 +414,33 @@ fn component_has_proven_decrease(
         });
     }
 
-    // Multi-state cycle: every edge must be STRICT or NON-INCREASING (a
-    // forwarding edge passing the measure unchanged), and the subgraph of
-    // non-strict edges must be ACYCLIC -- then every cycle traversal crosses
-    // at least one strict decrease, which is well-founded over the naturals.
+    // Frozen decision 23 deliberately uses the simple compositional rule:
+    // EVERY edge that stays inside a cyclic component must strictly decrease
+    // the selected rank. A merely forwarding edge is rejected even when some
+    // later edge decreases; accepting it would make admissibility depend on a
+    // second graph-level algebra that the public ranking law does not expose.
     let mut pairs: Vec<(usize, usize)> = edges.iter().map(|edge| (edge.from, edge.to)).collect();
     pairs.sort_unstable();
     pairs.dedup();
-    let mut nonstrict_edges: Vec<(usize, usize)> = Vec::new();
-    let all_classified = pairs.iter().all(|&(from, to)| {
+    pairs.iter().all(|&(from, to)| {
         let (Some(source), Some(target)) = (states.get(from), states.get(to)) else {
             return false;
         };
-        match classify_cycle_edge(program, source, target, measure, order, orientation) {
-            EdgeClass::Strict => true,
-            EdgeClass::NonIncreasing => {
-                nonstrict_edges.push((from, to));
-                true
-            }
-            EdgeClass::Unknown => false,
-        }
-    });
-    all_classified && subgraph_is_acyclic(component, &nonstrict_edges)
+        cycle_edge_strictly_decreases(program, source, target, measure, order, orientation)
+    })
 }
 
-enum EdgeClass {
-    Strict,
-    NonIncreasing,
-    Unknown,
-}
-
-/// Classify every transition statement from `source` targeting `target`:
-/// the PAIR is strict only when all its statements strictly decrease; one
-/// non-increasing statement makes the pair non-strict (that alternative may
-/// be taken on every traversal); one unclassifiable statement fails it.
-fn classify_cycle_edge(
+/// Every transition statement from `source` targeting `target` must strictly
+/// decrease the rank. One unclassifiable or merely forwarding alternative
+/// rejects the pair because that alternative may be taken on every traversal.
+fn cycle_edge_strictly_decreases(
     program: &omega_typed_trees::TypedTrees,
     source: &omega_typed_trees::state::State,
     target: &omega_typed_trees::state::State,
     measure: DecreaseMeasure,
     order: &RankingOrder,
     orientation: DistanceOrientation,
-) -> EdgeClass {
+) -> bool {
     if !matches!(
         order,
         RankingOrder::NatDescending
@@ -465,9 +450,9 @@ fn classify_cycle_edge(
     ) {
         // Slice-length, struct-view and lexicographic orders stay
         // self-loop-only (no pointwise cross-state meaning).
-        return EdgeClass::Unknown;
+        return false;
     }
-    let mut class = EdgeClass::Unknown;
+    let mut found = false;
     for statement in program.statement_table.statements(source.statement_nodes) {
         let Some(edge) = patterns::edge_to_any_guard(program, statement, target.symbol) else {
             continue;
@@ -481,48 +466,12 @@ fn classify_cycle_edge(
             measure,
             orientation,
         ) {
-            if matches!(class, EdgeClass::Unknown) {
-                class = EdgeClass::Strict;
-            }
-        } else if nat::edge_nonincrease_proven(program, source, target, edge.arguments, measure) {
-            class = EdgeClass::NonIncreasing;
+            found = true;
         } else {
-            return EdgeClass::Unknown;
+            return false;
         }
     }
-    class
-}
-
-/// DFS cycle check over the component restricted to the given edges.
-fn subgraph_is_acyclic(component: &[usize], edges: &[(usize, usize)]) -> bool {
-    // 0 unvisited, 1 on-stack, 2 done -- iterative coloring.
-    fn visit(
-        node: usize,
-        edges: &[(usize, usize)],
-        color: &mut std::collections::BTreeMap<usize, u8>,
-    ) -> bool {
-        color.insert(node, 1);
-        for &(from, to) in edges {
-            if from != node {
-                continue;
-            }
-            match color.get(&to).copied().unwrap_or(0) {
-                1 => return false,
-                0 => {
-                    if !visit(to, edges, color) {
-                        return false;
-                    }
-                }
-                _ => {}
-            }
-        }
-        color.insert(node, 2);
-        true
-    }
-    let mut color = std::collections::BTreeMap::new();
-    component
-        .iter()
-        .all(|&node| color.get(&node).copied().unwrap_or(0) != 0 || visit(node, edges, &mut color))
+    found
 }
 
 fn state_has_proven_supported_self_loop(
