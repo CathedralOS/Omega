@@ -274,9 +274,15 @@ The normalized Omega-native container validator is live over checked-layout
 decode output. It enforces configured bounds, checked non-overlapping ranges,
 one exact copy of every semantic section, rejection of unknown required
 sections, and informational-only treatment of unknown optional sections. It
-produces an immutable admission candidate, never executable eligibility. The
-schema-driven byte decoder, content normalization, and relocation validation
-remain to connect.
+produces an immutable admission candidate, never executable eligibility.
+Normalization binds the exact code bytes, instruction-set architecture,
+contracts, footprint, placement, entries, and canonical relocations into
+content identity; proof evidence remains outside that promise. The artifact
+retains its immutable bytes and architecture, and relocation lowering rejects
+cross-architecture substitution even when a relocation kind is otherwise
+shared. Signed relocation addends survive the validated artifact, object plan,
+image application, report, and fingerprint. The schema-driven byte decoder
+remains to connect.
 
 The initial image uses the same trust discipline at an earlier phase: the
 current trusted build validates the artifact and signs its admitted identity,

@@ -3394,6 +3394,7 @@ mod tests {
                 artifact_identity + 10,
                 ArtifactContentId::from_normalized_identity,
             ),
+            omega_target::Architecture::X86_64,
             vec![0; 64],
             install_id(30, MachineContractSetId::from_normalized_identity),
             install_id(31, MachineFootprintId::from_normalized_identity),

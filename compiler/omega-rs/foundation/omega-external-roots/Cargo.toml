@@ -15,3 +15,4 @@ omega-layout-plans = { path = "../omega-layout-plans" }
 
 [dev-dependencies]
 omega-extents = { path = "../omega-extents" }
+omega-target = { path = "../omega-target" }
