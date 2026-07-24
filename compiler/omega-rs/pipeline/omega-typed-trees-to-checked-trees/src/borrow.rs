@@ -22,6 +22,8 @@ pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> Bor
         omega_core::arena::Arena::with_capacity(estimated_borrow_root_capacity(program));
     let mut access_segments =
         omega_core::arena::Arena::with_capacity(program.expression_table.expression_count());
+    let mut owner_segments =
+        omega_core::arena::Arena::with_capacity(program.expression_table.expression_count());
     let mut argument_accesses =
         omega_core::arena::Arena::with_capacity(program.expression_table.expression_count());
     let mut calls =
@@ -35,6 +37,7 @@ pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> Bor
         let mut arenas = BorrowFactArenas {
             writable_roots: &mut writable_roots,
             access_segments: &mut access_segments,
+            owner_segments: &mut owner_segments,
             argument_accesses: &mut argument_accesses,
             calls: &mut calls,
             loans: &mut loans,
@@ -56,6 +59,7 @@ pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> Bor
     BorrowFacts::with_roots(
         writable_roots,
         access_segments,
+        owner_segments,
         argument_accesses,
         calls,
         loans,

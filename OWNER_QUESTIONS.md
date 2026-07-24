@@ -4,7 +4,7 @@ Only unresolved owner-level language or architecture decisions belong here.
 Settled decisions live in the language guide and design briefs; implementation
 and deliberately deferred research live in `TASKS.md`.
 
-Last pruned: 2026-07-23.
+Last pruned: 2026-07-24.
 
 ## 1. What is the runtime and object-safety contract for `dyn Trait`?
 
@@ -339,3 +339,45 @@ source carrier exposes no constructor or representation fields. Do not silently
 assign every opaque type zero size, make every carrier pointer-sized, infer a
 representation from its name, or let a package declare arbitrary layout bytes
 as authority.
+
+## 9. How does a task-runtime provider publish checked behavior and own its slot?
+
+The normalized activation/runtime join and receipt qualification exist, but no
+source or checked-plan carrier can currently supply the runtime side of that
+join. `TaskRuntime` is opaque `boundary data` with attached boundary machines;
+canonical provider selection, by contrast, owns boundary-trait slots derived
+from `satisfies` closures. No existing declaration or derived contract states a
+runtime's continuation capacity/alignment, preemption granularity, CPU/thread
+migration, continuation movement, cancellation support, or inline-completion
+behavior. Those facts cannot be inferred from `suspends`, `blocks`, calling
+conventions, target identity, or a provider plan's callable rows.
+
+Decide:
+
+- whether `TaskRuntime` becomes or is paired with an ordinary boundary-trait
+  slot, or whether provider plans gain a general nominal boundary-data
+  requirement without introducing a task-only selection mechanism;
+- which checked provider declarations/evidence derive each behavior field, and
+  which fields may remain opaque claims requiring a root grant;
+- how capacity and alignment claims bind to provider storage/arena plans rather
+  than unaudited integer literals;
+- whether `start` and `try_start` share one runtime behavior contract or may
+  select distinct contracts, especially for inline completion and transactional
+  rejection;
+- how the behavior statement, provider-plan identity, selected slot, opaque
+  runtime representation plan, and executable dispatch identity compose into
+  one receipt without circularly treating a claim as its own proof; and
+- how a selected runtime value carries that admitted provider provenance to
+  `Task<T>` while preventing arbitrary opaque values from borrowing another
+  provider's admission.
+
+Recommendation: make task runtime an ordinary selected provider slot and add a
+normalized provider-behavior evidence record to the common provider plan. Derive
+capacity/alignment from an admitted storage plan and operational behavior from
+checked provider contracts where possible; require the normal trust receipt for
+opaque residual claims. One admitted runtime contract should cover both start
+operations, with `try_start` additionally required to prove transactional
+argument/lease return. Keep the current provider-independent activation demand
+and join unchanged. Do not infer behavior from target names, manufacture a
+compiler-only default provider, or add a parallel task-specific selection or
+grant table.

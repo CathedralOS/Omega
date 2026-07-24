@@ -1282,8 +1282,13 @@ stronger operations it needs instead of citing machine parameters generally.
   demand, so asynchronous provider admission still fails closed rather than
   guessing. `05_carry_manifest.json` publishes completeness and the joined
   policy. Every plan requires cancellation support because every `Task<T>`
-  claim exposes cancellation-request authority. Continue with real provider
-  provenance and admission/dispatch integration.
+  claim exposes cancellation-request authority. Real provider provenance and
+  admission/dispatch integration are **OWNER-BLOCKED** on
+  `OWNER_QUESTIONS.md` under "task-runtime provider publish checked behavior
+  and own its slot": the current provider-plan surface selects boundary traits,
+  while `TaskRuntime` is opaque boundary data, and no checked contract can yet
+  express the runtime behavior/capacity statement that the existing receipt
+  qualifier must bind.
 - **TR4 — runtime requirement and admission.** The normalized demand/behavior
   join is live: provider storage/capacity, cancellation, inline behavior,
   preemption granularity, CPU/thread migration, and continuation movement fail
@@ -1302,8 +1307,11 @@ stronger operations it needs instead of citing machine parameters generally.
   conservation is now pinned
   end to end: receiver types retain `&self` versus consuming `self`,
   `request_cancel` leaves the linear claim live, and `finish` transfers it into
-  the conditional terminal outcome. Add compiler provider-plan selection/
-  receipt integration and executable dispatch, and ensure a rejected
+  the conditional terminal outcome. Compiler provider-plan selection/receipt
+  integration is OWNER-BLOCKED on the task-runtime provider-slot/behavior
+  decision above; opaque runtime layout is independently OWNER-BLOCKED on
+  `OWNER_QUESTIONS.md` under "opaque runtime `boundary data`." Once those
+  surfaces are settled, add executable dispatch and ensure a rejected
   transactional start returns every moved argument and lease.
 - **TR5 — custody and storage leases.** Track provider provenance and dependent
   child storage so close/reclaim rejects while claims remain live.
@@ -1615,11 +1623,16 @@ stronger operations it needs instead of citing machine parameters generally.
   local or its nested fields now evaluates the right-hand side under the old
   loans, retires only the overwritten owner path, and activates the
   replacement's reference/call/literal/transferred-aggregate loans; fixed
-  indexes remain exact and dynamic indexes conservative. Finish general
-  outlives constraints, persistent-storage assignment across state
-  transitions, and loan propagation through the remaining aggregate expression
-  forms. These are settled implementation work needed by placed views and task
-  storage, not owner-design blockers.
+  indexes remain exact and dynamic indexes conservative. Published loan-owner
+  projections now live in one grouped arena with handle spans rather than a
+  `Vec` per loan. Because state-local loans still expire at state exit,
+  borrow-carrying assignments into attached or machine-owned persistent storage
+  now fail closed with an explicit diagnostic instead of silently losing the
+  source loan. Finish general outlives constraints, propagate persistent-owner
+  loans through graph edges with state-parameter root rebasing, then admit those
+  writes, and cover the remaining aggregate expression forms. These are settled
+  implementation work needed by placed views and task storage, not owner-design
+  blockers.
 - **Const data parameters.** Literal and scoped named-integer-const arguments
   now parse in generic type position, validate against the declared integer
   kind/range, and substitute into fixed-array layout, descriptors, runtime

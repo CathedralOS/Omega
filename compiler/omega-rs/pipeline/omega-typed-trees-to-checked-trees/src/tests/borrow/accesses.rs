@@ -305,6 +305,70 @@ fn collects_helper_returned_mutable_local_borrow_loans() {
 }
 
 #[test]
+fn groups_borrow_carrying_owner_paths_in_the_shared_arena() {
+    let source = r#"
+        data View<'buf> {
+            body: &'buf mut i32;
+        }
+
+        machine exercise<'source>(
+            first: &'source mut i32,
+            second: &'source mut i32
+        ) {
+            let mut selected: View<'source> = View { body: first };
+            selected.body = second;
+            selected.body = 1;
+        }
+    "#;
+
+    let tokens = omega_source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = omega_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved =
+        omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let typed = omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type");
+
+    let body_symbol = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "View")
+        .and_then(|definition| {
+            typed
+                .data_members(definition)
+                .iter()
+                .find_map(|member| match member {
+                    omega_typed_trees::data::DataMember::Field(field)
+                        if field.name.as_str() == "body" =>
+                    {
+                        Some(field.symbol)
+                    }
+                    _ => None,
+                })
+        })
+        .expect("View::body symbol");
+    let facts = build_borrow_facts(&typed);
+    let borrow_state = facts.states.iter().next().map(|(_, state)| state).unwrap();
+    let loans = facts.loans.span_or_empty(borrow_state.loans);
+
+    assert_eq!(loans.len(), 2);
+    assert_eq!(
+        facts.loan_owner_path(&loans[0]),
+        &[omega_checked_trees::BorrowLoanOwnerSegment::Field(
+            body_symbol
+        )]
+    );
+    assert_eq!(
+        facts.loan_owner_path(&loans[1]),
+        &[omega_checked_trees::BorrowLoanOwnerSegment::Field(
+            body_symbol
+        )]
+    );
+    assert_eq!(facts.owner_segments.len(), 2);
+}
+
+#[test]
 fn collects_unresolved_local_argument_access_roots() {
     let machine_symbol = SymbolHandle::from_arena_index(21);
     let state_symbol = SymbolHandle::from_arena_index(22);

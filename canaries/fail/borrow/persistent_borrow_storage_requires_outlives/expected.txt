@@ -1,0 +1,1 @@
+assignment stores a borrow-carrying value in persistent field `stored`

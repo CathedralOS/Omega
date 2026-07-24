@@ -10,6 +10,8 @@ use super::tracker::StateLoanTracker;
 pub(super) struct BorrowFactArenas<'arenas> {
     pub(super) writable_roots: &'arenas mut omega_core::arena::Arena<BorrowWritableRootFact>,
     pub(super) access_segments: &'arenas mut omega_core::arena::Arena<omega_facts::PlaceSegment>,
+    pub(super) owner_segments:
+        &'arenas mut omega_core::arena::Arena<omega_checked_trees::BorrowLoanOwnerSegment>,
     pub(super) argument_accesses: &'arenas mut omega_core::arena::Arena<BorrowArgumentAccessFact>,
     pub(super) calls: &'arenas mut omega_core::arena::Arena<BorrowCallFact>,
     pub(super) loans: &'arenas mut omega_core::arena::Arena<BorrowLoanFact>,
@@ -52,13 +54,16 @@ pub(super) fn append_state_borrow_facts(
             let loan_segments = arenas
                 .access_segments
                 .insert_many(pending.place.segments.clone());
+            let owner_path = arenas
+                .owner_segments
+                .insert_many(pending.owner_path.iter().copied());
             let handle = arenas.loans.append_to_span(
                 &mut loans_span,
                 BorrowLoanFact {
                     statement_index,
                     last_use_statement_index: statement_index,
                     owner_symbol: pending.owner_symbol,
-                    owner_path: pending.owner_path.clone(),
+                    owner_path,
                     source_owner_symbol: pending.source_owner_symbol,
                     root_symbol: pending.place.root_symbol,
                     segments: loan_segments,

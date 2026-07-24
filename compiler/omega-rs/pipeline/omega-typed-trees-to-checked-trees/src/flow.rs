@@ -56,6 +56,7 @@ use operator_calls::{
 };
 pub(crate) use ownership::{
     DiscoveredMoveEvent, discover_state_move_events, expression_type_reference_in_state,
+    project_type_reference_from_segments,
 };
 use ownership::{
     append_call_ownership_events, append_state_exit_drop_events, append_statement_ownership_events,

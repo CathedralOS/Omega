@@ -86,6 +86,9 @@ Current ownership is:
   `borrow/state.rs` owns state-local borrow fact assembly from writable roots,
   loans, call accesses, and last-use updates,
   `borrow/loans.rs` owns local loan creation/rebasing,
+  `borrow/loans/aggregate.rs` owns structural aggregate-initializer traversal,
+  `borrow/loans/owner_paths.rs` owns owner/place projection conversion and
+  matching,
   `borrow/loans/types.rs` owns reference-type classification for loan
   creation, `borrow/calls.rs` owns statement-level borrow call-site discovery,
   `borrow/calls/collection.rs` owns the shared `BorrowCallCollection`
@@ -99,7 +102,9 @@ Current ownership is:
   `borrow/last_uses/usage/transitions.rs` owns transition guard/target usage
   traversal for last-use detection.
   `omega-checked-trees/src/borrow.rs` owns the grouped `BorrowFacts` root and
-  constructor for writable-root, access, call, loan, and state borrow arenas.
+  constructor for writable-root, access, call, loan-owner-segment, loan, and
+  state borrow arenas. Each published loan addresses its owner projection by a
+  handle span into the shared owner-segment arena.
 - `checks/borrows.rs` is the borrow-check entry point. `checks/borrows/calls.rs`
   owns call-site borrow-check coordination,
   `checks/borrows/calls/conflicts.rs` owns call-site access/access and
@@ -110,6 +115,9 @@ Current ownership is:
   `checks/borrows/overlap/segments.rs` owns place-segment overlap policy,
   `checks/borrows/overlap/indexes.rs` owns index and range overlap policy, and
   `checks/borrows/details.rs` owns diagnostic lifetime explanations.
+  `checks/borrows/persistent.rs` fails closed on borrow-carrying writes into
+  attached or machine-owned persistent storage until loan propagation across
+  graph-state transitions and state-parameter root rebasing are implemented.
 - `checks/carry.rs` joins canonical place liveness with direct/transitive
   possible suspension. Lexical roots are statement-bound; attached-data and
   compatibility machine-owned field paths additionally follow reachable state

@@ -1,0 +1,13 @@
+data Main<'storage> {
+    stored: &'storage mut i32;
+}
+
+machine Main::store(
+    &mut self,
+    source: &'storage mut i32
+) {
+    self.stored = source;
+}
+
+machine Main::main(&mut self) {
+}
