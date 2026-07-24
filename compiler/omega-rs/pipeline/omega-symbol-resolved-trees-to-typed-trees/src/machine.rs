@@ -31,7 +31,6 @@ pub(crate) fn lower_machine(
             .map(crate::name::lower_name)
             .collect(),
         type_parameters: omega_core::arena::HandleSpan::empty(),
-        contains: omega_core::arena::HandleSpan::empty(),
         owned_data: omega_core::arena::HandleSpan::empty(),
         satisfies: omega_core::arena::HandleSpan::empty(),
         terminates: machine.terminates,
@@ -54,21 +53,6 @@ pub(crate) fn lower_machine(
         lowerer
             .typed_trees
             .push_machine_type_parameter(&mut typed_machine, type_parameter);
-    }
-
-    for contained_object in lowerer
-        .source_trees
-        .machine_contained_objects(machine.contains)
-    {
-        let contained_object = typed::machine::ContainedObject {
-            symbol: contained_object.symbol,
-            type_symbol: contained_object.type_symbol,
-            name: crate::name::lower_name(&contained_object.name),
-            type_name: crate::name::lower_name(&contained_object.type_name),
-        };
-        lowerer
-            .typed_trees
-            .push_machine_contained_object(&mut typed_machine, contained_object);
     }
 
     for owned_data in lowerer.source_trees.machine_owned_data(machine.owned_data) {

@@ -70,7 +70,6 @@ impl TypedTreesSnapshot {
                 invariant_definition_count: program.invariant_definitions.len(),
                 machine_count: program.machines.len(),
                 operator_count: program.operators.len(),
-                machine_contained_object_count: program.machine_contained_objects.len(),
                 machine_owned_data_count: program.machine_owned_data.len(),
                 machine_state_count: program.machine_states.len(),
                 state_parameter_count: program.state_parameters.len(),
@@ -141,7 +140,6 @@ pub struct TypedTableSnapshot {
     pub invariant_definition_count: usize,
     pub machine_count: usize,
     pub operator_count: usize,
-    pub machine_contained_object_count: usize,
     pub machine_owned_data_count: usize,
     pub machine_state_count: usize,
     pub state_parameter_count: usize,
@@ -297,15 +295,8 @@ pub struct MachineSnapshot {
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: Vec<SignatureContractSnapshot>,
-    pub contains: Vec<ContainedObjectSnapshot>,
     pub owned_data: Vec<OwnedDataSnapshot>,
     pub states: Vec<StateSnapshot>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct ContainedObjectSnapshot {
-    pub name: String,
-    pub type_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -716,14 +707,6 @@ fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> MachineSnapshot 
             .machine_contracts(machine)
             .iter()
             .map(|contract| signature_contract_snapshot(program, contract))
-            .collect(),
-        contains: program
-            .machine_contained_objects(machine)
-            .iter()
-            .map(|contained| ContainedObjectSnapshot {
-                name: contained.name.to_string(),
-                type_name: contained.type_name.to_string(),
-            })
             .collect(),
         owned_data: program
             .machine_owned_data(machine)

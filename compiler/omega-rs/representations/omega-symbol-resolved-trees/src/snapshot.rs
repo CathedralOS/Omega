@@ -307,15 +307,8 @@ pub struct MachineSnapshot {
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: Vec<SignatureContractSnapshot>,
-    pub contains: Vec<ContainedObjectSnapshot>,
     pub owned_data: Vec<OwnedDataSnapshot>,
     pub states: Vec<StateSnapshot>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct ContainedObjectSnapshot {
-    pub name: String,
-    pub type_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -710,14 +703,6 @@ fn machine_snapshot(program: &SymbolResolvedTrees, machine: &Machine) -> Machine
             .machine_contracts(machine)
             .iter()
             .map(|contract| signature_contract_snapshot(program, contract))
-            .collect(),
-        contains: program
-            .machine_contained_objects(machine.contains)
-            .iter()
-            .map(|contained| ContainedObjectSnapshot {
-                name: contained.name.to_string(),
-                type_name: contained.type_name.to_string(),
-            })
             .collect(),
         owned_data: program
             .machine_owned_data(machine.owned_data)

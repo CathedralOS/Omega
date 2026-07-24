@@ -29,7 +29,6 @@ pub struct Machine {
     pub service_reach_row: omega_core::semantics::ServiceReachRowId,
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
-    pub contains: HandleSpan<ContainedObject>,
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
     pub terminates: bool,
@@ -59,7 +58,6 @@ impl Default for Machine {
             service_reach_row: omega_core::semantics::ServiceReachRowId::NULL,
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
-            contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
             terminates: false,
@@ -72,25 +70,6 @@ impl Default for Machine {
             blocks: false,
             contracts: HandleSpan::empty(),
             states: HandleSpan::empty(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ContainedObject {
-    pub symbol: SymbolHandle,
-    pub type_symbol: SymbolHandle,
-    pub name: Identifier,
-    pub type_name: Identifier,
-}
-
-impl Default for ContainedObject {
-    fn default() -> Self {
-        Self {
-            symbol: SymbolHandle::invalid(),
-            type_symbol: SymbolHandle::invalid(),
-            name: Identifier::default(),
-            type_name: Identifier::default(),
         }
     }
 }

@@ -60,7 +60,6 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
         storage: MachineStorage {
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
-            contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
             terminates: false,

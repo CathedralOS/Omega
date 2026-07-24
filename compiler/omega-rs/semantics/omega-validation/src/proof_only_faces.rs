@@ -90,19 +90,6 @@ pub(crate) fn validate_proof_only_consumption(
             )));
         }
 
-        // `contains` clauses name types the machine stores.
-        for contained in program.machine_contained_objects(machine) {
-            if let Some(reason) =
-                classification.describe(contained.type_name.as_str(), contained.type_symbol)
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` contains `{}`, but {reason}; proof-only data lives in \
-                     facts and lemmas, never at runtime",
-                    machine.name, contained.name
-                )));
-            }
-        }
-
         // Machine-owned data slots.
         for owned_data in program.machine_owned_data(machine) {
             if let Some(held) =

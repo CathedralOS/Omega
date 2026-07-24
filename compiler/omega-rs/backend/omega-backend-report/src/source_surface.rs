@@ -20,7 +20,7 @@ pub(super) fn write_source_native_surface(
     for (_, machine) in backend_surface.machines.iter() {
         output.push_str(&format!(
             "- machine {}: contains {}, owned data {}, states {}\n",
-            machine.name, machine.contained_objects, machine.owned_data, machine.states
+            machine.name, machine.contained_machines, machine.owned_data, machine.states
         ));
     }
     output.push('\n');

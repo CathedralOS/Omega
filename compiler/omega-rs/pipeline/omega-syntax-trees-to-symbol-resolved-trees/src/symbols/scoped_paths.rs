@@ -81,7 +81,7 @@ pub(super) fn resolve_state_scoped_members(
         current = child_or_attached_data_child_symbol_by_kinds(
             symbols,
             current,
-            &[SymbolKind::Field, SymbolKind::Object, SymbolKind::State],
+            &[SymbolKind::Field, SymbolKind::State],
             members[index].as_str(),
         );
         if !current.is_valid() {
@@ -97,7 +97,6 @@ pub(super) fn resolve_state_scoped_members(
             current,
             &[
                 SymbolKind::Field,
-                SymbolKind::Object,
                 SymbolKind::State,
                 SymbolKind::Parameter,
                 SymbolKind::Variant,
@@ -169,7 +168,7 @@ fn resolve_state_scoped_table_members(
             child_indexed_symbol_by_kinds(
                 symbols,
                 current,
-                &[SymbolKind::Field, SymbolKind::Object, SymbolKind::State],
+                &[SymbolKind::Field, SymbolKind::State],
                 members[index].as_str(),
                 indexed_last_member.expect("indexed last member should be present"),
             )
@@ -177,7 +176,7 @@ fn resolve_state_scoped_table_members(
             child_or_attached_data_child_symbol_by_kinds(
                 symbols,
                 current,
-                &[SymbolKind::Field, SymbolKind::Object, SymbolKind::State],
+                &[SymbolKind::Field, SymbolKind::State],
                 members[index].as_str(),
             )
         };
@@ -196,7 +195,6 @@ fn resolve_state_scoped_table_members(
                 current,
                 &[
                     SymbolKind::Field,
-                    SymbolKind::Object,
                     SymbolKind::State,
                     SymbolKind::Parameter,
                     SymbolKind::Variant,
@@ -210,7 +208,6 @@ fn resolve_state_scoped_table_members(
                 current,
                 &[
                     SymbolKind::Field,
-                    SymbolKind::Object,
                     SymbolKind::State,
                     SymbolKind::Parameter,
                     SymbolKind::Variant,

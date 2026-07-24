@@ -200,7 +200,7 @@ Checked provider evidence may prove a narrower record; accepted evidence needs
 an ordinary admission receipt. No second provider/admission representation is
 introduced.
 
-Implementation status (2026-07-19): `CarryPolicy` and its four closed axes live
+Implementation status (2026-07-24): `CarryPolicy` and its four closed axes live
 in the dependency-safe semantic vocabulary and are copied through syntax,
 resolved, typed, and syntax snapshots. Checked trees own a `CarryFacts` plan
 that keeps the authored minimum separate from the effective derived policy.
@@ -212,10 +212,13 @@ place-liveness rejects forbidden values across direct or transitive possible
 suspension, including persistent fields through reachable state transitions,
 arguments carried by the call itself, and later operands under left-to-right
 evaluation. Opaque admission, per-mint qualification, contained-machine
-subtrees, runtime admission, and artifact/model export remain. The legacy
-contained-machine IR span currently has no parser surface; subtree carry work
-waits on a deliberate retirement-or-reintroduction decision rather than
-inventing semantics for an unreachable compatibility form.
+subtrees, runtime admission, and artifact/model export remain. The
+parser-unreachable resolved/typed contained-machine span has been retired
+end-to-end. Contained runtime topology is instead derived exactly once from
+authored attached-data fields whose data type has an attached machine, then
+stored in grouped `ContainedGraph`/`ContainedFlow` arenas. Subtree carry work
+must consume that canonical field-derived topology; there is no separate
+`contains` source form or compatibility carrier.
 
 Executable provenance and control-flow integrity must also remain separate.
 `Artifact::AdmittedExecutable` plus linear placement states prove which bytes

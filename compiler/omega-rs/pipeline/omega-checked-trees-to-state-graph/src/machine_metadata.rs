@@ -129,18 +129,6 @@ pub(crate) fn machine_contains(
     machine: &Machine,
 ) -> HandleSpan<ContainedGraph> {
     let mut contains = HandleSpan::empty();
-    for contained in program.machine_contained_objects(machine) {
-        state_graph.contained_machines.append_to_span(
-            &mut contains,
-            ContainedGraph {
-                symbol: contained.symbol,
-                name: contained.name.clone(),
-                type_symbol: contained.type_symbol,
-                type_name: contained.type_name.clone(),
-            },
-        );
-    }
-
     let Some(data_definition) = program
         .data_definitions()
         .iter()
@@ -167,15 +155,6 @@ pub(crate) fn machine_contains(
             .symbols
             .find_child_by_name(machine.symbol, field.name.as_str())
             .unwrap_or(field.symbol);
-
-        if state_graph
-            .contained_machines
-            .span_or_empty(contains)
-            .iter()
-            .any(|contained| contained.symbol == contained_symbol)
-        {
-            continue;
-        }
 
         state_graph.contained_machines.append_to_span(
             &mut contains,
@@ -218,3 +197,6 @@ fn type_reference_name_handle(
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

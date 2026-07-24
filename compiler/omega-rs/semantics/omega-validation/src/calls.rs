@@ -673,7 +673,7 @@ pub(crate) fn validate_call_node(
         .last()
         .map(|member| member.as_str())
         .unwrap_or_default();
-    let receiver_type = machine_symbols.contained_type(receiver);
+    let receiver_type = machine_symbols.callable_field_type(receiver);
 
     if let Some(machine) = receiver_type
         .and_then(|type_name| symbols.machine(type_name))
@@ -949,7 +949,7 @@ fn boundary_trait_signature_for_parts<'program>(
     target: &str,
 ) -> Option<&'program omega_typed_trees::signature::StateSignature> {
     let receiver = receiver_members.last()?.as_str();
-    let receiver_type = machine_symbols.contained_type(receiver)?;
+    let receiver_type = machine_symbols.callable_field_type(receiver)?;
     let trait_definition = symbols.trait_definition(receiver_type)?;
     program
         .trait_machine_signatures(trait_definition)
@@ -1134,7 +1134,7 @@ fn known_call_written_paths_for_parts(
     } else {
         let receiver = receiver_members.last()?.as_str();
         let machine = machine_symbols
-            .contained_type(receiver)
+            .callable_field_type(receiver)
             .and_then(|type_name| symbols.machine(type_name))
             .or_else(|| symbols.machine(receiver))?;
         let state = program
@@ -3333,10 +3333,10 @@ fn is_known_bare_name(
     name: &str,
 ) -> bool {
     // Field of the receiver data (bare `fld` == `self.fld`), owned data, or a
-    // contained object.
+    // callable field.
     if machine_symbols.has_member(name)
         || machine_symbols.has_owned_data(name)
-        || machine_symbols.contained_type(name).is_some()
+        || machine_symbols.callable_field_type(name).is_some()
     {
         return true;
     }
@@ -4351,7 +4351,7 @@ fn validate_expression_call_bounds(
     // same-type sibling that the by-type walk would misresolve) loudly instead
     // of binding 0. STATEMENT-position nested calls are validated separately
     // (`validate_call_node`) and remain unsupported -- see TASKS D2.
-    let receiver_type = machine_symbols.contained_type(receiver_name).or_else(|| {
+    let receiver_type = machine_symbols.callable_field_type(receiver_name).or_else(|| {
         let chain = receiver_member_chain(program, call.receiver)?;
         if chain.len() < 3 || chain.first().map(String::as_str) != Some("self") {
             return None;

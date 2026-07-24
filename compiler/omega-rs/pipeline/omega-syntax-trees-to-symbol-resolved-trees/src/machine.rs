@@ -107,7 +107,6 @@ pub(crate) fn lower_machine_into(
                 .map(crate::name::lower_name)
                 .collect(),
             type_parameters,
-            contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             satisfies,
             terminates: machine.terminates,

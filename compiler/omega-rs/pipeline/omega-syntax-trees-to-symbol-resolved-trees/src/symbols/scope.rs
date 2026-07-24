@@ -6,7 +6,6 @@ use omega_symbol_resolved_trees::types::TypeReference;
 pub(super) struct MachineScope<'program> {
     pub(super) symbol: SymbolHandle,
     pub(super) attached_data: Option<&'program omega_symbol_resolved_trees::name::DiagnosticName>,
-    pub(super) contains: &'program [omega_symbol_resolved_trees::machine::ContainedObject],
     pub(super) inherited_data_members:
         Option<&'program [omega_symbol_resolved_trees::data::DataMember]>,
     pub(super) owned_data: &'program [omega_symbol_resolved_trees::machine::OwnedData],

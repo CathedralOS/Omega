@@ -18,7 +18,6 @@ pub(super) fn assign_machine_symbols(
     let expression_table = &mut tables.bodies.expressions;
     let data_type_parameters = &mut declarations.data_type_parameters;
     let data_members = &declarations.data_members;
-    let machine_contained_objects = &mut declarations.machine_contained_objects;
     let machine_owned_data = &mut declarations.machine_owned_data;
     let machine_trait_conformances = &mut declarations.machine_trait_conformances;
     let machine_state_handles = &declarations.machine_state_handles;
@@ -87,16 +86,6 @@ pub(super) fn assign_machine_symbols(
             let _ = machine_children.next();
         }
 
-        for contained_object in machine_contained_objects.span_mut_or_empty(machine.contains) {
-            contained_object.symbol =
-                next_child_of_kind(&mut machine_children, symbols, SymbolKind::Object);
-            contained_object.type_symbol = top_level_symbol(
-                symbols,
-                SymbolKind::Machine,
-                contained_object.type_name.as_str(),
-            );
-        }
-
         for owned_data in machine_owned_data.span_mut_or_empty(machine.owned_data) {
             owned_data.symbol =
                 next_child_of_kind(&mut machine_children, symbols, SymbolKind::Field);
@@ -115,7 +104,6 @@ pub(super) fn assign_machine_symbols(
                         attached_data: machine.attached_data.as_ref(),
                         owned_data: &[],
                         inherited_data_members: None,
-                        contains: &[],
                         data_definitions,
                         data_members,
                     },

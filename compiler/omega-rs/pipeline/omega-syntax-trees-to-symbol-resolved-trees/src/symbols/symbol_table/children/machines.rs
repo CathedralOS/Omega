@@ -29,14 +29,6 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
             .chain(inherited_data_field_symbols(program, machine, has_sources))
             .chain(
                 program
-                    .machine_contained_objects(machine.contains)
-                    .iter()
-                    .map(|contained_object| {
-                        symbol_seed(SymbolKind::Object, &contained_object.name, has_sources)
-                    }),
-            )
-            .chain(
-                program
                     .machine_owned_data(machine.owned_data)
                     .iter()
                     .map(|owned_data| {
@@ -70,9 +62,6 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
         }
     }
     for _ in 0..inherited_field_count {
-        let _ = machine_children.next();
-    }
-    for _ in program.machine_contained_objects(machine.contains) {
         let _ = machine_children.next();
     }
     for _ in program.machine_owned_data(machine.owned_data) {

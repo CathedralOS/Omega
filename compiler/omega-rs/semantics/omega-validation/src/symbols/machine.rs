@@ -9,17 +9,16 @@ use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Debug)]
 pub struct MachineSymbols<'program> {
-    contained_objects: Vec<ContainedObjectSymbol<'program>>,
+    callable_fields: Vec<CallableFieldSymbol<'program>>,
     member_symbols: Vec<MemberSymbol<'program>>,
     owned_data_symbols: Vec<MemberSymbol<'program>>,
     states: Vec<StateSymbol<'program>>,
 }
 
 #[derive(Debug)]
-struct ContainedObjectSymbol<'program> {
+struct CallableFieldSymbol<'program> {
     name: &'program str,
     type_name: &'program str,
-    symbol: SymbolHandle,
 }
 
 #[derive(Debug)]
@@ -43,11 +42,8 @@ impl<'program> MachineSymbols<'program> {
     ) -> Self {
         let machine_symbol = top_level_symbol(program, machine.name.as_str());
         let mut symbols = Self {
-            contained_objects: Vec::with_capacity(program.machine_contained_objects(machine).len()),
-            member_symbols: Vec::with_capacity(
-                program.machine_contained_objects(machine).len()
-                    + program.machine_owned_data(machine).len(),
-            ),
+            callable_fields: Vec::new(),
+            member_symbols: Vec::with_capacity(program.machine_owned_data(machine).len()),
             owned_data_symbols: Vec::with_capacity(program.machine_owned_data(machine).len()),
             states: Vec::with_capacity(program.machine_states(machine).len()),
         };
@@ -82,43 +78,12 @@ impl<'program> MachineSymbols<'program> {
 
                 if let Some(type_name) = callable_receiver_type_name(program, field.type_reference)
                 {
-                    symbols.contained_objects.push(ContainedObjectSymbol {
+                    symbols.callable_fields.push(CallableFieldSymbol {
                         name: field.name.as_str(),
                         type_name,
-                        symbol,
                     });
                 }
             }
-        }
-
-        for contained_object in program.machine_contained_objects(machine) {
-            if symbols.has_member(contained_object.name.as_str()) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` has duplicate member `{}`",
-                    machine.name, contained_object.name
-                )));
-            }
-
-            if symbols
-                .contained_symbol(contained_object.name.as_str())
-                .is_valid()
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` has duplicate contained object `{}`",
-                    machine.name, contained_object.name
-                )));
-            }
-
-            let symbol = child_symbol(program, machine_symbol, contained_object.name.as_str());
-            symbols.member_symbols.push(MemberSymbol {
-                name: contained_object.name.as_str(),
-                symbol,
-            });
-            symbols.contained_objects.push(ContainedObjectSymbol {
-                name: contained_object.name.as_str(),
-                type_name: contained_object.type_name.as_str(),
-                symbol,
-            });
         }
 
         for owned_data in program.machine_owned_data(machine) {
@@ -180,19 +145,11 @@ impl<'program> MachineSymbols<'program> {
             .unwrap_or_else(SymbolHandle::invalid)
     }
 
-    pub fn contained_type(&self, name: &str) -> Option<&'program str> {
-        self.contained_objects
+    pub fn callable_field_type(&self, name: &str) -> Option<&'program str> {
+        self.callable_fields
             .iter()
             .find(|symbol| symbol.name == name)
             .map(|symbol| symbol.type_name)
-    }
-
-    fn contained_symbol(&self, name: &str) -> SymbolHandle {
-        self.contained_objects
-            .iter()
-            .find(|symbol| symbol.name == name)
-            .map(|symbol| symbol.symbol)
-            .unwrap_or_else(SymbolHandle::invalid)
     }
 
     pub fn has_state(&self, name: &str) -> bool {

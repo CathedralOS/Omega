@@ -83,11 +83,6 @@ fn resolve_member_symbol_from_receiver(
                 return Some(owned.symbol);
             }
         }
-        for contained in program.machine_contained_objects(machine) {
-            if contained.name.as_str() == member_name {
-                return Some(contained.symbol);
-            }
-        }
     }
 
     None
@@ -159,11 +154,6 @@ fn symbol_label(program: &TypedTrees, symbol: SymbolHandle) -> String {
     for machine in program.machines() {
         if machine.symbol == symbol {
             return machine.name.as_str().to_owned();
-        }
-        for contained_object in program.machine_contained_objects(machine) {
-            if contained_object.symbol == symbol || contained_object.type_symbol == symbol {
-                return contained_object.name.as_str().to_owned();
-            }
         }
         for owned_data in program.machine_owned_data(machine) {
             if owned_data.symbol == symbol {
@@ -260,11 +250,6 @@ fn symbol_type_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<Symb
         for owned in program.machine_owned_data(machine) {
             if owned.symbol == symbol {
                 return Some(type_reference_base_symbol(program, owned.type_reference));
-            }
-        }
-        for contained in program.machine_contained_objects(machine) {
-            if contained.symbol == symbol {
-                return Some(contained.type_symbol);
             }
         }
     }

@@ -1209,11 +1209,14 @@ stronger operations it needs instead of citing machine parameters generally.
   arguments count as live during the call, and later operands cross an earlier
   nested suspending call. Call-carried generic parameters read the target
   declaration's normalized carry bounds rather than a same-spelled caller
-  parameter. The legacy `Machine::contains` carrier has no source parser and
-  must be deliberately retired or reintroduced before subtree carry semantics
-  have a real customer. Continue with admitted and sealed per-mint facts,
-  activation-demand joins against pessimistic admitted runtime behavior, and
-  diagnostic and richer formal-model consumers. Checked builds now emit
+  parameter. The parser-unreachable `Machine::contains` carrier is now retired
+  end-to-end from resolved/typed trees and their semantic consumers. Runtime
+  contained-machine topology remains canonical: checked lowering derives its
+  grouped `ContainedGraph` arena only from attached-data fields whose data type
+  has an attached machine. Continue subtree carry over that authored field
+  topology, then admitted and sealed per-mint facts, activation-demand joins
+  against pessimistic admitted runtime behavior, and diagnostic and richer
+  formal-model consumers. Checked builds now emit
   `05_carry_manifest.json`, keeping authored minimums separate from effective
   derived policies with all four axes structured; the artifact also exports
   each canonical safe-point crossing, its exact statement/call identity,

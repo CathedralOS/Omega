@@ -32,7 +32,6 @@ pub(in crate::symbols) fn resolve_expression_table_member_symbol(
         receiver_symbol,
         &[
             SymbolKind::Field,
-            SymbolKind::Object,
             SymbolKind::State,
             SymbolKind::Parameter,
             SymbolKind::Variant,
@@ -74,7 +73,6 @@ pub(in crate::symbols) fn resolve_expression_table_receiver_path_symbols(
                 receiver_symbol,
                 &[
                     SymbolKind::Field,
-                    SymbolKind::Object,
                     SymbolKind::State,
                     SymbolKind::Parameter,
                     SymbolKind::Variant,
@@ -156,7 +154,6 @@ fn resolve_indexed_expression_table_receiver_path_symbols(
                 receiver_symbol,
                 &[
                     SymbolKind::Field,
-                    SymbolKind::Object,
                     SymbolKind::State,
                     SymbolKind::Parameter,
                     SymbolKind::Variant,

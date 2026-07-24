@@ -72,7 +72,7 @@ pub(crate) fn validate_transition_target_node(
         return;
     }
 
-    let Some(receiver_type) = machine_symbols.contained_type(path[0].as_str()) else {
+    let Some(receiver_type) = machine_symbols.callable_field_type(path[0].as_str()) else {
         return;
     };
 

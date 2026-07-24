@@ -423,7 +423,6 @@ mod tests {
             storage: MachineStorage {
                 lifetime_parameters: Vec::new(),
                 type_parameters: HandleSpan::empty(),
-                contains: HandleSpan::empty(),
                 owned_data: HandleSpan::empty(),
                 satisfies: HandleSpan::empty(),
                 terminates: false,

@@ -26,7 +26,7 @@ pub(super) fn resolve_base_symbol(
     let machine_child = child_or_attached_data_child_symbol_by_kinds(
         symbols,
         machine_symbol,
-        &[SymbolKind::Field, SymbolKind::Object, SymbolKind::State],
+        &[SymbolKind::Field, SymbolKind::State],
         member.as_str(),
     );
     if machine_child.is_valid() {
@@ -69,7 +69,7 @@ pub(super) fn resolve_base_indexed_symbol(
     child_indexed_symbol_by_kinds(
         symbols,
         machine_symbol,
-        &[SymbolKind::Field, SymbolKind::Object, SymbolKind::State],
+        &[SymbolKind::Field, SymbolKind::State],
         member,
         index,
     )

@@ -90,37 +90,31 @@ fn branch_call_target_with_visited<'program>(
         current_machine
     } else {
         let contained_symbol = program
-            .machine_contained_objects(current_machine)
+            .data_definitions()
             .iter()
-            .find(|contained| contained.symbol == call.receiver_symbol)
-            .map(|contained| contained.type_symbol)
-            .or_else(|| {
+            .find(|data_definition| {
+                Some(&data_definition.name) == current_machine.attached_data.as_ref()
+            })
+            .and_then(|data_definition| {
                 program
-                    .data_definitions()
+                    .data_members(data_definition)
                     .iter()
-                    .find(|data_definition| data_definition.name == current_machine.name)
-                    .and_then(|data_definition| {
+                    .find_map(|member| {
+                        let omega_checked_trees::data::DataMember::Field(field) = member else {
+                            return None;
+                        };
+                        if field.symbol != call.receiver_symbol {
+                            return None;
+                        }
+                        let field_type_name =
+                            type_reference_name_handle(program, field.type_reference);
                         program
-                            .data_members(data_definition)
+                            .machines()
                             .iter()
-                            .find_map(|member| {
-                                let omega_checked_trees::data::DataMember::Field(field) = member
-                                else {
-                                    return None;
-                                };
-                                if field.symbol != call.receiver_symbol {
-                                    return None;
-                                }
-                                let field_type_name =
-                                    type_reference_name_handle(program, field.type_reference);
-                                program
-                                    .machines()
-                                    .iter()
-                                    .find(|candidate| {
-                                        candidate.attached_data.as_ref() == Some(&field_type_name)
-                                    })
-                                    .map(|candidate| candidate.symbol)
+                            .find(|candidate| {
+                                candidate.attached_data.as_ref() == Some(&field_type_name)
                             })
+                            .map(|candidate| candidate.symbol)
                     })
             })?;
         program
