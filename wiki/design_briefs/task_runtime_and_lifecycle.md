@@ -298,8 +298,14 @@ requires re-admission. Receipt provenance is evidence, not runtime identity,
 so switching from own-package development authority to a root grant does not
 change the normalized runtime contract. The activation artifact reports
 `pending_provider` until compiler provider selection supplies that exact
-receipt. `TaskRuntime` provider-plan selection/wiring, dispatch, and
-transactional start remain.
+receipt. `TaskRuntime` provider-plan selection/wiring is owner-blocked on the
+provider-slot and checked behavior-publication decision recorded in
+`OWNER_QUESTIONS.md`; the current provider spine selects boundary-trait slots,
+while `TaskRuntime` is opaque boundary data and has no checked surface for the
+capacity, preemption, migration, storage, cancellation, or inline-completion
+statement. Its runtime representation is separately owner-blocked by the
+general opaque `boundary data` representation question. Dispatch and
+transactional start follow those decisions.
 
 ## Acceptance register
 
@@ -351,8 +357,10 @@ transactional start remain.
    identities, and receipt-qualified runtime behavior are live. The shared
    provider-plan receipt binds the complete behavior statement and provenance
    stays outside identity. Unresolved artifacts fail visibly as
-   `pending_provider`. Add compiler provider selection/receipt wiring,
-   executable dispatch, and transactional `start`/`try_start` ownership.
+   `pending_provider`. Provider selection/receipt wiring is owner-blocked on the
+   task-runtime provider-slot/behavior-publication question; executable dispatch
+   also awaits the general opaque-runtime representation decision. After those
+   are settled, add transactional `start`/`try_start` ownership.
 5. Implement provider provenance/child-lease accounting and prevent premature
    close/reclaim.
 6. Implement continuation/frame lowering and a first provider; an inline

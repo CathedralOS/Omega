@@ -3,6 +3,7 @@ mod details;
 mod elision;
 mod escape;
 mod overlap;
+mod persistent;
 mod statements;
 
 use omega_checked_trees::{CheckFacts, FlowStateFact};
@@ -11,6 +12,7 @@ use omega_core::diagnostics::Diagnostic;
 use self::calls::check_call_borrows;
 use self::elision::check_view_return_elision;
 use self::escape::check_view_return_escape;
+use self::persistent::check_persistent_borrow_assignments;
 use self::statements::check_statement_borrows;
 
 pub(crate) fn check_flow_call_borrows(
@@ -21,6 +23,7 @@ pub(crate) fn check_flow_call_borrows(
 
     check_view_return_elision(program, &mut diagnostics);
     check_view_return_escape(program, facts, &mut diagnostics);
+    check_persistent_borrow_assignments(program, &mut diagnostics);
 
     for (_, state_flow) in facts.flow.control.states.iter() {
         let Some(borrow_state) = matching_borrow_state(facts, state_flow) else {

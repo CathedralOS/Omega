@@ -78,7 +78,7 @@ pub(super) fn filter_reassigned_borrow_loans(
                     || active.statement_index == statement_index
                     || !borrow_owner_path_overlaps_place(
                         program,
-                        &active.owner_path,
+                        borrow.loan_owner_path(active),
                         &reassigned_segments,
                     );
                 if !keep {

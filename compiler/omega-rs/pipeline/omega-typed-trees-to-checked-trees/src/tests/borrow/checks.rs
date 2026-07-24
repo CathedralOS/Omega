@@ -2279,6 +2279,36 @@ fn rejects_replacement_source_of_borrow_carrying_field_reassignment() {
     );
 }
 
+#[test]
+fn rejects_persistent_borrow_storage_until_cross_state_loans_are_propagated() {
+    let source = r#"
+        data Main<'storage> {
+            stored: &'storage mut i32;
+        }
+
+        machine Main::store(
+            &mut self,
+            source: &'storage mut i32
+        ) {
+            self.stored = source;
+        }
+    "#;
+
+    let diagnostics =
+        check_program(source).expect_err("persistent borrow storage must fail closed");
+    let combined = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains(
+            "assignment stores a borrow-carrying value in persistent field `stored`"
+        ),
+        "expected the persistent-loan fence, got:\n{combined}"
+    );
+}
+
 /// The same replacement rule applies to a direct reference local: its old
 /// source is released and its new source remains borrowed through later use.
 #[test]

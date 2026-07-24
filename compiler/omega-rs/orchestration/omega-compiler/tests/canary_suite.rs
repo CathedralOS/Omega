@@ -38382,6 +38382,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "borrow/nested_borrow_carrying_local_escape",
     "borrow/borrow_carrying_local_transfer_invalidated",
     "borrow/borrow_carrying_field_reassignment_invalidated",
+    "borrow/persistent_borrow_storage_requires_outlives",
     "borrow/multi_lifetime_result_field_invalidated",
     "borrow/undeclared_lifetime_tag",
     "borrow/undeclared_lifetime_argument",

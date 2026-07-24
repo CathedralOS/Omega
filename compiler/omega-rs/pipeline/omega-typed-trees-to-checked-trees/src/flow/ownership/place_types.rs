@@ -50,10 +50,17 @@ fn canonical_place_type_reference(
         return None;
     };
 
-    let mut current =
+    let current =
         symbol_type_reference_in_state(program, state_symbol, statement_index, root_symbol)?;
+    project_type_reference_from_segments(program, current, &place.segments)
+}
 
-    for segment in &place.segments {
+pub(crate) fn project_type_reference_from_segments(
+    program: &omega_typed_trees::TypedTrees,
+    mut current: omega_typed_trees::types::TypeReferenceHandle,
+    segments: &[omega_facts::PlaceSegment],
+) -> Option<omega_typed_trees::types::TypeReferenceHandle> {
+    for segment in segments {
         match segment {
             omega_facts::PlaceSegment::Field { symbol } => {
                 current = field_type_reference(program, current, *symbol)?;
