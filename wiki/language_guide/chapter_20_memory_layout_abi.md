@@ -366,7 +366,10 @@ because that forgets a fact, and a typed `u8 [0..=1]` may be shared or mutably
 aliased as `bool`. An unconstrained byte or arbitrary byte region cannot be
 viewed as `bool`, and a mutable `bool`/unconstrained-byte alias rejects, because
 either would permit a write that invalidates the other shape. No scalar recast
-is a fact mint.
+is a fact mint. Constant integer ranges compare their canonical
+two's-complement bit-pattern sets, merging adjacent or overlapping intervals;
+therefore `i8 [-128..=127]` and unconstrained `u8` may alias mutably, while
+equal-cardinality sets at different bit positions still reject.
 
 See [`Programmable Layouts`](../design_briefs/programmable_layouts.md) and the
 [`OS Memory And Hardware Foundation`](../design_briefs/os_memory_and_hardware_foundation.md)

@@ -182,8 +182,10 @@ end to end over equal-width scalar places and bounded byte-region offsets.
 Mutable integer views may also retain constant range facts when both sides
 normalize to the exact same two's-complement bit-pattern set; this admits, for
 example, `i32 [0..=100]` and `u32 [0..=100]`, while shifted equal-cardinality
-ranges reject. Range-refined reference binding stores a reference rather than
-re-establishing the referee and is checked through this recast judgment.
+ranges reject. Canonicalization merges adjacent or overlapping intervals, so
+`i8 [-128..=127]` is correctly equivalent to unconstrained `u8`.
+Range-refined reference binding stores a reference rather than re-establishing
+the referee and is checked through this recast judgment.
 Recursively fact-free mutable record views are also live over bounded byte
 regions: nested ordinary/plan-laid scalar projections preserve exact offsets
 and bit patterns in both native backends and the interpreter. Literal-length

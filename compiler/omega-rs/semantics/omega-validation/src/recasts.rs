@@ -899,17 +899,38 @@ fn integer_range_bit_patterns(
             return None;
         }
         let bits = |value: i64| (value as u64) & mask;
-        return Some(if maximum < 0 || minimum >= 0 {
-            vec![(bits(minimum), bits(maximum))]
-        } else {
-            vec![(0, bits(maximum)), (bits(minimum), mask)]
-        });
+        return Some(normalize_bit_pattern_intervals(
+            if maximum < 0 || minimum >= 0 {
+                vec![(bits(minimum), bits(maximum))]
+            } else {
+                vec![(0, bits(maximum)), (bits(minimum), mask)]
+            },
+        ));
     }
 
     if minimum < 0 || (bit_count < 64 && maximum as u64 > mask) {
         return None;
     }
     Some(vec![(minimum as u64, maximum as u64)])
+}
+
+/// Canonicalize an exact representation set so equality depends on the bits it
+/// denotes, not on how a source interval happened to partition them. This is
+/// load-bearing for a full signed range: `i8 [-128..=127]` initially produces
+/// `[0,127] + [128,255]`, which is the same set as unconstrained `u8`.
+fn normalize_bit_pattern_intervals(mut intervals: Vec<(u64, u64)>) -> Vec<(u64, u64)> {
+    intervals.sort_unstable_by_key(|&(low, high)| (low, high));
+    let mut normalized: Vec<(u64, u64)> = Vec::with_capacity(intervals.len());
+    for (low, high) in intervals {
+        if let Some((_, previous_high)) = normalized.last_mut()
+            && low <= previous_high.saturating_add(1)
+        {
+            *previous_high = (*previous_high).max(high);
+        } else {
+            normalized.push((low, high));
+        }
+    }
+    normalized
 }
 
 /// Mutable aliases are safe only when arbitrary writes accepted through either
@@ -1247,6 +1268,18 @@ mod representation_set_tests {
         assert_eq!(
             integer_range_bit_patterns(PrimitiveType::I8, (-2, 2)),
             Some(vec![(0, 2), (254, 255)])
+        );
+    }
+
+    #[test]
+    fn full_signed_ranges_canonicalize_to_the_carriers_complete_bit_set() {
+        assert_eq!(
+            integer_range_bit_patterns(PrimitiveType::I8, (-128, 127)),
+            Some(vec![(0, 255)])
+        );
+        assert_eq!(
+            integer_range_bit_patterns(PrimitiveType::I16, (-32_768, 32_767)),
+            Some(vec![(0, 65_535)])
         );
     }
 
