@@ -502,3 +502,43 @@ revocation and quiescence. Materialize a native code pointer only inside that
 admitted binding. Reuse sealed satisfier identity and root-ledger machinery,
 but do not add raw machine addresses, integer conversion, an arbitrary
 function-pointer type, or a Win32-specific callback construct.
+
+## 13. What is the portable standalone atomic-fence contract?
+
+Atomic load/store/RMW operations already name the closed C11/Rust ordering
+vocabulary and lower exactly on x86-64 and AArch64. Checked assembly separately
+exposes target instructions such as x86 `lfence`, `sfence`, and `mfence` with
+their actual instruction contracts. A portable language-level fence is still
+unsettled: its semantics belong to the cross-activation atomic memory model,
+not automatically to any same-named ISA instruction, and MMIO/DMA/device
+ordering has different participants and scope.
+
+Decide:
+
+- whether the portable operation is an ordinary intrinsic core machine such as
+  `Atomic::fence(order)`, a boundary-operator requirement, or another existing
+  operation form, without adding a statement keyword;
+- which orderings are legal (`Acquire`, `Release`, `AcqRel`, `SeqCst`, and
+  whether `Relaxed` rejects rather than spelling a no-op);
+- whether v1 has one process/system participation scope selected by the target
+  policy, or exposes an explicit scope value, and how that scope enters
+  normalized operation identity and TLA-style memory-model export;
+- how the checker relates a fence to surrounding atomic observations so it can
+  establish synchronization without pretending that a fence alone publishes
+  arbitrary ordinary memory;
+- which target policy selects the exact x86-64/AArch64 realization and evidence,
+  including legal zero-instruction acquire/release cases, without source code
+  naming target instructions; and
+- whether compiler-only ordering barriers and device/MMIO/DMA visibility
+  barriers remain separate core/provider operations with their own contracts,
+  rather than modes of the atomic fence.
+
+Recommendation: make the portable fence an ordinary compiler-known core atomic
+operation over the existing `MemoryOrdering` data. Admit
+`Acquire | Release | AcqRel | SeqCst`, reject `Relaxed`, and give v1 one
+target-policy-selected cross-activation scope rather than forecasting a scope
+hierarchy. Keep checked ISA fences available for target/provider code and keep
+device/DMA visibility plus compiler-only barriers separate. The normalized
+atomic operation records the portable order; target lowering supplies a
+validated realization, including no emitted instruction where the target
+memory model proves that sufficient.

@@ -34,10 +34,11 @@ Last pruned: 2026-07-22.
   reasoning is not a prerequisite for moved-ownership task v1.
 - Determine how far the proof system should support disjoint mutable sharing
   for lock-free structures before requiring a mediated or accepted boundary.
-- Complete standalone fences, remaining fetch operations, contention tests,
-  and the treatment of relaxed visibility in concurrency proofs. The first
-  load/store/fetch_add/swap/compare_exchange slice already preserves validated
-  orderings into exact x86_64/aarch64 lowering.
+- Settle standalone portable atomic fences in `OWNER_QUESTIONS.md` #13, then
+  complete their lowering proofs, contention tests, and the treatment of
+  relaxed visibility in concurrency proofs. The integer
+  load/store/RMW family already preserves validated orderings into exact
+  x86_64/aarch64 lowering; checked ISA and device/DMA barriers remain distinct.
 - Implement normalized runtime behavior in the existing provider-plan and
   admission spine. Suspension is checked locally against effects; CPU/thread/
   address demands join provider behavior plus preemption granularity.
