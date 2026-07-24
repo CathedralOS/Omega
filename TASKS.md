@@ -1739,12 +1739,13 @@ stronger operations it needs instead of citing machine parameters generally.
   observation, loan-derived borrow polarity/lifetime, operation-specific atomic
   ordering, and static reach; malformed load/store/compare-exchange ordering
   rejects before target lowering.
-  Provider-admitted placed-view grants now pin that exact geometry-bound
-  access-plan identity and check an actual Extent loan's space, provenance,
-  open-set rights, size, and permitted static reaches; field authorization
-  derives polarity from that loan and mints the only token primitive lowering
-  may accept. Never expose arbitrary-offset access or per-access revocation
-  probes.
+  Provider-admitted placed-view grants now retain and compare the exact
+  canonical geometry-bound access plan, rather than treating its compact
+  report/cache identity as collision-resistant authority, and check an actual
+  Extent loan's space, provenance, open-set rights, size, and permitted static
+  reaches; field authorization derives polarity from that loan and mints the
+  only token primitive lowering may accept. Never expose arbitrary-offset
+  access or per-access revocation probes.
   **OWNER-BLOCKED (#17):** the normalized plan and sealed lowering seam
   are settled, but the concrete Omega `AccessPlan` record/policy spelling is
   still explicitly open in the programmable-layouts brief. Do not invent that
