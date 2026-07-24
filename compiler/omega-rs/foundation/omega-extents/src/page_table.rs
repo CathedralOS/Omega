@@ -168,6 +168,37 @@ impl<'source> PageTableDraft<'source> {
         self.grant.identity
     }
 
+    /// Inert provider-side projections of the exact destination storage.
+    /// These values let a target writer derive byte placement without
+    /// borrowing, consuming, splitting, or completing the owned Extent.
+    pub const fn storage_base(&self) -> u64 {
+        self.storage.base()
+    }
+
+    pub const fn storage_length(&self) -> u64 {
+        self.storage.length()
+    }
+
+    pub const fn storage_address_space(&self) -> AddressSpaceId {
+        self.storage.address_space()
+    }
+
+    pub const fn storage_rights(&self) -> &ExtentRights {
+        self.storage.rights()
+    }
+
+    pub const fn storage_provenance(&self) -> ExtentProvenanceId {
+        self.storage.provenance()
+    }
+
+    pub const fn storage_era(&self) -> MappingEraId {
+        self.storage.era()
+    }
+
+    pub const fn storage_lineage_root(&self) -> ExtentLineageId {
+        self.storage.lineage_root()
+    }
+
     /// Canonical provider-side view of pending translations. This exposes only
     /// inert address/fact data through borrowed pending mappings; it cannot
     /// complete a mapping, mint access, or release any owned authority.
@@ -1214,6 +1245,21 @@ mod tests {
                 &[21, 99],
             ))
             .expect("mapping");
+
+        assert_eq!(draft.storage_base(), 0x4000);
+        assert_eq!(draft.storage_length(), 4096);
+        assert_eq!(draft.storage_address_space().normalized_identity(), 1);
+        assert_eq!(draft.storage_provenance().normalized_identity(), 2);
+        assert_eq!(draft.storage_era().normalized_identity(), 30);
+        assert_eq!(draft.storage_lineage_root().normalized_identity(), 1);
+        assert_eq!(
+            draft
+                .storage_rights()
+                .identities()
+                .map(ExtentRightId::normalized_identity)
+                .collect::<Vec<_>>(),
+            vec![3]
+        );
 
         let mapping = draft.mappings().next().expect("provider projection");
         assert_eq!(mapping.mapping().normalized_identity(), 51);
