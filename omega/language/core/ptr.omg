@@ -8,6 +8,12 @@
 // operators are the implementation edges for the unsafe representation work
 // beneath those contracts.
 
+// Opaque, provider-minted carriers. Their representation and construction stay
+// below the boundary: naming `Ptr<T>` or `PtrRange<T>` does not let ordinary
+// source manufacture an address, provenance, bounds, or access authority.
+boundary data Ptr<T>;
+boundary data PtrRange<T>;
+
 // Boundary primitive providers for the pointer edge (Wave 0 #4).
 provider omega::language::core::ptr_offset : PointerOffset;
 provider omega::language::core::ptr_access : PointerAccess;

@@ -17,23 +17,25 @@
 provider omega::language::core::array_views : DescriptorConstruction;
 
 // Length in elements: the static extent of the array. Cheap O(1) measure.
-boundary operator Array::Length<T>(items: &Array<T>) -> u64;
+// `N` stays in the semantic type; there is no length-erasing `Array<T>`
+// carrier distinct from Omega's native `[T; N]` value.
+boundary operator Array::Length<T, const N: u64>(items: &[T; N]) -> u64;
 
-boundary operator Array::index<T>(items: &Array<T>, index: u64) -> T
+boundary operator Array::index<T, const N: u64>(items: &[T; N], index: u64) -> T
 requires
     index < items.len;
 
-boundary operator Array::index_mut<T>(items: &mut Array<T>, index: u64) -> &mut T
+boundary operator Array::index_mut<T, const N: u64>(items: &mut [T; N], index: u64) -> &mut T
 requires
     index < items.len;
 
 // Borrow the elements as a slice view; the view length matches the array.
-boundary operator Array::as_slice<T>(items: &Array<T>) -> &[T]
+boundary operator Array::as_slice<T, const N: u64>(items: &[T; N]) -> &[T]
 provider omega::language::core::array_views
 ensures
     result.len == items.len;
 
-boundary operator Array::as_mut_slice<T>(items: &mut Array<T>) -> &mut [T]
+boundary operator Array::as_mut_slice<T, const N: u64>(items: &mut [T; N]) -> &mut [T]
 provider omega::language::core::array_views
 ensures
     result.len == items.len;
