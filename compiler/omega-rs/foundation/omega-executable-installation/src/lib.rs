@@ -139,6 +139,12 @@ impl Artifact {
                     entry.identity, entry.code_offset, byte_length
                 )));
             }
+            if matches!(architecture, Architecture::Aarch64) && entry.code_offset % 4 != 0 {
+                return Err(InstallationDiagnostic(format!(
+                    "AArch64 artifact entry {:?} offset {} is not instruction-aligned",
+                    entry.identity, entry.code_offset
+                )));
+            }
         }
         if entries
             .windows(2)

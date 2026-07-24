@@ -706,6 +706,26 @@ mod tests {
     }
 
     #[test]
+    fn aarch64_entry_offsets_are_instruction_aligned() {
+        let entry = EntryStubId::from_normalized_identity(9).expect("entry identity");
+        let mut aarch64 = decoded();
+        aarch64.architecture = Architecture::Aarch64;
+        aarch64.entries = vec![ArtifactEntry::from_canonical_decode(entry, 17)];
+        aarch64.relocations[0].kind = ArtifactRelocationKind::Absolute64;
+        aarch64.content =
+            normalized_decoded_content_identity(&aarch64).expect("candidate identity");
+
+        let error = validate_decoded_container(aarch64, limits())
+            .expect_err("unaligned AArch64 entry rejects");
+        assert!(error.0.contains("not instruction-aligned"));
+
+        let mut x86 = decoded();
+        x86.entries = vec![ArtifactEntry::from_canonical_decode(entry, 17)];
+        x86.content = normalized_decoded_content_identity(&x86).expect("x86 candidate identity");
+        validate_decoded_container(x86, limits()).expect("x86 permits byte-aligned entries");
+    }
+
+    #[test]
     fn unknown_required_rejects_while_unknown_optional_is_informational() {
         let mut optional = decoded();
         optional.total_length = 464;
