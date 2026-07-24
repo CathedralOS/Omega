@@ -1,6 +1,6 @@
 use super::*;
 
-pub(in crate::flow::ownership) fn expression_type_reference_in_state(
+pub(crate) fn expression_type_reference_in_state(
     program: &omega_typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,

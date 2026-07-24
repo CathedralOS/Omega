@@ -54,10 +54,20 @@ pub struct BorrowLoanFact {
     pub statement_index: usize,
     pub last_use_statement_index: usize,
     pub owner_symbol: SymbolHandle,
+    /// Projection within the owner that carries this loan. An empty path means
+    /// the whole owner; dynamic indexes conservatively overlap every element.
+    pub owner_path: Vec<BorrowLoanOwnerSegment>,
     pub source_owner_symbol: SymbolHandle,
     pub root_symbol: SymbolHandle,
     pub segments: HandleSpan<omega_facts::PlaceSegment>,
     pub kind: BorrowAccessKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BorrowLoanOwnerSegment {
+    Field(SymbolHandle),
+    FixedIndex(usize),
+    DynamicIndex,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

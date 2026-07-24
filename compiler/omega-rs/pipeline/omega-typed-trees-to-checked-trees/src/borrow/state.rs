@@ -58,6 +58,7 @@ pub(super) fn append_state_borrow_facts(
                     statement_index,
                     last_use_statement_index: statement_index,
                     owner_symbol: pending.owner_symbol,
+                    owner_path: pending.owner_path.clone(),
                     source_owner_symbol: pending.source_owner_symbol,
                     root_symbol: pending.place.root_symbol,
                     segments: loan_segments,

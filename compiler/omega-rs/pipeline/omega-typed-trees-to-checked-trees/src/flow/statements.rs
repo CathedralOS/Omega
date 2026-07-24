@@ -81,6 +81,21 @@ pub(super) fn append_state_statement_flow_facts(
                 .append_to_span(&mut state_calls, call_flow);
         }
 
+        // Assignment evaluates its RHS under the entry loans above, then
+        // overwrites the target. Retire loans carried by the old value before
+        // activating loans carried by the replacement below; otherwise the
+        // replacement spuriously conflicts with the value it is replacing.
+        *active_constraints = filter_reassigned_borrow_loans(
+            &mut ctx.borrow_lifetimes.weakenings,
+            &mut ctx.contexts.constraint_refs,
+            *active_constraints,
+            borrow,
+            program,
+            state.symbol,
+            statement_index,
+            statement,
+        );
+
         while let Some(loan) = borrow_loans.get(loan_index) {
             if loan.statement_index != statement_index {
                 break;
@@ -146,17 +161,6 @@ pub(super) fn append_state_statement_flow_facts(
                 &ctx.contexts.semantic_context_refs,
             );
         }
-
-        *active_constraints = filter_reassigned_borrow_loans(
-            &mut ctx.borrow_lifetimes.weakenings,
-            &mut ctx.contexts.constraint_refs,
-            *active_constraints,
-            borrow,
-            program,
-            state.symbol,
-            statement_index,
-            statement,
-        );
 
         if let StatementNode::Call(call) = statement {
             append_operator_statement_ensures(

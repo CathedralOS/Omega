@@ -51,7 +51,9 @@ use operator_calls::{
     append_operator_statement_ensures, operator_statement_call_mutated_places,
     resolve_operator_for_call, resolve_operator_statement_call,
 };
-pub(crate) use ownership::{DiscoveredMoveEvent, discover_state_move_events};
+pub(crate) use ownership::{
+    DiscoveredMoveEvent, discover_state_move_events, expression_type_reference_in_state,
+};
 use ownership::{
     append_call_ownership_events, append_state_exit_drop_events, append_statement_ownership_events,
 };
