@@ -89,6 +89,23 @@ pub(super) fn semantic_contexts_prove_contract_fact(
                 semantic
                     .context_view(context)
                     .proves_place_domain_membership_in_program(program, place, domain_symbol)
+                    || semantic.context_view(context).facts().any(|candidate| {
+                        let candidate_domain = match candidate.payload {
+                            FactPayload::DomainMembership { domain_symbol, .. }
+                            | FactPayload::ContractDomainMembership { domain_symbol, .. } => {
+                                domain_symbol
+                            }
+                            _ => return false,
+                        };
+                        let FactPlace::Place(candidate_place) = candidate.place else {
+                            return false;
+                        };
+                        crate::field_domain::declared_domain_implies(
+                            program,
+                            candidate_domain,
+                            domain_symbol,
+                        ) && semantic.places_match(program, candidate_place, place)
+                    })
             })
         }
         FactPayload::ContractBooleanExpression { expression, .. } => {
