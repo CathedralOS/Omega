@@ -1586,8 +1586,9 @@ stronger operations it needs instead of citing machine parameters generally.
   equivalent. Same-carrier float ranges now compose by numeric interval
   inclusion for shared views and exact interval equality for mutable aliases;
   the same leaf judgment composes recursively through typed record views. They
-  remain fenced across carriers because numeric intervals do not describe
-  IEEE bit-pattern sets. Typed record-to-record mutable
+  may weaken through a shared unconstrained equal-width bit carrier, but remain
+  fenced from cross-carrier mutable equivalence because numeric intervals do
+  not describe IEEE bit-pattern sets. Typed record-to-record mutable
   aliases now admit when total size/alignment, leaf offsets/sizes, and every leaf
   representation set are equivalent; this includes range-bearing signed/unsigned
   leaves and `bool`, with native/interpreter execution and x86-64/AArch64 compile

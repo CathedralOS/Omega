@@ -12,9 +12,10 @@
 //!   fact-free types, normalized domain conjunctions that imply one another
 //!   in BOTH directions, or integer ranges that denote the same normalized
 //!   bit-pattern set. Same-carrier float ranges compose by numeric interval
-//!   inclusion; they never justify a cross-carrier bit-pattern claim. Merely
-//!   equal-looking cross-carrier predicates remain fenced. Byte-region aggregate
-//!   views require recursively
+//!   inclusion. A shared view may forget a float interval into an unconstrained
+//!   equal-width bit carrier, but it never justifies cross-carrier mutable
+//!   equivalence. Merely equal-looking cross-carrier predicates remain fenced.
+//!   Byte-region aggregate views require recursively
 //!   fact-free target shapes, including top-level and nested literal-length
 //!   fixed arrays. Mutable typed aggregate aliases may retain facts when source
 //!   and target have identical geometry and representation-equivalent leaves;
@@ -23,9 +24,9 @@
 //!   native reads/writes the place through the stated type; the interpreter
 //!   bit-reinterprets both sides of the alias or assembles/writes the complete
 //!   little-endian byte-region footprint.
-//! - **Fenced (deeper byte-view rung, L4/L5):** unsized slices and remaining
-//!   dynamically-sized shapes (byte-granular tiling over plan-laid layouts),
-//!   interior recasts into and non-let positions.
+//! - **Fenced (deeper byte-view rung, L4/L5):** remaining dynamically-sized
+//!   shapes beyond complete-source unsized slices (byte-granular tiling over
+//!   plan-laid layouts), interior recasts into and non-let positions.
 //! - **Refused absolutely:** targets that would ESTABLISH a fact the bytes
 //!   don't prove (`bool`'s 0/1, text encodings) -- establishing facts is a
 //!   MINT's job (fallible, case-returning), never a recast's.

@@ -1,6 +1,7 @@
 // RUN CANARY (exit 70) + interpreter differential. Numeric range inclusion is
-// representation implication when both views use the same IEEE carrier. Equal
-// intervals may also alias mutably; neither fact licenses a cross-carrier pun.
+// representation implication when both views use the same IEEE carrier. A
+// shared view may also forget the numeric fact into an unconstrained
+// equal-width bit carrier; mutable cross-carrier aliasing remains forbidden.
 use omega::language::std::console;
 
 data Main {
@@ -10,7 +11,8 @@ data Main {
 
 machine Main::main(&mut self) {
     let wide: &f32 [0..=2] = &self.value as &f32;
-    transition wide == 0.0f32 {
+    let bits: &u32 = &self.value as &u32;
+    transition wide == 0.0f32 && bits == 0 {
         true -> mutate()
         _ -> bad()
     }
