@@ -616,10 +616,13 @@ schemas recover the same instance without publishing policy type identity.
    and final-byte fingerprint. This is a deliberately narrow first
    Stack-balanced RFLAGS snapshot/restore sequences now validate their exact
    flags opcodes and balanced register envelope; snapshots additionally bind
-   the compiler-owned destination relocation. This is a deliberately narrow
-   first body-footprint slice; dynamic port/MSR-index forms, complete
-   value-operand decoding, other operand-bearing checked assembly, and general
-   compiler-function body decoding remain incomplete.
+   the compiler-owned destination relocation. Runtime port and MSR-index forms
+   now retain the exact encoded widths of their runtime operands, independently
+   validate the fixed DX/AL or ECX/EDX:EAX privileged-opcode skeleton at those
+   boundaries, and bind compiler-owned destination relocations for reads.
+   Complete semantic decoding of the retained value-operand loaders, other
+   operand-bearing checked assembly, and general compiler-function body
+   decoding remain incomplete.
    Checked direct-image emission now rejects any unclassified executable gap,
    so the current closed emitter has complete region enumeration. Relaxation
    products, veneers, and general generated stubs are recorded as absent by
