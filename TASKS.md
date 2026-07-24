@@ -1695,8 +1695,9 @@ stronger operations it needs instead of citing machine parameters generally.
   supplies its own valid translation-release receipt. A target provider can
   now borrow the draft's canonical pending-map sequence and inspect the exact
   source/destination geometry, custody, and normalized authority facts needed
-  to derive entries; the projection exposes inert data and cannot complete a
-  mapping or release authority. Target-specific entry writers, imported-table
+  to derive entries, including the draft's exact table-storage destination;
+  the projections expose inert data and cannot borrow, consume, split, complete
+  a mapping, or release authority. Target-specific entry writers, imported-table
   scanners, page-table-control execution/effects, and further normalized
   mapping work remain ordinary engineering. Connecting
   this model to the source-visible opaque Omega `[linear]` carrier, sealed fact

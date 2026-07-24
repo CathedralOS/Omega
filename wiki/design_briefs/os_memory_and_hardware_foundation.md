@@ -320,8 +320,11 @@ receipt and content, establish the table active, and supply the exact activation
 receipt for every pending mapping. Only then do `MappedExtent` values expose
 loans. Thus arbitrary page-table bytes, a merely structural mapping candidate,
 or a receipt for another table cannot mint active address authority. Target
-entry writers/scanners, page-table-control operations, and source-visible opaque
-carriers remain implementation work over this lifecycle.
+entry writers can inspect borrowed, inert projections of the draft's exact
+table-storage destination and every pending source/destination mapping fact
+without borrowing, consuming, splitting, completing, or releasing authority.
+The target writers/scanners themselves, page-table-control operations, and
+source-visible opaque carriers remain implementation work over this lifecycle.
 
 Retirement closes the conservation loop. Beginning removal captures table
 storage and starts unmapping every active mapping. Nothing is returned until one
