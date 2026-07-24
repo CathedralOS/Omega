@@ -1583,7 +1583,8 @@ stronger operations it needs instead of citing machine parameters generally.
   primitive carriers remain fenced until their bit-pattern sets can be proved
   equivalent. Same-carrier float ranges now compose by numeric interval
   inclusion for shared views and exact interval equality for mutable aliases;
-  they remain fenced across carriers because numeric intervals do not describe
+  the same leaf judgment composes recursively through typed record views. They
+  remain fenced across carriers because numeric intervals do not describe
   IEEE bit-pattern sets. Typed record-to-record mutable
   aliases now admit when total size/alignment, leaf offsets/sizes, and every leaf
   representation set are equivalent; this includes range-bearing signed/unsigned

@@ -9,12 +9,14 @@ data SignedRecord {
     signed_value: i16 [0..=100];
     signed_tag: i16 [0..=2];
     enabled: bool;
+    signed_ratio: f32 [0..=1];
 }
 
 data UnsignedRecord {
     unsigned_value: u16 [0..=100];
     unsigned_tag: u16 [0..=2];
     active: bool;
+    unsigned_ratio: f32 [0..=1];
 }
 
 data Main {
@@ -34,7 +36,8 @@ machine Main::main(&mut self) {
         && self.source.signed_tag == 2
         && view.unsigned_tag == 2
         && self.source.enabled
-        && view.active {
+        && view.active
+        && view.unsigned_ratio == self.source.signed_ratio {
         true -> good()
         _ -> bad()
     }

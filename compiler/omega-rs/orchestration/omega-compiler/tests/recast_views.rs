@@ -338,6 +338,28 @@ fn float_range_recasts_require_same_carrier_interval_implication() {
 }
 
 #[test]
+fn record_recasts_compose_same_carrier_float_leaf_intervals() {
+    let canary = "recast/runtime_shared_record_float_range_weakening_exit";
+    assert_exit_70(canary, "shared-record-float-range-weakening");
+    compile_for_cross_targets(canary, "shared-record-float-range-weakening");
+
+    for fail in [
+        "recast/recast_shared_record_float_leaf_strengthening_rejected",
+        "recast/recast_mut_record_float_leaf_sets_differ",
+    ] {
+        let diagnostics = fail_diagnostics(fail);
+        assert!(
+            diagnostics.contains(if fail.contains("shared") {
+                "source leaf facts implying every target leaf fact"
+            } else {
+                "leaf fact implication in BOTH directions"
+            }),
+            "{fail} produced the wrong record-float diagnostic:\n{diagnostics}"
+        );
+    }
+}
+
+#[test]
 fn mutable_recast_accepts_equivalent_typed_record_representations() {
     let canary = "recast/runtime_mutable_equivalent_record_recast_exit";
     assert_exit_70(canary, "mutable-equivalent-record-recast");

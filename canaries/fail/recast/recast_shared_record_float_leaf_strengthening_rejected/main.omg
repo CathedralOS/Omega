@@ -1,0 +1,17 @@
+// FAIL CANARY: record geometry cannot manufacture a stronger float interval.
+// The source's 0..=2 leaf does not imply the target's 0..=1 leaf.
+data WideReading {
+    value: f32 [0..=2];
+}
+
+data NarrowReading {
+    value: f32 [0..=1];
+}
+
+data Main {
+    reading: WideReading;
+}
+
+machine Main::main(&mut self) {
+    let view: &NarrowReading = &self.reading as &NarrowReading;
+}
