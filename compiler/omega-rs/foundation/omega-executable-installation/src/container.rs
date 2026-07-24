@@ -154,13 +154,7 @@ impl ValidatedArtifactContainer {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ValidatedContainerAdmissionEvidence {
     receipt: AdmissionReceiptId,
-    artifact: ArtifactId,
-    content: ArtifactContentId,
-    contracts: MachineContractSetId,
-    footprint: MachineFootprintId,
-    placement_plan: PlacementPlanId,
-    placement_constraints: PlacementConstraints,
-    entry_set: EntrySetId,
+    artifact: Artifact,
     proof_payload: ProofPayloadId,
     accepted: bool,
 }
@@ -171,16 +165,9 @@ impl ValidatedContainerAdmissionEvidence {
         container: &ValidatedArtifactContainer,
         accepted: bool,
     ) -> Self {
-        let artifact = &container.artifact.0;
         Self {
             receipt,
-            artifact: artifact.identity,
-            content: artifact.content,
-            contracts: artifact.contracts,
-            footprint: artifact.declared_footprint,
-            placement_plan: artifact.placement_plan,
-            placement_constraints: artifact.placement_constraints,
-            entry_set: artifact.entry_set,
+            artifact: container.artifact.clone(),
             proof_payload: container.proof_payload,
             accepted,
         }
@@ -195,20 +182,12 @@ pub fn admit_validated_container(
     container: &ValidatedArtifactContainer,
     evidence: ValidatedContainerAdmissionEvidence,
 ) -> Result<AdmittedArtifact, InstallationDiagnostic> {
-    let artifact = &container.artifact.0;
     if evidence.proof_payload != container.proof_payload {
         return Err(InstallationDiagnostic(
             "artifact admission evidence names a different proof payload".into(),
         ));
     }
-    if evidence.artifact != artifact.identity
-        || evidence.content != artifact.content
-        || evidence.contracts != artifact.contracts
-        || evidence.footprint != artifact.declared_footprint
-        || evidence.placement_plan != artifact.placement_plan
-        || evidence.placement_constraints != artifact.placement_constraints
-        || evidence.entry_set != artifact.entry_set
-    {
+    if evidence.artifact != container.artifact {
         return Err(InstallationDiagnostic(
             "artifact admission evidence names a different validated container".into(),
         ));
@@ -217,13 +196,7 @@ pub fn admit_validated_container(
         &container.artifact,
         ArtifactAdmissionEvidence::from_validator(
             evidence.receipt,
-            evidence.artifact,
-            evidence.content,
-            evidence.contracts,
-            evidence.footprint,
-            evidence.placement_plan,
-            evidence.placement_constraints,
-            evidence.entry_set,
+            &evidence.artifact,
             evidence.accepted,
         ),
     )

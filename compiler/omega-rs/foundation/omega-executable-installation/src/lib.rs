@@ -240,38 +240,19 @@ impl Artifact {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ArtifactAdmissionEvidence {
     receipt: AdmissionReceiptId,
-    artifact: ArtifactId,
-    content: ArtifactContentId,
-    contracts: MachineContractSetId,
-    footprint: MachineFootprintId,
-    placement_plan: PlacementPlanId,
-    placement_constraints: PlacementConstraints,
-    entry_set: EntrySetId,
+    artifact: Artifact,
     accepted: bool,
 }
 
 impl ArtifactAdmissionEvidence {
-    #[allow(clippy::too_many_arguments)]
-    pub const fn from_validator(
+    pub fn from_validator(
         receipt: AdmissionReceiptId,
-        artifact: ArtifactId,
-        content: ArtifactContentId,
-        contracts: MachineContractSetId,
-        footprint: MachineFootprintId,
-        placement_plan: PlacementPlanId,
-        placement_constraints: PlacementConstraints,
-        entry_set: EntrySetId,
+        artifact: &Artifact,
         accepted: bool,
     ) -> Self {
         Self {
             receipt,
-            artifact,
-            content,
-            contracts,
-            footprint,
-            placement_plan,
-            placement_constraints,
-            entry_set,
+            artifact: artifact.clone(),
             accepted,
         }
     }
@@ -322,14 +303,7 @@ pub fn admit_executable(
             "artifact validator did not accept executable eligibility".into(),
         ));
     }
-    if evidence.artifact != artifact.0.identity
-        || evidence.content != artifact.0.content
-        || evidence.contracts != artifact.0.contracts
-        || evidence.footprint != artifact.0.declared_footprint
-        || evidence.placement_plan != artifact.0.placement_plan
-        || evidence.placement_constraints != artifact.0.placement_constraints
-        || evidence.entry_set != artifact.0.entry_set
-    {
+    if evidence.artifact != *artifact {
         return Err(InstallationDiagnostic(
             "artifact admission evidence does not match canonical candidate".into(),
         ));
@@ -1347,6 +1321,20 @@ mod tests {
     }
 
     fn artifact(identity: u64) -> Artifact {
+        artifact_with(
+            identity,
+            artifact_placement_constraints(),
+            id(33, EntrySetId::from_normalized_identity),
+            entry_id(identity + 1000),
+        )
+    }
+
+    fn artifact_with(
+        identity: u64,
+        constraints: PlacementConstraints,
+        entry_set: EntrySetId,
+        entry: EntryStubId,
+    ) -> Artifact {
         Artifact::from_canonical_decode(
             id(identity, ArtifactId::from_normalized_identity),
             id(identity + 10, ArtifactContentId::from_normalized_identity),
@@ -1355,12 +1343,9 @@ mod tests {
             id(30, MachineContractSetId::from_normalized_identity),
             id(31, MachineFootprintId::from_normalized_identity),
             id(32, PlacementPlanId::from_normalized_identity),
-            artifact_placement_constraints(),
-            id(33, EntrySetId::from_normalized_identity),
-            vec![ArtifactEntry::from_canonical_decode(
-                entry_id(identity + 1000),
-                16,
-            )],
+            constraints,
+            entry_set,
+            vec![ArtifactEntry::from_canonical_decode(entry, 16)],
             id(34, RelocationSetId::from_normalized_identity),
             Vec::new(),
         )
@@ -1372,13 +1357,7 @@ mod tests {
             candidate,
             ArtifactAdmissionEvidence::from_validator(
                 id(40, AdmissionReceiptId::from_normalized_identity),
-                candidate.0.identity,
-                candidate.0.content,
-                candidate.0.contracts,
-                candidate.0.declared_footprint,
-                candidate.0.placement_plan,
-                candidate.0.placement_constraints,
-                candidate.0.entry_set,
+                candidate,
                 true,
             ),
         )
@@ -1756,17 +1735,17 @@ mod tests {
     fn admission_evidence_cannot_substitute_placement_constraints() {
         let candidate = artifact(1);
         let weaker = PlacementConstraints::unconstrained(PlacementPhase::PostHandoff);
+        let substituted = artifact_with(
+            1,
+            weaker,
+            candidate.0.entry_set,
+            candidate.0.entries[0].identity,
+        );
         let error = admit_executable(
             &candidate,
             ArtifactAdmissionEvidence::from_validator(
                 id(40, AdmissionReceiptId::from_normalized_identity),
-                candidate.0.identity,
-                candidate.0.content,
-                candidate.0.contracts,
-                candidate.0.declared_footprint,
-                candidate.0.placement_plan,
-                weaker,
-                candidate.0.entry_set,
+                &substituted,
                 true,
             ),
         )
@@ -1777,17 +1756,17 @@ mod tests {
     #[test]
     fn admission_evidence_cannot_substitute_the_selected_entry_set() {
         let candidate = artifact(1);
+        let substituted = artifact_with(
+            1,
+            candidate.0.placement_constraints,
+            id(34, EntrySetId::from_normalized_identity),
+            candidate.0.entries[0].identity,
+        );
         let error = admit_executable(
             &candidate,
             ArtifactAdmissionEvidence::from_validator(
                 id(40, AdmissionReceiptId::from_normalized_identity),
-                candidate.0.identity,
-                candidate.0.content,
-                candidate.0.contracts,
-                candidate.0.declared_footprint,
-                candidate.0.placement_plan,
-                candidate.0.placement_constraints,
-                id(34, EntrySetId::from_normalized_identity),
+                &substituted,
                 true,
             ),
         )

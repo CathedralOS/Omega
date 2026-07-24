@@ -1839,9 +1839,10 @@ stronger operations it needs instead of citing machine parameters generally.
   plan, byte length, and final identity must all match. `FrozenPlacement`
   retains the immutable final-byte snapshot so the later footprint/PCC
   validator can inspect precisely the bytes whose write authority was frozen.
-  The checked-container admission gate now derives verifier evidence from the
-  exact validated artifact and separately binds its identity-invisible proof
-  payload; acceptance cannot replay across content/contracts/footprint/
+  The checked-container admission gate now retains the exact immutable
+  validated artifact rather than treating compact FNV identities as collision-
+  resistant evidence, and separately binds its identity-invisible proof
+  payload; acceptance cannot replay across byte/content/contracts/footprint/
   placement/entry/proof drift, while informational sections remain incapable
   of contributing admission authority.
   Entry/section order, proof evidence, and informational sections remain identity-invisible.
