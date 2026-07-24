@@ -9,9 +9,9 @@
 
 use omega_compiler::{
     ByteOrder, ConsumptionInstant, EntryStubId, LayoutPlacementReport, MaterializationAction,
-    MaterializationContext, RelocationTarget, ScalarFieldValue, SymbolicFieldValue,
-    compile_to_checked, compute_layout_plan, derive_symbolic_materialization,
-    materialize_scalar_layout_into,
+    MaterializationContext, RelocationTarget, ScalarFieldSchema, ScalarFieldValue,
+    SymbolicFieldValue, compile_to_checked, compute_layout_plan, decode_scalar_layout,
+    derive_symbolic_materialization, materialize_scalar_layout_into,
 };
 use omega_layout::{DataShape, build_layout_plan};
 use omega_target::NativeTarget;
@@ -385,6 +385,24 @@ machine Main::main(&mut self) { }
     )
     .expect("compiler-validated plan should drive ordinary scalar materialization");
     assert_eq!(bytes, [0b1011]);
+
+    let decoded = decode_scalar_layout(
+        &report,
+        &[
+            ScalarFieldSchema::new("present", 1).expect("present"),
+            ScalarFieldSchema::new("mode", 3).expect("mode"),
+        ],
+        ByteOrder::LittleEndian,
+        &bytes,
+    )
+    .expect("the compiler-validated plan should also drive imported scalar scans");
+    assert_eq!(
+        decoded
+            .iter()
+            .map(|field| (field.field.as_str(), field.value))
+            .collect::<std::collections::BTreeMap<_, _>>(),
+        std::collections::BTreeMap::from([("mode", 5), ("present", 1)])
+    );
 }
 
 #[test]
