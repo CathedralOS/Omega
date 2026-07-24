@@ -173,6 +173,7 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
                 indexed_target.descriptor_offset,
                 indexed_target.index_region,
                 indexed_target.index_offset,
+                indexed_target.index_byte_size,
                 indexed_target.element_byte_size,
                 indexed_target.field_byte_offset,
                 data,

@@ -10,6 +10,7 @@ pub(crate) fn runtime_storage_copy_target_address_offset(architecture: Architect
 
 pub(crate) fn runtime_storage_copy_from_runtime_frame_indexed_target_address_offset(
     architecture: Architecture,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
@@ -21,7 +22,7 @@ pub(crate) fn runtime_storage_copy_from_runtime_frame_indexed_target_address_off
         // materializer's canonical shape: mov r14,imm64 (10) + index load (7)
         // + imul (7) + descriptor deref (7) + add (3); the planner adds the
         // +2 itself.
-        Architecture::X86_64 => 34,
+        Architecture::X86_64 => 27 + x86_unsigned_index_load_width(index_byte_size),
     }
 }
 
@@ -49,6 +50,7 @@ pub(crate) fn runtime_storage_copy_from_runtime_machine_indexed_target_address_o
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_count: usize,
@@ -60,6 +62,7 @@ pub(crate) fn runtime_storage_copy_from_runtime_machine_indexed_target_address_o
                 base_byte_offset,
                 index_region,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
                 byte_count,
@@ -74,12 +77,17 @@ pub(crate) fn runtime_storage_copy_from_runtime_machine_indexed_target_address_o
         Architecture::X86_64 => {
             let frame_index =
                 index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+            let width_delta = x86_unsigned_index_load_width(index_byte_size) - 7;
             if matches!(byte_count, 1 | 4 | 8) {
-                if frame_index { 44 } else { 34 }
+                if frame_index {
+                    44 + width_delta
+                } else {
+                    34 + width_delta
+                }
             } else if frame_index {
-                37
+                37 + width_delta
             } else {
-                27
+                27 + width_delta
             }
         }
     }
@@ -93,6 +101,7 @@ pub(crate) fn runtime_storage_copy_to_runtime_machine_indexed_source_address_off
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
@@ -103,11 +112,20 @@ pub(crate) fn runtime_storage_copy_to_runtime_machine_indexed_source_address_off
                 base_byte_offset,
                 index_region,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
             )
         }
         Architecture::X86_64 => 0,
+    }
+}
+
+fn x86_unsigned_index_load_width(index_byte_size: usize) -> usize {
+    match index_byte_size {
+        1 | 2 => 8,
+        4 | 8 => 7,
+        _ => 0,
     }
 }
 

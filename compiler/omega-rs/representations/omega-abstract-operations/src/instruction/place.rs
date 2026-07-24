@@ -29,6 +29,11 @@ pub enum PlaceStep {
     ScaledIndex {
         index_region: RuntimeStorageRegion,
         index_offset: usize,
+        /// Declared width of the unsigned index slot. Address materializers
+        /// must load exactly this many bytes and zero-extend them; guessing a
+        /// machine word can consume adjacent storage, while truncating to a
+        /// canonical width can alias a distinct high-bit index.
+        index_byte_size: usize,
         element_byte_size: usize,
     },
 }

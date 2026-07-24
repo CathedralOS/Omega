@@ -1,0 +1,19 @@
+// A u64 index domain whose upper bound reaches bit 32 must not be silently
+// truncated by native lowering. The fixed-array proof rejects the domain
+// before codegen because its full declared range does not fit the array.
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    arr: [i32; 5];
+    i: u64 [0..=4294967296];
+}
+
+machine Main::main(&mut self) {
+    transition { _ -> read() }
+    state read(&mut self) {
+        let value: i32 = self.arr[self.i];
+        transition value == 0 { true -> done() false -> done() }
+    }
+    state done(&mut self) { self.console.exit_process(1); }
+}

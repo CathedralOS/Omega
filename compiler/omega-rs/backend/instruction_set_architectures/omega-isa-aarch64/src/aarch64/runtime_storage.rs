@@ -833,6 +833,7 @@ pub fn encode_runtime_machine_indexed_convert_write(
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_byte_size: usize,
@@ -851,6 +852,7 @@ pub fn encode_runtime_machine_indexed_convert_write(
         base_byte_offset,
         index_region,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
     )?;
@@ -2238,6 +2240,7 @@ pub fn encode_runtime_pointee_string_write(
 pub fn encode_runtime_frame_indexed_string_write(
     descriptor_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_length: usize,
@@ -2252,6 +2255,7 @@ pub fn encode_runtime_frame_indexed_string_write(
         16,
         descriptor_offset,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         17,
@@ -2268,6 +2272,7 @@ pub fn encode_runtime_frame_indexed_string_write(
 pub fn encode_runtime_machine_indexed_string_write(
     base_byte_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_length: usize,
@@ -2283,6 +2288,7 @@ pub fn encode_runtime_machine_indexed_string_write(
         base_byte_offset,
         omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
     )?;
@@ -2341,6 +2347,7 @@ pub fn encode_runtime_frame_indexed_address_to_runtime_frame_write(
     index_region: omega_target_operations::RuntimeStorageRegion,
     descriptor_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -2357,6 +2364,7 @@ pub fn encode_runtime_frame_indexed_address_to_runtime_frame_write(
         index_region,
         descriptor_offset,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         17,
@@ -2397,6 +2405,7 @@ pub fn encode_runtime_frame_fixed_indexed_address_to_runtime_frame_write(
 pub fn encode_runtime_frame_base_indexed_address_to_runtime_frame_write(
     base_byte_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -2415,6 +2424,7 @@ pub fn encode_runtime_frame_base_indexed_address_to_runtime_frame_write(
         16,
         base_byte_offset,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         17,
@@ -2453,6 +2463,7 @@ pub fn encode_runtime_storage_copy(
 pub fn encode_runtime_frame_indexed_integer_write(
     descriptor_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -2462,6 +2473,7 @@ pub fn encode_runtime_frame_indexed_integer_write(
         descriptor_offset,
         omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         byte_size,
@@ -2473,6 +2485,7 @@ pub fn encode_runtime_frame_indexed_integer_write_with_index_region(
     descriptor_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -2489,6 +2502,7 @@ pub fn encode_runtime_frame_indexed_integer_write_with_index_region(
         index_region,
         descriptor_offset,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         17,
@@ -2516,6 +2530,7 @@ pub fn encode_runtime_frame_indexed_integer_write_with_index_region(
 pub fn encode_runtime_frame_base_indexed_integer_write(
     base_byte_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -2524,6 +2539,7 @@ pub fn encode_runtime_frame_base_indexed_integer_write(
     let mut bytes = Vec::with_capacity(runtime_frame_base_indexed_integer_write_width(
         base_byte_offset,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         byte_size,
@@ -2533,6 +2549,7 @@ pub fn encode_runtime_frame_base_indexed_integer_write(
         16,
         base_byte_offset,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         17,
@@ -2569,6 +2586,7 @@ pub fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -2578,6 +2596,7 @@ pub fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
             base_byte_offset,
             index_region,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
             target_offset,
@@ -2588,6 +2607,7 @@ pub fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
         base_byte_offset,
         index_region,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
     )?;
@@ -2600,6 +2620,7 @@ pub fn encode_runtime_machine_indexed_address_to_runtime_frame_write(
             base_byte_offset,
             index_region,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
             target_offset,
@@ -2612,6 +2633,7 @@ pub fn encode_runtime_machine_indexed_integer_write(
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -2621,6 +2643,7 @@ pub fn encode_runtime_machine_indexed_integer_write(
         base_byte_offset,
         index_region,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         byte_size,
@@ -2630,6 +2653,7 @@ pub fn encode_runtime_machine_indexed_integer_write(
         base_byte_offset,
         index_region,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
     )?;
@@ -2656,6 +2680,7 @@ pub fn encode_runtime_frame_indexed_binary_write(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     descriptor_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -2677,6 +2702,7 @@ pub fn encode_runtime_frame_indexed_binary_write(
         16,
         descriptor_offset,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         17,
@@ -2717,6 +2743,7 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     base_byte_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -2728,6 +2755,7 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
         runtime_value_operands,
         base_byte_offset,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         byte_size,
@@ -2740,6 +2768,7 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
         16,
         base_byte_offset,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         17,
@@ -2788,6 +2817,7 @@ pub fn encode_runtime_machine_indexed_binary_write(
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -2800,6 +2830,7 @@ pub fn encode_runtime_machine_indexed_binary_write(
         base_byte_offset,
         index_region,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         byte_size,
@@ -2812,6 +2843,7 @@ pub fn encode_runtime_machine_indexed_binary_write(
         base_byte_offset,
         index_region,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
     )?;
@@ -2850,6 +2882,7 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
     source_offset: usize,
     descriptor_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_count: usize,
@@ -2867,6 +2900,7 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
         16,
         descriptor_offset,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         17,
@@ -2886,6 +2920,7 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
 pub fn encode_runtime_storage_copy_from_runtime_frame_indexed(
     descriptor_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -2904,6 +2939,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed(
         16,
         descriptor_offset,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         17,
@@ -2923,6 +2959,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed(
 pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage(
     descriptor_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -2941,6 +2978,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage
         16,
         descriptor_offset,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         17,
@@ -3080,6 +3118,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_p
 pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee(
     descriptor_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     source_field_byte_offset: usize,
     pointer_byte_offset: usize,
@@ -3101,6 +3140,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee
         16,
         descriptor_offset,
         index_offset,
+        index_byte_size,
         element_byte_size,
         source_field_byte_offset,
         17,
@@ -3123,6 +3163,7 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
     base_byte_offset: usize,
     index_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -3133,6 +3174,7 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
             base_byte_offset,
             index_region,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
             target_offset,
@@ -3144,6 +3186,7 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
         base_byte_offset,
         index_region,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
     )?;
@@ -3177,6 +3220,7 @@ pub fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_stora
     base_byte_offset: usize,
     index_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_count: usize,
@@ -3187,6 +3231,7 @@ pub fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_stora
             base_byte_offset,
             index_region,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
             byte_count,
@@ -3197,6 +3242,7 @@ pub fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_stora
         base_byte_offset,
         index_region,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
     )?;
@@ -3358,6 +3404,7 @@ fn append_runtime_frame_index_target_address(
     address_register: u8,
     descriptor_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     index_scratch: u8,
@@ -3369,6 +3416,7 @@ fn append_runtime_frame_index_target_address(
         omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
         descriptor_offset,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         index_scratch,
@@ -3386,6 +3434,7 @@ fn append_runtime_frame_index_target_address_with_index_region(
     index_region: omega_target_operations::RuntimeStorageRegion,
     descriptor_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     index_scratch: u8,
@@ -3397,7 +3446,7 @@ fn append_runtime_frame_index_target_address_with_index_region(
         index_region,
         descriptor_offset,
         index_offset,
-        4,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         index_scratch,
@@ -3484,7 +3533,7 @@ fn append_runtime_frame_fixed_index_target_address(
 ///
 ///   mov  x20, <base>                      (4)  index base default
 ///   [frame index: adrp/add x20]           (8)  frame base (RELOCATED)
-///   ldr  w17, [x20, #index_offset]        (4)  zero-extended 32-bit index
+///   ldr{b,h,w,x} x17, [x20, #index_offset] (4) exact selected-width index
 ///   movz x26, #element_byte_size          (4)
 ///   mul  x26, x17, x26                    (4)
 ///   add  <base>, <base>, x26              (4)
@@ -3497,6 +3546,7 @@ fn append_fixed_shape_index_element_address(
     base_register: u8,
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     combined_byte_offset: usize,
 ) -> Result<(), Diagnostic> {
@@ -3511,7 +3561,7 @@ fn append_fixed_shape_index_element_address(
         bytes.extend(encode_adrp_placeholder(20));
         bytes.extend(encode_add_page_offset_placeholder(20));
     }
-    bytes.extend(encode_load_w_from_x(17, 20, index_offset, 4)?);
+    append_direct_unsigned_index_load(bytes, 17, 20, index_offset, index_byte_size)?;
     bytes.extend(encode_movz(26, element_byte_size as u16));
     bytes.extend(encode_mul_x_register(26, 17, 26));
     bytes.extend(encode_add_x_register(base_register, base_register, 26));
@@ -3534,9 +3584,11 @@ fn append_double_index_address_math(
     bytes: &mut Vec<u8>,
     outer_base_register: u8,
     outer_index_offset: usize,
+    outer_index_byte_size: usize,
     outer_stride: usize,
     inner_base_register: u8,
     inner_index_offset: usize,
+    inner_index_byte_size: usize,
     inner_stride: usize,
     combined_byte_offset: usize,
 ) -> Result<(), Diagnostic> {
@@ -3547,18 +3599,20 @@ fn append_double_index_address_math(
             )));
         }
     }
-    bytes.extend(encode_load_w_from_x(
+    append_direct_unsigned_index_load(
+        bytes,
         17,
         outer_base_register,
         outer_index_offset,
-        4,
-    )?);
-    bytes.extend(encode_load_w_from_x(
+        outer_index_byte_size,
+    )?;
+    append_direct_unsigned_index_load(
+        bytes,
         26,
         inner_base_register,
         inner_index_offset,
-        4,
-    )?);
+        inner_index_byte_size,
+    )?;
     bytes.extend(encode_movz(14, outer_stride as u16));
     bytes.extend(encode_mul_x_register(17, 17, 14));
     bytes.extend(encode_movz(14, inner_stride as u16));
@@ -3566,6 +3620,34 @@ fn append_double_index_address_math(
     bytes.extend(encode_add_x_register(16, 16, 17));
     bytes.extend(encode_add_x_register(16, 16, 26));
     bytes.extend(encode_add_x_immediate(16, 16, combined_byte_offset)?);
+    Ok(())
+}
+
+fn append_direct_unsigned_index_load(
+    bytes: &mut Vec<u8>,
+    destination_register: u8,
+    base_register: u8,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<(), Diagnostic> {
+    match byte_size {
+        1 | 2 | 4 => bytes.extend(encode_load_w_from_x(
+            destination_register,
+            base_register,
+            byte_offset,
+            byte_size,
+        )?),
+        8 => bytes.extend(encode_load_x_from_x(
+            destination_register,
+            base_register,
+            byte_offset,
+        )?),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 MVP encoder cannot load {byte_size}-byte runtime indexes yet"
+            )));
+        }
+    }
     Ok(())
 }
 
@@ -3601,9 +3683,11 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_double_indexed_to_runtim
     base_byte_offset: usize,
     outer_index_offset: usize,
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_byte_size: usize,
     outer_stride: usize,
     inner_index_offset: usize,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_byte_size: usize,
     inner_stride: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -3626,9 +3710,11 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_double_indexed_to_runtim
         &mut bytes,
         outer_base,
         outer_index_offset,
+        outer_index_byte_size,
         outer_stride,
         inner_base,
         inner_index_offset,
+        inner_index_byte_size,
         inner_stride,
         base_byte_offset + field_byte_offset,
     )?;
@@ -3664,9 +3750,11 @@ pub fn encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtim
     base_byte_offset: usize,
     outer_index_offset: usize,
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_byte_size: usize,
     outer_stride: usize,
     inner_index_offset: usize,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_byte_size: usize,
     inner_stride: usize,
     field_byte_offset: usize,
     byte_count: usize,
@@ -3704,9 +3792,11 @@ pub fn encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtim
         &mut bytes,
         if outer_index_region == frame { 15 } else { 16 },
         outer_index_offset,
+        outer_index_byte_size,
         outer_stride,
         if inner_index_region == frame { 15 } else { 16 },
         inner_index_offset,
+        inner_index_byte_size,
         inner_stride,
         base_byte_offset + field_byte_offset,
     )?;
@@ -3733,8 +3823,10 @@ pub fn encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtim
 pub fn encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage(
     base_byte_offset: usize,
     outer_index_offset: usize,
+    outer_index_byte_size: usize,
     outer_stride: usize,
     inner_index_offset: usize,
+    inner_index_byte_size: usize,
     inner_stride: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -3754,9 +3846,11 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_run
         &mut bytes,
         16,
         outer_index_offset,
+        outer_index_byte_size,
         outer_stride,
         16,
         inner_index_offset,
+        inner_index_byte_size,
         inner_stride,
         base_byte_offset + field_byte_offset,
     )?;
@@ -3785,9 +3879,11 @@ pub fn encode_runtime_machine_double_indexed_integer_write(
     base_byte_offset: usize,
     outer_index_offset: usize,
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_byte_size: usize,
     outer_stride: usize,
     inner_index_offset: usize,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_byte_size: usize,
     inner_stride: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -3811,9 +3907,11 @@ pub fn encode_runtime_machine_double_indexed_integer_write(
         &mut bytes,
         outer_base,
         outer_index_offset,
+        outer_index_byte_size,
         outer_stride,
         inner_base,
         inner_index_offset,
+        inner_index_byte_size,
         inner_stride,
         base_byte_offset + field_byte_offset,
     )?;
@@ -3842,6 +3940,7 @@ pub fn encode_runtime_machine_double_indexed_integer_write(
 pub fn encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame(
     base_byte_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -3863,6 +3962,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_fr
         16,
         omega_target_operations::RuntimeStorageRegion::Machine,
         index_offset,
+        index_byte_size,
         element_byte_size,
         base_byte_offset + field_byte_offset,
     )?;
@@ -3905,9 +4005,11 @@ pub fn encode_runtime_machine_double_indexed_binary_write(
     base_byte_offset: usize,
     outer_index_offset: usize,
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_byte_size: usize,
     outer_stride: usize,
     inner_index_offset: usize,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_byte_size: usize,
     inner_stride: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -3932,9 +4034,11 @@ pub fn encode_runtime_machine_double_indexed_binary_write(
         &mut bytes,
         outer_base,
         outer_index_offset,
+        outer_index_byte_size,
         outer_stride,
         inner_base,
         inner_index_offset,
+        inner_index_byte_size,
         inner_stride,
         base_byte_offset + field_byte_offset,
     )?;
@@ -3980,11 +4084,13 @@ pub fn encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
     source_base_byte_offset: usize,
     source_index_offset: usize,
     source_index_region: omega_target_operations::RuntimeStorageRegion,
+    source_index_byte_size: usize,
     source_element_byte_size: usize,
     source_field_byte_offset: usize,
     target_base_byte_offset: usize,
     target_index_offset: usize,
     target_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_index_byte_size: usize,
     target_element_byte_size: usize,
     target_field_byte_offset: usize,
     byte_count: usize,
@@ -4004,6 +4110,7 @@ pub fn encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
         16,
         source_index_region,
         source_index_offset,
+        source_index_byte_size,
         source_element_byte_size,
         source_base_byte_offset + source_field_byte_offset,
     )?;
@@ -4017,6 +4124,7 @@ pub fn encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
         16,
         target_index_region,
         target_index_offset,
+        target_index_byte_size,
         target_element_byte_size,
         target_base_byte_offset + target_field_byte_offset,
     )?;
@@ -4050,6 +4158,7 @@ fn append_runtime_machine_index_target_address(
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> Result<(), Diagnostic> {
@@ -4057,8 +4166,8 @@ fn append_runtime_machine_index_target_address(
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_move_x_register(20, 16));
     append_add_constant_to_x_register(bytes, 16, base_byte_offset)?;
-    // Index is a 32-bit value: load it zero-extended (LDR Wt) so high bytes of the
-    // adjacent slot can't be spliced into the index. `append_load_data_from_x_offset`
+    // Load the index at its declared width and zero-extend narrow forms so
+    // adjacent slot bytes cannot be spliced into the address. `append_load_data_from_x_offset`
     // materializes a large `index_offset` (a loop counter declared AFTER a big array,
     // offset > 16380) into scratch x19 — it moves the base (x20) into x19 first, so
     // x20 is preserved. Its width is `machine_index_load_width(index_region,
@@ -4068,10 +4177,10 @@ fn append_runtime_machine_index_target_address(
         omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
             bytes.extend(encode_adrp_placeholder(20));
             bytes.extend(encode_add_page_offset_placeholder(20));
-            append_load_data_from_x_offset(bytes, 17, 20, index_offset, 4, 19)?;
+            append_load_data_from_x_offset(bytes, 17, 20, index_offset, index_byte_size, 19)?;
         }
         omega_target_operations::RuntimeStorageRegion::Machine => {
-            append_load_data_from_x_offset(bytes, 17, 20, index_offset, 4, 19)?;
+            append_load_data_from_x_offset(bytes, 17, 20, index_offset, index_byte_size, 19)?;
         }
     }
     append_scale_x_register_by_constant(bytes, 26, 17, element_byte_size)?;
@@ -4092,6 +4201,7 @@ fn append_runtime_frame_base_index_target_address(
     address_register: u8,
     base_byte_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     index_scratch: u8,
@@ -4102,7 +4212,7 @@ fn append_runtime_frame_base_index_target_address(
         address_register,
         base_byte_offset,
         index_offset,
-        4,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         index_scratch,
@@ -6711,8 +6821,30 @@ mod tests {
         assert_eq!(last & 0xFFC0_0000, 0xB940_0000, "expected LDR Wt (32-bit)");
     }
 
-    /// The frame-index target-address setup width must still match what the
-    /// encoder emits after switching the index load to 32-bit.
+    #[test]
+    fn index_load_uses_the_exact_declared_width() {
+        for index_byte_size in [1usize, 2, 4, 8] {
+            let mut bytes = Vec::new();
+            append_fixed_width_load_unsigned_index_from_x_offset(
+                &mut bytes,
+                17,
+                20,
+                0x40,
+                index_byte_size,
+                21,
+            );
+            let emitted = &bytes[bytes.len() - 4..];
+            let expected = match index_byte_size {
+                1 | 2 | 4 => encode_load_w_from_x(17, 21, 0, index_byte_size).unwrap(),
+                8 => encode_load_x_from_x(17, 21, 0).unwrap(),
+                _ => unreachable!(),
+            };
+            assert_eq!(emitted, expected, "index width {index_byte_size}");
+        }
+    }
+
+    /// The frame-index target-address setup width must match what the encoder
+    /// emits for every exact-width index load.
     #[test]
     fn frame_index_setup_width_matches_emission() {
         for &(element_size, field_offset) in &[(1usize, 0usize), (4, 0), (8, 8), (24, 16), (40, 0)]
@@ -6723,6 +6855,7 @@ mod tests {
                 16,
                 0x10,
                 0x40,
+                4,
                 element_size,
                 field_offset,
                 17,
@@ -6746,6 +6879,7 @@ mod tests {
             omega_target_operations::RuntimeStorageRegion::Machine,
             0x10,
             0x40,
+            4,
             4,
             2,
             17,
@@ -6779,6 +6913,7 @@ mod tests {
             let bytes = encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee(
                 0x10,
                 0x40,
+                4,
                 element_size,
                 source_field,
                 pointer_offset,
@@ -6878,6 +7013,7 @@ mod tests {
             let bytes = encode_runtime_frame_base_indexed_integer_write(
                 base,
                 index_off,
+                4,
                 element_size,
                 field,
                 value_size,
@@ -6889,6 +7025,7 @@ mod tests {
                 widths::runtime_frame_base_indexed_integer_write_width(
                     base,
                     index_off,
+                    4,
                     element_size,
                     field,
                     value_size,

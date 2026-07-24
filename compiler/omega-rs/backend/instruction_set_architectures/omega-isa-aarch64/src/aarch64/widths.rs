@@ -760,35 +760,18 @@ pub fn runtime_frame_indexed_integer_write_width(
 pub fn runtime_frame_base_indexed_integer_write_width(
     base_byte_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
 ) -> usize {
-    runtime_frame_base_index_setup_width(
-        base_byte_offset,
-        index_offset,
-        element_byte_size,
-        field_byte_offset,
-    ) + runtime_store_data_width(byte_size)
-}
-
-/// Width of `append_runtime_frame_base_index_target_address` (inline frame
-/// fixed array element address -> x16): page pair + move (12), base-offset
-/// add, the 32-bit index load, the index scale, the base+index add (4), and
-/// the field-offset add.
-pub(in crate::aarch64) fn runtime_frame_base_index_setup_width(
-    base_byte_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-) -> usize {
     runtime_frame_base_index_setup_width_with_index_width(
         base_byte_offset,
         index_offset,
-        4,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
-    )
+    ) + runtime_store_data_width(byte_size)
 }
 
 fn runtime_frame_base_index_setup_width_with_index_width(
@@ -808,6 +791,7 @@ pub fn runtime_machine_indexed_integer_write_width(
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -815,7 +799,7 @@ pub fn runtime_machine_indexed_integer_write_width(
     // Fixed 16 (adrp+add 8, mov x20 4, add x16,x16,x26 4) + region/offset-aware index
     // load + add-constant(base) + scale + add-constant(field) + the store. Small
     // offsets collapse to the historical 20 (Machine) / 28 (RuntimeFrame).
-    16 + machine_index_load_width(index_region, index_offset)
+    16 + machine_index_load_width(index_region, index_offset, index_byte_size)
         + add_constant_width(base_byte_offset)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
@@ -857,6 +841,7 @@ pub fn runtime_frame_base_indexed_binary_write_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     base_byte_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -865,9 +850,7 @@ pub fn runtime_frame_base_indexed_binary_write_width(
     right: RuntimeValueOperandHandle,
 ) -> usize {
     16 + add_constant_width(base_byte_offset)
-        // Index is loaded as a 32-bit (4-byte) value, see
-        // append_runtime_frame_base_index_target_address.
-        + load_data_offset_width(index_offset, 4)
+        + load_data_offset_width(index_offset, index_byte_size)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
         + runtime_value_operand_width(runtime_value_operands, left)
@@ -891,6 +874,7 @@ pub fn runtime_machine_indexed_binary_write_width(
     base_byte_offset: usize,
     _index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -909,6 +893,7 @@ pub fn runtime_machine_indexed_binary_write_width(
         runtime_value_operands,
         base_byte_offset,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
         byte_size,
@@ -1071,13 +1056,14 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
     // Target adrp lands after the index-address setup (12) + `add x16,#base` + the
     // index LOAD (region- and offset-aware; a large index materializes) + scale +
     // `add x16,x16,x26` (4) + `add x16,#field`. MUST match the encoder / `..._width`.
-    16 + machine_index_load_width(index_region, index_offset)
+    16 + machine_index_load_width(index_region, index_offset, index_byte_size)
         + add_constant_width(base_byte_offset)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
@@ -1640,6 +1626,7 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_widt
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -1648,7 +1635,7 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_widt
     // Fixed part = index-address setup (adrp+add+mov = 12) + the index LOAD +
     // `add x16,x16,x26` (4) + the target-region adrp+add (8). The index load is
     // region- and offset-aware (a large index materializes); MUST match the encoder.
-    24 + machine_index_load_width(index_region, index_offset)
+    24 + machine_index_load_width(index_region, index_offset, index_byte_size)
         + add_constant_width(base_byte_offset)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
@@ -1665,11 +1652,12 @@ pub fn runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_widt
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_count: usize,
 ) -> usize {
-    24 + machine_index_load_width(index_region, index_offset)
+    24 + machine_index_load_width(index_region, index_offset, index_byte_size)
         + add_constant_width(base_byte_offset)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
@@ -1690,6 +1678,7 @@ pub fn runtime_machine_indexed_address_to_runtime_frame_write_width(
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -1698,6 +1687,7 @@ pub fn runtime_machine_indexed_address_to_runtime_frame_write_width(
         base_byte_offset,
         index_region,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
     ) + 8
@@ -1708,10 +1698,11 @@ pub fn runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
-    16 + machine_index_load_width(index_region, index_offset)
+    16 + machine_index_load_width(index_region, index_offset, index_byte_size)
         + add_constant_width(base_byte_offset)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
@@ -1888,8 +1879,8 @@ pub(in crate::aarch64) fn store_data_offset_width(byte_offset: usize, byte_size:
     }
 }
 
-/// Bytes `append_runtime_machine_index_target_address` spends LOADING the 32-bit
-/// index, region-aware and offset-aware. Both regions load via
+/// Bytes `append_runtime_machine_index_target_address` spends loading the
+/// declared-width index, region-aware and offset-aware. Both regions load via
 /// `append_load_data_from_x_offset` (`load_data_offset_width`), which materializes a
 /// large `index_offset` (a loop counter declared after a big array); the
 /// `RuntimeFrame` case first re-derives the frame base with an `adrp`+`add` page
@@ -1899,13 +1890,14 @@ pub(in crate::aarch64) fn store_data_offset_width(byte_offset: usize, byte_size:
 pub(in crate::aarch64) fn machine_index_load_width(
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
 ) -> usize {
     match index_region {
         omega_target_operations::RuntimeStorageRegion::Machine => {
-            load_data_offset_width(index_offset, 4)
+            load_data_offset_width(index_offset, index_byte_size)
         }
         omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
-            8 + load_data_offset_width(index_offset, 4)
+            8 + load_data_offset_width(index_offset, index_byte_size)
         }
     }
 }

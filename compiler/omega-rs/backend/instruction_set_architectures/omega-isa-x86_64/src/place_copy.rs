@@ -16,7 +16,7 @@
 //! Index discipline (the ScaledIndex rung, extended by the double-index
 //! rung to TWO): a place may carry AT MOST TWO
 //! runtime scaled index, its slot readable from the place's own base region
-//! -- the index loads into r11 (32-bit, zero-extended) and scales IMMEDIATELY
+//! -- the index loads into r11 at its declared width, zero-extended, and scales IMMEDIATELY
 //! AFTER the base materializes and BEFORE any deref consumes the base, then
 //! `add reg, r11` fires at the step's position in the walk. On the
 //! shared-base path an index is legal only on a side that DEREFS (a direct
@@ -163,11 +163,18 @@ fn prepare_place_index(
         PlaceStep::ScaledIndex {
             index_region,
             index_offset,
+            index_byte_size,
             element_byte_size,
-        } => Some((*index_region, *index_offset, *element_byte_size)),
+        } => Some((
+            *index_region,
+            *index_offset,
+            *index_byte_size,
+            *element_byte_size,
+        )),
         _ => None,
     });
-    let Some((index_region, index_offset, element_byte_size)) = indices.next() else {
+    let Some((index_region, index_offset, index_byte_size, element_byte_size)) = indices.next()
+    else {
         return Ok(());
     };
     let second = indices.next();
@@ -179,29 +186,45 @@ fn prepare_place_index(
     }
     if index_region == place.region {
         match base_register {
-            AddressRegister::Source => super::append_load_r11_from_r14(bytes, index_offset)?,
-            AddressRegister::Target => super::append_load_index_r11_from_r15(bytes, index_offset)?,
+            AddressRegister::Source => super::append_load_unsigned_reg_from_r14(
+                bytes,
+                super::Reg64::R11,
+                index_offset,
+                index_byte_size,
+            )?,
+            AddressRegister::Target => super::append_load_unsigned_reg_from_r15(
+                bytes,
+                super::Reg64::R11,
+                index_offset,
+                index_byte_size,
+            )?,
         }
     } else {
         sites.record(bytes.len(), index_sides.0);
         super::append_mov_r11_imm64(bytes, 0);
-        super::append_load_r11_from_r11(bytes, index_offset)?;
+        super::append_load_unsigned_r11_from_r11(bytes, index_offset, index_byte_size)?;
     }
     super::append_imul_r11_imm32(bytes, super::element_scale(element_byte_size)?);
-    if let Some((second_region, second_offset, second_element)) = second {
+    if let Some((second_region, second_offset, second_byte_size, second_element)) = second {
         if second_region == place.region {
             match base_register {
-                AddressRegister::Source => {
-                    super::append_load_index_r10_from_r14(bytes, second_offset)?
-                }
-                AddressRegister::Target => {
-                    super::append_load_index_r10_from_r15(bytes, second_offset)?
-                }
+                AddressRegister::Source => super::append_load_unsigned_reg_from_r14(
+                    bytes,
+                    super::Reg64::R10,
+                    second_offset,
+                    second_byte_size,
+                )?,
+                AddressRegister::Target => super::append_load_unsigned_reg_from_r15(
+                    bytes,
+                    super::Reg64::R10,
+                    second_offset,
+                    second_byte_size,
+                )?,
             }
         } else {
             sites.record(bytes.len(), index_sides.1);
             super::append_mov_r10_imm64(bytes, 0);
-            super::append_load_index_r10_from_r10(bytes, second_offset)?;
+            super::append_load_unsigned_r10_from_r10(bytes, second_offset, second_byte_size)?;
         }
         super::append_imul_r10_imm32(bytes, super::element_scale(second_element)?);
     }
@@ -371,13 +394,18 @@ pub fn place_binary_index_base_positions(
 ) -> impl Iterator<Item = (usize, omega_target_operations::RuntimeStorageRegion)> + '_ {
     let mut width = 10usize; // after the target base mov
     target.steps().iter().filter_map(move |step| match step {
-        PlaceStep::ScaledIndex { index_region, .. } => {
+        PlaceStep::ScaledIndex {
+            index_region,
+            index_byte_size,
+            ..
+        } => {
+            let load_width = super::unsigned_load_width(*index_byte_size);
             let site = if *index_region != target.region {
                 let position = width;
-                width += 17 + 7; // mov imm64 + load + imul
+                width += 10 + load_width + 7; // mov imm64 + load + imul
                 Some((position, *index_region))
             } else {
-                width += 7 + 7; // load off the base + imul
+                width += load_width + 7; // load off the base + imul
                 None
             };
             site
@@ -397,11 +425,15 @@ pub fn place_binary_operand_start_width(target: &Place) -> usize {
         match step {
             PlaceStep::ConstOffset(_) => {}
             PlaceStep::Deref => width += 7,
-            PlaceStep::ScaledIndex { index_region, .. } => {
+            PlaceStep::ScaledIndex {
+                index_region,
+                index_byte_size,
+                ..
+            } => {
                 width += if *index_region == target.region {
-                    7 // same-region 32-bit ZX load off the base register
+                    super::unsigned_load_width(*index_byte_size)
                 } else {
-                    17 // own-base mov imm64 + load through it
+                    10 + super::unsigned_load_width(*index_byte_size)
                 };
                 width += 7; // imul
                 width += 3; // add at the walk position
@@ -1047,6 +1079,7 @@ mod tests {
             .with_step(PlaceStep::ScaledIndex {
                 index_region: RuntimeStorageRegion::RuntimeFrame,
                 index_offset: 56,
+                index_byte_size: 4,
                 element_byte_size: 4,
             })
             .unwrap()
@@ -1057,7 +1090,13 @@ mod tests {
 
         let mut expected = Vec::new();
         super::super::append_mov_r15_imm64(&mut expected, 0);
-        super::super::append_load_index_r11_from_r15(&mut expected, 56).expect("index");
+        super::super::append_load_unsigned_reg_from_r15(
+            &mut expected,
+            super::super::Reg64::R11,
+            56,
+            4,
+        )
+        .expect("index");
         super::super::append_imul_r11_imm32(&mut expected, 4);
         super::super::append_load_r14_from_r15(&mut expected, 48).expect("hop");
         super::super::append_add_r14_r11(&mut expected);
@@ -1082,6 +1121,7 @@ mod tests {
             .with_step(PlaceStep::ScaledIndex {
                 index_region: RuntimeStorageRegion::RuntimeFrame,
                 index_offset: 56,
+                index_byte_size: 4,
                 element_byte_size: 8,
             })
             .unwrap();
@@ -1089,7 +1129,13 @@ mod tests {
 
         let mut expected = Vec::new();
         super::super::append_mov_r14_imm64(&mut expected, 0);
-        super::super::append_load_r11_from_r14(&mut expected, 56).expect("index");
+        super::super::append_load_unsigned_reg_from_r14(
+            &mut expected,
+            super::super::Reg64::R11,
+            56,
+            4,
+        )
+        .expect("index");
         super::super::append_imul_r11_imm32(&mut expected, 8);
         super::super::append_load_r15_from_r14(&mut expected, 48).expect("hop");
         super::super::append_add_r15_r11(&mut expected);
@@ -1114,6 +1160,7 @@ mod tests {
             .with_step(PlaceStep::ScaledIndex {
                 index_region: RuntimeStorageRegion::RuntimeFrame,
                 index_offset: 16,
+                index_byte_size: 4,
                 element_byte_size: 4,
             })
             .unwrap()
@@ -1126,7 +1173,7 @@ mod tests {
         super::super::append_mov_r14_imm64(&mut expected, 0); // machine base (Source site @0)
         let index_base_offset = expected.len();
         super::super::append_mov_r11_imm64(&mut expected, 0); // frame base for the index
-        super::super::append_load_r11_from_r11(&mut expected, 16).expect("index");
+        super::super::append_load_unsigned_r11_from_r11(&mut expected, 16, 4).expect("index");
         super::super::append_imul_r11_imm32(&mut expected, 4);
         super::super::append_add_r14_r11(&mut expected);
         let target_base_offset = expected.len();
@@ -1161,6 +1208,7 @@ mod tests {
                 .with_step(PlaceStep::ScaledIndex {
                     index_region: RuntimeStorageRegion::RuntimeFrame,
                     index_offset: 8,
+                    index_byte_size: 4,
                     element_byte_size: 4,
                 })
                 .unwrap()
@@ -1171,6 +1219,7 @@ mod tests {
             .with_step(PlaceStep::ScaledIndex {
                 index_region: RuntimeStorageRegion::RuntimeFrame,
                 index_offset: 16,
+                index_byte_size: 4,
                 element_byte_size: 4,
             })
             .unwrap();
@@ -1183,6 +1232,7 @@ mod tests {
             .with_step(PlaceStep::ScaledIndex {
                 index_region: RuntimeStorageRegion::RuntimeFrame,
                 index_offset: 8,
+                index_byte_size: 4,
                 element_byte_size: 4,
             })
             .unwrap();
@@ -1199,6 +1249,7 @@ mod tests {
             .with_step(PlaceStep::ScaledIndex {
                 index_region: RuntimeStorageRegion::Machine,
                 index_offset: 8,
+                index_byte_size: 4,
                 element_byte_size: 16,
             })
             .unwrap()
@@ -1207,6 +1258,7 @@ mod tests {
             .with_step(PlaceStep::ScaledIndex {
                 index_region: RuntimeStorageRegion::Machine,
                 index_offset: 12,
+                index_byte_size: 4,
                 element_byte_size: 4,
             })
             .unwrap();
@@ -1215,9 +1267,21 @@ mod tests {
 
         let mut expected = Vec::new();
         super::super::append_mov_r14_imm64(&mut expected, 0);
-        super::super::append_load_r11_from_r14(&mut expected, 8).expect("first index");
+        super::super::append_load_unsigned_reg_from_r14(
+            &mut expected,
+            super::super::Reg64::R11,
+            8,
+            4,
+        )
+        .expect("first index");
         super::super::append_imul_r11_imm32(&mut expected, 16);
-        super::super::append_load_index_r10_from_r14(&mut expected, 12).expect("second index");
+        super::super::append_load_unsigned_reg_from_r14(
+            &mut expected,
+            super::super::Reg64::R10,
+            12,
+            4,
+        )
+        .expect("second index");
         super::super::append_imul_r10_imm32(&mut expected, 4);
         super::super::append_add_r14_r11(&mut expected);
         super::super::append_add_r14_r10(&mut expected);
@@ -1244,12 +1308,14 @@ mod tests {
             .with_step(PlaceStep::ScaledIndex {
                 index_region: RuntimeStorageRegion::RuntimeFrame,
                 index_offset: 8,
+                index_byte_size: 4,
                 element_byte_size: 16,
             })
             .unwrap()
             .with_step(PlaceStep::ScaledIndex {
                 index_region: RuntimeStorageRegion::RuntimeFrame,
                 index_offset: 12,
+                index_byte_size: 4,
                 element_byte_size: 4,
             })
             .unwrap();
@@ -1259,10 +1325,11 @@ mod tests {
         let mut expected = Vec::new();
         super::super::append_mov_r14_imm64(&mut expected, 0);
         super::super::append_mov_r11_imm64(&mut expected, 0);
-        super::super::append_load_r11_from_r11(&mut expected, 8).expect("first index");
+        super::super::append_load_unsigned_r11_from_r11(&mut expected, 8, 4).expect("first index");
         super::super::append_imul_r11_imm32(&mut expected, 16);
         super::super::append_mov_r10_imm64(&mut expected, 0);
-        super::super::append_load_index_r10_from_r10(&mut expected, 12).expect("second index");
+        super::super::append_load_unsigned_r10_from_r10(&mut expected, 12, 4)
+            .expect("second index");
         super::super::append_imul_r10_imm32(&mut expected, 4);
         super::super::append_add_r14_r11(&mut expected);
         super::super::append_add_r14_r10(&mut expected);
@@ -1296,6 +1363,7 @@ mod tests {
                 .with_step(PlaceStep::ScaledIndex {
                     index_region: RuntimeStorageRegion::Machine,
                     index_offset: offset,
+                    index_byte_size: 4,
                     element_byte_size: 4,
                 })
                 .unwrap();
@@ -1334,6 +1402,7 @@ mod tests {
             .with_step(PlaceStep::ScaledIndex {
                 index_region: RuntimeStorageRegion::Machine,
                 index_offset: 8,
+                index_byte_size: 4,
                 element_byte_size: 4,
             })
             .unwrap()
@@ -1343,11 +1412,44 @@ mod tests {
 
         let mut expected = Vec::new();
         super::super::append_mov_r15_imm64(&mut expected, 0);
-        super::super::append_load_index_r11_from_r15(&mut expected, 8).expect("index");
+        super::super::append_load_unsigned_reg_from_r15(
+            &mut expected,
+            super::super::Reg64::R11,
+            8,
+            4,
+        )
+        .expect("index");
         super::super::append_imul_r11_imm32(&mut expected, 4);
         super::super::append_add_r15_r11(&mut expected);
         super::super::append_mov_rax_imm64(&mut expected, 9);
         super::super::append_store_rax_to_r15(&mut expected, 34, 1).expect("store");
         assert_eq!(bytes, expected);
+    }
+
+    /// The selected index slot width reaches the actual load. Narrow slots
+    /// zero-extend only their own bytes; a u64 index keeps all high bits.
+    #[test]
+    fn indexed_place_loads_exact_declared_width() {
+        for (index_byte_size, opcode) in [
+            (1usize, &[0x45, 0x0f, 0xb6, 0x9f][..]),
+            (2, &[0x45, 0x0f, 0xb7, 0x9f][..]),
+            (4, &[0x45, 0x8b, 0x9f][..]),
+            (8, &[0x4d, 0x8b, 0x9f][..]),
+        ] {
+            let target = Place::at(RuntimeStorageRegion::Machine, 32)
+                .with_step(PlaceStep::ScaledIndex {
+                    index_region: RuntimeStorageRegion::Machine,
+                    index_offset: 8,
+                    index_byte_size,
+                    element_byte_size: 4,
+                })
+                .unwrap();
+            let (bytes, _) = encode_place_integer_write(&target, 9, 1).expect("encodes");
+            assert_eq!(
+                &bytes[10..10 + opcode.len()],
+                opcode,
+                "index width {index_byte_size}"
+            );
+        }
     }
 }

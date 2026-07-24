@@ -164,6 +164,7 @@ fn indexed_place(
     descriptor_offset: usize,
     index_region: RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> omega_abstract_operations::Place {
@@ -173,6 +174,7 @@ fn indexed_place(
             place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
                 index_region,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
             })
         })
@@ -190,6 +192,7 @@ pub(crate) fn copy_places_from_indexed(
     descriptor_offset: usize,
     index_region: RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_region: RuntimeStorageRegion,
@@ -201,6 +204,7 @@ pub(crate) fn copy_places_from_indexed(
             descriptor_offset,
             index_region,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
         ),
@@ -217,6 +221,7 @@ pub(crate) fn copy_places_to_indexed(
     descriptor_offset: usize,
     index_region: RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_count: usize,
@@ -227,6 +232,7 @@ pub(crate) fn copy_places_to_indexed(
             descriptor_offset,
             index_region,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
         ),
@@ -241,6 +247,7 @@ fn machine_indexed_place(
     base_byte_offset: usize,
     index_region: RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> omega_abstract_operations::Place {
@@ -248,6 +255,7 @@ fn machine_indexed_place(
         .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
             index_region,
             index_offset,
+            index_byte_size,
             element_byte_size,
         })
         .and_then(|place| {
@@ -265,9 +273,11 @@ fn double_indexed_place(
     base_byte_offset: usize,
     outer_index_region: RuntimeStorageRegion,
     outer_index_offset: usize,
+    outer_index_byte_size: usize,
     outer_stride: usize,
     inner_index_region: RuntimeStorageRegion,
     inner_index_offset: usize,
+    inner_index_byte_size: usize,
     inner_stride: usize,
     field_byte_offset: usize,
 ) -> omega_abstract_operations::Place {
@@ -275,12 +285,14 @@ fn double_indexed_place(
         .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
             index_region: outer_index_region,
             index_offset: outer_index_offset,
+            index_byte_size: outer_index_byte_size,
             element_byte_size: outer_stride,
         })
         .and_then(|place| {
             place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
                 index_region: inner_index_region,
                 index_offset: inner_index_offset,
+                index_byte_size: inner_index_byte_size,
                 element_byte_size: inner_stride,
             })
         })
@@ -298,9 +310,11 @@ pub(crate) fn copy_places_from_machine_double_indexed(
     base_byte_offset: usize,
     outer_index_region: RuntimeStorageRegion,
     outer_index_offset: usize,
+    outer_index_byte_size: usize,
     outer_stride: usize,
     inner_index_region: RuntimeStorageRegion,
     inner_index_offset: usize,
+    inner_index_byte_size: usize,
     inner_stride: usize,
     field_byte_offset: usize,
     target_region: RuntimeStorageRegion,
@@ -313,9 +327,11 @@ pub(crate) fn copy_places_from_machine_double_indexed(
             base_byte_offset,
             outer_index_region,
             outer_index_offset,
+            outer_index_byte_size,
             outer_stride,
             inner_index_region,
             inner_index_offset,
+            inner_index_byte_size,
             inner_stride,
             field_byte_offset,
         ),
@@ -436,6 +452,7 @@ pub(in crate::selection) fn select_computed_host_argument_write(
                     indexed.descriptor_offset,
                     indexed.index_region,
                     indexed.index_offset,
+                    indexed.index_byte_size,
                     indexed.element_byte_size,
                     indexed.field_byte_offset,
                     RuntimeStorageRegion::RuntimeFrame,
@@ -638,6 +655,7 @@ pub(crate) fn write_place_binary_frame_indexed(
     descriptor_offset: usize,
     index_region: RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -655,6 +673,7 @@ pub(crate) fn write_place_binary_frame_indexed(
             place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
                 index_region,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
             })
         })
@@ -680,6 +699,7 @@ pub(crate) fn write_place_binary_base_indexed(
     base_byte_offset: usize,
     index_region: RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -692,6 +712,7 @@ pub(crate) fn write_place_binary_base_indexed(
             .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
                 index_region,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
             })
             .and_then(|place| {
@@ -715,9 +736,11 @@ pub(crate) fn write_place_binary_double_indexed(
     base_byte_offset: usize,
     outer_index_region: RuntimeStorageRegion,
     outer_index_offset: usize,
+    outer_index_byte_size: usize,
     outer_stride: usize,
     inner_index_region: RuntimeStorageRegion,
     inner_index_offset: usize,
+    inner_index_byte_size: usize,
     inner_stride: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -731,9 +754,11 @@ pub(crate) fn write_place_binary_double_indexed(
             base_byte_offset,
             outer_index_region,
             outer_index_offset,
+            outer_index_byte_size,
             outer_stride,
             inner_index_region,
             inner_index_offset,
+            inner_index_byte_size,
             inner_stride,
             field_byte_offset,
         ),
@@ -790,6 +815,7 @@ pub(crate) fn write_place_integer_frame_indexed(
     descriptor_offset: usize,
     index_region: RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     value: i64,
@@ -805,6 +831,7 @@ pub(crate) fn write_place_integer_frame_indexed(
             place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
                 index_region,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
             })
         })
@@ -861,6 +888,7 @@ pub(crate) fn write_place_string_frame_indexed(
     descriptor_offset: usize,
     index_region: RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     data: omega_abstract_operations::AbstractDataObjectHandle,
@@ -876,6 +904,7 @@ pub(crate) fn write_place_string_frame_indexed(
             place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
                 index_region,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
             })
         })
@@ -893,6 +922,7 @@ pub(crate) fn write_place_string_frame_indexed(
 pub(crate) fn write_place_string_machine_indexed(
     base_byte_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     data: omega_abstract_operations::AbstractDataObjectHandle,
@@ -903,6 +933,7 @@ pub(crate) fn write_place_string_machine_indexed(
             base_byte_offset,
             RuntimeStorageRegion::RuntimeFrame,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
         ),
@@ -938,6 +969,7 @@ pub(crate) fn text_place_frame_indexed(
     descriptor_offset: usize,
     index_region: RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> omega_abstract_operations::Place {
@@ -947,6 +979,7 @@ pub(crate) fn text_place_frame_indexed(
             place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
                 index_region,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
             })
         })
@@ -1049,6 +1082,7 @@ pub(crate) fn write_place_address_frame_indexed_deref(
     descriptor_offset: usize,
     index_region: RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -1063,6 +1097,7 @@ pub(crate) fn write_place_address_frame_indexed_deref(
             place.with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
                 index_region,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
             })
         })
@@ -1079,6 +1114,7 @@ pub(crate) fn write_place_address_frame_indexed_deref(
 pub(crate) fn write_place_address_base_indexed(
     base_byte_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -1091,6 +1127,7 @@ pub(crate) fn write_place_address_base_indexed(
         .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
             index_region: RuntimeStorageRegion::RuntimeFrame,
             index_offset,
+            index_byte_size,
             element_byte_size,
         })
         .and_then(|place| {
@@ -1107,6 +1144,7 @@ pub(crate) fn write_place_address_machine_indexed(
     base_byte_offset: usize,
     index_region: RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -1116,6 +1154,7 @@ pub(crate) fn write_place_address_machine_indexed(
             base_byte_offset,
             index_region,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
         ),
@@ -1164,6 +1203,7 @@ pub(crate) fn write_place_integer_base_indexed(
     base_byte_offset: usize,
     index_region: RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     value: i64,
@@ -1174,6 +1214,7 @@ pub(crate) fn write_place_integer_base_indexed(
             .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
                 index_region,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
             })
             .and_then(|place| {
@@ -1193,9 +1234,11 @@ pub(crate) fn write_place_integer_double_indexed(
     base_byte_offset: usize,
     outer_index_region: RuntimeStorageRegion,
     outer_index_offset: usize,
+    outer_index_byte_size: usize,
     outer_stride: usize,
     inner_index_region: RuntimeStorageRegion,
     inner_index_offset: usize,
+    inner_index_byte_size: usize,
     inner_stride: usize,
     field_byte_offset: usize,
     value: i64,
@@ -1207,9 +1250,11 @@ pub(crate) fn write_place_integer_double_indexed(
             base_byte_offset,
             outer_index_region,
             outer_index_offset,
+            outer_index_byte_size,
             outer_stride,
             inner_index_region,
             inner_index_offset,
+            inner_index_byte_size,
             inner_stride,
             field_byte_offset,
         ),
@@ -1226,9 +1271,11 @@ pub(crate) fn copy_places_to_machine_double_indexed(
     base_byte_offset: usize,
     outer_index_region: RuntimeStorageRegion,
     outer_index_offset: usize,
+    outer_index_byte_size: usize,
     outer_stride: usize,
     inner_index_region: RuntimeStorageRegion,
     inner_index_offset: usize,
+    inner_index_byte_size: usize,
     inner_stride: usize,
     field_byte_offset: usize,
     byte_count: usize,
@@ -1240,9 +1287,11 @@ pub(crate) fn copy_places_to_machine_double_indexed(
             base_byte_offset,
             outer_index_region,
             outer_index_offset,
+            outer_index_byte_size,
             outer_stride,
             inner_index_region,
             inner_index_offset,
+            inner_index_byte_size,
             inner_stride,
             field_byte_offset,
         ),
@@ -1257,11 +1306,13 @@ pub(crate) fn copy_places_machine_indexed_pair(
     source_base_byte_offset: usize,
     source_index_region: RuntimeStorageRegion,
     source_index_offset: usize,
+    source_index_byte_size: usize,
     source_element_byte_size: usize,
     source_field_byte_offset: usize,
     target_base_byte_offset: usize,
     target_index_region: RuntimeStorageRegion,
     target_index_offset: usize,
+    target_index_byte_size: usize,
     target_element_byte_size: usize,
     target_field_byte_offset: usize,
     byte_count: usize,
@@ -1271,6 +1322,7 @@ pub(crate) fn copy_places_machine_indexed_pair(
             source_base_byte_offset,
             source_index_region,
             source_index_offset,
+            source_index_byte_size,
             source_element_byte_size,
             source_field_byte_offset,
         ),
@@ -1278,6 +1330,7 @@ pub(crate) fn copy_places_machine_indexed_pair(
             target_base_byte_offset,
             target_index_region,
             target_index_offset,
+            target_index_byte_size,
             target_element_byte_size,
             target_field_byte_offset,
         ),
@@ -1290,8 +1343,10 @@ pub(crate) fn copy_places_machine_indexed_pair(
 pub(crate) fn copy_places_from_frame_base_double_indexed(
     base_byte_offset: usize,
     outer_index_offset: usize,
+    outer_index_byte_size: usize,
     outer_stride: usize,
     inner_index_offset: usize,
+    inner_index_byte_size: usize,
     inner_stride: usize,
     field_byte_offset: usize,
     target_region: RuntimeStorageRegion,
@@ -1304,9 +1359,11 @@ pub(crate) fn copy_places_from_frame_base_double_indexed(
             base_byte_offset,
             RuntimeStorageRegion::RuntimeFrame,
             outer_index_offset,
+            outer_index_byte_size,
             outer_stride,
             RuntimeStorageRegion::RuntimeFrame,
             inner_index_offset,
+            inner_index_byte_size,
             inner_stride,
             field_byte_offset,
         ),
@@ -1321,6 +1378,7 @@ pub(crate) fn copy_places_from_machine_indexed(
     base_byte_offset: usize,
     index_region: RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_region: RuntimeStorageRegion,
@@ -1332,6 +1390,7 @@ pub(crate) fn copy_places_from_machine_indexed(
             base_byte_offset,
             index_region,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
         ),
@@ -1348,6 +1407,7 @@ pub(crate) fn copy_places_to_machine_indexed(
     base_byte_offset: usize,
     index_region: RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_count: usize,
@@ -1358,6 +1418,7 @@ pub(crate) fn copy_places_to_machine_indexed(
             base_byte_offset,
             index_region,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
         ),
@@ -1371,6 +1432,7 @@ pub(crate) fn copy_places_indexed_to_pointee(
     descriptor_offset: usize,
     index_region: RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     source_field_byte_offset: usize,
     pointer_byte_offset: usize,
@@ -1382,6 +1444,7 @@ pub(crate) fn copy_places_indexed_to_pointee(
             descriptor_offset,
             index_region,
             index_offset,
+            index_byte_size,
             element_byte_size,
             source_field_byte_offset,
         ),
@@ -3041,6 +3104,7 @@ fn select_runtime_dispatch_local_initializer_write(
                         indexed.base_byte_offset,
                         indexed.index_region,
                         indexed.index_offset,
+                        indexed.index_byte_size,
                         indexed.element_byte_size,
                         indexed.field_byte_offset,
                         slot.byte_offset,
@@ -3133,6 +3197,7 @@ fn select_runtime_dispatch_local_initializer_write(
                     indexed.base_byte_offset,
                     indexed.index_region,
                     indexed.index_offset,
+                    indexed.index_byte_size,
                     indexed.element_byte_size,
                     indexed.field_byte_offset,
                     slot.byte_offset,
@@ -3142,6 +3207,7 @@ fn select_runtime_dispatch_local_initializer_write(
                     indexed.base_byte_offset,
                     indexed.index_region,
                     indexed.index_offset,
+                    indexed.index_byte_size,
                     indexed.element_byte_size,
                     indexed.field_byte_offset,
                     omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,

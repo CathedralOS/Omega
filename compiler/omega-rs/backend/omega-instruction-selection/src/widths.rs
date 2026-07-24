@@ -860,6 +860,7 @@ pub fn runtime_text_literal_append_to_runtime_pointee_width(
 
 pub fn runtime_text_literal_append_to_runtime_frame_indexed_width(
     architecture: Architecture,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     literal: &str,
@@ -873,6 +874,7 @@ pub fn runtime_text_literal_append_to_runtime_frame_indexed_width(
             )
         }
         Architecture::X86_64 => x86_64::runtime_text_literal_append_to_runtime_frame_indexed_width(
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
             literal,
@@ -1553,6 +1555,7 @@ pub fn runtime_value_operand_width(
 
 pub fn runtime_frame_indexed_integer_write_width(
     architecture: Architecture,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -1564,6 +1567,7 @@ pub fn runtime_frame_indexed_integer_write_width(
             byte_size,
         ),
         Architecture::X86_64 => x86_64::runtime_frame_indexed_integer_write_width(
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
             byte_size,
@@ -1575,6 +1579,7 @@ pub fn runtime_frame_base_indexed_integer_write_width(
     architecture: Architecture,
     base_byte_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -1583,12 +1588,14 @@ pub fn runtime_frame_base_indexed_integer_write_width(
         Architecture::Aarch64 => aarch64::runtime_frame_base_indexed_integer_write_width(
             base_byte_offset,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
             byte_size,
         ),
         Architecture::X86_64 => x86_64::runtime_frame_base_indexed_integer_write_width(
             base_byte_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
             byte_size,
@@ -1601,6 +1608,7 @@ pub fn runtime_frame_base_indexed_binary_write_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     base_byte_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -1613,6 +1621,7 @@ pub fn runtime_frame_base_indexed_binary_write_width(
             runtime_value_operands,
             base_byte_offset,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
             byte_size,
@@ -1622,6 +1631,7 @@ pub fn runtime_frame_base_indexed_binary_write_width(
         ),
         Architecture::X86_64 => x86_64::runtime_frame_base_indexed_binary_write_width(
             runtime_value_operands,
+            index_byte_size,
             byte_size,
             left,
             operator,
@@ -1637,6 +1647,7 @@ pub fn runtime_machine_indexed_binary_write_width(
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -1650,6 +1661,7 @@ pub fn runtime_machine_indexed_binary_write_width(
             base_byte_offset,
             index_region,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
             byte_size,
@@ -1667,6 +1679,7 @@ pub fn runtime_machine_indexed_binary_write_width(
             x86_64::runtime_machine_indexed_binary_write_width(
                 runtime_value_operands,
                 index_region,
+                index_byte_size,
                 byte_size,
                 left,
                 operator,
@@ -1682,6 +1695,7 @@ pub fn runtime_frame_base_indexed_binary_left_operand_offset(
     architecture: Architecture,
     base_byte_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
@@ -1692,6 +1706,7 @@ pub fn runtime_frame_base_indexed_binary_left_operand_offset(
             aarch64::runtime_frame_base_indexed_integer_write_width(
                 base_byte_offset,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
                 0,
@@ -1704,7 +1719,7 @@ pub fn runtime_frame_base_indexed_binary_left_operand_offset(
                 element_byte_size,
                 field_byte_offset,
             );
-            x86_64::runtime_frame_base_indexed_binary_left_operand_offset()
+            x86_64::runtime_frame_base_indexed_binary_left_operand_offset(index_byte_size)
         }
     }
 }
@@ -1714,6 +1729,7 @@ pub fn runtime_machine_indexed_integer_write_width(
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -1723,6 +1739,7 @@ pub fn runtime_machine_indexed_integer_write_width(
             base_byte_offset,
             index_region,
             index_offset,
+            index_byte_size,
             element_byte_size,
             field_byte_offset,
             byte_size,
@@ -1731,6 +1748,7 @@ pub fn runtime_machine_indexed_integer_write_width(
             let _ = (base_byte_offset, index_offset);
             x86_64::runtime_machine_indexed_integer_write_width(
                 index_region,
+                index_byte_size,
                 element_byte_size,
                 byte_size,
             )
@@ -1756,6 +1774,7 @@ pub fn runtime_machine_indexed_integer_runtime_frame_address_offset(
 pub fn runtime_frame_indexed_binary_write_width(
     architecture: Architecture,
     runtime_value_operands: &impl RuntimeValueOperandSource,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -1775,6 +1794,7 @@ pub fn runtime_frame_indexed_binary_write_width(
         ),
         Architecture::X86_64 => x86_64::runtime_frame_indexed_binary_write_width(
             runtime_value_operands,
+            index_byte_size,
             byte_size,
             left,
             operator,
@@ -1790,6 +1810,7 @@ pub fn runtime_frame_indexed_binary_write_width(
 /// derivation); the x86_64 encoder has a fixed address-computation prefix.
 pub fn runtime_frame_indexed_binary_left_operand_offset(
     architecture: Architecture,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
@@ -1799,7 +1820,9 @@ pub fn runtime_frame_indexed_binary_left_operand_offset(
             field_byte_offset,
             0,
         ),
-        Architecture::X86_64 => x86_64::runtime_frame_indexed_binary_left_operand_offset(),
+        Architecture::X86_64 => {
+            x86_64::runtime_frame_indexed_binary_left_operand_offset(index_byte_size)
+        }
     }
 }
 
@@ -1898,6 +1921,7 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_count: usize,
@@ -1909,6 +1933,7 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
                 base_byte_offset,
                 index_region,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
             )
@@ -1921,6 +1946,7 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
             let _ = (
                 base_byte_offset,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
             );
@@ -2189,6 +2215,7 @@ pub fn runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
@@ -2198,6 +2225,7 @@ pub fn runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
                 base_byte_offset,
                 index_region,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
             )
@@ -2207,6 +2235,7 @@ pub fn runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
                 base_byte_offset,
                 index_region,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
             );
@@ -2398,7 +2427,9 @@ pub fn runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_stora
 pub fn runtime_machine_double_indexed_integer_write_width(
     architecture: Architecture,
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_byte_size: usize,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_byte_size: usize,
     value: i64,
 ) -> usize {
     match architecture {
@@ -2409,7 +2440,9 @@ pub fn runtime_machine_double_indexed_integer_write_width(
         ),
         Architecture::X86_64 => x86_64::runtime_machine_double_indexed_integer_write_width(
             outer_index_region,
+            outer_index_byte_size,
             inner_index_region,
+            inner_index_byte_size,
         ),
     }
 }
@@ -2418,7 +2451,9 @@ pub fn runtime_machine_double_indexed_binary_write_width(
     architecture: Architecture,
     runtime_value_operands: &impl RuntimeValueOperandSource,
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_byte_size: usize,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_byte_size: usize,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
     operator: omega_target_operations::StateGuardOperator,
@@ -2437,7 +2472,9 @@ pub fn runtime_machine_double_indexed_binary_write_width(
         Architecture::X86_64 => x86_64::runtime_machine_double_indexed_binary_write_width(
             runtime_value_operands,
             outer_index_region,
+            outer_index_byte_size,
             inner_index_region,
+            inner_index_byte_size,
             byte_size,
             left,
             operator,
@@ -2449,7 +2486,9 @@ pub fn runtime_machine_double_indexed_binary_write_width(
 pub fn runtime_machine_double_indexed_binary_left_operand_offset(
     architecture: Architecture,
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_byte_size: usize,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_byte_size: usize,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => {
@@ -2460,7 +2499,9 @@ pub fn runtime_machine_double_indexed_binary_left_operand_offset(
         }
         Architecture::X86_64 => x86_64::runtime_machine_double_indexed_binary_left_operand_offset(
             outer_index_region,
+            outer_index_byte_size,
             inner_index_region,
+            inner_index_byte_size,
         ),
     }
 }

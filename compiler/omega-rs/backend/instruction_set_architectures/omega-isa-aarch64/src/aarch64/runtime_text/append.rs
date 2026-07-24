@@ -3,9 +3,9 @@ use omega_core::diagnostics::Diagnostic;
 use super::super::primitives::{
     append_add_x_constant, append_unsigned_immediate_padded, encode_add_page_offset_placeholder,
     encode_add_x_register, encode_adrp_placeholder, encode_cbz_x,
-    encode_conditional_branch_not_equal, encode_load_byte_w_post_increment, encode_load_x_from_x,
-    encode_move_x_register, encode_movz_w, encode_store_byte_w_post_increment, encode_store_x_to_x,
-    encode_subs_x_immediate,
+    encode_conditional_branch_not_equal, encode_load_byte_w_post_increment, encode_load_w_from_x,
+    encode_load_x_from_x, encode_move_x_register, encode_movz_w,
+    encode_store_byte_w_post_increment, encode_store_x_to_x, encode_subs_x_immediate,
 };
 use super::super::widths::{
     runtime_text_buffer_materialize_to_runtime_frame_indexed_width,
@@ -93,6 +93,7 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
     source_offset: usize,
     descriptor_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -107,6 +108,7 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
         &mut bytes,
         descriptor_offset,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
     )?;
@@ -243,6 +245,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
     buffer_offset: usize,
     descriptor_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     literal: &str,
@@ -256,6 +259,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
         &mut bytes,
         descriptor_offset,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
     )?;
@@ -335,6 +339,7 @@ pub fn encode_runtime_text_buffer_materialize_to_runtime_pointee(
 pub fn encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
     descriptor_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -348,6 +353,7 @@ pub fn encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
         &mut bytes,
         descriptor_offset,
         index_offset,
+        index_byte_size,
         element_byte_size,
         field_byte_offset,
     )?;
@@ -373,16 +379,59 @@ fn append_runtime_frame_index_target_address(
     bytes: &mut Vec<u8>,
     descriptor_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> Result<(), Diagnostic> {
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
     append_fixed_width_load_x_from_x_offset(bytes, 16, 20, descriptor_offset, 15);
-    append_fixed_width_load_x_from_x_offset(bytes, 17, 20, index_offset, 21);
+    append_fixed_width_load_unsigned_index_from_x_offset(
+        bytes,
+        17,
+        20,
+        index_offset,
+        index_byte_size,
+        21,
+    )?;
     append_scale_x_register_by_constant(bytes, 26, 17, element_byte_size)?;
     bytes.extend(encode_add_x_register(16, 16, 26));
     append_add_constant_to_x_register(bytes, 16, field_byte_offset)?;
+    Ok(())
+}
+
+fn append_fixed_width_load_unsigned_index_from_x_offset(
+    bytes: &mut Vec<u8>,
+    destination_register: u8,
+    base_register: u8,
+    byte_offset: usize,
+    byte_size: usize,
+    scratch_register: u8,
+) -> Result<(), Diagnostic> {
+    append_unsigned_immediate_padded(bytes, scratch_register, byte_offset as u64);
+    bytes.extend(encode_add_x_register(
+        scratch_register,
+        base_register,
+        scratch_register,
+    ));
+    match byte_size {
+        1 | 2 | 4 => bytes.extend(encode_load_w_from_x(
+            destination_register,
+            scratch_register,
+            0,
+            byte_size,
+        )?),
+        8 => bytes.extend(encode_load_x_from_x(
+            destination_register,
+            scratch_register,
+            0,
+        )?),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 runtime text index width `{byte_size}` is unsupported"
+            )));
+        }
+    }
     Ok(())
 }
 

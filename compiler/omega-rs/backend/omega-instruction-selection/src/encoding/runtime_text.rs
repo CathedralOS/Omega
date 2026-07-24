@@ -152,6 +152,7 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
     source_offset: usize,
     descriptor_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -162,6 +163,7 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
                 source_offset,
                 descriptor_offset,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
             )
@@ -217,6 +219,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
     buffer_offset: usize,
     descriptor_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     literal: &str,
@@ -227,6 +230,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
                 buffer_offset,
                 descriptor_offset,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
                 literal,
@@ -237,6 +241,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
             x86_64::encode_runtime_text_literal_append_to_runtime_frame_indexed(
                 descriptor_offset,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
                 literal,
@@ -275,6 +280,7 @@ pub fn encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
     architecture: Architecture,
     descriptor_offset: usize,
     index_offset: usize,
+    index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -283,6 +289,7 @@ pub fn encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
             aarch64::encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
                 descriptor_offset,
                 index_offset,
+                index_byte_size,
                 element_byte_size,
                 field_byte_offset,
             )

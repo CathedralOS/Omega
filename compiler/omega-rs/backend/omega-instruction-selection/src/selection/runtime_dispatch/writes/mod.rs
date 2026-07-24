@@ -1025,6 +1025,7 @@ fn resolve_struct_target_place(
         .with_step(PlaceStep::ScaledIndex {
             index_region: indexed.index_region,
             index_offset: indexed.index_offset,
+            index_byte_size: indexed.index_byte_size,
             element_byte_size: indexed.element_byte_size,
         })?
         .with_step(PlaceStep::ConstOffset(indexed.field_byte_offset))?;
@@ -1042,6 +1043,7 @@ fn resolve_struct_target_place(
             .with_step(PlaceStep::ScaledIndex {
                 index_region: RuntimeStorageRegion::RuntimeFrame,
                 index_offset: indexed.index_offset,
+                index_byte_size: indexed.index_byte_size,
                 element_byte_size: indexed.element_byte_size,
             })?
             .with_step(PlaceStep::ConstOffset(indexed.field_byte_offset))?;
@@ -1059,6 +1061,7 @@ fn resolve_struct_target_place(
             .with_step(PlaceStep::ScaledIndex {
                 index_region: indexed.index_region,
                 index_offset: indexed.index_offset,
+                index_byte_size: indexed.index_byte_size,
                 element_byte_size: indexed.element_byte_size,
             })?
             .with_step(PlaceStep::ConstOffset(indexed.field_byte_offset))?;
@@ -1076,11 +1079,13 @@ fn resolve_struct_target_place(
             .with_step(PlaceStep::ScaledIndex {
                 index_region: RuntimeStorageRegion::RuntimeFrame,
                 index_offset: indexed.outer_index_offset,
+                index_byte_size: indexed.outer_index_byte_size,
                 element_byte_size: indexed.outer_stride,
             })?
             .with_step(PlaceStep::ScaledIndex {
                 index_region: RuntimeStorageRegion::RuntimeFrame,
                 index_offset: indexed.inner_index_offset,
+                index_byte_size: indexed.inner_index_byte_size,
                 element_byte_size: indexed.inner_stride,
             })?
             .with_step(PlaceStep::ConstOffset(indexed.field_byte_offset))?;
@@ -1098,11 +1103,13 @@ fn resolve_struct_target_place(
             .with_step(PlaceStep::ScaledIndex {
                 index_region: indexed.outer_index_region,
                 index_offset: indexed.outer_index_offset,
+                index_byte_size: indexed.outer_index_byte_size,
                 element_byte_size: indexed.outer_stride,
             })?
             .with_step(PlaceStep::ScaledIndex {
                 index_region: indexed.inner_index_region,
                 index_offset: indexed.inner_index_offset,
+                index_byte_size: indexed.inner_index_byte_size,
                 element_byte_size: indexed.inner_stride,
             })?
             .with_step(PlaceStep::ConstOffset(indexed.field_byte_offset))?;

@@ -38429,6 +38429,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "drops/nonempty_drop_body_rejected",
     "drops/drop_ensures_nonempty_body_rejected",
     "collections/declared_range_index_too_wide",
+    "collections/u64_high_bit_index_rejected",
     "collections/wrapping_range_index_unproven",
     "collections/nested_three_level_index_rejected",
     "dependent/dependent_arg_unrelated_rejected",

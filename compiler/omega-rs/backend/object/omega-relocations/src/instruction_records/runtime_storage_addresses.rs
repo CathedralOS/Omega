@@ -99,6 +99,7 @@ pub(super) fn collect_runtime_storage_address_relocations(
                             base_byte_offset,
                             index_region,
                             index_offset,
+                            index_byte_size,
                             element_byte_size,
                             field_byte_offset,
                         } => {
@@ -122,6 +123,7 @@ pub(super) fn collect_runtime_storage_address_relocations(
                                     base_byte_offset,
                                     index_region,
                                     index_offset,
+                                    index_byte_size,
                                     element_byte_size,
                                     field_byte_offset,
                                 ),
