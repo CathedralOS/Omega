@@ -188,12 +188,23 @@ interpreter execution. Raw bytes are different. `recast` never establishes
 record facts from unchecked storage; that path remains gated on validation or
 materialization minting the established value. Domain predicates over different
 carriers and float ranges remain fenced until their representation sets can be
-proved rather than guessed. General non-record tiling remains staged.
-Top-level array and slice recast targets require the expression pipeline to
-carry a full type reference: the current cast node retains only a name path even
-though the settled `as &[T]` / `as &[T; N]` spelling is structural. This is an
-engineering prerequisite, not a second recast syntax; structural types must not
-be smuggled through compiler-generated names.
+proved rather than guessed.
+
+Top-level structural targets are live on the same full-type-reference spine.
+Literal-length fixed arrays apply the recursive element judgment directly.
+Unsized slices consume the complete source representation and derive their
+descriptor length by exact tiling:
+
+```text
+element_count = source_byte_count / target_element_byte_size
+```
+
+A zero-sized element or nonzero remainder rejects. Raw storage may target only
+recursively fact-free elements; an already-typed shared view may weaken facts,
+and an already-typed mutable view requires implication in both directions.
+Native lowering and the interpreter preserve the backing address through
+indexed reads, writes, and state-parameter forwarding. No generated semantic
+name or second slice carrier participates.
 
 ## Policy selection
 

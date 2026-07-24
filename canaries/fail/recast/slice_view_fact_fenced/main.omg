@@ -1,0 +1,16 @@
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    bytes: [u8; 4];
+}
+
+machine Main::main(&mut self) {
+    let flags: &[bool] = &self.bytes as &[bool];
+    transition flags.len == 4 {
+        true -> done()
+        false -> done()
+    }
+
+    state done(&mut self) { self.console.exit_process(0); }
+}

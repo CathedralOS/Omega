@@ -665,6 +665,59 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
         return true;
     }
 
+    // A recast local can be folded into its initializer while it is forwarded
+    // to a state parameter (`let words: &mut [u16] = &mut bytes as &mut [u16];
+    // transition { _ -> next(words) }`). In that shape the argument is the
+    // original `Mutable(Cast(..))`, not a frame-place name, so the ordinary
+    // descriptor-copy path cannot find the already-materialized local slot.
+    // Re-materialize the same descriptor from the recast's source place:
+    // pointer identity is preserved and the target slice length is derived
+    // from exact byte tiling, just as at the local declaration seam.
+    let recast = match expressions.expression(value) {
+        ExpressionNode::Cast(cast) if cast.form.is_recast() => Some(cast),
+        ExpressionNode::Mutable(inner) => match expressions.expression(*inner) {
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => Some(cast),
+            _ => None,
+        },
+        _ => None,
+    };
+    if let Some(cast) = recast
+        && let Some(place) = resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            cast.value,
+        )
+        && let Some(element_count) = crate::selection::runtime_dispatch::recast_slice_element_count(
+            input,
+            cast.target_type,
+            place.byte_count,
+        )
+    {
+        let descriptor = input.runtime_abi.slice_descriptor();
+        selected_instructions.push(SelectedInstruction {
+            kind: crate::selection::runtime_dispatch::write_place_address_direct(
+                place.region,
+                place.byte_offset,
+                slot.byte_offset + descriptor.ptr_offset(),
+            ),
+            source_key: value_source_key,
+            source_statement: statement_index,
+        });
+        selected_instructions.push(SelectedInstruction {
+            kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                RuntimeStorageRegion::RuntimeFrame,
+                slot.byte_offset + descriptor.len_offset(),
+                element_count as i64,
+                descriptor.len_size(),
+            ),
+            source_key: value_source_key,
+            source_statement: statement_index,
+        });
+        return true;
+    }
+
     // A bounded text carrier is `{len, inline_bytes[N]}`, while a borrowed
     // byte view is `{ptr, len}`. Projecting a bare carrier place into a slice
     // slot must therefore synthesize the descriptor: point at the inline byte

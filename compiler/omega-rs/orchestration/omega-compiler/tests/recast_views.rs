@@ -223,6 +223,36 @@ fn fixed_array_recast_execution_and_fact_fence() {
 }
 
 #[test]
+fn slice_recast_execution_tiling_and_fact_fences() {
+    let canary = "recast/runtime_slice_view_mutable_write_exit";
+    assert_exit_70(canary, "slice-mutable-view");
+
+    let main = repo_root()
+        .join("canaries/pass")
+        .join(canary)
+        .join("main.omg");
+    let checked = compile_to_checked(&main, None).expect("unsized slice recast should compile");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        interpreted.exit_code, 70,
+        "the interpreter must derive slice length and preserve write-through: {interpreted:?}"
+    );
+
+    compile_for_cross_targets(canary, "slice-mutable-view");
+
+    let non_tiling = fail_diagnostics("recast/slice_view_non_tiling_rejected");
+    assert!(
+        non_tiling.contains("does not exactly tile"),
+        "non-divisible slice recast produced the wrong diagnostic:\n{non_tiling}"
+    );
+    let facted = fail_diagnostics("recast/slice_view_fact_fenced");
+    assert!(
+        facted.contains("raw storage cannot establish element facts"),
+        "raw bytes must not establish slice element facts:\n{facted}"
+    );
+}
+
+#[test]
 fn mutable_recast_fact_fences_reject() {
     for canary in [
         "recast/recast_mut_fact_fenced",

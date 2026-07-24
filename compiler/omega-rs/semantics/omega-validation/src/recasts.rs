@@ -384,13 +384,29 @@ fn judge_scalar_recast(
         .named_type_reference(cast.target_type)
         .map(|name| name.as_str().to_string())
         .unwrap_or_else(|| program.display_type_reference(cast.target_type));
+    if let TypeReferenceNode::Slice { element_type } = program
+        .type_reference_table
+        .type_reference(cast.target_type)
+    {
+        judge_slice_recast(
+            program,
+            machine,
+            state,
+            cast,
+            *element_type,
+            let_referee,
+            mutable_recast,
+            diagnostics,
+            &context,
+        );
+        return;
+    }
     if program.primitive_type_reference(cast.target_type).is_none() {
         // RUNG C2/C3: a recursively fixed RECORD or literal-length ARRAY
         // target. The same normalized representation supplies size/alignment
         // and scalar-leaf facts; this is the top-level-array continuation of
         // the array fields records already admit.
-        if let Some(target_representation) =
-            mutable_type_representation(program, cast.target_type)
+        if let Some(target_representation) = mutable_type_representation(program, cast.target_type)
         {
             if program.normalized_type_identity(let_referee)
                 != program.normalized_type_identity(cast.target_type)
@@ -417,11 +433,7 @@ fn judge_scalar_recast(
                 region_length,
             } = interior
             {
-                if !record_view_type_is_fact_free(
-                    program,
-                    cast.target_type,
-                    &mut HashSet::new(),
-                ) {
+                if !record_view_type_is_fact_free(program, cast.target_type, &mut HashSet::new()) {
                     diagnostics.push(Diagnostic::error(format!(
                         "{context}: byte-region recast target `{target_name}` must be recursively \
                          fact-free; unchecked bytes cannot establish constrained fields, bool, \
@@ -613,6 +625,101 @@ fn judge_scalar_recast(
              size (§5b rule 1) -- source `{}` is {source_size} bytes, target \
              `{target_name}` is {target_size} bytes",
             source_primitive.name()
+        )));
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn judge_slice_recast(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    cast: &TableCastExpression,
+    element_type: TypeReferenceHandle,
+    let_referee: TypeReferenceHandle,
+    mutable_recast: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+    context: &str,
+) {
+    let target_label = program.display_type_reference(cast.target_type);
+    if program.normalized_type_identity(let_referee)
+        != program.normalized_type_identity(cast.target_type)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "{context}: the let's declared type must restate the recast target \
+             `&{}{target_label}`",
+            if mutable_recast { "mut " } else { "" },
+        )));
+        return;
+    }
+
+    let source = strip_mutable(program, cast.value);
+    let Some(source_type) =
+        crate::places::declared_place_type_raw(program, machine, Some(state), source)
+    else {
+        diagnostics.push(Diagnostic::error(format!(
+            "{context}: a slice recast re-views a fixed-layout PLACE's complete bytes"
+        )));
+        return;
+    };
+    let Some(source_representation) = mutable_type_representation(program, source_type) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "{context}: slice recast source `{}` has no fixed representation",
+            program.display_type_reference(source_type)
+        )));
+        return;
+    };
+    let Some(element_representation) = mutable_type_representation(program, element_type) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "{context}: slice target `{target_label}` needs a fixed-layout element type"
+        )));
+        return;
+    };
+    if element_representation.size == 0
+        || source_representation.size % element_representation.size != 0
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "{context}: slice target `{target_label}` does not exactly tile the source's {} \
+             bytes with {}-byte elements",
+            source_representation.size, element_representation.size,
+        )));
+        return;
+    }
+
+    let element_count = source_representation.size / element_representation.size;
+    let Some(target_representation) = repeat_representation(&element_representation, element_count)
+    else {
+        diagnostics.push(Diagnostic::error(format!(
+            "{context}: slice target `{target_label}` representation overflows"
+        )));
+        return;
+    };
+
+    let source_tiled = representation_is_exactly_tiled(&source_representation);
+    let target_tiled = representation_is_exactly_tiled(&target_representation);
+    let source_fact_free = record_view_type_is_fact_free(program, source_type, &mut HashSet::new());
+    let target_fact_free =
+        record_view_type_is_fact_free(program, element_type, &mut HashSet::new());
+    let compatible = if source_tiled && target_tiled && target_fact_free {
+        !mutable_recast || source_fact_free
+    } else if mutable_recast {
+        mutable_record_representations_equivalent(
+            program,
+            &source_representation,
+            &target_representation,
+        )
+    } else {
+        record_representation_implies(program, &source_representation, &target_representation)
+    };
+    if !compatible {
+        diagnostics.push(Diagnostic::error(format!(
+            "{context}: slice recast `{target_label}` does not preserve exact byte tiling and {}; \
+             raw storage cannot establish element facts",
+            if mutable_recast {
+                "fact implication in BOTH directions"
+            } else {
+                "source-to-target fact implication"
+            },
         )));
     }
 }
@@ -961,6 +1068,43 @@ fn mutable_record_representations_equivalent(
             })
 }
 
+fn repeat_representation(
+    element: &MutableRecordRepresentation,
+    count: usize,
+) -> Option<MutableRecordRepresentation> {
+    let size = element.size.checked_mul(count)?;
+    let mut leaves = Vec::with_capacity(element.leaves.len().checked_mul(count)?);
+    for index in 0..count {
+        let base = element.size.checked_mul(index)?;
+        for leaf in &element.leaves {
+            leaves.push(MutableRecordLeaf {
+                offset: base.checked_add(leaf.offset)?,
+                size: leaf.size,
+                facts: leaf.facts.clone(),
+            });
+        }
+    }
+    Some(MutableRecordRepresentation {
+        size,
+        align: element.align,
+        leaves,
+    })
+}
+
+fn representation_is_exactly_tiled(representation: &MutableRecordRepresentation) -> bool {
+    let mut cursor = 0usize;
+    for leaf in &representation.leaves {
+        if leaf.offset != cursor || leaf.size == 0 {
+            return false;
+        }
+        let Some(next) = cursor.checked_add(leaf.size) else {
+            return false;
+        };
+        cursor = next;
+    }
+    cursor == representation.size
+}
+
 fn record_representation_implies(
     program: &TypedTrees,
     source: &MutableRecordRepresentation,
@@ -994,9 +1138,7 @@ fn scalar_representation_facts_imply(
         target
             .bit_patterns
             .iter()
-            .any(|(target_low, target_high)| {
-                target_low <= source_low && source_high <= target_high
-            })
+            .any(|(target_low, target_high)| target_low <= source_low && source_high <= target_high)
     });
     domains_imply && patterns_imply
 }
