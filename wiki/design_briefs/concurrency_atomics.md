@@ -131,7 +131,11 @@ Still required:
 
 - the remaining fetch-and-modify surface;
 - contention tests once concurrent activation is runnable;
-- standalone fences and target lowering proofs;
+- standalone portable atomic fences and target lowering proofs
+  (**OWNER-BLOCKED:** `OWNER_QUESTIONS.md` #13). Checked ISA fences already
+  retain their target-specific instruction contracts, but they must not be
+  treated as the portable atomic-memory-model operation until its source,
+  ordering, and scope contract is settled;
 - cross-activation ownership/borrow/access enforcement independent of `[copy]`;
 - volatile/MMIO types and ordering contracts;
 - the proof model for relaxed visibility.

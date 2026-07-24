@@ -432,12 +432,13 @@ Atomics underpin the waitable types above (`Mutex`, `Barrier`) and shared-ring
 IPC, so they sit below a concurrent task-runtime provider in the implementation
 order even though they appear later in this chapter.[^atomics-open]
 
-[^atomics-open]: Open details: whether atomics lower as compiler intrinsics or
-boundary operators with instruction contracts (intrinsics are the working
-assumption -- they need exact codegen, not auditability, and have no authority
-semantics); standalone fences; whether `SeqCst` is restricted or discouraged
-in proofs; and how the TLA-style model treats relaxed-ordering visibility
-(first cut: the deadlock model ignores ordering and only tracks waits).
+[^atomics-open]: Open details: the portable standalone-fence source, ordering,
+and scope contract is owner question #13; whether `SeqCst` is restricted or
+discouraged in proofs; and how the TLA-style model treats relaxed-ordering
+visibility (first cut: the deadlock model ignores ordering and only tracks
+waits). Ordinary atomics are compiler-known core operations. Checked ISA
+fences remain distinct target instructions, and device/DMA visibility remains
+a provider contract rather than a mode of the portable atomic fence.
 
 ## TLA-Style Model
 

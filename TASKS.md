@@ -1998,9 +1998,12 @@ stronger operations it needs instead of citing machine parameters generally.
   loop on x86_64, with the same native, interpreter, and encoding coverage.
   Fetch-and uses complement-plus-ordering-selected `LDCLR` on ARM64 and the
   shared locked retry loop on x86_64, with equivalent coverage.
-  The conventional integer fetch family is complete. Complete standalone
-  fences once their source spelling is settled, and the cross-activation proof
-  model beyond these operations.
+  The conventional integer fetch family is complete. Standalone portable
+  atomic fences are **OWNER-BLOCKED (#13)** on their source contract, legal
+  orderings, and separation from checked ISA/device/compiler barriers; do not
+  lower a portable fence by treating x86 `lfence`/`sfence`/`mfence` as
+  synonymous language operations. The cross-activation proof model beyond the
+  implemented operations also remains.
 - **Proof engine.** Continue induction and proof-data support required by
   layouts, quotients, and Real.
 
