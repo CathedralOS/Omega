@@ -1218,10 +1218,15 @@ stronger operations it needs instead of citing machine parameters generally.
   The direct-call acknowledgement keyword is a separate owner decision and
   must consume the normalized suspension/blocking plans rather than
   source-token presence.
-- **TPR4/TPR6 — publication and progress profiles.** Serialize public
-  termination omission/default rules in artifacts. Resolve sealed profile
-  domains, grant-backed admission and receipts, and pinned progress premises.
-  Profiles are never flow-inferred ranking evidence.
+- **TPR4/TPR6 — publication and progress profiles.** The normalized
+  termination interface now distinguishes private `InternalDerived` bodies
+  from public `Published(NoGuarantee | EventualTerminal)` contracts. Public
+  omission on requirements/exports/providers is therefore explicit, satisfying
+  implementations inherit that exact default, the distinction enters
+  `MachineContractPlan` identity, and `04_machine_contract_manifest.json`
+  serializes it without exposing private ranking witnesses. Continue with
+  sealed profile domains, grant-backed admission and receipts, and pinned
+  progress premises. Profiles are never flow-inferred ranking evidence.
 - **GR6 — remaining trust consumers.** Finish qualification authority,
   ProgressProfile minting/premises, and MachineContractPlan permission/provider
   admission through the existing grant/receipt carrier.

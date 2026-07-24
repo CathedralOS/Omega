@@ -3,7 +3,7 @@
 //! the completion of witness elaborations the lowering left pending. Local
 //! DIRECT consumers may use the exact checked summary; anything through a
 //! trait, import slot, or exported contract uses only the AUTHORED
-//! guarantee (the plan's `published` half) -- refactoring a body cannot
+//! guarantee (the plan's published interface) -- refactoring a body cannot
 //! silently change what external callers may assume.
 
 use omega_core::semantics::TerminationGuarantee;
@@ -12,7 +12,7 @@ use omega_core::symbols::SymbolHandle;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TerminationFacts {
     /// One local checked summary per machine, in machine-table order. Public
-    /// consumers use `MachineContractPlan::published_termination` instead;
+    /// consumers use `MachineContractPlan::termination` instead;
     /// recording an inferred local fact never publishes a promise.
     pub machines: Vec<MachineTerminationFact>,
 }

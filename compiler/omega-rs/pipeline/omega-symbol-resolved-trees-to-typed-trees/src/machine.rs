@@ -244,10 +244,13 @@ fn inherit_requirement_guarantee(
     lowerer: &Lowerer,
     machine: &resolved::machine::Machine,
 ) -> omega_core::semantics::MachineTerminationPlan {
-    use omega_core::semantics::TerminationGuarantee;
+    use omega_core::semantics::{TerminationGuarantee, TerminationInterface};
 
     let mut plan = machine.termination_plan.clone();
-    if plan.published.is_some() {
+    if matches!(
+        &plan.interface,
+        TerminationInterface::Published(TerminationGuarantee::EventualTerminal { .. })
+    ) {
         return plan;
     }
     let simple_name = machine
@@ -277,12 +280,14 @@ fn inherit_requirement_guarantee(
             .source_trees
             .trait_machine_signatures(trait_definition.machines)
             .iter()
-            .any(|requirement| {
-                requirement.terminates_guarantee && requirement.name.as_str() == required_name
-            });
-        if inherited {
-            plan.published = Some(TerminationGuarantee::EventualTerminal {
-                premises: Vec::new(),
+            .find(|requirement| requirement.name.as_str() == required_name);
+        if let Some(requirement) = inherited {
+            plan.interface = TerminationInterface::Published(if requirement.terminates_guarantee {
+                TerminationGuarantee::EventualTerminal {
+                    premises: Vec::new(),
+                }
+            } else {
+                TerminationGuarantee::NoGuarantee
             });
             break;
         }
