@@ -303,6 +303,12 @@ artifacts. Future independent PCC/final-byte validation reduces reliance on the
 compiler; it is not a prerequisite for the v1 boot semantics. Measurement is
 evidence, never the admission gate.
 
+The normalized admission seam already binds a verifier decision to the exact
+checked container and its proof payload, while keeping informational sections
+authority-free. That prevents a trusted-build or future PCC acceptance from
+being replayed onto different semantic content or different proof evidence; it
+does not claim that the independent PCC verifier itself is implemented.
+
 AP bringup is a mandatory foundation test: low-memory placement, alignment,
 real/protected/long-mode code regions, checked regime-changing instructions,
 runtime materialization, artifact-installation authority, cross-core visibility,

@@ -148,6 +148,87 @@ impl ValidatedArtifactContainer {
     }
 }
 
+/// Validator-authored admission evidence bound to one exact checked container,
+/// including its identity-invisible proof payload. Informational sections are
+/// deliberately absent because they carry no admission authority.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ValidatedContainerAdmissionEvidence {
+    receipt: AdmissionReceiptId,
+    artifact: ArtifactId,
+    content: ArtifactContentId,
+    contracts: MachineContractSetId,
+    footprint: MachineFootprintId,
+    placement_plan: PlacementPlanId,
+    placement_constraints: PlacementConstraints,
+    entry_set: EntrySetId,
+    proof_payload: ProofPayloadId,
+    accepted: bool,
+}
+
+impl ValidatedContainerAdmissionEvidence {
+    pub fn from_validator(
+        receipt: AdmissionReceiptId,
+        container: &ValidatedArtifactContainer,
+        accepted: bool,
+    ) -> Self {
+        let artifact = &container.artifact.0;
+        Self {
+            receipt,
+            artifact: artifact.identity,
+            content: artifact.content,
+            contracts: artifact.contracts,
+            footprint: artifact.declared_footprint,
+            placement_plan: artifact.placement_plan,
+            placement_constraints: artifact.placement_constraints,
+            entry_set: artifact.entry_set,
+            proof_payload: container.proof_payload,
+            accepted,
+        }
+    }
+}
+
+/// Establishes the reusable executable qualification only from acceptance
+/// evidence for this exact checked container and proof payload. The verifier
+/// remains provider/PCC infrastructure; this gate prevents substitution or
+/// replay across its normalized input.
+pub fn admit_validated_container(
+    container: &ValidatedArtifactContainer,
+    evidence: ValidatedContainerAdmissionEvidence,
+) -> Result<AdmittedArtifact, InstallationDiagnostic> {
+    let artifact = &container.artifact.0;
+    if evidence.proof_payload != container.proof_payload {
+        return Err(InstallationDiagnostic(
+            "artifact admission evidence names a different proof payload".into(),
+        ));
+    }
+    if evidence.artifact != artifact.identity
+        || evidence.content != artifact.content
+        || evidence.contracts != artifact.contracts
+        || evidence.footprint != artifact.declared_footprint
+        || evidence.placement_plan != artifact.placement_plan
+        || evidence.placement_constraints != artifact.placement_constraints
+        || evidence.entry_set != artifact.entry_set
+    {
+        return Err(InstallationDiagnostic(
+            "artifact admission evidence names a different validated container".into(),
+        ));
+    }
+    admit_executable(
+        &container.artifact,
+        ArtifactAdmissionEvidence::from_validator(
+            evidence.receipt,
+            evidence.artifact,
+            evidence.content,
+            evidence.contracts,
+            evidence.footprint,
+            evidence.placement_plan,
+            evidence.placement_constraints,
+            evidence.entry_set,
+            evidence.accepted,
+        ),
+    )
+}
+
 pub fn validate_decoded_container(
     decoded: DecodedArtifactContainer,
     limits: ContainerLimits,
@@ -688,6 +769,64 @@ mod tests {
             container.artifact().placement_constraints(),
             PlacementConstraints::unconstrained(omega_layout_plans::PlacementPhase::Load)
         );
+    }
+
+    #[test]
+    fn validated_container_admission_binds_the_exact_proof_payload() {
+        let container = validate_decoded_container(decoded(), limits()).expect("container");
+        let evidence = ValidatedContainerAdmissionEvidence::from_validator(
+            id(70, AdmissionReceiptId::from_normalized_identity),
+            &container,
+            true,
+        );
+        let admitted =
+            admit_validated_container(&container, evidence).expect("exact proof admission");
+        assert_eq!(
+            admitted.artifact().identity(),
+            container.artifact().identity()
+        );
+        assert_eq!(
+            admitted.admission(),
+            id(70, AdmissionReceiptId::from_normalized_identity)
+        );
+
+        let mut changed = decoded();
+        changed.proof_payload = id(99, ProofPayloadId::from_normalized_identity);
+        changed.sections[6].kind = ContainerSectionKind::Proof(changed.proof_payload);
+        let changed = validate_decoded_container(changed, limits()).expect("changed proof");
+        let replay = ValidatedContainerAdmissionEvidence::from_validator(
+            id(71, AdmissionReceiptId::from_normalized_identity),
+            &changed,
+            true,
+        );
+        let error = admit_validated_container(&container, replay)
+            .expect_err("acceptance for another proof payload must not replay");
+        assert!(error.0.contains("different proof payload"));
+    }
+
+    #[test]
+    fn informational_sections_do_not_gain_admission_authority() {
+        let baseline = validate_decoded_container(decoded(), limits()).expect("baseline");
+        let evidence = ValidatedContainerAdmissionEvidence::from_validator(
+            id(70, AdmissionReceiptId::from_normalized_identity),
+            &baseline,
+            true,
+        );
+
+        let mut decorated = decoded();
+        decorated.total_length = 464;
+        decorated.sections.push(ContainerSection {
+            kind: ContainerSectionKind::Informational(id(
+                88,
+                InformationalSectionId::from_normalized_identity,
+            )),
+            offset: 400,
+            length: 64,
+        });
+        let decorated =
+            validate_decoded_container(decorated, limits()).expect("informational decoration");
+        admit_validated_container(&decorated, evidence)
+            .expect("informational sections stay outside admission identity");
     }
 
     #[test]

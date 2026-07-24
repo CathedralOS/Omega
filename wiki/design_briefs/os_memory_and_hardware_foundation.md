@@ -703,7 +703,12 @@ one destination twice. The certificate may remain reusable/reportable while
 This normalized ladder is live in `omega-executable-installation`. Canonically
 decoded artifacts are immutable and reusable; exact admission evidence checks
 content, contracts, declared footprint, and placement plan before establishing
-the executable qualification. A one-shot authority claims an Extent-backed
+the executable qualification. Admission from a validated container now also
+binds the exact proof payload independently of content identity, so verifier
+acceptance cannot be replayed across proof or semantic-container drift;
+informational sections remain excluded from the gate. This is the substitution-
+safe verifier seam, not an implementation of the PCC verifier itself. A
+one-shot authority claims an Extent-backed
 placement. The reusable artifact retains its exact bytes and canonical
 relocations through admission. A provider-side pure materializer resolves only
 sealed entry/data identities, applies checked target relocations to a private
