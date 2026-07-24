@@ -751,7 +751,7 @@ schemas recover the same instance without publishing policy type identity.
    `InterruptAcknowledgement` values have explicit consuming `restore` and
    `complete` operations, while the distinct opaque `InterruptMaskControl`
    capability is the only source of a saved-mask guard. Their operations pin
-   `machine_control` versus `device_io` reach; construction, forgotten
+   canonical `MachineControl` versus `PortIo` reach; construction, forgotten
    settlement, and double completion reject through ordinary opacity/effects/
    linearity rules. The normalized installed-root entry path now mints those
    opaque obligations only from an exact provider receipt bound to the root,
@@ -1132,11 +1132,21 @@ stronger operations it needs instead of citing machine parameters generally.
   wire plans, and calling-policy plans no longer consult `EffectSet`. The
   complete build-time contract still needs its separately tracked authority,
   trust, resource, failure/control, termination, and escaping-mutation axes.
-  Remaining EFX work is to migrate the legacy capability/authority,
-  flow/graph, inline-assembly, and component-report consumers to these
-  normalized rows, migrate remaining lowercase fixtures, derive any required
-  compatibility projection from the rows, and then delete the global
-  service-name/u64 engine entirely. The direct-call
+  Checked assembly now resolves compiler-known instructions to the canonical
+  `MachineControl`/`PortIo` boundary-service rows, validates direct and known
+  transitive asm reach without consulting `EffectSet`, and retains authority
+  discharge as an independent instruction-contract obligation. The core
+  assembly module, interrupt contracts, asm canaries, and Cathedral boot
+  contracts author those identities; missing imports, missing direct rows, and
+  helper laundering reject with normalized diagnostics and call paths. Pure
+  discard classification now also consults normalized effective service reach.
+  The remaining generic legacy ceiling and flow/graph carriers receive an
+  explicitly derived compatibility projection from canonical rows; lowercase
+  asm bits are no longer an authored semantic input. Remaining EFX work is to
+  migrate the legacy capability/authority, flow/graph, and component-report
+  consumers to normalized rows, migrate other lowercase fixtures, eliminate
+  the compatibility projection, and then delete the global service-name/u64
+  engine entirely. The direct-call
   acknowledgement keyword is a separate owner decision and must consume the
   normalized suspension/blocking plans rather than source-token presence.
 - **TPR4/TPR6 — publication and progress profiles.** Serialize public

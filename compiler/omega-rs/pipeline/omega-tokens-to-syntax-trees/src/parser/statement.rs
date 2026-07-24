@@ -219,11 +219,11 @@ fn parse_discard_statement_handle<'tokens, 'source>(
 /// - `asm { jmp state() }`      -> a plain transition (control flow stays
 ///   Omega control flow)
 /// - `asm { hlt }`              -> a call to the `asm#hlt` intrinsic
-///   (emits `machine_control`)
+///   (reaches `MachineControl`)
 /// - `asm { out <port>, <v> }`  -> a call to `asm#port_out(port, value)`
-///   (emits `device_io`)
+///   (reaches `PortIo`)
 /// - `asm { in <dest>, <port> }`-> `<dest> = asm#port_in(port)` -- the
-///   Intel dest-first operand order (emits `device_io`)
+///   Intel dest-first operand order (reaches `PortIo`)
 /// - x86 fences and `cli`/`sti` -> zero-operand unnameable intrinsics carrying
 ///   their catalog ordering/state/effect contracts
 /// - `pushfq <dest>`            -> `<dest> = asm#pushfq()`; the backend emits

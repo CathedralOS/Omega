@@ -5,7 +5,7 @@ fn accepts_proven_asm_entry_and_exit_facts() {
     let source = r#"
         data Main { port: u16; value: u8; ready: bool; }
 
-        machine Main::main(&mut self) effects device_io
+        machine Main::main(&mut self) effects PortIo
         requires self.ready
         {
             asm where
@@ -25,7 +25,7 @@ fn rejects_unproven_asm_requires_at_block_entry() {
     let source = r#"
         data Main { port: u16; value: u8; ready: bool; }
 
-        machine Main::main(&mut self) effects device_io {
+        machine Main::main(&mut self) effects PortIo {
             asm where
                 requires self.ready
                 clobbers rax, rdx, r10, r11, r15
@@ -48,7 +48,7 @@ fn rejects_unproven_asm_ensures_at_block_exit() {
     let source = r#"
         data Main { port: u16; value: u8; ready: bool; }
 
-        machine Main::main(&mut self) effects device_io {
+        machine Main::main(&mut self) effects PortIo {
             asm where
                 clobbers rax, rdx, r10, r11, r15
                 ensures self.ready
@@ -71,7 +71,7 @@ fn rejects_asm_ensures_invalidated_by_port_input() {
     let source = r#"
         data Main { port: u16; value: u8; }
 
-        machine Main::main(&mut self) effects device_io
+        machine Main::main(&mut self) effects PortIo
         requires self.value == 1
         {
             asm where
@@ -123,7 +123,7 @@ fn rejects_asm_ensures_invalidated_by_msr_read() {
     let source = r#"
         data Main { value: u64; }
 
-        machine Main::main(&mut self) effects machine_control
+        machine Main::main(&mut self) effects MachineControl
         requires self.value == 2
         {
             asm where
@@ -149,7 +149,7 @@ fn preserves_asm_ensures_across_unrelated_port_input() {
     let source = r#"
         data Main { port: u16; value: u8; ready: bool; }
 
-        machine Main::main(&mut self) effects device_io
+        machine Main::main(&mut self) effects PortIo
         requires self.ready
         {
             asm where
@@ -169,7 +169,7 @@ fn rejects_non_boolean_asm_fact_place() {
     let source = r#"
         data Main { port: u16; value: u8; }
 
-        machine Main::main(&mut self) effects device_io {
+        machine Main::main(&mut self) effects PortIo {
             asm where
                 requires self.value
                 clobbers rax, rdx, r10, r11, r15
@@ -182,5 +182,81 @@ fn rejects_non_boolean_asm_fact_place() {
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains("asm `requires` fact")
             && diagnostic.message.contains("is not boolean-shaped")
+    }));
+}
+
+#[test]
+fn canonical_asm_services_enter_normalized_reach_inference() {
+    let source = r#"
+        data Main { port: u16; value: u8; }
+
+        machine Main::main(&mut self) effects MachineControl + PortIo {
+            asm { hlt; out self.port, self.value }
+        }
+    "#;
+
+    let typed = parse_typed_trees(source);
+    let effects = omega_effects::infer_effects(&typed);
+    let reaches = omega_effects::infer_service_reaches(&typed, &effects);
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("main machine");
+    let summary = reaches
+        .for_machine(machine.symbol)
+        .expect("service summary");
+    for name in ["MachineControl", "PortIo"] {
+        let service = typed
+            .service_reaches
+            .id_for_name(name)
+            .expect("canonical asm service");
+        assert!(summary.inferred_direct.contains(&service));
+        assert!(summary.inferred_transitive.contains(&service));
+    }
+}
+
+#[test]
+fn rejects_missing_direct_port_io_service_declaration() {
+    let source = r#"
+        data Main { port: u16; value: u8; }
+
+        machine Main::main(&mut self) {
+            asm { out self.port, self.value }
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("direct port assembly must publish PortIo");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.message.contains("add `effects PortIo`") })
+    );
+}
+
+#[test]
+fn rejects_missing_transitive_machine_control_service_declaration() {
+    let source = r#"
+        data Main {}
+
+        machine Main::helper(&mut self) effects MachineControl {
+            asm { hlt }
+        }
+
+        machine Main::main(&mut self) {
+            self.helper();
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("an asm service may not be laundered through a helper");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("reaches inline-assembly service `MachineControl`")
+            && diagnostic
+                .message
+                .contains("call path to inline assembly for `MachineControl`")
     }));
 }

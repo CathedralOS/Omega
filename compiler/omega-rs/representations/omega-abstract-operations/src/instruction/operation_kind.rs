@@ -654,7 +654,7 @@ pub enum AbstractOperationKind {
         operands: HandleSpan<InstructionOperand>,
     },
     /// The x86 `hlt` privileged instruction (`asm { hlt }`), emitting the
-    /// `machine_control` effect. Zero operands, no relocation: it idles the
+    /// `MachineControl` service. Zero operands, no relocation: it idles the
     /// CPU until the next interrupt. Only reachable in a freestanding boundary
     /// root (v0 discharge). See privileged_effects_and_binary_trust brief.
     MachineHalt,
@@ -693,7 +693,7 @@ pub enum AbstractOperationKind {
         source: AbstractValueOperandHandle,
     },
     /// The x86 `out dx, al` port write (`asm { out <port>, <value> }`),
-    /// emitting the `device_io` effect. `port` is a u16 operand, `value` a u8
+    /// reaching the `PortIo` service. `port` is a u16 operand, `value` a u8
     /// operand (each an immediate or a storage read; storage operands relocate
     /// like any runtime-value read).
     PortWrite {
@@ -701,7 +701,7 @@ pub enum AbstractOperationKind {
         value: AbstractValueOperandHandle,
     },
     /// The x86 `in al, dx` port read (`asm { in <dest>, <port> }`), emitting
-    /// the `device_io` effect. `port` is a u16 operand; the byte result is
+    /// the `PortIo` service. `port` is a u16 operand; the byte result is
     /// stored to the destination place (`dest_region`/`dest_byte_offset`).
     PortRead {
         port: AbstractValueOperandHandle,

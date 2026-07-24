@@ -44,16 +44,16 @@ pub enum BuiltinFunction {
     /// arm reads the first SSE register only).
     Sqrt,
     /// `asm { hlt }`: the x86 privileged halt instruction as a known-contract
-    /// asm intrinsic (privileged_effects_and_binary_trust brief). Emits the
-    /// `machine_control` effect. The `#` in the symbol name is not an
+    /// asm intrinsic (privileged_effects_and_binary_trust brief). Reaches the
+    /// canonical `MachineControl` service. The `#` in the symbol name is not an
     /// identifier character, so the intrinsic is UNNAMEABLE from source --
     /// only the parser's asm-block desugar can reference it.
     AsmHlt,
-    /// `asm { out <port>, <value> }`: x86 port write (`out dx, al`). Emits
-    /// the `device_io` effect. Unnameable from source (see AsmHlt).
+    /// `asm { out <port>, <value> }`: x86 port write (`out dx, al`). Reaches
+    /// the canonical `PortIo` service. Unnameable from source (see AsmHlt).
     AsmPortOut,
     /// `asm { in <destination>, <port> }`: x86 port read (`in al, dx`).
-    /// Emits the `device_io` effect. Unnameable from source (see AsmHlt).
+    /// Reaches the canonical `PortIo` service. Unnameable from source (see AsmHlt).
     AsmPortIn,
     /// x86 memory-ordering fences. They are unnameable zero-operand asm
     /// intrinsics and carry no service-reach effect.
@@ -61,7 +61,7 @@ pub enum BuiltinFunction {
     AsmStoreFence,
     AsmFullFence,
     /// x86 interrupt-enable flag control. Both are unnameable, zero-operand
-    /// asm intrinsics with `machine_control` reach.
+    /// asm intrinsics with canonical `MachineControl` reach.
     AsmDisableInterrupts,
     AsmEnableInterrupts,
     /// Compiler-balanced RFLAGS snapshot/restore intrinsics. The source
@@ -140,11 +140,11 @@ impl BuiltinFunction {
         }
     }
 
-    /// The service-reach effect component of an asm intrinsic contract, or
-    /// None when the intrinsic is effect-free (and for value builtins).
+    /// The canonical boundary-service identity reached by an asm intrinsic,
+    /// or None when the intrinsic reaches no service (and for value builtins).
     /// Operand, clobber, ordering, and availability metadata lives in the
     /// shared inline-assembly catalog.
-    pub fn asm_intrinsic_effect_name(self) -> Option<&'static str> {
+    pub fn asm_intrinsic_service_name(self) -> Option<&'static str> {
         match self {
             Self::AsmHlt
             | Self::AsmDisableInterrupts
@@ -158,8 +158,8 @@ impl BuiltinFunction {
             | Self::AsmReadCr4
             | Self::AsmWriteCr0
             | Self::AsmWriteCr3
-            | Self::AsmWriteCr4 => Some("machine_control"),
-            Self::AsmPortOut | Self::AsmPortIn => Some("device_io"),
+            | Self::AsmWriteCr4 => Some("MachineControl"),
+            Self::AsmPortOut | Self::AsmPortIn => Some("PortIo"),
             Self::Max
             | Self::Min
             | Self::Sqrt
@@ -167,6 +167,17 @@ impl BuiltinFunction {
             | Self::AsmStoreFence
             | Self::AsmFullFence
             | Self::AsmSnapshotFlags => None,
+        }
+    }
+
+    /// Compatibility projection for consumers that still store the retired
+    /// global lowercase/u64 effect representation. New semantic consumers
+    /// must use `asm_intrinsic_service_name` and resolved service rows.
+    pub fn asm_intrinsic_legacy_effect_name(self) -> Option<&'static str> {
+        match self.asm_intrinsic_service_name()? {
+            "MachineControl" => Some("machine_control"),
+            "PortIo" => Some("device_io"),
+            _ => None,
         }
     }
 
@@ -436,24 +447,32 @@ mod builtin_ordinal_tests {
             );
         }
         assert_eq!(
-            BuiltinFunction::AsmHlt.asm_intrinsic_effect_name(),
-            Some("machine_control")
+            BuiltinFunction::AsmHlt.asm_intrinsic_service_name(),
+            Some("MachineControl")
         );
         assert_eq!(
-            BuiltinFunction::AsmPortOut.asm_intrinsic_effect_name(),
-            Some("device_io")
+            BuiltinFunction::AsmPortOut.asm_intrinsic_service_name(),
+            Some("PortIo")
         );
         assert_eq!(
-            BuiltinFunction::AsmPortIn.asm_intrinsic_effect_name(),
-            Some("device_io")
+            BuiltinFunction::AsmPortIn.asm_intrinsic_service_name(),
+            Some("PortIo")
         );
         assert_eq!(
-            BuiltinFunction::AsmFullFence.asm_intrinsic_effect_name(),
+            BuiltinFunction::AsmFullFence.asm_intrinsic_service_name(),
             None
         );
         assert_eq!(
-            BuiltinFunction::AsmDisableInterrupts.asm_intrinsic_effect_name(),
+            BuiltinFunction::AsmDisableInterrupts.asm_intrinsic_service_name(),
+            Some("MachineControl")
+        );
+        assert_eq!(
+            BuiltinFunction::AsmHlt.asm_intrinsic_legacy_effect_name(),
             Some("machine_control")
+        );
+        assert_eq!(
+            BuiltinFunction::AsmPortOut.asm_intrinsic_legacy_effect_name(),
+            Some("device_io")
         );
     }
 }

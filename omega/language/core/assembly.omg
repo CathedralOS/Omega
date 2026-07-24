@@ -1,0 +1,12 @@
+// Canonical checked-assembly service identities.
+//
+// These rows describe what hardware-facing service a checked instruction can
+// reach. They do not grant the authority required to issue that instruction:
+// machine ownership and narrower provider authorities remain separate proof
+// obligations in the instruction catalog and admission pipeline.
+
+boundary trait MachineControl {
+}
+
+boundary trait PortIo {
+}

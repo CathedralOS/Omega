@@ -6,7 +6,12 @@ mod instantiation;
 mod proof_obligations;
 
 fn parse_typed_trees(source: &str) -> omega_typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    // The source loader supplies these canonical core declarations in real
+    // compilations. This single-source unit harness installs the same service
+    // identities directly so checked-asm rows exercise normalized reach.
+    let source =
+        format!("boundary trait MachineControl {{}}\nboundary trait PortIo {{}}\n{source}");
+    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     lower_symbol_resolved_trees(&resolved).expect("type")

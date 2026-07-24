@@ -9,9 +9,10 @@ pub fn validate_effect_plan(
     effect_plan: &omega_effects::EffectPlan,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    let service_reaches = omega_effects::infer_service_reaches(program, effect_plan);
 
-    validate_pure_discards(program, effect_plan, &mut diagnostics);
-    validate_asm_intrinsic_declarations(program, effect_plan, &mut diagnostics);
+    validate_pure_discards(program, effect_plan, &service_reaches, &mut diagnostics);
+    validate_asm_intrinsic_declarations(program, effect_plan, &service_reaches, &mut diagnostics);
 
     for machine_effects in effect_plan.machines() {
         let Some(machine) = program
@@ -113,87 +114,102 @@ pub fn validate_asm_discharge(
     crate::finish_diagnostics(diagnostics)
 }
 
-/// Asm-sourced effects are STRICTLY must-declare -- the empty-declared
-/// exemption above does not apply to the privileged tier
+/// Asm-sourced service reach is STRICTLY must-declare -- private inference does
+/// not exempt the privileged tier
 /// (privileged_effects_and_binary_trust brief, LOCKED points 2-3: every asm
 /// instruction emits its contract, and the function AND every machine that
-/// directly-or-indirectly reaches it must declare what it emits; the
-/// top-level declared set is what a package manager reads).
+/// directly-or-indirectly reaches it must publish the service; the top-level
+/// row is what a package manager reads).
 ///
 /// Two rules:
 /// 1. A machine whose body CONTAINS an asm intrinsic must declare that
-///    instruction's effect (`asm { hlt }` forces `effects machine_control`,
-///    `asm { in/out }` forces `effects device_io`).
-/// 2. `machine_control` is strict TRANSITIVELY: it originates only from asm,
-///    so any machine whose transitive set reaches it must declare it --
-///    empty declaration is not an exemption for ring-0 CPU control.
-///
-/// (device_io transitivity for CALLERS still rides the declared-set ceiling
-/// above: it can also originate from boundary-trait rows, whose callers keep
-/// the existing empty-declared behavior.)
+///    canonical service (`asm { hlt }` forces `effects MachineControl`,
+///    `asm { in/out }` forces `effects PortIo`).
+/// 2. Both asm services are strict TRANSITIVELY along known checked call
+///    paths. This provenance-specific rule does not turn an unrelated
+///    boundary call that happens to reach the same service into inline asm.
 fn validate_asm_intrinsic_declarations(
     program: &TypedTrees,
     effect_plan: &omega_effects::EffectPlan,
+    service_reaches: &omega_effects::ServiceReachInferencePlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let machine_control = omega_effects::EffectSet::from_name("machine_control")
-        .expect("machine_control is a standard effect");
-
     for machine in program.machines() {
-        let declared_effects = declared_machine_effect_set(program, machine);
+        let declared_services = program
+            .service_reach_rows
+            .services(machine.service_reach_row);
+        let mut direct_asm_services = Vec::new();
 
         // Rule 1: direct emission sites.
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
-                let Some((instruction, effects, _)) = statement_asm_intrinsic(program, statement)
+                let Some((instruction, service_name, _)) =
+                    statement_asm_intrinsic(program, statement)
                 else {
                     continue;
                 };
-                if !declared_effects.contains_all(effects) {
-                    let missing = effects.difference(declared_effects);
+                let Some(service_name) = service_name else {
+                    continue;
+                };
+                if !direct_asm_services.contains(&service_name) {
+                    direct_asm_services.push(service_name);
+                }
+                let Some(service) = program.service_reaches.id_for_name(service_name) else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{}` uses asm instruction `{}`, which reaches canonical \
+                         service `{service_name}`, but that service identity is unavailable: \
+                         add `use omega::language::core::assembly;`",
+                        machine.name, instruction
+                    )));
+                    continue;
+                };
+                if !declared_services.contains(&service) {
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}` uses asm instruction `{}` but does not declare its \
-                         contract: add `effects {}` (every asm instruction's emitted effects \
-                         must be declared where they are emitted)",
-                        machine.name,
-                        instruction,
-                        format_effect_set(missing)
+                         service contract: add `effects {service_name}` (every asm \
+                         instruction's service reach must be declared where it is emitted)",
+                        machine.name, instruction
                     )));
                 }
             }
         }
 
-        // Rule 2: machine_control strict transitivity.
-        let Some(machine_effects) = effect_plan
-            .machines()
-            .iter()
-            .find(|entry| entry.symbol == machine.symbol)
-        else {
+        // The normalized summary is also an invariant check: a resolved asm
+        // service must appear in the ordinary canonical reach fixed point.
+        let Some(machine_services) = service_reaches.for_machine(machine.symbol) else {
             continue;
         };
-        if machine_effects.transitive.contains_all(machine_control)
-            && !declared_effects.contains_all(machine_control)
-        {
+        for service_name in ["MachineControl", "PortIo"] {
+            let Some(service) = program.service_reaches.id_for_name(service_name) else {
+                continue;
+            };
+            if direct_asm_services.contains(&service_name) {
+                debug_assert!(machine_services.inferred_transitive.contains(&service));
+                continue;
+            }
+            let Some(path) =
+                find_inline_asm_service_path(program, effect_plan, machine.symbol, service_name)
+            else {
+                continue;
+            };
+            debug_assert!(machine_services.inferred_transitive.contains(&service));
+            if declared_services.contains(&service) {
+                continue;
+            }
             let mut message = format!(
-                "machine `{}` reaches `machine_control` (ring-0 CPU control) but does not \
-                 declare it -- machine_control must be declared by every machine that \
-                 directly or indirectly reaches it",
+                "machine `{}` reaches inline-assembly service `{service_name}` but does not \
+                 declare it -- `{service_name}` must be declared by every machine that \
+                 directly or indirectly reaches the asm instruction",
                 machine.name
             );
-            append_effect_paths(
-                program,
-                effect_plan,
-                machine_effects.symbol,
-                machine_control,
-                &mut message,
-            );
+            append_inline_asm_service_path(program, service_name, &path, &mut message);
             diagnostics.push(Diagnostic::error(message));
         }
     }
 }
 
 /// The asm intrinsic a statement carries, as (instruction label, contract
-/// effects, required authority): a statement call on an `asm#...` target
+/// service identity, required authority): a statement call on an `asm#...` target
 /// (`asm { hlt }`, `asm { out .. }`) or an assignment whose value is the
 /// `asm#port_in` call (`asm { in dest, port }`). The parser's desugar emits
 /// exactly these two shapes and the names are unnameable from source.
@@ -202,7 +218,7 @@ fn statement_asm_intrinsic(
     statement: &StatementNode,
 ) -> Option<(
     &'static str,
-    omega_effects::EffectSet,
+    Option<&'static str>,
     omega_core::inline_assembly::AsmAuthorityRequirement,
 )> {
     let target = match statement {
@@ -221,7 +237,7 @@ fn statement_asm_intrinsic(
     let function = omega_core::symbols::BuiltinFunction::asm_intrinsics()
         .into_iter()
         .find(|function| function.name() == target)?;
-    let effects = omega_effects::asm_intrinsic_effects(function.name())?;
+    let service_name = function.asm_intrinsic_service_name();
     // Label the diagnostic with the SOURCE mnemonic, not the internal name.
     let instruction = match function {
         omega_core::symbols::BuiltinFunction::AsmHlt => "hlt",
@@ -250,7 +266,118 @@ fn statement_asm_intrinsic(
     else {
         return None;
     };
-    Some((instruction, effects, contract.required_authority))
+    Some((instruction, service_name, contract.required_authority))
+}
+
+#[derive(Debug, Clone, Copy)]
+struct InlineAsmServicePathStep {
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    statement_index: usize,
+    call_ordinal: usize,
+    target_machine_symbol: SymbolHandle,
+    target_state_symbol: SymbolHandle,
+}
+
+fn find_inline_asm_service_path(
+    program: &TypedTrees,
+    effect_plan: &omega_effects::EffectPlan,
+    root_machine_symbol: SymbolHandle,
+    service_name: &str,
+) -> Option<Vec<InlineAsmServicePathStep>> {
+    find_inline_asm_service_path_inner(
+        program,
+        effect_plan,
+        root_machine_symbol,
+        service_name,
+        &mut Vec::new(),
+    )
+}
+
+fn find_inline_asm_service_path_inner(
+    program: &TypedTrees,
+    effect_plan: &omega_effects::EffectPlan,
+    machine_symbol: SymbolHandle,
+    service_name: &str,
+    visited: &mut Vec<SymbolHandle>,
+) -> Option<Vec<InlineAsmServicePathStep>> {
+    if visited.contains(&machine_symbol) {
+        return None;
+    }
+    visited.push(machine_symbol);
+
+    let Some(machine) = effect_plan
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+    else {
+        visited.pop();
+        return None;
+    };
+    for state in effect_plan.states.span_or_empty(machine.states) {
+        for call in effect_plan.calls.span_or_empty(state.calls) {
+            let step = InlineAsmServicePathStep {
+                caller_machine_symbol: machine_symbol,
+                caller_state_symbol: state.symbol,
+                statement_index: call.statement_index,
+                call_ordinal: call.call_ordinal,
+                target_machine_symbol: call.target_machine_symbol,
+                target_state_symbol: call.target_state_symbol,
+            };
+            if asm_service_name_for_symbol(program, call.target_state_symbol) == Some(service_name)
+            {
+                visited.pop();
+                return Some(vec![step]);
+            }
+            if call.target_machine_symbol.is_valid()
+                && let Some(mut suffix) = find_inline_asm_service_path_inner(
+                    program,
+                    effect_plan,
+                    call.target_machine_symbol,
+                    service_name,
+                    visited,
+                )
+            {
+                let mut path = vec![step];
+                path.append(&mut suffix);
+                visited.pop();
+                return Some(path);
+            }
+        }
+    }
+    visited.pop();
+    None
+}
+
+fn asm_service_name_for_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&'static str> {
+    omega_core::symbols::BuiltinFunction::asm_intrinsics()
+        .into_iter()
+        .find(|function| program.symbols.builtin_function_symbol(*function) == Some(symbol))?
+        .asm_intrinsic_service_name()
+}
+
+fn append_inline_asm_service_path(
+    program: &TypedTrees,
+    service_name: &str,
+    path: &[InlineAsmServicePathStep],
+    message: &mut String,
+) {
+    message.push_str("\n\ncall path to inline assembly for `");
+    message.push_str(service_name);
+    message.push_str("`:");
+    for (index, step) in path.iter().enumerate() {
+        append_effect_call_step(
+            program,
+            message,
+            index + 1,
+            step.caller_machine_symbol,
+            step.caller_state_symbol,
+            step.statement_index,
+            step.call_ordinal,
+            step.target_machine_symbol,
+            step.target_state_symbol,
+        );
+    }
 }
 
 /// DECISION 12 -- DISCARD ADMITS EFFECTS: `_ = call();` exists to drop a
@@ -271,6 +398,7 @@ fn statement_asm_intrinsic(
 fn validate_pure_discards(
     program: &TypedTrees,
     effect_plan: &omega_effects::EffectPlan,
+    service_reaches: &omega_effects::ServiceReachInferencePlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let classification = omega_typed_trees::proof_only::classify(program);
@@ -298,12 +426,19 @@ fn validate_pure_discards(
 
                 // An unresolved callee cannot be PROVABLY pure; resolution
                 // errors are owned by other passes.
-                let Some(callee) = resolve_discard_callee(program, effect_plan, call.target_symbol)
-                else {
+                let Some(callee) = resolve_discard_callee(
+                    program,
+                    effect_plan,
+                    service_reaches,
+                    call.target_symbol,
+                ) else {
                     continue;
                 };
 
-                if callee.effects.is_empty() && !callee.has_mutable_parameter {
+                if callee.effects.is_empty()
+                    && !callee.has_service_reach
+                    && !callee.has_mutable_parameter
+                {
                     diagnostics.push(Diagnostic::warning(format!(
                         "`_ = {target}(...);` discards a provably pure call: `{target}` has no effects and no mutable out-parameters, so the discard is dead code; remove the statement or use the result",
                         target = call.target.as_str()
@@ -316,6 +451,7 @@ fn validate_pure_discards(
 
 struct DiscardCallee {
     effects: omega_effects::EffectSet,
+    has_service_reach: bool,
     has_mutable_parameter: bool,
 }
 
@@ -340,6 +476,7 @@ fn machine_owning_state(
 fn resolve_discard_callee(
     program: &TypedTrees,
     effect_plan: &omega_effects::EffectPlan,
+    service_reaches: &omega_effects::ServiceReachInferencePlan,
     target_symbol: SymbolHandle,
 ) -> Option<DiscardCallee> {
     if !target_symbol.is_valid() {
@@ -366,6 +503,9 @@ fn resolve_discard_callee(
 
         return Some(DiscardCallee {
             effects,
+            has_service_reach: service_reaches
+                .for_machine(machine.symbol)
+                .is_some_and(|summary| !summary.effective.is_empty()),
             has_mutable_parameter: program
                 .state_parameters(state)
                 .iter()
@@ -379,17 +519,23 @@ fn resolve_discard_callee(
             .iter()
             .find(|signature| signature.symbol == target_symbol)
         {
-            return Some(signature_discard_callee(program, signature));
+            return Some(signature_discard_callee(
+                program,
+                trait_definition,
+                signature,
+            ));
         }
     }
 
     None
 }
 
-/// Boundary-trait signatures have no body to traverse; their declared effect
-/// list IS their full effect surface.
+/// Signatures have no body to traverse. Their normalized service row and, for
+/// a boundary trait, the enclosing service identity still make the call
+/// observable even when the lowercase compatibility list is empty.
 fn signature_discard_callee(
     program: &TypedTrees,
+    trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
     signature: &omega_typed_trees::signature::StateSignature,
 ) -> DiscardCallee {
     let mut effects = omega_effects::EffectSet::empty();
@@ -399,6 +545,11 @@ fn signature_discard_callee(
 
     DiscardCallee {
         effects,
+        has_service_reach: trait_definition.is_boundary
+            || !program
+                .service_reach_rows
+                .services(signature.service_reach_row)
+                .is_empty(),
         has_mutable_parameter: program
             .state_signature_parameters(signature)
             .iter()
@@ -636,6 +787,33 @@ fn declared_machine_effect_set(
     let mut effects = omega_effects::EffectSet::empty();
     for effect in program.machine_effects(machine) {
         effects.insert_name(effect.as_str());
+    }
+    // Compatibility only: the generic legacy ceiling and flow graph still
+    // carry lowercase bits. Derive their conservative projection from
+    // canonical, symbol-resolved rows so authoring never regresses to those
+    // names.
+    for service in program
+        .service_reach_rows
+        .services(machine.service_reach_row)
+    {
+        let Some(definition) = program.service_reaches.definition(*service) else {
+            continue;
+        };
+        match definition.name.as_str() {
+            "MachineControl" => {
+                effects.insert_name("machine_control");
+            }
+            "PortIo" => {
+                effects.insert_name("device_io");
+            }
+            // Boundary-service identities have no one-to-one member in the
+            // retired global catalog. Its conservative host-facing bit is the
+            // compatibility projection until the generic ceiling/graph path
+            // consumes normalized rows directly.
+            _ => {
+                effects.insert_name("host_boundary");
+            }
+        }
     }
     effects
 }

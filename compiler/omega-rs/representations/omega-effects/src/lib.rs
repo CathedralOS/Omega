@@ -608,7 +608,7 @@ fn push_statement_call(
 ) {
     let target_state_symbol = call.target_symbol;
     let target_machine_symbol = machine_symbol_for_state(program, target_state_symbol);
-    let direct = asm_intrinsic_effects(call.target.as_str()).map_or_else(
+    let direct = asm_intrinsic_legacy_effects(call.target.as_str()).map_or_else(
         || direct_contract_for_signature_symbol(program, target_state_symbol),
         |services| DirectCallContract {
             services,
@@ -728,7 +728,7 @@ fn push_expression_call(
 ) {
     let target_state_symbol = call.target_symbol;
     let target_machine_symbol = machine_symbol_for_state(program, target_state_symbol);
-    let direct = asm_intrinsic_effects(call.target.as_str()).map_or_else(
+    let direct = asm_intrinsic_legacy_effects(call.target.as_str()).map_or_else(
         || direct_contract_for_signature_symbol(program, target_state_symbol),
         |services| DirectCallContract {
             services,
@@ -750,15 +750,15 @@ fn push_expression_call(
     *call_ordinal = call_ordinal.checked_add(1).expect("call ordinal overflow");
 }
 
-/// The service-reach effect component of an asm intrinsic call (`asm { hlt }`
-/// and `asm { cli/sti }` --> `machine_control`, `asm { in/out .. }` -->
-/// `device_io`, fences --> the empty set), or None for ordinary calls. Keyed by
-/// the unnameable `asm#...` names only the parser's asm-block desugar can emit.
-pub fn asm_intrinsic_effects(target: &str) -> Option<EffectSet> {
+/// Temporary lowercase/u64 projection of an asm intrinsic's canonical service
+/// reach for the still-unmigrated flow/graph consumers. Semantic admission and
+/// validation must use symbol-resolved service rows instead. Fences project to
+/// the empty set; ordinary calls return None.
+pub fn asm_intrinsic_legacy_effects(target: &str) -> Option<EffectSet> {
     let function = omega_core::symbols::BuiltinFunction::asm_intrinsics()
         .into_iter()
         .find(|function| function.name() == target)?;
-    if let Some(effect_name) = function.asm_intrinsic_effect_name() {
+    if let Some(effect_name) = function.asm_intrinsic_legacy_effect_name() {
         return EffectSet::from_name(effect_name);
     }
     function.is_asm_intrinsic().then_some(EffectSet::empty())

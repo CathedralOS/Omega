@@ -1336,7 +1336,7 @@ fn parses_x86_interrupt_control_as_zero_operand_intrinsics() {
     let source = r#"
         data Main {}
 
-        machine Main::main(&mut self) effects machine_control {
+        machine Main::main(&mut self) effects MachineControl {
             asm where clobbers none { cli; sti }
         }
         "#;
@@ -1373,7 +1373,7 @@ fn parses_x86_flags_as_explicit_value_operations() {
     let source = r#"
         data Main { saved: u64; }
 
-        machine Main::main(&mut self) effects machine_control {
+        machine Main::main(&mut self) effects MachineControl {
             asm where clobbers r10, r15 {
                 pushfq self.saved;
                 popfq self.saved
@@ -1419,7 +1419,7 @@ fn parses_x86_msr_as_structured_value_operations() {
     let source = r#"
         data Main { value: u64; }
 
-        machine Main::main(&mut self) effects machine_control {
+        machine Main::main(&mut self) effects MachineControl {
             asm where clobbers rax, rcx, rdx, r10, r11, r15 {
                 rdmsr self.value, 3221225600;
                 wrmsr 3221225600, self.value
@@ -1465,7 +1465,7 @@ fn parses_x86_control_registers_as_structured_value_operations() {
     let source = r#"
         data Main { value: u64; }
 
-        machine Main::main(&mut self) effects machine_control {
+        machine Main::main(&mut self) effects MachineControl {
             asm where clobbers rax, r10, r11, r15 {
                 read_cr0 self.value;
                 write_cr0 self.value;

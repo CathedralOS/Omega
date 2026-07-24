@@ -1,7 +1,9 @@
 // `out` realizes rax, rdx, r10, and r11. Omitting r11 would let a caller treat
 // a destroyed register as live, so the authored block contract must reject.
+use omega::language::core::assembly;
+
 data Main { port: u16; status: u8; }
-machine Main::main(&mut self) effects device_io {
+machine Main::main(&mut self) effects PortIo {
     asm where clobbers rax, rdx, r10 {
         out self.port, self.status
     }

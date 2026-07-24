@@ -1,0 +1,5 @@
+data Main {}
+
+machine Main::main(&mut self) {
+    asm { hlt }
+}

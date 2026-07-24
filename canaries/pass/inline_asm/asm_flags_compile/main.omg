@@ -1,11 +1,13 @@
 // COMPILE CANARY (linux_x64 freestanding): RFLAGS save/restore are explicit
 // u64 value operations. Their realized push/pop sequences leave RSP unchanged,
 // and restore carries machine-control reach plus boot-root authority.
+use omega::language::core::assembly;
+
 data Main {
     saved_flags: u64;
 }
 
-machine Main::main(&mut self) effects machine_control {
+machine Main::main(&mut self) effects MachineControl {
     asm where clobbers r10, r15 {
         pushfq self.saved_flags;
         cli;

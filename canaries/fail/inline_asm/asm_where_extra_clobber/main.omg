@@ -1,6 +1,8 @@
 // HLT itself changes no general-purpose register. Inventing rax in the block
 // contract is rejected just like omitting a real clobber: the surface is exact.
+use omega::language::core::assembly;
+
 data Main {}
-machine Main::main(&mut self) effects machine_control {
+machine Main::main(&mut self) effects MachineControl {
     asm where clobbers rax { hlt }
 }

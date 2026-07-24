@@ -3,7 +3,7 @@ use omega::language::core::interrupt;
 data Main {}
 
 machine Main::complete_twice(acknowledgement: InterruptAcknowledgement)
-effects device_io
+effects PortIo
 {
     acknowledgement.complete();
     acknowledgement.complete();
