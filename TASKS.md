@@ -31,6 +31,13 @@ its footprint, emits pinned `41 0f 01 1a` bytes, and rejects on AArch64. User
 spelling rejects before operand lowering; only a provider holding the sealed
 record-before-reachability preparation proof may request compiler lowering.
 
+Cathedral now authors the real 16-byte x86 interrupt-gate schema through this
+same programmable-layout path. One logical 64-bit entry identity tiles the
+low/middle/high hardware fields through three validated `Bits` placements;
+selector, bounded IST, type attributes, and zero-reserved fields occupy their
+dictated offsets. The policy is pure description data and grants no resolver,
+root, materialization, publication, or `IdtControl` authority.
+
 The first ENT2 slice is implemented in `omega-calling-conventions`: normalized
 register/value-placement vocabularies, deterministic `CallPlan + StatePlan`
 identity, MS-x64/SysV-x64/AAPCS64/Linux-syscall evaluators, plan validation,
@@ -807,7 +814,9 @@ schemas recover the same instance without publishing policy type identity.
      due registrations and rearms the next deadline. Cathedral now carries
      pure, zero-authority 8259A and 8254 hardware-fact packages for the port
      map, initialization/control words, cascade wiring, masks, timer modes, and
-     clock rate. Cathedral also has checked `PortIo` helpers that remap both
+     clock rate. Its pure x86 gate policy also pins the 16-byte descriptor and
+     validated split-entry placement without acquiring installation authority.
+     Cathedral also has checked `PortIo` helpers that remap both
      controllers while masked, unmask only the timer line, emit the master-PIC
      acknowledgement, and program PIT channel 0 in binary rate-generator mode
      from an explicitly supplied divisor. Invoking those helpers during
