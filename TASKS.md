@@ -1440,9 +1440,15 @@ stronger operations it needs instead of citing machine parameters generally.
   including arrays of nested records, now participate in recursively fact-free
   mutable record views; runtime-indexed projections preserve live backing-byte
   identity in the interpreter and native x86-64/AArch64 lowering. Fact-bearing
-  array elements reject at the same bidirectional-fact gate. Continue general
-  non-record tiling and bidirectional fact-equivalence beyond the fact-free
-  record subset.
+  array elements reject at the same bidirectional-fact gate. Mutable scalar
+  views now admit normalized declared-domain conjunctions only when the shared
+  domain graph proves implication in both directions; the implication relation
+  is owned once by typed domains and reused by validation and flow checking.
+  Equal-looking predicates over different primitive carriers remain fenced
+  until their bit-pattern sets can be proved equivalent, and ranges remain
+  outside this first fact-bearing rung. Continue general non-record tiling,
+  range/representation-set equivalence, and fact-bearing record views beyond
+  the fact-free subset.
 - **L6a — Extent.** The normalized conservation foundation is live in
   `omega-extents`: admitted one-shot root grants mint nonempty ranges;
   move-split preserves exact geometry; only compatible siblings from one

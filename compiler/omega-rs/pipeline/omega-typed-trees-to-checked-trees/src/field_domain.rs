@@ -315,50 +315,7 @@ pub(crate) fn declared_domain_implies(
     source_domain: SymbolHandle,
     target_domain: SymbolHandle,
 ) -> bool {
-    fn inner(
-        program: &omega_typed_trees::TypedTrees,
-        source_domain: SymbolHandle,
-        target_domain: SymbolHandle,
-        visited: &mut Vec<SymbolHandle>,
-    ) -> bool {
-        if !source_domain.is_valid() || !target_domain.is_valid() {
-            return false;
-        }
-        if source_domain == target_domain {
-            return true;
-        }
-        if visited.contains(&source_domain) {
-            return false;
-        }
-        visited.push(source_domain);
-
-        let Some(source) = program
-            .domain_definitions()
-            .iter()
-            .find(|domain| domain.symbol == source_domain)
-        else {
-            return false;
-        };
-        let Some(target) = program
-            .domain_definitions()
-            .iter()
-            .find(|domain| domain.symbol == target_domain)
-        else {
-            return false;
-        };
-        if source.semantic_id.is_valid() && source.semantic_id == target.semantic_id {
-            return true;
-        }
-
-        program.proof_facts(source).iter().any(|fact| match fact {
-            omega_typed_trees::domain::ProofFact::Membership(membership) => {
-                inner(program, membership.domain_symbol, target_domain, visited)
-            }
-            omega_typed_trees::domain::ProofFact::Expression(_) => false,
-        })
-    }
-
-    inner(program, source_domain, target_domain, &mut Vec::new())
+    omega_typed_trees::domain::declared_domain_implies(program, source_domain, target_domain)
 }
 
 // --- comptime byte-predicate machinery (moved here from

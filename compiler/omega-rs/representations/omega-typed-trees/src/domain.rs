@@ -1,3 +1,4 @@
+use crate::TypedTrees;
 use crate::name::Identifier;
 use crate::types::TypeReferenceHandle;
 use omega_core::arena::HandleSpan;
@@ -62,4 +63,64 @@ impl Default for ProofMembershipFact {
             domain_symbol: SymbolHandle::invalid(),
         }
     }
+}
+
+/// Whether one declared domain implies another by normalized semantic identity
+/// or by an explicit domain-membership chain.
+///
+/// This relation belongs with the normalized typed domain graph rather than
+/// with any one checker. Capacity-specialized declarations keep distinct
+/// carrier-specific symbols so operator lookup can still select the declaration
+/// for `[u8; 8]` versus `[u8; 16]`; their shared `semantic_id` is the proof
+/// identity. Validation separately requires declarations sharing that identity
+/// to have equal facets and normalized fact sets.
+pub fn declared_domain_implies(
+    program: &TypedTrees,
+    source_domain: SymbolHandle,
+    target_domain: SymbolHandle,
+) -> bool {
+    fn inner(
+        program: &TypedTrees,
+        source_domain: SymbolHandle,
+        target_domain: SymbolHandle,
+        visited: &mut Vec<SymbolHandle>,
+    ) -> bool {
+        if !source_domain.is_valid() || !target_domain.is_valid() {
+            return false;
+        }
+        if source_domain == target_domain {
+            return true;
+        }
+        if visited.contains(&source_domain) {
+            return false;
+        }
+        visited.push(source_domain);
+
+        let Some(source) = program
+            .domain_definitions()
+            .iter()
+            .find(|domain| domain.symbol == source_domain)
+        else {
+            return false;
+        };
+        let Some(target) = program
+            .domain_definitions()
+            .iter()
+            .find(|domain| domain.symbol == target_domain)
+        else {
+            return false;
+        };
+        if source.semantic_id.is_valid() && source.semantic_id == target.semantic_id {
+            return true;
+        }
+
+        program.proof_facts(source).iter().any(|fact| match fact {
+            ProofFact::Membership(membership) => {
+                inner(program, membership.domain_symbol, target_domain, visited)
+            }
+            ProofFact::Expression(_) => false,
+        })
+    }
+
+    inner(program, source_domain, target_domain, &mut Vec::new())
 }

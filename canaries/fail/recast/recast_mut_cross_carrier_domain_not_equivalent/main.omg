@@ -1,0 +1,21 @@
+// FAIL CANARY: equal-looking predicates over different primitive carriers are
+// not automatically equal bit-pattern sets. Until a representation solver
+// proves that relation, a mutable recast may not treat the two domain names as
+// bidirectionally equivalent merely because their source text looks alike.
+domain u32::Small {
+    self >= 0;
+    self <= 100;
+}
+
+domain i32::Small {
+    self >= 0;
+    self <= 100;
+}
+
+data Main {
+    value: u32 in Small;
+}
+
+machine Main::main(&mut self) {
+    let view: &mut i32 in Small = &mut self.value as &mut i32;
+}
