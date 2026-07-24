@@ -200,6 +200,71 @@ fn accepts_projected_field_from_multi_loan_carrier() {
     check_program(source).expect("field projection must not retain a disjoint sibling source");
 }
 
+/// A literal fixed-array position is as precise as a named field: selecting a
+/// constant element retains only that element's loan.
+#[test]
+fn accepts_projected_fixed_array_element_from_multi_loan_carrier() {
+    let source = r#"
+        data Cell {
+            value: &mut i32;
+        }
+
+        machine write(value: &mut i32) {
+            value = 1;
+        }
+
+        machine exercise(first: &mut i32, second: &mut i32) {
+            let pair: [Cell; 2] = [
+                Cell { value: first },
+                Cell { value: second }
+            ];
+            let selected: &mut i32 = pair[0].value;
+            write(second);
+            write(selected);
+        }
+    "#;
+
+    check_program(source)
+        .expect("constant array projection must not retain a disjoint element source");
+}
+
+/// A dynamic index can select any element, so it must keep every candidate
+/// loan and reject a sibling write while the projected view remains live.
+#[test]
+fn rejects_dynamic_fixed_array_projection_as_potentially_aliasing() {
+    let source = r#"
+        data Cell {
+            value: &mut i32;
+        }
+
+        machine write(value: &mut i32) {
+            value = 1;
+        }
+
+        machine exercise(first: &mut i32, second: &mut i32, index: u64 [0..=1]) {
+            let pair: [Cell; 2] = [
+                Cell { value: first },
+                Cell { value: second }
+            ];
+            let selected: &mut i32 = pair[index].value;
+            write(second);
+            write(selected);
+        }
+    "#;
+
+    let diagnostics = check_program(source)
+        .expect_err("dynamic array projection must conservatively retain sibling loans");
+    let combined = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("mutates `second` while local borrow `selected` is still active"),
+        "expected the dynamic element's sibling-loan conflict, got:\n{combined}"
+    );
+}
+
 /// Generic storage participates in the same structural walk: substituting a
 /// borrow-carrying argument into an otherwise ordinary field keeps the loan.
 #[test]

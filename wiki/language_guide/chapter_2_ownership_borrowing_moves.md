@@ -238,11 +238,13 @@ arrays, constraints, and concrete generic arguments cannot hide an inner
 loan, and recursive data is walked cycle-safely. Literal construction records
 every carried source; a returned aggregate is valid only when all of those
 sources outlive the call, and projecting a named field retains only that
-field's loans. Explicit lifetime arguments on named borrow-carrying data,
-result contracts relating different fields to different input lifetimes,
-general outlives constraints, exact fixed-array projection, and non-literal
-aggregate construction remain implementation work; they are not new
-language-design questions.
+field's loans. Fixed-array literal positions retain exact ordinals too:
+projecting a constant index keeps only that element's loans, while a dynamic
+index conservatively keeps every candidate element's loans. Explicit lifetime
+arguments on named borrow-carrying data, result contracts relating different
+fields to different input lifetimes, general outlives constraints, and
+non-literal aggregate construction remain implementation work; they are not
+new language-design questions.
 
 ## Relationship To Drops
 
