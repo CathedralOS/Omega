@@ -1499,11 +1499,16 @@ stronger operations it needs instead of citing machine parameters generally.
   views now admit normalized declared-domain conjunctions only when the shared
   domain graph proves implication in both directions; the implication relation
   is owned once by typed domains and reused by validation and flow checking.
-  Equal-looking predicates over different primitive carriers remain fenced
-  until their bit-pattern sets can be proved equivalent, and ranges remain
-  outside this first fact-bearing rung. Continue general non-record tiling,
-  range/representation-set equivalence, and fact-bearing record views beyond
-  the fact-free subset.
+  Constant integer ranges now normalize to exact two's-complement bit-pattern
+  sets, including split intervals across signed zero. Equal sets admit mutable
+  aliases across same-width signed/unsigned carriers; equal cardinality or
+  shifted sets reject. Range-refined reference binding is no longer mistaken
+  for a numeric store into the referee. Equal-looking predicates over different
+  primitive carriers remain fenced until their bit-pattern sets can be proved
+  equivalent, and float ranges remain fenced because numeric intervals do not
+  describe NaNs, signed zero, or payload bits. Continue general non-record
+  tiling, float/domain representation-set reasoning, and fact-bearing record
+  views beyond the fact-free subset.
 - **L6a — Extent.** The normalized conservation foundation is live in
   `omega-extents`: admitted one-shot root grants mint nonempty ranges;
   move-split preserves exact geometry; only compatible siblings from one

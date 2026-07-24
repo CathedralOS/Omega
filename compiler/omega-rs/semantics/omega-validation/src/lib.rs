@@ -953,13 +953,26 @@ fn validate_state_statement_node(
                 // rule). The enforced range only exists under Exact shells,
                 // so non-Exact declarations are untouched (Q9's own gate
                 // already rejects range+domain combinations).
-                arithmetic_domains::check_range_containment(
-                    program,
-                    local_data.type_reference,
-                    interval,
-                    &owner,
-                    diagnostics,
-                );
+                // A reference binding stores the reference, not a fresh value
+                // into the referee. Its referee facts are checked by ordinary
+                // borrow compatibility and, for a stated recast, by the
+                // bidirectional representation judgment. Treating the borrow
+                // expression as a numeric store into the referee incorrectly
+                // rejects every range-refined reference initializer.
+                if !matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(local_data.type_reference),
+                    omega_typed_trees::types::TypeReferenceNode::Reference { .. }
+                ) {
+                    arithmetic_domains::check_range_containment(
+                        program,
+                        local_data.type_reference,
+                        interval,
+                        &owner,
+                        diagnostics,
+                    );
+                }
             }
             if local_data.initial_value.is_valid() {
                 arithmetic_domains::record_assignment(
