@@ -10,9 +10,10 @@
 //!
 //! 1. `desugar_plan_laid_value_types` (PRE-RESOLUTION, on the merged syntax
 //!    trees): synthesizes `data CLayout<Gdt> { <schema fields> }` and rewrites
-//!    the generic spelling to that plain name, so symbol resolution, typing,
-//!    validation, proof, and the interpreter all see an ordinary record. The
-//!    interpreter is name-keyed, so it needs nothing else.
+//!    every occurrence of the generic spelling to that plain name, so fields,
+//!    parameters, returns, locals, nested generic arguments, symbol resolution,
+//!    typing, validation, proof, and the interpreter all see one ordinary
+//!    record identity. The interpreter is name-keyed, so it needs nothing else.
 //! 2. `compute_plan_laid_layouts` (POST-TYPING, after const-length
 //!    substitution): evaluates the policy at build time through the existing
 //!    L2/L3 pipeline (`compute_layout_plan` -- contract gate, plan validation),
@@ -21,9 +22,8 @@
 //!    on `TypedTrees::plan_laid_layouts` for the native layout builder.
 //!
 //! v0 boundaries (documented, all clean errors): schemas are plain records of
-//! primitives; the spelling is legal in FIELD type position (params/lets keep
-//! the existing generic-type errors); construction is ZII + per-field writes
-//! (a `CLayout<Gdt> { ... }` literal is not spellable).
+//! primitives; construction is ZII + per-field writes (a
+//! `CLayout<Gdt> { ... }` literal is not spellable).
 
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
@@ -60,9 +60,9 @@ struct PendingRewrite {
     synthetic_name: String,
 }
 
-/// Find `Policy<Schema>` spellings in FIELD type position where `Policy` is a
-/// non-generic data definition with an attached `plan` machine, synthesize the
-/// instance definitions, and rewrite the spellings. Returns the records the
+/// Find `Policy<Schema>` type applications where `Policy` is a non-generic
+/// data definition with an attached `plan` machine, synthesize the instance
+/// definitions, and rewrite every occurrence. Returns the records the
 /// post-typing plan pass needs.
 pub(crate) fn desugar_plan_laid_value_types(
     syntax: &mut SyntaxTrees,
@@ -98,118 +98,110 @@ pub(crate) fn desugar_plan_laid_value_types(
         }
     }
 
-    // Scan field type references for policy applications. Collection only --
+    // Scan the TYPE TABLE rather than only data fields. A plan-laid
+    // application is one semantic value type wherever it occurs; relying on a
+    // field and a parameter spelling to share an arena handle made that
+    // identity an accidental parser-allocation property. Collection only --
     // mutation happens after the scan so the borrows stay simple.
     let mut diagnostics = Vec::new();
     let mut rewrites: Vec<PendingRewrite> = Vec::new();
     let mut records: Vec<PlanLaidRecord> = Vec::new();
-    for item in syntax.root_items() {
-        let Item::Data(definition) = item else {
-            continue;
+    for type_reference in syntax.tables.type_references.generic_nodes() {
+        let TypeReferenceNode::Generic {
+            base_name,
+            lifetime_arguments,
+            arguments,
+        } = syntax.tables.type_references.type_reference(type_reference)
+        else {
+            unreachable!("generic_nodes returned a non-generic type reference");
         };
-        for member in syntax.tables.items.data_members(definition.members) {
-            let DataMember::Field(field) = member else {
-                continue;
-            };
-            let TypeReferenceNode::Generic {
-                base_name,
-                lifetime_arguments,
-                arguments,
-            } = syntax
-                .tables
-                .type_references
-                .type_reference(field.type_reference)
-            else {
-                continue;
-            };
-            if !lifetime_arguments.is_empty() {
-                continue;
-            }
-            let base = base_name.as_str();
-            let Some(base_info) = data_index.get(base) else {
-                continue; // unknown base: existing generic-type paths diagnose
-            };
-            if base_info.has_type_parameters {
-                continue; // a genuine generic data definition, not a policy
-            }
-            if !plan_policies.contains(base) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "data `{base}` takes no type parameters and has no attached `plan` \
-                     machine, so `{base}<...>` is neither a generic instantiation nor a \
-                     layout-policy application"
-                )));
-                continue;
-            }
+        if !lifetime_arguments.is_empty() {
+            continue;
+        }
+        let base = base_name.as_str();
+        let Some(base_info) = data_index.get(base) else {
+            continue; // unknown base: existing generic-type paths diagnose
+        };
+        if base_info.has_type_parameters {
+            continue; // a genuine generic data definition, not a policy
+        }
+        if !plan_policies.contains(base) {
+            diagnostics.push(Diagnostic::error(format!(
+                "data `{base}` takes no type parameters and has no attached `plan` \
+                 machine, so `{base}<...>` is neither a generic instantiation nor a \
+                 layout-policy application"
+            )));
+            continue;
+        }
 
-            let argument_handles = syntax
-                .tables
-                .type_references
-                .type_reference_handles(*arguments);
-            let schema_name = match argument_handles {
-                [only] => match syntax.tables.type_references.type_reference(*only) {
-                    TypeReferenceNode::Named(name) => name.as_str().to_string(),
-                    _ => {
-                        diagnostics.push(Diagnostic::error(format!(
-                            "layout policy `{base}` must be applied to a plain data name \
-                             (`{base}<Schema>`)"
-                        )));
-                        continue;
-                    }
-                },
+        let argument_handles = syntax
+            .tables
+            .type_references
+            .type_reference_handles(*arguments);
+        let schema_name = match argument_handles {
+            [only] => match syntax.tables.type_references.type_reference(*only) {
+                TypeReferenceNode::Named(name) => name.as_str().to_string(),
                 _ => {
                     diagnostics.push(Diagnostic::error(format!(
-                        "layout policy `{base}` takes exactly one schema argument"
+                        "layout policy `{base}` must be applied to a plain data name \
+                         (`{base}<Schema>`)"
                     )));
                     continue;
                 }
-            };
-            let Some(schema_info) = data_index.get(&schema_name) else {
+            },
+            _ => {
                 diagnostics.push(Diagnostic::error(format!(
-                    "layout policy `{base}` is applied to `{schema_name}`, but no data \
-                     definition with that name exists"
-                )));
-                continue;
-            };
-            if schema_info.has_type_parameters {
-                diagnostics.push(Diagnostic::error(format!(
-                    "layout policy `{base}` cannot be applied to generic data `{schema_name}`"
+                    "layout policy `{base}` takes exactly one schema argument"
                 )));
                 continue;
             }
-            if schema_info.supply_mode == omega_core::semantics::DataSupplyMode::BoundaryOpaque {
-                diagnostics.push(Diagnostic::error(format!(
-                    "layout policy `{base}` cannot inspect opaque boundary data `{schema_name}`"
-                )));
-                continue;
-            }
-            let schema_members = syntax.tables.items.data_members(schema_info.members);
-            if schema_members.is_empty()
-                || !schema_members
-                    .iter()
-                    .all(|member| matches!(member, DataMember::Field(_)))
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "plan-laid schema `{schema_name}` must be a plain record with at least \
-                     one field (no cases or version blocks)"
-                )));
-                continue;
-            }
-
-            let synthetic_name = format!("{base}<{schema_name}>");
-            rewrites.push(PendingRewrite {
-                type_reference: field.type_reference,
-                synthetic_name: synthetic_name.clone(),
-            });
-            if !records
+        };
+        let Some(schema_info) = data_index.get(&schema_name) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "layout policy `{base}` is applied to `{schema_name}`, but no data \
+                 definition with that name exists"
+            )));
+            continue;
+        };
+        if schema_info.has_type_parameters {
+            diagnostics.push(Diagnostic::error(format!(
+                "layout policy `{base}` cannot be applied to generic data `{schema_name}`"
+            )));
+            continue;
+        }
+        if schema_info.supply_mode == omega_core::semantics::DataSupplyMode::BoundaryOpaque {
+            diagnostics.push(Diagnostic::error(format!(
+                "layout policy `{base}` cannot inspect opaque boundary data `{schema_name}`"
+            )));
+            continue;
+        }
+        let schema_members = syntax.tables.items.data_members(schema_info.members);
+        if schema_members.is_empty()
+            || !schema_members
                 .iter()
-                .any(|record| record.synthetic_name == synthetic_name)
-            {
-                records.push(PlanLaidRecord {
-                    synthetic_name,
-                    policy_machine: format!("{base}::plan"),
-                    schema_data: schema_name,
-                });
-            }
+                .all(|member| matches!(member, DataMember::Field(_)))
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "plan-laid schema `{schema_name}` must be a plain record with at least \
+                 one field (no cases or version blocks)"
+            )));
+            continue;
+        }
+
+        let synthetic_name = format!("{base}<{schema_name}>");
+        rewrites.push(PendingRewrite {
+            type_reference,
+            synthetic_name: synthetic_name.clone(),
+        });
+        if !records
+            .iter()
+            .any(|record| record.synthetic_name == synthetic_name)
+        {
+            records.push(PlanLaidRecord {
+                synthetic_name,
+                policy_machine: format!("{base}::plan"),
+                schema_data: schema_name,
+            });
         }
     }
     if !diagnostics.is_empty() {

@@ -76,6 +76,21 @@ impl TypeReferenceTable {
             .collect()
     }
 
+    /// Every generic-application node currently stored in the table.
+    ///
+    /// Pre-resolution whole-program desugars use this snapshot to rewrite a
+    /// semantic type application wherever it occurs (fields, parameters,
+    /// returns, locals, or nested generic arguments), rather than depending on
+    /// two source spellings sharing one arena handle.
+    pub fn generic_nodes(&self) -> Vec<TypeReferenceHandle> {
+        self.type_references
+            .iter()
+            .filter_map(|(handle, node)| {
+                matches!(node, TypeReferenceNode::Generic { .. }).then_some(handle)
+            })
+            .collect()
+    }
+
     /// Fixed-array nodes in a freshly copied subtree whose length still names
     /// a const parameter. Generic-instance method cloning substitutes these
     /// after the copy, alongside `Named(T)` type nodes.
