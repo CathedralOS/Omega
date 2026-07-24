@@ -70,6 +70,8 @@ struct ArtifactRecord {
     placement_constraints: PlacementConstraints,
     entry_set: EntrySetId,
     entries: Vec<ArtifactEntry>,
+    relocation_set: RelocationSetId,
+    relocations: Vec<DecodedArtifactRelocation>,
 }
 
 /// Canonically decoded entry in one executable artifact. The offset remains
@@ -115,6 +117,8 @@ impl Artifact {
         placement_constraints: PlacementConstraints,
         entry_set: EntrySetId,
         mut entries: Vec<ArtifactEntry>,
+        relocation_set: RelocationSetId,
+        relocations: Vec<DecodedArtifactRelocation>,
     ) -> Result<Self, InstallationDiagnostic> {
         if code.is_empty() {
             return Err(InstallationDiagnostic(
@@ -154,6 +158,8 @@ impl Artifact {
                 "artifact entry identities must be unique".into(),
             ));
         }
+        let relocations =
+            validate_decoded_relocations(relocations, architecture, byte_length, usize::MAX)?;
         Ok(Self(Arc::new(ArtifactRecord {
             identity,
             content,
@@ -166,6 +172,8 @@ impl Artifact {
             placement_constraints,
             entry_set,
             entries,
+            relocation_set,
+            relocations,
         })))
     }
 
@@ -202,6 +210,17 @@ impl Artifact {
 
     pub fn entries(&self) -> &[ArtifactEntry] {
         &self.0.entries
+    }
+
+    pub fn relocation_set(&self) -> RelocationSetId {
+        self.0.relocation_set
+    }
+
+    /// Canonical destination-ordered relocation commitments retained through
+    /// admission for the eventual provider materializer. Targets remain sealed
+    /// identities; this projection grants no address resolver.
+    pub fn relocations(&self) -> &[DecodedArtifactRelocation] {
+        &self.0.relocations
     }
 
     fn entry(&self, identity: EntryStubId) -> Option<ArtifactEntry> {
@@ -1285,6 +1304,8 @@ mod tests {
                 entry_id(identity + 1000),
                 16,
             )],
+            id(34, RelocationSetId::from_normalized_identity),
+            Vec::new(),
         )
         .expect("artifact")
     }
