@@ -180,10 +180,15 @@ regions: nested ordinary/plan-laid scalar projections preserve exact offsets
 and bit patterns in both native backends and the interpreter. Literal-length
 fixed-array fields, including arrays of nested records and runtime-indexed
 element projections, participate in the same live view. Fact-bearing mutable
-record targets and array elements reject. Domain predicates over different
-carriers and float ranges remain fenced until their representation sets can be
-proved rather than guessed. General bidirectional fact entailment and non-record
-tiling remain staged.
+record targets and array elements currently reject. A typed record-to-record
+alias may admit once identical layout geometry and representation-equivalent
+leaf facts are proved: both sides are already established values, so the alias
+retains facts rather than creating them. Raw bytes are different. `recast` must
+never establish record facts from unchecked storage; that path remains gated on
+validation or materialization minting the established value. Domain predicates
+over different carriers and float ranges remain fenced until their
+representation sets can be proved rather than guessed. General bidirectional
+fact entailment and non-record tiling remain staged.
 
 ## Policy selection
 
