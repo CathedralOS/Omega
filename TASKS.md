@@ -1834,9 +1834,14 @@ stronger operations it needs instead of citing machine parameters generally.
   plan, byte length, and final identity must all match. `FrozenPlacement`
   retains the immutable final-byte snapshot so the later footprint/PCC
   validator can inspect precisely the bytes whose write authority was frozen.
+  The checked-container admission gate now derives verifier evidence from the
+  exact validated artifact and separately binds its identity-invisible proof
+  payload; acceptance cannot replay across content/contracts/footprint/
+  placement/entry/proof drift, while informational sections remain incapable
+  of contributing admission authority.
   Entry/section order, proof evidence, and informational sections remain identity-invisible.
-  Implement
-  admission/PCC and final-footprint validators, destination write/freeze and
+  Implement the actual trusted/PCC and final-footprint validators,
+  destination write/freeze and
   installer providers, Omega linear integration, and provider-backed
   quiescence/replacement execution. Code-placement claims already validate the
   actual Extent base/length against normalized range, alignment, phase, regime,
