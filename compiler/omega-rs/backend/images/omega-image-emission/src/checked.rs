@@ -293,6 +293,10 @@ fn validate_checked_instruction_bytes(
             CheckedInstructionValidationKind::ControlRegisterWrite { .. } => 12,
             CheckedInstructionValidationKind::FlagsSnapshot { .. } => 13,
             CheckedInstructionValidationKind::FlagsRestore => 14,
+            CheckedInstructionValidationKind::PortWriteRuntimePort { .. } => 15,
+            CheckedInstructionValidationKind::PortReadRuntimePort { .. } => 16,
+            CheckedInstructionValidationKind::MsrReadRuntimeIndex { .. } => 17,
+            CheckedInstructionValidationKind::MsrWriteRuntimeIndex { .. } => 18,
         };
         fingerprint_into(&mut fingerprint, &[kind_tag]);
         fingerprint_into(
@@ -325,8 +329,12 @@ fn validate_checked_instruction_kind(
         CheckedInstructionValidationKind::InterruptEnable => Some(&[0xfb]),
         CheckedInstructionValidationKind::PortWriteImmediatePort { .. }
         | CheckedInstructionValidationKind::PortReadImmediatePort { .. }
+        | CheckedInstructionValidationKind::PortWriteRuntimePort { .. }
+        | CheckedInstructionValidationKind::PortReadRuntimePort { .. }
         | CheckedInstructionValidationKind::MsrReadImmediateIndex { .. }
         | CheckedInstructionValidationKind::MsrWriteImmediateIndex { .. }
+        | CheckedInstructionValidationKind::MsrReadRuntimeIndex { .. }
+        | CheckedInstructionValidationKind::MsrWriteRuntimeIndex { .. }
         | CheckedInstructionValidationKind::ControlRegisterRead { .. }
         | CheckedInstructionValidationKind::ControlRegisterWrite { .. }
         | CheckedInstructionValidationKind::FlagsSnapshot { .. }
@@ -403,6 +411,92 @@ fn validate_checked_instruction_kind(
                 "in",
             )?;
         }
+        CheckedInstructionValidationKind::PortWriteRuntimePort {
+            port_operand_byte_width,
+            value_operand_byte_width,
+        } => {
+            let port_end =
+                usize::try_from(port_operand_byte_width).expect("u32 operand width fits usize");
+            let value_end = port_end
+                .checked_add(3)
+                .and_then(|start| {
+                    start.checked_add(
+                        usize::try_from(value_operand_byte_width)
+                            .expect("u32 operand width fits usize"),
+                    )
+                })
+                .ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "checked `out` instruction #{selected_instruction_index} operand widths overflow"
+                    ))
+                })?;
+            let expected_len = value_end.checked_add(4).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "checked `out` instruction #{selected_instruction_index} width overflows"
+                ))
+            })?;
+            if encoded_bytes.len() != expected_len
+                || encoded_bytes.get(port_end..port_end + 3) != Some(&[0x44, 0x89, 0xd2])
+                || encoded_bytes.get(value_end..expected_len) != Some(&[0x44, 0x89, 0xd8, 0xee])
+            {
+                return Err(Diagnostic::error(format!(
+                    "encoded checked `out` instruction #{selected_instruction_index} does not preserve its runtime port/value boundaries and closed DX/AL envelope"
+                )));
+            }
+            if final_bytes.len() != expected_len
+                || final_bytes.get(port_end..port_end + 3) != Some(&[0x44, 0x89, 0xd2])
+                || final_bytes.get(value_end..expected_len) != Some(&[0x44, 0x89, 0xd8, 0xee])
+            {
+                return Err(Diagnostic::error(format!(
+                    "final checked `out` instruction #{selected_instruction_index} changed its runtime operand boundaries or privileged opcode envelope"
+                )));
+            }
+        }
+        CheckedInstructionValidationKind::PortReadRuntimePort {
+            port_operand_byte_width,
+            destination_byte_offset,
+        } => {
+            let port_end =
+                usize::try_from(port_operand_byte_width).expect("u32 operand width fits usize");
+            let relocation_offset = port_end.checked_add(6).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "checked `in` instruction #{selected_instruction_index} width overflows"
+                ))
+            })?;
+            let expected_len = port_end.checked_add(21).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "checked `in` instruction #{selected_instruction_index} width overflows"
+                ))
+            })?;
+            let mut suffix = Vec::with_capacity(7);
+            suffix.extend([0x41, 0x88, 0x87]);
+            suffix.extend(destination_byte_offset.to_le_bytes());
+            if encoded_bytes.len() != expected_len
+                || encoded_bytes.get(port_end..port_end + 6)
+                    != Some(&[0x44, 0x89, 0xd2, 0xec, 0x49, 0xbf])
+                || encoded_bytes.get(relocation_offset..relocation_offset + 8) != Some(&[0; 8])
+                || !encoded_bytes.ends_with(&suffix)
+            {
+                return Err(Diagnostic::error(format!(
+                    "encoded checked `in` instruction #{selected_instruction_index} does not preserve its runtime port boundary and closed AL-store envelope"
+                )));
+            }
+            if final_bytes.len() != expected_len
+                || final_bytes.get(port_end..port_end + 6)
+                    != Some(&[0x44, 0x89, 0xd2, 0xec, 0x49, 0xbf])
+                || !final_bytes.ends_with(&suffix)
+            {
+                return Err(Diagnostic::error(format!(
+                    "final checked `in` instruction #{selected_instruction_index} changed its runtime port boundary, privileged opcode, or destination envelope"
+                )));
+            }
+            require_absolute64_text_relocation(
+                relocations,
+                byte_offset + relocation_offset,
+                selected_instruction_index,
+                "in",
+            )?;
+        }
         CheckedInstructionValidationKind::MsrReadImmediateIndex {
             index,
             destination_byte_offset,
@@ -461,6 +555,98 @@ fn validate_checked_instruction_kind(
             if !final_bytes.starts_with(&prefix) || !final_bytes.ends_with(&suffix) {
                 return Err(Diagnostic::error(format!(
                     "final checked `wrmsr` instruction #{selected_instruction_index} changed its index or privileged opcode envelope"
+                )));
+            }
+        }
+        CheckedInstructionValidationKind::MsrReadRuntimeIndex {
+            index_operand_byte_width,
+            destination_byte_offset,
+        } => {
+            let index_end =
+                usize::try_from(index_operand_byte_width).expect("u32 operand width fits usize");
+            let relocation_offset = index_end.checked_add(17).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "checked `rdmsr` instruction #{selected_instruction_index} width overflows"
+                ))
+            })?;
+            let expected_len = index_end.checked_add(32).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "checked `rdmsr` instruction #{selected_instruction_index} width overflows"
+                ))
+            })?;
+            let fixed = [
+                0x44, 0x89, 0xd1, 0x0f, 0x32, 0x41, 0x89, 0xc2, 0x48, 0xc1, 0xe2, 0x20, 0x49, 0x09,
+                0xd2, 0x49, 0xbf,
+            ];
+            let mut suffix = Vec::with_capacity(7);
+            suffix.extend([0x4d, 0x89, 0x97]);
+            suffix.extend(destination_byte_offset.to_le_bytes());
+            if encoded_bytes.len() != expected_len
+                || encoded_bytes.get(index_end..index_end + fixed.len()) != Some(&fixed)
+                || encoded_bytes.get(relocation_offset..relocation_offset + 8) != Some(&[0; 8])
+                || !encoded_bytes.ends_with(&suffix)
+            {
+                return Err(Diagnostic::error(format!(
+                    "encoded checked `rdmsr` instruction #{selected_instruction_index} does not preserve its runtime index boundary and closed result envelope"
+                )));
+            }
+            if final_bytes.len() != expected_len
+                || final_bytes.get(index_end..index_end + fixed.len()) != Some(&fixed)
+                || !final_bytes.ends_with(&suffix)
+            {
+                return Err(Diagnostic::error(format!(
+                    "final checked `rdmsr` instruction #{selected_instruction_index} changed its runtime index boundary, privileged opcode, result combine, or destination envelope"
+                )));
+            }
+            require_absolute64_text_relocation(
+                relocations,
+                byte_offset + relocation_offset,
+                selected_instruction_index,
+                "rdmsr",
+            )?;
+        }
+        CheckedInstructionValidationKind::MsrWriteRuntimeIndex {
+            index_operand_byte_width,
+            value_operand_byte_width,
+        } => {
+            let index_end =
+                usize::try_from(index_operand_byte_width).expect("u32 operand width fits usize");
+            let value_end = index_end
+                .checked_add(2)
+                .and_then(|start| {
+                    start.checked_add(
+                        usize::try_from(value_operand_byte_width)
+                            .expect("u32 operand width fits usize"),
+                    )
+                })
+                .ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "checked `wrmsr` instruction #{selected_instruction_index} operand widths overflow"
+                    ))
+                })?;
+            let suffix = [
+                0x41, 0x5a, 0x44, 0x89, 0xd1, 0x44, 0x89, 0xd8, 0x4c, 0x89, 0xda, 0x48, 0xc1, 0xea,
+                0x20, 0x0f, 0x30,
+            ];
+            let expected_len = value_end.checked_add(suffix.len()).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "checked `wrmsr` instruction #{selected_instruction_index} width overflows"
+                ))
+            })?;
+            if encoded_bytes.len() != expected_len
+                || encoded_bytes.get(index_end..index_end + 2) != Some(&[0x41, 0x52])
+                || encoded_bytes.get(value_end..expected_len) != Some(&suffix)
+            {
+                return Err(Diagnostic::error(format!(
+                    "encoded checked `wrmsr` instruction #{selected_instruction_index} does not preserve its runtime index/value boundaries and closed split-value envelope"
+                )));
+            }
+            if final_bytes.len() != expected_len
+                || final_bytes.get(index_end..index_end + 2) != Some(&[0x41, 0x52])
+                || final_bytes.get(value_end..expected_len) != Some(&suffix)
+            {
+                return Err(Diagnostic::error(format!(
+                    "final checked `wrmsr` instruction #{selected_instruction_index} changed its runtime operand boundaries or privileged opcode envelope"
                 )));
             }
         }

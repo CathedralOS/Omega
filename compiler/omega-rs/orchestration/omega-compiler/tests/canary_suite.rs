@@ -33380,6 +33380,7 @@ fn structured_machine_control_envelopes_are_bound_in_final_image_validation() {
         ("inline_asm/asm_msr_compile", 2),
         ("inline_asm/asm_control_registers_compile", 7),
         ("inline_asm/asm_flags_compile", 3),
+        ("inline_asm/asm_runtime_port_msr_final_validation", 4),
     ] {
         let canary = pass_canary(canary_name);
         let build_dir = std::env::temp_dir().join(format!(

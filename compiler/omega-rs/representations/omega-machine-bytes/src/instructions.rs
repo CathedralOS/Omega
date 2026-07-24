@@ -25,12 +25,33 @@ pub enum CheckedInstructionValidationKind {
         port: u16,
         destination_byte_offset: u32,
     },
+    /// `out dx, al` whose port and value are runtime operands. Their encoded
+    /// widths retain the exact boundaries around the fixed register-transfer
+    /// and privileged-opcode skeleton.
+    PortWriteRuntimePort {
+        port_operand_byte_width: u32,
+        value_operand_byte_width: u32,
+    },
+    /// `in al, dx` whose port is a runtime operand. The destination remains a
+    /// compiler-owned relocated store.
+    PortReadRuntimePort {
+        port_operand_byte_width: u32,
+        destination_byte_offset: u32,
+    },
     MsrReadImmediateIndex {
         index: u32,
         destination_byte_offset: u32,
     },
     MsrWriteImmediateIndex {
         index: u32,
+    },
+    MsrReadRuntimeIndex {
+        index_operand_byte_width: u32,
+        destination_byte_offset: u32,
+    },
+    MsrWriteRuntimeIndex {
+        index_operand_byte_width: u32,
+        value_operand_byte_width: u32,
     },
     ControlRegisterRead {
         register: omega_core::inline_assembly::AsmControlRegister,

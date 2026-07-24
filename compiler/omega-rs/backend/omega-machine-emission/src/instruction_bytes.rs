@@ -138,49 +138,119 @@ fn checked_instruction_validation_kind(
         SelectedInstructionKind::InterruptControl(AsmInterruptControlKind::Enable) => {
             Some(CheckedInstructionValidationKind::InterruptEnable)
         }
-        SelectedInstructionKind::PortWrite { port, .. } => {
-            let port = emission_context
+        SelectedInstructionKind::PortWrite { port, value } => {
+            if let Some(port) = emission_context
                 .assigned_target_operations
                 .immediate_integer(*port)
-                .and_then(|port| u16::try_from(port).ok())?;
-            Some(CheckedInstructionValidationKind::PortWriteImmediatePort { port })
+                .and_then(|port| u16::try_from(port).ok())
+            {
+                Some(CheckedInstructionValidationKind::PortWriteImmediatePort { port })
+            } else {
+                let port_operand_byte_width =
+                    u32::try_from(omega_instruction_selection::runtime_value_operand_width(
+                        omega_target::Architecture::X86_64,
+                        emission_context.assigned_target_operations,
+                        *port,
+                    ))
+                    .ok()?;
+                let value_operand_byte_width =
+                    u32::try_from(omega_instruction_selection::runtime_value_operand_width(
+                        omega_target::Architecture::X86_64,
+                        emission_context.assigned_target_operations,
+                        *value,
+                    ))
+                    .ok()?;
+                Some(CheckedInstructionValidationKind::PortWriteRuntimePort {
+                    port_operand_byte_width,
+                    value_operand_byte_width,
+                })
+            }
         }
         SelectedInstructionKind::PortRead {
             port,
             dest_byte_offset,
             ..
         } => {
-            let port = emission_context
+            let port_value = emission_context
                 .assigned_target_operations
                 .immediate_integer(*port)
-                .and_then(|port| u16::try_from(port).ok())?;
+                .and_then(|port| u16::try_from(port).ok());
             let destination_byte_offset = u32::try_from(*dest_byte_offset).ok()?;
-            Some(CheckedInstructionValidationKind::PortReadImmediatePort {
-                port,
-                destination_byte_offset,
-            })
+            if let Some(port) = port_value {
+                Some(CheckedInstructionValidationKind::PortReadImmediatePort {
+                    port,
+                    destination_byte_offset,
+                })
+            } else {
+                let port_operand_byte_width =
+                    u32::try_from(omega_instruction_selection::runtime_value_operand_width(
+                        omega_target::Architecture::X86_64,
+                        emission_context.assigned_target_operations,
+                        *port,
+                    ))
+                    .ok()?;
+                Some(CheckedInstructionValidationKind::PortReadRuntimePort {
+                    port_operand_byte_width,
+                    destination_byte_offset,
+                })
+            }
         }
         SelectedInstructionKind::MsrRead {
             index,
             dest_byte_offset,
             ..
         } => {
-            let index = emission_context
+            let index_value = emission_context
                 .assigned_target_operations
                 .immediate_integer(*index)
-                .and_then(|index| u32::try_from(index).ok())?;
+                .and_then(|index| u32::try_from(index).ok());
             let destination_byte_offset = u32::try_from(*dest_byte_offset).ok()?;
-            Some(CheckedInstructionValidationKind::MsrReadImmediateIndex {
-                index,
-                destination_byte_offset,
-            })
+            if let Some(index) = index_value {
+                Some(CheckedInstructionValidationKind::MsrReadImmediateIndex {
+                    index,
+                    destination_byte_offset,
+                })
+            } else {
+                let index_operand_byte_width =
+                    u32::try_from(omega_instruction_selection::runtime_value_operand_width(
+                        omega_target::Architecture::X86_64,
+                        emission_context.assigned_target_operations,
+                        *index,
+                    ))
+                    .ok()?;
+                Some(CheckedInstructionValidationKind::MsrReadRuntimeIndex {
+                    index_operand_byte_width,
+                    destination_byte_offset,
+                })
+            }
         }
-        SelectedInstructionKind::MsrWrite { index, .. } => {
-            let index = emission_context
+        SelectedInstructionKind::MsrWrite { index, value } => {
+            if let Some(index) = emission_context
                 .assigned_target_operations
                 .immediate_integer(*index)
-                .and_then(|index| u32::try_from(index).ok())?;
-            Some(CheckedInstructionValidationKind::MsrWriteImmediateIndex { index })
+                .and_then(|index| u32::try_from(index).ok())
+            {
+                Some(CheckedInstructionValidationKind::MsrWriteImmediateIndex { index })
+            } else {
+                let index_operand_byte_width =
+                    u32::try_from(omega_instruction_selection::runtime_value_operand_width(
+                        omega_target::Architecture::X86_64,
+                        emission_context.assigned_target_operations,
+                        *index,
+                    ))
+                    .ok()?;
+                let value_operand_byte_width =
+                    u32::try_from(omega_instruction_selection::runtime_value_operand_width(
+                        omega_target::Architecture::X86_64,
+                        emission_context.assigned_target_operations,
+                        *value,
+                    ))
+                    .ok()?;
+                Some(CheckedInstructionValidationKind::MsrWriteRuntimeIndex {
+                    index_operand_byte_width,
+                    value_operand_byte_width,
+                })
+            }
         }
         SelectedInstructionKind::ControlRegisterRead {
             register,
