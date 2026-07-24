@@ -159,6 +159,29 @@ fn checked_operand_loader(
             byte_offset: u32::try_from(storage_offset).ok()?,
             byte_size: u8::try_from(byte_size).ok()?,
         }
+    } else if let Some((pointer_byte_offset, field_byte_offset, byte_size)) =
+        source.pointee(operand)
+    {
+        CheckedOperandLoaderKind::Pointee {
+            pointer_byte_offset: u32::try_from(pointer_byte_offset).ok()?,
+            field_byte_offset: u32::try_from(field_byte_offset).ok()?,
+            byte_size: u8::try_from(byte_size).ok()?,
+        }
+    } else if let Some((
+        descriptor_byte_offset,
+        element_index,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+    )) = source.frame_fixed_indexed(operand)
+    {
+        CheckedOperandLoaderKind::FrameFixedIndexed {
+            descriptor_byte_offset: u32::try_from(descriptor_byte_offset).ok()?,
+            element_index: u64::try_from(element_index).ok()?,
+            element_byte_size: u32::try_from(element_byte_size).ok()?,
+            field_byte_offset: u32::try_from(field_byte_offset).ok()?,
+            byte_size: u8::try_from(byte_size).ok()?,
+        }
     } else {
         return None;
     };
