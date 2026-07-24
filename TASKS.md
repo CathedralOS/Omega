@@ -284,7 +284,7 @@ schemas recover the same instance without publishing policy type identity.
    uses the separate closed `AbiValueShape` vocabulary, and compiler validation
    checks its MS-x64, SysV AMD64, or AAPCS64 classification against the public
    graph before accepting the plan. The remaining retention check is
-   **design-blocked**: checked adapters must not let a call-scoped borrowed-out
+   **OWNER-BLOCKED (#14)**: checked adapters must not let a call-scoped borrowed-out
    pointer reach a retaining/asynchronous foreign contract without a pinned
    loan, ownership transfer, or registration protocol, but the governing
    extern-boundary brief still explicitly leaves callback registration,
@@ -640,9 +640,11 @@ schemas recover the same instance without publishing policy type identity.
    element scale, address formation, and value projection. Descriptor-frame
    indexing also binds whether its index comes from the frame or machine
    storage, including the exact second relocation for cross-region access.
-   Complete semantic decoding of machine-indexed, text, conversion, and
-   recursive binary value operands, other operand-bearing checked assembly, and
-   general compiler-function body decoding remain incomplete.
+   Machine-indexed loaders now receive the symmetric treatment for machine
+   bases and optional frame-resident indexes. Complete semantic decoding of
+   text, conversion, and recursive binary value operands, other operand-bearing
+   checked assembly, and general compiler-function body decoding remain
+   incomplete.
    Checked direct-image emission now rejects any unclassified executable gap,
    so the current closed emitter has complete region enumeration. Relaxation
    products, veneers, and general generated stubs are recorded as absent by
@@ -1097,7 +1099,7 @@ stronger operations it needs instead of citing machine parameters generally.
   store-enforced range through synthetic operand hoists; the same resolver
   rejects out-of-range writes through a runtime-indexed projection instead of
   losing the destination's constraint shell.
-  **Language-design blocker:** the boundary write-frame clause's semantics are
+  **OWNER-BLOCKED (#15):** the boundary write-frame clause's semantics are
   settled, but its public keyword/spelling is still explicitly provisional
   (`stores` in the guide). Do not mint syntax until that spelling is frozen.
   Engineering can continue on additional relational candidate classes
@@ -1124,7 +1126,7 @@ stronger operations it needs instead of citing machine parameters generally.
   check, entry/read fact, and post-write re-establishment, while semantic-only
   facets never enter the proof lattice; implication consumers accept any
   declared predicate in the conjunction that entails the required domain.
-  **Language-design blocker:** authored facet declaration syntax and policy are
+  **OWNER-BLOCKED (#16):** authored facet declaration syntax and policy are
   still explicitly deferred in decision 19. Freeze that surface before
   retiring the factful=hybrid/factless=semantic-only compatibility projection.
 - **DOM2 — binding-site operators.** Resolve operator theory from declarations,
@@ -1141,18 +1143,18 @@ stronger operations it needs instead of citing machine parameters generally.
   is retired: inactive theories may coexist, candidate eligibility is anchored
   to the semantic domains selected by the participating operand bindings, and
   multiple participating meanings fail at that use site. This completes the
-  closed-family coherence path. **Language-design blocker:** the authored
+  closed-family coherence path. **OWNER-BLOCKED (#16):** the authored
   language has no open-operator-family declaration or designated
   dispatch-owner-position surface; decision 19 explicitly defers general
   open-family linking, so that extension cannot be lowered yet.
 - **DOM3 — introduction authority.** Implement sealed-by-default domains,
   `introduction open`, and `MintAuthority<D>` with distinct missing-proof and
-  missing-authority diagnostics. **Language-design blocker:** decision 19
+  missing-authority diagnostics. **OWNER-BLOCKED (#16):** decision 19
   explicitly defers the introduction-policy grammar and authority-passing cast
   spelling; the internal grant carrier exists, but authored policy cannot be
   lowered without that surface decision.
 - **DOM5 — weakening.** Add `weakens_to` certificates and sealed-theory hashes
-  that detect stale operator theories. **Language-design blocker:** decision
+  that detect stale operator theories. **OWNER-BLOCKED (#16):** decision
   19 explicitly defers the `weakens_to` certificate-block syntax; theory
   hashing can continue once there is an authored certificate object to bind.
 - **STR — semantic carrier cleanup.** Finish termination-plan integration,
@@ -1679,7 +1681,7 @@ stronger operations it needs instead of citing machine parameters generally.
   size, and permitted static reaches; field authorization derives polarity
   from that loan and mints the only token primitive lowering may accept. Never
   expose arbitrary-offset access or per-access revocation probes.
-  **Language-design blocker:** the normalized plan and sealed lowering seam
+  **OWNER-BLOCKED (#17):** the normalized plan and sealed lowering seam
   are settled, but the concrete Omega `AccessPlan` record/policy spelling is
   still explicitly open in the programmable-layouts brief. Do not invent that
   source contract while implementing the independent target-emission work.
