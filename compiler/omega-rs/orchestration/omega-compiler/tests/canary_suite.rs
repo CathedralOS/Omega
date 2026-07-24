@@ -33375,10 +33375,11 @@ fn immediate_port_io_is_bound_in_final_image_validation() {
 }
 
 #[test]
-fn msr_and_control_register_envelopes_are_bound_in_final_image_validation() {
+fn structured_machine_control_envelopes_are_bound_in_final_image_validation() {
     for (canary_name, expected_count) in [
         ("inline_asm/asm_msr_compile", 2),
         ("inline_asm/asm_control_registers_compile", 7),
+        ("inline_asm/asm_flags_compile", 3),
     ] {
         let canary = pass_canary(canary_name);
         let build_dir = std::env::temp_dir().join(format!(

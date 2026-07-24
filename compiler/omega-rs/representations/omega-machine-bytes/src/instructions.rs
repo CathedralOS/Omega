@@ -39,6 +39,10 @@ pub enum CheckedInstructionValidationKind {
     ControlRegisterWrite {
         register: omega_core::inline_assembly::AsmControlRegister,
     },
+    FlagsSnapshot {
+        destination_byte_offset: u32,
+    },
+    FlagsRestore,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
