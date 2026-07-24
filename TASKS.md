@@ -1962,7 +1962,11 @@ stronger operations it needs instead of citing machine parameters generally.
   separate `terminates` guarantee; pin recursive inference, omission as a
   negative public guarantee, provider subset admission on every axis, retired
   mixed-row diagnostics, and stable normalized IDs independent of prover
-  strength.
+  strength. The authoritative compiler integration rail now exercises the
+  accepted composition, independent blocking-axis widening rejection, retired
+  operational names in service rows, and witness-insensitive public contract
+  identity. Recursive operational fixed-point, published-omission, and
+  service-parent/subset cases remain pinned by the focused validation suite.
 - **Units.** Before broad generic work, implement two units in one dimension
   and pin: explicit conversion, scaled dimensionless results, distinct
   Energy/Torque kinds, generic preservation, no silent forgetting, and package
