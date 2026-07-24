@@ -256,9 +256,14 @@ allowing explicitly atomic shared mutation. Successful geometry validation
 mints a sealed field descriptor containing the plan-derived container offset;
 successful operation authorization combines that descriptor with borrow
 polarity and the selected operation. Primitive lowering accepts only this
-authorized value, never an author-supplied offset. Source-policy evaluation,
-source-level borrow-carrying access values, and the exact external/atomic
-lowering remain.
+authorized value, never an author-supplied offset. The normalized lowering seam
+now consumes that value and binds the resulting event to the access-plan
+identity, provider-admitted grant, field identity, exact address/width,
+observation model, loan-derived borrow polarity/lifetime, operation-specific
+atomic ordering, and static reach. Invalid load, store, or compare-exchange
+ordering rejects before target lowering. Source-policy evaluation, source-level
+borrow-carrying access values, and target-specific external/atomic emission
+remain.
 
 The normalized Extent/AccessPlan join is also live. A reusable
 provider-admitted placed-view grant pins address space, provenance, required

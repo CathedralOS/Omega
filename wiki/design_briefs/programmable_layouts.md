@@ -103,9 +103,14 @@ operation, observation, transfer-width, exposure, and service-reach fact.
 Equivalent name-keyed policies therefore share identity even when their source
 entry order differs. Validation now produces sealed,
 offset-bearing field descriptors, and borrow-specific authorization produces
-the only values primitive lowering may accept. Omega source records,
-source-level borrow-carrying access values, and the exact primitive lowering
-remain. The normalized Extent join is live: provider-admitted grants validate
+the only values primitive lowering may accept. Consuming one such value now
+produces a normalized primitive request bound to plan identity, admitted
+placed-view grant, field identity, exact address/width, observation,
+loan-derived borrow polarity/lifetime, operation-specific atomic ordering, and
+static reach. Invalid atomic load/store/compare-exchange orderings reject before
+emission. Omega source records, source-level borrow-carrying access values, and
+target-specific primitive emission remain. The normalized Extent join is live:
+provider-admitted grants validate
 space, provenance, open-set rights, loan size, and permitted static reaches;
 operation polarity derives from the actual Extent loan rather than a caller
 argument.
