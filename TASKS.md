@@ -858,9 +858,12 @@ schemas recover the same instance without publishing policy type identity.
      zero-authority `local_apic` fact package for the architectural xAPIC MMIO
      offsets, x2APIC MSRs, EOI value, LVT timer fields, divider encodings, and
      optional TSC-deadline identities. The package intentionally asserts no
-     universal LAPIC frequency. Concrete MMIO/MSR providers, platform
-     enumeration/calibration, one-shot programming, and installed-root
-     acknowledgement remain.
+     universal LAPIC frequency. Cathedral's first checked x2APIC provider
+     helpers now configure an admitted vector in one-shot/divide-by-16 mode,
+     arm or stop the timer, and write EOI through parsed `wrmsr` contracts that
+     retain `MachineControl` reach. They neither enable x2APIC/IF nor publish a
+     root. Platform enumeration/calibration, admitted-mode establishment, and
+     installed-root invocation/acknowledgement integration remain.
    - Report ticks over the owned serial line and `hlt` between ticks under QEMU.
      Negative rails: direct assembly cannot launder reach; user `iretq` rejects;
      incomplete fragment tiling rejects; forbidden final-artifact clobbers

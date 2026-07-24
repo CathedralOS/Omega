@@ -1028,9 +1028,13 @@ interrupt machine species.
   pure `local_apic` facts now name the architectural xAPIC MMIO offsets,
   x2APIC MSRs, EOI value, LVT timer fields, divider encodings, and optional
   TSC-deadline identities without granting MMIO/MSR authority or inventing a
-  universal timer frequency. Concrete access providers and platform
-  enumeration/calibration remain. The provider migration does not change the
-  root contract.
+  universal timer frequency. Checked Cathedral x2APIC helpers now configure
+  one-shot/divide-by-16 mode, arm/stop the timer, and issue EOI through
+  `wrmsr`; the instruction contracts retain `MachineControl` reach. They
+  cannot enable x2APIC/IF or publish a root. Platform
+  enumeration/calibration, admitted-mode establishment, and installed-root
+  integration remain. The provider migration does not change the root
+  contract.
 
 The shared external-IRQ stack is backed by statically reserved storage, which
 may itself be provisioned from an Arena at boot. Its bound is the maximum
