@@ -357,6 +357,14 @@ mint element facts. These structural views preserve indexed read/write identity
 through state forwarding in both native backends and the interpreter. Float
 ranges remain fenced until their exact representation sets can be proved.
 
+The same judgment applies to scalar aliases. `bool` has the exact established
+representation set `{0,1}`: it may be viewed through a shared unconstrained byte
+because that forgets a fact, and a typed `u8 [0..=1]` may be shared or mutably
+aliased as `bool`. An unconstrained byte or arbitrary byte region cannot be
+viewed as `bool`, and a mutable `bool`/unconstrained-byte alias rejects, because
+either would permit a write that invalidates the other shape. No scalar recast
+is a fact mint.
+
 See [`Programmable Layouts`](../design_briefs/programmable_layouts.md) and the
 [`OS Memory And Hardware Foundation`](../design_briefs/os_memory_and_hardware_foundation.md)
 for the settled public model and remaining engineering work.

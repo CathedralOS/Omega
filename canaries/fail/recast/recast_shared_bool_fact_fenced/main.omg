@@ -1,0 +1,9 @@
+// FAIL CANARY: an unconstrained byte admits 256 representations and therefore
+// cannot establish bool's {0,1} invariant through a shared recast.
+data Main {
+    value: u8;
+}
+
+machine Main::main(&mut self) {
+    let view: &bool = &self.value as &bool;
+}

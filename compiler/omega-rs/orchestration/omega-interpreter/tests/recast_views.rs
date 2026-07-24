@@ -59,6 +59,29 @@ fn mutable_equivalent_range_recast_preserves_the_established_fact() {
 }
 
 #[test]
+fn bool_representation_recasts_preserve_aliasing_and_facts() {
+    let main =
+        repo_root().join("canaries/pass/recast/runtime_bool_representation_recast_exit/main.omg");
+    let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "bool representation recasts should compile:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "interpreter declined bool representation recasts: {:?}",
+        outcome.error
+    );
+    assert_eq!(outcome.exit_code, 70);
+}
+
+#[test]
 fn mutable_equivalent_record_recast_preserves_aliasing_and_facts() {
     let main = repo_root()
         .join("canaries/pass/recast/runtime_mutable_equivalent_record_recast_exit/main.omg");
