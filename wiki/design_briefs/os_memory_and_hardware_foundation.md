@@ -730,8 +730,13 @@ bounds, checked range arithmetic, non-overlap, exact presence and identity of
 code/relocation/contract/footprint/placement/proof sections, and the required
 versus informational unknown-section rule. Its output is only an immutable
 `Artifact` candidate; executable qualification still requires the separate
-admission receipt. Actual byte decoding through LayoutPlan/schema machinery,
-content-identity computation, and closed relocation validation remain.
+admission receipt. Decoded relocation records now cross a second closed
+validator: only the current absolute-64, x86 relative-32, and AArch64
+page/page-offset/branch meanings enter the canonical set; configured count,
+exact destination width, code bounds, overlap, and arithmetic overflow are
+checked while targets remain sealed entry/data identities. Actual byte
+decoding through LayoutPlan/schema machinery, content-identity computation,
+and target object-format translation remain.
 
 The boot base case preserves the same discipline:
 

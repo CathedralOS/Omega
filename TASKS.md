@@ -1741,7 +1741,13 @@ stronger operations it needs instead of citing machine parameters generally.
   arithmetic are checked, semantic sections are exact and non-overlapping,
   unknown required sections reject, and unknown optional sections remain
   informational with zero admission authority. Connect it to actual
-  schema/layout byte decoding and the closed relocation validator; implement
+  schema/layout byte decoding. The post-decode closed relocation validator is
+  now live for absolute-64, x86 relative-32, and AArch64 page/page-offset/
+  branch relocations: it applies a configured count bound, canonicalizes
+  destination order, checks exact relocation widths against the code section,
+  and rejects overlapping or overflowing fields while retaining only symbolic
+  entry/data targets. Connect the validated set to target object translation
+  and content identity; implement
   admission/PCC and final-footprint validators, materializer/installer
   providers, Omega linear integration, and provider-backed
   quiescence/replacement execution. Code-placement claims already validate the

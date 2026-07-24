@@ -8,6 +8,7 @@ pub struct ContainerLimits {
     pub max_total_bytes: u64,
     pub max_sections: usize,
     pub max_section_bytes: u64,
+    pub max_relocations: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,6 +36,41 @@ pub enum ContainerSectionKind {
     },
 }
 
+/// Closed semantic relocation vocabulary accepted from the checked artifact
+/// schema. These are normalized relocation meanings, not object-format
+/// record numbers; the target writer translates them to its native format.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ArtifactRelocationKind {
+    Absolute64,
+    X86Relative32,
+    Aarch64Page21,
+    Aarch64PageOffset12,
+    Aarch64Branch26,
+}
+
+impl ArtifactRelocationKind {
+    const fn byte_width(self) -> u64 {
+        match self {
+            Self::Absolute64 => 8,
+            Self::X86Relative32
+            | Self::Aarch64Page21
+            | Self::Aarch64PageOffset12
+            | Self::Aarch64Branch26 => 4,
+        }
+    }
+}
+
+/// One checked-schema relocation record before semantic validation. The
+/// target remains symbolic: decoding an artifact never exposes a numeric code
+/// or data address to source code.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DecodedArtifactRelocation {
+    pub kind: ArtifactRelocationKind,
+    pub destination_offset: u64,
+    pub target: RelocationTarget,
+    pub addend: i64,
+}
+
 /// Output of checked schema/layout decoding, before semantic container
 /// validation. This type deliberately has no scripts, constructors, imports,
 /// or recursive section form.
@@ -57,6 +93,7 @@ pub struct DecodedArtifactContainer {
     pub entry_set: EntrySetId,
     pub entries: Vec<ArtifactEntry>,
     pub relocation_set: RelocationSetId,
+    pub relocations: Vec<DecodedArtifactRelocation>,
     pub proof_payload: ProofPayloadId,
     pub sections: Vec<ContainerSection>,
 }
@@ -65,6 +102,7 @@ pub struct DecodedArtifactContainer {
 pub struct ValidatedArtifactContainer {
     artifact: Artifact,
     relocation_set: RelocationSetId,
+    relocations: Vec<DecodedArtifactRelocation>,
     proof_payload: ProofPayloadId,
     informational_sections: Vec<InformationalSectionId>,
     unknown_informational_sections: Vec<u64>,
@@ -77,6 +115,12 @@ impl ValidatedArtifactContainer {
 
     pub const fn relocation_set(&self) -> RelocationSetId {
         self.relocation_set
+    }
+
+    /// Canonical destination-order relocation records. Their symbolic targets
+    /// remain sealed identities; this projection grants no resolver.
+    pub fn relocations(&self) -> &[DecodedArtifactRelocation] {
+        &self.relocations
     }
 
     pub const fn proof_payload(&self) -> ProofPayloadId {
@@ -96,7 +140,11 @@ pub fn validate_decoded_container(
     decoded: DecodedArtifactContainer,
     limits: ContainerLimits,
 ) -> Result<ValidatedArtifactContainer, InstallationDiagnostic> {
-    if limits.max_total_bytes == 0 || limits.max_sections == 0 || limits.max_section_bytes == 0 {
+    if limits.max_total_bytes == 0
+        || limits.max_sections == 0
+        || limits.max_section_bytes == 0
+        || limits.max_relocations == 0
+    {
         return Err(InstallationDiagnostic(
             "artifact-container limits must all be nonzero".into(),
         ));
@@ -236,6 +284,11 @@ pub fn validate_decoded_container(
         }
     }
 
+    let relocations = validate_decoded_relocations(
+        decoded.relocations,
+        decoded.code_length,
+        limits.max_relocations,
+    )?;
     let artifact = Artifact::from_canonical_decode(
         decoded.artifact,
         decoded.content,
@@ -250,10 +303,56 @@ pub fn validate_decoded_container(
     Ok(ValidatedArtifactContainer {
         artifact,
         relocation_set: decoded.relocation_set,
+        relocations,
         proof_payload: decoded.proof_payload,
         informational_sections: informational,
         unknown_informational_sections: unknown_informational,
     })
+}
+
+fn validate_decoded_relocations(
+    mut relocations: Vec<DecodedArtifactRelocation>,
+    code_length: u64,
+    max_relocations: usize,
+) -> Result<Vec<DecodedArtifactRelocation>, InstallationDiagnostic> {
+    if relocations.len() > max_relocations {
+        return Err(InstallationDiagnostic(format!(
+            "artifact has {} relocations, exceeding configured bound {}",
+            relocations.len(),
+            max_relocations
+        )));
+    }
+
+    relocations.sort_unstable_by_key(|relocation| {
+        (
+            relocation.destination_offset,
+            relocation.kind,
+            relocation.target,
+            relocation.addend,
+        )
+    });
+    let mut prior_end = 0u64;
+    for (index, relocation) in relocations.iter().enumerate() {
+        let width = relocation.kind.byte_width();
+        let end = relocation
+            .destination_offset
+            .checked_add(width)
+            .ok_or_else(|| InstallationDiagnostic("artifact relocation range overflows".into()))?;
+        if end > code_length {
+            return Err(InstallationDiagnostic(format!(
+                "artifact relocation at {}..{} exceeds {}-byte code section",
+                relocation.destination_offset, end, code_length
+            )));
+        }
+        if index != 0 && relocation.destination_offset < prior_end {
+            return Err(InstallationDiagnostic(format!(
+                "artifact relocation at byte {} overlaps another relocation field",
+                relocation.destination_offset
+            )));
+        }
+        prior_end = end;
+    }
+    Ok(relocations)
 }
 
 fn require_identity<T: Copy + PartialEq>(
@@ -282,6 +381,7 @@ mod tests {
             max_total_bytes: 4096,
             max_sections: 16,
             max_section_bytes: 1024,
+            max_relocations: 16,
         }
     }
 
@@ -308,6 +408,12 @@ mod tests {
             entry_set,
             entries: vec![ArtifactEntry::from_canonical_decode(entry, 16)],
             relocation_set: relocations,
+            relocations: vec![DecodedArtifactRelocation {
+                kind: ArtifactRelocationKind::X86Relative32,
+                destination_offset: 32,
+                target: RelocationTarget::Entry(entry),
+                addend: -4,
+            }],
             proof_payload: proof,
             sections: vec![
                 ContainerSection {
@@ -358,6 +464,15 @@ mod tests {
         assert_eq!(container.artifact().entries().len(), 1);
         assert_eq!(container.artifact().entries()[0].identity(), entry);
         assert_eq!(container.artifact().entries()[0].code_offset(), 16);
+        assert_eq!(
+            container.relocations(),
+            &[DecodedArtifactRelocation {
+                kind: ArtifactRelocationKind::X86Relative32,
+                destination_offset: 32,
+                target: RelocationTarget::Entry(entry),
+                addend: -4,
+            }]
+        );
         assert_eq!(
             container.artifact().placement_constraints(),
             PlacementConstraints::unconstrained(omega_layout_plans::PlacementPhase::Load)
@@ -448,5 +563,64 @@ mod tests {
         let error = validate_decoded_container(mismatched_length, limits())
             .expect_err("entry section length must bind its decoded records");
         assert!(error.0.contains("does not match 1 canonical entries"));
+    }
+
+    #[test]
+    fn relocation_records_are_bounded_canonical_and_non_overlapping() {
+        let entry = EntryStubId::from_normalized_identity(9).expect("entry identity");
+        let mut canonical = decoded();
+        canonical.relocations = vec![
+            DecodedArtifactRelocation {
+                kind: ArtifactRelocationKind::Absolute64,
+                destination_offset: 48,
+                target: RelocationTarget::Entry(entry),
+                addend: 0,
+            },
+            DecodedArtifactRelocation {
+                kind: ArtifactRelocationKind::X86Relative32,
+                destination_offset: 8,
+                target: RelocationTarget::Entry(entry),
+                addend: -4,
+            },
+        ];
+        let validated =
+            validate_decoded_container(canonical, limits()).expect("canonical relocations");
+        assert_eq!(validated.relocations()[0].destination_offset, 8);
+        assert_eq!(validated.relocations()[1].destination_offset, 48);
+
+        let mut overlapping = decoded();
+        overlapping.relocations = vec![
+            DecodedArtifactRelocation {
+                kind: ArtifactRelocationKind::Absolute64,
+                destination_offset: 8,
+                target: RelocationTarget::Entry(entry),
+                addend: 0,
+            },
+            DecodedArtifactRelocation {
+                kind: ArtifactRelocationKind::Aarch64Branch26,
+                destination_offset: 12,
+                target: RelocationTarget::Entry(entry),
+                addend: 0,
+            },
+        ];
+        let error = validate_decoded_container(overlapping, limits()).expect_err("overlap rejects");
+        assert!(error.0.contains("overlaps"));
+
+        let mut outside = decoded();
+        outside.relocations[0].destination_offset = 62;
+        let error = validate_decoded_container(outside, limits()).expect_err("outside rejects");
+        assert!(error.0.contains("exceeds 64-byte code"));
+
+        let mut too_many = decoded();
+        let mut strict_limits = limits();
+        strict_limits.max_relocations = 1;
+        too_many.relocations.push(DecodedArtifactRelocation {
+            kind: ArtifactRelocationKind::Aarch64Page21,
+            destination_offset: 40,
+            target: RelocationTarget::Entry(entry),
+            addend: 0,
+        });
+        let error = validate_decoded_container(too_many, strict_limits).expect_err("bound rejects");
+        assert!(error.0.contains("exceeding configured bound"));
     }
 }
