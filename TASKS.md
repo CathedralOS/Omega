@@ -770,9 +770,13 @@ schemas recover the same instance without publishing policy type identity.
    ledger requires every installed root to carry the same artifact-wide
    composition fingerprint. A sealed `ProviderExecution` now binds the selected
    normalized provider-plan identity, exact entry/boundary/effect set, and all
-   three independent realizations into root admission; replay after entry or
-   resource drift rejects, and the execution/plan identities enter the ledger
-   fingerprint and manifest. The compiler now retains the exact validated
+   three independent realizations into root admission. It retains the complete
+   `ValidatedExternalRoot`, and slot admission retains both that exact root and
+   its provider execution rather than authorizing through partial FNV
+   restatements; acknowledgement, component-pin, trust-receipt, entry, or
+   resource drift rejects even if a compact identity collides. Execution/plan
+   identities remain report keys in the ledger fingerprint and manifest. The
+   compiler now retains the exact validated
    selected `ProviderPlan` set through `CheckedTrees`, in canonical order with
    both per-plan and whole-selection identities. An external-root candidate now
    carries that exact plan identity before validation; it enters the normalized

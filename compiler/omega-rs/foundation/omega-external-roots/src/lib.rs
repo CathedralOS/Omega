@@ -849,6 +849,7 @@ impl ValidatedExternalRoot {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderExecution {
     identity: ProviderExecutionId,
+    root_evidence: ValidatedExternalRoot,
     provider_plan: ProviderPlanId,
     root: ExternalRootId,
     normalized_root_identity: u64,
@@ -916,6 +917,7 @@ impl ProviderExecution {
         }
         Ok(Self {
             identity,
+            root_evidence: root.clone(),
             provider_plan: candidate.provider_plan,
             root: candidate.identity,
             normalized_root_identity: root.normalized_identity(),
@@ -961,7 +963,8 @@ impl ProviderExecution {
 
     fn matches_root(&self, root: &ValidatedExternalRoot) -> bool {
         let candidate = root.candidate();
-        self.root == candidate.identity
+        self.root_evidence == *root
+            && self.root == candidate.identity
             && self.normalized_root_identity == root.normalized_identity()
             && self.provider_plan == candidate.provider_plan
             && self.provider == candidate.provider
@@ -1086,6 +1089,8 @@ impl RootSlotAuthority {
 #[derive(Debug, PartialEq, Eq)]
 pub struct RootAdmission {
     identity: RootAdmissionId,
+    root_evidence: ValidatedExternalRoot,
+    provider_execution_evidence: ProviderExecution,
     root_identity: u64,
     provider_execution: ProviderExecutionId,
     provider_execution_fingerprint: u64,
@@ -1116,6 +1121,8 @@ impl RootAdmission {
         }
         Ok(Self {
             identity,
+            root_evidence: root.clone(),
+            provider_execution_evidence: execution.clone(),
             root_identity: root.normalized_identity,
             provider_execution: execution.identity,
             provider_execution_fingerprint: execution.normalized_identity,
@@ -1826,7 +1833,12 @@ impl InstalledRootLedger {
                 admission,
             );
         }
-        if admission.root_identity != root.normalized_identity
+        if admission.root_evidence != root
+            || admission.provider_execution_evidence.root_evidence != root
+            || admission.provider_execution_evidence.identity != admission.provider_execution
+            || admission.provider_execution_evidence.normalized_identity
+                != admission.provider_execution_fingerprint
+            || admission.root_identity != root.normalized_identity
             || admission.installed_code != installed_code.identity()
             || admission.artifact != installed_code.artifact()
             || admission.slot != slot.slot
@@ -4282,6 +4294,71 @@ mod tests {
         .expect_err("provider execution cannot cross selected-plan drift");
 
         assert!(error.0.contains("exact validated root realization"));
+    }
+
+    #[test]
+    fn provider_execution_retains_exact_root_facts_beyond_the_compact_identity() {
+        let entry = entry_id(1001);
+        let first =
+            validate_external_root(candidate(entry), &boundary()).expect("first root realization");
+        let execution = provider_execution(&first);
+        let mut drifted = candidate(entry);
+        drifted
+            .trust_receipts
+            .insert(root_id(44, TrustReceiptId::from_normalized_identity));
+        let mut second =
+            validate_external_root(drifted, &boundary()).expect("second root realization");
+        second.normalized_identity = first.normalized_identity;
+
+        let code = installed_code(2, entry);
+        let authority = slot();
+        let error = RootAdmission::from_admitted_provider(
+            root_id(22, RootAdmissionId::from_normalized_identity),
+            &second,
+            &execution,
+            &code,
+            &authority,
+            second.candidate().trust_receipts.iter().copied(),
+        )
+        .expect_err("equal compact identity cannot replay execution across exact-root drift");
+
+        assert!(error.0.contains("exact validated root realization"));
+    }
+
+    #[test]
+    fn slot_admission_retains_the_exact_validated_root() {
+        let entry = entry_id(1001);
+        let first =
+            validate_external_root(candidate(entry), &boundary()).expect("first root realization");
+        let code = installed_code(1, entry);
+        let authority = slot();
+        let execution = provider_execution(&first);
+        let admission = RootAdmission::from_admitted_provider(
+            root_id(22, RootAdmissionId::from_normalized_identity),
+            &first,
+            &execution,
+            &code,
+            &authority,
+            first.candidate().trust_receipts.iter().copied(),
+        )
+        .expect("root admission");
+
+        let mut drifted = candidate(entry);
+        drifted.acknowledgement_policy = None;
+        let mut second =
+            validate_external_root(drifted, &boundary()).expect("second root realization");
+        second.normalized_identity = first.normalized_identity;
+        let mut ledger = InstalledRootLedger::default();
+        let error = ledger
+            .install(&code, second, authority, admission)
+            .expect_err("equal compact identity cannot replay admission across root-policy drift");
+
+        assert!(
+            error
+                .diagnostic()
+                .0
+                .contains("does not bind the exact root")
+        );
     }
 
     #[test]
