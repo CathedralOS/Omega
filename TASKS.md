@@ -1540,9 +1540,16 @@ stronger operations it needs instead of citing machine parameters generally.
   targets now carry full type references through syntax, resolution, typed and
   checked trees, while a separate spelling cache remains diagnostic-only.
   Parser coverage pins the settled `as &[T]` / `as &[T; N]` surface without
-  encoding structural types as generated semantic names. Complete the
-  array/slice representation judgment, interpreter behavior, native lowering,
-  and differential canaries on that real structural identity.
+  encoding structural types as generated semantic names. Top-level
+  literal-length fixed-array recasts now use that structural identity
+  end-to-end: byte-region targets require recursively fact-free elements,
+  typed shared aliases may weaken facts, typed mutable aliases require
+  bidirectional representation equivalence, and mutable views preserve
+  indexed read/write identity in native and interpreter execution. Focused
+  canaries also cross-compile on x86-64 and AArch64 and reject attempts to mint
+  `bool` element facts from raw bytes. Complete the unsized-slice
+  representation judgment, length/divisibility rules, interpreter behavior,
+  native lowering, and differential canaries on the same structural identity.
 - **L6a — Extent.** The normalized conservation foundation is live in
   `omega-extents`: admitted one-shot root grants mint nonempty ranges;
   move-split preserves exact geometry; only compatible siblings from one

@@ -441,15 +441,15 @@ enum MutableScalarRecast {
         offset: usize,
         target: PrimitiveType,
     },
-    RecordByteRegion {
+    AggregateByteRegion {
         cells: Vec<Cell>,
         offset: usize,
-        target_name: String,
+        target_type: TypeReferenceHandle,
     },
-    RecordTyped {
+    AggregateTyped {
         source: Cell,
         source_name: String,
-        target_name: String,
+        target_type: TypeReferenceHandle,
     },
 }
 
@@ -457,7 +457,7 @@ impl MutableScalarRecast {
     fn target(&self) -> Option<PrimitiveType> {
         match self {
             Self::Direct { target, .. } | Self::ByteRegion { target, .. } => Some(*target),
-            Self::RecordByteRegion { .. } | Self::RecordTyped { .. } => None,
+            Self::AggregateByteRegion { .. } | Self::AggregateTyped { .. } => None,
         }
     }
 }
@@ -1587,9 +1587,9 @@ impl<'program> Evaluator<'program> {
                             self.write_scalar_byte_region(&cells, offset, target, value)?;
                             return Ok(());
                         }
-                        MutableScalarRecast::RecordByteRegion { .. }
-                        | MutableScalarRecast::RecordTyped { .. } => {
-                            return trap("record recast reached the scalar write seam");
+                        MutableScalarRecast::AggregateByteRegion { .. }
+                        | MutableScalarRecast::AggregateTyped { .. } => {
+                            return trap("aggregate recast reached the scalar write seam");
                         }
                     }
                 } else {
@@ -4721,7 +4721,7 @@ impl<'program> Evaluator<'program> {
                 }
                 let value = self.eval_expression(cast.value, frame)?;
                 if cast.form.is_recast() {
-                    return self.eval_recast(value, target);
+                    return self.eval_recast_to_type(value, cast.target_type);
                 }
                 self.eval_cast(value, target, cast.domain)
             }
@@ -5233,27 +5233,29 @@ impl<'program> Evaluator<'program> {
                         offset,
                         target,
                     } => self.assemble_scalar_byte_region(&cells, offset, target),
-                    MutableScalarRecast::RecordByteRegion {
+                    MutableScalarRecast::AggregateByteRegion {
                         cells,
                         offset,
-                        target_name,
+                        target_type,
                     } => self
-                        .assemble_record_view(&target_name, &cells, offset)?
+                        .assemble_record_view_type(target_type, &cells, offset)?
                         .ok_or_else(|| {
                             Halt::Trap(format!(
-                                "cannot assemble mutable record recast `{target_name}`"
+                                "cannot assemble mutable aggregate recast `{}`",
+                                self.program.display_type_reference(target_type)
                             ))
                         }),
-                    MutableScalarRecast::RecordTyped {
+                    MutableScalarRecast::AggregateTyped {
                         source,
                         source_name,
-                        target_name,
+                        target_type,
                     } => {
                         let cells = self.snapshot_typed_record_bytes(&source, &source_name)?;
-                        self.assemble_record_view(&target_name, &cells, 0)?
+                        self.assemble_record_view_type(target_type, &cells, 0)?
                             .ok_or_else(|| {
                                 Halt::Trap(format!(
-                                    "cannot assemble typed mutable record recast `{target_name}`"
+                                    "cannot assemble typed mutable aggregate recast `{}`",
+                                    self.program.display_type_reference(target_type)
                                 ))
                             })
                     }
@@ -5289,11 +5291,6 @@ impl<'program> Evaluator<'program> {
             return Ok(None);
         }
         let target = self.cast_target_primitive(cast.target_type);
-        let target_name = self
-            .program
-            .named_type_reference(cast.target_type)
-            .map(|name| name.as_str().to_owned())
-            .unwrap_or_default();
         if let ExpressionNode::Indexed(indexed) =
             self.program.expression_table.expression(cast.value).clone()
         {
@@ -5310,10 +5307,10 @@ impl<'program> Evaluator<'program> {
                         offset,
                         target,
                     },
-                    None => MutableScalarRecast::RecordByteRegion {
+                    None => MutableScalarRecast::AggregateByteRegion {
                         cells,
                         offset,
-                        target_name,
+                        target_type: cast.target_type,
                     },
                 };
                 return Ok(Some((source_cell, recast)));
@@ -5329,10 +5326,10 @@ impl<'program> Evaluator<'program> {
             if let Some(source_name) = source_name {
                 return Ok(Some((
                     Rc::clone(&source),
-                    MutableScalarRecast::RecordTyped {
+                    MutableScalarRecast::AggregateTyped {
                         source,
                         source_name,
-                        target_name,
+                        target_type: cast.target_type,
                     },
                 )));
             }
@@ -5431,32 +5428,33 @@ impl<'program> Evaluator<'program> {
         let Some((recast, path)) = self.mutable_recast_path(handle, frame) else {
             return Ok(None);
         };
-        let (cells, offset, target_name) = match recast {
-            MutableScalarRecast::RecordByteRegion {
+        let (cells, offset, target_type) = match recast {
+            MutableScalarRecast::AggregateByteRegion {
                 cells,
                 offset,
-                target_name,
-            } => (cells, offset, target_name),
-            MutableScalarRecast::RecordTyped {
+                target_type,
+            } => (cells, offset, target_type),
+            MutableScalarRecast::AggregateTyped {
                 source,
                 source_name,
-                target_name,
+                target_type,
             } => (
                 self.snapshot_typed_record_bytes(&source, &source_name)?,
                 0,
-                target_name,
+                target_type,
             ),
             _ => return Ok(None),
         };
         if path.is_empty() {
-            return self.assemble_record_view(&target_name, &cells, offset);
+            return self.assemble_record_view_type(target_type, &cells, offset);
         }
         let Some((field_offset, field_type)) =
-            self.record_view_projection(&target_name, &path, offset, frame)?
+            self.record_view_type_projection(target_type, &path, offset, frame)?
         else {
             return trap(format!(
-                "cannot project `{}` through mutable record recast `{target_name}`",
-                Self::mutable_record_projection_display(&path)
+                "cannot project `{}` through mutable aggregate recast `{}`",
+                Self::mutable_record_projection_display(&path),
+                self.program.display_type_reference(target_type),
             ));
         };
         self.assemble_record_view_type(field_type, &cells, field_offset)
@@ -5471,37 +5469,38 @@ impl<'program> Evaluator<'program> {
         let Some((recast, path)) = self.mutable_recast_path(handle, frame) else {
             return Ok(false);
         };
-        let (cells, offset, target_name, typed_source) = match recast {
-            MutableScalarRecast::RecordByteRegion {
+        let (cells, offset, target_type, typed_source) = match recast {
+            MutableScalarRecast::AggregateByteRegion {
                 cells,
                 offset,
-                target_name,
-            } => (cells, offset, target_name, None),
-            MutableScalarRecast::RecordTyped {
+                target_type,
+            } => (cells, offset, target_type, None),
+            MutableScalarRecast::AggregateTyped {
                 source,
                 source_name,
-                target_name,
+                target_type,
             } => (
                 self.snapshot_typed_record_bytes(&source, &source_name)?,
                 0,
-                target_name,
+                target_type,
                 Some((source, source_name)),
             ),
             _ => return Ok(false),
         };
         if path.is_empty() {
-            self.write_record_view(&target_name, &cells, offset, value)?;
+            self.write_record_view_type(target_type, &cells, offset, value)?;
             if let Some((source, source_name)) = typed_source {
                 self.commit_typed_record_bytes(&source, &source_name, &cells)?;
             }
             return Ok(true);
         }
         let Some((field_offset, field_type)) =
-            self.record_view_projection(&target_name, &path, offset, frame)?
+            self.record_view_type_projection(target_type, &path, offset, frame)?
         else {
             return trap(format!(
-                "cannot project `{}` through mutable record recast `{target_name}`",
-                Self::mutable_record_projection_display(&path)
+                "cannot project `{}` through mutable aggregate recast `{}`",
+                Self::mutable_record_projection_display(&path),
+                self.program.display_type_reference(target_type),
             ));
         };
         self.write_record_view_type(field_type, &cells, field_offset, value)?;
@@ -6259,12 +6258,7 @@ impl<'program> Evaluator<'program> {
         // own size -- LOCKSTEP with the layout rule; the drift canary pins
         // agreement).
         let Some(target) = target else {
-            let target_name = self
-                .program
-                .named_type_reference(cast.target_type)
-                .map(|name| name.as_str().to_owned())
-                .unwrap_or_default();
-            return self.assemble_record_view(&target_name, &cells, offset);
+            return self.assemble_record_view_type(cast.target_type, &cells, offset);
         };
         self.assemble_scalar_byte_region(&cells, offset, target)
             .map(Some)
@@ -6339,15 +6333,6 @@ impl<'program> Evaluator<'program> {
     /// geometry native lowering consumes. Ordinary records use natural
     /// packing; plan-laid records use their validated offsets. Named fields
     /// recurse, permitting a plain wrapper around a plan-laid foreign record.
-    fn assemble_record_view(
-        &mut self,
-        type_name: &str,
-        cells: &[Cell],
-        base_offset: usize,
-    ) -> EvalResult<Option<Value>> {
-        self.assemble_record_view_inner(type_name, cells, base_offset, &mut HashSet::new())
-    }
-
     fn assemble_record_view_inner(
         &self,
         type_name: &str,
@@ -6915,6 +6900,69 @@ impl<'program> Evaluator<'program> {
                 // width-wrap (`u32` 0xFFFF_FFFF re-viewed as `i32` = -1).
                 Ok(Value::Int(wrap_to_width(raw, integer)))
             }
+        }
+    }
+
+    fn eval_recast_to_type(
+        &self,
+        value: Value,
+        target_type: TypeReferenceHandle,
+    ) -> EvalResult<Value> {
+        let target = self
+            .program
+            .type_reference_table
+            .type_reference(target_type)
+            .clone();
+        match target {
+            TypeReferenceNode::Reference { referee, .. }
+            | TypeReferenceNode::Constrained {
+                base_type: referee,
+                ..
+            } => self.eval_recast_to_type(value, referee),
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length: FixedArrayLength::Literal(length),
+            } => {
+                let value = match value {
+                    Value::Ref(cell) => cell.borrow().clone(),
+                    other => other,
+                };
+                let Value::Array(elements) = value else {
+                    return trap("fixed-array recast source is not an array");
+                };
+                if elements.len() != length {
+                    return trap(format!(
+                        "fixed-array recast expected {length} elements, found {}",
+                        elements.len()
+                    ));
+                }
+                let mut recast = Vec::with_capacity(elements.len());
+                for element in elements {
+                    let value = element.borrow().clone();
+                    recast.push(Rc::new(RefCell::new(
+                        self.eval_recast_to_type(value, element_type)?,
+                    )));
+                }
+                Ok(Value::Array(recast))
+            }
+            TypeReferenceNode::Slice { element_type } => {
+                let value = match value {
+                    Value::Ref(cell) => cell.borrow().clone(),
+                    other => other,
+                };
+                let Value::Array(elements) = value else {
+                    return trap("slice recast source is not an array or slice");
+                };
+                let mut recast = Vec::with_capacity(elements.len());
+                for element in elements {
+                    let value = element.borrow().clone();
+                    recast.push(Rc::new(RefCell::new(
+                        self.eval_recast_to_type(value, element_type)?,
+                    )));
+                }
+                Ok(Value::Array(recast))
+            }
+            _ => self.eval_recast(value, self.cast_target_primitive(target_type)),
         }
     }
 

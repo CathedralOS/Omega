@@ -1,0 +1,33 @@
+// RUN CANARY (exit 70) + interpreter differential. A top-level fixed-array
+// recast uses structural target identity, preserves the complete byte-region
+// footprint, and writes through to the live backing bytes.
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    bytes: [u8; 10];
+    k: u32 [0..=2];
+}
+
+machine Main::main(&mut self) {
+    self.bytes[0] = 9;
+    self.bytes[9] = 8;
+    self.k = 1;
+
+    let words: &mut [u16; 4] = &mut self.bytes[self.k] as &mut [u16; 4];
+    words[0] = 0x0201;
+    words[3] = 0x0807;
+    transition self.bytes[0] == 9
+        && self.bytes[1] == 1
+        && self.bytes[2] == 2
+        && self.bytes[7] == 7
+        && self.bytes[8] == 8
+        && self.bytes[9] == 8
+        && words[0] == 0x0201
+        && words[3] == 0x0807 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

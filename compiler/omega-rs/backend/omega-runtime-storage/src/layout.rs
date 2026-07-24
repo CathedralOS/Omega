@@ -25,9 +25,9 @@ pub(super) fn recast_view_layout(
     loop {
         match table.type_reference(referee) {
             TypeReferenceNode::Constrained { base_type, .. } => referee = *base_type,
-            TypeReferenceNode::Named { symbol, name } => {
-                let record = layout_for_named_type(context, *symbol, name.as_str());
-                return (record.size > 0).then_some(record);
+            TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Named { .. } => {
+                let layout = layout_for_type_reference(context, table, referee);
+                return (layout.size > 0).then_some(layout);
             }
             _ => return None,
         }

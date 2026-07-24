@@ -197,6 +197,32 @@ fn record_recast_execution_canaries_run() {
 }
 
 #[test]
+fn fixed_array_recast_execution_and_fact_fence() {
+    let canary = "recast/runtime_fixed_array_view_mutable_write_exit";
+    assert_exit_70(canary, "fixed-array-mutable-view");
+
+    let main = repo_root()
+        .join("canaries/pass")
+        .join(canary)
+        .join("main.omg");
+    let checked =
+        compile_to_checked(&main, None).expect("top-level fixed-array view should compile");
+    assert_eq!(
+        omega_interpreter::interpret(&checked, &[]).exit_code,
+        70,
+        "the interpreter must preserve top-level fixed-array view identity"
+    );
+
+    compile_for_cross_targets(canary, "fixed-array-mutable-view");
+
+    let diagnostics = fail_diagnostics("recast/fixed_array_view_fact_fenced");
+    assert!(
+        diagnostics.contains("must be recursively fact-free"),
+        "raw bytes must not establish fixed-array element facts:\n{diagnostics}"
+    );
+}
+
+#[test]
 fn mutable_recast_fact_fences_reject() {
     for canary in [
         "recast/recast_mut_fact_fenced",
