@@ -5,7 +5,7 @@
 
 # Tasks
 
-Last pruned: 2026-07-22.
+Last pruned: 2026-07-24.
 
 Omega's first real consumer is Cathedral (`../Cathedral`). General language
 work takes priority, with Cathedral vertical slices used as acceptance tests.
@@ -1082,8 +1082,6 @@ stronger operations it needs instead of citing machine parameters generally.
   explicitly defers the introduction-policy grammar and authority-passing cast
   spelling; the internal grant carrier exists, but authored policy cannot be
   lowered without that surface decision.
-- **DOM4 — normalized identity.** Finish the deterministic domain-expression
-  normalizer and make it own type/monomorphization identity.
 - **DOM5 — weakening.** Add `weakens_to` certificates and sealed-theory hashes
   that detect stale operator theories. **Language-design blocker:** decision
   19 explicitly defers the `weakens_to` certificate-block syntax; theory

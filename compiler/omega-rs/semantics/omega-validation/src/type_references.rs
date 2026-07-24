@@ -1174,8 +1174,7 @@ pub(crate) fn type_references_match(
         return actual.is_valid() == required.is_valid();
     }
 
-    program.display_type_reference_with_constraints(actual)
-        == program.display_type_reference_with_constraints(required)
+    program.normalized_type_identity(actual) == program.normalized_type_identity(required)
 }
 
 pub(crate) fn type_reference_label(

@@ -671,6 +671,16 @@ redefine canonical identity. Physical ABI remains the **carrier's** ABI
 normalized domains. Units and the full quantity model (dimension x kind x
 scale x presentation) are specified in the design brief.
 
+For the currently authored conjunction form, normalization is concrete:
+declared terms resolve to their semantic-domain identity, arithmetic-policy
+terms use their closed canonical identity, conjunctions are sorted and
+deduplicated, and nested constraint shells flatten before identity is
+computed. Thus `T in A & B`, `T in B & A`, and `T in A & A & B` are one
+semantic type and one monomorphization key. `T in A` and `T in B` remain
+distinct even though diagnostic renderings happen to contain the same number
+of constraints. Human-readable type rendering is never an equality or cache
+key.
+
 ## Domains On Strings And Encodings
 
 Text is not a type in Omega. It decomposes into three things that already

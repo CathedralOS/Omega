@@ -255,7 +255,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         let candidate = &mut candidates[candidate_index];
         match candidate.type_bindings[parameter_index] {
             None => candidate.type_bindings[parameter_index] = Some(binding),
-            Some(existing) if !same_type_display(program, existing, binding) => {
+            Some(existing) if !same_type_identity(program, existing, binding) => {
                 candidate.conflicted = true;
             }
             Some(_) => {}
@@ -826,7 +826,7 @@ fn selection_from_proposals(
         }
         match selection.type_bindings[parameter] {
             None => selection.type_bindings[parameter] = Some(binding),
-            Some(existing) if !same_type_display(program, existing, binding) => {
+            Some(existing) if !same_type_identity(program, existing, binding) => {
                 selection.conflicted = true
             }
             Some(_) => {}
@@ -915,7 +915,11 @@ fn unique_complete_selections(
             type_arguments: selection
                 .type_bindings
                 .iter()
-                .map(|binding| program.display_type_reference(binding.expect("complete selection")))
+                .map(|binding| {
+                    program
+                        .normalized_type_identity(binding.expect("complete selection"))
+                        .into_string()
+                })
                 .collect(),
             machine_arguments: selection
                 .machine_bindings
@@ -1090,17 +1094,12 @@ fn type_reference_is_still_generic(
     )
 }
 
-fn same_type_display(
+fn same_type_identity(
     program: &TypedTrees,
     left: TypeReferenceHandle,
     right: TypeReferenceHandle,
 ) -> bool {
-    program
-        .type_reference_table
-        .display_name_with_constraints(left, &program.expression_table)
-        == program
-            .type_reference_table
-            .display_name_with_constraints(right, &program.expression_table)
+    program.normalized_type_identity(left) == program.normalized_type_identity(right)
 }
 
 fn approved_type_bounds(program: &TypedTrees, candidates: &[Candidate]) -> Vec<bool> {
@@ -1267,6 +1266,15 @@ fn clone_specialized_machine(
         .iter()
         .map(|binding| source.display_type_reference(binding.expect("complete specialization")))
         .collect();
+    let type_identities: Vec<String> = candidate
+        .type_bindings
+        .iter()
+        .map(|binding| {
+            source
+                .normalized_type_identity(binding.expect("complete specialization"))
+                .into_string()
+        })
+        .collect();
     let machine_paths: Vec<String> = candidate
         .machine_bindings
         .iter()
@@ -1282,7 +1290,7 @@ fn clone_specialized_machine(
         })
         .collect();
     let fingerprint =
-        specialization_fingerprint(&candidate.template_name, &type_arguments, &machine_paths);
+        specialization_fingerprint(&candidate.template_name, &type_identities, &machine_paths);
     let generated_name = format!(
         "{}$specialized${fingerprint:016x}${ordinal}",
         candidate.template_name
@@ -1778,6 +1786,15 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
             program.display_type_reference(binding.expect("complete type specialization"))
         })
         .collect();
+    let type_identities: Vec<String> = candidate
+        .type_bindings
+        .iter()
+        .map(|binding| {
+            program
+                .normalized_type_identity(binding.expect("complete type specialization"))
+                .into_string()
+        })
+        .collect();
     let machine_arguments: Vec<SymbolHandle> = candidate
         .machine_bindings
         .iter()
@@ -1814,7 +1831,7 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
             machine_argument_contract_fingerprints: Vec::new(),
             fingerprint: specialization_fingerprint(
                 &candidate.template_name,
-                &type_arguments,
+                &type_identities,
                 &machine_paths,
             ),
         });
@@ -1951,6 +1968,18 @@ fn template_contract_fingerprint(program: &TypedTrees, machine_index: usize) -> 
             )
         })
         .collect();
+    let type_binders: Vec<(SymbolHandle, String)> = parameters
+        .iter()
+        .enumerate()
+        .map(|(index, parameter)| {
+            let prefix = match parameter.kind {
+                TypeParameterKind::Type => "T",
+                TypeParameterKind::Const { .. } => "C",
+                TypeParameterKind::Machine { .. } => "M",
+            };
+            (parameter.symbol, format!("${prefix}{index}"))
+        })
+        .collect();
     let mut bytes = Vec::new();
     bytes.extend(machine.name.as_str().as_bytes());
     bytes.push(0xff);
@@ -1971,12 +2000,14 @@ fn template_contract_fingerprint(program: &TypedTrees, machine_index: usize) -> 
         encode_data_properties(parameter.bounds, &mut bytes);
         match &parameter.kind {
             TypeParameterKind::Const { type_reference } => encode_normalized_text(
-                &program.display_type_reference(*type_reference),
+                program
+                    .normalized_type_identity_with_binders(*type_reference, &type_binders)
+                    .as_str(),
                 &binders,
                 &mut bytes,
             ),
             TypeParameterKind::Machine { contract } => {
-                encode_state_signature(program, contract, &binders, &mut bytes)
+                encode_state_signature(program, contract, &binders, &type_binders, &mut bytes)
             }
             TypeParameterKind::Type => {}
         }
@@ -1985,7 +2016,7 @@ fn template_contract_fingerprint(program: &TypedTrees, machine_index: usize) -> 
     let mut state_shapes = Vec::new();
     for state in program.machine_states(machine) {
         let mut shape = Vec::new();
-        encode_state_shape(program, state, &binders, &mut shape);
+        encode_state_shape(program, state, &binders, &type_binders, &mut shape);
         state_shapes.push(shape);
     }
     state_shapes.sort();
@@ -2209,13 +2240,16 @@ fn encode_state_signature(
     program: &TypedTrees,
     signature: &omega_typed_trees::signature::StateSignature,
     binders: &[(String, String)],
+    type_binders: &[(SymbolHandle, String)],
     output: &mut Vec<u8>,
 ) {
     for parameter in program.state_signature_parameters(signature) {
-        encode_parameter(program, parameter, binders, output);
+        encode_parameter(program, parameter, binders, type_binders, output);
     }
     encode_normalized_text(
-        &program.display_type_reference(signature.return_type),
+        program
+            .normalized_type_identity_with_binders(signature.return_type, type_binders)
+            .as_str(),
         binders,
         output,
     );
@@ -2251,13 +2285,16 @@ fn encode_state_shape(
     program: &TypedTrees,
     state: &omega_typed_trees::state::State,
     binders: &[(String, String)],
+    type_binders: &[(SymbolHandle, String)],
     output: &mut Vec<u8>,
 ) {
     for parameter in program.state_parameters(state) {
-        encode_parameter(program, parameter, binders, output);
+        encode_parameter(program, parameter, binders, type_binders, output);
     }
     encode_normalized_text(
-        &program.display_type_reference(state.return_type),
+        program
+            .normalized_type_identity_with_binders(state.return_type, type_binders)
+            .as_str(),
         binders,
         output,
     );
@@ -2286,13 +2323,16 @@ fn encode_parameter(
     program: &TypedTrees,
     parameter: &omega_typed_trees::signature::StateParameter,
     binders: &[(String, String)],
+    type_binders: &[(SymbolHandle, String)],
     output: &mut Vec<u8>,
 ) {
     output.push(u8::from(parameter.is_self));
     output.push(u8::from(parameter.is_mutable));
     output.push(u8::from(parameter.is_const));
     encode_normalized_text(
-        &program.display_type_reference(parameter.type_reference),
+        program
+            .normalized_type_identity_with_binders(parameter.type_reference, type_binders)
+            .as_str(),
         binders,
         output,
     );
