@@ -788,7 +788,11 @@ schemas recover the same instance without publishing policy type identity.
    - Program PIT plus remapped 8259 PIC as the first QEMU/PC provider. The hard
      root acknowledges exactly once, captures time, sets one preallocated
      coalescing wake state, and returns. An ordinary timer-service task drains
-     due registrations and rearms the next deadline.
+     due registrations and rearms the next deadline. Cathedral now carries
+     pure, zero-authority 8259A and 8254 hardware-fact packages for the port
+     map, initialization/control words, cascade wiring, masks, timer modes, and
+     clock rate. The checked PortIo provider, remap execution, acknowledgement,
+     and root connection remain.
    - Add LAPIC one-shot timing as the production multicore/tickless provider
      without changing the root requirement.
    - Report ticks over the owned serial line and `hlt` between ticks under QEMU.
