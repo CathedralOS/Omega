@@ -1391,8 +1391,21 @@ stronger operations it needs instead of citing machine parameters generally.
   `OWNER_QUESTIONS.md` under "opaque runtime `boundary data`." Once those
   surfaces are settled, add executable dispatch and ensure a rejected
   transactional start returns every moved argument and lease.
-- **TR5 — custody and storage leases.** Track provider provenance and dependent
-  child storage so close/reclaim rejects while claims remain live.
+- **TR5 — custody and storage leases.** The normalized
+  `omega-task-plans` lifecycle ledger now separates the admitted runtime
+  contract, one concrete runtime instance, one activation instance, persistent
+  storage owner/lease provenance, and the linear lifecycle claim. Accepting an
+  activation records that complete dependency before issuing the non-clonable
+  claim. Cancellation preserves it; exact terminal settlement releases the
+  storage relationship; failed cross-instance settlement returns the claim
+  unchanged. Provider close and storage reclaim reject while a matching child
+  remains live, and activation or lease-era replay rejects even after
+  settlement. Inline completion may omit persistent activation storage only
+  when the exact admission permits it, and still returns a lifecycle claim
+  requiring settlement. Connect this normalized ledger to the selected
+  runtime value and source `Task<T>` once TR4's provider-slot and opaque-runtime
+  representation owner questions are settled; do not infer provenance from
+  the task result type.
 - **TR6 — continuations and first provider.** Lower continuations; admit inline
   completion only when the pinned contract permits it.
 - **TR7 — suspension-safe loans.** Enforce the conservative moved/shared-

@@ -192,6 +192,23 @@ the activation and returned at settlement. The invariant is fixed even though
 the carrier is not: close/reclaim must prove that every child claim and lease
 has been reconciled.
 
+The normalized provider-side accounting carrier is now live in
+`omega-task-plans`. One ledger belongs to one admitted runtime instance.
+Accepting an activation records the exact activation admission plus either a
+persistent `{storage owner, lease era}` edge or an admitted inline-completion
+fact before it yields a non-clonable lifecycle claim. Cancellation validates
+the claim without removing that record. Terminal settlement consumes the exact
+claim and releases its recorded storage relationship; a failed cross-instance
+settlement returns the claim. Runtime close and storage reclamation fail while
+a matching record remains live. Activation and storage-lease identities are
+single-use within the instance, so recycling storage requires a fresh lease
+era rather than replaying an old provenance edge.
+
+This is normalized provider accounting, not a second source-visible task or
+lease type. Connecting it to `Task<T>` awaits the ordinary selected
+task-runtime slot and opaque runtime representation; those owner questions are
+tracked separately.
+
 ## Storage policies are provider/library choices
 
 Before a pending `Task<T>` is returned, the provider has accepted custody and
@@ -361,8 +378,10 @@ transactional start follow those decisions.
    task-runtime provider-slot/behavior-publication question; executable dispatch
    also awaits the general opaque-runtime representation decision. After those
    are settled, add transactional `start`/`try_start` ownership.
-5. Implement provider provenance/child-lease accounting and prevent premature
-   close/reclaim.
+5. Connect the implemented normalized provider-provenance/child-lease ledger
+   to selected runtime values and source `Task<T>` after the runtime-slot and
+   opaque-carrier decisions land. The ledger already prevents premature
+   close/reclaim and preserves a claim on failed settlement.
 6. Implement continuation/frame lowering and a first provider; an inline
    provider is valid only where the pinned contract permits inline completion.
 7. Add local carry checking and the conservative suspension-safe-loan subset,
