@@ -299,6 +299,16 @@ shootdown/quiescence token completes. V1 performs no generation check on each
 access: ordinary borrowing prevents in-language reclamation while a view
 remains live.
 
+Page-table construction composes those mapping states rather than bypassing
+them. A draft owns one admitted table-storage extent and an exact nonoverlapping
+set of pending mappings. Compiler-generated construction or an admitted
+one-time scan of imported bytes may establish the same sealed installable
+state, but only by binding the canonical plan, final content, and complete
+mapping set. A separate page-table-control receipt must then activate that exact
+table and discharge every mapping's activation obligations before any mapped
+loan exists. `Installable` therefore means “validated table bytes,” not
+“authority to make arbitrary translations live.”
+
 The compiler derives sealed field-access values. Pure projection narrows the
 extent to a passable borrow-carrying field accessor without performing I/O.
 Readable fields expose one exact-width snapshot read; writable fields expose a

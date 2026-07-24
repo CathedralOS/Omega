@@ -230,10 +230,14 @@ impl<'source> PendingMap<'source> {
         self.mapping.grant
     }
 
-    pub fn complete(
-        self,
-        receipt: TranslationActivationReceipt,
-    ) -> Result<MappedExtent<'source>, Box<MapActivationError<'source>>> {
+    pub(crate) const fn mapped_extent(&self) -> &Extent {
+        &self.mapping.mapped
+    }
+
+    pub(crate) fn validate_activation_receipt(
+        &self,
+        receipt: &TranslationActivationReceipt,
+    ) -> Result<(), ExtentDiagnostic> {
         let mismatch = if receipt.mapping != self.mapping.identity {
             Some("translation-activation receipt names a different mapping")
         } else if receipt.grant != self.mapping.grant {
@@ -246,11 +250,21 @@ impl<'source> PendingMap<'source> {
             None
         };
 
-        if let Some(message) = mismatch {
+        match mismatch {
+            Some(message) => Err(ExtentDiagnostic(message.into())),
+            None => Ok(()),
+        }
+    }
+
+    pub fn complete(
+        self,
+        receipt: TranslationActivationReceipt,
+    ) -> Result<MappedExtent<'source>, Box<MapActivationError<'source>>> {
+        if let Err(diagnostic) = self.validate_activation_receipt(&receipt) {
             return Err(Box::new(MapActivationError {
                 pending: self,
                 receipt,
-                diagnostic: ExtentDiagnostic(message.into()),
+                diagnostic,
             }));
         }
 

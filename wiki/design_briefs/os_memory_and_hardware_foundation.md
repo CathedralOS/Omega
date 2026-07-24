@@ -291,6 +291,25 @@ domain. Imported tables may instead be scanned once to establish the same fact.
 This avoids rescanning every locally-built table without trusting arbitrary
 address bits.
 
+That provider-neutral lifecycle is live in `omega-extents`. A reusable admitted
+grant pins the table-storage space, provenance, open-set rights, minimum bytes,
+alignment, and mapped address space. Construction owns the concrete table
+storage plus sealed pending mappings; it rejects duplicate identities,
+overlapping virtual ranges, and mappings into the wrong space without losing
+their authority. The normalized plan identity binds the exact storage and
+canonical mapping set.
+
+Generated construction and a one-time imported-table scan are two evidence
+routes to the same `InstallablePageTable` state. In either case an exact receipt
+must bind the table, grant, normalized plan, final content identity, and complete
+mapping set. Installation is separate: it must bind that same construction
+receipt and content, establish the table active, and supply the exact activation
+receipt for every pending mapping. Only then do `MappedExtent` values expose
+loans. Thus arbitrary page-table bytes, a merely structural mapping candidate,
+or a receipt for another table cannot mint active address authority. Target
+entry writers/scanners, page-table-control operations, teardown receipts, and
+source-visible opaque carriers remain implementation work over this lifecycle.
+
 Shared-memory IPC and MMIO share external mutability, not an observation model.
 For proved or mutually trusted peers, an atomic protocol may return a linear
 lease whose borrow exposes stable payload bytes until explicit `release`.
