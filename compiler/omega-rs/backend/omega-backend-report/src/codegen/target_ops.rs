@@ -469,6 +469,7 @@ fn selected_instruction_name(
             target_offset,
             byte_size,
             zigzag,
+            range,
         } => {
             let buffer_symbol =
                 storage_region_symbol_name(*buffer_region, backend_plan.entry_machine_name());
@@ -479,8 +480,16 @@ fn selected_instruction_name(
             let target_symbol =
                 storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
             let encoding = if *zigzag { "zigzag varint" } else { "varint" };
+            let range = range.map_or_else(String::new, |range| {
+                format!(
+                    ", establish {} [{}..={}]",
+                    if range.signed { "signed" } else { "unsigned" },
+                    range.minimum,
+                    range.maximum
+                )
+            });
             format!(
-                "wire read {encoding} {target_symbol}@{target_offset} ({byte_size} bytes) <- {buffer_symbol}@{buffer_offset} (len {buffer_length}) + cursor {read_symbol}@{read_offset}, ok {ok_symbol}@{ok_offset}"
+                "wire read {encoding} {target_symbol}@{target_offset} ({byte_size} bytes) <- {buffer_symbol}@{buffer_offset} (len {buffer_length}) + cursor {read_symbol}@{read_offset}, ok {ok_symbol}@{ok_offset}{range}"
             )
         }
         SelectedInstructionKind::ReadWireByteSlice {

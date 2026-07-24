@@ -967,6 +967,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         70,
     ),
     ("wire/runtime_wire_decode_rejects_wrong_era_exit", 70),
+    ("wire/runtime_wire_decode_ranged_field_exit", 70),
     ("wire/runtime_wire_encode_era_discriminator_exit", 70),
     ("wire/runtime_wire_encode_primitive_exit", 70),
     ("wire/runtime_wire_encode_string_exit", 70),
@@ -1593,6 +1594,24 @@ fn interpreter_matches_native_on_supported_canaries() {
         mismatches.len(),
         mismatches.join("\n\n")
     );
+}
+
+#[test]
+fn interpreter_establishes_wire_scalar_ranges() {
+    let main_path = pass_canary("wire/runtime_wire_decode_ranged_field_exit").join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "ranged wire decode compile failed:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "ranged wire decode should be supported, got {:?}",
+        outcome.error
+    );
+    assert_eq!(outcome.exit_code, 70);
 }
 
 #[test]

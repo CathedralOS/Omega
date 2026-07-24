@@ -9238,6 +9238,39 @@ fn runtime_wire_roundtrip_primitive_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_wire_decode_ranged_field_exit_canary_runs() {
+    // Hostile 200 must clear the verdict and leave the prior ranged value
+    // untouched; a subsequent 50 must establish and store successfully.
+    let canary = pass_canary("wire/runtime_wire_decode_ranged_field_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-wire-ranged-decode-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("ranged wire decode canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("ranged wire decode canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected hostile range refusal and valid range establishment (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_wire_roundtrip_nested_exit_canary_runs() {
     // Wire nested message fields: encode { header: { room_id: 300, kind: -2 },
     // depth: -64 } into [0x00, 0x00, 0x05, 0x00, 0xAC, 0x02, 0x01, 0x03,
@@ -37991,6 +38024,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "wire/runtime_wire_encode_primitive_exit",
     "wire/runtime_wire_encode_era_discriminator_exit",
     "wire/runtime_wire_roundtrip_primitive_exit",
+    "wire/runtime_wire_decode_ranged_field_exit",
     "wire/runtime_wire_decode_rejects_wrong_era_exit",
     "wire/runtime_wire_encode_string_exit",
     "wire/runtime_wire_encode_byte_slice_exit",
@@ -38290,7 +38324,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/citation_requires_bearing_rejected",
     "proofs/nat_substate_nondescending_rejected",
     "boundary/entry_typed_params_unmarked",
-    "wire/decode_into_ranged_field",
     "wire/encode_wire_spelling_renamed",
     "wire/decode_verdict_must_be_enum",
     "wire/layout_domain_on_stored_bytes",

@@ -305,6 +305,15 @@ would need a second staging region, so both reject with clear diagnostics,
 and a schema that reaches itself through nested fields (no finite worst case)
 is a hard error at the declaration.
 
+Range-constrained scalar destinations are stricter because their declaration
+is already a fact downstream code may trust. The decoder normalizes the
+destination field's inclusive interval at compile time and checks the decoded
+scalar before the write. An out-of-range payload makes the verdict `Invalid`
+and leaves that field's prior valid value untouched; `Sound` therefore
+establishes the declared range from the untrusted bytes. This check comes from
+the actual destination declaration, not merely the wire schema's unconstrained
+carrier type, and applies equally inside the supported one-level nested body.
+
 The length prefix is the interesting part: the sub-message's field SET is
 compile-time-known, so its WORST-CASE size is static, but its actual size is
 runtime (varints shrink with their values). Of the honest mechanisms —

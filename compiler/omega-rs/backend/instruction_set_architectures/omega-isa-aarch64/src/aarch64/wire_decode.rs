@@ -33,9 +33,11 @@ use super::primitives::{
     encode_and_x_immediate_low_seven, encode_and_x_register, encode_asr_x_immediate, encode_cbnz_x,
     encode_compare_w_immediate, encode_compare_x_register, encode_conditional_branch_equal,
     encode_conditional_branch_higher, encode_conditional_branch_higher_or_same,
-    encode_conditional_branch_lower, encode_conditional_branch_not_equal, encode_eor_x_register,
-    encode_load_byte_w_post_increment, encode_lslv_x_register, encode_lsr_x_immediate, encode_movz,
-    encode_orr_x_register, encode_unconditional_branch,
+    encode_conditional_branch_less, encode_conditional_branch_less_or_equal,
+    encode_conditional_branch_lower, encode_conditional_branch_lower_or_same,
+    encode_conditional_branch_not_equal, encode_eor_x_register, encode_load_byte_w_post_increment,
+    encode_lslv_x_register, encode_lsr_x_immediate, encode_movz, encode_orr_x_register,
+    encode_unconditional_branch,
 };
 use super::widths::{
     read_wire_byte_slice_width, read_wire_expected_byte_width, read_wire_nested_close_width,
@@ -440,6 +442,7 @@ pub fn encode_read_wire_scalar_varint(
     target_offset: usize,
     byte_size: usize,
     zigzag: bool,
+    range: Option<omega_core::wire::WireScalarRange>,
 ) -> Result<Vec<u8>, Diagnostic> {
     if !matches!(byte_size, 1 | 4 | 8) {
         return Err(Diagnostic::error(format!(
@@ -458,6 +461,7 @@ pub fn encode_read_wire_scalar_varint(
         target_offset,
         byte_size,
         zigzag,
+        range,
     ));
     append_wire_decode_prologue(&mut bytes, buffer_offset, read_offset)?;
     append_unsigned_immediate(&mut bytes, 24, buffer_length as u64);
@@ -515,14 +519,38 @@ pub fn encode_read_wire_scalar_varint(
     // x25 = the target page, then the truncating store at the field width.
     bytes.extend(encode_adrp_placeholder(25));
     bytes.extend(encode_add_page_offset_placeholder(25));
+    let mut store = Vec::new();
     super::runtime_storage::append_store_data_to_x_offset(
-        &mut bytes,
+        &mut store,
         26,
         25,
         target_offset,
         byte_size,
         19,
     )?;
+    if let Some(range) = range {
+        // Establish the destination interval before the constrained field is
+        // written. x26 retains the decoded value, x19 carries each bound, and
+        // x23 is this operation's sticky success bit.
+        append_unsigned_immediate(&mut bytes, 19, range.minimum as u64);
+        bytes.extend(encode_compare_x_register(26, 19));
+        let maximum_width = super::widths::unsigned_immediate_width(range.maximum as u64);
+        bytes.extend(if range.signed {
+            encode_conditional_branch_less((maximum_width + 12) as isize)?
+        } else {
+            encode_conditional_branch_lower((maximum_width + 12) as isize)?
+        });
+        append_unsigned_immediate(&mut bytes, 19, range.maximum as u64);
+        bytes.extend(encode_compare_x_register(26, 19));
+        bytes.extend(if range.signed {
+            encode_conditional_branch_less_or_equal(12)?
+        } else {
+            encode_conditional_branch_lower_or_same(12)?
+        });
+        bytes.extend(encode_movz(23, 0)); // fail
+        bytes.extend(encode_unconditional_branch((store.len() + 4) as isize)?);
+    }
+    bytes.extend(store);
 
     append_wire_decode_epilogue(&mut bytes, read_offset, ok_offset)?;
     debug_assert_eq!(
@@ -534,7 +562,8 @@ pub fn encode_read_wire_scalar_varint(
             ok_offset,
             target_offset,
             byte_size,
-            zigzag
+            zigzag,
+            range,
         )
     );
     Ok(bytes)
@@ -802,6 +831,50 @@ pub fn encode_read_wire_nested_close(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ranged_scalar_decode_widths_match_encoded_bytes() {
+        let ranges = [
+            None,
+            Some(omega_core::wire::WireScalarRange {
+                minimum: 0,
+                maximum: 100,
+                signed: false,
+            }),
+            Some(omega_core::wire::WireScalarRange {
+                minimum: -40,
+                maximum: 9000,
+                signed: true,
+            }),
+            Some(omega_core::wire::WireScalarRange {
+                minimum: i64::MIN,
+                maximum: i64::MAX,
+                signed: true,
+            }),
+        ];
+        for &range in &ranges {
+            for &(byte_size, zigzag) in &[(4usize, false), (4, true), (8, false), (8, true)] {
+                let bytes = encode_read_wire_scalar_varint(
+                    200,
+                    4096,
+                    300,
+                    308,
+                    RuntimeStorageRegion::Machine,
+                    5000,
+                    byte_size,
+                    zigzag,
+                    range,
+                )
+                .expect("aarch64 ranged scalar decode should encode");
+                assert_eq!(
+                    bytes.len(),
+                    read_wire_scalar_varint_width(
+                        200, 4096, 300, 308, 5000, byte_size, zigzag, range,
+                    )
+                );
+            }
+        }
+    }
 
     // The byte-slice decode's EMITTED length must equal its width function for
     // every operand combination (a drift segfaults via relocation misplacement).

@@ -9183,6 +9183,7 @@ pub fn read_wire_scalar_varint_width(
     _target_offset: usize,
     _byte_size: usize,
     zigzag: bool,
+    range: Option<omega_core::wire::WireScalarRange>,
 ) -> usize {
     // Prologue + success/value/shift init (10) + read loop + optional
     // unzigzag + target imm64 (10) + truncating store (7) + epilogue.
@@ -9191,6 +9192,7 @@ pub fn read_wire_scalar_varint_width(
         + wire_varint_read_loop_width()
         + if zigzag { wire_unzigzag_width() } else { 0 }
         + 10
+        + if range.is_some() { 35 } else { 0 }
         + 7
         + wire_decode_tail_width()
 }
@@ -9211,6 +9213,7 @@ pub fn encode_read_wire_scalar_varint(
     target_offset: usize,
     byte_size: usize,
     zigzag: bool,
+    range: Option<omega_core::wire::WireScalarRange>,
 ) -> Result<Vec<u8>, Diagnostic> {
     if !matches!(byte_size, 1 | 4 | 8) {
         return Err(Diagnostic::error(format!(
@@ -9229,6 +9232,7 @@ pub fn encode_read_wire_scalar_varint(
         target_offset,
         byte_size,
         zigzag,
+        range,
     ));
     append_wire_decode_prologue(&mut bytes, buffer_offset, read_offset)?;
 
@@ -9286,6 +9290,27 @@ pub fn encode_read_wire_scalar_varint(
     bytes.extend([0x49, 0xb8]); // mov r8, imm64(target page)
     bytes.extend(0u64.to_le_bytes());
     let target_displacement = disp32(target_offset)?;
+    if let Some(range) = range {
+        // Establish the destination range BEFORE writing the constrained
+        // place. Invalid hostile bytes clear this operation's sticky success
+        // bit and branch over the store, preserving the prior valid value.
+        //
+        // mov r11,min; cmp rax,r11; j< fail
+        bytes.extend([0x49, 0xbb]);
+        bytes.extend((range.minimum as u64).to_le_bytes());
+        bytes.extend([0x4c, 0x39, 0xd8]);
+        bytes.extend([if range.signed { 0x7c } else { 0x72 }, 15]); // jl / jb
+        // mov r11,max; cmp rax,r11; j<= store
+        bytes.extend([0x49, 0xbb]);
+        bytes.extend((range.maximum as u64).to_le_bytes());
+        bytes.extend([0x4c, 0x39, 0xd8]);
+        bytes.extend([
+            if range.signed { 0x7e } else { 0x76 }, // jle / jbe
+            5,
+        ]);
+        bytes.extend([0x45, 0x31, 0xc9]); // fail: xor r9d,r9d
+        bytes.extend([0xeb, 0x07]); // skip the fixed-width target store
+    }
     match byte_size {
         1 => bytes.extend([0x41, 0x88, 0x80]), // mov [r8+disp32], al
         4 => bytes.extend([0x41, 0x89, 0x80]), // mov [r8+disp32], eax
@@ -9304,7 +9329,8 @@ pub fn encode_read_wire_scalar_varint(
             ok_offset,
             target_offset,
             byte_size,
-            zigzag
+            zigzag,
+            range,
         )
     );
     Ok(bytes)

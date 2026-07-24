@@ -2832,6 +2832,7 @@ pub fn read_wire_scalar_varint_width(
     target_offset: usize,
     byte_size: usize,
     zigzag: bool,
+    range: Option<omega_core::wire::WireScalarRange>,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::read_wire_scalar_varint_width(
@@ -2842,6 +2843,7 @@ pub fn read_wire_scalar_varint_width(
             target_offset,
             byte_size,
             zigzag,
+            range,
         ),
         Architecture::X86_64 => x86_64::read_wire_scalar_varint_width(
             buffer_offset,
@@ -2851,6 +2853,7 @@ pub fn read_wire_scalar_varint_width(
             target_offset,
             byte_size,
             zigzag,
+            range,
         ),
     }
 }

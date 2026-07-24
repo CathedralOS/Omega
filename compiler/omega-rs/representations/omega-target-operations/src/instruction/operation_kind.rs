@@ -195,6 +195,7 @@ pub enum TargetOperationKind {
         target_offset: usize,
         byte_size: usize,
         zigzag: bool,
+        range: Option<omega_core::wire::WireScalarRange>,
     },
     /// compact_binary v0 borrowed `&[u8]` decode (#43): read a byte-length
     /// varint, bounds-check it, store `{ptr = &buffer[cursor], len}` into the
