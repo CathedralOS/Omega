@@ -1576,9 +1576,11 @@ stronger operations it needs instead of citing machine parameters generally.
   domain graph proves implication in both directions; the implication relation
   is owned once by typed domains and reused by validation and flow checking.
   Constant integer ranges now normalize to exact two's-complement bit-pattern
-  sets, including split intervals across signed zero. Equal sets admit mutable
-  aliases across same-width signed/unsigned carriers; equal cardinality or
-  shifted sets reject. Range-refined reference binding is no longer mistaken
+  sets, including split intervals across signed zero. Adjacent and overlapping
+  intervals canonicalize, so a signed range covering its complete carrier is
+  representation-equivalent to the same-width unconstrained unsigned carrier.
+  Equal sets admit mutable aliases across same-width signed/unsigned carriers;
+  equal cardinality or shifted sets reject. Range-refined reference binding is no longer mistaken
   for a numeric store into the referee. Equal-looking predicates over different
   primitive carriers remain fenced until their bit-pattern sets can be proved
   equivalent. Same-carrier float ranges now compose by numeric interval
@@ -1723,6 +1725,8 @@ stronger operations it needs instead of citing machine parameters generally.
   plain and repeated runtime canaries pin rejection and write preservation.
   Finite `i32`/`u32` carrier bounds are likewise checked before truncation, so
   wider hostile varints cannot wrap into an apparently valid destination.
+  Varint readers now require canonical minimal LEB128, reject payload bits
+  beyond `u64`, and retain the legal ten-group encoding of `u64::MAX`.
   Implement runtime layout for remaining wire values, additional
   encoding families, compatibility reports, and version negotiation.
 

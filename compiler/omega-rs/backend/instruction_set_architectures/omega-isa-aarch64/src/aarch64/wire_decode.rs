@@ -165,28 +165,9 @@ pub fn encode_read_wire_byte_slice(
     bytes.extend(encode_movz(26, 0)); // value (length) accumulator
     bytes.extend(encode_movz(22, 0)); // shift
 
-    // Shared LEB128 read loop (the same fixed 56-byte block as the scalar
-    // varint decode): reads the length varint into x26, leaving x16 pointing at
-    // the CONTENT (just past the varint) and x17 = the post-varint cursor.
-    bytes.extend(encode_compare_x_register(17, 24));
-    bytes.extend(encode_conditional_branch_higher_or_same(48)?);
-    bytes.extend(encode_compare_w_immediate(22, 63)?);
-    bytes.extend(encode_conditional_branch_higher(40)?);
-    bytes.extend(encode_load_byte_w_post_increment(19, 16, 1)?);
-    bytes.extend(encode_add_x_immediate(17, 17, 1)?);
-    bytes.extend(encode_and_x_immediate_low_seven(25, 19));
-    bytes.extend(encode_lslv_x_register(25, 25, 22));
-    bytes.extend(encode_orr_x_register(26, 26, 25));
-    bytes.extend(encode_add_x_immediate(22, 22, 7)?);
-    bytes.extend(encode_lsr_x_immediate(19, 19, 7));
-    bytes.extend(encode_cbnz_x(19, -44)?);
-    bytes.extend(encode_unconditional_branch(8)?);
-    bytes.extend(encode_movz(23, 0));
-    debug_assert_eq!(
-        wire_varint_read_loop_width(),
-        56,
-        "the read loop above is fourteen fixed instructions"
-    );
+    // Shared canonical LEB128 read loop: reads the length varint into x26,
+    // leaving x16 pointing at the CONTENT and x17 at the post-varint cursor.
+    append_wire_varint_read_loop(&mut bytes)?;
 
     // Bounds + advance (fixed 24 bytes): end = cursor + len; if end >
     // buffer_length clear ok; cursor = end (matches the x86_64 `jbe`/clear
@@ -433,6 +414,37 @@ fn append_wire_utf8_validation(bytes: &mut Vec<u8>) -> Result<(), Diagnostic> {
     Ok(())
 }
 
+fn append_wire_varint_read_loop(bytes: &mut Vec<u8>) -> Result<(), Diagnostic> {
+    let start = bytes.len();
+    // Canonical unsigned LEB128. x22 is the current shift before a load and
+    // the next shift after it. The tenth-group range check occurs before x25
+    // is shifted; after a terminal group, shifted x25 is zero exactly when
+    // the terminal payload was zero. This preserves x20/x21 for the epilogue.
+    bytes.extend(encode_compare_x_register(17, 24));
+    bytes.extend(encode_conditional_branch_higher_or_same(76)?);
+    bytes.extend(encode_compare_w_immediate(22, 63)?);
+    bytes.extend(encode_conditional_branch_higher(68)?);
+    bytes.extend(encode_load_byte_w_post_increment(19, 16, 1)?);
+    bytes.extend(encode_add_x_immediate(17, 17, 1)?);
+    bytes.extend(encode_and_x_immediate_low_seven(25, 19));
+    bytes.extend(encode_compare_w_immediate(22, 63)?);
+    bytes.extend(encode_conditional_branch_not_equal(12)?);
+    bytes.extend(encode_compare_w_immediate(25, 1)?);
+    bytes.extend(encode_conditional_branch_higher(40)?);
+    bytes.extend(encode_lslv_x_register(25, 25, 22));
+    bytes.extend(encode_orr_x_register(26, 26, 25));
+    bytes.extend(encode_add_x_immediate(22, 22, 7)?);
+    bytes.extend(encode_lsr_x_immediate(19, 19, 7));
+    bytes.extend(encode_cbnz_x(19, -60)?);
+    bytes.extend(encode_compare_w_immediate(22, 7)?);
+    bytes.extend(encode_conditional_branch_equal(16)?);
+    bytes.extend(encode_compare_w_immediate(25, 0)?);
+    bytes.extend(encode_conditional_branch_not_equal(8)?);
+    bytes.extend(encode_movz(23, 0));
+    debug_assert_eq!(bytes.len() - start, wire_varint_read_loop_width());
+    Ok(())
+}
+
 pub fn encode_read_wire_scalar_varint(
     buffer_offset: usize,
     buffer_length: usize,
@@ -469,41 +481,8 @@ pub fn encode_read_wire_scalar_varint(
     bytes.extend(encode_movz(26, 0));
     bytes.extend(encode_movz(22, 0));
 
-    // LEB128 read loop (fixed 56 bytes, `wire_varint_read_loop_width`):
-    //   loop: cmp  x17, x24
-    //         b.hs fail            (+48: truncated input)
-    //         cmp  w22, #63
-    //         b.hi fail            (+40: overlong varint, >10 groups)
-    //         ldrb w19, [x16], #1
-    //         add  x17, x17, #1
-    //         and  x25, x19, #0x7f
-    //         lslv x25, x25, x22
-    //         orr  x26, x26, x25
-    //         add  x22, x22, #7
-    //         lsr  x19, x19, #7    (continuation bit)
-    //         cbnz x19, loop       (-44)
-    //         b    done            (+8: skip the fail movz)
-    //   fail: movz x23, #0
-    //   done:
-    bytes.extend(encode_compare_x_register(17, 24));
-    bytes.extend(encode_conditional_branch_higher_or_same(48)?);
-    bytes.extend(encode_compare_w_immediate(22, 63)?);
-    bytes.extend(encode_conditional_branch_higher(40)?);
-    bytes.extend(encode_load_byte_w_post_increment(19, 16, 1)?);
-    bytes.extend(encode_add_x_immediate(17, 17, 1)?);
-    bytes.extend(encode_and_x_immediate_low_seven(25, 19));
-    bytes.extend(encode_lslv_x_register(25, 25, 22));
-    bytes.extend(encode_orr_x_register(26, 26, 25));
-    bytes.extend(encode_add_x_immediate(22, 22, 7)?);
-    bytes.extend(encode_lsr_x_immediate(19, 19, 7));
-    bytes.extend(encode_cbnz_x(19, -44)?);
-    bytes.extend(encode_unconditional_branch(8)?);
-    bytes.extend(encode_movz(23, 0));
-    debug_assert_eq!(
-        wire_varint_read_loop_width(),
-        56,
-        "the read loop above is fourteen fixed instructions"
-    );
+    // Canonical LEB128 read loop (fixed width; see the shared emitter).
+    append_wire_varint_read_loop(&mut bytes)?;
 
     if zigzag {
         // unzigzag(n) = (n >> 1) ^ -(n & 1); the mask comes from sign-
@@ -653,21 +632,7 @@ pub fn encode_read_wire_repeated_scalar_varint(
     bytes.extend(encode_movz(26, 0));
     bytes.extend(encode_movz(22, 0));
 
-    bytes.extend(encode_compare_x_register(17, 24));
-    bytes.extend(encode_conditional_branch_higher_or_same(48)?);
-    bytes.extend(encode_compare_w_immediate(22, 63)?);
-    bytes.extend(encode_conditional_branch_higher(40)?);
-    bytes.extend(encode_load_byte_w_post_increment(19, 16, 1)?);
-    bytes.extend(encode_add_x_immediate(17, 17, 1)?);
-    bytes.extend(encode_and_x_immediate_low_seven(25, 19));
-    bytes.extend(encode_lslv_x_register(25, 25, 22));
-    bytes.extend(encode_orr_x_register(26, 26, 25));
-    bytes.extend(encode_add_x_immediate(22, 22, 7)?);
-    bytes.extend(encode_lsr_x_immediate(19, 19, 7));
-    bytes.extend(encode_cbnz_x(19, -44)?);
-    bytes.extend(encode_unconditional_branch(8)?);
-    bytes.extend(encode_movz(23, 0));
-    debug_assert_eq!(wire_varint_read_loop_width(), 56);
+    append_wire_varint_read_loop(&mut bytes)?;
 
     if zigzag {
         bytes.extend(encode_movz(22, 63));

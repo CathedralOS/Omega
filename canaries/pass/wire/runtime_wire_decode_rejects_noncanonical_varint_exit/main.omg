@@ -1,0 +1,80 @@
+// CANONICAL LEB128 ESTABLISHMENT. Overlong encodings and payload bits beyond
+// u64 must reject, while the canonical ten-group representation of u64::MAX
+// remains valid.
+
+use omega::language::std::console;
+
+data Scalar {
+    0: value: u64;
+}
+
+data ScalarValue {
+    value: u64;
+}
+
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+
+data Main {
+    console: Console;
+    overlong_read: u64;
+    overlong_verdict: WireVerdict;
+    overflow_read: u64;
+    overflow_verdict: WireVerdict;
+    good_read: u64;
+    good_verdict: WireVerdict;
+}
+
+machine Main::main(&mut self) {
+    // Era 0, tag 0, then zero encoded with two groups instead of one.
+    let overlong_payload: [u8; 4] = [0, 0, 128, 0];
+    let overlong: ScalarValue = ScalarValue { value: 7 };
+    Scalar::decode(
+        &mut overlong,
+        &overlong_payload,
+        &mut self.overlong_read,
+        &mut self.overlong_verdict,
+    );
+
+    // The tenth group may contain only bit 63. A terminal payload of two would
+    // require bit 64 and must not be truncated into an apparently valid u64.
+    let overflow_payload: [u8; 12] = [
+        0, 0,
+        128, 128, 128, 128, 128, 128, 128, 128, 128, 2
+    ];
+    let overflow: ScalarValue = ScalarValue { value: 9 };
+    Scalar::decode(
+        &mut overflow,
+        &overflow_payload,
+        &mut self.overflow_read,
+        &mut self.overflow_verdict,
+    );
+
+    // u64::MAX is the legal ten-group boundary: nine 0xFF groups and a final 1.
+    let good_payload: [u8; 12] = [
+        0, 0,
+        255, 255, 255, 255, 255, 255, 255, 255, 255, 1
+    ];
+    let good: ScalarValue = ScalarValue { value: 0 };
+    Scalar::decode(
+        &mut good,
+        &good_payload,
+        &mut self.good_read,
+        &mut self.good_verdict,
+    );
+
+    transition {
+        self.overlong_verdict == WireVerdict::Sound -> accepted_overlong()
+        self.overflow_verdict == WireVerdict::Sound -> accepted_overflow()
+        self.good_verdict == WireVerdict::Sound
+            && good.value == 18446744073709551615 -> proven()
+        _ -> broken()
+    }
+
+    state accepted_overlong(&mut self)  { self.console.exit_process(66); }
+    state accepted_overflow(&mut self)  { self.console.exit_process(68); }
+    state proven(&mut self)             { self.console.exit_process(70); }
+    state broken(&mut self)             { self.console.exit_process(71); }
+}
