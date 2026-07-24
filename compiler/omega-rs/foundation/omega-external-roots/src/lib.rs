@@ -3338,11 +3338,11 @@ mod tests {
     };
     use omega_executable_installation::{
         AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactContentId, ArtifactEntry,
-        CodePlacementAuthority, CodePlacementId, EntrySetId, FinalBytesId,
-        FinalValidationCertificate, FinalValidationId, InstallAuthority, InstallationAudience,
-        InstallationReceipt, InstallationScopeId, MachineContractSetId, MachineFootprintId,
-        MaterializationReceipt, PlacementPlanId, RelocationSetId, WxEnforcement, admit_executable,
-        install_validated, materialize_and_freeze, validate_final_placement,
+        CodePlacementAuthority, CodePlacementId, EntrySetId, FinalValidationCertificate,
+        FinalValidationId, InstallAuthority, InstallationAudience, InstallationReceipt,
+        InstallationScopeId, MachineContractSetId, MachineFootprintId, MaterializationReceipt,
+        PlacementPlanId, RelocationSetId, WxEnforcement, admit_executable, install_validated,
+        materialize_admitted_artifact, materialize_and_freeze, validate_final_placement,
     };
     use omega_extents::{
         AddressSpaceId, ExtentDiagnostic, ExtentLineageId, ExtentProvenanceId, ExtentRightId,
@@ -3458,15 +3458,14 @@ mod tests {
         )
         .claim(extent)
         .expect("placement");
+        let materialized = materialize_admitted_artifact(&admitted, &placement, |_| None)
+            .expect("artifact without relocations materializes");
         let frozen = materialize_and_freeze(
             &admitted,
             placement,
-            MaterializationReceipt::from_provider(
-                artifact.identity(),
-                admitted.admission(),
-                install_id(100, CodePlacementId::from_normalized_identity),
-                install_id(32, PlacementPlanId::from_normalized_identity),
-                install_id(170, FinalBytesId::from_normalized_identity),
+            materialized.clone(),
+            MaterializationReceipt::from_materialized(
+                &materialized,
                 install_id(71, MachineFootprintId::from_normalized_identity),
                 true,
             ),
@@ -3479,7 +3478,7 @@ mod tests {
                 artifact.identity(),
                 admitted.admission(),
                 install_id(100, CodePlacementId::from_normalized_identity),
-                install_id(170, FinalBytesId::from_normalized_identity),
+                materialized.final_bytes(),
                 install_id(71, MachineFootprintId::from_normalized_identity),
                 true,
             ),

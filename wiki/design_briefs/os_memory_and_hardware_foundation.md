@@ -699,7 +699,13 @@ relocations through admission. A provider-side pure materializer resolves only
 sealed entry/data identities, applies checked target relocations to a private
 copy, validates AArch64 instruction shapes, and derives a content- and
 placement-bound final-byte identity; this inert result grants neither writes
-nor execution. A separate provider writes those bytes and freezes authority.
+nor execution. The write/freeze transition consumes that exact output and
+matches its artifact, admission, placement, base, plan, byte length, and final
+identity rather than accepting a caller-restated hash. `FrozenPlacement`
+retains the immutable final-byte snapshot, so final footprint/PCC validation
+examines exactly the bytes whose write authority was frozen. This is a
+provider-side inspection surface, not a source-visible byte-to-code operation.
+A separate provider writes those bytes and freezes authority.
 The final certificate is bound to artifact + placement + final bytes + realized
 footprint, and installation consumes an authority scoped to that artifact,
 admission, placement, scope, and audience. Synchronous visibility and
