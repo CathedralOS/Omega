@@ -1586,9 +1586,14 @@ stronger operations it needs instead of citing machine parameters generally.
   aliases now admit when total size/alignment, leaf offsets/sizes, and every leaf
   representation set are equivalent; this includes range-bearing signed/unsigned
   leaves and `bool`, with native/interpreter execution and x86-64/AArch64 compile
-  rails. Raw bytes still cannot acquire record facts through `recast` and remain
-  fenced until a validate/materialize mint supplies evidence. Continue general
-  non-record tiling and float/domain representation-set reasoning. Cast/recast
+  rails. Scalar recasts now consume that same representation-set law: `bool`
+  contributes exactly `{0,1}`, shared views may forget but never strengthen
+  facts, and mutable aliases require equal sets. Consequently a typed `bool`
+  may be shared as a byte, a typed `u8 [0..=1]` may be shared or mutably aliased
+  as `bool`, while an unconstrained byte or raw byte region cannot mint the
+  invariant. Raw bytes still cannot acquire record facts through `recast` and
+  remain fenced until a validate/materialize mint supplies evidence. Continue
+  general non-record tiling and float/domain representation-set reasoning. Cast/recast
   targets now carry full type references through syntax, resolution, typed and
   checked trees, while a separate spelling cache remains diagnostic-only.
   Parser coverage pins the settled `as &[T]` / `as &[T; N]` surface without

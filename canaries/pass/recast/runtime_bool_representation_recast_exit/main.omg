@@ -1,0 +1,36 @@
+// RUN CANARY (exit 70) + interpreter differential. `bool` is ordinary typed
+// storage with the exact representation set {0, 1}: a shared view may forget
+// that fact, a typed {0,1} byte may establish it for a shared view, and mutable
+// aliases are legal only when both sides preserve the same set.
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    flag: bool;
+    byte: u8 [0..=1];
+}
+
+machine Main::main(&mut self) {
+    self.flag = true;
+    self.byte = 1;
+    let flag_bits: &u8 = &self.flag as &u8;
+    let byte_flag: &bool = &self.byte as &bool;
+    transition flag_bits == 1 && byte_flag {
+        true -> mutate()
+        _ -> bad()
+    }
+
+    state mutate(&mut self) {
+        let flag_bits: &mut u8 [0..=1] = &mut self.flag as &mut u8;
+        flag_bits = 0;
+        let byte_flag: &mut bool = &mut self.byte as &mut bool;
+        byte_flag = false;
+        transition !self.flag && self.byte == 0 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

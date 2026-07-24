@@ -504,14 +504,6 @@ fn judge_scalar_recast(
     let Some(target) = program.primitive_type_reference(cast.target_type) else {
         return;
     };
-    if target == PrimitiveType::Bool {
-        diagnostics.push(Diagnostic::error(format!(
-            "{context}: a recast may WEAKEN facts, never establish them -- `{target_name}` \
-             carries an invariant raw bytes do not prove (bool's 0/1); \
-             establishing a fact is a mint's job (fallible, case-returning)"
-        )));
-        return;
-    }
     let let_primitive = crate::places::unwrapped_type_reference(program, let_referee)
         .and_then(|unwrapped| program.primitive_type_reference(unwrapped));
     if let_primitive != Some(target) {
@@ -552,14 +544,23 @@ fn judge_scalar_recast(
             domains: Vec::new(),
             bit_patterns: full_scalar_bit_patterns(target),
         };
-        if mutable_recast
-            && !target_facts.as_ref().is_some_and(|target_facts| {
+        let compatible = target_facts.as_ref().is_some_and(|target_facts| {
+            if mutable_recast {
                 mutable_scalar_representation_facts_equivalent(program, &raw_facts, target_facts)
-            })
-        {
+            } else {
+                scalar_representation_facts_imply(program, &raw_facts, target_facts)
+            }
+        });
+        if !compatible {
             diagnostics.push(Diagnostic::error(format!(
-                "{context}: a mutable recast must prove fact implication in BOTH directions; \
-                     a raw byte region can only be viewed as a fact-free primitive in this rung"
+                "{context}: a {} recast {}; a raw byte region cannot establish the target's \
+                 representation facts",
+                if mutable_recast { "mutable" } else { "shared" },
+                if mutable_recast {
+                    "must prove fact implication in BOTH directions"
+                } else {
+                    "may weaken established facts but cannot strengthen them"
+                },
             )));
             return;
         }
@@ -587,32 +588,6 @@ fn judge_scalar_recast(
         )));
         return;
     };
-    if source_primitive == PrimitiveType::Bool {
-        diagnostics.push(Diagnostic::error(format!(
-            "{context}: recasting a `{}` source lands with the byte-view rung",
-            source_primitive.name()
-        )));
-        return;
-    }
-    if mutable_recast {
-        let source_facts = source_type.and_then(|type_reference| {
-            mutable_scalar_representation_facts(program, type_reference)
-        });
-        let target_facts = mutable_scalar_representation_facts(program, let_referee);
-        if !source_facts
-            .as_ref()
-            .zip(target_facts.as_ref())
-            .is_some_and(|(source_facts, target_facts)| {
-                mutable_scalar_representation_facts_equivalent(program, source_facts, target_facts)
-            })
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "{context}: a mutable recast must prove fact implication in BOTH directions; \
-                 source and target constraints are not proven representation-equivalent"
-            )));
-            return;
-        }
-    }
     let (Some(source_size), Some(target_size)) = (
         source_primitive.scalar_byte_size(),
         target.scalar_byte_size(),
@@ -626,6 +601,49 @@ fn judge_scalar_recast(
              `{target_name}` is {target_size} bytes",
             source_primitive.name()
         )));
+        return;
+    }
+
+    let source_facts = source_type
+        .and_then(|type_reference| mutable_scalar_representation_facts(program, type_reference));
+    let target_facts = mutable_scalar_representation_facts(program, let_referee);
+    let target_is_fact_free = target_facts.as_ref().is_some_and(|target_facts| {
+        target_facts.domains.is_empty()
+            && target_facts.bit_patterns == full_scalar_bit_patterns(target)
+    });
+    let compatible = if !mutable_recast && target_is_fact_free {
+        // A shared view may always forget source facts. This remains safe even
+        // when the source uses a fact family (such as a float interval) whose
+        // precise representation set is not yet modeled.
+        true
+    } else {
+        source_facts
+            .as_ref()
+            .zip(target_facts.as_ref())
+            .is_some_and(|(source_facts, target_facts)| {
+                if mutable_recast {
+                    mutable_scalar_representation_facts_equivalent(
+                        program,
+                        source_facts,
+                        target_facts,
+                    )
+                } else {
+                    scalar_representation_facts_imply(program, source_facts, target_facts)
+                }
+            })
+    };
+    if !compatible {
+        diagnostics.push(Diagnostic::error(if mutable_recast {
+            format!(
+                "{context}: a mutable recast must prove fact implication in BOTH directions; \
+                 source and target constraints are not proven representation-equivalent"
+            )
+        } else {
+            format!(
+                "{context}: a shared recast may weaken established facts but cannot strengthen \
+                 them; source facts do not establish the target representation"
+            )
+        }));
     }
 }
 
@@ -1145,7 +1163,10 @@ fn scalar_representation_facts_imply(
 
 #[cfg(test)]
 mod representation_set_tests {
-    use super::integer_range_bit_patterns;
+    use super::{
+        MutableScalarRepresentationFacts, integer_range_bit_patterns,
+        mutable_scalar_representation_facts_equivalent, scalar_representation_facts_imply,
+    };
     use omega_typed_trees::types::PrimitiveType;
 
     #[test]
@@ -1166,6 +1187,41 @@ mod representation_set_tests {
             integer_range_bit_patterns(PrimitiveType::I8, (-2, 2)),
             Some(vec![(0, 2), (254, 255)])
         );
+    }
+
+    #[test]
+    fn bool_representation_may_weaken_but_only_equal_sets_alias_mutably() {
+        let program = omega_typed_trees::TypedTrees::default();
+        let boolean = MutableScalarRepresentationFacts {
+            domains: Vec::new(),
+            bit_patterns: vec![(0, 1)],
+        };
+        let bounded_byte = boolean.clone();
+        let unconstrained_byte = MutableScalarRepresentationFacts {
+            domains: Vec::new(),
+            bit_patterns: vec![(0, 255)],
+        };
+
+        assert!(scalar_representation_facts_imply(
+            &program,
+            &boolean,
+            &unconstrained_byte
+        ));
+        assert!(!scalar_representation_facts_imply(
+            &program,
+            &unconstrained_byte,
+            &boolean
+        ));
+        assert!(mutable_scalar_representation_facts_equivalent(
+            &program,
+            &boolean,
+            &bounded_byte
+        ));
+        assert!(!mutable_scalar_representation_facts_equivalent(
+            &program,
+            &boolean,
+            &unconstrained_byte
+        ));
     }
 }
 

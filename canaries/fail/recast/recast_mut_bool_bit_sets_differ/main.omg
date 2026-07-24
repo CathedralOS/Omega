@@ -1,0 +1,9 @@
+// FAIL CANARY: bool admits only {0,1}; an unconstrained mutable byte alias
+// could write any other pattern and invalidate the bool.
+data Main {
+    flag: bool;
+}
+
+machine Main::main(&mut self) {
+    let view: &mut u8 = &mut self.flag as &mut u8;
+}

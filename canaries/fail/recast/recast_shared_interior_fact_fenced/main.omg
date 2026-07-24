@@ -1,0 +1,13 @@
+// FAIL CANARY: a shared view may forget established facts but cannot mint a
+// domain fact from arbitrary bytes in an interior region.
+domain u32::Small {
+    self <= 10;
+}
+
+data Main {
+    bytes: [u8; 4];
+}
+
+machine Main::main(&mut self) {
+    let view: &u32 in Small = &self.bytes[0] as &u32;
+}

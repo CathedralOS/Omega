@@ -282,6 +282,29 @@ fn mutable_recast_accepts_equal_integer_representation_sets() {
 }
 
 #[test]
+fn scalar_bool_recasts_follow_representation_set_implication() {
+    let canary = "recast/runtime_bool_representation_recast_exit";
+    assert_exit_70(canary, "bool-representation-recast");
+    compile_for_cross_targets(canary, "bool-representation-recast");
+
+    for fail in [
+        "recast/recast_shared_bool_fact_fenced",
+        "recast/recast_shared_interior_fact_fenced",
+    ] {
+        let diagnostics = fail_diagnostics(fail);
+        assert!(
+            diagnostics.contains("may weaken established facts but cannot strengthen them"),
+            "{fail} produced the wrong shared representation-set diagnostic:\n{diagnostics}"
+        );
+    }
+    let diagnostics = fail_diagnostics("recast/recast_mut_bool_bit_sets_differ");
+    assert!(
+        diagnostics.contains("fact implication in BOTH directions"),
+        "mutable bool/full-byte alias produced the wrong diagnostic:\n{diagnostics}"
+    );
+}
+
+#[test]
 fn mutable_recast_accepts_equivalent_typed_record_representations() {
     let canary = "recast/runtime_mutable_equivalent_record_recast_exit";
     assert_exit_70(canary, "mutable-equivalent-record-recast");
