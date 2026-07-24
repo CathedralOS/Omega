@@ -1654,10 +1654,13 @@ stronger operations it needs instead of citing machine parameters generally.
   consuming operations return their authority; and one borrow-carrying loan
   derives shared/exclusive polarity from its parent. Fixed-destination mapping
   now consumes virtual authority while independently owning, shared-borrowing,
-  or exclusive-borrowing its source; unmap returns reusable ranges only after
-  an exact provider receipt releases stale translations and establishes its
-  open completion facts. Provider page-table execution/effects and further
-  normalized mapping work remain ordinary engineering. Connecting this model
+  or exclusive-borrowing its source. Structural validation produces only a
+  sealed pending map; no mapped loan/access exists until an exact provider
+  receipt establishes translation installation plus every open activation
+  fact. Unmap likewise returns reusable ranges only after an exact provider
+  receipt releases stale translations and establishes its open completion
+  facts. Provider page-table execution/effects and further normalized mapping
+  work remain ordinary engineering. Connecting this model
   to the source-visible opaque Omega `[linear]` carrier, sealed fact
   establishment, storage, calling conventions, and source APIs is
   **OWNER-BLOCKED (#8)** on the runtime representation plan for opaque
