@@ -168,6 +168,13 @@ impl<'source> PageTableDraft<'source> {
         self.grant.identity
     }
 
+    /// Canonical provider-side view of pending translations. This exposes only
+    /// inert address/fact data through borrowed pending mappings; it cannot
+    /// complete a mapping, mint access, or release any owned authority.
+    pub fn mappings(&self) -> impl Iterator<Item = &PendingMap<'source>> {
+        self.mappings.values()
+    }
+
     pub fn add_mapping(
         &mut self,
         mapping: PendingMap<'source>,
@@ -1194,6 +1201,48 @@ mod tests {
             different_restoration.plan_identity(),
             "authority returned by teardown must participate in plan identity"
         );
+    }
+
+    #[test]
+    fn provider_projection_exposes_exact_mapping_data_without_releasing_authority() {
+        let mut draft = draft();
+        draft
+            .add_mapping(pending_mapping_with_authority(
+                51,
+                0x1234_5000,
+                0x8000,
+                &[21, 99],
+            ))
+            .expect("mapping");
+
+        let mapping = draft.mappings().next().expect("provider projection");
+        assert_eq!(mapping.mapping().normalized_identity(), 51);
+        assert_eq!(mapping.source_mode(), MappingSourceMode::Owned);
+        assert_eq!(mapping.source_base(), 0x1234_5000);
+        assert_eq!(mapping.source_length(), 4096);
+        assert_eq!(mapping.destination_base(), 0x8000);
+        assert_eq!(mapping.destination_length(), 4096);
+        assert_eq!(
+            mapping
+                .mapped_rights()
+                .identities()
+                .map(ExtentRightId::normalized_identity)
+                .collect::<Vec<_>>(),
+            vec![22]
+        );
+        assert_eq!(
+            mapping
+                .destination_restoration_rights()
+                .identities()
+                .map(ExtentRightId::normalized_identity)
+                .collect::<Vec<_>>(),
+            vec![21, 99]
+        );
+
+        let receipt = construction_receipt(&draft, true);
+        draft
+            .finish(receipt)
+            .expect("borrowed projection did not consume pending authority");
     }
 
     #[test]
