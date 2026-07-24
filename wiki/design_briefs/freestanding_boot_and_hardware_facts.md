@@ -144,8 +144,11 @@ the installed-root ledger: an exact entry receipt binds the installed root,
 selected provider execution, invocation, and acknowledgement policy before the
 opaque values exist; replay rejects; nested mask guards restore exact prior
 states in LIFO order; and exit requires both the entry mask state and the exact
-completed acknowledgement. The concrete PIC/LAPIC provider still owes execution
-of those transitions in its generated entry path.
+completed acknowledgement. Cathedral now carries pure xAPIC/x2APIC register
+and timer encodings alongside its PIC/PIT facts. Those values grant no MMIO/MSR
+authority and deliberately leave frequency enumeration/calibration to the
+selected provider. The concrete PIC/LAPIC providers still owe execution of the
+normalized entry and acknowledgement transitions in their generated paths.
 
 The selected provider plan may keep entry identity private for static tables;
 the program does not need a source-visible function pointer or numeric code
