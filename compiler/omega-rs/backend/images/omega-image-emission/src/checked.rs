@@ -292,7 +292,7 @@ fn validate_checked_instruction_bytes(
             CheckedInstructionValidationKind::ControlRegisterRead { .. } => 11,
             CheckedInstructionValidationKind::ControlRegisterWrite { .. } => 12,
             CheckedInstructionValidationKind::FlagsSnapshot { .. } => 13,
-            CheckedInstructionValidationKind::FlagsRestore => 14,
+            CheckedInstructionValidationKind::FlagsRestore { .. } => 14,
             CheckedInstructionValidationKind::PortWriteRuntimePort { .. } => 15,
             CheckedInstructionValidationKind::PortReadRuntimePort { .. } => 16,
             CheckedInstructionValidationKind::MsrReadRuntimeIndex { .. } => 17,
@@ -338,7 +338,7 @@ fn validate_checked_instruction_kind(
         | CheckedInstructionValidationKind::ControlRegisterRead { .. }
         | CheckedInstructionValidationKind::ControlRegisterWrite { .. }
         | CheckedInstructionValidationKind::FlagsSnapshot { .. }
-        | CheckedInstructionValidationKind::FlagsRestore => None,
+        | CheckedInstructionValidationKind::FlagsRestore { .. } => None,
     };
     if let Some(expected) = fixed_expected {
         if encoded_bytes != expected {
@@ -355,21 +355,43 @@ fn validate_checked_instruction_kind(
     }
 
     match kind {
-        CheckedInstructionValidationKind::PortWriteImmediatePort { port } => {
+        CheckedInstructionValidationKind::PortWriteImmediatePort {
+            port,
+            value_operand_byte_width,
+        } => {
             let mut prefix = Vec::with_capacity(13);
             prefix.extend([0x49, 0xba]);
             prefix.extend(u64::from(port).to_le_bytes());
             prefix.extend([0x44, 0x89, 0xd2]);
             let suffix = [0x44, 0x89, 0xd8, 0xee];
-            if encoded_bytes.len() < prefix.len() + suffix.len()
+            let value_end = prefix
+                .len()
+                .checked_add(
+                    usize::try_from(value_operand_byte_width)
+                        .expect("u32 operand width fits usize"),
+                )
+                .ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "checked `out` instruction #{selected_instruction_index} value width overflows"
+                    ))
+                })?;
+            let expected_len = value_end.checked_add(suffix.len()).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "checked `out` instruction #{selected_instruction_index} width overflows"
+                ))
+            })?;
+            if encoded_bytes.len() != expected_len
                 || !encoded_bytes.starts_with(&prefix)
-                || !encoded_bytes.ends_with(&suffix)
+                || encoded_bytes.get(value_end..expected_len) != Some(&suffix)
             {
                 return Err(Diagnostic::error(format!(
                     "encoded checked `out` instruction #{selected_instruction_index} does not bind port {port:#06x} through the closed DX/AL envelope"
                 )));
             }
-            if !final_bytes.starts_with(&prefix) || !final_bytes.ends_with(&suffix) {
+            if final_bytes.len() != expected_len
+                || !final_bytes.starts_with(&prefix)
+                || final_bytes.get(value_end..expected_len) != Some(&suffix)
+            {
                 return Err(Diagnostic::error(format!(
                     "final checked `out` instruction #{selected_instruction_index} changed its port or privileged opcode envelope"
                 )));
@@ -535,7 +557,10 @@ fn validate_checked_instruction_kind(
                 "rdmsr",
             )?;
         }
-        CheckedInstructionValidationKind::MsrWriteImmediateIndex { index } => {
+        CheckedInstructionValidationKind::MsrWriteImmediateIndex {
+            index,
+            value_operand_byte_width,
+        } => {
             let mut prefix = Vec::with_capacity(12);
             prefix.extend([0x49, 0xba]);
             prefix.extend(u64::from(index).to_le_bytes());
@@ -544,15 +569,34 @@ fn validate_checked_instruction_kind(
                 0x41, 0x5a, 0x44, 0x89, 0xd1, 0x44, 0x89, 0xd8, 0x4c, 0x89, 0xda, 0x48, 0xc1, 0xea,
                 0x20, 0x0f, 0x30,
             ];
-            if encoded_bytes.len() < prefix.len() + suffix.len()
+            let value_end = prefix
+                .len()
+                .checked_add(
+                    usize::try_from(value_operand_byte_width)
+                        .expect("u32 operand width fits usize"),
+                )
+                .ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "checked `wrmsr` instruction #{selected_instruction_index} value width overflows"
+                    ))
+                })?;
+            let expected_len = value_end.checked_add(suffix.len()).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "checked `wrmsr` instruction #{selected_instruction_index} width overflows"
+                ))
+            })?;
+            if encoded_bytes.len() != expected_len
                 || !encoded_bytes.starts_with(&prefix)
-                || !encoded_bytes.ends_with(&suffix)
+                || encoded_bytes.get(value_end..expected_len) != Some(&suffix)
             {
                 return Err(Diagnostic::error(format!(
                     "encoded checked `wrmsr` instruction #{selected_instruction_index} does not bind index {index:#010x} through the closed split-value envelope"
                 )));
             }
-            if !final_bytes.starts_with(&prefix) || !final_bytes.ends_with(&suffix) {
+            if final_bytes.len() != expected_len
+                || !final_bytes.starts_with(&prefix)
+                || final_bytes.get(value_end..expected_len) != Some(&suffix)
+            {
                 return Err(Diagnostic::error(format!(
                     "final checked `wrmsr` instruction #{selected_instruction_index} changed its index or privileged opcode envelope"
                 )));
@@ -683,14 +727,28 @@ fn validate_checked_instruction_kind(
                 register.read_mnemonic(),
             )?;
         }
-        CheckedInstructionValidationKind::ControlRegisterWrite { register } => {
+        CheckedInstructionValidationKind::ControlRegisterWrite {
+            register,
+            source_operand_byte_width,
+        } => {
             let suffix = [0x41, 0x0f, 0x22, control_register_modrm(register)];
-            if encoded_bytes.len() <= suffix.len() || !encoded_bytes.ends_with(&suffix) {
+            let source_end =
+                usize::try_from(source_operand_byte_width).expect("u32 operand width fits usize");
+            let expected_len = source_end.checked_add(suffix.len()).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "checked control-register write #{selected_instruction_index} width overflows"
+                ))
+            })?;
+            if encoded_bytes.len() != expected_len
+                || encoded_bytes.get(source_end..expected_len) != Some(&suffix)
+            {
                 return Err(Diagnostic::error(format!(
                     "encoded checked control-register write #{selected_instruction_index} does not match its register and privileged opcode envelope"
                 )));
             }
-            if !final_bytes.ends_with(&suffix) {
+            if final_bytes.len() != expected_len
+                || final_bytes.get(source_end..expected_len) != Some(&suffix)
+            {
                 return Err(Diagnostic::error(format!(
                     "final checked control-register write #{selected_instruction_index} changed its register or privileged opcode envelope"
                 )));
@@ -727,14 +785,27 @@ fn validate_checked_instruction_kind(
                 "pushfq",
             )?;
         }
-        CheckedInstructionValidationKind::FlagsRestore => {
+        CheckedInstructionValidationKind::FlagsRestore {
+            source_operand_byte_width,
+        } => {
             let suffix = [0x41, 0x52, 0x9d];
-            if encoded_bytes.len() <= suffix.len() || !encoded_bytes.ends_with(&suffix) {
+            let source_end =
+                usize::try_from(source_operand_byte_width).expect("u32 operand width fits usize");
+            let expected_len = source_end.checked_add(suffix.len()).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "checked `popfq` restore #{selected_instruction_index} width overflows"
+                ))
+            })?;
+            if encoded_bytes.len() != expected_len
+                || encoded_bytes.get(source_end..expected_len) != Some(&suffix)
+            {
                 return Err(Diagnostic::error(format!(
                     "encoded checked `popfq` restore #{selected_instruction_index} does not match its balanced source envelope"
                 )));
             }
-            if !final_bytes.ends_with(&suffix) {
+            if final_bytes.len() != expected_len
+                || final_bytes.get(source_end..expected_len) != Some(&suffix)
+            {
                 return Err(Diagnostic::error(format!(
                     "final checked `popfq` restore #{selected_instruction_index} changed its flags-restore envelope"
                 )));
@@ -1085,7 +1156,10 @@ mod tests {
             selected_instruction_index: 8,
             bytes: out_span,
             checked_validation_kind: Some(
-                CheckedInstructionValidationKind::PortWriteImmediatePort { port: 0x3f8 },
+                CheckedInstructionValidationKind::PortWriteImmediatePort {
+                    port: 0x3f8,
+                    value_operand_byte_width: 10,
+                },
             ),
         });
         instructions.insert(EncodedMachineInstruction {
@@ -1179,7 +1253,10 @@ mod tests {
             selected_instruction_index: 10,
             bytes: span,
             checked_validation_kind: Some(
-                CheckedInstructionValidationKind::MsrWriteImmediateIndex { index: 0xc000_0080 },
+                CheckedInstructionValidationKind::MsrWriteImmediateIndex {
+                    index: 0xc000_0080,
+                    value_operand_byte_width: 10,
+                },
             ),
         });
         let code = EncodedMachineCode {
