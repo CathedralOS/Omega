@@ -114,8 +114,11 @@ space, provenance, era, and lineage identities are normalized; rights are an
 open set of normalized identities rather than a compiler-blessed enumeration;
 and split, attenuation, sibling merge, and bounded shared/exclusive loans are
 validated. Failed consuming operations return every input authority. The
-opaque Omega `[linear]` carrier is connected at the source boundary; sealed
-domain facts, provider mapping, and reclamation remain.
+opaque Omega `[linear]` declaration and normalized Rust carrier are both live,
+but their runtime representation/admission bridge remains owner-blocked: all
+`boundary data` is layoutless today, which is correct for proof-only carriers
+but insufficient for a value that must cross calls and occupy storage. Sealed
+domain facts, provider mapping, and reclamation also remain.
 
 ### Mapping and reclamation
 

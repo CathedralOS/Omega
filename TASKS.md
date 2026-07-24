@@ -1287,7 +1287,12 @@ stronger operations it needs instead of citing machine parameters generally.
   `Arena`/`Allocation` contracts. Cathedral's bootstrap range-authority source
   now uses the settled `Extent`/`mint_extent` spelling; connect that temporary
   plain carrier to Omega's opaque linear Extent surface rather than
-  reintroducing `Region`. The source-visible `boundary data Extent [linear]`
+  reintroducing `Region`. **OWNER-BLOCKED:** `OWNER_QUESTIONS.md` under
+  "opaque runtime `boundary data`" must decide the provider-backed runtime
+  representation; the compiler deliberately gives all opaque boundary data no
+  layout today, so pretending the temporary record already is the sealed
+  carrier would expose forgeable authority. The source-visible
+  `boundary data Extent [linear]`
   and debt-free `ExtentSlot` bridge are live in core; ordinary construction and
   scope loss reject. Core's stage-1 Arena now returns/reclaims that authority
   instead of a bare `addr`, while its trait/module/canary use `Arena`; the false
