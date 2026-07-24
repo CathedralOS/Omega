@@ -249,15 +249,15 @@ impl<'source> PageTableDraft<'source> {
         receipt: PageTableConstructionReceipt,
     ) -> Result<InstallablePageTable<'source>, Box<PageTableFinishError<'source>>> {
         let plan = self.plan_identity();
-        let mapping_ids = self.mappings.keys().copied().collect::<BTreeSet<_>>();
+        let plan_evidence = normalized_plan_evidence(&self);
         let mismatch = if receipt.table != self.identity {
             Some("page-table construction receipt names a different table")
         } else if receipt.grant != self.grant.identity {
             Some("page-table construction receipt names a different grant")
         } else if receipt.plan != plan {
             Some("page-table construction receipt names a different normalized plan")
-        } else if receipt.mappings != mapping_ids {
-            Some("page-table construction receipt does not cover the exact mapping set")
+        } else if receipt.plan_evidence != plan_evidence {
+            Some("page-table construction receipt does not bind the exact canonical plan")
         } else if !receipt.complete {
             Some("page-table construction receipt does not establish complete table bytes")
         } else {
@@ -299,32 +299,28 @@ pub struct PageTableConstructionReceipt {
     table: PageTableId,
     grant: PageTableGrantId,
     plan: PageTablePlanId,
+    plan_evidence: Vec<u64>,
     content: PageTableContentId,
     evidence: PageTableConstructionEvidence,
-    mappings: BTreeSet<MappingId>,
     complete: bool,
 }
 
 impl PageTableConstructionReceipt {
-    #[allow(clippy::too_many_arguments)]
     pub fn from_admitted_provider(
         identity: PageTableConstructionReceiptId,
-        table: PageTableId,
-        grant: PageTableGrantId,
-        plan: PageTablePlanId,
+        draft: &PageTableDraft<'_>,
         content: PageTableContentId,
         evidence: PageTableConstructionEvidence,
-        mappings: impl IntoIterator<Item = MappingId>,
         complete: bool,
     ) -> Self {
         Self {
             identity,
-            table,
-            grant,
-            plan,
+            table: draft.identity,
+            grant: draft.grant.identity,
+            plan: draft.plan_identity(),
+            plan_evidence: normalized_plan_evidence(draft),
             content,
             evidence,
-            mappings: mappings.into_iter().collect(),
             complete,
         }
     }
@@ -788,6 +784,82 @@ fn ranges_overlap(left_base: u64, left_length: u64, right_base: u64, right_lengt
     left_base < right_base + right_length && right_base < left_base + left_length
 }
 
+fn normalized_plan_evidence(draft: &PageTableDraft<'_>) -> Vec<u64> {
+    let mut values = Vec::new();
+    values.push(draft.identity.normalized_identity());
+    values.push(draft.grant.identity.normalized_identity());
+    values.push(draft.storage.address_space().normalized_identity());
+    values.push(draft.storage.provenance().normalized_identity());
+    values.push(draft.storage.era().normalized_identity());
+    values.push(draft.storage.lineage_root().normalized_identity());
+    values.push(draft.storage.base());
+    values.push(draft.storage.length());
+    values.push(draft.storage.rights().identities().count() as u64);
+    values.extend(
+        draft
+            .storage
+            .rights()
+            .identities()
+            .map(ExtentRightId::normalized_identity),
+    );
+    values.push(draft.mappings.len() as u64);
+    for (identity, pending) in &draft.mappings {
+        let mapped = pending.mapped_extent();
+        values.push(identity.normalized_identity());
+        values.push(pending.grant().normalized_identity());
+        values.push(match pending.source_mode() {
+            MappingSourceMode::Owned => 1,
+            MappingSourceMode::BorrowedShared => 2,
+            MappingSourceMode::BorrowedExclusive => 3,
+        });
+        values.push(pending.source_address_space().normalized_identity());
+        values.push(pending.source_provenance().normalized_identity());
+        values.push(pending.source_era().normalized_identity());
+        values.push(pending.source_lineage_root().normalized_identity());
+        values.push(pending.source_base());
+        values.push(pending.source_length());
+        values.push(pending.source_rights().identities().count() as u64);
+        values.extend(
+            pending
+                .source_rights()
+                .identities()
+                .map(ExtentRightId::normalized_identity),
+        );
+        values.push(mapped.address_space().normalized_identity());
+        values.push(mapped.provenance().normalized_identity());
+        values.push(mapped.era().normalized_identity());
+        values.push(mapped.lineage_root().normalized_identity());
+        values.push(mapped.base());
+        values.push(mapped.length());
+        values.push(mapped.rights().identities().count() as u64);
+        values.extend(
+            mapped
+                .rights()
+                .identities()
+                .map(ExtentRightId::normalized_identity),
+        );
+        values.push(
+            pending
+                .destination_restoration_provenance()
+                .normalized_identity(),
+        );
+        values.push(pending.destination_restoration_era().normalized_identity());
+        values.push(
+            pending
+                .destination_restoration_rights()
+                .identities()
+                .count() as u64,
+        );
+        values.extend(
+            pending
+                .destination_restoration_rights()
+                .identities()
+                .map(ExtentRightId::normalized_identity),
+        );
+    }
+    values
+}
+
 fn normalized_plan_identity(draft: &PageTableDraft<'_>) -> u64 {
     const OFFSET_BASIS: u64 = 0xcbf29ce484222325;
     const PRIME: u64 = 0x100000001b3;
@@ -798,89 +870,8 @@ fn normalized_plan_identity(draft: &PageTableDraft<'_>) -> u64 {
     }
 
     let mut hash = OFFSET_BASIS;
-    mix(&mut hash, draft.identity.normalized_identity());
-    mix(&mut hash, draft.grant.identity.normalized_identity());
-    mix(
-        &mut hash,
-        draft.storage.address_space().normalized_identity(),
-    );
-    mix(&mut hash, draft.storage.provenance().normalized_identity());
-    mix(&mut hash, draft.storage.era().normalized_identity());
-    mix(
-        &mut hash,
-        draft.storage.lineage_root().normalized_identity(),
-    );
-    mix(&mut hash, draft.storage.base());
-    mix(&mut hash, draft.storage.length());
-    mix(
-        &mut hash,
-        draft.storage.rights().identities().count() as u64,
-    );
-    for right in draft.storage.rights().identities() {
-        mix(&mut hash, right.normalized_identity());
-    }
-    mix(&mut hash, draft.mappings.len() as u64);
-    for (identity, pending) in &draft.mappings {
-        let mapped = pending.mapped_extent();
-        mix(&mut hash, identity.normalized_identity());
-        mix(&mut hash, pending.grant().normalized_identity());
-        mix(
-            &mut hash,
-            match pending.source_mode() {
-                MappingSourceMode::Owned => 1,
-                MappingSourceMode::BorrowedShared => 2,
-                MappingSourceMode::BorrowedExclusive => 3,
-            },
-        );
-        mix(
-            &mut hash,
-            pending.source_address_space().normalized_identity(),
-        );
-        mix(&mut hash, pending.source_provenance().normalized_identity());
-        mix(&mut hash, pending.source_era().normalized_identity());
-        mix(
-            &mut hash,
-            pending.source_lineage_root().normalized_identity(),
-        );
-        mix(&mut hash, pending.source_base());
-        mix(&mut hash, pending.source_length());
-        mix(
-            &mut hash,
-            pending.source_rights().identities().count() as u64,
-        );
-        for right in pending.source_rights().identities() {
-            mix(&mut hash, right.normalized_identity());
-        }
-        mix(&mut hash, mapped.address_space().normalized_identity());
-        mix(&mut hash, mapped.provenance().normalized_identity());
-        mix(&mut hash, mapped.era().normalized_identity());
-        mix(&mut hash, mapped.lineage_root().normalized_identity());
-        mix(&mut hash, mapped.base());
-        mix(&mut hash, mapped.length());
-        mix(&mut hash, mapped.rights().identities().count() as u64);
-        for right in mapped.rights().identities() {
-            mix(&mut hash, right.normalized_identity());
-        }
-        mix(
-            &mut hash,
-            pending
-                .destination_restoration_provenance()
-                .normalized_identity(),
-        );
-        mix(
-            &mut hash,
-            pending.destination_restoration_era().normalized_identity(),
-        );
-        mix(
-            &mut hash,
-            pending
-                .destination_restoration_rights()
-                .identities()
-                .count() as u64,
-        );
-        for right in pending.destination_restoration_rights().identities() {
-            mix(&mut hash, right.normalized_identity());
-        }
+    for value in normalized_plan_evidence(draft) {
+        mix(&mut hash, value);
     }
     if hash == 0 { 1 } else { hash }
 }
@@ -1022,12 +1013,9 @@ mod tests {
     ) -> PageTableConstructionReceipt {
         PageTableConstructionReceipt::from_admitted_provider(
             id(60, PageTableConstructionReceiptId::from_normalized_identity),
-            draft.identity(),
-            draft.grant(),
-            draft.plan_identity(),
+            draft,
             id(61, PageTableContentId::from_normalized_identity),
             PageTableConstructionEvidence::Generated,
-            draft.mappings.keys().copied(),
             complete,
         )
     }
@@ -1145,12 +1133,9 @@ mod tests {
             .expect("mapping");
         let receipt = PageTableConstructionReceipt::from_admitted_provider(
             id(60, PageTableConstructionReceiptId::from_normalized_identity),
-            draft.identity(),
-            draft.grant(),
-            draft.plan_identity(),
+            &draft,
             id(61, PageTableContentId::from_normalized_identity),
             PageTableConstructionEvidence::ImportedScan,
-            [id(51, MappingId::from_normalized_identity)],
             true,
         );
         let installable = draft.finish(receipt).expect("scanned installable table");
@@ -1158,6 +1143,26 @@ mod tests {
             installable.evidence(),
             PageTableConstructionEvidence::ImportedScan
         );
+    }
+
+    #[test]
+    fn construction_receipt_retains_exact_plan_evidence_beyond_the_compact_identity() {
+        let mut draft = draft();
+        draft
+            .add_mapping(pending_mapping(51, 0x8000))
+            .expect("mapping");
+        let mut receipt = construction_receipt(&draft, true);
+        let compact_plan = receipt.plan;
+        receipt.plan_evidence[4] ^= 1;
+        assert_eq!(
+            receipt.plan, compact_plan,
+            "the negative canary deliberately preserves the compact plan identity"
+        );
+
+        let error = draft
+            .finish(receipt)
+            .expect_err("exact canonical-plan substitution must reject");
+        assert!(error.diagnostic().0.contains("exact canonical plan"));
     }
 
     #[test]
