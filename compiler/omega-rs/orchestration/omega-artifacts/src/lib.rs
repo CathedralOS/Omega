@@ -1676,7 +1676,11 @@ pub fn build_backend_surface_report(program: &CheckedTrees) -> BackendSurfaceRep
 fn collect_machine(report: &mut BackendSurfaceReport, program: &CheckedTrees, machine: &Machine) {
     report.machines.insert(BackendMachineSurface {
         name: machine.name.to_string(),
-        contained_machines: derived_contained_machine_count(program, machine),
+        contained_machines: program
+            .facts
+            .carry
+            .contained_fields_for_machine(machine.symbol)
+            .len(),
         owned_data: program.machine_owned_data(machine).len(),
         states: program.machine_states(machine).len(),
     });
@@ -1702,39 +1706,6 @@ fn collect_machine(report: &mut BackendSurfaceReport, program: &CheckedTrees, ma
             state: "entry".to_owned(),
         });
     }
-}
-
-fn derived_contained_machine_count(program: &CheckedTrees, machine: &Machine) -> usize {
-    let Some(data) = program
-        .data_definitions()
-        .iter()
-        .find(|data| Some(&data.name) == machine.attached_data.as_ref())
-    else {
-        return 0;
-    };
-
-    program
-        .data_members(data)
-        .iter()
-        .filter_map(|member| match member {
-            omega_checked_trees::data::DataMember::Field(field) => {
-                Some(program.type_reference_symbol(field.type_reference))
-            }
-            omega_checked_trees::data::DataMember::Variant(_) => None,
-        })
-        .filter(|field_type| {
-            program
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == *field_type)
-                .is_some_and(|field_data| {
-                    program
-                        .machines()
-                        .iter()
-                        .any(|candidate| candidate.attached_data.as_ref() == Some(&field_data.name))
-                })
-        })
-        .count()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1881,6 +1852,7 @@ mod tests {
         let main_data_symbol = SymbolHandle::from_arena_index(2);
         let worker_machine_symbol = SymbolHandle::from_arena_index(3);
         let main_machine_symbol = SymbolHandle::from_arena_index(4);
+        let worker_field_symbol = SymbolHandle::from_arena_index(5);
         let mut program = CheckedTrees::default();
         let worker_type = program.typed.type_reference_table.insert(
             omega_checked_trees::types::TypeReferenceNode::Named {
@@ -1904,7 +1876,7 @@ mod tests {
         program.typed.push_data_member(
             &mut main_data,
             omega_checked_trees::data::DataMember::Field(omega_checked_trees::data::DataField {
-                symbol: SymbolHandle::from_arena_index(5),
+                symbol: worker_field_symbol,
                 name: Identifier::generated("worker"),
                 type_reference: worker_type,
             }),
@@ -1922,6 +1894,31 @@ mod tests {
             attached_data: Some(Identifier::generated("Main")),
             ..Default::default()
         });
+        let targets = program.facts.carry.contained_targets.insert_many([
+            omega_checked_trees::ContainedMachineTargetFact {
+                machine: worker_machine_symbol,
+            },
+        ]);
+        let fields = program.facts.carry.contained_fields.insert_many([
+            omega_checked_trees::ContainedMachineFieldFact {
+                field: worker_field_symbol,
+                data: worker_data_symbol,
+                type_reference: worker_type,
+                targets,
+            },
+        ]);
+        program.facts.carry.machine_topologies.insert(
+            omega_checked_trees::MachineCarryTopologyFact {
+                machine: worker_machine_symbol,
+                fields: omega_core::arena::HandleSpan::empty(),
+            },
+        );
+        program.facts.carry.machine_topologies.insert(
+            omega_checked_trees::MachineCarryTopologyFact {
+                machine: main_machine_symbol,
+                fields,
+            },
+        );
 
         let report = build_backend_surface_report(&program);
         let main = report

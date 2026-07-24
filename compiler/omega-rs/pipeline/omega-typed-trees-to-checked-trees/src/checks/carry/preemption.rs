@@ -6,12 +6,52 @@ use omega_typed_trees::types::TypeReferenceHandle;
 
 pub(super) fn build_machine_preemption_carry_facts(
     program: &omega_typed_trees::TypedTrees,
+    carry: &omega_checked_trees::CarryFacts,
 ) -> Vec<omega_checked_trees::MachinePreemptionCarryFact> {
-    program
+    let direct = program
         .machines()
         .iter()
         .map(|machine| build_machine_preemption_carry_fact(program, machine))
+        .collect::<Vec<_>>();
+
+    program
+        .machines()
+        .iter()
+        .map(|machine| join_machine_subtree_preemption(machine.symbol, carry, &direct))
         .collect()
+}
+
+fn join_machine_subtree_preemption(
+    root: SymbolHandle,
+    carry: &omega_checked_trees::CarryFacts,
+    direct: &[omega_checked_trees::MachinePreemptionCarryFact],
+) -> omega_checked_trees::MachinePreemptionCarryFact {
+    let mut joined = omega_checked_trees::MachinePreemptionCarryFact {
+        machine: root,
+        effective: CarryPolicy::PERMISSIVE,
+        analysis_complete: true,
+        contributing_types: Vec::new(),
+        unnamed_strict_values: 0,
+    };
+
+    for machine in carry.machine_subtree_symbols(root) {
+        let Some(fact) = direct.iter().find(|fact| fact.machine == machine) else {
+            joined.analysis_complete = false;
+            continue;
+        };
+        joined.effective = joined.effective.intersect(fact.effective);
+        joined.analysis_complete &= fact.analysis_complete;
+        joined.unnamed_strict_values = joined
+            .unnamed_strict_values
+            .saturating_add(fact.unnamed_strict_values);
+        for type_reference in &fact.contributing_types {
+            if !joined.contributing_types.contains(type_reference) {
+                joined.contributing_types.push(*type_reference);
+            }
+        }
+    }
+
+    joined
 }
 
 fn build_machine_preemption_carry_fact(

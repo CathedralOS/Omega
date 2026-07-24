@@ -1211,12 +1211,16 @@ stronger operations it needs instead of citing machine parameters generally.
   declaration's normalized carry bounds rather than a same-spelled caller
   parameter. The parser-unreachable `Machine::contains` carrier is now retired
   end-to-end from resolved/typed trees and their semantic consumers. Runtime
-  contained-machine topology remains canonical: checked lowering derives its
-  grouped `ContainedGraph` arena only from attached-data fields whose data type
-  has an attached machine. Continue subtree carry over that authored field
-  topology, then admitted and sealed per-mint facts, activation-demand joins
-  against pessimistic admitted runtime behavior, and diagnostic and richer
-  formal-model consumers. Checked builds now emit
+  contained-machine topology is now canonical in checked `CarryFacts`: grouped
+  machine/field/target arenas derive only from attached-data fields whose data
+  type has one or more attached machines. State-graph lowering, capacity
+  planning, branch-target discovery, and backend surface reports consume that
+  fact instead of independently matching names. Safe-point activation demands
+  join every descendant machine's suspension crossings, while asynchronous
+  demands join every descendant all-instruction envelope with cycle-safe
+  symbol deduplication. Continue with admitted and sealed per-mint facts,
+  activation-demand joins against pessimistic admitted runtime behavior, and
+  diagnostic and richer formal-model consumers. Checked builds now emit
   `05_carry_manifest.json`, keeping authored minimums separate from effective
   derived policies with all four axes structured; the artifact also exports
   each canonical safe-point crossing, its exact statement/call identity,

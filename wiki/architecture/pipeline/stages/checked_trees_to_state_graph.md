@@ -111,8 +111,10 @@ preservation:
   summaries and remaps worker-local value arenas during graph merging.
 - `remap.rs` owns narrow operation/transition/expression remap helpers used by
   graph merging.
-- `machine_metadata.rs` projects machine owned data, contained machines, and
-  direct/reached effect bits into graph metadata.
+- `machine_metadata.rs` projects machine owned data, the checked
+  `CarryFacts` contained-field topology, and direct/reached operational/service
+  summaries into graph metadata. It does not rediscover containment from type
+  names.
 - `capacity.rs` estimates graph arena sizes; it should stay about allocation
   planning, not semantic ownership. `capacity/expressions.rs` owns copied
   expression-table sizing for those allocation estimates.

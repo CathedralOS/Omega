@@ -199,6 +199,15 @@ pub fn carry_manifest_json(program: &CheckedTrees) -> String {
         } else {
             "false"
         });
+        json.push_str(",\n      \"subtree_machine_count\": ");
+        json.push_str(
+            &program
+                .facts
+                .carry
+                .machine_subtree_symbols(fact.machine)
+                .len()
+                .to_string(),
+        );
         json.push_str(",\n      \"effective\": ");
         push_carry_policy_json(&mut json, fact.effective);
         json.push_str(",\n      \"contributing_type_count\": ");
@@ -1481,6 +1490,7 @@ mod tests {
         ));
         assert!(json.contains("\"machine\": \"Worker::run\""));
         assert!(json.contains("\"analysis_complete\": true"));
+        assert!(json.contains("\"subtree_machine_count\": 1"));
         assert!(json.contains("\"unnamed_strict_values\": 1"));
     }
 

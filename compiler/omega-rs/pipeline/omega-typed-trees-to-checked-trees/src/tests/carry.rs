@@ -481,3 +481,99 @@ fn all_instruction_envelope_joins_restrictive_machine_values() {
         omega_core::semantics::CarryPolicy::STRICT
     );
 }
+
+#[test]
+fn contained_topology_groups_fields_and_all_attached_machine_targets() {
+    let checked = lower(
+        r#"
+        data Leaf {}
+        machine Leaf::read(&self) -> i32 { transition { _ -> 1 } }
+        machine Leaf::write(&mut self, value: i32) {}
+        data Plain { value: i32; }
+        data Root { leaf: Leaf; plain: Plain; }
+        machine Root::run(&mut self) {}
+        data Main {}
+        machine Main::run(&mut self) {}
+        "#,
+    )
+    .expect("contained field topology");
+    let root = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Root::run")
+        .expect("Root::run");
+    let fields = checked
+        .facts
+        .carry
+        .contained_fields_for_machine(root.symbol);
+
+    assert_eq!(fields.len(), 1);
+    let leaf = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Leaf")
+        .expect("Leaf");
+    assert_eq!(fields[0].data, leaf.symbol);
+    let target_names = checked
+        .facts
+        .carry
+        .contained_targets_for_field(&fields[0])
+        .iter()
+        .filter_map(|target| {
+            checked
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == target.machine)
+                .map(|machine| machine.name.as_str())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(target_names, ["Leaf::read", "Leaf::write"]);
+}
+
+#[test]
+fn all_instruction_envelope_joins_contained_machine_subtree() {
+    let checked = lower(
+        r#"
+        data Leaf {}
+        machine Leaf::work<T [carry(
+            suspension: allowed,
+            cpu: same,
+            thread: any,
+            address: movable,
+        )]>(value: T) {}
+        data Root { leaf: Leaf; }
+        machine Root::run(value: i32) {}
+        data Main {}
+        machine Main::run(&mut self) {}
+        "#,
+    )
+    .expect("contained subtree carry");
+    let root = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Root::run")
+        .expect("Root::run");
+    let envelope = checked
+        .facts
+        .carry
+        .preemption_for_machine(root.symbol)
+        .expect("root all-instruction envelope");
+
+    assert!(envelope.analysis_complete);
+    assert_eq!(
+        envelope.effective.suspension,
+        omega_core::semantics::CarrySuspension::Allowed
+    );
+    assert_eq!(
+        envelope.effective.cpu,
+        omega_core::semantics::CarryCpu::Origin
+    );
+    assert_eq!(
+        envelope.effective.host_thread,
+        omega_core::semantics::CarryHostThread::Any
+    );
+    assert_eq!(
+        envelope.effective.address,
+        omega_core::semantics::CarryAddress::Movable
+    );
+}
