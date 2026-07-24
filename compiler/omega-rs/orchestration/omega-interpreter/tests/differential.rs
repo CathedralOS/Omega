@@ -969,6 +969,14 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("wire/runtime_wire_decode_rejects_wrong_era_exit", 70),
     ("wire/runtime_wire_decode_ranged_field_exit", 70),
     ("wire/runtime_wire_decode_ranged_repeated_exit", 70),
+    (
+        "wire/runtime_wire_decode_rejects_noncanonical_bool_exit",
+        70,
+    ),
+    (
+        "wire/runtime_wire_decode_rejects_scalar_width_overflow_exit",
+        70,
+    ),
     ("wire/runtime_wire_encode_era_discriminator_exit", 70),
     ("wire/runtime_wire_encode_primitive_exit", 70),
     ("wire/runtime_wire_encode_string_exit", 70),
@@ -1628,6 +1636,44 @@ fn interpreter_establishes_repeated_wire_element_ranges() {
     assert!(
         !outcome.is_error(),
         "ranged repeated wire decode should be supported, got {:?}",
+        outcome.error
+    );
+    assert_eq!(outcome.exit_code, 70);
+}
+
+#[test]
+fn interpreter_rejects_noncanonical_wire_booleans() {
+    let main_path =
+        pass_canary("wire/runtime_wire_decode_rejects_noncanonical_bool_exit").join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "noncanonical bool wire decode compile failed:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "noncanonical bool wire decode should be supported, got {:?}",
+        outcome.error
+    );
+    assert_eq!(outcome.exit_code, 70);
+}
+
+#[test]
+fn interpreter_rejects_wire_scalar_width_overflow() {
+    let main_path =
+        pass_canary("wire/runtime_wire_decode_rejects_scalar_width_overflow_exit").join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "scalar width overflow wire decode compile failed:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "scalar width overflow wire decode should be supported, got {:?}",
         outcome.error
     );
     assert_eq!(outcome.exit_code, 70);

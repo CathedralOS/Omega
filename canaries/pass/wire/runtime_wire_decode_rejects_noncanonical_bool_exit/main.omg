@@ -1,0 +1,77 @@
+// BOOL REPRESENTATION ESTABLISHMENT AT THE WIRE BOUNDARY. `bool` is only
+// represented by 0 or 1; hostile varint 2 must not be normalized to true.
+// The same rule applies to a plain field and packed repeated elements.
+
+use omega::language::std::console;
+
+data Flags {
+    0: enabled: bool;
+    1: samples: [bool; 2];
+}
+
+data FlagValues {
+    enabled: bool;
+    samples: [bool; 2];
+    samples_count: u64;
+}
+
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+
+data Main {
+    console: Console;
+    bad_read: u64;
+    bad_verdict: WireVerdict;
+    good_read: u64;
+    good_verdict: WireVerdict;
+}
+
+machine Main::main(&mut self) {
+    // era 0, tag 0, invalid bool 2, tag 1, packed length 2, then true and
+    // invalid bool 2.
+    let bad_payload: [u8; 7] = [0, 0, 2, 1, 2, 1, 2];
+    let bad: FlagValues = FlagValues {
+        enabled: true,
+        samples: [false, true],
+        samples_count: 0
+    };
+    Flags::decode(
+        &mut bad,
+        &bad_payload,
+        &mut self.bad_read,
+        &mut self.bad_verdict,
+    );
+
+    let good_payload: [u8; 7] = [0, 0, 1, 1, 2, 0, 1];
+    let good: FlagValues = FlagValues {
+        enabled: false,
+        samples: [true, false],
+        samples_count: 0
+    };
+    Flags::decode(
+        &mut good,
+        &good_payload,
+        &mut self.good_read,
+        &mut self.good_verdict,
+    );
+
+    transition {
+        self.bad_verdict == WireVerdict::Sound -> accepted_hostile()
+        !bad.enabled || !bad.samples[0] || !bad.samples[1] -> corrupted_on_reject()
+        bad.samples_count != 2 -> bad_count()
+        self.good_verdict == WireVerdict::Sound
+            && good.enabled
+            && !good.samples[0]
+            && good.samples[1]
+            && good.samples_count == 2 -> proven()
+        _ -> broken()
+    }
+
+    state accepted_hostile(&mut self)      { self.console.exit_process(66); }
+    state corrupted_on_reject(&mut self)   { self.console.exit_process(67); }
+    state bad_count(&mut self)             { self.console.exit_process(68); }
+    state proven(&mut self)                { self.console.exit_process(70); }
+    state broken(&mut self)                { self.console.exit_process(71); }
+}

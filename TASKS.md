@@ -1717,6 +1717,11 @@ stronger operations it needs instead of citing machine parameters generally.
   scalar destinations. Native x86-64/AArch64 and the interpreter reject hostile
   out-of-range values before writing the field or array element, and the sticky
   `WireVerdict` becomes `Invalid` while the prior valid value stays intact.
+  The same path establishes `bool`'s intrinsic `{0, 1}` representation, so a
+  hostile noncanonical boolean varint cannot be normalized into a valid value;
+  plain and repeated runtime canaries pin rejection and write preservation.
+  Finite `i32`/`u32` carrier bounds are likewise checked before truncation, so
+  wider hostile varints cannot wrap into an apparently valid destination.
   Implement runtime layout for remaining wire values, additional
   encoding families, compatibility reports, and version negotiation.
 
