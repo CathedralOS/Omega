@@ -36,15 +36,32 @@ pub(super) fn resolve_call_target_machine<'program>(
         return None;
     }
 
-    let contained = program
-        .machine_contained_objects(current_machine)
+    let field_type_symbol = program
+        .data_definitions()
         .iter()
-        .find(|contained| contained.symbol == contained_symbol)?;
+        .find(|definition| Some(&definition.name) == current_machine.attached_data.as_ref())
+        .and_then(|definition| {
+            program
+                .data_members(definition)
+                .iter()
+                .find_map(|member| match member {
+                    omega_checked_trees::data::DataMember::Field(field)
+                        if field.symbol == contained_symbol =>
+                    {
+                        Some(program.type_reference_symbol(field.type_reference))
+                    }
+                    _ => None,
+                })
+        })?;
+    let field_type = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == field_type_symbol)?;
 
     program
         .machines()
         .iter()
-        .find(|machine| machine.symbol == contained.type_symbol)
+        .find(|machine| machine.attached_data.as_ref() == Some(&field_type.name))
 }
 
 fn machine_owning_state_symbol<'program>(

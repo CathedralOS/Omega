@@ -419,29 +419,6 @@ fn append_machine_relationships(
         }
     }
 
-    for (object_index, object) in program
-        .machine_contained_objects(machine)
-        .iter()
-        .enumerate()
-    {
-        let object_id = diagram.node(
-            format!("object_{machine_index}_{root_index}_{object_index}"),
-            format!(
-                "contains {}\ntype: {}\nsymbol: {}\ntype symbol: {}",
-                object.name.as_str(),
-                object.type_name.as_str(),
-                symbol_label(object.symbol),
-                symbol_label(object.type_symbol)
-            ),
-            "object",
-            2,
-        );
-        diagram.containment_edge(machine_id, &object_id);
-        if let Some(type_id) = type_id_for_symbol(data_nodes, trait_nodes, object.type_symbol) {
-            diagram.edge(&object_id, type_id, "contained_object");
-        }
-    }
-
     for (owned_index, owned) in program.machine_owned_data(machine).iter().enumerate() {
         let object_id = diagram.node(
             format!("owned_{machine_index}_{root_index}_{owned_index}"),

@@ -85,7 +85,6 @@ fn machine_record_carries_the_termination_plan_beside_the_compat_bools() {
             service_reach_row: _,
             lifetime_parameters: _,
             type_parameters: _,
-            contains: _,
             owned_data: _,
             satisfies: _,
             terminates: _, // compatibility: the checker's input until TPR3

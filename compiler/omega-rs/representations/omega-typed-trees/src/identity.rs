@@ -137,10 +137,6 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
         for parameter in typed_trees.machine_type_parameters(machine) {
             count_type_parameter(typed_trees, parameter, &mut counts);
         }
-        for contained in typed_trees.machine_contained_objects(machine) {
-            count_declaration_name(&contained.name, &mut counts);
-            count_type_name(&contained.type_name, &mut counts);
-        }
         for owned_data in typed_trees.machine_owned_data(machine) {
             count_declaration_name(&owned_data.name, &mut counts);
             count_type_reference_handle(

@@ -75,7 +75,6 @@ pub struct SymbolResolvedDeclarationStorage {
     pub domain_path_members: Arena<crate::name::DiagnosticName>,
     pub operator_path_members: Arena<crate::name::DiagnosticName>,
     pub operator_definitions: Arena<operator::OperatorDefinition>,
-    pub machine_contained_objects: Arena<crate::machine::ContainedObject>,
     pub machine_owned_data: Arena<crate::machine::OwnedData>,
     pub machine_trait_conformances: Arena<crate::machine::TraitConformance>,
     pub machine_state_handles: Arena<Handle<state::State>>,
@@ -292,16 +291,6 @@ impl SymbolResolvedTrees {
 
     pub fn machine_state(&self, handle: Handle<state::State>) -> &state::State {
         self.tables.declarations.machine_states.get(handle)
-    }
-
-    pub fn machine_contained_objects(
-        &self,
-        span: HandleSpan<crate::machine::ContainedObject>,
-    ) -> &[crate::machine::ContainedObject] {
-        self.tables
-            .declarations
-            .machine_contained_objects
-            .span_or_empty(span)
     }
 
     pub fn machine_owned_data(

@@ -205,9 +205,6 @@ impl<'program> TopLevelSymbols<'program> {
             .unwrap_or_else(SymbolHandle::invalid)
     }
 
-    pub fn is_callable_receiver_type(&self, name: &str) -> bool {
-        self.machine_symbol(name).is_valid() || self.trait_symbol(name).is_valid()
-    }
 }
 
 fn builtin_type_symbols(program: &TypedTrees) -> Vec<TypeSymbol<'_>> {

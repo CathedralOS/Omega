@@ -1676,7 +1676,7 @@ pub fn build_backend_surface_report(program: &CheckedTrees) -> BackendSurfaceRep
 fn collect_machine(report: &mut BackendSurfaceReport, program: &CheckedTrees, machine: &Machine) {
     report.machines.insert(BackendMachineSurface {
         name: machine.name.to_string(),
-        contained_objects: program.machine_contained_objects(machine).len(),
+        contained_machines: derived_contained_machine_count(program, machine),
         owned_data: program.machine_owned_data(machine).len(),
         states: program.machine_states(machine).len(),
     });
@@ -1702,6 +1702,39 @@ fn collect_machine(report: &mut BackendSurfaceReport, program: &CheckedTrees, ma
             state: "entry".to_owned(),
         });
     }
+}
+
+fn derived_contained_machine_count(program: &CheckedTrees, machine: &Machine) -> usize {
+    let Some(data) = program
+        .data_definitions()
+        .iter()
+        .find(|data| Some(&data.name) == machine.attached_data.as_ref())
+    else {
+        return 0;
+    };
+
+    program
+        .data_members(data)
+        .iter()
+        .filter_map(|member| match member {
+            omega_checked_trees::data::DataMember::Field(field) => {
+                Some(program.type_reference_symbol(field.type_reference))
+            }
+            omega_checked_trees::data::DataMember::Variant(_) => None,
+        })
+        .filter(|field_type| {
+            program
+                .data_definitions()
+                .iter()
+                .find(|data| data.symbol == *field_type)
+                .is_some_and(|field_data| {
+                    program
+                        .machines()
+                        .iter()
+                        .any(|candidate| candidate.attached_data.as_ref() == Some(&field_data.name))
+                })
+        })
+        .count()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1819,7 +1852,6 @@ mod tests {
             symbol: SymbolHandle::default(),
             name: Identifier::generated("main"),
             attached_data: None,
-            contains: Default::default(),
             owned_data: Default::default(),
             satisfies: Default::default(),
             states: Default::default(),
@@ -1841,6 +1873,64 @@ mod tests {
 
         assert_eq!(report.entry_points.len(), 1);
         assert_eq!(report.machines.len(), 1);
+    }
+
+    #[test]
+    fn counts_contained_machines_from_attached_data_fields() {
+        let worker_data_symbol = SymbolHandle::from_arena_index(1);
+        let main_data_symbol = SymbolHandle::from_arena_index(2);
+        let worker_machine_symbol = SymbolHandle::from_arena_index(3);
+        let main_machine_symbol = SymbolHandle::from_arena_index(4);
+        let mut program = CheckedTrees::default();
+        let worker_type = program.typed.type_reference_table.insert(
+            omega_checked_trees::types::TypeReferenceNode::Named {
+                symbol: worker_data_symbol,
+                name: Identifier::generated("Worker"),
+            },
+        );
+
+        program
+            .typed
+            .push_data_definition(omega_checked_trees::data::DataDefinition {
+                symbol: worker_data_symbol,
+                name: Identifier::generated("Worker"),
+                ..Default::default()
+            });
+        let mut main_data = omega_checked_trees::data::DataDefinition {
+            symbol: main_data_symbol,
+            name: Identifier::generated("Main"),
+            ..Default::default()
+        };
+        program.typed.push_data_member(
+            &mut main_data,
+            omega_checked_trees::data::DataMember::Field(omega_checked_trees::data::DataField {
+                symbol: SymbolHandle::from_arena_index(5),
+                name: Identifier::generated("worker"),
+                type_reference: worker_type,
+            }),
+        );
+        program.typed.push_data_definition(main_data);
+        program.typed.push_machine(Machine {
+            symbol: worker_machine_symbol,
+            name: Identifier::generated("Worker::run"),
+            attached_data: Some(Identifier::generated("Worker")),
+            ..Default::default()
+        });
+        program.typed.push_machine(Machine {
+            symbol: main_machine_symbol,
+            name: Identifier::generated("Main::main"),
+            attached_data: Some(Identifier::generated("Main")),
+            ..Default::default()
+        });
+
+        let report = build_backend_surface_report(&program);
+        let main = report
+            .machines
+            .iter()
+            .find_map(|(_, machine)| (machine.name == "Main::main").then_some(machine))
+            .expect("main machine surface");
+
+        assert_eq!(main.contained_machines, 1);
     }
 
     #[test]

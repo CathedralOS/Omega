@@ -215,6 +215,8 @@ mod tests {
     #[test]
     fn collects_host_call_from_inherited_data_field_receiver() {
         let source = r#"
+            data String {}
+
             data Game {
                 console: Console;
                 input: String;

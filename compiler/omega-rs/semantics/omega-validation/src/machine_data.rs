@@ -12,22 +12,6 @@ use omega_typed_trees::machine::Machine;
 use omega_typed_trees::types::TypeReferenceHandle;
 use std::fmt;
 
-pub(crate) fn validate_contained_types(
-    program: &TypedTrees,
-    machine: &omega_typed_trees::machine::Machine,
-    symbols: &TopLevelSymbols<'_>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for contained_object in program.machine_contained_objects(machine) {
-        if !symbols.is_callable_receiver_type(&contained_object.type_name) {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` contains `{}` with unknown type `{}`",
-                machine.name, contained_object.name, contained_object.type_name
-            )));
-        }
-    }
-}
-
 pub(crate) fn validate_owned_data(
     program: &TypedTrees,
     machine: &Machine,

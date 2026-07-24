@@ -74,11 +74,6 @@ pub(crate) fn resolve_member_symbol_from_type_symbol(
                 return Some(owned.symbol);
             }
         }
-        for contained in program.machine_contained_objects(machine) {
-            if contained.name.as_str() == member_name {
-                return Some(contained.symbol);
-            }
-        }
     }
 
     None
@@ -164,11 +159,6 @@ pub(crate) fn symbol_type_symbol(
                         .type_reference_table
                         .type_symbol(owned.type_reference),
                 );
-            }
-        }
-        for contained in program.machine_contained_objects(machine) {
-            if contained.symbol == symbol {
-                return Some(contained.type_symbol);
             }
         }
     }

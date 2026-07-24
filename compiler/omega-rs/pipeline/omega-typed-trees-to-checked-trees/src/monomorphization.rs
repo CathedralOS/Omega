@@ -1256,7 +1256,6 @@ fn clone_specialized_machine(
 ) -> Vec<(SymbolHandle, SymbolHandle)> {
     let source_machine = &source.machines()[candidate.machine_index];
     let source_states = source.machine_states(source_machine).to_vec();
-    let source_contained = source.machine_contained_objects(source_machine).to_vec();
     let source_owned = source.machine_owned_data(source_machine).to_vec();
     let type_start = program.type_reference_table.type_reference_count();
     let expression_start = program.expression_table.iter_expressions().count();
@@ -1301,14 +1300,9 @@ fn clone_specialized_machine(
 
     let machine_children = program.symbols.insert_generated_children(
         machine_symbol,
-        source_contained
+        source_owned
             .iter()
-            .map(|item| (SymbolKind::Object, item.name.as_str()))
-            .chain(
-                source_owned
-                    .iter()
-                    .map(|item| (SymbolKind::Field, item.name.as_str())),
-            )
+            .map(|item| (SymbolKind::Field, item.name.as_str()))
             .chain(
                 source_states
                     .iter()
@@ -1319,12 +1313,6 @@ fn clone_specialized_machine(
         omega_core::symbols::SymbolTableBuilder::child_handles(machine_children).collect();
     let mut next_child = machine_children.into_iter();
     let mut symbol_map = vec![(source_machine.symbol, machine_symbol)];
-    for item in &source_contained {
-        symbol_map.push((
-            item.symbol,
-            next_child.next().expect("contained clone symbol"),
-        ));
-    }
     for item in &source_owned {
         symbol_map.push((
             item.symbol,
@@ -1375,7 +1363,6 @@ fn clone_specialized_machine(
     cloned.symbol = machine_symbol;
     cloned.name = omega_typed_trees::name::Identifier::generated(generated_name);
     cloned.type_parameters = HandleSpan::empty();
-    cloned.contains = HandleSpan::empty();
     cloned.owned_data = HandleSpan::empty();
     cloned.satisfies = HandleSpan::empty();
     cloned.decreases = copy_expression_span(source, program, source_machine.decreases, &symbol_map);
@@ -1404,12 +1391,7 @@ fn clone_specialized_machine(
     cloned.contracts = HandleSpan::empty();
     cloned.states = HandleSpan::empty();
 
-    for (source_item, (_, fresh_symbol)) in source_contained.iter().zip(symbol_map.iter().skip(1)) {
-        let mut item = source_item.clone();
-        item.symbol = *fresh_symbol;
-        program.push_machine_contained_object(&mut cloned, item);
-    }
-    let owned_symbol_offset = 1 + source_contained.len();
+    let owned_symbol_offset = 1;
     for (index, source_item) in source_owned.iter().enumerate() {
         let mut item = source_item.clone();
         item.symbol = symbol_map[owned_symbol_offset + index].1;

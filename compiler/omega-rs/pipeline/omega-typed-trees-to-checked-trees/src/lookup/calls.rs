@@ -108,17 +108,6 @@ pub(crate) fn resolve_state_call_target(
         return SymbolHandle::invalid();
     }
 
-    if let Some(contained) = program
-        .machine_contained_objects(machine)
-        .iter()
-        .find(|contained| contained.symbol == receiver_symbol)
-    {
-        let Some(target_machine) = machine_by_symbol(program, contained.type_symbol) else {
-            return SymbolHandle::invalid();
-        };
-        return resolve_state_symbol_in_machine(program, target_machine, target_symbol);
-    }
-
     if let Some(target_machine) = machine_by_symbol(program, receiver_symbol) {
         return resolve_state_symbol_in_machine(program, target_machine, target_symbol);
     }
@@ -287,14 +276,6 @@ pub(crate) fn receiver_can_dispatch_to_machine(
 
     if !receiver_symbol.is_valid() {
         return false;
-    }
-
-    if program
-        .machine_contained_objects(machine)
-        .iter()
-        .any(|contained| contained.symbol == receiver_symbol)
-    {
-        return true;
     }
 
     let type_symbol = program

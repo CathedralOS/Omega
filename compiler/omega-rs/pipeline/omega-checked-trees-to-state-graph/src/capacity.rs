@@ -129,7 +129,11 @@ impl StateGraphCodeCapacity {
         let mut capacity = Self {
             expressions: ExpressionTableCapacity::default(),
             machines: program.machines().len(),
-            contained_machines: program.machine_contained_objects.len(),
+            contained_machines: program
+                .machines()
+                .iter()
+                .map(|machine| derived_contained_machine_capacity(program, machine))
+                .sum(),
             machine_owned_data: program.machine_owned_data.len(),
             states: 0,
             state_parameters: program.state_parameters.len(),
@@ -155,7 +159,7 @@ impl StateGraphCodeCapacity {
         Self {
             expressions: machine_expression_capacity(program, machine),
             machines: 1,
-            contained_machines: program.machine_contained_objects(machine).len(),
+            contained_machines: derived_contained_machine_capacity(program, machine),
             machine_owned_data: program.machine_owned_data(machine).len(),
             states: estimated_machine_segment_capacity(program, machine),
             state_parameters: machine_state_parameter_count(program, machine),
@@ -163,6 +167,25 @@ impl StateGraphCodeCapacity {
             transitions: statement_capacity,
         }
     }
+}
+
+/// Upper bound for topology synthesized from fields of a machine's attached
+/// data. Only fields whose type has an attached machine become `ContainedGraph`
+/// records, but reserving for all fields keeps construction allocation-free
+/// without rebuilding the type-name matching logic in the capacity planner.
+fn derived_contained_machine_capacity(program: &CheckedTrees, machine: &Machine) -> usize {
+    program
+        .data_definitions()
+        .iter()
+        .find(|definition| Some(&definition.name) == machine.attached_data.as_ref())
+        .map(|definition| {
+            program
+                .data_members(definition)
+                .iter()
+                .filter(|member| matches!(member, omega_checked_trees::data::DataMember::Field(_)))
+                .count()
+        })
+        .unwrap_or(0)
 }
 
 impl StateGraphSemanticCapacity {

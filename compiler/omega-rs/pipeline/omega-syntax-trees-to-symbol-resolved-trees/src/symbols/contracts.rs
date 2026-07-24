@@ -18,7 +18,6 @@ pub(super) fn assign_contract_reference_symbols(
     let SymbolResolvedTrees { roots, tables, .. } = program;
     let data_definitions = &roots.data_definitions;
     let data_members = &tables.declarations.data_members;
-    let machine_contained_objects = &tables.declarations.machine_contained_objects;
     let machine_owned_data = &tables.declarations.machine_owned_data;
     let machine_state_handles = &tables.declarations.machine_state_handles;
     let machine_states = &tables.declarations.machine_states;
@@ -37,7 +36,6 @@ pub(super) fn assign_contract_reference_symbols(
         let scope = MachineScope {
             symbol: machine.symbol,
             attached_data: machine.attached_data.as_ref(),
-            contains: machine_contained_objects.span_or_empty(machine.contains),
             inherited_data_members: data_definition
                 .map(|definition| data_members.span_or_empty(definition.members)),
             owned_data: machine_owned_data.span_or_empty(machine.owned_data),

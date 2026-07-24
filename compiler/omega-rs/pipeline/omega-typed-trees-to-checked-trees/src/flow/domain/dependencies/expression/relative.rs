@@ -90,11 +90,6 @@ fn resolve_member_symbol_from_type(
                 return Some(owned.symbol);
             }
         }
-        for contained in program.machine_contained_objects(machine) {
-            if contained.name.as_str() == member_name {
-                return Some(contained.symbol);
-            }
-        }
     }
 
     None

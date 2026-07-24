@@ -40,7 +40,6 @@ pub struct Machine {
 pub struct MachineStorage {
     pub lifetime_parameters: Vec<DiagnosticName>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
-    pub contains: HandleSpan<ContainedObject>,
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
     pub terminates: bool,
@@ -72,14 +71,6 @@ impl DerefMut for Machine {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.storage
     }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ContainedObject {
-    pub symbol: SymbolHandle,
-    pub type_symbol: SymbolHandle,
-    pub name: DiagnosticName,
-    pub type_name: DiagnosticName,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

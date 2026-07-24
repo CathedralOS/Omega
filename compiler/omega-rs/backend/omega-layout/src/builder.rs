@@ -176,10 +176,7 @@ impl<'program> LayoutBuilder<'program> {
             .checked_add(
                 machine_definitions
                     .iter()
-                    .map(|machine| {
-                        program.machine_owned_data(machine).len()
-                            + program.machine_contained_objects(machine).len()
-                    })
+                    .map(|machine| program.machine_owned_data(machine).len())
                     .sum::<usize>(),
             )
             .expect("layout field capacity overflow");
@@ -515,9 +512,6 @@ impl<'program> LayoutBuilder<'program> {
             .unwrap_or(0);
         let field_capacity = data_field_capacity
             .checked_add(self.program.machine_owned_data(machine).len())
-            .and_then(|count| {
-                count.checked_add(self.program.machine_contained_objects(machine).len())
-            })
             .expect("machine layout field capacity overflow");
         let mut fields = Vec::with_capacity(field_capacity);
 
@@ -559,25 +553,6 @@ impl<'program> LayoutBuilder<'program> {
                 type_descriptor: self.type_descriptor(owned_data.type_reference),
                 layout: self.layout_type_reference_handle(owned_data.type_reference)?,
             });
-        }
-
-        for contained_object in self.program.machine_contained_objects(machine) {
-            if self
-                .machine_definition_by_symbol(contained_object.type_symbol)
-                .is_ok()
-            {
-                fields.push(PlannedField {
-                    symbol: contained_object.symbol,
-                    name: contained_object.name.clone(),
-                    type_symbol: contained_object.type_symbol,
-                    type_name: contained_object.type_name.as_str().into(),
-                    type_descriptor: TypeLayoutDescriptor::Named {
-                        symbol: contained_object.type_symbol,
-                        name: contained_object.type_name.clone(),
-                    },
-                    layout: self.layout_machine(contained_object.type_symbol)?,
-                });
-            }
         }
 
         let (fields, layout) = pack_fields(&mut self.fields, fields);

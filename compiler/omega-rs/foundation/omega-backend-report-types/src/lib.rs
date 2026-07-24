@@ -57,7 +57,7 @@ pub struct BackendEntryPoint {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BackendMachineSurface {
     pub name: String,
-    pub contained_objects: usize,
+    pub contained_machines: usize,
     pub owned_data: usize,
     pub states: usize,
 }

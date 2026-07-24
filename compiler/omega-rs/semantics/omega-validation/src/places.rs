@@ -334,17 +334,13 @@ pub(crate) fn first_unknown_nested_field(
         return None;
     }
     let mut current_data = if root == "self" {
-        // `self.<contained>/<owned>.…` roots on the MACHINE, not its data.
+        // `self.<owned>.…` roots on the MACHINE, not its attached data.
         let first_hop = rest.first()?;
-        let is_machine_object = program
-            .machine_contained_objects(current_machine)
+        let is_machine_owned_data = program
+            .machine_owned_data(current_machine)
             .iter()
-            .any(|contained| contained.name.as_str() == *first_hop)
-            || program
-                .machine_owned_data(current_machine)
-                .iter()
-                .any(|owned| owned.name.as_str() == *first_hop);
-        if is_machine_object {
+            .any(|owned| owned.name.as_str() == *first_hop);
+        if is_machine_owned_data {
             return None;
         }
         let attached = current_machine.attached_data.as_ref()?;

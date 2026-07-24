@@ -1189,14 +1189,6 @@ fn symbol_name_for_state(
         return owned.name.as_str().to_owned();
     }
 
-    if let Some(contained) = program
-        .machine_contained_objects(machine)
-        .iter()
-        .find(|contained| contained.symbol == symbol)
-    {
-        return contained.name.as_str().to_owned();
-    }
-
     semantic_symbol_name(program, symbol)
 }
 
@@ -1331,11 +1323,6 @@ fn semantic_symbol_name(program: &CheckedTrees, symbol: SymbolHandle) -> String 
         for owned in program.machine_owned_data(machine) {
             if owned.symbol == symbol {
                 return owned.name.as_str().to_owned();
-            }
-        }
-        for contained in program.machine_contained_objects(machine) {
-            if contained.symbol == symbol {
-                return contained.name.as_str().to_owned();
             }
         }
     }

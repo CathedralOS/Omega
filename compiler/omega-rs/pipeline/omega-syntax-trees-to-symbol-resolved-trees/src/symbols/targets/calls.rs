@@ -18,19 +18,6 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
     symbols: &SymbolTable,
 ) -> SymbolHandle {
     if has_receiver && receiver_symbol.is_valid() {
-        if let Some(contained) = machine
-            .contains
-            .iter()
-            .find(|contained| contained.symbol == receiver_symbol)
-        {
-            return child_symbol_by_kinds(
-                symbols,
-                contained.type_symbol,
-                &[SymbolKind::State],
-                target.as_str(),
-            );
-        }
-
         if let Some(field_type_reference) = machine.field_type_reference(symbols, receiver_symbol) {
             let symbol = call_target_for_type_reference(
                 symbols,

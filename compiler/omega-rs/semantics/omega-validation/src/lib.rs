@@ -43,7 +43,7 @@ use crate::entry_point::validate_entry_point;
 use crate::expression_types::{ExpressionTypeOwner, validate_expression_type_handle};
 use crate::invariants::validate_invariant_definitions;
 use crate::locals::{WritableRoots, validate_local_data_names};
-use crate::machine_data::{validate_contained_types, validate_owned_data};
+use crate::machine_data::validate_owned_data;
 use crate::places::validate_assignment_target_handle;
 use crate::state_signatures::{
     StateSignatureOwner, validate_callable_state_signatures, validate_machine_contracts,
@@ -181,7 +181,6 @@ fn validate_program_internal(
             )));
         }
 
-        validate_contained_types(program, machine, &symbols, &mut diagnostics);
         validate_owned_data(program, machine, &symbols, &mut diagnostics);
         validate_machine_effects(program, machine, &mut diagnostics);
         validate_machine_contracts(program, machine, &mut diagnostics);

@@ -116,7 +116,6 @@ pub struct TypedTreeTables {
     pub measures: Arena<measure::MeasureDefinition>,
     pub measure_path_members: Arena<crate::name::Identifier>,
     pub operators: Arena<crate::operator::OperatorDefinition>,
-    pub machine_contained_objects: Arena<machine::ContainedObject>,
     pub machine_owned_data: Arena<machine::OwnedData>,
     pub machine_trait_conformances: Arena<machine::TraitConformance>,
     pub machine_states: Arena<crate::state::State>,
@@ -871,23 +870,6 @@ impl TypedTrees {
             self.machine_parameter_signature_in(machine, symbol)
                 .map(|signature| (machine, signature))
         })
-    }
-
-    pub fn push_machine_contained_object(
-        &mut self,
-        machine: &mut machine::Machine,
-        contained_object: machine::ContainedObject,
-    ) {
-        self.machine_contained_objects
-            .append_to_span(&mut machine.contains, contained_object);
-    }
-
-    pub fn machine_contained_objects(
-        &self,
-        machine: &machine::Machine,
-    ) -> &[machine::ContainedObject] {
-        self.machine_contained_objects
-            .span_or_empty(machine.contains)
     }
 
     pub fn push_machine_owned_data(
