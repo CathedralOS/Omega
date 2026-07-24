@@ -81,6 +81,9 @@ pub struct DecodedArtifactContainer {
     pub artifact: ArtifactId,
     pub content: ArtifactContentId,
     pub code_length: u64,
+    /// Exact decoded executable bytes. The post-decode validator binds these
+    /// bytes into normalized content identity before any admission fact exists.
+    pub code: Vec<u8>,
     pub contracts: MachineContractSetId,
     pub declared_footprint: MachineFootprintId,
     pub placement_plan: PlacementPlanId,
@@ -166,6 +169,18 @@ pub fn validate_decoded_container(
             "artifact container has {} sections, exceeding configured bound {}",
             decoded.sections.len(),
             limits.max_sections
+        )));
+    }
+    let decoded_code_length = u64::try_from(decoded.code.len()).map_err(|_| {
+        InstallationDiagnostic(
+            "decoded artifact code length cannot be represented by the container".into(),
+        )
+    })?;
+    if decoded_code_length != decoded.code_length {
+        return Err(InstallationDiagnostic(format!(
+            "decoded artifact has {} code byte(s), canonical header declares {}",
+            decoded.code.len(),
+            decoded.code_length
         )));
     }
 
@@ -289,6 +304,24 @@ pub fn validate_decoded_container(
         decoded.code_length,
         limits.max_relocations,
     )?;
+    let computed_content = compute_content_identity(
+        &decoded.code,
+        decoded.contracts,
+        decoded.declared_footprint,
+        decoded.placement_plan,
+        decoded.placement_constraints,
+        decoded.entry_set,
+        &decoded.entries,
+        decoded.relocation_set,
+        &relocations,
+    )?;
+    if computed_content != decoded.content {
+        return Err(InstallationDiagnostic(format!(
+            "artifact content identity {} does not match normalized executable content {}",
+            decoded.content.normalized_identity(),
+            computed_content.normalized_identity()
+        )));
+    }
     let artifact = Artifact::from_canonical_decode(
         decoded.artifact,
         decoded.content,
@@ -308,6 +341,149 @@ pub fn validate_decoded_container(
         informational_sections: informational,
         unknown_informational_sections: unknown_informational,
     })
+}
+
+/// Derive the normalizer-owned executable-content identity for one checked
+/// schema decode. Container byte order, section order, proof payloads, and
+/// informational sections do not participate; executable bytes and every
+/// published semantic commitment do.
+pub fn normalized_decoded_content_identity(
+    decoded: &DecodedArtifactContainer,
+) -> Result<ArtifactContentId, InstallationDiagnostic> {
+    let relocations = validate_decoded_relocations(
+        decoded.relocations.clone(),
+        decoded.code_length,
+        decoded.relocations.len().max(1),
+    )?;
+    compute_content_identity(
+        &decoded.code,
+        decoded.contracts,
+        decoded.declared_footprint,
+        decoded.placement_plan,
+        decoded.placement_constraints,
+        decoded.entry_set,
+        &decoded.entries,
+        decoded.relocation_set,
+        &relocations,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn compute_content_identity(
+    code: &[u8],
+    contracts: MachineContractSetId,
+    footprint: MachineFootprintId,
+    placement_plan: PlacementPlanId,
+    placement: PlacementConstraints,
+    entry_set: EntrySetId,
+    entries: &[ArtifactEntry],
+    relocation_set: RelocationSetId,
+    relocations: &[DecodedArtifactRelocation],
+) -> Result<ArtifactContentId, InstallationDiagnostic> {
+    let mut fingerprint = 0xcbf2_9ce4_8422_2325u64;
+    fingerprint_bytes(&mut fingerprint, b"omega-executable-content-v1");
+    fingerprint_bytes(&mut fingerprint, &(code.len() as u64).to_le_bytes());
+    fingerprint_bytes(&mut fingerprint, code);
+    for identity in [
+        contracts.normalized_identity(),
+        footprint.normalized_identity(),
+        placement_plan.normalized_identity(),
+        entry_set.normalized_identity(),
+        relocation_set.normalized_identity(),
+    ] {
+        fingerprint_bytes(&mut fingerprint, &identity.to_le_bytes());
+    }
+    fingerprint_placement(&mut fingerprint, placement);
+
+    let mut entries = entries.to_vec();
+    entries.sort_unstable_by_key(|entry| (entry.identity(), entry.code_offset()));
+    fingerprint_bytes(&mut fingerprint, &(entries.len() as u64).to_le_bytes());
+    for entry in entries {
+        fingerprint_bytes(
+            &mut fingerprint,
+            &entry.identity().normalized_identity().to_le_bytes(),
+        );
+        fingerprint_bytes(&mut fingerprint, &entry.code_offset().to_le_bytes());
+    }
+
+    fingerprint_bytes(&mut fingerprint, &(relocations.len() as u64).to_le_bytes());
+    for relocation in relocations {
+        fingerprint_bytes(
+            &mut fingerprint,
+            &[match relocation.kind {
+                ArtifactRelocationKind::Absolute64 => 1,
+                ArtifactRelocationKind::X86Relative32 => 2,
+                ArtifactRelocationKind::Aarch64Page21 => 3,
+                ArtifactRelocationKind::Aarch64PageOffset12 => 4,
+                ArtifactRelocationKind::Aarch64Branch26 => 5,
+            }],
+        );
+        fingerprint_bytes(
+            &mut fingerprint,
+            &relocation.destination_offset.to_le_bytes(),
+        );
+        match relocation.target {
+            RelocationTarget::Data(identity) => {
+                fingerprint_bytes(&mut fingerprint, &[1]);
+                fingerprint_bytes(
+                    &mut fingerprint,
+                    &identity.normalized_identity().to_le_bytes(),
+                );
+            }
+            RelocationTarget::Entry(identity) => {
+                fingerprint_bytes(&mut fingerprint, &[2]);
+                fingerprint_bytes(
+                    &mut fingerprint,
+                    &identity.normalized_identity().to_le_bytes(),
+                );
+            }
+        }
+        fingerprint_bytes(&mut fingerprint, &relocation.addend.to_le_bytes());
+    }
+
+    // FNV's offset basis and the nonempty domain separator make zero
+    // fantastically unlikely, but normalized identities categorically exclude
+    // it. Use one fixed nonzero representative rather than admitting an
+    // unconstructible result.
+    ArtifactContentId::from_normalized_identity(if fingerprint == 0 { 1 } else { fingerprint })
+}
+
+fn fingerprint_placement(fingerprint: &mut u64, placement: PlacementConstraints) {
+    if let Some(range) = placement.permitted_range() {
+        fingerprint_bytes(fingerprint, &[1]);
+        fingerprint_bytes(fingerprint, &range.start_inclusive().to_le_bytes());
+        fingerprint_bytes(fingerprint, &range.end_exclusive().to_le_bytes());
+    } else {
+        fingerprint_bytes(fingerprint, &[0]);
+    }
+    fingerprint_bytes(fingerprint, &placement.alignment().to_le_bytes());
+    fingerprint_bytes(
+        fingerprint,
+        &[match placement.phase() {
+            omega_layout_plans::PlacementPhase::Build => 1,
+            omega_layout_plans::PlacementPhase::Load => 2,
+            omega_layout_plans::PlacementPhase::PostHandoff => 3,
+        }],
+    );
+    if let Some(regime) = placement.machine_regime() {
+        fingerprint_bytes(fingerprint, &[1]);
+        fingerprint_bytes(fingerprint, &regime.normalized_identity().to_le_bytes());
+    } else {
+        fingerprint_bytes(fingerprint, &[0]);
+    }
+    if let Some(scope) = placement.installation_scope() {
+        fingerprint_bytes(fingerprint, &[1]);
+        fingerprint_bytes(fingerprint, &scope.normalized_identity().to_le_bytes());
+    } else {
+        fingerprint_bytes(fingerprint, &[0]);
+    }
+}
+
+fn fingerprint_bytes(fingerprint: &mut u64, bytes: &[u8]) {
+    for byte in bytes {
+        *fingerprint ^= u64::from(*byte);
+        *fingerprint = fingerprint.wrapping_mul(0x100_0000_01b3);
+    }
 }
 
 fn validate_decoded_relocations(
@@ -393,12 +569,13 @@ mod tests {
         let proof = id(7, ProofPayloadId::from_normalized_identity);
         let entry_set = id(8, EntrySetId::from_normalized_identity);
         let entry = EntryStubId::from_normalized_identity(9).expect("entry identity");
-        DecodedArtifactContainer {
+        let mut decoded = DecodedArtifactContainer {
             format_version: OMEGA_EXECUTABLE_CONTAINER_VERSION,
             total_length: 400,
             artifact: id(1, ArtifactId::from_normalized_identity),
             content: id(2, ArtifactContentId::from_normalized_identity),
             code_length: 64,
+            code: vec![0x90; 64],
             contracts,
             declared_footprint: footprint,
             placement_plan: placement,
@@ -452,7 +629,9 @@ mod tests {
                     length: 64,
                 },
             ],
-        }
+        };
+        decoded.content = normalized_decoded_content_identity(&decoded).expect("content identity");
+        decoded
     }
 
     #[test]
@@ -549,12 +728,16 @@ mod tests {
         duplicate.sections[5].length = 32;
         duplicate.sections[6].offset = 352;
         duplicate.total_length = 416;
+        duplicate.content =
+            normalized_decoded_content_identity(&duplicate).expect("duplicate content identity");
         let error = validate_decoded_container(duplicate, limits()).expect_err("duplicate entry");
         assert!(error.0.contains("must be unique"));
 
         let mut outside = decoded();
         let identity = EntryStubId::from_normalized_identity(10).expect("entry identity");
         outside.entries = vec![ArtifactEntry::from_canonical_decode(identity, 64)];
+        outside.content =
+            normalized_decoded_content_identity(&outside).expect("outside content identity");
         let error = validate_decoded_container(outside, limits()).expect_err("outside entry");
         assert!(error.0.contains("lies outside"));
 
@@ -583,6 +766,8 @@ mod tests {
                 addend: -4,
             },
         ];
+        canonical.content =
+            normalized_decoded_content_identity(&canonical).expect("relocation content identity");
         let validated =
             validate_decoded_container(canonical, limits()).expect("canonical relocations");
         assert_eq!(validated.relocations()[0].destination_offset, 8);
@@ -622,5 +807,46 @@ mod tests {
         });
         let error = validate_decoded_container(too_many, strict_limits).expect_err("bound rejects");
         assert!(error.0.contains("exceeding configured bound"));
+    }
+
+    #[test]
+    fn content_identity_binds_code_and_normalized_semantics_not_evidence() {
+        let baseline = decoded();
+        let baseline_identity = baseline.content;
+
+        let mut changed_code = decoded();
+        changed_code.code[0] ^= 1;
+        let error =
+            validate_decoded_container(changed_code, limits()).expect_err("code drift rejects");
+        assert!(error.0.contains("content identity"));
+
+        let mut changed_relocation = decoded();
+        changed_relocation.relocations[0].addend = 1;
+        let error = validate_decoded_container(changed_relocation, limits())
+            .expect_err("relocation drift rejects");
+        assert!(error.0.contains("content identity"));
+
+        let mut reordered = decoded();
+        let entry = EntryStubId::from_normalized_identity(10).expect("entry identity");
+        reordered
+            .entries
+            .push(ArtifactEntry::from_canonical_decode(entry, 24));
+        reordered.sections[5].length = 32;
+        reordered.sections[6].offset = 352;
+        reordered.total_length = 416;
+        reordered.content =
+            normalized_decoded_content_identity(&reordered).expect("two-entry identity");
+        let two_entry_identity = reordered.content;
+        reordered.entries.reverse();
+        let validated =
+            validate_decoded_container(reordered, limits()).expect("entry order normalizes");
+        assert_eq!(validated.artifact().content(), two_entry_identity);
+
+        let mut changed_proof = decoded();
+        changed_proof.proof_payload = id(99, ProofPayloadId::from_normalized_identity);
+        changed_proof.sections[6].kind = ContainerSectionKind::Proof(changed_proof.proof_payload);
+        let validated =
+            validate_decoded_container(changed_proof, limits()).expect("proof is evidence");
+        assert_eq!(validated.artifact().content(), baseline_identity);
     }
 }
